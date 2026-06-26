@@ -82,7 +82,25 @@ function main() {
     title: '复仇千金·短剧',
     targetEpisodeCount: 24,
     adaptationStyle: '快节奏爽剧',
+    seasonNumber: 1,
+    sourceChapterRange: { from: 1, to: 12 },
   })
+  // v1.0 多季字段往返：seasonNumber + sourceChapterRange(JSON) 解析正确
+  const apReloaded = repos.adaptationProject.getAdaptationProject(repos.db, ap.id)
+  assert(apReloaded?.seasonNumber === 1, 'createAdaptationProject seasonNumber 写回')
+  assert(
+    !!apReloaded?.sourceChapterRange &&
+      apReloaded.sourceChapterRange.from === 1 &&
+      apReloaded.sourceChapterRange.to === 12,
+    'createAdaptationProject sourceChapterRange(JSON) 解析',
+  )
+  // 默认值：不传 season 时为 1、每集时长默认 2 分钟
+  const apDef = repos.adaptationProject.createAdaptationProject(repos.db, {
+    title: '默认季测试',
+    targetEpisodeCount: 60,
+    adaptationStyle: '快节奏爽剧',
+  })
+  assert(apDef.seasonNumber === 1 && apDef.episodeDuration === '2分钟', '改编项目默认：seasonNumber=1 / episodeDuration=2分钟')
   const ep1 = repos.episode.createEpisode(repos.db, {
     adaptationProjectId: ap.id,
     episodeNumber: 1,

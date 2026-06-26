@@ -29,6 +29,9 @@ export function CreateAdaptationPage() {
   const [adaptationStyle, setAdaptationStyle] = useState<string>(STYLES[0])
   const [submitting, setSubmitting] = useState(false)
   const [chapterCount, setChapterCount] = useState<number>(0)
+  const [seasonNumber, setSeasonNumber] = useState<number>(1)
+  const [chapterFrom, setChapterFrom] = useState<number>(1)
+  const [chapterTo, setChapterTo] = useState<number>(50)
 
   useEffect(() => {
     void (async () => {
@@ -39,17 +42,32 @@ export function CreateAdaptationPage() {
     })()
   }, [params])
 
-  // 选定源项目后：默认集数 = 该项目章数 × 2（1 章 → 2 集）
+  // 选定源项目后：按章数自动推算「第 1 季」的章节范围与目标集数
+  // （1 季约 50 章、1 章 → 2 集 → 1 季约 100 集；200~300 章小说 → 4~6 季）
   useEffect(() => {
     if (!sourceProjectId) return
     void (async () => {
       const chapters = await ipc.chapter.list(sourceProjectId)
       setChapterCount(chapters.length)
-      // 1 章 → 2 集默认假设；章数为 0 时保留 60 兜底
-      const recommended = chapters.length * 2
+      const perSeason = 50 // 每季约 50 章
+      const from = 1
+      const to = Math.min(perSeason, chapters.length)
+      setChapterFrom(from)
+      setChapterTo(to)
+      // 本季章数 × 2 ≈ 本季目标集数
+      const seasonChapters = Math.max(0, to - from + 1)
+      const recommended = seasonChapters * 2
       if (recommended > 0) setTargetEpisodeCount(recommended)
     })()
   }, [sourceProjectId])
+
+  // 改章节范围时同步重算目标集数（章数 × 2）
+  useEffect(() => {
+    const seasonChapters = Math.max(0, chapterTo - chapterFrom + 1)
+    const recommended = seasonChapters * 2
+    if (recommended > 0) setTargetEpisodeCount(recommended)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterFrom, chapterTo])
 
   useEffect(() => {
     // 默认标题跟随源项目
@@ -80,6 +98,9 @@ export function CreateAdaptationPage() {
         adaptationStyle,
         // 2 分钟一集：短剧标准体量
         episodeDuration: '2分钟',
+        // 多季连载：本季季号 + 改编章节范围
+        seasonNumber,
+        sourceChapterRange: { from: chapterFrom, to: chapterTo },
       })
       toast.success('改编项目已创建')
       navigate(`/adaptations/${created.id}`)
@@ -133,13 +154,14 @@ export function CreateAdaptationPage() {
                 <SelectContent>
                   {episodeOptions.map((c) => (
                     <SelectItem key={c} value={String(c)}>
-                      {c} 集{c === chapterCount * 2 && chapterCount > 0 ? '（推荐：章数×2）' : ''}
+                      {c} 集
+                      {c === (chapterTo - chapterFrom + 1) * 2 && chapterCount > 0 ? '（推荐：本季章数×2）' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                默认按「1 章小说 → 2 集短剧（每集 2 分钟）」估算；情节密度不均时可自行调整。
+                默认按「1 章 → 2 集（每集 2 分钟）」估算；情节密度不均时可自行调整。
               </p>
             </div>
             <div className="space-y-2">
@@ -157,6 +179,51 @@ export function CreateAdaptationPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* 多季连载：季号 + 本季改编章节范围 */}
+          <div className="rounded-md border p-4">
+            <div className="mb-2 text-sm font-medium">多季连载设置</div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              200~300 章的长篇小说切成多季短剧，每季约 50 章 ≈ 100 集。本季只改编下方指定章节范围。
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs">第几季</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={seasonNumber}
+                  onChange={(e) => setSeasonNumber(Math.max(1, Number(e.target.value)))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">改编起始章</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={chapterCount || undefined}
+                  value={chapterFrom}
+                  onChange={(e) => setChapterFrom(Math.max(1, Number(e.target.value)))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">改编结束章</Label>
+                <Input
+                  type="number"
+                  min={chapterFrom}
+                  max={chapterCount || undefined}
+                  value={chapterTo}
+                  onChange={(e) => setChapterTo(Math.max(chapterFrom, Number(e.target.value)))}
+                />
+              </div>
+            </div>
+            {chapterCount > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                源小说共 {chapterCount} 章；本季改编第 {chapterFrom}~{chapterTo} 章（{(chapterTo - chapterFrom + 1)} 章），
+                预计 {(chapterTo - chapterFrom + 1) * 2} 集。
+              </p>
+            )}
           </div>
 
           <Button size="lg" onClick={handleSubmit} disabled={submitting}>

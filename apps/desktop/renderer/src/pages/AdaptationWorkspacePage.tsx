@@ -235,6 +235,14 @@ export function AdaptationWorkspacePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Meta label="目标集数" value={`${adaptation.targetEpisodeCount} 集`} />
                     <Meta label="每集时长" value={adaptation.episodeDuration ?? '—'} />
+                    <Meta
+                      label="季 / 改编范围"
+                      value={
+                        adaptation.sourceChapterRange
+                          ? `第 ${adaptation.seasonNumber ?? 1} 季 · 第 ${adaptation.sourceChapterRange.from}~${adaptation.sourceChapterRange.to} 章`
+                          : `第 ${adaptation.seasonNumber ?? 1} 季`
+                      }
+                    />
                     <Meta label="改编风格" value={adaptation.adaptationStyle} />
                     <Meta label="视觉风格方向" value={adaptation.visualStyleDirection ?? '—'} />
                     <Meta label="目标受众" value={adaptation.audience ?? '—'} />

@@ -96,6 +96,16 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         dramaTrendReport = repos.dramaTrend.getDramaTrend(db, projectId)
       }
 
+      // v1.0 多季连载：若改编项目指定了本季章节范围，分集/改编类任务只加载该范围章节
+      // （章节数组默认按 orderIndex 升序，按 1-based 序号切片）
+      if (adaptationProject?.sourceChapterRange && chapters.length) {
+        const { from, to } = adaptationProject.sourceChapterRange
+        chapters = chapters.filter((_, idx) => {
+          const n = idx + 1
+          return n >= from && n <= to
+        })
+      }
+
       let currentChapter = state.currentChapter
       if (state.chapterId) {
         currentChapter = repos.chapter.getChapter(db, state.chapterId) ?? currentChapter

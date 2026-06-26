@@ -331,13 +331,20 @@ export function buildAdaptationContext(input: ChapterContextInput): string {
   if (adaptationProject) {
     const fields = [
       line('改编标题', adaptationProject.title),
+      line('第几季', adaptationProject.seasonNumber),
+      line(
+        '本季改编范围',
+        adaptationProject.sourceChapterRange
+          ? `第 ${adaptationProject.sourceChapterRange.from}~${adaptationProject.sourceChapterRange.to} 章`
+          : undefined,
+      ),
       line('目标集数', adaptationProject.targetEpisodeCount),
       line('每集时长', adaptationProject.episodeDuration),
       line('改编风格', adaptationProject.adaptationStyle),
       line('视觉风格方向', adaptationProject.visualStyleDirection),
       line('目标受众', adaptationProject.audience),
     ].filter(Boolean)
-    sections.push(block('改编项目设定', fields.join('\n')))
+    sections.push(block('改编项目设定（本季）', fields.join('\n')))
     if (adaptationProject.strategy) {
       sections.push(block('已有改编策略', adaptationProject.strategy))
     }

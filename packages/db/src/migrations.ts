@@ -551,6 +551,8 @@ const ADD_COLUMN_SPECS: AddColumnSpec[] = [
   { table: 'evaluations', column: 'ai_video_feasibility_score', definition: 'REAL' },
   { table: 'evaluations', column: 'character_consistency_score', definition: 'REAL' },
   { table: 'evaluations', column: 'shot_clarity_score', definition: 'REAL' },
+  // 注：v1.0 多季的 season_number / source_chapter_range 由 v3 版本化迁移负责，
+  //     不放这里（ensureColumns 在 v1 内对全新库先加列会导致 v3 ALTER 重复列报错）。
 ]
 
 export function ensureColumns(raw: { exec(sql: string): void; prepare(sql: string): { all(...params: unknown[]): unknown[] } }): void {
