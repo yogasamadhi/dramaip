@@ -1,0 +1,150 @@
+// v0.8 内置短剧类型预设（ROADMAP v0.8 §4）—— 应用首次启动 seed 进 genre_presets 表。
+// 覆盖 11 个主流 AI 短剧类型，每个含常见人物关系/爽点/反转/开局/结尾钩子/视觉风格/Prompt建议/AI视频风险。
+
+export interface BuiltInGenrePreset {
+  name: string
+  description: string
+  commonRelationships: string[]
+  commonHighlights: string[]
+  commonReversals: string[]
+  commonOpenings: string[]
+  commonCliffhangers: string[]
+  visualStyle: string
+  shotPromptAdvice: string
+  aiVideoRisks: string
+}
+
+export const BUILT_IN_GENRE_PRESETS: BuiltInGenrePreset[] = [
+  {
+    name: '女频复仇',
+    description: '女主被背叛/陷害后隐忍蓄力，王者归来一步步清算仇人。',
+    commonRelationships: ['女主 vs 渣男前任', '女主 vs 白莲花', '女主 vs 幕后黑手', '女主 vs 暗中守护的男主'],
+    commonHighlights: ['打脸', '身份揭露', '反杀', '权势压制'],
+    commonReversals: ['幕后黑手竟是至亲', '仇人主动求和被拒', '女主早有后手'],
+    commonOpenings: ['重生归来', '三年后回归', '假死后现身'],
+    commonCliffhangers: ['下一仇人现身', '旧秘密再起', '新陷阱逼近'],
+    visualStyle: '现代都市短剧，豪门精致感，冷暖对比强化复仇冷感',
+    shotPromptAdvice: '多用特写女主冷峻表情与高定穿搭，关键打脸镜头给慢动作反打',
+    aiVideoRisks: '多人对峙场景角色一致性压力大，复杂情绪表情易崩',
+  },
+  {
+    name: '真假千金',
+    description: '真假千金身份错位，围绕家族、宠爱与真相展开博弈。',
+    commonRelationships: ['真千金 vs 假千金', '千金 vs 偏心父母', '千金 vs 站队男主'],
+    commonHighlights: ['身份揭露', '打脸', '强宠', '误会解除'],
+    commonReversals: ['假千金也有苦衷', '父母早知真相', '真千金另有隐藏身份'],
+    commonOpenings: ['认亲现场被顶替', '被赶出家门', '真千金低调归来'],
+    commonCliffhangers: ['又一重身世线索', '家人态度反转', '假千金反扑'],
+    visualStyle: '豪门精致感，明亮偏暖，强调穿搭与场景反差',
+    shotPromptAdvice: '认亲/打脸场景多给中景群像，关键道具（信物）给特写',
+    aiVideoRisks: '相似妆造人物易混淆，需强化角色一致性提示',
+  },
+  {
+    name: '重生逆袭',
+    description: '主角重生回到关键节点，利用先知优势逆天改命。',
+    commonRelationships: ['重生者 vs 前世仇敌', '重生者 vs 命运节点人物', '重生者 vs 守护者'],
+    commonHighlights: ['逆袭', '反杀', '身份揭露', '情绪爆发'],
+    commonReversals: ['前世仇敌也重生', '关键节点被改写引发蝴蝶效应', '守护者另有目的'],
+    commonOpenings: ['醒来回到过去', '目睹前世悲剧重演', '抓住重生时机'],
+    commonCliffhangers: ['蝴蝶效应显现', '新敌人出现', '前世记忆与现实冲突'],
+    visualStyle: '现代都市短剧，带回忆冷色调滤镜区分时空',
+    shotPromptAdvice: '回忆/现实切换用色调与转场区分，重生瞬间给强烈反应特写',
+    aiVideoRisks: '时空切换场景连续性难维持，转场易崩',
+  },
+  {
+    name: '霸总追妻',
+    description: '霸道总裁与女主的情感拉扯，从误会到追妻火葬场。',
+    commonRelationships: ['霸总 vs 女主', '霸总 vs 情敌', '女主 vs 闺蜜/家人'],
+    commonHighlights: ['追妻火葬场', '强宠', '虐恋', '误会解除'],
+    commonReversals: ['误会另有隐情', '霸总身份反转', '女主并非软弱'],
+    commonOpenings: ['合约结婚', '误会上床', '意外重逢'],
+    commonCliffhangers: ['女主决绝离开', '霸总醒悟追妻', '第三方介入'],
+    visualStyle: '豪门精致感，电影感，强调男主气场与女主反差',
+    shotPromptAdvice: '霸总出场用低角度仰拍与慢镜，追妻戏份给情绪特写',
+    aiVideoRisks: '亲密戏份生成难度高，情绪连贯性压力大',
+  },
+  {
+    name: '先婚后爱',
+    description: '先契约/利益结婚，在日常相处中萌生真情。',
+    commonRelationships: ['夫妻双方', '各自前段感情', '家族/商业牵线人'],
+    commonHighlights: ['强宠', '虐恋', '误会解除', '甜宠'],
+    commonReversals: ['对方早有真心', '婚姻另有秘密目的', '前段感情回头'],
+    commonOpenings: ['闪婚', '合约结婚', '被迫联姻'],
+    commonCliffhangers: ['真心暴露', '旧人出现', '合约到期抉择'],
+    visualStyle: '甜宠明亮风，现代都市短剧，暖色调',
+    shotPromptAdvice: '同居日常给温馨中景，心动瞬间给眼神特写',
+    aiVideoRisks: '日常场景易平淡，需强化情绪微表情',
+  },
+  {
+    name: '豪门恩怨',
+    description: '豪门家族内部权力、财产与情感的多方博弈。',
+    commonRelationships: ['继承人之间', '正室 vs 外室', '家族 vs 外部势力'],
+    commonHighlights: ['权力压制', '身份揭露', '反杀', '打脸'],
+    commonReversals: ['遗嘱另有安排', '私生子浮现', '盟友反水'],
+    commonOpenings: ['家主病危', '遗产分配', '继承人争夺'],
+    commonCliffhangers: ['新遗嘱出现', '秘密合伙人现身', '家族危机'],
+    visualStyle: '豪门精致感，电影感，暗色调权谋氛围',
+    shotPromptAdvice: '会议/对峙多用群像中景，关键文件给特写',
+    aiVideoRisks: '群像戏角色一致性压力大，场景复杂度高',
+  },
+  {
+    name: '赘婿打脸',
+    description: '被看不起的赘婿其实是隐藏大佬，一步步打脸众人。',
+    commonRelationships: ['赘婿 vs 岳家', '赘婿 vs 真实势力', '妻子 vs 家族'],
+    commonHighlights: ['打脸', '逆袭', '身份揭露', '反杀'],
+    commonReversals: ['岳家早有内鬼', '赘婿身份不止一层', '妻子另有立场'],
+    commonOpenings: ['被羞辱现场', '隐忍示弱', '关键时刻出手'],
+    commonCliffhangers: ['真实身份即将曝光', '岳家大难临头', '新势力登场'],
+    visualStyle: '现代都市短剧，前抑后扬，反差打脸镜头张力强',
+    shotPromptAdvice: '打脸瞬间给众人震惊群像反打，赘婿出手用慢镜',
+    aiVideoRisks: '群像反应镜头多，角色一致性压力大',
+  },
+  {
+    name: '战神归来',
+    description: '隐退战神重返都市，守护至亲、清算旧账。',
+    commonRelationships: ['战神 vs 旧敌', '战神 vs 守护对象', '战神 vs 手下/势力'],
+    commonHighlights: ['打脸', '反杀', '权力压制', '逆袭'],
+    commonReversals: ['旧敌另有后台', '守护对象身份特殊', '战神有未公开任务'],
+    commonOpenings: ['退伍归来', '至亲遇险', '低调进城'],
+    commonCliffhangers: ['新任务下达', '旧敌出手', '身份曝光边缘'],
+    visualStyle: '电影感，现代都市短剧，动作戏偏硬朗',
+    shotPromptAdvice: '战神出手用低角度与快速剪辑，气场压制给仰拍',
+    aiVideoRisks: '动作戏生成难度高，多人战斗场景易崩',
+  },
+  {
+    name: '悬疑反转',
+    description: '以层层反转和真相揭露为核心驱动力的悬疑短剧。',
+    commonRelationships: ['调查者 vs 嫌疑人', '受害者 vs 关系网', '真相背后势力'],
+    commonHighlights: ['真相曝光', '反转', '身份揭露', '反杀'],
+    commonReversals: ['叙述性诡计', '凶手另有其人', '受害者设局'],
+    commonOpenings: ['离奇事件', '意外死亡', '失踪谜团'],
+    commonCliffhangers: ['新线索颠覆认知', '调查者陷入危险', '真相只露一角'],
+    visualStyle: '悬疑冷色调，电影感，强调光影与氛围',
+    shotPromptAdvice: '关键线索/物证给特写，反转瞬间用反应镜头',
+    aiVideoRisks: '氛围光影难稳定维持，复杂场景一致性风险',
+  },
+  {
+    name: '古装权谋',
+    description: '古代朝堂或后宅的权力斗争与人心算计。',
+    commonRelationships: ['主君 vs 朝臣/姬妾', '势力之间', '棋子 vs 棋手'],
+    commonHighlights: ['权力压制', '反杀', '身份揭露', '打脸'],
+    commonReversals: ['忠臣是内奸', '棋手亦为棋子', '联姻另有图谋'],
+    commonOpenings: ['朝堂变故', '后宅入局', '联姻之夜'],
+    commonCliffhangers: ['政变前夕', '盟友反水', '新势力入局'],
+    visualStyle: '古风国风，电影感，服化道精致',
+    shotPromptAdvice: '朝堂/宴席给大景别群像，密谋给暗调近景',
+    aiVideoRisks: '古装服化道具一致性难，大场面群像生成压力高',
+  },
+  {
+    name: '玄学直播',
+    description: '玄学/算命/通灵主播在线解决灵异与人间恩怨。',
+    commonRelationships: ['主播 vs 信众', '主播 vs 厉鬼/怨灵', '主播 vs 业内对手'],
+    commonHighlights: ['打脸', '真相曝光', '反杀', '情绪爆发'],
+    commonReversals: ['鬼魂有冤情', '主播身世特殊', '对手亦通玄'],
+    commonOpenings: ['直播连线', '灵异事件上门', '身世线索'],
+    commonCliffhangers: ['更猛厉鬼将至', '主播秘密曝光', '直播间被封'],
+    visualStyle: '悬疑冷色调带奇幻光效，现代都市短剧',
+    shotPromptAdvice: '灵异特效用光雾/粒子，主播做法给仪式感中景',
+    aiVideoRisks: '灵异特效/光效 AI 难稳定，易出现崩坏元素',
+  },
+]

@@ -1,0 +1,102 @@
+# 开发文档
+
+本文档面向贡献者，说明项目架构、各包职责、数据流，以及「新增一个 AI 任务」「数据库迁移」「构建打包」的标准步骤。开始前请先读 [README](./README.md) 了解产品定位与安装。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 桌面框架 | Electron 36 + electron-vite |
+| 渲染层 | React 19 + TypeScript + Vite + Tailwind + shadcn/ui |
+| 状态 | Zustand |
+| AI 编排 | LangGraph（`@langchain/langgraph`） |
+| AI 模型 | OpenAI-compatible（任意符合该协议的 Provider） |
+| 本地存储 | SQLite（better-sqlite3）+ Drizzle ORM |
+| 包管理 | pnpm workspace |
+
+## 仓库结构
+
+```
+packages/
+  core/      类型 / Zod schema / 常量（纯类型，无副作用）
+  db/        Drizzle schema + 版本化迁移 + 每实体一个 repository
+  ai/        LangGraph 工作流 + prompt + provider + 解析/校验
+  export/    Markdown / JSON / CSV 导出 + 完整项目包导入导出
+apps/
+  desktop/
+    electron/  main 进程：ipc/、main.ts、db.ts、preload.ts
+    renderer/  React 应用：pages/、components/、stores/、lib/ipc.ts
+scripts/
+  smoke-db.ts  DB 冒烟测试（迁移 + 各 repo CRUD + 项目包往返）
+```
+
+## 五层架构与数据流
+
+一次「AI 生成章节」请求穿越五层：
+
+```
+渲染层 (pages/sections)
+  └─ ipc.ai.run({ taskType: 'generate_chapter', ... })   ← lib/ipc.ts（类型化契约）
+主进程 (electron/ipc/ai.ipc.ts)
+  └─ resolveProviderForTask(repos, taskType)              ← 按任务组选模型 / 回退默认
+  └─ runNovelWorkflow({ repos, provider }, input)          ← packages/ai
+AI 层 (packages/ai/graphs/novel-workflow.graph.ts)
+  ├─ build_prompt（loader 取 prompt 模板 + context-builder 拼上下文）
+  ├─ call_model（provider.chat）
+  ├─ parse_output（extractJson / 取原文）
+  ├─ validate_output（Zod 校验）
+  └─ save_result / save_ai_run（记账 + 部分任务自动落库）
+DB 层 (packages/db/repositories/*) → SQLite
+```
+
+**关键约定：**
+- 渲染层永远不直接碰 DB，全部经 `lib/ipc.ts` 的类型化方法。
+- IPC 契约**单一来源**：`preload.ts`（contextBridge）与 `renderer/src/lib/ipc.ts`（StudioApi 接口）必须保持一致。
+- 失败优先返回结构化 `{ ok, error }`，渲染层 catch 后 `toast.error`。
+
+## 新增一个 AI 任务（最常见扩展）
+
+以「生成 X」为例，标准步骤：
+
+1. **core 类型**：`packages/core/src/types/index.ts` 在 `NovelTaskType` 联合追加 `'generate_x'`。
+2. **core schema**：`packages/core/src/schemas/index.ts` 加 `XResultSchema`（Zod），并登记进 `ALL_RESULT_SCHEMAS`。
+3. **core 常量**：`constants/index.ts` 的 `TASK_TYPE_LABELS` 加中文标签；按需把 taskType 归入 `TASK_GROUPS`（用于按任务选模型）。
+4. **prompt**：`packages/ai/src/prompts/zh-CN/<域>/generate-x.md`，顶部 YAML 头含 `taskType`/`output: json|text`/`version`。
+5. **loader 注册**：`packages/ai/src/prompts/loader.ts` `?raw` import + 写入 `REGISTRY` + 按需加入 `JSON_TASKS`。
+6. **context**：若需新上下文维度，在 `context-builder.ts` 加 builder 并在 `build-prompt.node.ts` 的 switch 接入。
+7. **落库**：若产物要自动入库，在 `save-result.node.ts` 加分支；若是 generate 类（预览后落库），在 `persistence.ts` 的 `applyGeneratedArtifact` 加分支。
+8. **UI**：渲染层加触发按钮 → `ipc.ai.run({ taskType: 'generate_x' })` → 预览弹窗 → `ipc.ai.applyResult(...)`。
+
+## 数据库迁移机制（v1.0）
+
+- 迁移框架：`packages/db/src/migrator.ts`。
+- `schema_migrations(version, applied_at)` 表记录已应用版本，保证「每版本有明确 migration」。
+- **新增迁移**：在 `MIGRATIONS` 数组追加一个 `{ version, name, up(raw) }`，`up` 里 `CREATE TABLE IF NOT EXISTS` / `ensureColumns`（列级幂等）。
+- `createDb(dbPath)` 启动时自动 `runMigrations`：首次建全部表为 v1；旧库经 IF NOT EXISTS 安全补齐，**数据零丢失**。
+- **新增列**（对已有表）：优先在 `migrations.ts` 的 `ADD_COLUMN_SPECS` 加 `{ table, column, sql }`，`ensureColumns` 会用 `PRAGMA table_info` 探测后 `ALTER TABLE ADD COLUMN`。
+- 验证：`scripts/smoke-db.ts` 含迁移幂等检查。
+
+## 模型配置（v1.0）
+
+- 支持多模型 + 默认模型 + **按任务组指定模型**。
+- `resolveProviderForTask(repos, taskType)` 优先查 `task_model_bindings`（按 `TASK_GROUPS` 归组），命中则用绑定模型，否则回退默认。
+- 连接测试：`model:testConnection` 发最小 chat 请求。
+- Token/耗时统计：`ai_runs` 表记录每次调用的 token/latency/status，`summarizeAiRuns` 按模型聚合（设置 → Token 与耗时统计）。
+
+## 本地备份（v1.0）
+
+- **自动备份**：应用启动时把 `studio.db` 复制到 `userData/backups/studio-<时间戳>.db`，保留最近 7 份。
+- **项目包**：`.sdnspkg`（JSON）含项目全部关联数据；导入时用事务整体写入、id 重映射、保留外键。
+
+## 构建与打包
+
+```bash
+pnpm install            # 安装依赖
+pnpm typecheck          # 全量类型检查（5 个包）
+pnpm dev                # 启动开发模式
+pnpm --filter @sdns/desktop build   # 构建产物
+pnpm package            # electron-builder 打包（mac dmg / win nsis / linux AppImage+deb）
+```
+
+- 原生模块 `better-sqlite3` 在 `electron-builder.yml` 的 `asarUnpack` 中解包。
+- 跑 `smoke-db.ts` 需为当前 Node ABI 重新编译 better-sqlite3（详见 [CONTRIBUTING](./CONTRIBUTING.md)）。

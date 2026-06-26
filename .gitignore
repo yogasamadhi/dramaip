@@ -1,0 +1,50 @@
+# dependencies
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnp/
+
+# build output
+dist/
+dist-electron/
+out/
+**/dist/
+*.tsbuildinfo
+
+# electron-vite
+apps/desktop/out/
+
+# database artifacts
+packages/db/drizzle/*.sql.bak
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sql
+
+# logs and runtime artifacts
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.local
+
+# environment files
+.env
+.env.*
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# cache
+.cache/
+.vite/
+node_modules/.cache/
+
+# misc
+*.tgz

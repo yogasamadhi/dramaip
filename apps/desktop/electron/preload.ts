@@ -1,0 +1,306 @@
+// preload —— 通过 contextBridge 暴露受控的 window.api（项目说明.md §17：React 不直连模型/DB）
+import { contextBridge, ipcRenderer } from 'electron'
+
+const invoke = ipcRenderer.invoke.bind(ipcRenderer)
+
+function createRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+const api = {
+  project: {
+    list: () => invoke('project:list'),
+    get: (id: string) => invoke('project:get', id),
+    create: (data: unknown) => invoke('project:create', data),
+    update: (id: string, patch: unknown) => invoke('project:update', id, patch),
+    remove: (id: string) => invoke('project:delete', id),
+    // v1.0：导入项目包
+    importPackage: () => invoke('project:importPackage'),
+  },
+  chapter: {
+    list: (projectId: string) => invoke('chapter:list', projectId),
+    get: (id: string) => invoke('chapter:get', id),
+    create: (data: unknown) => invoke('chapter:create', data),
+    update: (id: string, patch: unknown) => invoke('chapter:update', id, patch),
+    updateContent: (id: string, content: string) => invoke('chapter:updateContent', id, content),
+    remove: (id: string) => invoke('chapter:delete', id),
+  },
+  character: {
+    list: (projectId: string) => invoke('character:list', projectId),
+    create: (data: unknown) => invoke('character:create', data),
+    update: (id: string, patch: unknown) => invoke('character:update', id, patch),
+    remove: (id: string) => invoke('character:delete', id),
+  },
+  outline: {
+    list: (projectId: string, type?: 'book' | 'chapter') => invoke('outline:list', projectId, type),
+    create: (data: unknown) => invoke('outline:create', data),
+    update: (id: string, patch: unknown) => invoke('outline:update', id, patch),
+    remove: (id: string) => invoke('outline:delete', id),
+  },
+  evaluation: {
+    list: (projectId: string) => invoke('evaluation:list', projectId),
+  },
+  aiRun: {
+    list: (projectId: string) => invoke('aiRun:list', projectId),
+    // v1.0
+    summarize: () => invoke('aiRun:summarize'),
+  },
+  model: {
+    list: () => invoke('model:list'),
+    getDefault: () => invoke('model:getDefault'),
+    create: (data: unknown) => invoke('model:create', data),
+    update: (id: string, patch: unknown) => invoke('model:update', id, patch),
+    remove: (id: string) => invoke('model:delete', id),
+    setDefault: (id: string) => invoke('model:setDefault', id),
+    // v1.0
+    listTaskBindings: () => invoke('model:listTaskBindings'),
+    upsertTaskBinding: (taskGroup: string, modelConfigId: string) =>
+      invoke('model:upsertTaskBinding', taskGroup, modelConfigId),
+    deleteTaskBinding: (taskGroup: string) => invoke('model:deleteTaskBinding', taskGroup),
+    testConnection: (config: unknown) => invoke('model:testConnection', config),
+  },
+  ai: {
+    run: (input: {
+      projectId?: string
+      chapterId?: string
+      characterId?: string
+      adaptationProjectId?: string
+      episodeId?: string
+      sceneId?: string
+      shotId?: string
+      taskType: string
+      userInstruction?: string
+      chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+      templateContent?: string
+      templateScope?: string
+    }) => invoke('ai:run', input),
+    runStream: (
+      input: {
+        projectId?: string
+        chapterId?: string
+        characterId?: string
+        adaptationProjectId?: string
+        episodeId?: string
+        sceneId?: string
+        shotId?: string
+        taskType: string
+        userInstruction?: string
+        chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+        templateContent?: string
+        templateScope?: string
+      },
+      onChunk: (chunk: string) => void,
+    ) => {
+      const requestId = createRequestId()
+      const listener = (_event: Electron.IpcRendererEvent, payload: { requestId: string; chunk: string }) => {
+        if (payload.requestId === requestId) onChunk(payload.chunk)
+      }
+      ipcRenderer.on('ai:stream:chunk', listener)
+      return invoke('ai:runStream', input, requestId).finally(() => {
+        ipcRenderer.removeListener('ai:stream:chunk', listener)
+      })
+    },
+    applyResult: (input: {
+      projectId: string
+      taskType: string
+      data: unknown
+      characterId?: string
+      adaptationProjectId?: string
+    }) =>
+      invoke('ai:applyResult', input),
+  },
+  // v0.2 长篇一致性与视觉记忆系统
+  chapterMemory: {
+    list: (projectId: string) => invoke('chapterMemory:list', projectId),
+    get: (id: string) => invoke('chapterMemory:get', id),
+    create: (data: unknown) => invoke('chapterMemory:create', data),
+    update: (id: string, patch: unknown) => invoke('chapterMemory:update', id, patch),
+    remove: (id: string) => invoke('chapterMemory:delete', id),
+  },
+  characterState: {
+    list: (projectId: string) => invoke('characterState:list', projectId),
+    listByCharacter: (characterId: string) => invoke('characterState:listByCharacter', characterId),
+    create: (data: unknown) => invoke('characterState:create', data),
+    remove: (id: string) => invoke('characterState:delete', id),
+  },
+  visualProfile: {
+    list: (projectId: string) => invoke('visualProfile:list', projectId),
+    getByCharacter: (characterId: string) => invoke('visualProfile:getByCharacter', characterId),
+    create: (data: unknown) => invoke('visualProfile:create', data),
+    update: (id: string, patch: unknown) => invoke('visualProfile:update', id, patch),
+    remove: (id: string) => invoke('visualProfile:delete', id),
+  },
+  visualSetting: {
+    list: (projectId: string) => invoke('visualSetting:list', projectId),
+    create: (data: unknown) => invoke('visualSetting:create', data),
+    update: (id: string, patch: unknown) => invoke('visualSetting:update', id, patch),
+    remove: (id: string) => invoke('visualSetting:delete', id),
+  },
+  storyEvent: {
+    list: (projectId: string) => invoke('storyEvent:list', projectId),
+    create: (data: unknown) => invoke('storyEvent:create', data),
+    update: (id: string, patch: unknown) => invoke('storyEvent:update', id, patch),
+    remove: (id: string) => invoke('storyEvent:delete', id),
+  },
+  foreshadowing: {
+    list: (projectId: string) => invoke('foreshadowing:list', projectId),
+    create: (data: unknown) => invoke('foreshadowing:create', data),
+    update: (id: string, patch: unknown) => invoke('foreshadowing:update', id, patch),
+    remove: (id: string) => invoke('foreshadowing:delete', id),
+  },
+  // v0.3 AI 短剧小说强化系统
+  beat: {
+    list: (projectId: string) => invoke('beat:list', projectId),
+    listByChapter: (chapterId: string) => invoke('beat:listByChapter', chapterId),
+    create: (data: unknown) => invoke('beat:create', data),
+    update: (id: string, patch: unknown) => invoke('beat:update', id, patch),
+    remove: (id: string) => invoke('beat:delete', id),
+  },
+  highlight: {
+    list: (projectId: string) => invoke('highlight:list', projectId),
+    create: (data: unknown) => invoke('highlight:create', data),
+    remove: (id: string) => invoke('highlight:delete', id),
+  },
+  feasibility: {
+    list: (projectId: string) => invoke('feasibility:list', projectId),
+    create: (data: unknown) => invoke('feasibility:create', data),
+    remove: (id: string) => invoke('feasibility:delete', id),
+  },
+  dramaTrend: {
+    get: (projectId: string) => invoke('dramaTrend:get', projectId),
+    remove: (id: string) => invoke('dramaTrend:delete', id),
+  },
+  // v0.4 改编分集大纲
+  adaptationProject: {
+    list: () => invoke('adaptationProject:list'),
+    listByProject: (sourceProjectId: string) => invoke('adaptationProject:listByProject', sourceProjectId),
+    get: (id: string) => invoke('adaptationProject:get', id),
+    create: (data: unknown) => invoke('adaptationProject:create', data),
+    update: (id: string, patch: unknown) => invoke('adaptationProject:update', id, patch),
+    remove: (id: string) => invoke('adaptationProject:delete', id),
+  },
+  episode: {
+    list: (adaptationProjectId: string) => invoke('episode:list', adaptationProjectId),
+    create: (data: unknown) => invoke('episode:create', data),
+    update: (id: string, patch: unknown) => invoke('episode:update', id, patch),
+    reorder: (orderedIds: string[]) => invoke('episode:reorder', orderedIds),
+    remove: (id: string) => invoke('episode:delete', id),
+  },
+  episodeAnalysis: {
+    get: (adaptationProjectId: string) => invoke('episodeAnalysis:get', adaptationProjectId),
+    remove: (id: string) => invoke('episodeAnalysis:delete', id),
+  },
+  // v0.5 AI 短剧剧本生成
+  script: {
+    list: (adaptationProjectId: string) => invoke('script:list', adaptationProjectId),
+    get: (id: string) => invoke('script:get', id),
+    getByEpisode: (episodeId: string) => invoke('script:getByEpisode', episodeId),
+    create: (data: unknown) => invoke('script:create', data),
+    update: (id: string, patch: unknown) => invoke('script:update', id, patch),
+    updateContent: (id: string, content: string) => invoke('script:updateContent', id, content),
+    remove: (id: string) => invoke('script:delete', id),
+  },
+  scene: {
+    listByScript: (scriptId: string) => invoke('scene:listByScript', scriptId),
+    update: (id: string, patch: unknown) => invoke('scene:update', id, patch),
+    remove: (id: string) => invoke('scene:delete', id),
+  },
+  scriptReview: {
+    get: (scriptId: string) => invoke('scriptReview:get', scriptId),
+    remove: (id: string) => invoke('scriptReview:delete', id),
+  },
+  // v0.6 分镜与镜头 Prompt 生成
+  shot: {
+    listByScene: (sceneId: string) => invoke('shot:listByScene', sceneId),
+    listByEpisode: (episodeId: string) => invoke('shot:listByEpisode', episodeId),
+    get: (id: string) => invoke('shot:get', id),
+    create: (data: unknown) => invoke('shot:create', data),
+    update: (id: string, patch: unknown) => invoke('shot:update', id, patch),
+    remove: (id: string) => invoke('shot:delete', id),
+  },
+  shotReview: {
+    get: (shotId: string) => invoke('shotReview:get', shotId),
+    remove: (id: string) => invoke('shotReview:delete', id),
+  },
+  promptVersion: {
+    list: (shotId: string) => invoke('promptVersion:list', shotId),
+  },
+  // v0.7 AI 视频平台对接
+  videoProvider: {
+    list: () => invoke('videoProvider:list'),
+    getDefault: () => invoke('videoProvider:getDefault'),
+    create: (data: unknown) => invoke('videoProvider:create', data),
+    update: (id: string, patch: unknown) => invoke('videoProvider:update', id, patch),
+    remove: (id: string) => invoke('videoProvider:delete', id),
+    setDefault: (id: string) => invoke('videoProvider:setDefault', id),
+  },
+  videoTask: {
+    list: () => invoke('videoTask:list'),
+    listByShot: (shotId: string) => invoke('videoTask:listByShot', shotId),
+    listByEpisode: (episodeId: string) => invoke('videoTask:listByEpisode', episodeId),
+    get: (id: string) => invoke('videoTask:get', id),
+    create: (input: unknown) => invoke('videoTask:create', input),
+    checkStatus: (taskId: string) => invoke('videoTask:checkStatus', taskId),
+    retry: (taskId: string, providerConfigId?: string) => invoke('videoTask:retry', taskId, providerConfigId),
+    update: (id: string, patch: unknown) => invoke('videoTask:update', id, patch),
+    remove: (id: string) => invoke('videoTask:delete', id),
+  },
+  videoResult: {
+    listByTask: (taskId: string) => invoke('videoResult:listByTask', taskId),
+    listByShot: (shotId: string) => invoke('videoResult:listByShot', shotId),
+    compare: (shotId: string) => invoke('videoResult:compare', shotId),
+    selectBest: (resultId: string) => invoke('videoResult:selectBest', resultId),
+    update: (id: string, patch: unknown) => invoke('videoResult:update', id, patch),
+    remove: (id: string) => invoke('videoResult:delete', id),
+  },
+  export: {
+    projectMarkdown: (projectId: string) => invoke('export:projectMarkdown', projectId),
+    projectJson: (projectId: string) => invoke('export:projectJson', projectId),
+    chapterMarkdown: (chapterId: string) => invoke('export:chapterMarkdown', chapterId),
+    adaptationMarkdown: (adaptationId: string) => invoke('export:adaptationMarkdown', adaptationId),
+    adaptationJson: (adaptationId: string) => invoke('export:adaptationJson', adaptationId),
+    scriptMarkdown: (scriptId: string) => invoke('export:scriptMarkdown', scriptId),
+    scriptJson: (scriptId: string) => invoke('export:scriptJson', scriptId),
+    scriptsMarkdown: (adaptationId: string) => invoke('export:scriptsMarkdown', adaptationId),
+    scriptsJson: (adaptationId: string) => invoke('export:scriptsJson', adaptationId),
+    shotsMarkdown: (sceneId: string) => invoke('export:shotsMarkdown', sceneId),
+    shotsJson: (sceneId: string) => invoke('export:shotsJson', sceneId),
+    shotsCsv: (sceneId: string) => invoke('export:shotsCsv', sceneId),
+    // v1.0：完整项目包
+    projectPackage: (projectId: string) => invoke('export:projectPackage', projectId),
+  },
+  // v0.8 多 Agent 编剧室与模板系统
+  agent: {
+    list: () => invoke('agent:list'),
+    get: (id: string) => invoke('agent:get', id),
+    create: (data: unknown) => invoke('agent:create', data),
+    update: (id: string, patch: unknown) => invoke('agent:update', id, patch),
+    remove: (id: string) => invoke('agent:delete', id),
+  },
+  writingRoom: {
+    run: (input: unknown) => invoke('writingRoom:run', input),
+  },
+  template: {
+    list: () => invoke('template:list'),
+    listByType: (type: string) => invoke('template:listByType', type),
+    get: (id: string) => invoke('template:get', id),
+    create: (data: unknown) => invoke('template:create', data),
+    update: (id: string, patch: unknown) => invoke('template:update', id, patch),
+    remove: (id: string) => invoke('template:delete', id),
+    extractVariables: (content: string) => invoke('template:extractVariables', content),
+    run: (input: unknown) => invoke('template:run', input),
+  },
+  genrePreset: {
+    list: () => invoke('genrePreset:list'),
+    get: (id: string) => invoke('genrePreset:get', id),
+    create: (data: unknown) => invoke('genrePreset:create', data),
+    update: (id: string, patch: unknown) => invoke('genrePreset:update', id, patch),
+    remove: (id: string) => invoke('genrePreset:delete', id),
+  },
+  templateRun: {
+    list: () => invoke('templateRun:list'),
+    listByTemplate: (templateId: string) => invoke('templateRun:listByTemplate', templateId),
+  },
+}
+
+contextBridge.exposeInMainWorld('api', api)
