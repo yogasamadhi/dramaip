@@ -1,5 +1,6 @@
 // OpenAI-compatible 模型 Provider（项目说明.md §9）
 import type { ChatInput, ChatOutput, LLMProvider, ModelConfig } from '@sdns/core'
+import { fetchWithRetry, HttpRequestError } from './http-client'
 
 export interface OpenAICompatibleOptions {
   name: string
@@ -10,6 +11,24 @@ export interface OpenAICompatibleOptions {
 
 function trimSlash(s: string): string {
   return s.replace(/\/+$/, '')
+}
+
+async function requestChatCompletions(url: string, apiKey: string, body: Record<string, unknown>, input: ChatInput): Promise<Response> {
+  return fetchWithRetry(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    },
+    { timeoutMs: 90_000, retries: 2, signal: input.signal },
+  ).catch((e) => {
+    if (e instanceof HttpRequestError) throw new Error(`模型请求失败 (${e.message})`)
+    throw e
+  })
 }
 
 export class OpenAICompatibleProvider implements LLMProvider {
@@ -36,20 +55,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (typeof input.maxTokens === 'number') body.max_tokens = input.maxTokens
     if (input.responseFormat === 'json') body.response_format = { type: 'json_object' }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`模型请求失败 (HTTP ${res.status}): ${detail.slice(0, 500)}`)
-    }
-
+    const res = await requestChatCompletions(url, this.apiKey, body, input)
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[]
       usage?: { total_tokens?: number }
@@ -72,19 +78,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (typeof input.maxTokens === 'number') body.max_tokens = input.maxTokens
     if (input.responseFormat === 'json') body.response_format = { type: 'json_object' }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    })
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`模型请求失败 (HTTP ${res.status}): ${detail.slice(0, 500)}`)
-    }
+    const res = await requestChatCompletions(url, this.apiKey, body, input)
     if (!res.body) throw new Error('模型未返回可读取的流')
 
     const reader = res.body.getReader()

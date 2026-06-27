@@ -29,6 +29,7 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.local
+_tmp_*
 
 # environment files
 .env

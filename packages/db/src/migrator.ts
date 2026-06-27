@@ -69,6 +69,48 @@ export const MIGRATIONS: Migration[] = [
       raw.exec(`ALTER TABLE adaptation_projects ADD COLUMN source_chapter_range TEXT;`)
     },
   },
+  {
+    version: 4,
+    name: 'indexes-and-runtime-constraints',
+    up(raw) {
+      raw.exec(`
+        CREATE INDEX IF NOT EXISTS idx_characters_project_id ON characters(project_id);
+        CREATE INDEX IF NOT EXISTS idx_outlines_project_type ON outlines(project_id, type);
+        CREATE INDEX IF NOT EXISTS idx_chapters_project_order ON chapters(project_id, order_index);
+        CREATE INDEX IF NOT EXISTS idx_evaluations_project_chapter ON evaluations(project_id, chapter_id);
+        CREATE INDEX IF NOT EXISTS idx_ai_runs_project_created ON ai_runs(project_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_chapter_memories_project_chapter ON chapter_memories(project_id, chapter_id);
+        CREATE INDEX IF NOT EXISTS idx_character_states_character ON character_states(character_id);
+        CREATE INDEX IF NOT EXISTS idx_character_visual_profiles_character ON character_visual_profiles(character_id);
+        CREATE INDEX IF NOT EXISTS idx_visual_settings_project_id ON visual_settings(project_id);
+        CREATE INDEX IF NOT EXISTS idx_story_events_project_order ON story_events(project_id, order_index);
+        CREATE INDEX IF NOT EXISTS idx_foreshadowings_project_status ON foreshadowings(project_id, status);
+        CREATE INDEX IF NOT EXISTS idx_beats_project_chapter ON beats(project_id, chapter_id);
+        CREATE INDEX IF NOT EXISTS idx_highlight_analyses_project_chapter ON highlight_analyses(project_id, chapter_id);
+        CREATE INDEX IF NOT EXISTS idx_ai_video_feasibility_project_chapter ON ai_video_feasibility_reports(project_id, chapter_id);
+        CREATE INDEX IF NOT EXISTS idx_drama_trend_reports_project_id ON drama_trend_reports(project_id);
+        CREATE INDEX IF NOT EXISTS idx_adaptation_projects_source_project ON adaptation_projects(source_project_id);
+        CREATE INDEX IF NOT EXISTS idx_episodes_adaptation_episode ON episodes(adaptation_project_id, episode_number);
+        CREATE INDEX IF NOT EXISTS idx_episode_analyses_adaptation ON episode_analyses(adaptation_project_id);
+        CREATE INDEX IF NOT EXISTS idx_scripts_adaptation_episode ON scripts(adaptation_project_id, episode_id);
+        CREATE INDEX IF NOT EXISTS idx_scenes_script_order ON scenes(script_id, order_index);
+        CREATE INDEX IF NOT EXISTS idx_script_reviews_script ON script_reviews(script_id);
+        CREATE INDEX IF NOT EXISTS idx_shots_scene_number ON shots(scene_id, shot_number);
+        CREATE INDEX IF NOT EXISTS idx_shots_episode_id ON shots(episode_id);
+        CREATE INDEX IF NOT EXISTS idx_shot_reviews_shot ON shot_reviews(shot_id);
+        CREATE INDEX IF NOT EXISTS idx_prompt_versions_shot_version ON prompt_versions(shot_id, version);
+        CREATE INDEX IF NOT EXISTS idx_video_tasks_shot_status ON video_generation_tasks(shot_id, status);
+        CREATE INDEX IF NOT EXISTS idx_video_tasks_episode_status ON video_generation_tasks(episode_id, status);
+        CREATE INDEX IF NOT EXISTS idx_video_results_task ON video_results(task_id);
+        CREATE INDEX IF NOT EXISTS idx_video_results_shot_best ON video_results(shot_id, is_best);
+        CREATE INDEX IF NOT EXISTS idx_template_runs_template_created ON template_runs(template_id, created_at);
+        UPDATE model_configs SET is_default = 0 WHERE is_default = 1 AND id NOT IN (SELECT id FROM model_configs WHERE is_default = 1 ORDER BY created_at LIMIT 1);
+        UPDATE video_provider_configs SET is_default = 0 WHERE is_default = 1 AND id NOT IN (SELECT id FROM video_provider_configs WHERE is_default = 1 ORDER BY created_at LIMIT 1);
+        CREATE UNIQUE INDEX IF NOT EXISTS model_configs_single_default ON model_configs(is_default) WHERE is_default = 1;
+        CREATE UNIQUE INDEX IF NOT EXISTS video_provider_configs_single_default ON video_provider_configs(is_default) WHERE is_default = 1;
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

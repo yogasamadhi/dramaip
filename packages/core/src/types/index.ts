@@ -685,6 +685,7 @@ export interface ChatInput {
   temperature?: number
   maxTokens?: number
   responseFormat?: 'text' | 'json'
+  signal?: AbortSignal
 }
 
 export interface ChatOutput {

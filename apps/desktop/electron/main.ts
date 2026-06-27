@@ -1,8 +1,44 @@
 // Electron 主进程入口
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, session } from 'electron'
 import { join } from 'node:path'
 import { safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
+
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
+
+function canOpenExternal(url: string): boolean {
+  try {
+    return ALLOWED_EXTERNAL_PROTOCOLS.has(new URL(url).protocol)
+  } catch {
+    return false
+  }
+}
+
+function installSecurityHeaders(): void {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const dev = Boolean(process.env['ELECTRON_RENDERER_URL'])
+    const scriptSrc = dev ? "script-src 'self' 'unsafe-eval' 'unsafe-inline';" : "script-src 'self';"
+    const connectSrc = dev
+      ? "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"
+      : "connect-src 'self';"
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          [
+            "default-src 'self';",
+            scriptSrc,
+            "style-src 'self' 'unsafe-inline';",
+            "img-src 'self' data: https: file:;",
+            "media-src 'self' data: https: file:;",
+            connectSrc,
+          ].join(' '),
+        ],
+        'X-Content-Type-Options': ['nosniff'],
+      },
+    })
+  })
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -16,17 +52,25 @@ function createWindow(): void {
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   })
 
   mainWindow.on('ready-to-show', () => mainWindow.show())
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    if (canOpenExternal(url)) void shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url === mainWindow.webContents.getURL()) return
+    event.preventDefault()
+    if (canOpenExternal(url)) void shell.openExternal(url)
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -38,6 +82,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  installSecurityHeaders()
   safeInitDatabase()
   registerAllIpc()
   createWindow()

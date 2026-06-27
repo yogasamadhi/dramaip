@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { existsSync, readdirSync, copyFileSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
 import { createDb, createRepositories, type Repositories } from '@sdns/db'
 import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
+import { encryptExistingSecrets, installSecretProtection } from './secrets'
 
 let repos: Repositories | null = null
 
@@ -21,6 +22,8 @@ export function initDatabase(): void {
   }
   const { db } = createDb(dbPath)
   repos = createRepositories(db)
+  installSecretProtection(repos)
+  encryptExistingSecrets(repos)
   seedBuiltInPresets(repos)
 }
 

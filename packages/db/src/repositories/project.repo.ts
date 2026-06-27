@@ -20,6 +20,14 @@ import {
   adaptationProjects,
   episodes,
   episodeAnalyses,
+  scripts,
+  scenes,
+  scriptReviews,
+  shots,
+  shotReviews,
+  promptVersions,
+  videoGenerationTasks,
+  videoResults,
 } from '../schema'
 import type { OptionalId, Project } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
@@ -70,34 +78,127 @@ export function updateProject(
 }
 
 export function deleteProject(db: DB, id: string): void {
-  db.delete(chapters).where(eq(chapters.projectId, id)).run()
-  db.delete(characters).where(eq(characters.projectId, id)).run()
-  db.delete(outlines).where(eq(outlines.projectId, id)).run()
-  db.delete(evaluations).where(eq(evaluations.projectId, id)).run()
-  db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()
-  // v0.2 记忆与视觉系统
-  db.delete(chapterMemories).where(eq(chapterMemories.projectId, id)).run()
-  db.delete(characterStates).where(eq(characterStates.projectId, id)).run()
-  db.delete(characterVisualProfiles).where(eq(characterVisualProfiles.projectId, id)).run()
-  db.delete(visualSettings).where(eq(visualSettings.projectId, id)).run()
-  db.delete(storyEvents).where(eq(storyEvents.projectId, id)).run()
-  db.delete(foreshadowings).where(eq(foreshadowings.projectId, id)).run()
-  // v0.3 AI 短剧小说强化
-  db.delete(beats).where(eq(beats.projectId, id)).run()
-  db.delete(highlightAnalyses).where(eq(highlightAnalyses.projectId, id)).run()
-  db.delete(aiVideoFeasibilityReports).where(eq(aiVideoFeasibilityReports.projectId, id)).run()
-  db.delete(dramaTrendReports).where(eq(dramaTrendReports.projectId, id)).run()
-  // v0.4：源项目删除时，清空由它衍生的改编项目及其分集/分析
+  db.transaction((tx) => {
+    deleteProjectRows(tx as DB, id)
+  })
+}
+
+function deleteProjectRows(db: DB, id: string): void {
   const adaptationIds = db
     .select({ id: adaptationProjects.id })
     .from(adaptationProjects)
     .where(eq(adaptationProjects.sourceProjectId, id))
     .all()
     .map((r) => r.id)
-  for (const aid of adaptationIds) {
-    db.delete(episodes).where(eq(episodes.adaptationProjectId, aid)).run()
-    db.delete(episodeAnalyses).where(eq(episodeAnalyses.adaptationProjectId, aid)).run()
-  }
+
+  for (const adaptationId of adaptationIds) deleteAdaptationChildren(db, adaptationId)
+
+  db.delete(chapters).where(eq(chapters.projectId, id)).run()
+  db.delete(characters).where(eq(characters.projectId, id)).run()
+  db.delete(outlines).where(eq(outlines.projectId, id)).run()
+  db.delete(evaluations).where(eq(evaluations.projectId, id)).run()
+  db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()
+  db.delete(chapterMemories).where(eq(chapterMemories.projectId, id)).run()
+  db.delete(characterStates).where(eq(characterStates.projectId, id)).run()
+  db.delete(characterVisualProfiles).where(eq(characterVisualProfiles.projectId, id)).run()
+  db.delete(visualSettings).where(eq(visualSettings.projectId, id)).run()
+  db.delete(storyEvents).where(eq(storyEvents.projectId, id)).run()
+  db.delete(foreshadowings).where(eq(foreshadowings.projectId, id)).run()
+  db.delete(beats).where(eq(beats.projectId, id)).run()
+  db.delete(highlightAnalyses).where(eq(highlightAnalyses.projectId, id)).run()
+  db.delete(aiVideoFeasibilityReports).where(eq(aiVideoFeasibilityReports.projectId, id)).run()
+  db.delete(dramaTrendReports).where(eq(dramaTrendReports.projectId, id)).run()
   db.delete(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, id)).run()
   db.delete(projects).where(eq(projects.id, id)).run()
+}
+
+function deleteAdaptationChildren(db: DB, adaptationId: string): void {
+  const episodeIds = db
+    .select({ id: episodes.id })
+    .from(episodes)
+    .where(eq(episodes.adaptationProjectId, adaptationId))
+    .all()
+    .map((r) => r.id)
+  const scriptIds = db
+    .select({ id: scripts.id })
+    .from(scripts)
+    .where(eq(scripts.adaptationProjectId, adaptationId))
+    .all()
+    .map((r) => r.id)
+
+  for (const scriptId of scriptIds) deleteScriptChildren(db, scriptId)
+  for (const episodeId of episodeIds) deleteVideoTasksByEpisode(db, episodeId)
+
+  db.delete(scripts).where(eq(scripts.adaptationProjectId, adaptationId)).run()
+  db.delete(episodes).where(eq(episodes.adaptationProjectId, adaptationId)).run()
+  db.delete(episodeAnalyses).where(eq(episodeAnalyses.adaptationProjectId, adaptationId)).run()
+}
+
+function deleteScriptChildren(db: DB, scriptId: string): void {
+  const sceneIds = db
+    .select({ id: scenes.id })
+    .from(scenes)
+    .where(eq(scenes.scriptId, scriptId))
+    .all()
+    .map((r) => r.id)
+
+  for (const sceneId of sceneIds) deleteSceneChildren(db, sceneId)
+
+  db.delete(scriptReviews).where(eq(scriptReviews.scriptId, scriptId)).run()
+  db.delete(scenes).where(eq(scenes.scriptId, scriptId)).run()
+}
+
+function deleteSceneChildren(db: DB, sceneId: string): void {
+  const shotIds = db
+    .select({ id: shots.id })
+    .from(shots)
+    .where(eq(shots.sceneId, sceneId))
+    .all()
+    .map((r) => r.id)
+
+  for (const shotId of shotIds) deleteShotChildren(db, shotId)
+  deleteVideoTasksByScene(db, sceneId)
+  db.delete(shots).where(eq(shots.sceneId, sceneId)).run()
+}
+
+function deleteShotChildren(db: DB, shotId: string): void {
+  deleteVideoTasksByShot(db, shotId)
+  db.delete(videoResults).where(eq(videoResults.shotId, shotId)).run()
+  db.delete(promptVersions).where(eq(promptVersions.shotId, shotId)).run()
+  db.delete(shotReviews).where(eq(shotReviews.shotId, shotId)).run()
+}
+
+function deleteVideoTasksByEpisode(db: DB, episodeId: string): void {
+  const taskIds = db
+    .select({ id: videoGenerationTasks.id })
+    .from(videoGenerationTasks)
+    .where(eq(videoGenerationTasks.episodeId, episodeId))
+    .all()
+    .map((r) => r.id)
+  for (const taskId of taskIds) deleteVideoTaskWithResults(db, taskId)
+}
+
+function deleteVideoTasksByScene(db: DB, sceneId: string): void {
+  const taskIds = db
+    .select({ id: videoGenerationTasks.id })
+    .from(videoGenerationTasks)
+    .where(eq(videoGenerationTasks.sceneId, sceneId))
+    .all()
+    .map((r) => r.id)
+  for (const taskId of taskIds) deleteVideoTaskWithResults(db, taskId)
+}
+
+function deleteVideoTasksByShot(db: DB, shotId: string): void {
+  const taskIds = db
+    .select({ id: videoGenerationTasks.id })
+    .from(videoGenerationTasks)
+    .where(eq(videoGenerationTasks.shotId, shotId))
+    .all()
+    .map((r) => r.id)
+  for (const taskId of taskIds) deleteVideoTaskWithResults(db, taskId)
+}
+
+function deleteVideoTaskWithResults(db: DB, taskId: string): void {
+  db.delete(videoResults).where(eq(videoResults.taskId, taskId)).run()
+  db.delete(videoGenerationTasks).where(eq(videoGenerationTasks.id, taskId)).run()
 }

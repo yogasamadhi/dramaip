@@ -91,8 +91,11 @@ DB 层 (packages/db/repositories/*) → SQLite
 ## 构建与打包
 
 ```bash
-pnpm install            # 安装依赖
+pnpm install            # 安装依赖（.npmrc 已配置 Electron 镜像）
 pnpm typecheck          # 全量类型检查（5 个包）
+pnpm test:db           # Node ABI 下运行 DB smoke 测试
+pnpm test              # typecheck + DB smoke
+pnpm format:check      # 轻量格式检查（尾随空白/文件末尾换行）
 pnpm dev                # 启动开发模式
 pnpm --filter @sdns/desktop build   # 构建产物
 pnpm package            # electron-builder 打包（mac dmg / win nsis / linux AppImage+deb）
@@ -100,3 +103,14 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 
 - 原生模块 `better-sqlite3` 在 `electron-builder.yml` 的 `asarUnpack` 中解包。
 - 跑 `smoke-db.ts` 需为当前 Node ABI 重新编译 better-sqlite3（详见 [CONTRIBUTING](./CONTRIBUTING.md)）。
+
+## 安全与运行时边界
+
+- 主窗口启用 `contextIsolation`、`sandbox`、`webSecurity`，并对外链跳转做协议白名单；默认只允许 `http:` / `https:` 用系统浏览器打开。
+- 主进程在注册 IPC 时安装统一参数校验层。所有 `ipcMain.handle` 调用会先检查参数数量和基础形状，再进入业务 handler。
+- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。若系统环境不支持 `safeStorage`，会回退为原值，应用仍可运行但不具备系统级密钥保护。
+- AI / 视频 HTTP provider 统一走带超时和重试的请求 helper，默认只重试网络错误和 408/429/5xx 等可恢复状态。
+
+## 包构建约定
+
+当前 workspace 包仍通过 tsconfig path / electron-vite alias 指向 `src`，这是为了支持 prompt 的 `?raw` 导入和 Electron 开发态热更新。若未来要发布独立 npm 包，应先增加 bundler 构建（复制 prompt 资源并处理 `?raw`），再把 `exports` 切到 `dist`。

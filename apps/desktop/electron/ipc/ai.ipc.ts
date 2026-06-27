@@ -10,6 +10,7 @@ import {
 } from '@sdns/ai'
 import type { ChatMessage, ModelConfig, NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
+import { decryptSecret } from '../secrets'
 
 export function registerAiIpc(): void {
   ipcMain.handle('ai:run', async (_evt, input: NovelWorkflowInput) => {
@@ -72,7 +73,7 @@ export function registerAiIpc(): void {
   // v1.0：模型连接测试（ROADMAP v1.0-3）—— 用指定 config 发一个最小 chat 请求
   ipcMain.handle('model:testConnection', async (_evt, config: ModelConfig) => {
     try {
-      const provider = providerFromModelConfig(config)
+      const provider = providerFromModelConfig({ ...config, apiKey: decryptSecret(config.apiKey) })
       const startedAt = Date.now()
       const messages: ChatMessage[] = [
         { role: 'system', content: '连接测试。只回复 ok。' },
@@ -99,4 +100,3 @@ export function registerAiIpc(): void {
 
 /** 用不到的占位，避免 NovelTaskType 类型在 tree-shaking 下被误删 */
 export type _TaskTypeRef = NovelTaskType
-

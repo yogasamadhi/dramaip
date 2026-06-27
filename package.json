@@ -10,8 +10,15 @@
     "package": "pnpm --filter @sdns/desktop package",
     "db:generate": "pnpm --filter @sdns/db generate",
     "db:push": "pnpm --filter @sdns/db push",
-    "rebuild": "pnpm --filter @sdns/desktop rebuild",
-    "typecheck": "pnpm -r typecheck"
+    "rebuild": "pnpm rebuild:electron",
+    "rebuild:electron": "pnpm --filter @sdns/desktop rebuild:electron",
+    "rebuild:node": "node scripts/rebuild-better-sqlite3-node.mjs",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm typecheck",
+    "format:check": "node scripts/check-format.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "test": "pnpm typecheck && pnpm test:db",
+    "install:electron": "node scripts/install-electron.mjs"
   },
   "devDependencies": {
     "tsx": "^4.22.4",

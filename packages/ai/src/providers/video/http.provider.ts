@@ -10,6 +10,7 @@ import type {
   VideoProviderTaskState,
   VideoTaskStatus,
 } from '@sdns/core'
+import { fetchWithRetry, HttpRequestError } from '../http-client'
 
 export interface HttpVideoProviderOptions {
   name: string
@@ -64,6 +65,11 @@ function defaultMapStatus(raw: unknown): VideoProviderTaskState {
   }
 }
 
+function wrapHttpError(prefix: string, e: unknown): never {
+  if (e instanceof HttpRequestError) throw new Error(`${prefix} (${e.message})`)
+  throw e
+}
+
 export class HttpVideoProvider implements VideoProvider {
   readonly kind: string
   readonly name: string
@@ -95,28 +101,28 @@ export class HttpVideoProvider implements VideoProvider {
       image_url: input.referenceImageUrls?.[0],
       params: input.defaultParams ? safeJson(input.defaultParams) : undefined,
     }
-    const res = await fetch(`${this.baseUrl}/video/generations`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`视频任务提交失败 (HTTP ${res.status}): ${detail.slice(0, 500)}`)
-    }
+    const res = await fetchWithRetry(
+      `${this.baseUrl}/video/generations`,
+      {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 120_000, retries: 2 },
+    ).catch((e) => wrapHttpError('视频任务提交失败', e))
     const data = await res.json()
     return this.mapStatus(data)
   }
 
   async getTaskStatus(remoteTaskId: string): Promise<VideoProviderTaskState> {
-    const res = await fetch(`${this.baseUrl}/video/generations/${encodeURIComponent(remoteTaskId)}`, {
-      method: 'GET',
-      headers: this.headers(),
-    })
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '')
-      throw new Error(`视频任务查询失败 (HTTP ${res.status}): ${detail.slice(0, 500)}`)
-    }
+    const res = await fetchWithRetry(
+      `${this.baseUrl}/video/generations/${encodeURIComponent(remoteTaskId)}`,
+      {
+        method: 'GET',
+        headers: this.headers(),
+      },
+      { timeoutMs: 60_000, retries: 2 },
+    ).catch((e) => wrapHttpError('视频任务查询失败', e))
     const data = await res.json()
     return this.mapStatus(data)
   }
