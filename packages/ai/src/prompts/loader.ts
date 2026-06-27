@@ -1,5 +1,34 @@
 // Prompt 注册表 —— 以 ?raw 形式导入 Markdown 模板（PROJECT_BRIEF.md §12）
 import type { NovelTaskType } from '@sdns/core'
+import {
+  AdaptationStrategyResultSchema,
+  AiVideoFeasibilityResultSchema,
+  BeatsResultSchema,
+  ChatProjectResultSchema,
+  ChapterMemoryResultSchema,
+  CharacterStateResultSchema,
+  ConsistencyResultSchema,
+  DramaTrendResultSchema,
+  EpisodeItemSchema,
+  EpisodesResultSchema,
+  EvaluationResultSchema,
+  First10AnalysisResultSchema,
+  ForeshadowingResultSchema,
+  GenerateChapterOutlinesResultSchema,
+  GenerateCharactersResultSchema,
+  GenerateProjectResultSchema,
+  HighlightAnalysisResultSchema,
+  ScenesResultSchema,
+  ScriptResultSchema,
+  ScriptReviewResultSchema,
+  ShotPromptResultSchema,
+  ShotReviewResultSchema,
+  ShotsResultSchema,
+  StoryEventsResultSchema,
+  VisualProfileResultSchema,
+  VisualSettingResultSchema,
+} from '@sdns/core'
+import type { z } from 'zod'
 
 import generateProject from './zh-CN/project/generate-project.md?raw'
 import generateCharacter from './zh-CN/character/generate-character.md?raw'
@@ -61,115 +90,88 @@ import optimizePromptForVideoPlatform from './zh-CN/shot/optimize-prompt-for-vid
 import agentReviewPrompt from './zh-CN/agent/agent-review.md?raw'
 import consolidatePrompt from './zh-CN/agent/consolidate-review.md?raw'
 
-const REGISTRY: Record<NovelTaskType, string> = {
-  generate_project: generateProject,
-  generate_characters: generateCharacter,
-  generate_book_outline: generateBookOutline,
-  generate_chapter_outline: generateChapterOutline,
-  generate_chapter: generateChapter,
-  continue_chapter: continueChapter,
-  rewrite_chapter: rewriteChapter,
-  polish_chapter: polishChapter,
-  expand_chapter: expandChapter,
-  enhance_conflict: enhanceConflict,
-  enhance_highlight: enhanceHighlight,
-  enhance_ai_drama_feel: enhanceAiDramaFeel,
-  evaluate_ai_drama_fit: evaluateAiDramaFit,
+export interface TaskDefinition {
+  prompt: string
+  output: 'json' | 'text'
+  schema?: z.ZodType
+  writesChapterContent?: boolean
+}
+
+export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
+  generate_project: { prompt: generateProject, output: 'json', schema: GenerateProjectResultSchema },
+  generate_characters: { prompt: generateCharacter, output: 'json', schema: GenerateCharactersResultSchema },
+  generate_book_outline: { prompt: generateBookOutline, output: 'text' },
+  generate_chapter_outline: { prompt: generateChapterOutline, output: 'json', schema: GenerateChapterOutlinesResultSchema },
+  generate_chapter: { prompt: generateChapter, output: 'text', writesChapterContent: true },
+  continue_chapter: { prompt: continueChapter, output: 'text', writesChapterContent: true },
+  rewrite_chapter: { prompt: rewriteChapter, output: 'text', writesChapterContent: true },
+  polish_chapter: { prompt: polishChapter, output: 'text', writesChapterContent: true },
+  expand_chapter: { prompt: expandChapter, output: 'text', writesChapterContent: true },
+  enhance_conflict: { prompt: enhanceConflict, output: 'text', writesChapterContent: true },
+  enhance_highlight: { prompt: enhanceHighlight, output: 'text', writesChapterContent: true },
+  enhance_ai_drama_feel: { prompt: enhanceAiDramaFeel, output: 'text', writesChapterContent: true },
+  evaluate_ai_drama_fit: { prompt: evaluateAiDramaFit, output: 'json', schema: EvaluationResultSchema },
   // v0.2
-  summarize_chapter: summarizeChapter,
-  update_character_state: updateCharacterState,
-  extract_story_events: extractStoryEvents,
-  extract_foreshadowing: extractForeshadowing,
-  generate_character_visual_profile: generateCharacterVisualProfile,
-  generate_visual_setting: generateVisualSetting,
-  check_consistency: checkConsistency,
-  build_long_context: buildLongContext,
+  summarize_chapter: { prompt: summarizeChapter, output: 'json', schema: ChapterMemoryResultSchema },
+  update_character_state: { prompt: updateCharacterState, output: 'json', schema: CharacterStateResultSchema },
+  extract_story_events: { prompt: extractStoryEvents, output: 'json', schema: StoryEventsResultSchema },
+  extract_foreshadowing: { prompt: extractForeshadowing, output: 'json', schema: ForeshadowingResultSchema },
+  generate_character_visual_profile: { prompt: generateCharacterVisualProfile, output: 'json', schema: VisualProfileResultSchema },
+  generate_visual_setting: { prompt: generateVisualSetting, output: 'json', schema: VisualSettingResultSchema },
+  check_consistency: { prompt: checkConsistency, output: 'json', schema: ConsistencyResultSchema },
+  build_long_context: { prompt: buildLongContext, output: 'text' },
   // v0.3
-  analyze_beats: analyzeBeats,
-  analyze_highlights: analyzeHighlights,
-  analyze_ai_video_feasibility: analyzeAiVideoFeasibility,
-  analyze_project_ai_drama_trend: analyzeProjectAiDramaTrend,
-  enhance_hook: enhanceHook,
-  enhance_reversal: enhanceReversal,
-  enhance_cliffhanger: enhanceCliffhanger,
-  rewrite_as_ai_drama_novel: rewriteAsAiDramaNovel,
-  chat_project: chatProject,
+  analyze_beats: { prompt: analyzeBeats, output: 'json', schema: BeatsResultSchema },
+  analyze_highlights: { prompt: analyzeHighlights, output: 'json', schema: HighlightAnalysisResultSchema },
+  analyze_ai_video_feasibility: { prompt: analyzeAiVideoFeasibility, output: 'json', schema: AiVideoFeasibilityResultSchema },
+  analyze_project_ai_drama_trend: { prompt: analyzeProjectAiDramaTrend, output: 'json', schema: DramaTrendResultSchema },
+  enhance_hook: { prompt: enhanceHook, output: 'text', writesChapterContent: true },
+  enhance_reversal: { prompt: enhanceReversal, output: 'text', writesChapterContent: true },
+  enhance_cliffhanger: { prompt: enhanceCliffhanger, output: 'text', writesChapterContent: true },
+  rewrite_as_ai_drama_novel: { prompt: rewriteAsAiDramaNovel, output: 'text', writesChapterContent: true },
+  chat_project: { prompt: chatProject, output: 'json', schema: ChatProjectResultSchema },
   // v0.4
-  create_adaptation_strategy: createAdaptationStrategy,
-  convert_novel_to_episodes: convertNovelToEpisodes,
-  rewrite_episode_outline: rewriteEpisodeOutline,
-  enhance_episode_hook: enhanceEpisodeHook,
-  enhance_episode_visuals: enhanceEpisodeVisuals,
-  analyze_first_10_episodes: analyzeFirst10Episodes,
+  create_adaptation_strategy: { prompt: createAdaptationStrategy, output: 'json', schema: AdaptationStrategyResultSchema },
+  convert_novel_to_episodes: { prompt: convertNovelToEpisodes, output: 'json', schema: EpisodesResultSchema },
+  rewrite_episode_outline: { prompt: rewriteEpisodeOutline, output: 'json', schema: EpisodeItemSchema },
+  enhance_episode_hook: { prompt: enhanceEpisodeHook, output: 'json', schema: EpisodeItemSchema },
+  enhance_episode_visuals: { prompt: enhanceEpisodeVisuals, output: 'json', schema: EpisodeItemSchema },
+  analyze_first_10_episodes: { prompt: analyzeFirst10Episodes, output: 'json', schema: First10AnalysisResultSchema },
   // v0.5
-  generate_ai_drama_script: generateAiDramaScript,
-  split_script_to_scenes: splitScriptToScenes,
-  review_ai_drama_script: reviewAiDramaScript,
-  rewrite_ai_drama_script: rewriteAiDramaScript,
-  enhance_dialogue_conflict: enhanceDialogueConflict,
-  enhance_episode_cliffhanger: enhanceEpisodeCliffhanger,
-  enhance_script_visuality: enhanceScriptVisuality,
+  generate_ai_drama_script: { prompt: generateAiDramaScript, output: 'json', schema: ScriptResultSchema },
+  split_script_to_scenes: { prompt: splitScriptToScenes, output: 'json', schema: ScenesResultSchema },
+  review_ai_drama_script: { prompt: reviewAiDramaScript, output: 'json', schema: ScriptReviewResultSchema },
+  rewrite_ai_drama_script: { prompt: rewriteAiDramaScript, output: 'json', schema: ScriptResultSchema },
+  enhance_dialogue_conflict: { prompt: enhanceDialogueConflict, output: 'json', schema: ScriptResultSchema },
+  enhance_episode_cliffhanger: { prompt: enhanceEpisodeCliffhanger, output: 'json', schema: ScriptResultSchema },
+  enhance_script_visuality: { prompt: enhanceScriptVisuality, output: 'json', schema: ScriptResultSchema },
   // v0.6
-  split_scene_to_shots: splitSceneToShots,
-  generate_shot_prompt: generateShotPrompt,
-  generate_negative_prompt: generateNegativePrompt,
-  review_shot_prompt: reviewShotPrompt,
-  rewrite_shot_prompt: rewriteShotPrompt,
-  optimize_prompt_for_video_platform: optimizePromptForVideoPlatform,
+  split_scene_to_shots: { prompt: splitSceneToShots, output: 'json', schema: ShotsResultSchema },
+  generate_shot_prompt: { prompt: generateShotPrompt, output: 'json', schema: ShotPromptResultSchema },
+  generate_negative_prompt: { prompt: generateNegativePrompt, output: 'json', schema: ShotPromptResultSchema },
+  review_shot_prompt: { prompt: reviewShotPrompt, output: 'json', schema: ShotReviewResultSchema },
+  rewrite_shot_prompt: { prompt: rewriteShotPrompt, output: 'json', schema: ShotPromptResultSchema },
+  optimize_prompt_for_video_platform: { prompt: optimizePromptForVideoPlatform, output: 'json', schema: ShotPromptResultSchema },
   // v0.8
-  writing_room_review: agentReviewPrompt,
-  writing_room_consolidate: consolidatePrompt,
-  template_run: '请按「输入材料」与「本次指令」中的要求生成内容。',
+  writing_room_review: { prompt: agentReviewPrompt, output: 'text' },
+  writing_room_consolidate: { prompt: consolidatePrompt, output: 'text' },
+  template_run: { prompt: '请按「输入材料」与「本次指令」中的要求生成内容。', output: 'text' },
 }
 
 export function getPromptTemplate(taskType: NovelTaskType): string | undefined {
-  return REGISTRY[taskType]
+  return TASK_DEFINITIONS[taskType]?.prompt
+}
+
+export function getTaskSchema(taskType: NovelTaskType): z.ZodType | undefined {
+  return TASK_DEFINITIONS[taskType]?.schema
 }
 
 /** 输出结构化 JSON 的任务（需解析 + Zod 校验） */
-export const JSON_TASKS: ReadonlySet<NovelTaskType> = new Set<NovelTaskType>([
-  'generate_project',
-  'generate_characters',
-  'generate_chapter_outline',
-  'evaluate_ai_drama_fit',
-  // v0.2
-  'summarize_chapter',
-  'update_character_state',
-  'extract_story_events',
-  'extract_foreshadowing',
-  'generate_character_visual_profile',
-  'generate_visual_setting',
-  'check_consistency',
-  // v0.3 分析类
-  'analyze_beats',
-  'analyze_highlights',
-  'analyze_ai_video_feasibility',
-  'analyze_project_ai_drama_trend',
-  // 对话
-  'chat_project',
-  // v0.4 改编分集
-  'create_adaptation_strategy',
-  'convert_novel_to_episodes',
-  'rewrite_episode_outline',
-  'enhance_episode_hook',
-  'enhance_episode_visuals',
-  'analyze_first_10_episodes',
-  // v0.5 剧本（剧本正文置于 ScriptResult.content，仍是结构化 JSON 任务）
-  'generate_ai_drama_script',
-  'split_script_to_scenes',
-  'review_ai_drama_script',
-  'rewrite_ai_drama_script',
-  'enhance_dialogue_conflict',
-  'enhance_episode_cliffhanger',
-  'enhance_script_visuality',
-  // v0.6 镜头（镜头 Prompt / 负面 Prompt / 审查 / 改写 / 平台优化 均为结构化 JSON 任务）
-  'split_scene_to_shots',
-  'generate_shot_prompt',
-  'generate_negative_prompt',
-  'review_shot_prompt',
-  'rewrite_shot_prompt',
-  'optimize_prompt_for_video_platform',
-])
+export const JSON_TASKS: ReadonlySet<NovelTaskType> = new Set(
+  Object.entries(TASK_DEFINITIONS)
+    .filter(([, definition]) => definition.output === 'json')
+    .map(([taskType]) => taskType as NovelTaskType),
+)
 
 export function isJsonTask(taskType: NovelTaskType): boolean {
   return JSON_TASKS.has(taskType)
@@ -189,21 +191,11 @@ export function effectiveTaskType(taskType: NovelTaskType, templateScope?: Novel
 }
 
 /** 以正文文本为输出的章节类任务 */
-export const TEXT_CHAPTER_TASKS: ReadonlySet<NovelTaskType> = new Set<NovelTaskType>([
-  'generate_chapter',
-  'continue_chapter',
-  'rewrite_chapter',
-  'polish_chapter',
-  'expand_chapter',
-  'enhance_conflict',
-  'enhance_highlight',
-  'enhance_ai_drama_feel',
-  // v0.3 强化/改写类
-  'enhance_hook',
-  'enhance_reversal',
-  'enhance_cliffhanger',
-  'rewrite_as_ai_drama_novel',
-])
+export const TEXT_CHAPTER_TASKS: ReadonlySet<NovelTaskType> = new Set(
+  Object.entries(TASK_DEFINITIONS)
+    .filter(([, definition]) => definition.writesChapterContent)
+    .map(([taskType]) => taskType as NovelTaskType),
+)
 
 export function isTextChapterTask(taskType: NovelTaskType): boolean {
   return TEXT_CHAPTER_TASKS.has(taskType)

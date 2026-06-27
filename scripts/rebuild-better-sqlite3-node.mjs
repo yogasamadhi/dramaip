@@ -1,18 +1,18 @@
-import { existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-const pnpmDir = join(process.cwd(), 'node_modules', '.pnpm')
-const pkg = existsSync(pnpmDir)
-  ? readdirSync(pnpmDir).find((name) => name.startsWith('better-sqlite3@'))
-  : undefined
+const requireFromDesktop = createRequire(join(process.cwd(), 'apps', 'desktop', 'package.json'))
 
-if (!pkg) {
-  console.error('Cannot find better-sqlite3 in node_modules/.pnpm. Run pnpm install first.')
+let packageJsonPath
+try {
+  packageJsonPath = requireFromDesktop.resolve('better-sqlite3/package.json')
+} catch {
+  console.error('Cannot resolve better-sqlite3 from apps/desktop. Run pnpm install first.')
   process.exit(1)
 }
 
-const cwd = join(pnpmDir, pkg, 'node_modules', 'better-sqlite3')
+const cwd = dirname(packageJsonPath)
 const command = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const result = spawnSync(command, ['run', 'install'], {
   cwd,

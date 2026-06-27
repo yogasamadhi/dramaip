@@ -3,6 +3,7 @@ import type { ModelConfig, VideoProviderConfig } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 const ENCRYPTED_PREFIX = 'enc:v1:'
+const MASKED_PREFIX = 'masked:v1:'
 
 export function encryptSecret(value: string | undefined): string {
   if (!value) return ''
@@ -24,6 +25,10 @@ export function decryptSecret(value: string | undefined): string {
 
 function protectInput<T extends { apiKey?: string }>(input: T): T {
   if (typeof input.apiKey !== 'string') return input
+  if (input.apiKey.startsWith(MASKED_PREFIX)) {
+    const { apiKey: _apiKey, ...rest } = input
+    return rest as T
+  }
   return { ...input, apiKey: encryptSecret(input.apiKey) }
 }
 
@@ -33,6 +38,20 @@ function exposeModelConfig(config: ModelConfig): ModelConfig {
 
 function exposeVideoConfig(config: VideoProviderConfig): VideoProviderConfig {
   return { ...config, apiKey: decryptSecret(config.apiKey) }
+}
+
+export function maskSecret(value: string | undefined): string {
+  const plain = decryptSecret(value)
+  if (!plain) return ''
+  return `${MASKED_PREFIX}${plain.slice(-4)}`
+}
+
+export function maskModelConfig(config: ModelConfig): ModelConfig {
+  return { ...config, apiKey: maskSecret(config.apiKey) }
+}
+
+export function maskVideoConfig(config: VideoProviderConfig): VideoProviderConfig {
+  return { ...config, apiKey: maskSecret(config.apiKey) }
 }
 
 export function installSecretProtection(repos: Repositories): void {

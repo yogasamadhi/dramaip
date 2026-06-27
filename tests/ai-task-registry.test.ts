@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { test } from 'node:test'
+
+function read(path: string): string {
+  return readFileSync(new URL(path, import.meta.url), 'utf8')
+}
+
+function extractNovelTaskTypes(source: string): string[] {
+  const match = source.match(/export type NovelTaskType =([\s\S]*?)\/\/ ---------------------------------------------------------------------------\n\/\/ v0\.8/)
+  assert.ok(match, 'NovelTaskType union should be present')
+  return [...match[1].matchAll(/\|\s+'([^']+)'/g)].map((m) => m[1])
+}
+
+function extractTaskDefinitionKeys(source: string): string[] {
+  const match = source.match(/export const TASK_DEFINITIONS:[\s\S]*?= \{([\s\S]*?)\n\}/)
+  assert.ok(match, 'TASK_DEFINITIONS should be present')
+  return [...match[1].matchAll(/^\s{2}([a-z0-9_]+):/gm)].map((m) => m[1])
+}
+
+test('registers every NovelTaskType exactly once in TASK_DEFINITIONS', () => {
+  const types = extractNovelTaskTypes(read('../packages/core/src/types/index.ts'))
+  const definitions = extractTaskDefinitionKeys(read('../packages/ai/src/prompts/loader.ts'))
+
+  assert.deepEqual([...definitions].sort(), [...new Set(definitions)].sort(), 'task definitions should be unique')
+  assert.deepEqual(definitions.sort(), types.sort())
+})
+
+test('json task definitions declare schemas', () => {
+  const loader = read('../packages/ai/src/prompts/loader.ts')
+  const missingSchema = [...loader.matchAll(/^\s{2}([a-z0-9_]+): \{ prompt: .*?output: 'json'(?!.*schema:)/gm)].map((m) => m[1])
+  assert.deepEqual(missingSchema, [])
+})

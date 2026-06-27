@@ -1,39 +1,53 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { ProjectListPage } from '@/pages/ProjectListPage'
-import { CreateProjectPage } from '@/pages/CreateProjectPage'
-import { WorkspacePage } from '@/pages/WorkspacePage'
-import { CreateAdaptationPage } from '@/pages/CreateAdaptationPage'
-import { AdaptationWorkspacePage } from '@/pages/AdaptationWorkspacePage'
-import { ScriptWorkspacePage } from '@/pages/ScriptWorkspacePage'
-import { ShotWorkspacePage } from '@/pages/ShotWorkspacePage'
-import { VideoGenerationPage } from '@/pages/VideoGenerationPage'
-import { VideoProviderSettingsPage } from '@/pages/VideoProviderSettingsPage'
-import { ModelSettingsPage } from '@/pages/ModelSettingsPage'
-import { WritingRoomPage } from '@/pages/WritingRoomPage'
-import { AgentSettingsPage } from '@/pages/AgentSettingsPage'
-import { TemplatePage } from '@/pages/TemplatePage'
-import { GenrePresetPage } from '@/pages/GenrePresetPage'
-import { UsageStatsPage } from '@/pages/UsageStatsPage'
+
+const ProjectListPage = lazy(() => import('@/pages/ProjectListPage').then((m) => ({ default: m.ProjectListPage })))
+const CreateProjectPage = lazy(() => import('@/pages/CreateProjectPage').then((m) => ({ default: m.CreateProjectPage })))
+const WorkspacePage = lazy(() => import('@/pages/WorkspacePage').then((m) => ({ default: m.WorkspacePage })))
+const CreateAdaptationPage = lazy(() =>
+  import('@/pages/CreateAdaptationPage').then((m) => ({ default: m.CreateAdaptationPage })),
+)
+const AdaptationWorkspacePage = lazy(() =>
+  import('@/pages/AdaptationWorkspacePage').then((m) => ({ default: m.AdaptationWorkspacePage })),
+)
+const ScriptWorkspacePage = lazy(() =>
+  import('@/pages/ScriptWorkspacePage').then((m) => ({ default: m.ScriptWorkspacePage })),
+)
+const ShotWorkspacePage = lazy(() => import('@/pages/ShotWorkspacePage').then((m) => ({ default: m.ShotWorkspacePage })))
+const VideoGenerationPage = lazy(() =>
+  import('@/pages/VideoGenerationPage').then((m) => ({ default: m.VideoGenerationPage })),
+)
+const VideoProviderSettingsPage = lazy(() =>
+  import('@/pages/VideoProviderSettingsPage').then((m) => ({ default: m.VideoProviderSettingsPage })),
+)
+const ModelSettingsPage = lazy(() => import('@/pages/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })))
+const WritingRoomPage = lazy(() => import('@/pages/WritingRoomPage').then((m) => ({ default: m.WritingRoomPage })))
+const AgentSettingsPage = lazy(() => import('@/pages/AgentSettingsPage').then((m) => ({ default: m.AgentSettingsPage })))
+const TemplatePage = lazy(() => import('@/pages/TemplatePage').then((m) => ({ default: m.TemplatePage })))
+const GenrePresetPage = lazy(() => import('@/pages/GenrePresetPage').then((m) => ({ default: m.GenrePresetPage })))
+const UsageStatsPage = lazy(() => import('@/pages/UsageStatsPage').then((m) => ({ default: m.UsageStatsPage })))
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<ProjectListPage />} />
-      <Route path="/projects/new" element={<CreateProjectPage />} />
-      <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
-      <Route path="/projects/:id/*" element={<WorkspacePage />} />
-      <Route path="/adaptations/new" element={<CreateAdaptationPage />} />
-      <Route path="/adaptations/:id" element={<AdaptationWorkspacePage />} />
-      <Route path="/adaptations/:id/scripts" element={<ScriptWorkspacePage />} />
-      <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
-      <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
-      <Route path="/settings" element={<ModelSettingsPage />} />
-      <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
-      <Route path="/settings/agents" element={<AgentSettingsPage />} />
-      <Route path="/settings/usage" element={<UsageStatsPage />} />
-      <Route path="/templates" element={<TemplatePage />} />
-      <Route path="/genres" element={<GenrePresetPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
+      <Routes>
+        <Route path="/" element={<ProjectListPage />} />
+        <Route path="/projects/new" element={<CreateProjectPage />} />
+        <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
+        <Route path="/projects/:id/*" element={<WorkspacePage />} />
+        <Route path="/adaptations/new" element={<CreateAdaptationPage />} />
+        <Route path="/adaptations/:id" element={<AdaptationWorkspacePage />} />
+        <Route path="/adaptations/:id/scripts" element={<ScriptWorkspacePage />} />
+        <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
+        <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
+        <Route path="/settings" element={<ModelSettingsPage />} />
+        <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
+        <Route path="/settings/agents" element={<AgentSettingsPage />} />
+        <Route path="/settings/usage" element={<UsageStatsPage />} />
+        <Route path="/templates" element={<TemplatePage />} />
+        <Route path="/genres" element={<GenrePresetPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   )
 }

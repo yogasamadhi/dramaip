@@ -73,7 +73,10 @@ export function registerAiIpc(): void {
   // v1.0：模型连接测试（ROADMAP v1.0-3）—— 用指定 config 发一个最小 chat 请求
   ipcMain.handle('model:testConnection', async (_evt, config: ModelConfig) => {
     try {
-      const provider = providerFromModelConfig({ ...config, apiKey: decryptSecret(config.apiKey) })
+      const repos = getRepos()
+      const stored = config.id ? repos.modelConfig.getModelConfig(repos.db, config.id) : undefined
+      const resolved = stored ?? config
+      const provider = providerFromModelConfig({ ...resolved, apiKey: decryptSecret(resolved.apiKey) })
       const startedAt = Date.now()
       const messages: ChatMessage[] = [
         { role: 'system', content: '连接测试。只回复 ok。' },

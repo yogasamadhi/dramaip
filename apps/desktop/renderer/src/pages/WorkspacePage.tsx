@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
@@ -24,7 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { ChapterEditor } from '@/components/editor/ChapterEditor'
 import { AiAssistantPanel } from '@/components/AiAssistantPanel'
 import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
@@ -43,6 +42,10 @@ import { BeatSection } from '@/components/sections/BeatSection'
 import { HighlightSection } from '@/components/sections/HighlightSection'
 import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibilitySection'
 import { cn } from '@/lib/utils'
+
+const ChapterEditor = lazy(() =>
+  import('@/components/editor/ChapterEditor').then((m) => ({ default: m.ChapterEditor })),
+)
 
 function formatTime(iso: string): string {
   try {
@@ -318,11 +321,13 @@ export function WorkspacePage() {
                     />
                   </div>
                   <div className="flex-1 overflow-hidden">
-                    <ChapterEditor
-                      key={selected.id + ':' + editorNonce}
-                      chapter={selected}
-                      onContentChange={onContentChange}
-                    />
+                    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">加载编辑器...</div>}>
+                      <ChapterEditor
+                        key={selected.id + ':' + editorNonce}
+                        chapter={selected}
+                        onContentChange={onContentChange}
+                      />
+                    </Suspense>
                   </div>
                 </>
               ) : (

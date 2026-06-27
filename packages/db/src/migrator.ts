@@ -65,8 +65,8 @@ export const MIGRATIONS: Migration[] = [
     name: 'adaptation-seasons',
     up(raw) {
       // 多季连载：adaptation_projects 加季号 + 本季改编章节范围
-      raw.exec(`ALTER TABLE adaptation_projects ADD COLUMN season_number INTEGER;`)
-      raw.exec(`ALTER TABLE adaptation_projects ADD COLUMN source_chapter_range TEXT;`)
+      addColumnIfMissing(raw, 'adaptation_projects', 'season_number', 'season_number INTEGER')
+      addColumnIfMissing(raw, 'adaptation_projects', 'source_chapter_range', 'source_chapter_range TEXT')
     },
   },
   {
@@ -129,6 +129,31 @@ function getAppliedVersion(raw: MigrationRaw): number {
   }
 }
 
+function hasColumn(raw: MigrationRaw, table: string, column: string): boolean {
+  const rows = raw.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name?: string }>
+  return rows.some((row) => row.name === column)
+}
+
+function addColumnIfMissing(raw: MigrationRaw, table: string, column: string, definition: string): void {
+  if (!hasColumn(raw, table, column)) {
+    raw.exec(`ALTER TABLE ${table} ADD COLUMN ${definition};`)
+  }
+}
+
+function runMigrationInTransaction(raw: MigrationRaw, migration: Migration): void {
+  raw.exec('BEGIN IMMEDIATE;')
+  try {
+    migration.up(raw)
+    raw.exec(
+      `INSERT INTO schema_migrations (version, applied_at) VALUES (${migration.version}, '${new Date().toISOString()}');`,
+    )
+    raw.exec('COMMIT;')
+  } catch (error) {
+    raw.exec('ROLLBACK;')
+    throw error
+  }
+}
+
 /**
  * 运行所有未应用的迁移（幂等）。
  * - 首次（无 schema_migrations）：v1 建表 + schema_migrations，记 version=1，再继续 v2…
@@ -143,11 +168,7 @@ export function runMigrations(raw: MigrationRaw): number[] {
   const pending = MIGRATIONS.filter((m) => m.version > current).sort((a, b) => a.version - b.version)
 
   for (const m of pending) {
-    m.up(raw)
-    // 记账（schema_migrations 此时一定已存在：v1 已建）
-    raw.exec(
-      `INSERT INTO schema_migrations (version, applied_at) VALUES (${m.version}, '${new Date().toISOString()}');`,
-    )
+    runMigrationInTransaction(raw, m)
     applied.push(m.version)
   }
   return applied

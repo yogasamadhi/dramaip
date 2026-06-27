@@ -9,23 +9,26 @@ import {
   compareVideoResults,
   selectBestVideoResult,
 } from '@sdns/ai'
+import { maskVideoConfig } from '../secrets'
 
 export function registerVideoIpc(): void {
   const repos = () => getRepos()
 
   // ---------- Provider 配置 ----------
   ipcMain.handle('videoProvider:list', () =>
-    repos().videoProviderConfig.listVideoProviderConfigs(repos().db),
+    repos().videoProviderConfig.listVideoProviderConfigs(repos().db).map(maskVideoConfig),
   )
-  ipcMain.handle('videoProvider:getDefault', () =>
-    repos().videoProviderConfig.getDefaultVideoProviderConfig(repos().db),
-  )
+  ipcMain.handle('videoProvider:getDefault', () => {
+    const config = repos().videoProviderConfig.getDefaultVideoProviderConfig(repos().db)
+    return config ? maskVideoConfig(config) : undefined
+  })
   ipcMain.handle('videoProvider:create', (_e, data: unknown) =>
-    repos().videoProviderConfig.createVideoProviderConfig(repos().db, data as never),
+    maskVideoConfig(repos().videoProviderConfig.createVideoProviderConfig(repos().db, data as never)),
   )
-  ipcMain.handle('videoProvider:update', (_e, id: string, patch: unknown) =>
-    repos().videoProviderConfig.updateVideoProviderConfig(repos().db, id, patch as never),
-  )
+  ipcMain.handle('videoProvider:update', (_e, id: string, patch: unknown) => {
+    const updated = repos().videoProviderConfig.updateVideoProviderConfig(repos().db, id, patch as never)
+    return updated ? maskVideoConfig(updated) : undefined
+  })
   ipcMain.handle('videoProvider:delete', (_e, id: string) => {
     repos().videoProviderConfig.deleteVideoProviderConfig(repos().db, id)
     return true

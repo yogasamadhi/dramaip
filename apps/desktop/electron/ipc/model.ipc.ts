@@ -1,18 +1,23 @@
 // 模型配置 CRUD + 默认模型 + 按任务组绑定（ROADMAP v1.0-3）
 import { ipcMain } from 'electron'
 import { getRepos } from '../db'
+import { maskModelConfig } from '../secrets'
 
 export function registerModelIpc(): void {
   const repos = () => getRepos()
 
-  ipcMain.handle('model:list', () => repos().modelConfig.listModelConfigs(repos().db))
-  ipcMain.handle('model:getDefault', () => repos().modelConfig.getDefaultModelConfig(repos().db))
+  ipcMain.handle('model:list', () => repos().modelConfig.listModelConfigs(repos().db).map(maskModelConfig))
+  ipcMain.handle('model:getDefault', () => {
+    const config = repos().modelConfig.getDefaultModelConfig(repos().db)
+    return config ? maskModelConfig(config) : undefined
+  })
   ipcMain.handle('model:create', (_e, data: unknown) =>
-    repos().modelConfig.createModelConfig(repos().db, data as never),
+    maskModelConfig(repos().modelConfig.createModelConfig(repos().db, data as never)),
   )
-  ipcMain.handle('model:update', (_e, id: string, patch: unknown) =>
-    repos().modelConfig.updateModelConfig(repos().db, id, patch as never),
-  )
+  ipcMain.handle('model:update', (_e, id: string, patch: unknown) => {
+    const updated = repos().modelConfig.updateModelConfig(repos().db, id, patch as never)
+    return updated ? maskModelConfig(updated) : undefined
+  })
   ipcMain.handle('model:delete', (_e, id: string) => {
     repos().modelConfig.deleteModelConfig(repos().db, id)
     return true

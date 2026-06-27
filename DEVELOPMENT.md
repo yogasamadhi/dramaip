@@ -6,7 +6,7 @@
 
 | 层 | 技术 |
 |---|---|
-| 桌面框架 | Electron 36 + electron-vite |
+| 桌面框架 | Electron 38 + electron-vite |
 | 渲染层 | React 19 + TypeScript + Vite + Tailwind + shadcn/ui |
 | 状态 | Zustand |
 | AI 编排 | LangGraph（`@langchain/langgraph`） |
@@ -28,6 +28,8 @@ apps/
     renderer/  React 应用：pages/、components/、stores/、lib/ipc.ts
 scripts/
   smoke-db.ts  DB 冒烟测试（迁移 + 各 repo CRUD + 项目包往返）
+tests/
+  *.test.ts   轻量单元测试（IPC 契约 / AI 任务注册 / JSON parser）
 ```
 
 ## 五层架构与数据流
@@ -51,7 +53,8 @@ DB 层 (packages/db/repositories/*) → SQLite
 
 **关键约定：**
 - 渲染层永远不直接碰 DB，全部经 `lib/ipc.ts` 的类型化方法。
-- IPC 契约**单一来源**：`preload.ts`（contextBridge）与 `renderer/src/lib/ipc.ts`（StudioApi 接口）必须保持一致。
+- IPC 参数校验契约集中在 `packages/core/src/ipc-contract.ts`；Electron 主进程只负责安装校验层，新增高风险 channel 时必须补 exact schema。
+- `preload.ts`（contextBridge）与 `renderer/src/lib/ipc.ts`（StudioApi 接口）仍需保持方法形状一致。
 - 失败优先返回结构化 `{ ok, error }`，渲染层 catch 后 `toast.error`。
 
 ## 新增一个 AI 任务（最常见扩展）
@@ -62,15 +65,17 @@ DB 层 (packages/db/repositories/*) → SQLite
 2. **core schema**：`packages/core/src/schemas/index.ts` 加 `XResultSchema`（Zod），并登记进 `ALL_RESULT_SCHEMAS`。
 3. **core 常量**：`constants/index.ts` 的 `TASK_TYPE_LABELS` 加中文标签；按需把 taskType 归入 `TASK_GROUPS`（用于按任务选模型）。
 4. **prompt**：`packages/ai/src/prompts/zh-CN/<域>/generate-x.md`，顶部 YAML 头含 `taskType`/`output: json|text`/`version`。
-5. **loader 注册**：`packages/ai/src/prompts/loader.ts` `?raw` import + 写入 `REGISTRY` + 按需加入 `JSON_TASKS`。
+5. **任务定义注册**：`packages/ai/src/prompts/loader.ts` `?raw` import + 写入 `TASK_DEFINITIONS`，同时声明 `output`、结构化任务的 `schema`、章节正文任务的 `writesChapterContent`。
 6. **context**：若需新上下文维度，在 `context-builder.ts` 加 builder 并在 `build-prompt.node.ts` 的 switch 接入。
 7. **落库**：若产物要自动入库，在 `save-result.node.ts` 加分支；若是 generate 类（预览后落库），在 `persistence.ts` 的 `applyGeneratedArtifact` 加分支。
 8. **UI**：渲染层加触发按钮 → `ipc.ai.run({ taskType: 'generate_x' })` → 预览弹窗 → `ipc.ai.applyResult(...)`。
+9. **测试**：`tests/ai-task-registry.test.ts` 会校验所有 `NovelTaskType` 都在 `TASK_DEFINITIONS` 注册，JSON 任务必须声明 schema。
 
 ## 数据库迁移机制（v1.0）
 
 - 迁移框架：`packages/db/src/migrator.ts`。
 - `schema_migrations(version, applied_at)` 表记录已应用版本，保证「每版本有明确 migration」。
+- 每个 migration 在独立事务中执行，业务 DDL 与版本记录一起提交；失败时回滚，避免留下不可重试的半完成版本。
 - **新增迁移**：在 `MIGRATIONS` 数组追加一个 `{ version, name, up(raw) }`，`up` 里 `CREATE TABLE IF NOT EXISTS` / `ensureColumns`（列级幂等）。
 - `createDb(dbPath)` 启动时自动 `runMigrations`：首次建全部表为 v1；旧库经 IF NOT EXISTS 安全补齐，**数据零丢失**。
 - **新增列**（对已有表）：优先在 `migrations.ts` 的 `ADD_COLUMN_SPECS` 加 `{ table, column, sql }`，`ensureColumns` 会用 `PRAGMA table_info` 探测后 `ALTER TABLE ADD COLUMN`。
@@ -93,8 +98,9 @@ DB 层 (packages/db/repositories/*) → SQLite
 ```bash
 pnpm install            # 安装依赖（.npmrc 已配置 Electron 镜像）
 pnpm typecheck          # 全量类型检查（5 个包）
+pnpm test:unit          # Node 内置 test runner + tsx 的轻量单元测试
 pnpm test:db           # Node ABI 下运行 DB smoke 测试
-pnpm test              # typecheck + DB smoke
+pnpm test              # typecheck + unit + DB smoke
 pnpm format:check      # 轻量格式检查（尾随空白/文件末尾换行）
 pnpm dev                # 启动开发模式
 pnpm --filter @sdns/desktop build   # 构建产物
@@ -108,7 +114,7 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 
 - 主窗口启用 `contextIsolation`、`sandbox`、`webSecurity`，并对外链跳转做协议白名单；默认只允许 `http:` / `https:` 用系统浏览器打开。
 - 主进程在注册 IPC 时安装统一参数校验层。所有 `ipcMain.handle` 调用会先检查参数数量和基础形状，再进入业务 handler。
-- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。若系统环境不支持 `safeStorage`，会回退为原值，应用仍可运行但不具备系统级密钥保护。
+- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。返回 renderer 的配置只包含 `masked:v1:*` 掩码，不返回明文。若系统环境不支持 `safeStorage`，会回退为原值，应用仍可运行但不具备系统级密钥保护。
 - AI / 视频 HTTP provider 统一走带超时和重试的请求 helper，默认只重试网络错误和 408/429/5xx 等可恢复状态。
 
 ## 包构建约定

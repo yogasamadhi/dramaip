@@ -51,6 +51,8 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | `pnpm db:generate` | 根据 schema 生成 SQL 迁移（可选） |
 | `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
 | `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
+| `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / JSON parser） |
+| `pnpm test` | 类型检查 + 单元测试 + DB 冒烟测试 |
 
 ## 数据层冒烟测试
 
@@ -72,8 +74,10 @@ API Key 仅本地保存于 `model_configs` 表。
 
 **数据安全（v1.0）：**
 - **版本化迁移**：`schema_migrations` 表记录迁移版本，应用升级时自动补齐、数据零丢失。
+- **事务化升级**：每个数据库 migration 与版本记录在同一事务中提交，失败会回滚，避免半升级状态。
 - **自动备份**：每次启动自动复制一份 `studio.db` 到 `userData/backups/`，保留最近 7 份。
 - **项目包导入导出**：工作台「导出 → 完整项目包（.sdnspkg）」导出项目全部关联数据；首页「导入项目包」可还原为新项目（id 重映射、外键保留）。
+- **密钥保护**：模型与视频 Provider 的 API Key 仅在主进程解密使用，返回界面时显示为掩码。
 
 ## 文档
 
