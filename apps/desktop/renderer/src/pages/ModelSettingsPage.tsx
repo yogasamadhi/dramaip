@@ -103,7 +103,7 @@ export function ModelSettingsPage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
           <ArrowLeft />
         </Button>
         <h1 className="text-lg font-semibold">模型设置</h1>

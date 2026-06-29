@@ -562,4 +562,159 @@ export const taskModelBindings = sqliteTable('task_model_bindings', {
   updatedAt: text('updated_at').notNull(),
 })
 
+// v1.1 创意诊断与反套路迭代系统
+
+export const creativeCaseStudies = sqliteTable('creative_case_studies', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  sourceType: text('source_type'),
+  genre: text('genre'),
+  summary: text('summary'),
+  relationshipPatterns: text('relationship_patterns').notNull().default('[]'),
+  openingHooks: text('opening_hooks').notNull().default('[]'),
+  highlightBeats: text('highlight_beats').notNull().default('[]'),
+  reversalMechanisms: text('reversal_mechanisms').notNull().default('[]'),
+  cliffhangers: text('cliffhangers').notNull().default('[]'),
+  visualPatterns: text('visual_patterns').notNull().default('[]'),
+  riskTags: text('risk_tags').notNull().default('[]'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const freshnessReports = sqliteTable('freshness_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  targetTitle: text('target_title'),
+  originalityScore: real('originality_score').notNull(),
+  predictabilityScore: real('predictability_score').notNull(),
+  tropeRiskScore: real('trope_risk_score').notNull(),
+  characterFreshnessScore: real('character_freshness_score').notNull(),
+  conflictFreshnessScore: real('conflict_freshness_score').notNull(),
+  reversalFreshnessScore: real('reversal_freshness_score').notNull(),
+  emotionalFreshnessScore: real('emotional_freshness_score').notNull(),
+  overallScore: real('overall_score').notNull(),
+  clicheSignals: text('cliche_signals').notNull().default('[]'),
+  audiencePredictionPoints: text('audience_prediction_points').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  rawResult: text('raw_result'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const antiTropeVariants = sqliteTable('anti_trope_variants', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  mode: text('mode', { enum: ['conservative', 'balanced', 'wild'] }).notNull(),
+  title: text('title').notNull(),
+  premise: text('premise').notNull(),
+  pressureMechanism: text('pressure_mechanism').notNull(),
+  preservedPayoffs: text('preserved_payoffs').notNull().default('[]'),
+  keyChanges: text('key_changes').notNull().default('[]'),
+  risks: text('risks').notNull().default('[]'),
+  sampleRewrite: text('sample_rewrite'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const revisionTasks = sqliteTable('revision_tasks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  sourceReportId: text('source_report_id'),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  priority: text('priority', { enum: ['must', 'should', 'could'] }).notNull(),
+  status: text('status', { enum: ['open', 'accepted', 'applied', 'dismissed'] }).notNull().default('open'),
+  suggestedAction: text('suggested_action').notNull(),
+  expectedBenefit: text('expected_benefit').notNull().default('{}'),
+  appliedVersionId: text('applied_version_id'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const contentVersions = sqliteTable('content_versions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id').notNull(),
+  label: text('label').notNull(),
+  source: text('source', { enum: ['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint'] }).notNull(),
+  content: text('content').notNull().default(''),
+  meta: text('meta'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const qualityGateReports = sqliteTable('quality_gate_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  stage: text('stage', {
+    enum: ['novel_to_adaptation', 'episodes_to_scripts', 'scripts_to_shots', 'shots_to_video'],
+  }).notNull(),
+  score: real('score').notNull(),
+  verdict: text('verdict', { enum: ['pass', 'warn', 'block'] }).notNull(),
+  blockingIssues: text('blocking_issues').notNull().default('[]'),
+  warnings: text('warnings').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const audienceSimulations = sqliteTable('audience_simulations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  audienceProfile: text('audience_profile').notNull(),
+  retentionScore: real('retention_score').notNull(),
+  emotionalEngagementScore: real('emotional_engagement_score').notNull(),
+  noveltyScore: real('novelty_score').notNull(),
+  likelyDropOffPoints: text('likely_drop_off_points').notNull().default('[]'),
+  mostMemorableMoments: text('most_memorable_moments').notNull().default('[]'),
+  complaints: text('complaints').notNull().default('[]'),
+  shareableClips: text('shareable_clips').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const narrativeCurveReports = sqliteTable('narrative_curve_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  hookCurve: text('hook_curve').notNull().default('[]'),
+  conflictCurve: text('conflict_curve').notNull().default('[]'),
+  reversalCurve: text('reversal_curve').notNull().default('[]'),
+  emotionCurve: text('emotion_curve').notNull().default('[]'),
+  cliffhangerCurve: text('cliffhanger_curve').notNull().default('[]'),
+  freshnessCurve: text('freshness_curve').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  weakSpots: text('weak_spots').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const workflowRuns = sqliteTable('workflow_runs', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  templateKey: text('template_key').notNull(),
+  title: text('title').notNull(),
+  status: text('status', { enum: ['pending', 'running', 'success', 'failed'] }).notNull().default('pending'),
+  currentStep: text('current_step'),
+  steps: text('steps').notNull().default('[]'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export type DatabaseSchema = typeof import('./schema')

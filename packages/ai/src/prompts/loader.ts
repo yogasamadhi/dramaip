@@ -3,7 +3,10 @@ import type { NovelTaskType } from '@sdns/core'
 import {
   AdaptationStrategyResultSchema,
   AiVideoFeasibilityResultSchema,
+  AntiTropeVariantsResultSchema,
   BeatsResultSchema,
+  AudienceSimulationResultSchema,
+  CaseStructureResultSchema,
   ChatProjectResultSchema,
   ChapterMemoryResultSchema,
   CharacterStateResultSchema,
@@ -14,10 +17,14 @@ import {
   EvaluationResultSchema,
   First10AnalysisResultSchema,
   ForeshadowingResultSchema,
+  FreshnessReportResultSchema,
   GenerateChapterOutlinesResultSchema,
   GenerateCharactersResultSchema,
   GenerateProjectResultSchema,
   HighlightAnalysisResultSchema,
+  NarrativeCurveResultSchema,
+  QualityGateResultSchema,
+  RevisionTasksResultSchema,
   ScenesResultSchema,
   ScriptResultSchema,
   ScriptReviewResultSchema,
@@ -25,6 +32,7 @@ import {
   ShotReviewResultSchema,
   ShotsResultSchema,
   StoryEventsResultSchema,
+  VideoCostRiskResultSchema,
   VisualProfileResultSchema,
   VisualSettingResultSchema,
 } from '@sdns/core'
@@ -84,6 +92,15 @@ import generateNegativePrompt from './zh-CN/shot/generate-negative-prompt.md?raw
 import reviewShotPrompt from './zh-CN/shot/review-shot-prompt.md?raw'
 import rewriteShotPrompt from './zh-CN/shot/rewrite-shot-prompt.md?raw'
 import optimizePromptForVideoPlatform from './zh-CN/shot/optimize-prompt-for-video-platform.md?raw'
+// v1.1 创意诊断与反套路迭代系统
+import analyzeTropeFreshness from './zh-CN/creative/analyze-trope-freshness.md?raw'
+import generateAntiTropeVariants from './zh-CN/creative/generate-anti-trope-variants.md?raw'
+import analyzeNarrativeCurve from './zh-CN/creative/analyze-narrative-curve.md?raw'
+import generateRevisionTasks from './zh-CN/creative/generate-revision-tasks.md?raw'
+import runQualityGate from './zh-CN/creative/run-quality-gate.md?raw'
+import simulateAudienceReaction from './zh-CN/creative/simulate-audience-reaction.md?raw'
+import analyzeVideoCostRisk from './zh-CN/creative/analyze-video-cost-risk.md?raw'
+import extractCaseStructure from './zh-CN/creative/extract-case-structure.md?raw'
 // v0.8 多 Agent 编剧室与模板系统
 // writing_room_* 由 writing-room.graph 内部直接引用 agent prompts；
 // template_run 的实际正文来自 graph state 的 templateContent（此处仅为占位，保证 REGISTRY 完整）。
@@ -152,6 +169,15 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   review_shot_prompt: { prompt: reviewShotPrompt, output: 'json', schema: ShotReviewResultSchema },
   rewrite_shot_prompt: { prompt: rewriteShotPrompt, output: 'json', schema: ShotPromptResultSchema },
   optimize_prompt_for_video_platform: { prompt: optimizePromptForVideoPlatform, output: 'json', schema: ShotPromptResultSchema },
+  // v1.1
+  analyze_trope_freshness: { prompt: analyzeTropeFreshness, output: 'json', schema: FreshnessReportResultSchema },
+  generate_anti_trope_variants: { prompt: generateAntiTropeVariants, output: 'json', schema: AntiTropeVariantsResultSchema },
+  analyze_narrative_curve: { prompt: analyzeNarrativeCurve, output: 'json', schema: NarrativeCurveResultSchema },
+  generate_revision_tasks: { prompt: generateRevisionTasks, output: 'json', schema: RevisionTasksResultSchema },
+  run_quality_gate: { prompt: runQualityGate, output: 'json', schema: QualityGateResultSchema },
+  simulate_audience_reaction: { prompt: simulateAudienceReaction, output: 'json', schema: AudienceSimulationResultSchema },
+  analyze_video_cost_risk: { prompt: analyzeVideoCostRisk, output: 'json', schema: VideoCostRiskResultSchema },
+  extract_case_structure: { prompt: extractCaseStructure, output: 'json', schema: CaseStructureResultSchema },
   // v0.8
   writing_room_review: { prompt: agentReviewPrompt, output: 'text' },
   writing_room_consolidate: { prompt: consolidatePrompt, output: 'text' },

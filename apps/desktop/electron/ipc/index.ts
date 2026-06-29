@@ -9,6 +9,7 @@ import { registerScriptIpc } from './script.ipc'
 import { registerShotIpc } from './shot.ipc'
 import { registerVideoIpc } from './video.ipc'
 import { registerWritingRoomIpc } from './writing-room.ipc'
+import { registerCreativeIpc } from './creative.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -24,4 +25,5 @@ export function registerAllIpc(): void {
   registerShotIpc()
   registerVideoIpc()
   registerWritingRoomIpc()
+  registerCreativeIpc()
 }

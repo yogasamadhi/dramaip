@@ -407,6 +407,119 @@ export type ShotReviewResult = z.infer<typeof ShotReviewResultSchema>
 /** rewrite_shot_prompt / optimize_prompt_for_video_platform：返回新 Prompt（沿用 ShotPromptResult） */
 
 // ---------------------------------------------------------------------------
+// v1.1 创意诊断与反套路迭代系统
+// ---------------------------------------------------------------------------
+
+const antiTropeMode = z.enum(['conservative', 'balanced', 'wild'])
+const revisionPriority = z.enum(['must', 'should', 'could'])
+const qualityGateStage = z.enum(['novel_to_adaptation', 'episodes_to_scripts', 'scripts_to_shots', 'shots_to_video'])
+const qualityGateVerdict = z.enum(['pass', 'warn', 'block'])
+
+export const FreshnessReportResultSchema = z.object({
+  originalityScore: score,
+  predictabilityScore: score,
+  tropeRiskScore: score,
+  characterFreshnessScore: score,
+  conflictFreshnessScore: score,
+  reversalFreshnessScore: score,
+  emotionalFreshnessScore: score,
+  overallScore: score,
+  clicheSignals: strArr,
+  audiencePredictionPoints: strArr,
+  suggestions: strArr,
+})
+export type FreshnessReportResult = z.infer<typeof FreshnessReportResultSchema>
+
+export const AntiTropeVariantResultSchema = z.object({
+  mode: antiTropeMode,
+  title: z.string().min(1),
+  premise: z.string().min(1),
+  pressureMechanism: z.string().min(1),
+  preservedPayoffs: strArr,
+  keyChanges: strArr,
+  risks: strArr,
+  sampleRewrite: z.string().optional(),
+})
+export const AntiTropeVariantsResultSchema = z.array(AntiTropeVariantResultSchema).min(3).max(3)
+export type AntiTropeVariantsResult = z.infer<typeof AntiTropeVariantsResultSchema>
+
+export const NarrativeCurveResultSchema = z.object({
+  hookCurve: z.array(score),
+  conflictCurve: z.array(score),
+  reversalCurve: z.array(score),
+  emotionCurve: z.array(score),
+  cliffhangerCurve: z.array(score),
+  freshnessCurve: z.array(score),
+  summary: z.string(),
+  weakSpots: strArr,
+})
+export type NarrativeCurveResult = z.infer<typeof NarrativeCurveResultSchema>
+
+export const RevisionTaskResultSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  priority: revisionPriority,
+  suggestedAction: z.string().min(1),
+  expectedBenefit: z.object({
+    retention: score,
+    freshness: score,
+    visual: score,
+    cost: score,
+  }),
+})
+export const RevisionTasksResultSchema = z.array(RevisionTaskResultSchema).min(1).max(50)
+export type RevisionTasksResult = z.infer<typeof RevisionTasksResultSchema>
+
+export const QualityGateResultSchema = z.object({
+  stage: qualityGateStage.optional(),
+  score: score,
+  verdict: qualityGateVerdict,
+  blockingIssues: strArr,
+  warnings: strArr,
+  suggestions: strArr,
+})
+export type QualityGateResult = z.infer<typeof QualityGateResultSchema>
+
+export const AudienceSimulationResultSchema = z.object({
+  audienceProfile: z.string().min(1),
+  retentionScore: score,
+  emotionalEngagementScore: score,
+  noveltyScore: score,
+  likelyDropOffPoints: strArr,
+  mostMemorableMoments: strArr,
+  complaints: strArr,
+  shareableClips: strArr,
+  summary: z.string(),
+})
+export type AudienceSimulationResult = z.infer<typeof AudienceSimulationResultSchema>
+
+export const VideoCostRiskResultSchema = z.object({
+  score: score,
+  verdict: qualityGateVerdict,
+  blockingIssues: strArr,
+  risks: strArr,
+  simplifications: strArr,
+  suggestions: strArr,
+})
+export type VideoCostRiskResult = z.infer<typeof VideoCostRiskResultSchema>
+
+export const CaseStructureResultSchema = z.object({
+  title: z.string().min(1),
+  sourceType: z.string().optional(),
+  genre: z.string().optional(),
+  summary: z.string().optional(),
+  relationshipPatterns: strArr,
+  openingHooks: strArr,
+  highlightBeats: strArr,
+  reversalMechanisms: strArr,
+  cliffhangers: strArr,
+  visualPatterns: strArr,
+  riskTags: strArr,
+  notes: z.string().optional(),
+})
+export type CaseStructureResult = z.infer<typeof CaseStructureResultSchema>
+
+// ---------------------------------------------------------------------------
 // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
 // ---------------------------------------------------------------------------
 
@@ -467,6 +580,15 @@ export const ALL_RESULT_SCHEMAS = {
   review_shot_prompt: ShotReviewResultSchema,
   rewrite_shot_prompt: ShotPromptResultSchema,
   optimize_prompt_for_video_platform: ShotPromptResultSchema,
+  // v1.1
+  analyze_trope_freshness: FreshnessReportResultSchema,
+  generate_anti_trope_variants: AntiTropeVariantsResultSchema,
+  analyze_narrative_curve: NarrativeCurveResultSchema,
+  generate_revision_tasks: RevisionTasksResultSchema,
+  run_quality_gate: QualityGateResultSchema,
+  simulate_audience_reaction: AudienceSimulationResultSchema,
+  analyze_video_cost_risk: VideoCostRiskResultSchema,
+  extract_case_structure: CaseStructureResultSchema,
   // v0.8（template_run 的实际 schema 由 scope 动态解析；这里登记两类固定 schema 便于查询）
   writing_room_review: AgentReviewOutputSchema,
   writing_room_consolidate: WritingRoomConsolidatedSchema,

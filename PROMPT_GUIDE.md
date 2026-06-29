@@ -15,6 +15,7 @@ packages/ai/src/prompts/
     adaptation/   分集大纲（改编策略、分集生成、增强、前10集分析）
     script/       剧本（生成、拆场景、审稿、改写、增强）
     shot/         分镜与镜头 Prompt（拆镜头、视频/负面 Prompt、审查、改写、平台优化）
+    creative/     创意诊断（新鲜度、反套路、曲线、修稿任务、闸门、观众模拟、视频风险、样本结构）
     consistency/  一致性检查、长上下文构建
     agent/        多 Agent 编剧室（agent-review、consolidate-review）
   loader.ts       REGISTRY（taskType → 模板字符串）+ isJsonTask + effectiveTaskType
@@ -76,8 +77,24 @@ output: text|json
 | `buildScriptContext` | 剧本（项目 + 改编 + 分集 + 场景） |
 | `buildShotContext` | 镜头（场景 + 镜头 + 视觉风格） |
 | `buildAdaptationContext` | 分集（项目 + 全书大纲） |
+| `buildCreativeContext` | 创意诊断（创作材料 + 本地样本库 + 既有评分/曲线/任务/闸门） |
 
 `build-prompt.node.ts` 按 `effectiveTaskType` 选择 builder，拼成「# 输入材料」段落。
+
+## 创意诊断任务（v1.1）
+
+`creative_strategy` 任务组包含：
+
+- `analyze_trope_freshness`：套路新鲜度评分，识别可预判点。
+- `generate_anti_trope_variants`：生成 conservative / balanced / wild 三档反套路方案。
+- `analyze_narrative_curve`：输出钩子、冲突、反转、情绪、悬念、新鲜度曲线。
+- `generate_revision_tasks`：把诊断意见转成可应用的修稿任务单。
+- `run_quality_gate`：判断是否可进入下一生产阶段。
+- `simulate_audience_reaction`：模拟目标观众留存、吐槽和可剪素材。
+- `analyze_video_cost_risk`：提前判断视频生成难度和返工风险。
+- `extract_case_structure`：把用户上传样本文档中的内容抽象成本地样本库结构标签。
+
+所有任务均为 JSON 输出并落库；内容改写类任务和修稿任务应用会自动创建 `content_versions` 快照。
 
 ## 模板系统（v0.8）
 

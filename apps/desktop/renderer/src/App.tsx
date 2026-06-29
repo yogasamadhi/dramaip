@@ -20,12 +20,14 @@ const VideoGenerationPage = lazy(() =>
 const VideoProviderSettingsPage = lazy(() =>
   import('@/pages/VideoProviderSettingsPage').then((m) => ({ default: m.VideoProviderSettingsPage })),
 )
+const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ModelSettingsPage = lazy(() => import('@/pages/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })))
 const WritingRoomPage = lazy(() => import('@/pages/WritingRoomPage').then((m) => ({ default: m.WritingRoomPage })))
 const AgentSettingsPage = lazy(() => import('@/pages/AgentSettingsPage').then((m) => ({ default: m.AgentSettingsPage })))
 const TemplatePage = lazy(() => import('@/pages/TemplatePage').then((m) => ({ default: m.TemplatePage })))
 const GenrePresetPage = lazy(() => import('@/pages/GenrePresetPage').then((m) => ({ default: m.GenrePresetPage })))
 const UsageStatsPage = lazy(() => import('@/pages/UsageStatsPage').then((m) => ({ default: m.UsageStatsPage })))
+const CaseStudyPage = lazy(() => import('@/pages/CaseStudyPage').then((m) => ({ default: m.CaseStudyPage })))
 
 export default function App() {
   return (
@@ -40,12 +42,15 @@ export default function App() {
         <Route path="/adaptations/:id/scripts" element={<ScriptWorkspacePage />} />
         <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
         <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
-        <Route path="/settings" element={<ModelSettingsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/model" element={<Navigate to="/settings/models" replace />} />
+        <Route path="/settings/models" element={<ModelSettingsPage />} />
         <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
         <Route path="/settings/agents" element={<AgentSettingsPage />} />
         <Route path="/settings/usage" element={<UsageStatsPage />} />
         <Route path="/templates" element={<TemplatePage />} />
         <Route path="/genres" element={<GenrePresetPage />} />
+        <Route path="/case-studies" element={<CaseStudyPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

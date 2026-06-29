@@ -52,6 +52,7 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'consistency', label: '一致性检查' },
   // v0.3 AI 短剧小说强化
   { key: 'ai-dashboard', label: 'AI短剧仪表盘' },
+  { key: 'creative-diagnosis', label: '创意诊断台' },
   { key: 'beats', label: '戏剧节拍' },
   { key: 'highlights', label: '爽点分析' },
   { key: 'ai-video', label: 'AI视频可行性' },
@@ -116,6 +117,15 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   review_shot_prompt: '镜头审查',
   rewrite_shot_prompt: '改写镜头 Prompt',
   optimize_prompt_for_video_platform: '优化镜头 Prompt（视频平台）',
+  // v1.1 创意诊断与反套路迭代系统
+  analyze_trope_freshness: '套路新鲜度分析',
+  generate_anti_trope_variants: '生成反套路方案',
+  analyze_narrative_curve: '分析爽点/钩子曲线',
+  generate_revision_tasks: '生成修稿任务单',
+  run_quality_gate: '运行质量闸门',
+  simulate_audience_reaction: '模拟观众反应',
+  analyze_video_cost_risk: '视频成本/难度预估',
+  extract_case_structure: '抽取样本结构',
   // v0.8 多 Agent 编剧室与模板系统
   writing_room_review: '编剧室 Agent 审稿',
   writing_room_consolidate: '编剧室整合建议',
@@ -332,6 +342,21 @@ export const TASK_GROUPS: TaskGroup[] = [
     ],
   },
   {
+    key: 'creative_strategy',
+    label: '创意诊断',
+    description: '新鲜度 / 反套路 / 曲线 / 修稿任务 / 质量闸门 / 观众模拟 / 视频风险',
+    taskTypes: [
+      'analyze_trope_freshness',
+      'generate_anti_trope_variants',
+      'analyze_narrative_curve',
+      'generate_revision_tasks',
+      'run_quality_gate',
+      'simulate_audience_reaction',
+      'analyze_video_cost_risk',
+      'extract_case_structure',
+    ],
+  },
+  {
     key: 'writing_room',
     label: '多 Agent 编剧室',
     description: '编剧室各 Agent 审稿 + 主编整合',
@@ -353,3 +378,26 @@ export const TASK_GROUP_LABELS: Record<string, string> = Object.fromEntries(
 export function resolveTaskGroup(taskType: string): string {
   return TASK_TYPE_TO_GROUP[taskType] ?? 'setup'
 }
+
+export const CREATIVE_WORKFLOW_TEMPLATES = [
+  {
+    key: 'project_full_diagnosis',
+    title: '新项目完整体检',
+    steps: ['analyze_trope_freshness', 'analyze_narrative_curve', 'simulate_audience_reaction', 'generate_revision_tasks'],
+  },
+  {
+    key: 'chapter_anti_trope_revision',
+    title: '章节反套路修稿',
+    steps: ['analyze_trope_freshness', 'generate_anti_trope_variants', 'generate_revision_tasks'],
+  },
+  {
+    key: 'adaptation_quality_gate',
+    title: '改编前质量闸门',
+    steps: ['run_quality_gate', 'simulate_audience_reaction', 'generate_revision_tasks'],
+  },
+  {
+    key: 'video_quality_gate',
+    title: '视频生成前质量闸门',
+    steps: ['analyze_video_cost_risk', 'run_quality_gate', 'generate_revision_tasks'],
+  },
+] as const

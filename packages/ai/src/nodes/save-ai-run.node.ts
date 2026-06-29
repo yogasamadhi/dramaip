@@ -23,7 +23,7 @@ export function createSaveAiRunNode(deps: NodeDeps) {
       type: state.taskType,
       provider: state.providerName ?? provider?.name ?? 'unknown',
       model: state.modelName ?? provider?.model ?? 'unknown',
-      input: state.promptText ?? state.contextText ?? '',
+      input: inputForAuditLog(state),
       output: failed ? '' : output,
       status: failed ? 'failed' : 'success',
       errorMessage: failed ? state.error : undefined,
@@ -33,4 +33,11 @@ export function createSaveAiRunNode(deps: NodeDeps) {
 
     return { aiRunId: run.id }
   }
+}
+
+function inputForAuditLog(state: NovelGraphStateType): string {
+  if (state.taskType === 'extract_case_structure') {
+    return '样本文档上传抽取：上传原文仅用于本次模型调用，ai_runs 不保存原文。'
+  }
+  return state.promptText ?? state.contextText ?? ''
 }

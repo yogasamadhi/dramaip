@@ -1347,6 +1347,31 @@ AI_VIDEO_GUIDE.md
 
 # 长期可选方向
 
+# v1.1 创意诊断与反套路迭代系统
+
+## 目标
+
+把“生成内容”升级为“诊断、反套路、迭代和闸门决策”的生产级创作系统。
+
+## 核心功能
+
+1. 创意诊断台：统一查看新鲜度、反套路方案、曲线、质量闸门、观众模拟、修稿任务、版本和工作流。
+2. 本地样本库：用户上传 `.md` / `.txt` / `.docx` 样本文档，由 AI 抽取案例结构，只保存抽象标签，不采集外部内容。
+3. 新鲜度评分：识别套路风险、观众预判点、人设/冲突/反转/情绪的新鲜度。
+4. 反套路方案：固定输出 conservative / balanced / wild 三档。
+5. 修稿任务单：按 must / should / could 生成任务，并可应用到章节、剧本或镜头。
+6. 质量闸门：novel_to_adaptation / episodes_to_scripts / scripts_to_shots / shots_to_video 四阶段 pass / warn / block。
+7. 内容版本：AI 覆写、采纳预览、修稿应用和手动检查点会记录 `content_versions`。
+8. 自动工作流：新项目完整体检、章节反套路修稿、改编前质量闸门、视频生成前质量闸门。
+
+## 数据与任务
+
+新增表：`creative_case_studies`、`freshness_reports`、`anti_trope_variants`、`revision_tasks`、`content_versions`、`quality_gate_reports`、`audience_simulations`、`narrative_curve_reports`、`workflow_runs`。
+
+新增任务：`analyze_trope_freshness`、`generate_anti_trope_variants`、`analyze_narrative_curve`、`generate_revision_tasks`、`run_quality_gate`、`simulate_audience_reaction`、`analyze_video_cost_risk`、`extract_case_structure`。
+
+项目包升级到 v2，包含上述创意诊断数据和本地样本库。
+
 v1.0 之后可以考虑：
 
 ```txt

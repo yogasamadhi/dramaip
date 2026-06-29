@@ -29,29 +29,38 @@ import type {
   AdaptationProject,
   AiRun,
   AiVideoFeasibilityReport,
+  AntiTropeVariant,
+  AudienceSimulation,
   Beat,
   Chapter,
   ChapterMemory,
   Character,
   CharacterState,
   CharacterVisualProfile,
+  ContentVersion,
+  CreativeCaseStudy,
   DramaTrendReport,
   Episode,
   EpisodeAnalysis,
   Evaluation,
   Foreshadowing,
+  FreshnessReport,
   HighlightAnalysis,
+  NarrativeCurveReport,
   Outline,
   Project,
+  QualityGateReport,
+  RevisionTask,
   Scene,
   Script,
   StoryEvent,
   VisualSetting,
+  WorkflowRun,
 } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 1
+export const PACKAGE_VERSION = 2
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -77,6 +86,15 @@ export interface ProjectPackage {
   highlightAnalyses: HighlightAnalysis[]
   feasibilityReports: AiVideoFeasibilityReport[]
   dramaTrendReport?: DramaTrendReport
+  caseStudies: CreativeCaseStudy[]
+  freshnessReports: FreshnessReport[]
+  antiTropeVariants: AntiTropeVariant[]
+  revisionTasks: RevisionTask[]
+  contentVersions: ContentVersion[]
+  qualityGateReports: QualityGateReport[]
+  audienceSimulations: AudienceSimulation[]
+  narrativeCurveReports: NarrativeCurveReport[]
+  workflowRuns: WorkflowRun[]
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -107,6 +125,15 @@ export function collectProjectPackage(repos: Repositories, projectId: string): P
   const highlightAnalyses = repos.highlight.listHighlights(db, projectId)
   const feasibilityReports = repos.feasibility.listFeasibilityReports(db, projectId)
   const dramaTrendReport = repos.dramaTrend.getDramaTrend(db, projectId) ?? undefined
+  const caseStudies = repos.creative.listCaseStudies(db)
+  const freshnessReports = repos.creative.listFreshnessReports(db, projectId)
+  const antiTropeVariants = collectAntiTropeVariants(db, repos, projectId)
+  const revisionTasks = repos.creative.listRevisionTasks(db, projectId)
+  const contentVersions = collectContentVersions(db, repos, projectId)
+  const qualityGateReports = repos.creative.listQualityGateReports(db, projectId)
+  const audienceSimulations = repos.creative.listAudienceSimulations(db, projectId)
+  const narrativeCurveReports = repos.creative.listNarrativeCurveReports(db, projectId)
+  const workflowRuns = repos.creative.listWorkflowRuns(db, projectId)
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
 
   // 衍生改编项目
@@ -144,9 +171,47 @@ export function collectProjectPackage(repos: Repositories, projectId: string): P
     highlightAnalyses,
     feasibilityReports,
     dramaTrendReport,
+    caseStudies,
+    freshnessReports,
+    antiTropeVariants,
+    revisionTasks,
+    contentVersions,
+    qualityGateReports,
+    audienceSimulations,
+    narrativeCurveReports,
+    workflowRuns,
     adaptations,
     aiRuns,
   }
+}
+
+function collectTargetPairs(db: Repositories['db'], repos: Repositories, projectId: string): Array<{ targetKind: string; targetId: string }> {
+  const pairs: Array<{ targetKind: string; targetId: string }> = [{ targetKind: 'project', targetId: projectId }]
+  for (const c of repos.chapter.listChapters(db, projectId)) pairs.push({ targetKind: 'chapter', targetId: c.id })
+  for (const ap of repos.adaptationProject.listAdaptationsByProject(db, projectId)) {
+    pairs.push({ targetKind: 'adaptation', targetId: ap.id })
+    for (const ep of repos.episode.listEpisodes(db, ap.id)) pairs.push({ targetKind: 'episode', targetId: ep.id })
+    for (const script of repos.script.listScripts(db, ap.id)) {
+      pairs.push({ targetKind: 'script', targetId: script.id })
+      for (const scene of repos.scene.listScenesByScript(db, script.id)) {
+        pairs.push({ targetKind: 'scene', targetId: scene.id })
+        for (const shot of repos.shot.listShotsByScene(db, scene.id)) pairs.push({ targetKind: 'shot', targetId: shot.id })
+      }
+    }
+  }
+  return pairs
+}
+
+function collectAntiTropeVariants(db: Repositories['db'], repos: Repositories, projectId: string): AntiTropeVariant[] {
+  return collectTargetPairs(db, repos, projectId).flatMap((p) =>
+    repos.creative.listAntiTropeVariantsByTarget(db, p.targetKind, p.targetId),
+  )
+}
+
+function collectContentVersions(db: Repositories['db'], repos: Repositories, projectId: string): ContentVersion[] {
+  return collectTargetPairs(db, repos, projectId).flatMap((p) =>
+    repos.creative.listContentVersionsByTarget(db, p.targetKind, p.targetId),
+  )
 }
 
 /** 序列化为 .sdnspkg 字符串（JSON） */
@@ -313,16 +378,23 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       repos.dramaTrend.upsertDramaTrend(db, { ...stripId(pkg.dramaTrendReport), projectId: newProject.id })
     }
 
+    // 15.1 本地样本库（全局结构参考，随包带入；不重映射 project）
+    for (const c of pkg.caseStudies ?? []) {
+      repos.creative.createCaseStudy(db, stripId(c))
+    }
+
     // 16. 衍生改编项目（含分集/剧本/场景/镜头/分析）
     for (const ap of pkg.adaptations) {
       const newAdapt = repos.adaptationProject.createAdaptationProject(db, {
         ...stripId(ap.adaptation),
         sourceProjectId: newProject.id,
       })
+      idMap.set(ap.adaptation.id, newAdapt.id)
       const episodeIdMap = new Map<string, string>()
       for (const ep of ap.episodes) {
         const created = repos.episode.createEpisode(db, { ...stripId(ep), adaptationProjectId: newAdapt.id })
         episodeIdMap.set(ep.id, created.id)
+        idMap.set(ep.id, created.id)
       }
       for (const { script, scenes } of ap.scripts) {
         const newEpisodeId = script.episodeId ? episodeIdMap.get(script.episodeId) : undefined
@@ -334,12 +406,14 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         })
         const scriptIdMap = new Map<string, string>()
         scriptIdMap.set(script.id, createdScript.id)
+        idMap.set(script.id, createdScript.id)
         for (const sc of scenes) {
-          repos.scene.createScene(db, {
+          const createdScene = repos.scene.createScene(db, {
             ...stripId(sc),
             scriptId: createdScript.id,
             episodeId: newEpisodeId,
           })
+          idMap.set(sc.id, createdScene.id)
         }
       }
       if (ap.episodeAnalysis) {
@@ -355,7 +429,85 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       }
     }
 
-    // 17. ai_runs（仅记录性，重新挂到新项目；保留原始 type/model 等）
+    // 17. 创意诊断数据（目标 id 尽量重映射；无法重映射的跨实体记录跳过）
+    for (const f of pkg.freshnessReports ?? []) {
+      const targetId = remapTargetId(f.targetId, idMap, oldProjectId, newProject.id)
+      if (f.targetId && !targetId) continue
+      repos.creative.createFreshnessReport(db, {
+        ...stripId(f),
+        projectId: newProject.id,
+        targetId,
+      })
+    }
+    for (const v of pkg.antiTropeVariants ?? []) {
+      const targetId = remapTargetId(v.targetId, idMap, oldProjectId, newProject.id)
+      if (v.targetId && !targetId) continue
+      repos.creative.createAntiTropeVariant(db, {
+        ...stripId(v),
+        projectId: newProject.id,
+        targetId,
+      })
+    }
+    for (const t of pkg.revisionTasks ?? []) {
+      const targetId = remapTargetId(t.targetId, idMap, oldProjectId, newProject.id)
+      if (t.targetId && !targetId) continue
+      repos.creative.createRevisionTask(db, {
+        ...stripId(t),
+        projectId: newProject.id,
+        targetId,
+        status: t.status === 'applied' ? 'accepted' : t.status,
+        appliedVersionId: undefined,
+      })
+    }
+    for (const v of pkg.contentVersions ?? []) {
+      const targetId = remapTargetId(v.targetId, idMap, oldProjectId, newProject.id)
+      if (!targetId) continue
+      repos.creative.createContentVersion(db, {
+        ...stripId(v),
+        projectId: newProject.id,
+        targetId,
+      })
+    }
+    for (const g of pkg.qualityGateReports ?? []) {
+      const targetId = remapTargetId(g.targetId, idMap, oldProjectId, newProject.id)
+      if (g.targetId && !targetId) continue
+      repos.creative.createQualityGateReport(db, {
+        ...stripId(g),
+        projectId: newProject.id,
+        adaptationProjectId: g.adaptationProjectId ? idMap.get(g.adaptationProjectId) : undefined,
+        targetId,
+      })
+    }
+    for (const a of pkg.audienceSimulations ?? []) {
+      const targetId = remapTargetId(a.targetId, idMap, oldProjectId, newProject.id)
+      if (a.targetId && !targetId) continue
+      repos.creative.createAudienceSimulation(db, {
+        ...stripId(a),
+        projectId: newProject.id,
+        targetId,
+      })
+    }
+    for (const c of pkg.narrativeCurveReports ?? []) {
+      const targetId = remapTargetId(c.targetId, idMap, oldProjectId, newProject.id)
+      if (c.targetId && !targetId) continue
+      repos.creative.createNarrativeCurveReport(db, {
+        ...stripId(c),
+        projectId: newProject.id,
+        adaptationProjectId: c.adaptationProjectId ? idMap.get(c.adaptationProjectId) : undefined,
+        targetId,
+      })
+    }
+    for (const w of pkg.workflowRuns ?? []) {
+      repos.creative.createWorkflowRun(db, {
+        ...stripId(w),
+        projectId: newProject.id,
+        adaptationProjectId: w.adaptationProjectId ? idMap.get(w.adaptationProjectId) : undefined,
+        status: w.status === 'running' ? 'failed' : w.status,
+        errorMessage: w.status === 'running' ? '导入时中断的工作流已标记为失败' : w.errorMessage,
+      })
+    }
+
+    // 18. ai_runs（仅记录性，重新挂到新项目；保留原始 type/model 等）
     for (const r of pkg.aiRuns) {
       repos.aiRun.createAiRun(db, {
         projectId: newProject.id,
@@ -376,6 +528,12 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     void now
     return newProject
   })
+}
+
+function remapTargetId(targetId: string | undefined, idMap: Map<string, string>, oldProjectId: string, newProjectId: string): string | undefined {
+  if (!targetId) return undefined
+  if (targetId === oldProjectId) return newProjectId
+  return idMap.get(targetId)
 }
 
 /** 去掉 id / 时间戳，便于 create 时重新生成 */

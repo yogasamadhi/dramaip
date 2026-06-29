@@ -31,3 +31,21 @@ test('json task definitions declare schemas', () => {
   const missingSchema = [...loader.matchAll(/^\s{2}([a-z0-9_]+): \{ prompt: .*?output: 'json'(?!.*schema:)/gm)].map((m) => m[1])
   assert.deepEqual(missingSchema, [])
 })
+
+test('creative strategy tasks have labels and task group', () => {
+  const constants = read('../packages/core/src/constants/index.ts')
+  for (const task of [
+    'analyze_trope_freshness',
+    'generate_anti_trope_variants',
+    'analyze_narrative_curve',
+    'generate_revision_tasks',
+    'run_quality_gate',
+    'simulate_audience_reaction',
+    'analyze_video_cost_risk',
+    'extract_case_structure',
+  ]) {
+    assert.match(constants, new RegExp(`${task}:`), `${task} should have a label`)
+    assert.match(constants, new RegExp(`'${task}'`), `${task} should be in a task group`)
+  }
+  assert.match(constants, /key: 'creative_strategy'/)
+})

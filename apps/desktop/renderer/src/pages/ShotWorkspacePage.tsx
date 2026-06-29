@@ -312,6 +312,42 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     }
   }
 
+  async function runCreativeShotTask(shot: Shot) {
+    setBusy2(shot.id + 'video-risk')
+    const tid = toast.loading('正在预估视频生成风险…')
+    try {
+      const res = await ipc.ai.run({
+        projectId: sourceProjectId,
+        adaptationProjectId,
+        episodeId: scene.episodeId,
+        sceneId: scene.id,
+        shotId: shot.id,
+        taskType: 'analyze_video_cost_risk',
+      })
+      if (res.ok) {
+        toast.success('视频风险预估完成', { id: tid })
+        onChanged()
+      } else {
+        toast.error('预估失败：' + (res.error ?? '未知错误'), { id: tid })
+      }
+    } finally {
+      setBusy2(null)
+    }
+  }
+
+  async function savePromptCheckpoint(shot: Shot) {
+    await ipc.contentVersion.create({
+      projectId: sourceProjectId,
+      targetKind: 'shot',
+      targetId: shot.id,
+      label: `Prompt 检查点：镜头 ${shot.shotNumber}`,
+      source: 'manual_checkpoint',
+      content: shot.videoPrompt,
+      meta: { negativePrompt: shot.negativePrompt, imagePrompt: shot.imagePrompt },
+    })
+    toast.success('已保存 Prompt 检查点')
+  }
+
   const [busy2, setBusy2] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ videoPrompt: string; negativePrompt: string; imagePrompt: string }>({
     videoPrompt: '',
@@ -441,6 +477,12 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                   </Button>
                   <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runReview(activeShot)}>
                     <Sparkles className="h-3.5 w-3.5" /> 镜头审查
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeShotTask(activeShot)}>
+                    <Sparkles className="h-3.5 w-3.5" /> 视频风险
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => savePromptCheckpoint(activeShot)}>
+                    <Pencil className="h-3.5 w-3.5" /> 检查点
                   </Button>
                   <Button
                     size="sm"

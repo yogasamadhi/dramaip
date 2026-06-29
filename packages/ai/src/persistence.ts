@@ -67,6 +67,15 @@ export async function applyGeneratedArtifact(
         visualStyleDirection: r.visualStyleDirection,
         targetEpisodeCount: r.targetEpisodeCount,
       })
+      repos.creative.createContentVersion(db, {
+        projectId,
+        targetKind: 'project',
+        targetId: projectId,
+        label: '采纳预览：项目设定',
+        source: 'adopt_preview',
+        content: JSON.stringify(r, null, 2),
+        meta: { taskType },
+      })
       return { kind: taskType, created: updated }
     }
 
@@ -108,6 +117,17 @@ export async function applyGeneratedArtifact(
               content,
               orderIndex: 0,
             })
+      if (created) {
+        repos.creative.createContentVersion(db, {
+          projectId,
+          targetKind: 'project',
+          targetId: projectId,
+          label: '采纳预览：全书大纲',
+          source: 'adopt_preview',
+          content,
+          meta: { taskType, outlineId: created.id },
+        })
+      }
       return { kind: taskType, created }
     }
 
@@ -184,6 +204,15 @@ export async function applyGeneratedArtifact(
           relatedBeatIds: it.relatedBeatIds,
         }),
       )
+      repos.creative.createContentVersion(db, {
+        projectId,
+        targetKind: 'adaptation',
+        targetId: input.adaptationProjectId,
+        label: '采纳预览：分集大纲',
+        source: 'adopt_preview',
+        content: JSON.stringify(items, null, 2),
+        meta: { taskType },
+      })
       return { kind: taskType, created }
     }
 

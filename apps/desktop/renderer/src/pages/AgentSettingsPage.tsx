@@ -91,7 +91,7 @@ export function AgentSettingsPage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
           <ArrowLeft />
         </Button>
         <Bot className="h-5 w-5" />

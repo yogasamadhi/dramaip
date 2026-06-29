@@ -54,7 +54,9 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
 
       const projectId = state.projectId
       // 改编任务允许没有源项目（纯大纲导入场景），但若有就加载
-      if (!projectId && !adaptationProjectId) return { error: '缺少 projectId', retryable: false }
+      if (!projectId && !adaptationProjectId && state.taskType !== 'extract_case_structure') {
+        return { error: '缺少 projectId', retryable: false }
+      }
 
       let project = undefined
       let characters: Awaited<ReturnType<typeof repos.character.listCharacters>> = []
@@ -71,6 +73,12 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
       let highlightAnalyses: Awaited<ReturnType<typeof repos.highlight.listHighlights>> = []
       let feasibilityReports: Awaited<ReturnType<typeof repos.feasibility.listFeasibilityReports>> = []
       let dramaTrendReport = undefined
+      const creativeCaseStudies = repos.creative.listCaseStudies(db).slice(0, 20)
+      let freshnessReports: Awaited<ReturnType<typeof repos.creative.listFreshnessReports>> = []
+      let qualityGateReports: Awaited<ReturnType<typeof repos.creative.listQualityGateReports>> = []
+      let revisionTasks: Awaited<ReturnType<typeof repos.creative.listRevisionTasks>> = []
+      let audienceSimulations: Awaited<ReturnType<typeof repos.creative.listAudienceSimulations>> = []
+      let narrativeCurveReports: Awaited<ReturnType<typeof repos.creative.listNarrativeCurveReports>> = []
 
       if (projectId) {
         project = repos.project.getProject(db, projectId)
@@ -94,6 +102,11 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         highlightAnalyses = repos.highlight.listHighlights(db, projectId)
         feasibilityReports = repos.feasibility.listFeasibilityReports(db, projectId)
         dramaTrendReport = repos.dramaTrend.getDramaTrend(db, projectId)
+        freshnessReports = repos.creative.listFreshnessReports(db, projectId)
+        qualityGateReports = repos.creative.listQualityGateReports(db, projectId)
+        revisionTasks = repos.creative.listRevisionTasks(db, projectId)
+        audienceSimulations = repos.creative.listAudienceSimulations(db, projectId)
+        narrativeCurveReports = repos.creative.listNarrativeCurveReports(db, projectId)
       }
 
       // v1.0 多季连载：若改编项目指定了本季章节范围，分集/改编类任务只加载该范围章节
@@ -128,6 +141,12 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         highlightAnalyses,
         feasibilityReports,
         dramaTrendReport,
+        creativeCaseStudies,
+        freshnessReports,
+        qualityGateReports,
+        revisionTasks,
+        audienceSimulations,
+        narrativeCurveReports,
         // v0.4
         adaptationProject: adaptationProject ?? undefined,
         episodes: episodes ?? undefined,

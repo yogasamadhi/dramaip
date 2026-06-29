@@ -1,51 +1,76 @@
-# dependencies
+# Dependencies
 node_modules/
 **/node_modules/
+.pnp.*
 .pnpm-store/
-.pnp/
 
-# build output
+# Build output
 dist/
-dist-electron/
-out/
 **/dist/
+out/
+**/out/
+dist-electron/
+release/
+**/release/
 *.tsbuildinfo
 
-# electron-vite
-apps/desktop/out/
+# Electron / Vite caches
+.cache/
+**/.cache/
+.vite/
+**/.vite/
+node_modules/.cache/
+**/node_modules/.cache/
 
-# database artifacts
-packages/db/drizzle/*.sql.bak
+# Test and coverage output
+coverage/
+**/coverage/
+.nyc_output/
+
+# Database and generated local data
 *.db
-*.db-journal
+*.db-*
 *.sqlite
+*.sqlite-*
 *.sqlite3
-*.sql
+*.sqlite3-*
+*.sql.bak
 
-# logs and runtime artifacts
+# Keep generated SQL migrations commit-friendly.
+!packages/db/drizzle/**/*.sql
+
+# Logs and runtime artifacts
 *.log
+logs/
+**/logs/
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-*.local
 _tmp_*
+tmp/
+temp/
 
-# environment files
+# Environment files
 .env
 .env.*
+!.env.example
+!.env.*.example
 
-# OS and editor
+# OS and editor files
 .DS_Store
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea/
+*.swp
+*.swo
 
-# cache
-.cache/
-.vite/
-node_modules/.cache/
-
-# misc
+# Package artifacts
 *.tgz
+*.zip
+*.dmg
+*.AppImage
+*.deb
+*.rpm

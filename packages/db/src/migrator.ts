@@ -111,6 +111,176 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 5,
+    name: 'creative-diagnosis-system',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS creative_case_studies (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          source_type TEXT,
+          genre TEXT,
+          summary TEXT,
+          relationship_patterns TEXT NOT NULL DEFAULT '[]',
+          opening_hooks TEXT NOT NULL DEFAULT '[]',
+          highlight_beats TEXT NOT NULL DEFAULT '[]',
+          reversal_mechanisms TEXT NOT NULL DEFAULT '[]',
+          cliffhangers TEXT NOT NULL DEFAULT '[]',
+          visual_patterns TEXT NOT NULL DEFAULT '[]',
+          risk_tags TEXT NOT NULL DEFAULT '[]',
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS freshness_reports (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          target_title TEXT,
+          originality_score REAL NOT NULL,
+          predictability_score REAL NOT NULL,
+          trope_risk_score REAL NOT NULL,
+          character_freshness_score REAL NOT NULL,
+          conflict_freshness_score REAL NOT NULL,
+          reversal_freshness_score REAL NOT NULL,
+          emotional_freshness_score REAL NOT NULL,
+          overall_score REAL NOT NULL,
+          cliche_signals TEXT NOT NULL DEFAULT '[]',
+          audience_prediction_points TEXT NOT NULL DEFAULT '[]',
+          suggestions TEXT NOT NULL DEFAULT '[]',
+          raw_result TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS anti_trope_variants (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          mode TEXT NOT NULL,
+          title TEXT NOT NULL,
+          premise TEXT NOT NULL,
+          pressure_mechanism TEXT NOT NULL,
+          preserved_payoffs TEXT NOT NULL DEFAULT '[]',
+          key_changes TEXT NOT NULL DEFAULT '[]',
+          risks TEXT NOT NULL DEFAULT '[]',
+          sample_rewrite TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS revision_tasks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          source_report_id TEXT,
+          title TEXT NOT NULL,
+          description TEXT NOT NULL,
+          priority TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'open',
+          suggested_action TEXT NOT NULL,
+          expected_benefit TEXT NOT NULL DEFAULT '{}',
+          applied_version_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS content_versions (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          source TEXT NOT NULL,
+          content TEXT NOT NULL DEFAULT '',
+          meta TEXT,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS quality_gate_reports (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          stage TEXT NOT NULL,
+          score REAL NOT NULL,
+          verdict TEXT NOT NULL,
+          blocking_issues TEXT NOT NULL DEFAULT '[]',
+          warnings TEXT NOT NULL DEFAULT '[]',
+          suggestions TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS audience_simulations (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          audience_profile TEXT NOT NULL,
+          retention_score REAL NOT NULL,
+          emotional_engagement_score REAL NOT NULL,
+          novelty_score REAL NOT NULL,
+          likely_drop_off_points TEXT NOT NULL DEFAULT '[]',
+          most_memorable_moments TEXT NOT NULL DEFAULT '[]',
+          complaints TEXT NOT NULL DEFAULT '[]',
+          shareable_clips TEXT NOT NULL DEFAULT '[]',
+          summary TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS narrative_curve_reports (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          target_kind TEXT NOT NULL,
+          target_id TEXT,
+          hook_curve TEXT NOT NULL DEFAULT '[]',
+          conflict_curve TEXT NOT NULL DEFAULT '[]',
+          reversal_curve TEXT NOT NULL DEFAULT '[]',
+          emotion_curve TEXT NOT NULL DEFAULT '[]',
+          cliffhanger_curve TEXT NOT NULL DEFAULT '[]',
+          freshness_curve TEXT NOT NULL DEFAULT '[]',
+          summary TEXT NOT NULL,
+          weak_spots TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS workflow_runs (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          template_key TEXT NOT NULL,
+          title TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          current_step TEXT,
+          steps TEXT NOT NULL DEFAULT '[]',
+          error_message TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_creative_case_studies_genre ON creative_case_studies(genre);
+        CREATE INDEX IF NOT EXISTS idx_freshness_reports_target ON freshness_reports(target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_freshness_reports_project ON freshness_reports(project_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_anti_trope_variants_target ON anti_trope_variants(target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_revision_tasks_project_status ON revision_tasks(project_id, status);
+        CREATE INDEX IF NOT EXISTS idx_revision_tasks_target ON revision_tasks(target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_content_versions_target ON content_versions(target_kind, target_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_quality_gate_stage_target ON quality_gate_reports(stage, target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_audience_simulations_target ON audience_simulations(target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_narrative_curve_reports_target ON narrative_curve_reports(target_kind, target_id);
+        CREATE INDEX IF NOT EXISTS idx_workflow_runs_project ON workflow_runs(project_id, created_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

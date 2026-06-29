@@ -1,7 +1,10 @@
 // saveResultNode —— 按 taskType 路由保存到对应表（§10.3）
 import type {
   AiVideoFeasibilityResult,
+  AntiTropeVariantsResult,
+  AudienceSimulationResult,
   BeatsResult,
+  CaseStructureResult,
   ChapterMemoryResult,
   CharacterStateResult,
   DramaTrendResult,
@@ -9,7 +12,11 @@ import type {
   EvaluationResult,
   First10AnalysisResult,
   ForeshadowingResult,
+  FreshnessReportResult,
   HighlightAnalysisResult,
+  NarrativeCurveResult,
+  QualityGateResult,
+  RevisionTasksResult,
   ScenesResult,
   ScriptResult,
   ScriptReviewResult,
@@ -17,6 +24,7 @@ import type {
   ShotReviewResult,
   ShotsResult,
   StoryEventsResult,
+  VideoCostRiskResult,
 } from '@sdns/core'
 import { effectiveTaskType, isTextChapterTask } from '../prompts/loader'
 import type { NovelGraphStateType } from '../graphs/state'
@@ -39,6 +47,15 @@ export function createSaveResultNode(deps: NodeDeps) {
         next = `${state.currentChapter.content.trimEnd()}\n\n${content}`
       }
       const updated = repos.chapter.updateChapterContent(db, state.chapterId, next)
+      repos.creative.createContentVersion(db, {
+        projectId: state.projectId,
+        targetKind: 'chapter',
+        targetId: state.chapterId,
+        label: `AI 覆写：${taskType}`,
+        source: 'ai_overwrite',
+        content: next,
+        meta: { taskType },
+      })
       return {
         currentChapter: updated ?? undefined,
         result: { kind: 'chapter', data: { chapterId: state.chapterId, content: next } },
@@ -296,6 +313,15 @@ export function createSaveResultNode(deps: NodeDeps) {
         cliffhanger: r.cliffhanger,
         estimatedDuration: r.estimatedDuration,
       })
+      repos.creative.createContentVersion(db, {
+        projectId: state.projectId,
+        targetKind: 'script',
+        targetId: created.id,
+        label: `AI 覆写：${taskType}`,
+        source: 'ai_overwrite',
+        content: created.content,
+        meta: { taskType, episodeId: state.episodeId },
+      })
       return { result: { kind: 'script', data: created } }
     }
 
@@ -382,6 +408,15 @@ export function createSaveResultNode(deps: NodeDeps) {
       if (r.negativePrompt !== undefined) patch.negativePrompt = r.negativePrompt
       if (r.imagePrompt !== undefined) patch.imagePrompt = r.imagePrompt
       const updated = repos.shot.updateShot(db, shot.id, patch)
+      repos.creative.createContentVersion(db, {
+        projectId: state.projectId,
+        targetKind: 'shot',
+        targetId: shot.id,
+        label: `AI 覆写：${taskType}`,
+        source: 'ai_overwrite',
+        content: updated?.videoPrompt ?? r.videoPrompt ?? shot.videoPrompt,
+        meta: { taskType, negativePrompt: updated?.negativePrompt ?? r.negativePrompt ?? shot.negativePrompt },
+      })
       // 追加一条 Prompt 版本快照
       repos.shot.appendPromptVersion(db, {
         shotId: shot.id,
@@ -417,9 +452,167 @@ export function createSaveResultNode(deps: NodeDeps) {
       return { result: { kind: 'shot_review', data: created } }
     }
 
+    if (taskType === 'analyze_trope_freshness') {
+      const r = state.parsedOutput as FreshnessReportResult
+      const target = inferCreativeTarget(state)
+      const created = repos.creative.createFreshnessReport(db, {
+        projectId: state.projectId,
+        targetKind: target.kind,
+        targetId: target.id,
+        targetTitle: target.title,
+        originalityScore: r.originalityScore,
+        predictabilityScore: r.predictabilityScore,
+        tropeRiskScore: r.tropeRiskScore,
+        characterFreshnessScore: r.characterFreshnessScore,
+        conflictFreshnessScore: r.conflictFreshnessScore,
+        reversalFreshnessScore: r.reversalFreshnessScore,
+        emotionalFreshnessScore: r.emotionalFreshnessScore,
+        overallScore: r.overallScore,
+        clicheSignals: r.clicheSignals,
+        audiencePredictionPoints: r.audiencePredictionPoints,
+        suggestions: r.suggestions,
+        rawResult: JSON.stringify(r),
+      })
+      return { result: { kind: 'freshness_report', data: created } }
+    }
+
+    if (taskType === 'generate_anti_trope_variants') {
+      const items = state.parsedOutput as AntiTropeVariantsResult
+      const target = inferCreativeTarget(state)
+      const created = items.map((it) =>
+        repos.creative.createAntiTropeVariant(db, {
+          projectId: state.projectId,
+          targetKind: target.kind,
+          targetId: target.id,
+          ...it,
+        }),
+      )
+      return { result: { kind: 'anti_trope_variants', data: created } }
+    }
+
+    if (taskType === 'analyze_narrative_curve') {
+      const r = state.parsedOutput as NarrativeCurveResult
+      const target = inferCreativeTarget(state)
+      const created = repos.creative.createNarrativeCurveReport(db, {
+        projectId: state.projectId,
+        adaptationProjectId: state.adaptationProjectId,
+        targetKind: target.kind,
+        targetId: target.id,
+        hookCurve: r.hookCurve,
+        conflictCurve: r.conflictCurve,
+        reversalCurve: r.reversalCurve,
+        emotionCurve: r.emotionCurve,
+        cliffhangerCurve: r.cliffhangerCurve,
+        freshnessCurve: r.freshnessCurve,
+        summary: r.summary,
+        weakSpots: r.weakSpots,
+      })
+      return { result: { kind: 'narrative_curve', data: created } }
+    }
+
+    if (taskType === 'generate_revision_tasks') {
+      const items = state.parsedOutput as RevisionTasksResult
+      const target = inferCreativeTarget(state)
+      const created = items.map((it) =>
+        repos.creative.createRevisionTask(db, {
+          projectId: state.projectId,
+          targetKind: target.kind,
+          targetId: target.id,
+          title: it.title,
+          description: it.description,
+          priority: it.priority,
+          suggestedAction: it.suggestedAction,
+          expectedBenefit: it.expectedBenefit,
+        }),
+      )
+      return { result: { kind: 'revision_tasks', data: created } }
+    }
+
+    if (taskType === 'run_quality_gate') {
+      const r = state.parsedOutput as QualityGateResult
+      const target = inferCreativeTarget(state)
+      const stage = r.stage ?? inferQualityGateStage(state)
+      const verdict = r.blockingIssues.length > 0 ? 'block' : r.verdict
+      const created = repos.creative.createQualityGateReport(db, {
+        projectId: state.projectId,
+        adaptationProjectId: state.adaptationProjectId,
+        targetKind: target.kind,
+        targetId: target.id,
+        stage,
+        score: r.score,
+        verdict,
+        blockingIssues: r.blockingIssues,
+        warnings: r.warnings,
+        suggestions: r.suggestions,
+      })
+      return { result: { kind: 'quality_gate', data: created } }
+    }
+
+    if (taskType === 'simulate_audience_reaction') {
+      const r = state.parsedOutput as AudienceSimulationResult
+      const target = inferCreativeTarget(state)
+      const created = repos.creative.createAudienceSimulation(db, {
+        projectId: state.projectId,
+        targetKind: target.kind,
+        targetId: target.id,
+        audienceProfile: r.audienceProfile,
+        retentionScore: r.retentionScore,
+        emotionalEngagementScore: r.emotionalEngagementScore,
+        noveltyScore: r.noveltyScore,
+        likelyDropOffPoints: r.likelyDropOffPoints,
+        mostMemorableMoments: r.mostMemorableMoments,
+        complaints: r.complaints,
+        shareableClips: r.shareableClips,
+        summary: r.summary,
+      })
+      return { result: { kind: 'audience_simulation', data: created } }
+    }
+
+    if (taskType === 'analyze_video_cost_risk') {
+      const r = state.parsedOutput as VideoCostRiskResult
+      const target = inferCreativeTarget(state)
+      const created = repos.creative.createQualityGateReport(db, {
+        projectId: state.projectId,
+        adaptationProjectId: state.adaptationProjectId,
+        targetKind: target.kind,
+        targetId: target.id,
+        stage: 'shots_to_video',
+        score: r.score,
+        verdict: r.blockingIssues.length > 0 ? 'block' : r.verdict,
+        blockingIssues: r.blockingIssues,
+        warnings: [...r.risks, ...r.simplifications],
+        suggestions: r.suggestions,
+      })
+      return { result: { kind: 'video_cost_risk', data: created } }
+    }
+
+    if (taskType === 'extract_case_structure') {
+      const r = state.parsedOutput as CaseStructureResult
+      const created = repos.creative.createCaseStudy(db, r)
+      return { result: { kind: 'case_study', data: created } }
+    }
+
     // 其余任务（项目/人物/大纲/视觉档案/视觉设定/一致性检查/长上下文/改编策略/分集生成）：最小闭环不落库，仅回传结果
     // —— generate_* 与 generate_visual_* 由 persistence.ts 在用户「采用」后落库
     // —— check_consistency / build_long_context 仅回传结果供 UI 展示
     return { result: { kind: taskType, data: state.parsedOutput } }
   }
+}
+
+function inferCreativeTarget(state: NovelGraphStateType): { kind: 'project' | 'chapter' | 'adaptation' | 'episode' | 'script' | 'scene' | 'shot'; id?: string; title?: string } {
+  if (state.currentShot) return { kind: 'shot', id: state.currentShot.id, title: `镜头 ${state.currentShot.shotNumber}` }
+  if (state.currentScene) return { kind: 'scene', id: state.currentScene.id, title: state.currentScene.title }
+  if (state.currentScript) return { kind: 'script', id: state.currentScript.id, title: state.currentScript.title }
+  if (state.currentEpisode) return { kind: 'episode', id: state.currentEpisode.id, title: state.currentEpisode.title }
+  if (state.adaptationProject) return { kind: 'adaptation', id: state.adaptationProject.id, title: state.adaptationProject.title }
+  if (state.currentChapter) return { kind: 'chapter', id: state.currentChapter.id, title: state.currentChapter.title }
+  if (state.project) return { kind: 'project', id: state.project.id, title: state.project.title }
+  return { kind: 'project', id: state.projectId }
+}
+
+function inferQualityGateStage(state: NovelGraphStateType): 'novel_to_adaptation' | 'episodes_to_scripts' | 'scripts_to_shots' | 'shots_to_video' {
+  if (state.currentShot || state.currentScene) return 'shots_to_video'
+  if (state.currentScript) return 'scripts_to_shots'
+  if (state.currentEpisode || state.adaptationProject) return 'episodes_to_scripts'
+  return 'novel_to_adaptation'
 }

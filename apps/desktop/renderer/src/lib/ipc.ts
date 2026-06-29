@@ -4,24 +4,32 @@ import type {
   AgentProfile,
   AiRun,
   AiVideoFeasibilityReport,
+  AntiTropeVariant,
+  AudienceSimulation,
   Beat,
   Chapter,
   ChapterMemory,
   Character,
   CharacterState,
   CharacterVisualProfile,
+  ContentVersion,
+  CreativeCaseStudy,
   DramaTrendReport,
   Episode,
   EpisodeAnalysis,
   Evaluation,
   Foreshadowing,
+  FreshnessReport,
   GenrePreset,
   HighlightAnalysis,
   ModelConfig,
+  NarrativeCurveReport,
   NovelTaskType,
   Outline,
   Project,
   PromptVersion,
+  QualityGateReport,
+  RevisionTask,
   Scene,
   Script,
   ScriptReview,
@@ -37,6 +45,7 @@ import type {
   VisualSetting,
   WritingRoomResult,
   WritingRoomTargetKind,
+  WorkflowRun,
 } from '@sdns/core'
 
 export interface AiTaskInput {
@@ -156,6 +165,21 @@ export interface VideoTaskOpResult {
   error?: string
   task?: VideoGenerationTask
   results?: VideoResult[]
+}
+
+export interface CaseStudyImportDocument {
+  fileName: string
+  path: string
+  text: string
+  truncated: boolean
+  error?: string
+}
+
+export interface CaseStudyImportResult {
+  ok: boolean
+  canceled?: boolean
+  error?: string
+  documents: CaseStudyImportDocument[]
 }
 
 /** v0.7 提交视频生成任务的输入 */
@@ -426,6 +450,46 @@ export interface StudioApi {
   templateRun: {
     list(): Promise<TemplateRun[]>
     listByTemplate(templateId: string): Promise<TemplateRun[]>
+  }
+  // v1.1 创意诊断与反套路迭代系统
+  caseStudy: {
+    list(): Promise<CreativeCaseStudy[]>
+    importDocuments(): Promise<CaseStudyImportResult>
+    create(data: Partial<CreativeCaseStudy> & { title: string }): Promise<CreativeCaseStudy>
+    update(id: string, patch: Partial<CreativeCaseStudy>): Promise<CreativeCaseStudy | undefined>
+    remove(id: string): Promise<boolean>
+  }
+  creative: {
+    listFreshness(projectId?: string): Promise<FreshnessReport[]>
+    listFreshnessByTarget(targetKind: string, targetId?: string): Promise<FreshnessReport[]>
+    listAntiTropeByTarget(targetKind: string, targetId?: string): Promise<AntiTropeVariant[]>
+    listQualityGates(projectId?: string): Promise<QualityGateReport[]>
+    listAudienceSimulations(projectId?: string): Promise<AudienceSimulation[]>
+    listNarrativeCurves(projectId?: string): Promise<NarrativeCurveReport[]>
+  }
+  revisionTask: {
+    list(projectId?: string): Promise<RevisionTask[]>
+    listByTarget(targetKind: string, targetId?: string): Promise<RevisionTask[]>
+    create(data: Partial<RevisionTask> & { targetKind: RevisionTask['targetKind']; title: string; description: string; suggestedAction: string }): Promise<RevisionTask>
+    update(id: string, patch: Partial<RevisionTask>): Promise<RevisionTask | undefined>
+    apply(id: string): Promise<{ ok: boolean; error?: string; result?: ContentVersion }>
+  }
+  contentVersion: {
+    listByTarget(targetKind: string, targetId: string): Promise<ContentVersion[]>
+    create(data: Partial<ContentVersion> & { targetKind: ContentVersion['targetKind']; targetId: string; label: string; source: ContentVersion['source']; content: string }): Promise<ContentVersion>
+  }
+  workflow: {
+    list(projectId?: string): Promise<WorkflowRun[]>
+    run(input: {
+      templateKey: string
+      projectId?: string
+      chapterId?: string
+      adaptationProjectId?: string
+      episodeId?: string
+      sceneId?: string
+      shotId?: string
+      userInstruction?: string
+    }): Promise<{ ok: boolean; error?: string; result?: WorkflowRun }>
   }
 }
 

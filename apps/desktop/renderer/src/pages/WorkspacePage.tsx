@@ -41,6 +41,7 @@ import { AiDashboardSection } from '@/components/sections/AiDashboardSection'
 import { BeatSection } from '@/components/sections/BeatSection'
 import { HighlightSection } from '@/components/sections/HighlightSection'
 import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibilitySection'
+import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { cn } from '@/lib/utils'
 
 const ChapterEditor = lazy(() =>
@@ -487,6 +488,10 @@ export function WorkspacePage() {
           {section === 'consistency' && <ConsistencySection projectId={project.id} chapter={selected} />}
 
           {section === 'ai-dashboard' && <AiDashboardSection projectId={project.id} />}
+
+          {section === 'creative-diagnosis' && (
+            <CreativeDiagnosisSection projectId={project.id} chapter={selected} />
+          )}
 
           {section === 'beats' && (
             <BeatSection projectId={project.id} chapter={selected} version={dataVersion} />

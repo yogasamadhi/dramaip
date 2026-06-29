@@ -354,6 +354,117 @@ function main() {
   repos.videoResult.markBestVideoResult(repos.db, vrA.id)
   assert(repos.videoResult.listVideoResultsByShot(repos.db, shKeep.id).find((r) => r.id === vrA.id)?.isBest === true, '再次择优切回 vrA')
 
+  // v1.1 创意诊断与反套路迭代系统
+  const caseStudy = repos.creative.createCaseStudy(repos.db, {
+    title: '复仇结构样本',
+    genre: '女频复仇',
+    openingHooks: ['雨夜归来'],
+    highlightBeats: ['身份揭露', '会议室反杀'],
+    reversalMechanisms: ['反派其实被规则裹挟'],
+    riskTags: ['复仇套路化'],
+  })
+  assert(caseStudy.openingHooks.length === 1 && repos.creative.listCaseStudies(repos.db).length >= 1, 'creative caseStudy CRUD/数组解析')
+  const fresh = repos.creative.createFreshnessReport(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    originalityScore: 70,
+    predictabilityScore: 80,
+    tropeRiskScore: 75,
+    characterFreshnessScore: 65,
+    conflictFreshnessScore: 60,
+    reversalFreshnessScore: 70,
+    emotionalFreshnessScore: 68,
+    overallScore: 66,
+    clicheSignals: ['重生复仇开局常见'],
+    audiencePredictionPoints: ['观众会猜到身份揭露'],
+    suggestions: ['把复仇对象改成规则系统'],
+  })
+  assert(repos.creative.listFreshnessReportsByTarget(repos.db, 'chapter', c1.id)[0]?.id === fresh.id, 'freshness report 按 target 查询')
+  const variant = repos.creative.createAntiTropeVariant(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    mode: 'balanced',
+    title: '规则反派版',
+    premise: '复仇对象不是人，而是家族规则。',
+    pressureMechanism: '每次爽赢都会暴露一个盟友。',
+    preservedPayoffs: ['反杀', '身份揭露'],
+    keyChanges: ['反派从脸谱人变成规则执行者'],
+    risks: ['理解门槛略高'],
+  })
+  assert(repos.creative.listAntiTropeVariantsByTarget(repos.db, 'chapter', c1.id)[0]?.id === variant.id, 'antiTrope variant 按 target 查询')
+  const task = repos.creative.createRevisionTask(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    title: '替换老套复仇对象',
+    description: '把单一恶人改成规则压力。',
+    priority: 'must',
+    suggestedAction: '重写冲突来源，保留身份揭露爽点。',
+    expectedBenefit: { retention: 80, freshness: 90, visual: 60, cost: 70 },
+  })
+  const taskUpd = repos.creative.updateRevisionTask(repos.db, task.id, { status: 'accepted' })
+  assert(taskUpd?.status === 'accepted' && taskUpd.expectedBenefit.freshness === 90, 'revisionTask 状态/收益 JSON 写回')
+  const version = repos.creative.createContentVersion(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    label: '手动检查点',
+    source: 'manual_checkpoint',
+    content: cUpd?.content ?? '',
+  })
+  assert(repos.creative.listContentVersionsByTarget(repos.db, 'chapter', c1.id)[0]?.id === version.id, 'contentVersion 按 target 查询')
+  const gate = repos.creative.createQualityGateReport(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    stage: 'novel_to_adaptation',
+    score: 58,
+    verdict: 'block',
+    blockingIssues: ['开场太可预判'],
+    warnings: [],
+    suggestions: ['先做反套路改造'],
+  })
+  assert(repos.creative.listQualityGateReports(repos.db, p1.id)[0]?.id === gate.id, 'qualityGate report 写回')
+  const audience = repos.creative.createAudienceSimulation(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    audienceProfile: '女频复仇短剧观众',
+    retentionScore: 72,
+    emotionalEngagementScore: 80,
+    noveltyScore: 55,
+    likelyDropOffPoints: ['复仇动机解释过长'],
+    mostMemorableMoments: ['身份揭露'],
+    complaints: ['像看过'],
+    shareableClips: ['会议室反杀'],
+    summary: '爽点够，但新鲜度不足。',
+  })
+  assert(repos.creative.listAudienceSimulations(repos.db, p1.id)[0]?.id === audience.id, 'audienceSimulation 写回')
+  const curve = repos.creative.createNarrativeCurveReport(repos.db, {
+    projectId: p1.id,
+    targetKind: 'chapter',
+    targetId: c1.id,
+    hookCurve: [80, 60],
+    conflictCurve: [70, 75],
+    reversalCurve: [40, 90],
+    emotionCurve: [65, 85],
+    cliffhangerCurve: [50, 88],
+    freshnessCurve: [55, 72],
+    summary: '中段钩子下滑。',
+    weakSpots: ['第二段铺垫偏长'],
+  })
+  assert(repos.creative.listNarrativeCurveReports(repos.db, p1.id)[0]?.id === curve.id, 'narrativeCurve report 写回')
+  const wf = repos.creative.createWorkflowRun(repos.db, {
+    projectId: p1.id,
+    templateKey: 'chapter_anti_trope_revision',
+    title: '章节反套路修稿',
+    status: 'success',
+    steps: [{ key: 'analyze_trope_freshness', label: '新鲜度', taskType: 'analyze_trope_freshness', status: 'success' }],
+  })
+  assert(repos.creative.listWorkflowRuns(repos.db, p1.id)[0]?.id === wf.id, 'workflowRun steps JSON 写回')
+
   // 审稿 upsert
   const rv1 = repos.scriptReview.upsertScriptReview(repos.db, {
     scriptId: sc1.id,
@@ -511,10 +622,36 @@ function main() {
   const c3 = repos.character.createCharacter(db, { projectId: p3.id, name: '女主A', role: '主角', identity: '重生者' })
   const ch3 = repos.chapter.createChapter(db, { projectId: p3.id, title: '第1章', chapterNumber: 1, content: '正文内容' })
   repos.chapter.updateChapterContent(db, ch3.id, '正文内容')
+  repos.creative.createFreshnessReport(db, {
+    projectId: p3.id,
+    targetKind: 'chapter',
+    targetId: ch3.id,
+    originalityScore: 80,
+    predictabilityScore: 40,
+    tropeRiskScore: 30,
+    characterFreshnessScore: 70,
+    conflictFreshnessScore: 75,
+    reversalFreshnessScore: 82,
+    emotionalFreshnessScore: 78,
+    overallScore: 79,
+    clicheSignals: [],
+    audiencePredictionPoints: [],
+    suggestions: ['保持反派动机复杂度'],
+  })
+  repos.creative.createContentVersion(db, {
+    projectId: p3.id,
+    targetKind: 'chapter',
+    targetId: ch3.id,
+    label: '导出前检查点',
+    source: 'manual_checkpoint',
+    content: '正文内容',
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
   assert(pkg.chapters.length === 1 && (pkg.chapters[0].content ?? '').includes('正文'), 'collectProjectPackage 章节+正文')
+  assert(pkg.meta.version === 2, 'collectProjectPackage 版本 = 2')
+  assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   // 序列化 → 解析往返
   const content = serializeProjectPackage(pkg)
   const reParsed = parseProjectPackage(content)
@@ -528,6 +665,8 @@ function main() {
   const importedChapters = repos.chapter.listChapters(db, imported.id)
   assert(importedChapters.length === 1, 'importProjectPackage 章节还原')
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
+  assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
+  assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
   // 导入项目的旧 id 不应残留（外键已重映射到新项目）
   assert(repos.character.getCharacter(db, c3.id)?.projectId === p3.id, '导入不影响原项目数据')
 

@@ -301,6 +301,39 @@ const api = {
     list: () => invoke('templateRun:list'),
     listByTemplate: (templateId: string) => invoke('templateRun:listByTemplate', templateId),
   },
+  // v1.1 创意诊断与反套路迭代系统
+  caseStudy: {
+    list: () => invoke('caseStudy:list'),
+    importDocuments: () => invoke('caseStudy:importDocuments'),
+    create: (data: unknown) => invoke('caseStudy:create', data),
+    update: (id: string, patch: unknown) => invoke('caseStudy:update', id, patch),
+    remove: (id: string) => invoke('caseStudy:delete', id),
+  },
+  creative: {
+    listFreshness: (projectId?: string) => invoke('creative:freshness:list', projectId),
+    listFreshnessByTarget: (targetKind: string, targetId?: string) =>
+      invoke('creative:freshness:listByTarget', targetKind, targetId),
+    listAntiTropeByTarget: (targetKind: string, targetId?: string) =>
+      invoke('creative:antiTrope:listByTarget', targetKind, targetId),
+    listQualityGates: (projectId?: string) => invoke('creative:qualityGate:list', projectId),
+    listAudienceSimulations: (projectId?: string) => invoke('creative:audience:list', projectId),
+    listNarrativeCurves: (projectId?: string) => invoke('creative:curve:list', projectId),
+  },
+  revisionTask: {
+    list: (projectId?: string) => invoke('revisionTask:list', projectId),
+    listByTarget: (targetKind: string, targetId?: string) => invoke('revisionTask:listByTarget', targetKind, targetId),
+    create: (data: unknown) => invoke('revisionTask:create', data),
+    update: (id: string, patch: unknown) => invoke('revisionTask:update', id, patch),
+    apply: (id: string) => invoke('revisionTask:apply', id),
+  },
+  contentVersion: {
+    listByTarget: (targetKind: string, targetId: string) => invoke('contentVersion:listByTarget', targetKind, targetId),
+    create: (data: unknown) => invoke('contentVersion:create', data),
+  },
+  workflow: {
+    list: (projectId?: string) => invoke('workflow:list', projectId),
+    run: (input: unknown) => invoke('workflow:run', input),
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -172,6 +172,27 @@ export function AdaptationWorkspacePage() {
     }
   }
 
+  async function runCreativeAdaptationTask(taskType: 'run_quality_gate' | 'analyze_trope_freshness') {
+    if (!adaptation) return
+    setBusy(taskType)
+    const tid = toast.loading(taskType === 'run_quality_gate' ? '正在运行改编前质量闸门…' : '正在分析分集新鲜度…')
+    try {
+      const res = await ipc.ai.run({
+        projectId: adaptation.sourceProjectId,
+        adaptationProjectId: adaptation.id,
+        taskType,
+      })
+      if (res.ok) {
+        toast.success('创意诊断完成', { id: tid })
+        setVersion((v) => v + 1)
+      } else {
+        toast.error('诊断失败：' + (res.error ?? '未知错误'), { id: tid })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (!adaptation) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -252,6 +273,14 @@ export function AdaptationWorkspacePage() {
                     <Button size="sm" onClick={runStrategy} disabled={busy === 'strategy'}>
                       {busy === 'strategy' ? <Loader2 className="animate-spin" /> : <Sparkles />}
                       生成改编策略
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => runCreativeAdaptationTask('run_quality_gate')} disabled={busy !== null}>
+                      <Sparkles />
+                      改编前闸门
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => runCreativeAdaptationTask('analyze_trope_freshness')} disabled={busy !== null}>
+                      <Sparkles />
+                      新鲜度诊断
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setNav('episodes')}>
                       生成分集大纲 →

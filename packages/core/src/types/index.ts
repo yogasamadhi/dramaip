@@ -702,6 +702,186 @@ export interface LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
+// v1.1 创意诊断与反套路迭代系统
+// ---------------------------------------------------------------------------
+
+export type CreativeTargetKind = 'project' | 'chapter' | 'adaptation' | 'episode' | 'script' | 'scene' | 'shot'
+export type AntiTropeMode = 'conservative' | 'balanced' | 'wild'
+export type RevisionTaskStatus = 'open' | 'accepted' | 'applied' | 'dismissed'
+export type RevisionTaskPriority = 'must' | 'should' | 'could'
+export type QualityGateStage = 'novel_to_adaptation' | 'episodes_to_scripts' | 'scripts_to_shots' | 'shots_to_video'
+export type QualityGateVerdict = 'pass' | 'warn' | 'block'
+export type ContentVersionSource = 'ai_overwrite' | 'adopt_preview' | 'revision_task' | 'manual_checkpoint'
+export type WorkflowRunStatus = 'pending' | 'running' | 'success' | 'failed'
+
+export interface CreativeCaseStudy {
+  id: string
+  title: string
+  sourceType?: string
+  genre?: string
+  summary?: string
+  relationshipPatterns: string[]
+  openingHooks: string[]
+  highlightBeats: string[]
+  reversalMechanisms: string[]
+  cliffhangers: string[]
+  visualPatterns: string[]
+  riskTags: string[]
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FreshnessReport {
+  id: string
+  projectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  targetTitle?: string
+  originalityScore: number
+  predictabilityScore: number
+  tropeRiskScore: number
+  characterFreshnessScore: number
+  conflictFreshnessScore: number
+  reversalFreshnessScore: number
+  emotionalFreshnessScore: number
+  overallScore: number
+  clicheSignals: string[]
+  audiencePredictionPoints: string[]
+  suggestions: string[]
+  rawResult?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AntiTropeVariant {
+  id: string
+  projectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  mode: AntiTropeMode
+  title: string
+  premise: string
+  pressureMechanism: string
+  preservedPayoffs: string[]
+  keyChanges: string[]
+  risks: string[]
+  sampleRewrite?: string
+  createdAt: string
+}
+
+export interface RevisionTaskBenefit {
+  retention: number
+  freshness: number
+  visual: number
+  cost: number
+}
+
+export interface RevisionTask {
+  id: string
+  projectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  sourceReportId?: string
+  title: string
+  description: string
+  priority: RevisionTaskPriority
+  status: RevisionTaskStatus
+  suggestedAction: string
+  expectedBenefit: RevisionTaskBenefit
+  appliedVersionId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentVersion {
+  id: string
+  projectId?: string
+  targetKind: CreativeTargetKind
+  targetId: string
+  label: string
+  source: ContentVersionSource
+  content: string
+  meta?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface QualityGateReport {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  stage: QualityGateStage
+  score: number
+  verdict: QualityGateVerdict
+  blockingIssues: string[]
+  warnings: string[]
+  suggestions: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AudienceSimulation {
+  id: string
+  projectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  audienceProfile: string
+  retentionScore: number
+  emotionalEngagementScore: number
+  noveltyScore: number
+  likelyDropOffPoints: string[]
+  mostMemorableMoments: string[]
+  complaints: string[]
+  shareableClips: string[]
+  summary: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NarrativeCurveReport {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  targetKind: CreativeTargetKind
+  targetId?: string
+  hookCurve: number[]
+  conflictCurve: number[]
+  reversalCurve: number[]
+  emotionCurve: number[]
+  cliffhangerCurve: number[]
+  freshnessCurve: number[]
+  summary: string
+  weakSpots: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface WorkflowRunStep {
+  key: string
+  label: string
+  taskType?: NovelTaskType
+  status: WorkflowRunStatus
+  aiRunId?: string
+  error?: string
+}
+
+export interface WorkflowRun {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  templateKey: string
+  title: string
+  status: WorkflowRunStatus
+  currentStep?: string
+  steps: WorkflowRunStep[]
+  errorMessage?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// ---------------------------------------------------------------------------
 // LangGraph 任务类型（§10.1 taskType 联合）
 // ---------------------------------------------------------------------------
 
@@ -761,6 +941,15 @@ export type NovelTaskType =
   | 'review_shot_prompt'
   | 'rewrite_shot_prompt'
   | 'optimize_prompt_for_video_platform'
+  // v1.1 创意诊断与反套路迭代系统
+  | 'analyze_trope_freshness'
+  | 'generate_anti_trope_variants'
+  | 'analyze_narrative_curve'
+  | 'generate_revision_tasks'
+  | 'run_quality_gate'
+  | 'simulate_audience_reaction'
+  | 'analyze_video_cost_risk'
+  | 'extract_case_structure'
   // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
   | 'writing_room_review'
   | 'writing_room_consolidate'

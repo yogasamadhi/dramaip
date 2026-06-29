@@ -16,7 +16,23 @@ test('rejects IPC calls with invalid arity or shape', () => {
 })
 
 test('keeps high-risk channels in the shared contract', () => {
-  for (const channel of ['ai:run', 'ai:runStream', 'ai:applyResult', 'model:testConnection', 'videoTask:create']) {
+  for (const channel of [
+    'ai:run',
+    'ai:runStream',
+    'ai:applyResult',
+    'model:testConnection',
+    'videoTask:create',
+    'workflow:run',
+    'revisionTask:apply',
+    'contentVersion:listByTarget',
+  ]) {
     assert.ok(channel in IPC_EXACT_SCHEMAS, `${channel} should have an exact IPC schema`)
   }
+})
+
+test('validates creative IPC contracts', () => {
+  assert.deepEqual(validateIpcArgs('contentVersion:listByTarget', ['chapter', 'c1']), ['chapter', 'c1'])
+  assert.deepEqual(validateIpcArgs('creative:freshness:list', []), [])
+  assert.deepEqual(validateIpcArgs('creative:freshness:list', ['p1']), ['p1'])
+  assert.throws(() => validateIpcArgs('revisionTask:apply', []), /参数数量错误/)
 })

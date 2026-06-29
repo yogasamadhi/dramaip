@@ -8,13 +8,19 @@ import type {
   Character,
   CharacterState,
   CharacterVisualProfile,
+  CreativeCaseStudy,
   DramaTrendReport,
   Episode,
   Evaluation,
   Foreshadowing,
+  FreshnessReport,
   HighlightAnalysis,
+  AudienceSimulation,
+  NarrativeCurveReport,
   Outline,
   Project,
+  QualityGateReport,
+  RevisionTask,
   Scene,
   Script,
   Shot,
@@ -43,6 +49,13 @@ export interface ChapterContextInput {
   highlightAnalyses?: HighlightAnalysis[]
   feasibilityReports?: AiVideoFeasibilityReport[]
   dramaTrendReport?: DramaTrendReport
+  /** v1.1 创意诊断上下文 */
+  creativeCaseStudies?: CreativeCaseStudy[]
+  freshnessReports?: FreshnessReport[]
+  qualityGateReports?: QualityGateReport[]
+  revisionTasks?: RevisionTask[]
+  audienceSimulations?: AudienceSimulation[]
+  narrativeCurveReports?: NarrativeCurveReport[]
   /** 对话式项目设定：多轮对话历史 */
   chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
   /** v0.4 改编上下文 */
@@ -561,5 +574,76 @@ export function buildShotContext(input: ChapterContextInput): string {
   return sections.filter(Boolean).join('\n\n')
 }
 
+/** v1.1 创意诊断上下文：把当前创作材料 + 本地样本库 + 已有分析报告组合给策略类任务。 */
+export function buildCreativeContext(input: ChapterContextInput): string {
+  const sections: string[] = [buildAnalysisContext(input), buildAdaptationContext(input), buildScriptContext(input), buildShotContext(input)]
+  const {
+    creativeCaseStudies,
+    freshnessReports,
+    qualityGateReports,
+    revisionTasks,
+    audienceSimulations,
+    narrativeCurveReports,
+  } = input
+
+  if (creativeCaseStudies?.length) {
+    const body = creativeCaseStudies
+      .slice(0, 12)
+      .map((c) => {
+        const pieces = [
+          c.genre ? `类型：${c.genre}` : '',
+          c.openingHooks.length ? `开场：${c.openingHooks.join(' / ')}` : '',
+          c.highlightBeats.length ? `爽点：${c.highlightBeats.join(' / ')}` : '',
+          c.reversalMechanisms.length ? `反转：${c.reversalMechanisms.join(' / ')}` : '',
+          c.riskTags.length ? `风险：${c.riskTags.join(' / ')}` : '',
+        ].filter(Boolean)
+        return `- ${c.title}：${pieces.join('；')}`
+      })
+      .join('\n')
+    sections.push(block('本地样本库结构参考（仅抽象结构，不可照抄）', body))
+  }
+
+  if (freshnessReports?.length) {
+    const body = freshnessReports
+      .slice(0, 8)
+      .map((r) => `- ${r.targetKind}${r.targetId ? `/${r.targetId}` : ''}：新鲜度${r.overallScore}，套路风险${r.tropeRiskScore}；${r.clicheSignals.slice(0, 3).join(' / ')}`)
+      .join('\n')
+    sections.push(block('已有新鲜度诊断', body))
+  }
+
+  if (qualityGateReports?.length) {
+    const body = qualityGateReports
+      .slice(0, 8)
+      .map((r) => `- [${r.stage}] ${r.verdict} ${r.score}：${[...r.blockingIssues, ...r.warnings].slice(0, 4).join(' / ')}`)
+      .join('\n')
+    sections.push(block('已有质量闸门', body))
+  }
+
+  if (revisionTasks?.length) {
+    const body = revisionTasks
+      .slice(0, 10)
+      .map((t) => `- [${t.status}/${t.priority}] ${t.title}：${t.suggestedAction}`)
+      .join('\n')
+    sections.push(block('已有修稿任务', body))
+  }
+
+  if (audienceSimulations?.length) {
+    const body = audienceSimulations
+      .slice(0, 5)
+      .map((a) => `- ${a.audienceProfile}：留存${a.retentionScore}/新鲜${a.noveltyScore}；${a.summary}`)
+      .join('\n')
+    sections.push(block('已有观众模拟', body))
+  }
+
+  if (narrativeCurveReports?.length) {
+    const body = narrativeCurveReports
+      .slice(0, 5)
+      .map((r) => `- ${r.targetKind}${r.targetId ? `/${r.targetId}` : ''}：${r.summary}；弱点：${r.weakSpots.join(' / ')}`)
+      .join('\n')
+    sections.push(block('已有曲线报告', body))
+  }
+
+  return sections.filter((s) => s.trim()).join('\n\n')
+}
 
 

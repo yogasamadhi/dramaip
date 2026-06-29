@@ -43,6 +43,8 @@ export * as genrePresetRepo from './repositories/genre-preset.repo'
 export * as templateRunRepo from './repositories/template-run.repo'
 // v1.0 模型配置增强
 export * as taskModelBindingRepo from './repositories/task-model-binding.repo'
+// v1.1 创意诊断与反套路迭代系统
+export * as creativeRepo from './repositories/creative.repo'
 
 // 也导出 repository 工厂：便于按 db 统一注入
 import type { DB } from './client'
@@ -79,6 +81,7 @@ import * as templateRepo from './repositories/template.repo'
 import * as genrePresetRepo from './repositories/genre-preset.repo'
 import * as templateRunRepo from './repositories/template-run.repo'
 import * as taskModelBindingRepo from './repositories/task-model-binding.repo'
+import * as creativeRepo from './repositories/creative.repo'
 
 export function createRepositories(db: DB) {
   return {
@@ -123,6 +126,8 @@ export function createRepositories(db: DB) {
     templateRun: { ...templateRunRepo },
     // v1.0
     taskModelBinding: { ...taskModelBindingRepo },
+    // v1.1
+    creative: { ...creativeRepo },
     db,
   }
 }

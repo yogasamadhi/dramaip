@@ -4,6 +4,7 @@ import {
   buildAnalysisContext,
   buildChapterContext,
   buildChatContext,
+  buildCreativeContext,
   buildEvaluationContext,
   buildMemoryContext,
   buildScriptContext,
@@ -89,6 +90,12 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     currentScene: state.currentScene,
     shots: state.shots,
     currentShot: state.currentShot,
+    creativeCaseStudies: state.creativeCaseStudies,
+    freshnessReports: state.freshnessReports,
+    qualityGateReports: state.qualityGateReports,
+    revisionTasks: state.revisionTasks,
+    audienceSimulations: state.audienceSimulations,
+    narrativeCurveReports: state.narrativeCurveReports,
   }
   switch (taskType) {
     case 'chat_project':
@@ -136,6 +143,15 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'analyze_ai_video_feasibility':
     case 'analyze_project_ai_drama_trend':
       return buildAnalysisContext(common)
+    case 'analyze_trope_freshness':
+    case 'generate_anti_trope_variants':
+    case 'analyze_narrative_curve':
+    case 'generate_revision_tasks':
+    case 'run_quality_gate':
+    case 'simulate_audience_reaction':
+    case 'analyze_video_cost_risk':
+    case 'extract_case_structure':
+      return buildCreativeContext(common)
     case 'generate_project':
     case 'generate_characters':
     case 'generate_book_outline':

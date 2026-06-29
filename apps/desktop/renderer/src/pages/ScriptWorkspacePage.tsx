@@ -316,6 +316,40 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
     }
   }
 
+  async function runCreativeScriptTask(taskType: 'run_quality_gate' | 'simulate_audience_reaction') {
+    if (!script) return
+    setBusy2(taskType)
+    const tid = toast.loading(taskType === 'run_quality_gate' ? '正在运行剧本质量闸门…' : '正在模拟观众反应…')
+    try {
+      const res = await ipc.ai.run({
+        projectId: sourceProjectId,
+        adaptationProjectId,
+        episodeId: episode.id,
+        taskType,
+      })
+      if (res.ok) {
+        toast.success('创意诊断完成', { id: tid })
+      } else {
+        toast.error('诊断失败：' + (res.error ?? '未知错误'), { id: tid })
+      }
+    } finally {
+      setBusy2(null)
+    }
+  }
+
+  async function saveScriptCheckpoint() {
+    if (!script) return
+    await ipc.contentVersion.create({
+      projectId: sourceProjectId,
+      targetKind: 'script',
+      targetId: script.id,
+      label: `剧本检查点：第 ${episode.episodeNumber} 集`,
+      source: 'manual_checkpoint',
+      content: script.content,
+    })
+    toast.success('已保存剧本检查点')
+  }
+
   const taskBtns: { type: ScriptTaskType; label: string }[] = [
     { type: 'rewrite_ai_drama_script', label: '重写' },
     { type: 'enhance_dialogue_conflict', label: '增强对白冲突' },
@@ -382,6 +416,18 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                         {b.label}
                       </Button>
                     ))}
+                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('run_quality_gate')}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      质量闸门
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('simulate_audience_reaction')}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      观众模拟
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={saveScriptCheckpoint}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      检查点
+                    </Button>
                   </div>
                 </div>
                 <Textarea

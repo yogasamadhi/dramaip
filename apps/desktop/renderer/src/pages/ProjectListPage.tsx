@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Settings, Trash2, BookText, Clapperboard, FileText, Library, Users, Video, Upload } from 'lucide-react'
+import { Plus, Settings, Trash2, BookText, Clapperboard, FileText, Library, Upload, LibraryBig } from 'lucide-react'
 import { toast } from 'sonner'
 import { useProjectsStore } from '@/stores/useProjectsStore'
 import { ipc } from '@/lib/ipc'
@@ -50,52 +50,54 @@ export function ProjectListPage() {
           <h1 className="text-lg font-semibold">短剧 IP 小说写作工作台</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => navigate('/genres')}>
-            <Library />
-            类型库
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/templates')}>
-            <FileText />
-            模板
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/settings/agents')}>
-            <Users />
-            Agent
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/settings/video')}>
-            <Video />
-            视频生成设置
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate('/genres')}>
+              <Library />
+              类型库
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/case-studies')}>
+              <LibraryBig />
+              样本库
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/templates')}>
+              <FileText />
+              模板
+            </Button>
+          </div>
+          <div className="mx-1 h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const id = toast.loading('正在导入项目包…')
+                const res = await ipc.project.importPackage()
+                if (res.ok && res.project) {
+                  toast.success(`已导入「${res.project.title}」`, { id })
+                  void fetch()
+                  navigate(`/projects/${res.project.id}`)
+                } else if (res.canceled) {
+                  toast.dismiss(id)
+                } else {
+                  toast.error('导入失败：' + (res.error ?? '未知错误'), { id })
+                }
+              }}
+            >
+              <Upload />
+              导入项目包
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/adaptations/new')}>
+              <Clapperboard />
+              创建改编
+            </Button>
+            <Button onClick={() => navigate('/projects/new')}>
+              <Plus />
+              新建项目
+            </Button>
+          </div>
+          <div className="mx-1 h-6 w-px bg-border" />
           <Button variant="outline" onClick={() => navigate('/settings')}>
             <Settings />
-            模型设置
-          </Button>
-          <Button variant="outline" onClick={() => navigate('/adaptations/new')}>
-            <Clapperboard />
-            创建改编
-          </Button>
-          <Button onClick={() => navigate('/projects/new')}>
-            <Plus />
-            新建项目
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              const id = toast.loading('正在导入项目包…')
-              const res = await ipc.project.importPackage()
-              if (res.ok && res.project) {
-                toast.success(`已导入「${res.project.title}」`, { id })
-                void fetch()
-                navigate(`/projects/${res.project.id}`)
-              } else if (res.canceled) {
-                toast.dismiss(id)
-              } else {
-                toast.error('导入失败：' + (res.error ?? '未知错误'), { id })
-              }
-            }}
-          >
-            <Upload />
-            导入项目包
+            设置
           </Button>
         </div>
       </header>
