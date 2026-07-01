@@ -1,7 +1,7 @@
 // DB 冒烟测试：验证 repository（含 cast 辅助）在运行期 CRUD + 持久化正确
 import os from 'node:os'
 import path from 'node:path'
-import { backupSqliteDatabase, createDb } from '../packages/db/src/client'
+import { backupSqliteDatabase, createDb, restoreSqliteDatabaseFromBackup } from '../packages/db/src/client'
 import { createRepositories } from '../packages/db/src/index'
 import { BUILT_IN_AGENTS, BUILT_IN_TEMPLATES, BUILT_IN_GENRE_PRESETS } from '@sdns/core'
 import {
@@ -13,6 +13,8 @@ import {
 
 const dbPath = path.join(os.tmpdir(), `sdns-db-smoke-${process.pid}.sqlite`)
 const backupPath = path.join(os.tmpdir(), `sdns-db-smoke-backup-${process.pid}.sqlite`)
+const restoreDbPath = path.join(os.tmpdir(), `sdns-db-smoke-restore-${process.pid}.sqlite`)
+const restoreBackupPath = path.join(os.tmpdir(), `sdns-db-smoke-restore-backup-${process.pid}.sqlite`)
 const { db } = createDb(dbPath)
 const repos = createRepositories(db)
 
@@ -23,6 +25,29 @@ const assert = (cond: boolean, msg: string) => {
     console.error(`  ✗ ${msg}`)
     failures++
   }
+}
+
+function smokeBackupRestore() {
+  const { db: sourceDb, raw: sourceRaw } = createDb(restoreDbPath)
+  const sourceRepos = createRepositories(sourceDb)
+  const before = sourceRepos.project.createProject(sourceRepos.db, {
+    title: '恢复前项目',
+    shortDramaType: '数据安全',
+  })
+  backupSqliteDatabase(restoreDbPath, restoreBackupPath)
+  sourceRepos.project.createProject(sourceRepos.db, {
+    title: '备份后写入',
+    shortDramaType: '数据安全',
+  })
+  sourceRaw.close()
+
+  restoreSqliteDatabaseFromBackup(restoreBackupPath, restoreDbPath)
+  const { db: restoredDb, raw: restoredRaw } = createDb(restoreDbPath)
+  const restoredRepos = createRepositories(restoredDb)
+  const restoredProjects = restoredRepos.project.listProjects(restoredRepos.db)
+  assert(restoredRepos.project.getProject(restoredRepos.db, before.id)?.title === '恢复前项目', '恢复备份：备份点项目存在')
+  assert(!restoredProjects.some((p) => p.title === '备份后写入'), '恢复备份：备份后写入被回滚')
+  restoredRaw.close()
 }
 
 function main() {
@@ -522,6 +547,7 @@ function main() {
   const backupRepos = createRepositories(backupDb)
   assert(backupRepos.project.listProjects(backupRepos.db).length === 1, '一致性备份：项目可恢复读取')
   assert(backupRepos.videoTask.listVideoTasks(backupRepos.db).length === 2, '一致性备份：视频任务可恢复读取')
+  smokeBackupRestore()
 
   // v0.7 显式清理（video_* 表无 FK，手动验证删除）
   repos.videoResult.deleteVideoResultsByTask(repos.db, vt1.id)

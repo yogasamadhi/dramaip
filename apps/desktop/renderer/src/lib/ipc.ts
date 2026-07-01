@@ -188,6 +188,22 @@ export interface SecretStorageStatus {
   mode: 'encrypted' | 'unsafe_plaintext_unavailable'
 }
 
+export interface DatabaseBackupInfo {
+  fileName: string
+  path: string
+  sizeBytes: number
+  createdAt: string
+  kind: 'auto' | 'manual' | 'pre_restore' | 'unknown'
+}
+
+export interface DatabaseBackupResult {
+  ok: boolean
+  error?: string
+  backup?: DatabaseBackupInfo
+  safetyBackup?: DatabaseBackupInfo
+  backups?: DatabaseBackupInfo[]
+}
+
 /** v0.7 提交视频生成任务的输入 */
 export interface CreateVideoTaskInput {
   providerConfigId: string
@@ -204,6 +220,11 @@ export interface CreateVideoTaskInput {
 export interface StudioApi {
   security: {
     getSecretStorageStatus(): Promise<SecretStorageStatus>
+  }
+  dataBackup: {
+    list(): Promise<DatabaseBackupInfo[]>
+    create(): Promise<DatabaseBackupResult>
+    restore(path: string): Promise<DatabaseBackupResult>
   }
   project: {
     list(): Promise<Project[]>

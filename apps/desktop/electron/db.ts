@@ -1,30 +1,81 @@
 // 数据库单例：在 app ready 后初始化，存放于 userData 目录
 import { app, dialog } from 'electron'
-import { join } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { existsSync, readdirSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
-import { backupSqliteDatabase, createDb, createRepositories, type Repositories } from '@sdns/db'
+import {
+  backupSqliteDatabase,
+  createDb,
+  createRepositories,
+  restoreSqliteDatabaseFromBackup,
+  verifySqliteDatabaseFile,
+  type Repositories,
+} from '@sdns/db'
 import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
 import { encryptExistingSecrets, installSecretProtection } from './secrets'
 
 let repos: Repositories | null = null
+let rawDb: ReturnType<typeof createDb>['raw'] | null = null
 
 /** 启动时最多保留的自动备份数 */
 const MAX_BACKUPS = 7
+const BACKUP_DIR_NAME = 'backups'
+const BACKUP_PREFIX = 'studio-'
+const BACKUP_EXT = '.db'
+
+type DatabaseBackupKind = 'auto' | 'manual' | 'pre_restore' | 'unknown'
+
+export interface DatabaseBackupInfo {
+  fileName: string
+  path: string
+  sizeBytes: number
+  createdAt: string
+  kind: DatabaseBackupKind
+}
+
+export interface DatabaseBackupResult {
+  ok: boolean
+  error?: string
+  backup?: DatabaseBackupInfo
+  safetyBackup?: DatabaseBackupInfo
+  backups?: DatabaseBackupInfo[]
+}
 
 export function initDatabase(): void {
-  const userData = app.getPath('userData')
-  const dbPath = join(userData, DB_FILE_NAME)
+  const { userData, dbPath } = getDatabasePaths()
   // v1.0：打开前先做一次自动备份（仅当库已存在时）
   try {
-    backupDatabase(userData, dbPath)
+    createDatabaseBackup(userData, dbPath, 'auto')
   } catch {
     // 备份失败不阻断启动
   }
-  const { db } = createDb(dbPath)
-  repos = createRepositories(db)
+  openDatabase(dbPath)
+}
+
+function getDatabasePaths(): { userData: string; dbPath: string; backupDir: string } {
+  const userData = app.getPath('userData')
+  return {
+    userData,
+    dbPath: join(userData, DB_FILE_NAME),
+    backupDir: join(userData, BACKUP_DIR_NAME),
+  }
+}
+
+function openDatabase(dbPath: string): void {
+  const created = createDb(dbPath)
+  rawDb = created.raw
+  repos = createRepositories(created.db)
   installSecretProtection(repos)
   encryptExistingSecrets(repos)
   seedBuiltInPresets(repos)
+}
+
+function closeDatabase(): void {
+  try {
+    rawDb?.close()
+  } finally {
+    rawDb = null
+    repos = null
+  }
 }
 
 /**
@@ -33,18 +84,34 @@ export function initDatabase(): void {
  * - 备份前 checkpoint WAL，生成可独立打开的 SQLite 快照。
  * - 保留最近 MAX_BACKUPS 份，超出按时间最旧删除。
  */
-function backupDatabase(userData: string, dbPath: string): void {
-  if (!existsSync(dbPath)) return // 首次启动，库还没建
-  const backupDir = join(userData, 'backups')
+function createDatabaseBackup(
+  userData: string,
+  dbPath: string,
+  kind: Exclude<DatabaseBackupKind, 'unknown'>,
+  options: { prune?: boolean } = {},
+): DatabaseBackupInfo | undefined {
+  if (!existsSync(dbPath)) return undefined // 首次启动，库还没建
+  const backupDir = join(userData, BACKUP_DIR_NAME)
   mkdirSync(backupDir, { recursive: true })
+  const backupPath = join(backupDir, createBackupFileName(kind))
+  backupSqliteDatabase(dbPath, backupPath)
+  if (options.prune !== false) pruneDatabaseBackups(backupDir)
+  return getBackupInfo(backupPath)
+}
+
+function createBackupFileName(kind: Exclude<DatabaseBackupKind, 'unknown'>): string {
+  const prefix =
+    kind === 'auto' ? 'studio' : kind === 'manual' ? 'studio-manual' : 'studio-pre-restore'
   const ts = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
-  const backupPath = join(backupDir, `studio-${stamp}.db`)
-  backupSqliteDatabase(dbPath, backupPath)
-  // 滚动删除：按修改时间保留最近 MAX_BACKUPS 份
+  const millis = String(ts.getMilliseconds()).padStart(3, '0')
+  const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}-${millis}`
+  return `${prefix}-${stamp}${BACKUP_EXT}`
+}
+
+function pruneDatabaseBackups(backupDir: string): void {
   const files = readdirSync(backupDir)
-    .filter((f) => f.startsWith('studio-') && f.endsWith('.db'))
+    .filter(isBackupFile)
     .map((f) => ({ f, mtime: statSync(join(backupDir, f)).mtimeMs }))
     .sort((a, b) => b.mtime - a.mtime)
   for (const stale of files.slice(MAX_BACKUPS)) {
@@ -53,6 +120,110 @@ function backupDatabase(userData: string, dbPath: string): void {
     } catch {
       /* 忽略单个删除失败 */
     }
+  }
+}
+
+function isBackupFile(fileName: string): boolean {
+  return fileName.startsWith(BACKUP_PREFIX) && fileName.endsWith(BACKUP_EXT)
+}
+
+function getBackupKind(fileName: string): DatabaseBackupKind {
+  if (fileName.startsWith('studio-manual-')) return 'manual'
+  if (fileName.startsWith('studio-pre-restore-')) return 'pre_restore'
+  if (/^studio-\d{8}-\d{6}(?:-\d{3})?\.db$/.test(fileName)) return 'auto'
+  return 'unknown'
+}
+
+function getBackupInfo(path: string): DatabaseBackupInfo {
+  const fileName = basename(path)
+  const stat = statSync(path)
+  return {
+    fileName,
+    path,
+    sizeBytes: stat.size,
+    createdAt: stat.mtime.toISOString(),
+    kind: getBackupKind(fileName),
+  }
+}
+
+function toStructuredBackupError(error: unknown, fallback: string): DatabaseBackupResult {
+  return {
+    ok: false,
+    error: error instanceof Error ? error.message : fallback,
+    backups: safeListDatabaseBackups(),
+  }
+}
+
+function safeListDatabaseBackups(): DatabaseBackupInfo[] {
+  try {
+    return listDatabaseBackups()
+  } catch {
+    return []
+  }
+}
+
+export function listDatabaseBackups(): DatabaseBackupInfo[] {
+  const { backupDir } = getDatabasePaths()
+  if (!existsSync(backupDir)) return []
+  return readdirSync(backupDir)
+    .filter(isBackupFile)
+    .map((fileName) => getBackupInfo(join(backupDir, fileName)))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+}
+
+export function createManualDatabaseBackup(): DatabaseBackupResult {
+  try {
+    const { userData, dbPath } = getDatabasePaths()
+    const backup = createDatabaseBackup(userData, dbPath, 'manual')
+    if (!backup) return { ok: false, error: '当前数据库文件不存在，无法创建备份。', backups: listDatabaseBackups() }
+    return { ok: true, backup, backups: listDatabaseBackups() }
+  } catch (error) {
+    return toStructuredBackupError(error, '手动备份失败。')
+  }
+}
+
+export function restoreDatabaseBackup(backupPath: string): DatabaseBackupResult {
+  const { userData, dbPath, backupDir } = getDatabasePaths()
+  try {
+    const backupRoot = resolve(backupDir)
+    const sourcePath = resolve(backupPath)
+    if (!sourcePath.startsWith(`${backupRoot}${sep}`)) {
+      return { ok: false, error: '只能恢复应用备份目录内的数据库备份。', backups: listDatabaseBackups() }
+    }
+    if (!isBackupFile(basename(sourcePath))) {
+      return { ok: false, error: '指定文件不是应用生成的数据库备份。', backups: listDatabaseBackups() }
+    }
+    if (!existsSync(sourcePath)) {
+      return { ok: false, error: '指定备份文件不存在。', backups: listDatabaseBackups() }
+    }
+    verifySqliteDatabaseFile(sourcePath)
+
+    const restoredFrom = getBackupInfo(sourcePath)
+    const safetyBackup = createDatabaseBackup(userData, dbPath, 'pre_restore', { prune: false })
+    if (!safetyBackup) {
+      return { ok: false, error: '恢复前安全备份创建失败，已停止恢复。', backups: listDatabaseBackups() }
+    }
+
+    closeDatabase()
+    restoreSqliteDatabaseFromBackup(sourcePath, dbPath)
+    openDatabase(dbPath)
+    pruneDatabaseBackups(backupDir)
+
+    return {
+      ok: true,
+      backup: restoredFrom,
+      safetyBackup,
+      backups: listDatabaseBackups(),
+    }
+  } catch (error) {
+    if (!repos) {
+      try {
+        openDatabase(dbPath)
+      } catch {
+        // 若重开也失败，交给结构化错误提示调用方。
+      }
+    }
+    return toStructuredBackupError(error, '恢复备份失败。')
   }
 }
 

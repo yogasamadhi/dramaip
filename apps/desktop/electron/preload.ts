@@ -11,6 +11,11 @@ const api = {
   security: {
     getSecretStorageStatus: () => invoke('security:getSecretStorageStatus'),
   },
+  dataBackup: {
+    list: () => invoke('dataBackup:list'),
+    create: () => invoke('dataBackup:create'),
+    restore: (path: string) => invoke('dataBackup:restore', path),
+  },
   project: {
     list: () => invoke('project:list'),
     get: (id: string) => invoke('project:get', id),

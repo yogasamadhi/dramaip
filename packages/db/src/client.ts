@@ -2,6 +2,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
+import { copyFileSync, existsSync, unlinkSync } from 'node:fs'
 import * as schema from './schema'
 import { runMigrations } from './migrator'
 
@@ -27,6 +28,33 @@ export function backupSqliteDatabase(sourcePath: string, backupPath: string): vo
     raw.pragma('busy_timeout = 5000')
     raw.pragma('wal_checkpoint(TRUNCATE)')
     raw.prepare('VACUUM INTO ?').run(backupPath)
+  } finally {
+    raw.close()
+  }
+}
+
+/**
+ * 用一个独立 SQLite 快照恢复目标库。
+ *
+ * 调用方需先关闭目标库连接。恢复主库后删除旧 WAL/SHM 文件，避免新主库与旧
+ * journal 辅助文件混用。
+ */
+export function restoreSqliteDatabaseFromBackup(backupPath: string, targetPath: string): void {
+  copyFileSync(backupPath, targetPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const sidecar = `${targetPath}${suffix}`
+    if (existsSync(sidecar)) unlinkSync(sidecar)
+  }
+}
+
+/** 校验 SQLite 文件可打开且 quick_check 通过。 */
+export function verifySqliteDatabaseFile(dbPath: string): void {
+  const raw = new Database(dbPath, { fileMustExist: true, readonly: true })
+  try {
+    raw.pragma('busy_timeout = 5000')
+    const result = raw.pragma('quick_check') as Array<Record<string, string>>
+    const status = Object.values(result[0] ?? {})[0]
+    if (status !== 'ok') throw new Error(`SQLite quick_check failed: ${status ?? 'unknown'}`)
   } finally {
     raw.close()
   }

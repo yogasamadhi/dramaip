@@ -11,11 +11,13 @@ import { registerVideoIpc } from './video.ipc'
 import { registerWritingRoomIpc } from './writing-room.ipc'
 import { registerCreativeIpc } from './creative.ipc'
 import { registerSecurityIpc } from './security.ipc'
+import { registerDataBackupIpc } from './data-backup.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
   installIpcValidation()
   registerSecurityIpc()
+  registerDataBackupIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

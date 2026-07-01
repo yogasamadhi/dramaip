@@ -18,6 +18,9 @@ test('rejects IPC calls with invalid arity or shape', () => {
 test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
     'security:getSecretStorageStatus',
+    'dataBackup:list',
+    'dataBackup:create',
+    'dataBackup:restore',
     'project:create',
     'project:update',
     'ai:run',
@@ -47,6 +50,9 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('creative:freshness:list', []), [])
   assert.deepEqual(validateIpcArgs('creative:freshness:list', ['p1']), ['p1'])
   assert.throws(() => validateIpcArgs('revisionTask:apply', []), /参数数量错误/)
+  assert.deepEqual(validateIpcArgs('dataBackup:list', []), [])
+  assert.deepEqual(validateIpcArgs('dataBackup:restore', ['/tmp/studio.db']), ['/tmp/studio.db'])
+  assert.throws(() => validateIpcArgs('dataBackup:restore', ['']), /参数校验失败/)
 })
 
 test('validates high-risk business IPC payload schemas', () => {

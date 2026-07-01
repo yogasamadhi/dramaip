@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cpu, Settings, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronRight, Cpu, DatabaseBackup, Settings, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -15,6 +15,12 @@ const SETTINGS_ITEMS = [
     description: '管理 AI 视频 Provider、模型与默认参数',
     path: '/settings/video',
     icon: Video,
+  },
+  {
+    title: '数据与备份',
+    description: '查看数据库备份、手动备份与恢复',
+    path: '/settings/data',
+    icon: DatabaseBackup,
   },
   {
     title: 'Agent 配置',
