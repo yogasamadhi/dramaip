@@ -375,8 +375,13 @@ function main() {
   const vrA = repos.videoResult.createVideoResult(repos.db, {
     taskId: vt1.id,
     shotId: shKeep.id,
-    resultVideoUrl: 'https://v.local/v1a.mp4',
-    coverImageUrl: 'https://v.local/v1a.jpg',
+    resultVideoUrl: 'file:///assets/v1a.mp4',
+    remoteVideoUrl: 'https://v.local/v1a.mp4',
+    localVideoPath: '/assets/v1a.mp4',
+    coverImageUrl: 'file:///assets/v1a.jpg',
+    remoteCoverImageUrl: 'https://v.local/v1a.jpg',
+    localCoverImagePath: '/assets/v1a.jpg',
+    archivedAt: '2026-01-01T00:00:00.000Z',
   })
   const vrB = repos.videoResult.createVideoResult(repos.db, {
     taskId: vt2.id,
@@ -385,6 +390,12 @@ function main() {
   })
   assert(repos.videoResult.listVideoResultsByShot(repos.db, shKeep.id).length === 2, 'createVideoResult + listByShot = 2')
   assert(repos.videoResult.listVideoResultsByTask(repos.db, vt1.id).length === 1, 'listVideoResultsByTask = 1')
+  const vrAReloaded = repos.videoResult.listVideoResultsByTask(repos.db, vt1.id)[0]
+  assert(vrAReloaded.remoteVideoUrl === 'https://v.local/v1a.mp4', 'videoResult remoteVideoUrl 写回')
+  assert(vrAReloaded.localVideoPath === '/assets/v1a.mp4', 'videoResult localVideoPath 写回')
+  assert(vrAReloaded.remoteCoverImageUrl === 'https://v.local/v1a.jpg', 'videoResult remoteCoverImageUrl 写回')
+  assert(vrAReloaded.localCoverImagePath === '/assets/v1a.jpg', 'videoResult localCoverImagePath 写回')
+  assert(vrAReloaded.archivedAt === '2026-01-01T00:00:00.000Z', 'videoResult archivedAt 写回')
   // 择优：标记 vrB 为最佳，应自动取消同镜头其它最佳
   const bestB = repos.videoResult.markBestVideoResult(repos.db, vrB.id)
   assert(bestB?.isBest === true, 'markBestVideoResult 置最佳')

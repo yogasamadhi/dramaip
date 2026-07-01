@@ -165,10 +165,16 @@ const updateVideoTaskInput = z
 const updateVideoResultInput = z
   .object({
     resultVideoUrl: z.string().optional(),
+    remoteVideoUrl: z.string().optional(),
+    localVideoPath: z.string().optional(),
     coverImageUrl: z.string().optional(),
+    remoteCoverImageUrl: z.string().optional(),
+    localCoverImagePath: z.string().optional(),
     isBest: z.boolean().optional(),
     note: z.string().optional(),
     rawMeta: z.string().optional(),
+    archivedAt: z.string().optional(),
+    archiveError: z.string().optional(),
   })
   .passthrough()
 

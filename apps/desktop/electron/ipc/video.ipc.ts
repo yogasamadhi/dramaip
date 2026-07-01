@@ -11,9 +11,11 @@ import {
 } from '@sdns/ai'
 import { maskVideoConfig } from '../secrets'
 import { logger } from '../logger'
+import { createVideoAssetArchiver } from '../video-assets'
 
 export function registerVideoIpc(): void {
   const repos = () => getRepos()
+  const videoAssetArchiver = createVideoAssetArchiver()
 
   // ---------- Provider 配置 ----------
   ipcMain.handle('videoProvider:list', () =>
@@ -67,7 +69,7 @@ export function registerVideoIpc(): void {
       const longTaskId = createVideoLongTask(r, input, '视频生成')
       logger.info('video', 'task create started', { longTaskId, shotId: input.shotId, providerConfigId: input.providerConfigId })
       try {
-        const result = await createVideoGenerationTask({ repos: r }, input)
+        const result = await createVideoGenerationTask({ repos: r, videoAssetArchiver }, input)
         syncVideoLongTask(r, longTaskId, result.task, result.results)
         logger.info('video', 'task create finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
         return { ok: true, longTaskId, ...result }
@@ -85,7 +87,7 @@ export function registerVideoIpc(): void {
   ipcMain.handle('videoTask:checkStatus', async (_e, taskId: string) => {
     const r = repos()
     try {
-      const result = await checkVideoTaskStatus({ repos: r }, taskId)
+      const result = await checkVideoTaskStatus({ repos: r, videoAssetArchiver }, taskId)
       const longTask = result.task ? r.longTask.getLongTaskByRelatedEntity(r.db, 'video', result.task.id) : undefined
       if (longTask) syncVideoLongTask(r, longTask.id, result.task, result.results)
       logger.info('video', 'task status checked', { longTaskId: longTask?.id, videoTaskId: taskId, status: result.task.status })
@@ -117,7 +119,7 @@ export function registerVideoIpc(): void {
     )
     logger.info('video', 'task retry started', { longTaskId, originalTaskId: taskId, providerConfigId })
     try {
-      const result = await retryVideoTask({ repos: r }, taskId, providerConfigId)
+      const result = await retryVideoTask({ repos: r, videoAssetArchiver }, taskId, providerConfigId)
       syncVideoLongTask(r, longTaskId, result.task, result.results)
       logger.info('video', 'task retry finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
       return { ok: true, longTaskId, ...result }

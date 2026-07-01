@@ -312,6 +312,18 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 7,
+    name: 'video-result-local-assets',
+    up(raw) {
+      addColumnIfMissing(raw, 'video_results', 'remote_video_url', 'remote_video_url TEXT')
+      addColumnIfMissing(raw, 'video_results', 'local_video_path', 'local_video_path TEXT')
+      addColumnIfMissing(raw, 'video_results', 'remote_cover_image_url', 'remote_cover_image_url TEXT')
+      addColumnIfMissing(raw, 'video_results', 'local_cover_image_path', 'local_cover_image_path TEXT')
+      addColumnIfMissing(raw, 'video_results', 'archived_at', 'archived_at TEXT')
+      addColumnIfMissing(raw, 'video_results', 'archive_error', 'archive_error TEXT')
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

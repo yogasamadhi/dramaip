@@ -366,19 +366,26 @@ export function VideoGenerationPage() {
                             <div className="mb-1 flex items-center gap-1">
                               <Clock className="h-3 w-3 text-muted-foreground" />
                               <span className="text-[11px] text-muted-foreground">{new Date(r.createdAt).toLocaleString()}</span>
+                              {r.localVideoPath && (
+                                <Badge variant="outline" className="ml-auto">本地归档</Badge>
+                              )}
                               {r.isBest && (
-                                <Badge className="ml-auto"><Star className="h-3 w-3" /> 最佳</Badge>
+                                <Badge className={r.localVideoPath ? '' : 'ml-auto'}><Star className="h-3 w-3" /> 最佳</Badge>
                               )}
                             </div>
                             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                             <video
-                              src={r.resultVideoUrl}
-                              poster={r.coverImageUrl}
+                              src={videoResultSrc(r)}
+                              poster={videoCoverSrc(r)}
                               controls
                               className="mb-1 w-full rounded bg-black"
                               style={{ aspectRatio: '9 / 16', maxHeight: 240 }}
                             />
-                            <div className="truncate text-[11px] text-muted-foreground" title={r.resultVideoUrl}>{r.resultVideoUrl}</div>
+                            <div className="truncate text-[11px] text-muted-foreground" title={videoResultSrc(r)}>{videoResultSrc(r)}</div>
+                            {r.remoteVideoUrl && r.remoteVideoUrl !== r.resultVideoUrl && (
+                              <div className="truncate text-[11px] text-muted-foreground" title={r.remoteVideoUrl}>远端：{r.remoteVideoUrl}</div>
+                            )}
+                            {r.archiveError && <div className="mt-1 text-[11px] text-destructive">归档失败：{r.archiveError}</div>}
                             <div className="mt-1 flex gap-1">
                               {!r.isBest && (
                                 <Button size="sm" variant="ghost" onClick={() => selectBest(r.id)}>
@@ -412,4 +419,22 @@ export function VideoGenerationPage() {
 
 function Empty({ text }: { text: ReactNode }) {
   return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{text}</div>
+}
+
+function videoResultSrc(result: VideoResult): string {
+  return result.localVideoPath ? fileUrlFromPath(result.localVideoPath) : result.resultVideoUrl
+}
+
+function videoCoverSrc(result: VideoResult): string | undefined {
+  return result.localCoverImagePath ? fileUrlFromPath(result.localCoverImagePath) : result.coverImageUrl
+}
+
+function fileUrlFromPath(path: string): string {
+  const normalized = path.replace(/\\/g, '/')
+  const prefix = normalized.startsWith('/') ? 'file://' : 'file:///'
+  const encoded = normalized
+    .split('/')
+    .map((part, index) => (index === 0 && /^[A-Za-z]:$/.test(part) ? part : encodeURIComponent(part)))
+    .join('/')
+  return prefix + encoded
 }

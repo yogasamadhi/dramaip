@@ -16,7 +16,27 @@ import { videoProviderFromConfig } from './factory'
 export interface VideoServiceDeps {
   repos: Repositories
   videoProviderFactory?: (config: VideoProviderConfig) => VideoProvider
+  videoAssetArchiver?: VideoAssetArchiver
 }
+
+export interface VideoAssetArchiveInput {
+  providerConfig: VideoProviderConfig
+  task: VideoGenerationTask
+  result: VideoProviderResult
+}
+
+export interface VideoAssetArchiveResult {
+  resultVideoUrl?: string
+  remoteVideoUrl?: string
+  localVideoPath?: string
+  coverImageUrl?: string
+  remoteCoverImageUrl?: string
+  localCoverImagePath?: string
+  archivedAt?: string
+  archiveError?: string
+}
+
+export type VideoAssetArchiver = (input: VideoAssetArchiveInput) => Promise<VideoAssetArchiveResult | undefined>
 
 /** 提交镜头 Prompt 为视频生成任务（acceptance #2/#3） */
 export async function createVideoGenerationTask(
@@ -72,7 +92,7 @@ export async function createVideoGenerationTask(
     })
     // 若提交即返回结果（mock 或部分同步平台），落库结果
     if (state.status === 'success' && state.results.length) {
-      results = persistResults(repos, updated ?? task, state, provider)
+      results = await persistResults(deps, config, updated ?? task, state)
     }
     return { task: updated ?? task, results }
   } catch (e) {
@@ -97,10 +117,10 @@ export async function checkVideoTaskStatus(
   }
 
   const config = resolveProviderConfig(repos, task.provider)
-  const provider = config ? createProvider(deps, config) : undefined
-  if (!provider || !task.remoteTaskId) {
+  if (!config || !task.remoteTaskId) {
     return { task, results: repos.videoResult.listVideoResultsByTask(db, taskId) }
   }
+  const provider = createProvider(deps, config)
 
   const state = await provider.getTaskStatus(task.remoteTaskId)
   const updated = repos.videoTask.updateVideoTask(db, taskId, {
@@ -109,7 +129,7 @@ export async function checkVideoTaskStatus(
   })
   let results = repos.videoResult.listVideoResultsByTask(db, taskId)
   if (state.status === 'success' && state.results.length && results.length === 0) {
-    results = persistResults(repos, updated ?? task, state, provider)
+    results = await persistResults(deps, config, updated ?? task, state)
   }
   return { task: updated ?? task, results }
 }
@@ -154,21 +174,30 @@ export function selectBestVideoResult(deps: VideoServiceDeps, resultId: string):
 // helpers
 // ---------------------------------------------------------------------------
 
-function persistResults(
-  repos: VideoServiceDeps['repos'],
+async function persistResults(
+  deps: VideoServiceDeps,
+  providerConfig: VideoProviderConfig,
   task: VideoGenerationTask,
   state: { results: VideoProviderResult[] },
-  _provider: VideoProvider,
-): VideoResult[] {
-  return state.results.map((r) =>
-    repos.videoResult.createVideoResult(repos.db, {
+): Promise<VideoResult[]> {
+  const rows: VideoResult[] = []
+  for (const r of state.results) {
+    const archived = await archiveVideoResult(deps, providerConfig, task, r)
+    rows.push(deps.repos.videoResult.createVideoResult(deps.repos.db, {
       taskId: task.id,
       shotId: task.shotId,
-      resultVideoUrl: r.resultVideoUrl,
-      coverImageUrl: r.coverImageUrl,
+      resultVideoUrl: archived.resultVideoUrl ?? r.resultVideoUrl,
+      remoteVideoUrl: archived.remoteVideoUrl ?? r.resultVideoUrl,
+      localVideoPath: archived.localVideoPath,
+      coverImageUrl: archived.coverImageUrl ?? r.coverImageUrl,
+      remoteCoverImageUrl: archived.remoteCoverImageUrl ?? r.coverImageUrl,
+      localCoverImagePath: archived.localCoverImagePath,
       rawMeta: r.rawMeta,
-    }),
-  )
+      archivedAt: archived.archivedAt,
+      archiveError: archived.archiveError,
+    }))
+  }
+  return rows
 }
 
 function repos_listResultsByShot(deps: VideoServiceDeps, shotId: string): VideoResult[] {
@@ -187,4 +216,30 @@ function resolveProviderConfigId(repos: VideoServiceDeps['repos'], providerName:
 
 function createProvider(deps: VideoServiceDeps, config: VideoProviderConfig): VideoProvider {
   return deps.videoProviderFactory?.(config) ?? videoProviderFromConfig(config)
+}
+
+async function archiveVideoResult(
+  deps: VideoServiceDeps,
+  providerConfig: VideoProviderConfig,
+  task: VideoGenerationTask,
+  result: VideoProviderResult,
+): Promise<VideoAssetArchiveResult> {
+  if (!deps.videoAssetArchiver || providerConfig.kind === 'mock') {
+    return {
+      remoteVideoUrl: result.resultVideoUrl,
+      remoteCoverImageUrl: result.coverImageUrl,
+    }
+  }
+  try {
+    return await deps.videoAssetArchiver({ providerConfig, task, result }) ?? {
+      remoteVideoUrl: result.resultVideoUrl,
+      remoteCoverImageUrl: result.coverImageUrl,
+    }
+  } catch (error) {
+    return {
+      remoteVideoUrl: result.resultVideoUrl,
+      remoteCoverImageUrl: result.coverImageUrl,
+      archiveError: error instanceof Error ? error.message : String(error),
+    }
+  }
 }

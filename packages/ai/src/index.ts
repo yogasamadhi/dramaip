@@ -67,4 +67,7 @@ export {
   compareVideoResults,
   selectBestVideoResult,
   type VideoServiceDeps,
+  type VideoAssetArchiveInput,
+  type VideoAssetArchiveResult,
+  type VideoAssetArchiver,
 } from './providers/video/video-generation.service'

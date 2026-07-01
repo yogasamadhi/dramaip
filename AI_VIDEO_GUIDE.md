@@ -61,7 +61,14 @@
 - 其他真实平台：每个平台在 `packages/ai/src/providers/video/adapters.ts` 有独立 adapter 注册位；在未完成平台专用映射前，会返回明确的“真实 API 映射尚未启用”错误，不再误走 `custom` 的通用端点。
 - 后续落地其他真实平台时，只填对应 adapter 的 `authHeaders`、`createTaskRequest`、`getTaskStatusRequest`、`mapTaskState` 和 `normalizeError`，不修改 mock/custom/Sora 行为。
 
-> 注意：OpenAI Sora 的内容下载端点需要 Bearer Key。当前 L5-02 会保存官方 content endpoint 和原始 metadata；L5-03 会把远端视频归档成本地资产，解决无鉴权 `<video>` 直连播放与项目包资产策略。
+> 注意：OpenAI Sora 的内容下载端点需要 Bearer Key；L5-03 起由主进程在归档下载时临时附加鉴权，渲染层只播放本地归档文件或保留远端诊断 URL。
+
+### 视频结果本地归档（L5-03）
+
+- 视频任务成功后，主进程会尝试把远端视频和封面保存到 `userData/assets/projects/<projectId>/video-results/<taskId>/`。
+- `VideoResult` 同时记录本地路径（`localVideoPath` / `localCoverImagePath`）和远端 URL（`remoteVideoUrl` / `remoteCoverImageUrl`）；UI 优先播放本地 `file://` 资源，归档失败时保留远端 URL 和 `archiveError`。
+- OpenAI Sora content endpoint 下载时会在主进程临时附加 Bearer Key，不会把 Key 写入文件、URL、日志或 `rawMeta`。
+- 当前 `.sdnspkg` 项目包不内嵌视频二进制资产，也不把本机绝对资产路径作为跨设备可恢复承诺；导入包后仍可凭远端 URL 诊断/重下。后续资产库 loop 再提供“随包包含资产/仅引用资产”的可选策略。
 
 ### 各平台 Prompt 风险
 

@@ -61,8 +61,14 @@ function createVideoServiceRepos(config: VideoProviderConfig) {
             taskId: data.taskId ?? '',
             shotId: data.shotId,
             resultVideoUrl: data.resultVideoUrl ?? '',
+            remoteVideoUrl: data.remoteVideoUrl,
+            localVideoPath: data.localVideoPath,
             coverImageUrl: data.coverImageUrl,
+            remoteCoverImageUrl: data.remoteCoverImageUrl,
+            localCoverImagePath: data.localCoverImagePath,
             rawMeta: data.rawMeta,
+            archivedAt: data.archivedAt,
+            archiveError: data.archiveError,
             isBest: false,
             createdAt: '2026-01-01T00:00:00.000Z',
           }
@@ -106,4 +112,59 @@ test('video generation create preserves provider failed status', async () => {
   assert.equal(result.task.remoteTaskId, 'remote-fail')
   assert.equal(result.task.errorMessage, 'prompt rejected by provider')
   assert.equal(result.results.length, 0)
+})
+
+test('video generation create stores archived local asset paths', async () => {
+  const { repos } = createVideoServiceRepos(providerConfig())
+  const result = await createVideoGenerationTask({
+    repos,
+    videoProviderFactory: () => ({
+      kind: 'custom',
+      name: 'Custom Video',
+      async createTask() {
+        return {
+          status: 'success',
+          remoteTaskId: 'remote-ok',
+          results: [{
+            resultVideoUrl: 'https://cdn.example.test/video.mp4',
+            coverImageUrl: 'https://cdn.example.test/cover.jpg',
+            rawMeta: '{"id":"remote-ok"}',
+          }],
+        }
+      },
+      async getTaskStatus() {
+        throw new Error('not used')
+      },
+    }),
+    async videoAssetArchiver({ providerConfig, task, result }) {
+      assert.equal(providerConfig.id, 'provider-1')
+      assert.equal(task.id, 'task-1')
+      assert.equal(result.resultVideoUrl, 'https://cdn.example.test/video.mp4')
+      return {
+        resultVideoUrl: 'file:///local/result.mp4',
+        remoteVideoUrl: result.resultVideoUrl,
+        localVideoPath: '/local/result.mp4',
+        coverImageUrl: 'file:///local/cover.jpg',
+        remoteCoverImageUrl: result.coverImageUrl,
+        localCoverImagePath: '/local/cover.jpg',
+        archivedAt: '2026-01-01T00:00:02.000Z',
+      }
+    },
+  }, {
+    providerConfigId: 'provider-1',
+    projectId: 'project-1',
+    shotId: 'shot-1',
+    prompt: 'safe prompt',
+  })
+
+  assert.equal(result.task.status, 'success')
+  assert.equal(result.results.length, 1)
+  assert.equal(result.results[0].resultVideoUrl, 'file:///local/result.mp4')
+  assert.equal(result.results[0].remoteVideoUrl, 'https://cdn.example.test/video.mp4')
+  assert.equal(result.results[0].localVideoPath, '/local/result.mp4')
+  assert.equal(result.results[0].coverImageUrl, 'file:///local/cover.jpg')
+  assert.equal(result.results[0].remoteCoverImageUrl, 'https://cdn.example.test/cover.jpg')
+  assert.equal(result.results[0].localCoverImagePath, '/local/cover.jpg')
+  assert.equal(result.results[0].archivedAt, '2026-01-01T00:00:02.000Z')
+  assert.equal(result.results[0].rawMeta, '{"id":"remote-ok"}')
 })

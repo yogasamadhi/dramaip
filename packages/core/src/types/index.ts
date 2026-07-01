@@ -634,10 +634,22 @@ export interface VideoResult {
   shotId?: string
   /** 结果视频 URL（平台返回或本地路径） */
   resultVideoUrl: string
+  /** 平台返回的原始视频 URL，用于重下或诊断 */
+  remoteVideoUrl?: string
+  /** 已归档到本机的绝对文件路径 */
+  localVideoPath?: string
   /** 封面图 URL（可选） */
   coverImageUrl?: string
+  /** 平台返回的原始封面 URL */
+  remoteCoverImageUrl?: string
+  /** 已归档到本机的封面绝对文件路径 */
+  localCoverImagePath?: string
   /** 平台返回的原始元数据（JSON 文本） */
   rawMeta?: string
+  /** 本地归档完成时间 */
+  archivedAt?: string
+  /** 本地归档失败原因；存在时仍保留远端 URL */
+  archiveError?: string
   /** 是否被标记为本镜头最佳结果 */
   isBest: boolean
   note?: string
