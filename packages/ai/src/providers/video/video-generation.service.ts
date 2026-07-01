@@ -15,6 +15,7 @@ import { videoProviderFromConfig } from './factory'
 
 export interface VideoServiceDeps {
   repos: Repositories
+  videoProviderFactory?: (config: VideoProviderConfig) => VideoProvider
 }
 
 /** 提交镜头 Prompt 为视频生成任务（acceptance #2/#3） */
@@ -37,7 +38,7 @@ export async function createVideoGenerationTask(
   const config = repos.videoProviderConfig.getVideoProviderConfig(db, input.providerConfigId)
   if (!config) throw new Error(`未找到视频 Provider 配置 ${input.providerConfigId}`)
 
-  const provider = videoProviderFromConfig(config)
+  const provider = createProvider(deps, config)
   const providerInput: VideoGenerationInput = {
     model: config.model ?? 'default',
     prompt: input.prompt,
@@ -65,7 +66,7 @@ export async function createVideoGenerationTask(
   try {
     const state = await provider.createTask(providerInput)
     const updated = repos.videoTask.updateVideoTask(db, task.id, {
-      status: state.status === 'success' ? 'success' : 'running',
+      status: state.status,
       remoteTaskId: state.remoteTaskId,
       errorMessage: state.errorMessage,
     })
@@ -96,7 +97,7 @@ export async function checkVideoTaskStatus(
   }
 
   const config = resolveProviderConfig(repos, task.provider)
-  const provider = config ? videoProviderFromConfig(config) : undefined
+  const provider = config ? createProvider(deps, config) : undefined
   if (!provider || !task.remoteTaskId) {
     return { task, results: repos.videoResult.listVideoResultsByTask(db, taskId) }
   }
@@ -182,4 +183,8 @@ function resolveProviderConfig(repos: VideoServiceDeps['repos'], providerName: s
 
 function resolveProviderConfigId(repos: VideoServiceDeps['repos'], providerName: string): string | undefined {
   return resolveProviderConfig(repos, providerName)?.id
+}
+
+function createProvider(deps: VideoServiceDeps, config: VideoProviderConfig): VideoProvider {
+  return deps.videoProviderFactory?.(config) ?? videoProviderFromConfig(config)
 }

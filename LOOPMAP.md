@@ -27,7 +27,7 @@
 | L4-01 | Codex/安全 | done | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
 | L4-02 | Codex/安全 | done | 增加密钥迁移和健康检查 | secrets、设置页、诊断文档 | 能识别明文/加密/掩码状态；启动时迁移可审计；失败不丢 key 且提示可操作 |
 | L5-01 | Codex/视频平台 | done | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
-| L5-02 | Codex/视频平台 | todo | 落地首个真实视频平台适配 | video provider、视频设置页、视频任务页 | 至少一个真实平台完成提交、轮询、失败处理、结果保存；可用 mock 测试和真实配置手工 smoke 验证 |
+| L5-02 | Codex/视频平台 | done | 落地首个真实视频平台适配 | video provider、视频设置页、视频任务页 | 至少一个真实平台完成提交、轮询、失败处理、结果保存；可用 mock 测试和真实配置手工 smoke 验证 |
 | L5-03 | Codex/视频平台 | todo | 视频结果本地归档 | 视频任务服务、DB、文件存储策略 | 可将远端视频/封面保存到本地项目资产目录；记录本地路径与远端 URL；导出项目包策略明确 |
 | L6-01 | Codex/任务系统 | done | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
 | L6-02 | Codex/任务系统 | todo | 支持取消、重试、并发限制 | AI workflow、HTTP provider、UI | 用户可取消运行中任务；失败任务可重试；同类任务并发可配置或有限制；取消不会产生半写入 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（36 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
-- 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（38 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务取消/并发/批量进度仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -232,6 +232,17 @@
 - 实现结果：新增 `VideoProviderAdapter` 边界与 HTTP transport；`custom` 使用 OpenAI-compatible 风格 adapter；即梦、可灵、海螺、Runway、Pika、Sora 均有独立 adapter 注册位、鉴权/请求/状态映射/错误归一化接口，未填真实 API 映射前返回明确未启用错误；工厂不再把真实平台误路由到 custom 通用端点。
 - 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/video-provider-adapter.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（36 个单元测试）；`git diff --check` 通过。
 - Diff 审查：变更限定在视频 Provider adapter 框架、导出、指南、adapter 单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L5-02：落地首个真实视频平台适配
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L5-02 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`packages/ai/src/providers/video/adapters.ts`、视频生成服务、视频 Provider 设置页、adapter/service 单测、`AI_VIDEO_GUIDE.md`、`LOOPMAP.md`。
+- 实现结果：`openai_sora` adapter 接入 OpenAI 官方视频接口；创建任务使用 `POST /videos`，轮询使用 `GET /videos/{video_id}`，状态映射覆盖 `queued`、`in_progress`、`completed`、`failed`，失败消息归一化；完成后保存 `/videos/{video_id}/content` 结果端点和原始 metadata；视频服务保留 provider 提交阶段返回的 `failed` 状态；设置页选择 Sora 时自动带出官方 Base URL、默认模型和 `size/seconds` 参数。
+- 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/video-generation-service.test.ts tests/video-provider-adapter.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（38 个单元测试）；`git diff --check` 通过。
+- Diff 审查：变更限定在 OpenAI Sora adapter、提交失败态保存、设置页默认配置、视频指南、adapter/service 单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
 
 ### L6-01：长任务队列模型
 

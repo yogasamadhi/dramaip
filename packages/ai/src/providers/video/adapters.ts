@@ -42,6 +42,17 @@ interface PlatformTaskResponse {
   message?: string
 }
 
+interface OpenAiSoraTaskResponse {
+  id?: string
+  status?: string
+  progress?: number
+  error?: string | { code?: string; message?: string }
+  model?: string
+  prompt?: string
+  seconds?: string | number
+  size?: string
+}
+
 export const customVideoProviderAdapter: VideoProviderAdapter = {
   kind: 'custom',
   label: VIDEO_PROVIDER_KIND_LABELS['custom'] ?? 'Custom',
@@ -80,6 +91,50 @@ export const customVideoProviderAdapter: VideoProviderAdapter = {
   },
 }
 
+export const openAiSoraVideoProviderAdapter: VideoProviderAdapter = {
+  kind: 'openai_sora',
+  label: VIDEO_PROVIDER_KIND_LABELS['openai_sora'] ?? 'OpenAI Sora',
+  authHeaders,
+  createTaskRequest(input, config) {
+    const baseUrl = baseUrlOrDefault(config, 'https://api.openai.com/v1')
+    const params = objectParams(input.defaultParams ?? config.defaultParams)
+    const seconds = stringParam(params.seconds ?? params.duration, '8')
+    const size = stringParam(params.size, '720x1280')
+    const reference = buildSoraInputReference(input.referenceImageUrls?.[0], params)
+    return {
+      method: 'POST',
+      url: `${baseUrl}/videos`,
+      headers: jsonHeaders(this.authHeaders(config)),
+      body: pruneUndefined({
+        ...omitOpenAiSoraAliases(params),
+        model: stringParam(input.model ?? config.model ?? params.model, 'sora-2'),
+        prompt: input.prompt,
+        size,
+        seconds,
+        input_reference: reference,
+      }),
+      timeoutMs: 120_000,
+      retries: 1,
+    }
+  },
+  getTaskStatusRequest(remoteTaskId, config) {
+    const baseUrl = baseUrlOrDefault(config, 'https://api.openai.com/v1')
+    return {
+      method: 'GET',
+      url: `${baseUrl}/videos/${encodeURIComponent(remoteTaskId)}`,
+      headers: jsonHeaders(this.authHeaders(config)),
+      timeoutMs: 60_000,
+      retries: 2,
+    }
+  },
+  mapTaskState(raw) {
+    return mapOpenAiSoraTaskState(raw)
+  },
+  normalizeError(error, phase) {
+    return normalizeVideoProviderError(this.label, phase, error)
+  },
+}
+
 export const VIDEO_PROVIDER_ADAPTERS: Record<Exclude<VideoProviderKind, 'mock'>, VideoProviderAdapter> = {
   custom: customVideoProviderAdapter,
   jimeng: notImplementedRealPlatformAdapter('jimeng'),
@@ -87,7 +142,7 @@ export const VIDEO_PROVIDER_ADAPTERS: Record<Exclude<VideoProviderKind, 'mock'>,
   hailuo: notImplementedRealPlatformAdapter('hailuo'),
   runway: notImplementedRealPlatformAdapter('runway'),
   pika: notImplementedRealPlatformAdapter('pika'),
-  openai_sora: notImplementedRealPlatformAdapter('openai_sora'),
+  openai_sora: openAiSoraVideoProviderAdapter,
 }
 
 export function adapterForVideoProviderKind(kind: Exclude<VideoProviderKind, 'mock'>): VideoProviderAdapter {
@@ -122,6 +177,37 @@ export function mapOpenAiCompatibleTaskState(raw: unknown): VideoProviderTaskSta
     remoteTaskId: data.task_id ?? data.id ?? r.task_id ?? r.id,
     errorMessage: data.error ?? data.message ?? r.error ?? r.message,
     results,
+  }
+}
+
+export function mapOpenAiSoraTaskState(raw: unknown): VideoProviderTaskState {
+  const r = raw as OpenAiSoraTaskResponse
+  const rawStatus = (r.status ?? '').toLowerCase()
+  const status: VideoTaskStatus =
+    rawStatus === 'completed'
+      ? 'success'
+      : rawStatus === 'failed' || rawStatus === 'canceled'
+        ? 'failed'
+        : rawStatus === 'queued' || rawStatus === 'in_progress'
+          ? 'running'
+          : 'pending'
+  const rawMeta = safeStringify(raw)
+  const errorMessage = typeof r.error === 'string'
+    ? r.error
+    : r.error?.message
+  const resultVideoUrl = status === 'success' && r.id
+    ? `${OPENAI_SORA_DEFAULT_BASE_URL}/videos/${encodeURIComponent(r.id)}/content`
+    : undefined
+  return {
+    status,
+    remoteTaskId: r.id,
+    errorMessage,
+    results: resultVideoUrl
+      ? [{
+          resultVideoUrl,
+          rawMeta,
+        }]
+      : [],
   }
 }
 
@@ -164,12 +250,64 @@ function requireBaseUrl(config: VideoProviderRuntimeConfig, label: string): stri
   return baseUrl
 }
 
+const OPENAI_SORA_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
+
+function baseUrlOrDefault(config: VideoProviderRuntimeConfig, defaultBaseUrl: string): string {
+  return config.baseUrl?.trim().replace(/\/+$/, '') || defaultBaseUrl
+}
+
 function safeJson(s: string): unknown {
   try {
     return JSON.parse(s)
   } catch {
     return undefined
   }
+}
+
+function objectParams(s: string | undefined): Record<string, unknown> {
+  const parsed = s ? safeJson(s) : undefined
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+}
+
+function stringParam(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return fallback
+}
+
+function buildSoraInputReference(
+  url: string | undefined,
+  params: Record<string, unknown>,
+): { image_url?: string; file_id?: string } | undefined {
+  if (params.input_reference && typeof params.input_reference === 'object') {
+    return params.input_reference as { image_url?: string; file_id?: string }
+  }
+  const fileId = stringOrUndefined(params.input_reference_file_id ?? params.file_id)
+  const imageUrl = stringOrUndefined(url ?? params.input_reference_url ?? params.reference_image_url ?? params.image_url)
+  if (!fileId && !imageUrl) return undefined
+  return pruneUndefined({ file_id: fileId, image_url: imageUrl }) as { image_url?: string; file_id?: string }
+}
+
+function omitOpenAiSoraAliases(params: Record<string, unknown>): Record<string, unknown> {
+  const {
+    duration: _duration,
+    input_reference: _inputReference,
+    input_reference_file_id: _inputReferenceFileId,
+    input_reference_url: _inputReferenceUrl,
+    reference_image_url: _referenceImageUrl,
+    image_url: _imageUrl,
+    file_id: _fileId,
+    ...rest
+  } = params
+  return rest
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function pruneUndefined<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T
 }
 
 function safeStringify(value: unknown): string | undefined {

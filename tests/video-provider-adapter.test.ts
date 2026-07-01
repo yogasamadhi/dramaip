@@ -6,6 +6,7 @@ import {
   VIDEO_PROVIDER_ADAPTERS,
   adapterForVideoProviderKind,
   customVideoProviderAdapter,
+  openAiSoraVideoProviderAdapter,
 } from '../packages/ai/src/providers/video/adapters'
 import { HttpVideoProvider, type VideoHttpTransport } from '../packages/ai/src/providers/video/http.provider'
 import { MockVideoProvider } from '../packages/ai/src/providers/video/mock.provider'
@@ -34,6 +35,7 @@ test('declares independent adapter slots for every real video provider kind', ()
     const adapter = VIDEO_PROVIDER_ADAPTERS[kind]
     assert.equal(adapter.kind, kind)
     assert.equal(adapterForVideoProviderKind(kind), adapter)
+    if (kind === 'openai_sora') continue
     assert.throws(
       () =>
         adapter.createTaskRequest(
@@ -43,6 +45,75 @@ test('declares independent adapter slots for every real video provider kind', ()
       /真实 API 映射尚未启用/,
     )
   }
+})
+
+test('openai sora adapter builds official video requests and maps lifecycle states', async () => {
+  const requests: unknown[] = []
+  const transport: VideoHttpTransport = {
+    async request(request) {
+      requests.push(request)
+      if (request.method === 'POST') {
+        return { id: 'video_1', status: 'queued', progress: 0 }
+      }
+      return { id: 'video_1', status: 'completed', progress: 100, model: 'sora-2' }
+    },
+  }
+
+  const provider = new HttpVideoProvider({
+    ...providerConfig('openai_sora', {
+      baseUrl: '',
+      model: 'sora-2',
+      defaultParams: '{"size":"1280x720","seconds":4,"quality":"standard"}',
+    }),
+    adapter: openAiSoraVideoProviderAdapter,
+    transport,
+  })
+
+  const created = await provider.createTask({
+    prompt: 'vertical drama close-up',
+    referenceImageUrls: ['https://assets.example.test/reference.png'],
+  })
+  assert.equal(created.status, 'running')
+  assert.equal(created.remoteTaskId, 'video_1')
+
+  const createRequest = requests[0] as {
+    method: string
+    url: string
+    headers: Record<string, string>
+    body: {
+      model: string
+      prompt: string
+      size: string
+      seconds: string
+      quality: string
+      input_reference: { image_url: string }
+    }
+  }
+  assert.equal(createRequest.method, 'POST')
+  assert.equal(createRequest.url, 'https://api.openai.com/v1/videos')
+  assert.equal(createRequest.headers.Authorization, 'Bearer test-key')
+  assert.equal(createRequest.body.model, 'sora-2')
+  assert.equal(createRequest.body.prompt, 'vertical drama close-up')
+  assert.equal(createRequest.body.size, '1280x720')
+  assert.equal(createRequest.body.seconds, '4')
+  assert.equal(createRequest.body.quality, 'standard')
+  assert.deepEqual(createRequest.body.input_reference, { image_url: 'https://assets.example.test/reference.png' })
+
+  const checked = await provider.getTaskStatus('video_1')
+  assert.equal(checked.status, 'success')
+  assert.equal(checked.results[0].resultVideoUrl, 'https://api.openai.com/v1/videos/video_1/content')
+
+  const statusRequest = requests[1] as { method: string; url: string }
+  assert.equal(statusRequest.method, 'GET')
+  assert.equal(statusRequest.url, 'https://api.openai.com/v1/videos/video_1')
+
+  const failed = openAiSoraVideoProviderAdapter.mapTaskState({
+    id: 'video_2',
+    status: 'failed',
+    error: { message: 'content policy rejection' },
+  }, 'status')
+  assert.equal(failed.status, 'failed')
+  assert.equal(failed.errorMessage, 'content policy rejection')
 })
 
 test('custom adapter builds OpenAI-compatible requests and maps task states', async () => {
@@ -115,4 +186,7 @@ test('factory keeps mock, custom, and real provider routing separated', async ()
     () => real.createTask({ model: 'video-model', prompt: 'shot prompt' }),
     /真实 API 映射尚未启用/,
   )
+
+  const sora = videoProviderFromConfig(providerConfig('openai_sora', { baseUrl: '' }))
+  assert.equal(sora.kind, 'openai_sora')
 })

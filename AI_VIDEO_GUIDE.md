@@ -47,7 +47,7 @@
 
 ## 视频平台对接（v0.7）
 
-在「视频生成设置」配置 Provider（baseUrl / apiKey / 模型名）。`Mock` 用于本地全链路验证；`Custom` 走 OpenAI-compatible 风格的 HTTP 提交/查询协议；即梦、可灵、海螺、Runway、Pika、Sora 已拆出独立 adapter 槽位，需按平台文档补齐鉴权、请求路径、状态映射和错误归一化后再启用真实调用。
+在「视频生成设置」配置 Provider（baseUrl / apiKey / 模型名）。`Mock` 用于本地全链路验证；`Custom` 走 OpenAI-compatible 风格的 HTTP 提交/查询协议；`OpenAI Sora` 已接入官方视频接口；即梦、可灵、海螺、Runway、Pika 已拆出独立 adapter 槽位，需按平台文档补齐鉴权、请求路径、状态映射和错误归一化后再启用真实调用。
 
 - 镜头工作台选 Shot → 选 Provider → 创建 `VideoGenerationTask`（提交到平台轮询）。
 - 结果回写 `VideoResult`，可标记「最佳」。
@@ -57,8 +57,11 @@
 
 - `mock`：不访问外部网络，立即返回合成结果，适合 smoke 和无账号演示。
 - `custom`：使用 `/video/generations` 与 `/video/generations/{id}` 的 OpenAI-compatible 风格 adapter，支持 Bearer Key、请求重试、状态映射和结果保存。
-- 真实平台：每个平台在 `packages/ai/src/providers/video/adapters.ts` 有独立 adapter 注册位；在未完成平台专用映射前，会返回明确的“真实 API 映射尚未启用”错误，不再误走 `custom` 的通用端点。
-- L5-02 落地首个真实平台时，只填对应 adapter 的 `authHeaders`、`createTaskRequest`、`getTaskStatusRequest`、`mapTaskState` 和 `normalizeError`，不修改 mock/custom 行为。
+- `openai_sora`：默认 Base URL 为 `https://api.openai.com/v1`，创建任务 `POST /videos`，轮询 `GET /videos/{video_id}`，完成后保存 `GET /videos/{video_id}/content` 作为结果端点。默认参数建议 `{"size":"720x1280","seconds":"8"}`，模型默认为 `sora-2`。接口依据 [OpenAI 视频生成指南](https://developers.openai.com/api/docs/guides/video-generation) 和 [Videos API Reference](https://developers.openai.com/api/reference/resources/videos)。
+- 其他真实平台：每个平台在 `packages/ai/src/providers/video/adapters.ts` 有独立 adapter 注册位；在未完成平台专用映射前，会返回明确的“真实 API 映射尚未启用”错误，不再误走 `custom` 的通用端点。
+- 后续落地其他真实平台时，只填对应 adapter 的 `authHeaders`、`createTaskRequest`、`getTaskStatusRequest`、`mapTaskState` 和 `normalizeError`，不修改 mock/custom/Sora 行为。
+
+> 注意：OpenAI Sora 的内容下载端点需要 Bearer Key。当前 L5-02 会保存官方 content endpoint 和原始 metadata；L5-03 会把远端视频归档成本地资产，解决无鉴权 `<video>` 直连播放与项目包资产策略。
 
 ### 各平台 Prompt 风险
 

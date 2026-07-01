@@ -43,6 +43,28 @@ const EMPTY: FormState = {
   allowUnsafeApiKeyStorage: false,
 }
 
+const PROVIDER_DEFAULTS: Record<string, Partial<Pick<FormState, 'name' | 'baseUrl' | 'model' | 'defaultParams'>>> = {
+  openai_sora: {
+    name: 'OpenAI Sora',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'sora-2',
+    defaultParams: '{"size":"720x1280","seconds":"8"}',
+  },
+}
+
+function isKnownDefault(field: keyof typeof PROVIDER_DEFAULTS['openai_sora'], value: string): boolean {
+  return Object.values(PROVIDER_DEFAULTS).some((defaults) => defaults[field] === value)
+}
+
+function defaultedValue(
+  current: string,
+  field: keyof typeof PROVIDER_DEFAULTS['openai_sora'],
+  defaults: Partial<Pick<FormState, 'name' | 'baseUrl' | 'model' | 'defaultParams'>>,
+): string {
+  if (current.trim() && !isKnownDefault(field, current)) return current
+  return defaults[field] ?? ''
+}
+
 export function VideoProviderSettingsPage() {
   const navigate = useNavigate()
   const [configs, setConfigs] = useState<VideoProviderConfig[]>([])
@@ -68,6 +90,20 @@ export function VideoProviderSettingsPage() {
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+
+  function handleKindChange(kind: string) {
+    setForm((f) => {
+      const defaults = PROVIDER_DEFAULTS[kind] ?? {}
+      return {
+        ...f,
+        kind,
+        name: defaultedValue(f.name, 'name', defaults),
+        baseUrl: defaultedValue(f.baseUrl, 'baseUrl', defaults),
+        model: defaultedValue(f.model, 'model', defaults),
+        defaultParams: defaultedValue(f.defaultParams, 'defaultParams', defaults),
+      }
+    })
+  }
 
   async function handleAdd() {
     if (!form.name.trim()) {
@@ -115,7 +151,7 @@ export function VideoProviderSettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Provider 种类</Label>
-                  <Select value={form.kind} onValueChange={(v) => set('kind', v)}>
+                  <Select value={form.kind} onValueChange={handleKindChange}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -133,7 +169,7 @@ export function VideoProviderSettingsPage() {
                   <Input
                     value={form.baseUrl}
                     onChange={(e) => set('baseUrl', e.target.value)}
-                    placeholder="https://open.volcengineapi.com/...（mock 可留空）"
+                    placeholder={form.kind === 'openai_sora' ? 'https://api.openai.com/v1' : 'https://open.volcengineapi.com/...（mock 可留空）'}
                     disabled={form.kind === 'mock'}
                   />
                 </div>
@@ -171,7 +207,7 @@ export function VideoProviderSettingsPage() {
                   <Input
                     value={form.model}
                     onChange={(e) => set('model', e.target.value)}
-                    placeholder="如 kling-v2 / runway-gen4（mock 可留空）"
+                    placeholder={form.kind === 'openai_sora' ? 'sora-2' : '如 kling-v2 / runway-gen4（mock 可留空）'}
                   />
                 </div>
                 <div className="space-y-2">
@@ -179,7 +215,7 @@ export function VideoProviderSettingsPage() {
                   <Input
                     value={form.defaultParams}
                     onChange={(e) => set('defaultParams', e.target.value)}
-                    placeholder='{"aspect_ratio":"9:16","duration":5}'
+                    placeholder={form.kind === 'openai_sora' ? '{"size":"720x1280","seconds":"8"}' : '{"aspect_ratio":"9:16","duration":5}'}
                   />
                 </div>
                 <label className="flex items-center gap-2 text-sm">
@@ -195,7 +231,7 @@ export function VideoProviderSettingsPage() {
                   添加
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；真实平台按其开放接口填写 Base URL 与 Key。
+                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；OpenAI Sora 已内置提交与轮询映射，其他真实平台仍需按开放接口补齐。
                 </p>
               </CardContent>
             </Card>
