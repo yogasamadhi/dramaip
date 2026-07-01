@@ -183,6 +183,11 @@ export interface CaseStudyImportResult {
   documents: CaseStudyImportDocument[]
 }
 
+export interface SecretStorageStatus {
+  encryptionAvailable: boolean
+  mode: 'encrypted' | 'unsafe_plaintext_unavailable'
+}
+
 /** v0.7 提交视频生成任务的输入 */
 export interface CreateVideoTaskInput {
   providerConfigId: string
@@ -197,6 +202,9 @@ export interface CreateVideoTaskInput {
 }
 
 export interface StudioApi {
+  security: {
+    getSecretStorageStatus(): Promise<SecretStorageStatus>
+  }
   project: {
     list(): Promise<Project[]>
     get(id: string): Promise<Project | undefined>

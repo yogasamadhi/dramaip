@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, Plus, Trash2, Video } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Plus, Trash2, Video } from 'lucide-react'
 import type { VideoProviderConfig } from '@sdns/core'
 import { VIDEO_PROVIDER_KINDS, VIDEO_PROVIDER_KIND_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
@@ -28,6 +28,7 @@ interface FormState {
   model: string
   defaultParams: string
   isDefault: boolean
+  allowUnsafeApiKeyStorage: boolean
 }
 
 const EMPTY: FormState = {
@@ -38,6 +39,7 @@ const EMPTY: FormState = {
   model: '',
   defaultParams: '',
   isDefault: false,
+  allowUnsafeApiKeyStorage: false,
 }
 
 export function VideoProviderSettingsPage() {
@@ -45,6 +47,7 @@ export function VideoProviderSettingsPage() {
   const [configs, setConfigs] = useState<VideoProviderConfig[]>([])
   const [defaultId, setDefaultId] = useState<string | undefined>(undefined)
   const [form, setForm] = useState<FormState>(EMPTY)
+  const [secretStatus, setSecretStatus] = useState<Awaited<ReturnType<typeof ipc.security.getSecretStorageStatus>> | null>(null)
 
   async function reload() {
     const list = await ipc.videoProvider.list()
@@ -55,6 +58,7 @@ export function VideoProviderSettingsPage() {
 
   useEffect(() => {
     void reload()
+    void ipc.security.getSecretStorageStatus().then(setSecretStatus)
   }, [])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -63,6 +67,10 @@ export function VideoProviderSettingsPage() {
   async function handleAdd() {
     if (!form.name.trim()) {
       toast.error('请填写名称')
+      return
+    }
+    if (form.apiKey.trim() && secretStatus?.encryptionAvailable === false && !form.allowUnsafeApiKeyStorage) {
+      toast.error('系统安全存储不可用，请确认是否允许本机明文保存 API Key')
       return
     }
     try {
@@ -131,6 +139,25 @@ export function VideoProviderSettingsPage() {
                     disabled={form.kind === 'mock'}
                   />
                 </div>
+                {form.kind !== 'mock' && secretStatus?.encryptionAvailable === false && (
+                  <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                    <div className="flex items-center gap-2 font-medium text-destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      系统安全存储不可用
+                    </div>
+                    <p className="text-muted-foreground">
+                      默认拒绝保存 API Key。勾选后会以本机明文降级格式保存，仅建议在受控设备上临时使用。
+                    </p>
+                    <label className="flex items-center gap-2 text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={form.allowUnsafeApiKeyStorage}
+                        onChange={(e) => set('allowUnsafeApiKeyStorage', e.target.checked)}
+                      />
+                      允许本机明文保存 API Key
+                    </label>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>默认模型</Label>
                   <Input

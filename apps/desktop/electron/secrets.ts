@@ -3,17 +3,36 @@ import type { ModelConfig, VideoProviderConfig } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 const ENCRYPTED_PREFIX = 'enc:v1:'
+const PLAINTEXT_PREFIX = 'plain:v1:'
 const MASKED_PREFIX = 'masked:v1:'
 
-export function encryptSecret(value: string | undefined): string {
+export interface SecretStorageStatus {
+  encryptionAvailable: boolean
+  mode: 'encrypted' | 'unsafe_plaintext_unavailable'
+}
+
+export function getSecretStorageStatus(): SecretStorageStatus {
+  const encryptionAvailable = safeStorage.isEncryptionAvailable()
+  return {
+    encryptionAvailable,
+    mode: encryptionAvailable ? 'encrypted' : 'unsafe_plaintext_unavailable',
+  }
+}
+
+export function encryptSecret(value: string | undefined, allowUnsafePlaintextStorage = false): string {
   if (!value) return ''
   if (value.startsWith(ENCRYPTED_PREFIX)) return value
-  if (!safeStorage.isEncryptionAvailable()) return value
+  if (value.startsWith(PLAINTEXT_PREFIX)) return value
+  if (!safeStorage.isEncryptionAvailable()) {
+    if (allowUnsafePlaintextStorage) return `${PLAINTEXT_PREFIX}${value}`
+    throw new Error('系统安全存储不可用，已拒绝保存 API Key。请启用系统钥匙串/凭据管理器，或在设置页显式允许本机明文保存。')
+  }
   return `${ENCRYPTED_PREFIX}${safeStorage.encryptString(value).toString('base64')}`
 }
 
 export function decryptSecret(value: string | undefined): string {
   if (!value) return ''
+  if (value.startsWith(PLAINTEXT_PREFIX)) return value.slice(PLAINTEXT_PREFIX.length)
   if (!value.startsWith(ENCRYPTED_PREFIX)) return value
   if (!safeStorage.isEncryptionAvailable()) return ''
   try {
@@ -23,13 +42,14 @@ export function decryptSecret(value: string | undefined): string {
   }
 }
 
-function protectInput<T extends { apiKey?: string }>(input: T): T {
-  if (typeof input.apiKey !== 'string') return input
+function protectInput<T extends { apiKey?: string; allowUnsafeApiKeyStorage?: boolean }>(input: T): T {
+  const { allowUnsafeApiKeyStorage, ...withoutPolicy } = input
+  if (typeof input.apiKey !== 'string') return withoutPolicy as T
   if (input.apiKey.startsWith(MASKED_PREFIX)) {
-    const { apiKey: _apiKey, ...rest } = input
+    const { apiKey: _apiKey, ...rest } = withoutPolicy
     return rest as T
   }
-  return { ...input, apiKey: encryptSecret(input.apiKey) }
+  return { ...withoutPolicy, apiKey: encryptSecret(input.apiKey, allowUnsafeApiKeyStorage === true) } as T
 }
 
 function exposeModelConfig(config: ModelConfig): ModelConfig {
@@ -104,6 +124,7 @@ export function installSecretProtection(repos: Repositories): void {
 }
 
 export function encryptExistingSecrets(repos: Repositories): void {
+  if (!safeStorage.isEncryptionAvailable()) return
   for (const config of repos.modelConfig.listModelConfigs(repos.db)) {
     if (config.apiKey) repos.modelConfig.updateModelConfig(repos.db, config.id, { apiKey: config.apiKey })
   }

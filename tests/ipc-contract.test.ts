@@ -17,6 +17,7 @@ test('rejects IPC calls with invalid arity or shape', () => {
 
 test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
+    'security:getSecretStorageStatus',
     'project:create',
     'project:update',
     'ai:run',

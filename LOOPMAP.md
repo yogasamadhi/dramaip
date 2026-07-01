@@ -24,7 +24,7 @@
 | L3-01 | Codex/创作体验 | done | 为 AI 覆写增加 diff 预览 | `packages/ai/src/nodes/save-result.node.ts`、renderer AI 预览组件、内容版本表 | 章节/剧本/镜头 Prompt 覆写前可查看差异；用户确认后写入；取消不会修改正文 |
 | L3-02 | Codex/创作体验 | todo | 增加版本比较与一键恢复 | `content_versions` repository、Workspace/Script/Shot 页面 | 用户可查看历史版本、比较当前版本、恢复指定版本；恢复操作也生成新版本记录；相关 smoke/单测通过 |
 | L3-03 | Codex/创作体验 | todo | 明确自动落库任务策略 | AI workflow、prompt registry、UI 文案 | 每类任务标记“预览后采用”或“自动写入”；危险覆写默认走确认；文档与 UI 行为一致 |
-| L4-01 | Codex/安全 | todo | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
+| L4-01 | Codex/安全 | done | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
 | L4-02 | Codex/安全 | todo | 增加密钥迁移和健康检查 | secrets、设置页、诊断文档 | 能识别明文/加密/掩码状态；启动时迁移可审计；失败不丢 key 且提示可操作 |
 | L5-01 | Codex/视频平台 | todo | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
 | L5-02 | Codex/视频平台 | todo | 落地首个真实视频平台适配 | video provider、视频设置页、视频任务页 | 至少一个真实平台完成提交、轮询、失败处理、结果保存；可用 mock 测试和真实配置手工 smoke 验证 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm test` 可通过，包含 typecheck、13 个单元测试、DB smoke，并会在结束时重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 CI、无 E2E、无打包 smoke、无签名/公证/自动更新闭环、IPC 业务 schema 不完整、备份恢复入口缺失、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L2-01、L3-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L2-01、L3-01、L4-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -180,3 +180,13 @@
 - 实现结果：章节正文、已有剧本正文、镜头 Prompt 的 AI 覆写任务先返回 `text_preview`；renderer 展示逐行 diff，用户采用后才通过 `ai:applyResult` 写库并创建内容版本/Prompt 版本；取消不会修改正文。批量剧本生成只补未生成集，避免批量路径覆盖已有剧本。
 - 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试），新增测试覆盖预览不落库和采用后写入；`git diff --check` 通过。
 - Diff 审查：变更限定在 AI 覆写预览、采用落库、renderer diff 弹窗、IPC 类型/schema 放宽和本 loop 单测；未纳入 `UPDATE.md` 删除状态。
+
+### L4-01：API Key 降级保护
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 本 loop 范围：`apps/desktop/electron/secrets.ts`、`apps/desktop/electron/ipc/security.ipc.ts`、`apps/desktop/electron/preload.ts`、`apps/desktop/renderer/src/pages/ModelSettingsPage.tsx`、`apps/desktop/renderer/src/pages/VideoProviderSettingsPage.tsx`、renderer IPC 类型、IPC 合约与单测、`LOOPMAP.md`。
+- 实现结果：`safeStorage` 不可用时默认拒绝保存 API Key；用户在模型/视频 Provider 设置页显式勾选后才允许以 `plain:v1:` 降级格式保存；设置页显示明确警告；启动时仅在安全存储可用时自动迁移既有密钥。
+- 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试），并把安全存储状态 IPC 纳入 exact schema 清单；`git diff --check` 通过。
+- Diff 审查：变更限定在密钥保护策略、只读安全状态 IPC、模型/视频设置页降级确认和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。

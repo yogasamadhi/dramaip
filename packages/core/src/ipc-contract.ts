@@ -298,6 +298,7 @@ const caseStudyInput = z
 const caseStudyPatch = caseStudyInput.partial().passthrough()
 
 export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
+  'security:getSecretStorageStatus': [],
   'project:list': [],
   'project:create': [projectInput],
   'project:update': [id, projectPatch],

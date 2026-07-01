@@ -8,6 +8,9 @@ function createRequestId(): string {
 }
 
 const api = {
+  security: {
+    getSecretStorageStatus: () => invoke('security:getSecretStorageStatus'),
+  },
   project: {
     list: () => invoke('project:list'),
     get: (id: string) => invoke('project:get', id),
@@ -101,7 +104,7 @@ const api = {
       })
     },
     applyResult: (input: {
-      projectId: string
+      projectId?: string
       taskType: string
       data: unknown
       characterId?: string
