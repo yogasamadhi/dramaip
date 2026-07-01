@@ -4,6 +4,7 @@ import { extname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { VideoAssetArchiveResult, VideoAssetArchiver } from '@sdns/ai'
 import type { VideoProviderConfig } from '@sdns/core'
+import { assertAllowedSize, assertReadableImportFile, assertRemoteImportResource } from './file-security'
 
 interface ArchivedResource {
   localPath?: string
@@ -75,9 +76,17 @@ async function archiveResource(input: {
     const res = await fetch(input.url, { headers: authHeaders(input.providerConfig, input.url) })
     if (!res.ok) return { error: `下载失败 HTTP ${res.status}` }
     const contentType = res.headers.get('content-type') ?? undefined
-    const ext = extensionFromUrl(input.url) || extensionFromContentType(contentType) || input.fallbackExt
+    const contentLength = numberHeader(res.headers.get('content-length'))
+    const ext = assertRemoteImportResource('videoAsset', {
+      url: input.url,
+      ext: extensionFromUrl(input.url) || extensionFromContentType(contentType) || input.fallbackExt,
+      contentType,
+      contentLength,
+    })
+    const body = Buffer.from(await res.arrayBuffer())
+    assertAllowedSize('videoAsset', body.byteLength, input.url)
     const localPath = join(input.dir, `${input.stem}${ext}`)
-    await writeFile(localPath, Buffer.from(await res.arrayBuffer()))
+    await writeFile(localPath, body)
     return { localPath, localUrl: pathToFileURL(localPath).toString() }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
@@ -85,6 +94,7 @@ async function archiveResource(input: {
 }
 
 async function copyLocalFile(source: string, dir: string, stem: string, ext: string): Promise<ArchivedResource> {
+  await assertReadableImportFile('videoAsset', source)
   const localPath = join(dir, `${stem}${ext}`)
   await copyFile(source, localPath)
   return { localPath, localUrl: pathToFileURL(localPath).toString() }
@@ -119,6 +129,12 @@ function extensionFromContentType(contentType: string | undefined): string | und
   if (contentType.includes('webp')) return '.webp'
   if (contentType.includes('jpeg') || contentType.includes('jpg')) return '.jpg'
   return undefined
+}
+
+function numberHeader(value: string | null): number | undefined {
+  if (!value) return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function safeSegment(value: string): string {

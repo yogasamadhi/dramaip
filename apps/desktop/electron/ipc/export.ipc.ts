@@ -20,6 +20,7 @@ import {
   previewProjectPackage,
   importProjectPackage,
 } from '@sdns/export'
+import { assertReadableImportFile } from '../file-security'
 
 export function registerExportIpc(): void {
   const repos = () => getRepos()
@@ -205,7 +206,9 @@ export function registerExportIpc(): void {
       })
       if (open.canceled || open.filePaths.length === 0) return { ok: false, canceled: true }
       const { readFile } = await import('node:fs/promises')
-      const content = await readFile(open.filePaths[0], 'utf-8')
+      const filePath = open.filePaths[0]
+      await assertReadableImportFile('projectPackage', filePath)
+      const content = await readFile(filePath, 'utf-8')
       const preview = previewProjectPackage(content)
       const confirm = await dialog.showMessageBox(win!, {
         type: 'question',

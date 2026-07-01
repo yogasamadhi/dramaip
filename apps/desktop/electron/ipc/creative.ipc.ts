@@ -11,6 +11,7 @@ import {
 } from '@sdns/core'
 import { resolveProviderForTask, runNovelWorkflow, type NovelWorkflowInput } from '@sdns/ai'
 import { getRepos } from '../db'
+import { assertReadableImportFile, truncateImportedText } from '../file-security'
 
 type WorkflowInput = {
   templateKey: string
@@ -237,6 +238,7 @@ async function importCaseStudyDocuments() {
 
 async function readCaseStudyDocument(filePath: string) {
   const { readFile } = await import('node:fs/promises')
+  await assertReadableImportFile('caseStudyDocument', filePath)
   const fileName = basename(filePath)
   const ext = extname(filePath).toLowerCase()
   let text = ''
@@ -248,12 +250,12 @@ async function readCaseStudyDocument(filePath: string) {
     throw new Error('仅支持 .md / .txt / .docx')
   }
   const cleaned = text.replace(/\r\n/g, '\n').replace(/\n{4,}/g, '\n\n\n').trim()
-  const limit = 80_000
+  const truncated = truncateImportedText('caseStudyDocument', cleaned)
   return {
     fileName,
     path: filePath,
-    text: cleaned.slice(0, limit),
-    truncated: cleaned.length > limit,
+    text: truncated.text,
+    truncated: truncated.truncated,
   }
 }
 
