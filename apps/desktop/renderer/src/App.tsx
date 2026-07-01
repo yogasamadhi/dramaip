@@ -23,6 +23,7 @@ const VideoProviderSettingsPage = lazy(() =>
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const ModelSettingsPage = lazy(() => import('@/pages/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })))
 const DataSettingsPage = lazy(() => import('@/pages/DataSettingsPage').then((m) => ({ default: m.DataSettingsPage })))
+const TaskMonitorPage = lazy(() => import('@/pages/TaskMonitorPage').then((m) => ({ default: m.TaskMonitorPage })))
 const WritingRoomPage = lazy(() => import('@/pages/WritingRoomPage').then((m) => ({ default: m.WritingRoomPage })))
 const AgentSettingsPage = lazy(() => import('@/pages/AgentSettingsPage').then((m) => ({ default: m.AgentSettingsPage })))
 const TemplatePage = lazy(() => import('@/pages/TemplatePage').then((m) => ({ default: m.TemplatePage })))
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/settings/model" element={<Navigate to="/settings/models" replace />} />
         <Route path="/settings/models" element={<ModelSettingsPage />} />
         <Route path="/settings/data" element={<DataSettingsPage />} />
+        <Route path="/settings/tasks" element={<TaskMonitorPage />} />
         <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
         <Route path="/settings/agents" element={<AgentSettingsPage />} />
         <Route path="/settings/usage" element={<UsageStatsPage />} />

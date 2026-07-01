@@ -40,12 +40,14 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'default' | 'dest
   running: 'outline',
   success: 'default',
   failed: 'destructive',
+  canceled: 'secondary',
 }
 const STATUS_LABEL: Record<string, string> = {
   pending: '排队中',
   running: '生成中',
   success: '成功',
   failed: '失败',
+  canceled: '已取消',
 }
 
 export function VideoGenerationPage() {

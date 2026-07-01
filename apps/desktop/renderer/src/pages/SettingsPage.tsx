@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cpu, DatabaseBackup, Settings, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronRight, Cpu, DatabaseBackup, Settings, TimerReset, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -21,6 +21,12 @@ const SETTINGS_ITEMS = [
     description: '查看数据库备份、手动备份与恢复',
     path: '/settings/data',
     icon: DatabaseBackup,
+  },
+  {
+    title: '任务队列',
+    description: '查看 AI 与视频长任务状态',
+    path: '/settings/tasks',
+    icon: TimerReset,
   },
   {
     title: 'Agent 配置',

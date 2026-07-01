@@ -7,6 +7,7 @@ import {
   chapters,
   evaluations,
   aiRuns,
+  longTasks,
   chapterMemories,
   characterStates,
   characterVisualProfiles,
@@ -98,6 +99,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(outlines).where(eq(outlines.projectId, id)).run()
   db.delete(evaluations).where(eq(evaluations.projectId, id)).run()
   db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()
+  db.delete(longTasks).where(eq(longTasks.projectId, id)).run()
   db.delete(chapterMemories).where(eq(chapterMemories.projectId, id)).run()
   db.delete(characterStates).where(eq(characterStates.projectId, id)).run()
   db.delete(characterVisualProfiles).where(eq(characterVisualProfiles.projectId, id)).run()

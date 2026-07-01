@@ -120,6 +120,30 @@ export interface AiRun {
   createdAt: string
 }
 
+export type LongTaskKind = 'ai' | 'video'
+export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
+
+export interface LongTask {
+  id: string
+  kind: LongTaskKind
+  status: LongTaskStatus
+  title: string
+  taskType?: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  relatedEntityId?: string
+  input?: Record<string, unknown>
+  output?: Record<string, unknown>
+  errorMessage?: string
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  finishedAt?: string
+}
+
 // ---------------------------------------------------------------------------
 // v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2 §1-6）
 // ---------------------------------------------------------------------------
@@ -574,7 +598,7 @@ export interface VideoProviderConfig {
 }
 
 /** 视频生成任务状态 */
-export type VideoTaskStatus = 'pending' | 'running' | 'success' | 'failed'
+export type VideoTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 
 /** 视频生成任务（对应 video_generation_tasks 表，ROADMAP v0.7 §2） */
 export interface VideoGenerationTask {

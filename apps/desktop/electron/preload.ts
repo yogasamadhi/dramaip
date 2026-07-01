@@ -16,6 +16,11 @@ const api = {
     create: () => invoke('dataBackup:create'),
     restore: (path: string) => invoke('dataBackup:restore', path),
   },
+  longTask: {
+    list: (projectId?: string) => invoke('longTask:list', projectId),
+    get: (id: string) => invoke('longTask:get', id),
+    cancel: (id: string) => invoke('longTask:cancel', id),
+  },
   project: {
     list: () => invoke('project:list'),
     get: (id: string) => invoke('project:get', id),

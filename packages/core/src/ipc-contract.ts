@@ -153,7 +153,7 @@ const createVideoTaskInput = objectPayload.extend({
 
 const updateVideoTaskInput = z
   .object({
-    status: z.enum(['pending', 'running', 'success', 'failed']).optional(),
+    status: z.enum(['pending', 'running', 'success', 'failed', 'canceled']).optional(),
     remoteTaskId: z.string().optional(),
     resultVideoUrl: z.string().optional(),
     errorMessage: z.string().optional(),
@@ -302,6 +302,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'dataBackup:list': [],
   'dataBackup:create': [],
   'dataBackup:restore': [id],
+  'longTask:list': [maybeId],
+  'longTask:get': [id],
+  'longTask:cancel': [id],
   'project:list': [],
   'project:create': [projectInput],
   'project:update': [id, projectPatch],

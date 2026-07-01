@@ -8,25 +8,31 @@ import {
   type NovelWorkflowInput,
   type ApplyArtifactInput,
 } from '@sdns/ai'
-import type { ChatMessage, ModelConfig, NovelTaskType } from '@sdns/core'
+import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
 
 export function registerAiIpc(): void {
   ipcMain.handle('ai:run', async (_evt, input: NovelWorkflowInput) => {
     const repos = getRepos()
-    // v1.0：按任务组解析模型（命中绑定则用绑定模型，否则默认模型）
-    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
+    const longTaskId = createAiLongTask(repos, input)
 
     try {
+      // v1.0：按任务组解析模型（命中绑定则用绑定模型，否则默认模型）
+      const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
       const result = await runNovelWorkflow({ repos, provider }, input)
-      return result
+      finishAiLongTask(repos, longTaskId, result)
+      return { ...result, longTaskId }
     } catch (e) {
+      repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
+        errorMessage: e instanceof Error ? e.message : String(e),
+      })
       return {
         ok: false,
         error: e instanceof Error ? e.message : String(e),
         result: undefined,
         aiRunId: undefined,
+        longTaskId,
         state: null,
       }
     }
@@ -34,9 +40,10 @@ export function registerAiIpc(): void {
 
   ipcMain.handle('ai:runStream', async (evt, input: NovelWorkflowInput, requestId: string) => {
     const repos = getRepos()
-    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
+    const longTaskId = createAiLongTask(repos, input)
 
     try {
+      const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
       const result = await runNovelWorkflow(
         {
           repos,
@@ -47,13 +54,18 @@ export function registerAiIpc(): void {
         },
         input,
       )
-      return result
+      finishAiLongTask(repos, longTaskId, result)
+      return { ...result, longTaskId }
     } catch (e) {
+      repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
+        errorMessage: e instanceof Error ? e.message : String(e),
+      })
       return {
         ok: false,
         error: e instanceof Error ? e.message : String(e),
         result: undefined,
         aiRunId: undefined,
+        longTaskId,
         state: null,
       }
     }
@@ -98,6 +110,51 @@ export function registerAiIpc(): void {
   ipcMain.handle('aiRun:summarize', () => {
     const repos = getRepos()
     return repos.aiRun.summarizeAiRuns(repos.db)
+  })
+}
+
+function createAiLongTask(repos: ReturnType<typeof getRepos>, input: NovelWorkflowInput): string {
+  const task = repos.longTask.createLongTask(repos.db, {
+    kind: 'ai',
+    title: TASK_TYPE_LABELS[input.taskType] ?? input.taskType,
+    taskType: input.taskType,
+    projectId: input.projectId,
+    adaptationProjectId: input.adaptationProjectId,
+    episodeId: input.episodeId,
+    sceneId: input.sceneId,
+    shotId: input.shotId,
+    input: summarizeAiInput(input),
+  })
+  repos.longTask.markLongTaskRunning(repos.db, task.id)
+  return task.id
+}
+
+function summarizeAiInput(input: NovelWorkflowInput): Record<string, unknown> {
+  return {
+    taskType: input.taskType,
+    projectId: input.projectId,
+    chapterId: input.chapterId,
+    characterId: input.characterId,
+    adaptationProjectId: input.adaptationProjectId,
+    episodeId: input.episodeId,
+    sceneId: input.sceneId,
+    shotId: input.shotId,
+    templateScope: input.templateScope,
+    hasTemplateContent: Boolean(input.templateContent),
+    hasUserInstruction: Boolean(input.userInstruction?.trim()),
+    chatMessageCount: input.chatHistory?.length ?? 0,
+  }
+}
+
+function finishAiLongTask(
+  repos: ReturnType<typeof getRepos>,
+  longTaskId: string,
+  result: { ok: boolean; error?: string; aiRunId?: string; result?: { kind: string } },
+): void {
+  repos.longTask.finishLongTask(repos.db, longTaskId, result.ok ? 'success' : 'failed', {
+    relatedEntityId: result.aiRunId,
+    errorMessage: result.error,
+    output: { aiRunId: result.aiRunId, resultKind: result.result?.kind },
   })
 }
 

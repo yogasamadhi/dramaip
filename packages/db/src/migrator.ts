@@ -281,6 +281,37 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 6,
+    name: 'long-task-ledger',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS long_tasks (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          title TEXT NOT NULL,
+          task_type TEXT,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          episode_id TEXT,
+          scene_id TEXT,
+          shot_id TEXT,
+          related_entity_id TEXT,
+          input TEXT,
+          output TEXT,
+          error_message TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          started_at TEXT,
+          finished_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_long_tasks_status_updated ON long_tasks(status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_long_tasks_project_updated ON long_tasks(project_id, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_long_tasks_related_entity ON long_tasks(kind, related_entity_id);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

@@ -91,7 +91,7 @@ export async function checkVideoTaskStatus(
   const task = repos.videoTask.getVideoTask(db, taskId)
   if (!task) throw new Error(`未找到视频任务 ${taskId}`)
   // 终态任务无需再轮询，直接返回已存结果
-  if (task.status === 'success' || task.status === 'failed') {
+  if (task.status === 'success' || task.status === 'failed' || task.status === 'canceled') {
     return { task, results: repos.videoResult.listVideoResultsByTask(db, taskId) }
   }
 

@@ -29,7 +29,7 @@
 | L5-01 | Codex/视频平台 | todo | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
 | L5-02 | Codex/视频平台 | todo | 落地首个真实视频平台适配 | video provider、视频设置页、视频任务页 | 至少一个真实平台完成提交、轮询、失败处理、结果保存；可用 mock 测试和真实配置手工 smoke 验证 |
 | L5-03 | Codex/视频平台 | todo | 视频结果本地归档 | 视频任务服务、DB、文件存储策略 | 可将远端视频/封面保存到本地项目资产目录；记录本地路径与远端 URL；导出项目包策略明确 |
-| L6-01 | Codex/任务系统 | todo | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
+| L6-01 | Codex/任务系统 | done | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
 | L6-02 | Codex/任务系统 | todo | 支持取消、重试、并发限制 | AI workflow、HTTP provider、UI | 用户可取消运行中任务；失败任务可重试；同类任务并发可配置或有限制；取消不会产生半写入 |
 | L6-03 | Codex/任务系统 | todo | 批量生成进度持久化 | 剧本批量生成、分镜批量生成、工作流记录 | 批量任务中断后可看到已完成/失败项；重跑只补未完成项；UI 显示进度与错误明细 |
 | L7-01 | Codex/AI 基础设施 | todo | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（17 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L8-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L8-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -210,6 +210,16 @@
 - 实现结果：`safeStorage` 不可用时默认拒绝保存 API Key；用户在模型/视频 Provider 设置页显式勾选后才允许以 `plain:v1:` 降级格式保存；设置页显示明确警告；启动时仅在安全存储可用时自动迁移既有密钥。
 - 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试），并把安全存储状态 IPC 纳入 exact schema 清单；`git diff --check` 通过。
 - Diff 审查：变更限定在密钥保护策略、只读安全状态 IPC、模型/视频设置页降级确认和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
+
+### L6-01：长任务队列模型
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 本 loop 范围：`packages/core/src/types/index.ts`、`packages/db/src/schema.ts`、`packages/db/src/migrations.ts`、`packages/db/src/migrator.ts`、`packages/db/src/repositories/long-task.repo.ts`、`packages/db/src/index.ts`、AI/视频 IPC、preload、renderer IPC 类型、任务队列设置页、IPC 单测、DB smoke、`LOOPMAP.md`。
+- 实现结果：新增 `long_tasks` 通用任务账本和 v6 迁移；AI `run/runStream` 与视频提交/轮询/重试写入统一任务状态；状态模型覆盖 `pending/running/success/failed/canceled`；设置页新增任务队列，可恢复查看 AI/视频长任务并本地标记取消；视频任务状态扩展 `canceled`。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试）；`pnpm test:db` 通过，并覆盖 long task CRUD、状态流转和项目删除级联。
+- Diff 审查：变更限定在长任务模型、迁移、AI/video 任务记录、任务队列查询 UI、IPC schema/test、DB smoke 和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
 
 ### L8-01：CI 基线
 

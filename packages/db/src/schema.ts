@@ -110,6 +110,27 @@ export const aiRuns = sqliteTable('ai_runs', {
   createdAt: text('created_at').notNull(),
 })
 
+export const longTasks = sqliteTable('long_tasks', {
+  id: text('id').primaryKey(),
+  kind: text('kind', { enum: ['ai', 'video'] }).notNull(),
+  status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
+  title: text('title').notNull(),
+  taskType: text('task_type'),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  relatedEntityId: text('related_entity_id'),
+  input: text('input'),
+  output: text('output'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  startedAt: text('started_at'),
+  finishedAt: text('finished_at'),
+})
+
 export const modelConfigs = sqliteTable('model_configs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -474,7 +495,7 @@ export const videoGenerationTasks = sqliteTable('video_generation_tasks', {
   prompt: text('prompt').notNull().default(''),
   negativePrompt: text('negative_prompt'),
   referenceImageUrls: text('reference_image_urls').notNull().default('[]'),
-  status: text('status', { enum: ['pending', 'running', 'success', 'failed'] }).notNull().default('pending'),
+  status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
   remoteTaskId: text('remote_task_id'),
   errorMessage: text('error_message'),
   note: text('note'),

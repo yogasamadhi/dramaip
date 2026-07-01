@@ -110,6 +110,27 @@ CREATE TABLE IF NOT EXISTS ai_runs (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS long_tasks (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  title TEXT NOT NULL,
+  task_type TEXT,
+  project_id TEXT,
+  adaptation_project_id TEXT,
+  episode_id TEXT,
+  scene_id TEXT,
+  shot_id TEXT,
+  related_entity_id TEXT,
+  input TEXT,
+  output TEXT,
+  error_message TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS model_configs (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

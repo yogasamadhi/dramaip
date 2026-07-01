@@ -62,20 +62,29 @@ export function registerVideoIpc(): void {
       referenceImageUrls?: string[]
       note?: string
     }) => {
+      const r = repos()
+      const longTaskId = createVideoLongTask(r, input, '视频生成')
       try {
-        const result = await createVideoGenerationTask({ repos: repos() }, input)
-        return { ok: true, ...result }
+        const result = await createVideoGenerationTask({ repos: r }, input)
+        syncVideoLongTask(r, longTaskId, result.task, result.results)
+        return { ok: true, longTaskId, ...result }
       } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : String(e) }
+        r.longTask.finishLongTask(r.db, longTaskId, 'failed', {
+          errorMessage: e instanceof Error ? e.message : String(e),
+        })
+        return { ok: false, longTaskId, error: e instanceof Error ? e.message : String(e) }
       }
     },
   )
 
   // 查询任务状态（轮询）
   ipcMain.handle('videoTask:checkStatus', async (_e, taskId: string) => {
+    const r = repos()
     try {
-      const result = await checkVideoTaskStatus({ repos: repos() }, taskId)
-      return { ok: true, ...result }
+      const result = await checkVideoTaskStatus({ repos: r }, taskId)
+      const longTask = result.task ? r.longTask.getLongTaskByRelatedEntity(r.db, 'video', result.task.id) : undefined
+      if (longTask) syncVideoLongTask(r, longTask.id, result.task, result.results)
+      return { ok: true, longTaskId: longTask?.id, ...result }
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
@@ -83,11 +92,32 @@ export function registerVideoIpc(): void {
 
   // 失败重试（返回新任务）
   ipcMain.handle('videoTask:retry', async (_e, taskId: string, providerConfigId?: string) => {
+    const r = repos()
+    const original = r.videoTask.getVideoTask(r.db, taskId)
+    if (!original) return { ok: false, error: '未找到视频任务' }
+    const longTaskId = createVideoLongTask(
+      r,
+      {
+        projectId: original.projectId,
+        episodeId: original.episodeId,
+        sceneId: original.sceneId,
+        shotId: original.shotId,
+        prompt: original.prompt,
+        negativePrompt: original.negativePrompt,
+        referenceImageUrls: original.referenceImageUrls,
+        note: original.note,
+      },
+      '重试视频生成',
+    )
     try {
-      const result = await retryVideoTask({ repos: repos() }, taskId, providerConfigId)
-      return { ok: true, ...result }
+      const result = await retryVideoTask({ repos: r }, taskId, providerConfigId)
+      syncVideoLongTask(r, longTaskId, result.task, result.results)
+      return { ok: true, longTaskId, ...result }
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+      r.longTask.finishLongTask(r.db, longTaskId, 'failed', {
+        errorMessage: e instanceof Error ? e.message : String(e),
+      })
+      return { ok: false, longTaskId, error: e instanceof Error ? e.message : String(e) }
     }
   })
 
@@ -123,5 +153,61 @@ export function registerVideoIpc(): void {
   ipcMain.handle('videoResult:delete', (_e, id: string) => {
     repos().videoResult.deleteVideoResult(repos().db, id)
     return true
+  })
+}
+
+function createVideoLongTask(
+  repos: ReturnType<typeof getRepos>,
+  input: {
+    projectId?: string
+    episodeId?: string
+    sceneId?: string
+    shotId?: string
+    prompt: string
+    negativePrompt?: string
+    referenceImageUrls?: string[]
+    note?: string
+  },
+  title: string,
+): string {
+  const task = repos.longTask.createLongTask(repos.db, {
+    kind: 'video',
+    title,
+    taskType: 'video_generation',
+    projectId: input.projectId,
+    episodeId: input.episodeId,
+    sceneId: input.sceneId,
+    shotId: input.shotId,
+    input: {
+      hasPrompt: Boolean(input.prompt.trim()),
+      hasNegativePrompt: Boolean(input.negativePrompt?.trim()),
+      referenceImageCount: input.referenceImageUrls?.length ?? 0,
+      note: input.note,
+    },
+  })
+  repos.longTask.markLongTaskRunning(repos.db, task.id)
+  return task.id
+}
+
+function syncVideoLongTask(
+  repos: ReturnType<typeof getRepos>,
+  longTaskId: string,
+  task: { id: string; status: 'pending' | 'running' | 'success' | 'failed' | 'canceled'; errorMessage?: string } | undefined,
+  results: unknown[] | undefined,
+): void {
+  if (!task) return
+  const output = { videoTaskId: task.id, resultCount: results?.length ?? 0 }
+  if (task.status === 'success' || task.status === 'failed' || task.status === 'canceled') {
+    repos.longTask.finishLongTask(repos.db, longTaskId, task.status, {
+      relatedEntityId: task.id,
+      errorMessage: task.errorMessage,
+      output,
+    })
+    return
+  }
+  repos.longTask.updateLongTask(repos.db, longTaskId, {
+    status: task.status,
+    relatedEntityId: task.id,
+    output,
   })
 }

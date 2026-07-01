@@ -22,6 +22,7 @@ import type {
   FreshnessReport,
   GenrePreset,
   HighlightAnalysis,
+  LongTask,
   ModelConfig,
   NarrativeCurveReport,
   NovelTaskType,
@@ -72,6 +73,7 @@ export interface AiTaskResult {
   error?: string
   result?: { kind: string; data: unknown | TextDiffPreviewPayload }
   aiRunId?: string
+  longTaskId?: string
 }
 
 /** v0.8 编剧室运行结果 */
@@ -164,6 +166,7 @@ export interface AiRunSummaryRow {
 export interface VideoTaskOpResult {
   ok: boolean
   error?: string
+  longTaskId?: string
   task?: VideoGenerationTask
   results?: VideoResult[]
 }
@@ -210,6 +213,12 @@ export interface ContentVersionRestoreResult {
   result?: ContentVersion
 }
 
+export interface LongTaskCancelResult {
+  ok: boolean
+  error?: string
+  task?: LongTask
+}
+
 /** v0.7 提交视频生成任务的输入 */
 export interface CreateVideoTaskInput {
   providerConfigId: string
@@ -231,6 +240,11 @@ export interface StudioApi {
     list(): Promise<DatabaseBackupInfo[]>
     create(): Promise<DatabaseBackupResult>
     restore(path: string): Promise<DatabaseBackupResult>
+  }
+  longTask: {
+    list(projectId?: string): Promise<LongTask[]>
+    get(id: string): Promise<LongTask | undefined>
+    cancel(id: string): Promise<LongTaskCancelResult>
   }
   project: {
     list(): Promise<Project[]>

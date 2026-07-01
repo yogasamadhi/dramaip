@@ -102,6 +102,19 @@ function main() {
   })
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 1 && !!run.id, 'createAiRun + list')
 
+  const longTask = repos.longTask.createLongTask(repos.db, {
+    kind: 'ai',
+    title: '生成章节',
+    taskType: 'generate_chapter',
+    projectId: p1.id,
+    input: { taskType: 'generate_chapter' },
+  })
+  assert(longTask.status === 'pending' && !!longTask.id, 'createLongTask pending')
+  const runningTask = repos.longTask.markLongTaskRunning(repos.db, longTask.id)
+  assert(runningTask?.status === 'running' && !!runningTask.startedAt, 'markLongTaskRunning')
+  const canceledTask = repos.longTask.finishLongTask(repos.db, longTask.id, 'canceled', { output: { reason: 'smoke' } })
+  assert(canceledTask?.status === 'canceled' && canceledTask.output?.reason === 'smoke', 'finishLongTask canceled + JSON output')
+
   // v0.5 改编项目 → 分集 → 剧本 → 场景 + 审稿（CRUD / upsert / 级联）
   const ap = repos.adaptationProject.createAdaptationProject(repos.db, {
     sourceProjectId: p1.id,
@@ -532,6 +545,7 @@ function main() {
   assert(repos.chapter.listChapters(repos.db, p1.id).length === 0, '级联：章节已删')
   assert(repos.character.listCharacters(repos.db, p1.id).length === 0, '级联：人物已删')
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 0, '级联：ai_runs 已删')
+  assert(repos.longTask.listLongTasksByProject(repos.db, p1.id).length === 0, '级联：long_tasks 已删')
   assert(repos.project.listProjects(repos.db).length === 1, '另一项目仍在')
 
   // 持久性：重新打开同一文件

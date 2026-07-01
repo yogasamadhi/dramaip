@@ -8,6 +8,7 @@ export * as outlineRepo from './repositories/outline.repo'
 export * as chapterRepo from './repositories/chapter.repo'
 export * as evaluationRepo from './repositories/evaluation.repo'
 export * as aiRunRepo from './repositories/ai-run.repo'
+export * as longTaskRepo from './repositories/long-task.repo'
 export * as modelConfigRepo from './repositories/model-config.repo'
 // v0.2 长篇一致性与视觉记忆系统
 export * as chapterMemoryRepo from './repositories/chapter-memory.repo'
@@ -54,6 +55,7 @@ import * as outlineRepo from './repositories/outline.repo'
 import * as chapterRepo from './repositories/chapter.repo'
 import * as evaluationRepo from './repositories/evaluation.repo'
 import * as aiRunRepo from './repositories/ai-run.repo'
+import * as longTaskRepo from './repositories/long-task.repo'
 import * as modelConfigRepo from './repositories/model-config.repo'
 import * as chapterMemoryRepo from './repositories/chapter-memory.repo'
 import * as characterStateRepo from './repositories/character-state.repo'
@@ -91,6 +93,7 @@ export function createRepositories(db: DB) {
     chapter: { ...chapterRepo },
     evaluation: { ...evaluationRepo },
     aiRun: { ...aiRunRepo },
+    longTask: { ...longTaskRepo },
     modelConfig: { ...modelConfigRepo },
     // v0.2
     chapterMemory: { ...chapterMemoryRepo },

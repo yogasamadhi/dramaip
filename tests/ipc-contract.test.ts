@@ -21,6 +21,9 @@ test('keeps high-risk channels in the shared contract', () => {
     'dataBackup:list',
     'dataBackup:create',
     'dataBackup:restore',
+    'longTask:list',
+    'longTask:get',
+    'longTask:cancel',
     'project:create',
     'project:update',
     'ai:run',
@@ -55,6 +58,9 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('dataBackup:list', []), [])
   assert.deepEqual(validateIpcArgs('dataBackup:restore', ['/tmp/studio.db']), ['/tmp/studio.db'])
   assert.throws(() => validateIpcArgs('dataBackup:restore', ['']), /参数校验失败/)
+  assert.deepEqual(validateIpcArgs('longTask:list', []), [])
+  assert.deepEqual(validateIpcArgs('longTask:list', ['p1']), ['p1'])
+  assert.deepEqual(validateIpcArgs('longTask:cancel', ['task1']), ['task1'])
 })
 
 test('validates high-risk business IPC payload schemas', () => {
@@ -69,6 +75,10 @@ test('validates high-risk business IPC payload schemas', () => {
     /variables.name/,
   )
   assert.throws(() => validateIpcArgs('workflow:run', [{ templateKey: 'unknown_workflow' }]), /templateKey/)
+  assert.deepEqual(validateIpcArgs('videoTask:update', ['v1', { status: 'canceled' }]), [
+    'v1',
+    { status: 'canceled' },
+  ])
   assert.throws(
     () =>
       validateIpcArgs('contentVersion:create', [
