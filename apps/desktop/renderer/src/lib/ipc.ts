@@ -189,6 +189,37 @@ export interface CaseStudyImportResult {
 export interface SecretStorageStatus {
   encryptionAvailable: boolean
   mode: 'encrypted' | 'unsafe_plaintext_unavailable'
+  health?: SecretStorageHealth
+  lastMigration?: SecretMigrationSummary
+}
+
+export interface SecretStateCounts {
+  total: number
+  empty: number
+  encrypted: number
+  unsafePlaintext: number
+  masked: number
+  legacyPlaintext: number
+  unreadableEncrypted: number
+}
+
+export interface SecretStorageHealth {
+  checkedAt: string
+  encryptionAvailable: boolean
+  modelConfigs: SecretStateCounts
+  videoProviderConfigs: SecretStateCounts
+  totals: SecretStateCounts
+}
+
+export interface SecretMigrationSummary {
+  checkedAt: string
+  encryptionAvailable: boolean
+  attempted: number
+  migrated: number
+  skipped: number
+  failed: number
+  before: SecretStorageHealth
+  after: SecretStorageHealth
 }
 
 export interface DatabaseBackupInfo {

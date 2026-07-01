@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { SecretStorageHealthBanner } from '@/components/SecretStorageHealthBanner'
 import {
   Select,
   SelectContent,
@@ -56,9 +57,13 @@ export function VideoProviderSettingsPage() {
     setDefaultId(def?.id)
   }
 
+  async function reloadSecretStatus() {
+    setSecretStatus(await ipc.security.getSecretStorageStatus())
+  }
+
   useEffect(() => {
     void reload()
-    void ipc.security.getSecretStorageStatus().then(setSecretStatus)
+    void reloadSecretStatus()
   }, [])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -78,6 +83,7 @@ export function VideoProviderSettingsPage() {
       toast.success('已添加视频 Provider 配置')
       setForm({ ...EMPTY, isDefault: configs.length === 0 })
       await reload()
+      await reloadSecretStatus()
     } catch (e) {
       toast.error('添加失败：' + (e instanceof Error ? e.message : String(e)))
     }
@@ -96,6 +102,8 @@ export function VideoProviderSettingsPage() {
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
+            <SecretStorageHealthBanner status={secretStatus} className="md:col-span-2" />
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">新增视频 Provider</CardTitle>
@@ -233,6 +241,7 @@ export function VideoProviderSettingsPage() {
                               await ipc.videoProvider.remove(c.id)
                               toast.success('已删除')
                               await reload()
+                              await reloadSecretStatus()
                             }}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />

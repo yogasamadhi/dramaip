@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { SecretStorageHealthBanner } from '@/components/SecretStorageHealthBanner'
 import {
   Select,
   SelectContent,
@@ -53,10 +54,14 @@ export function ModelSettingsPage() {
     setBindings(await ipc.model.listTaskBindings())
   }
 
+  async function reloadSecretStatus() {
+    setSecretStatus(await ipc.security.getSecretStorageStatus())
+  }
+
   useEffect(() => {
     void fetch()
     void reloadBindings()
-    void ipc.security.getSecretStorageStatus().then(setSecretStatus)
+    void reloadSecretStatus()
   }, [fetch])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -75,6 +80,7 @@ export function ModelSettingsPage() {
       await create({ ...form, isDefault: form.isDefault || configs.length === 0 })
       toast.success('已添加模型配置')
       setForm({ ...EMPTY, isDefault: configs.length === 0 })
+      await reloadSecretStatus()
     } catch (e) {
       toast.error('添加失败：' + (e instanceof Error ? e.message : String(e)))
     }
@@ -124,6 +130,8 @@ export function ModelSettingsPage() {
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
+            <SecretStorageHealthBanner status={secretStatus} className="md:col-span-2" />
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">新增模型配置</CardTitle>
@@ -224,6 +232,7 @@ export function ModelSettingsPage() {
                             onClick={async () => {
                               await remove(c.id)
                               await reloadBindings()
+                              await reloadSecretStatus()
                               toast.success('已删除')
                             }}
                           >

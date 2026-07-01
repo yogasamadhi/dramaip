@@ -12,6 +12,7 @@ import {
 } from '@sdns/db'
 import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
 import { encryptExistingSecrets, installSecretProtection } from './secrets'
+import { logger } from './logger'
 
 let repos: Repositories | null = null
 let rawDb: ReturnType<typeof createDb>['raw'] | null = null
@@ -65,7 +66,18 @@ function openDatabase(dbPath: string): void {
   rawDb = created.raw
   repos = createRepositories(created.db)
   installSecretProtection(repos)
-  encryptExistingSecrets(repos)
+  const secretMigration = encryptExistingSecrets(repos)
+  const logLevel = secretMigration.failed > 0 ? 'warn' : 'info'
+  logger[logLevel]('security', 'secret migration checked', {
+    encryptionAvailable: secretMigration.encryptionAvailable,
+    attempted: secretMigration.attempted,
+    migrated: secretMigration.migrated,
+    skipped: secretMigration.skipped,
+    failed: secretMigration.failed,
+    before: secretMigration.before.totals,
+    after: secretMigration.after.totals,
+    failures: secretMigration.failures,
+  })
   seedBuiltInPresets(repos)
 }
 

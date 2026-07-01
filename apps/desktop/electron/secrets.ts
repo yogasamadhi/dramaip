@@ -1,45 +1,66 @@
 import { safeStorage } from 'electron'
+import { eq } from 'drizzle-orm'
 import type { ModelConfig, VideoProviderConfig } from '@sdns/core'
-import type { Repositories } from '@sdns/db'
-
-const ENCRYPTED_PREFIX = 'enc:v1:'
-const PLAINTEXT_PREFIX = 'plain:v1:'
-const MASKED_PREFIX = 'masked:v1:'
+import { schema, type Repositories } from '@sdns/db'
+import {
+  MASKED_PREFIX,
+  classifySecretValue,
+  decryptSecretValue,
+  encryptSecretValue,
+  mergeSecretStateCounts,
+  planSecretMigrations,
+  safeSecretErrorMessage,
+  summarizeSecretValues,
+  type SecretMigrationFailure,
+  type SecretRecordSnapshot,
+  type SecretStateCounts,
+} from './secret-health'
 
 export interface SecretStorageStatus {
   encryptionAvailable: boolean
   mode: 'encrypted' | 'unsafe_plaintext_unavailable'
+  health?: SecretStorageHealth
+  lastMigration?: SecretMigrationSummary
 }
 
-export function getSecretStorageStatus(): SecretStorageStatus {
+export interface SecretStorageHealth {
+  checkedAt: string
+  encryptionAvailable: boolean
+  modelConfigs: SecretStateCounts
+  videoProviderConfigs: SecretStateCounts
+  totals: SecretStateCounts
+}
+
+export interface SecretMigrationSummary {
+  checkedAt: string
+  encryptionAvailable: boolean
+  attempted: number
+  migrated: number
+  skipped: number
+  failed: number
+  before: SecretStorageHealth
+  after: SecretStorageHealth
+  failures: SecretMigrationFailure[]
+}
+
+let lastMigration: SecretMigrationSummary | undefined
+
+export function getSecretStorageStatus(repos?: Repositories): SecretStorageStatus {
   const encryptionAvailable = safeStorage.isEncryptionAvailable()
   return {
     encryptionAvailable,
     mode: encryptionAvailable ? 'encrypted' : 'unsafe_plaintext_unavailable',
+    health: repos ? inspectSecretStorageHealth(repos) : undefined,
+    lastMigration,
   }
 }
 
 export function encryptSecret(value: string | undefined, allowUnsafePlaintextStorage = false): string {
-  if (!value) return ''
-  if (value.startsWith(ENCRYPTED_PREFIX)) return value
-  if (value.startsWith(PLAINTEXT_PREFIX)) return value
-  if (!safeStorage.isEncryptionAvailable()) {
-    if (allowUnsafePlaintextStorage) return `${PLAINTEXT_PREFIX}${value}`
-    throw new Error('系统安全存储不可用，已拒绝保存 API Key。请启用系统钥匙串/凭据管理器，或在设置页显式允许本机明文保存。')
-  }
-  return `${ENCRYPTED_PREFIX}${safeStorage.encryptString(value).toString('base64')}`
+  return encryptSecretValue(value, safeStorage, allowUnsafePlaintextStorage)
 }
 
 export function decryptSecret(value: string | undefined): string {
-  if (!value) return ''
-  if (value.startsWith(PLAINTEXT_PREFIX)) return value.slice(PLAINTEXT_PREFIX.length)
-  if (!value.startsWith(ENCRYPTED_PREFIX)) return value
-  if (!safeStorage.isEncryptionAvailable()) return ''
-  try {
-    return safeStorage.decryptString(Buffer.from(value.slice(ENCRYPTED_PREFIX.length), 'base64'))
-  } catch {
-    return ''
-  }
+  return decryptSecretValue(value, safeStorage)
 }
 
 function protectInput<T extends { apiKey?: string; allowUnsafeApiKeyStorage?: boolean }>(input: T): T {
@@ -61,6 +82,7 @@ function exposeVideoConfig(config: VideoProviderConfig): VideoProviderConfig {
 }
 
 export function maskSecret(value: string | undefined): string {
+  if (value?.startsWith(MASKED_PREFIX)) return value
   const plain = decryptSecret(value)
   if (!plain) return ''
   return `${MASKED_PREFIX}${plain.slice(-4)}`
@@ -123,12 +145,98 @@ export function installSecretProtection(repos: Repositories): void {
   }) as typeof videoProviderConfig.getDefaultVideoProviderConfig
 }
 
-export function encryptExistingSecrets(repos: Repositories): void {
-  if (!safeStorage.isEncryptionAvailable()) return
-  for (const config of repos.modelConfig.listModelConfigs(repos.db)) {
-    if (config.apiKey) repos.modelConfig.updateModelConfig(repos.db, config.id, { apiKey: config.apiKey })
+export function inspectSecretStorageHealth(repos: Repositories): SecretStorageHealth {
+  const { modelRecords, videoRecords } = listStoredSecretRecords(repos)
+  return buildSecretStorageHealth(modelRecords, videoRecords)
+}
+
+export function encryptExistingSecrets(repos: Repositories): SecretMigrationSummary {
+  const { modelRecords, videoRecords, allRecords } = listStoredSecretRecords(repos)
+  const before = buildSecretStorageHealth(modelRecords, videoRecords)
+  const plan = planSecretMigrations(allRecords, safeStorage)
+  const failures: SecretMigrationFailure[] = [...plan.failures]
+  let migrated = 0
+
+  for (const action of plan.actions) {
+    try {
+      updateStoredSecret(repos, action.record, action.nextValue)
+      migrated += 1
+    } catch (error) {
+      failures.push({
+        area: action.record.area,
+        id: action.record.id,
+        state: classifySecretValue(action.record.value),
+        error: safeSecretErrorMessage(error),
+      })
+    }
   }
-  for (const config of repos.videoProviderConfig.listVideoProviderConfigs(repos.db)) {
-    if (config.apiKey) repos.videoProviderConfig.updateVideoProviderConfig(repos.db, config.id, { apiKey: config.apiKey })
+
+  lastMigration = {
+    checkedAt: new Date().toISOString(),
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    attempted: plan.attempted,
+    migrated,
+    skipped: plan.skipped,
+    failed: failures.length,
+    before,
+    after: inspectSecretStorageHealth(repos),
+    failures,
   }
+  return lastMigration
+}
+
+function listStoredSecretRecords(repos: Repositories): {
+  modelRecords: SecretRecordSnapshot[]
+  videoRecords: SecretRecordSnapshot[]
+  allRecords: SecretRecordSnapshot[]
+} {
+  const modelRecords = repos.db
+    .select({ id: schema.modelConfigs.id, value: schema.modelConfigs.apiKey })
+    .from(schema.modelConfigs)
+    .all()
+    .map((row) => ({ area: 'model_config' as const, id: row.id, value: row.value }))
+
+  const videoRecords = repos.db
+    .select({ id: schema.videoProviderConfigs.id, value: schema.videoProviderConfigs.apiKey })
+    .from(schema.videoProviderConfigs)
+    .all()
+    .map((row) => ({ area: 'video_provider_config' as const, id: row.id, value: row.value ?? undefined }))
+
+  return {
+    modelRecords,
+    videoRecords,
+    allRecords: [...modelRecords, ...videoRecords],
+  }
+}
+
+function buildSecretStorageHealth(
+  modelRecords: SecretRecordSnapshot[],
+  videoRecords: SecretRecordSnapshot[],
+): SecretStorageHealth {
+  const modelConfigs = summarizeSecretValues(modelRecords, safeStorage)
+  const videoProviderConfigs = summarizeSecretValues(videoRecords, safeStorage)
+  return {
+    checkedAt: new Date().toISOString(),
+    encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    modelConfigs,
+    videoProviderConfigs,
+    totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs),
+  }
+}
+
+function updateStoredSecret(repos: Repositories, record: SecretRecordSnapshot, nextValue: string): void {
+  if (record.area === 'model_config') {
+    repos.db
+      .update(schema.modelConfigs)
+      .set({ apiKey: nextValue })
+      .where(eq(schema.modelConfigs.id, record.id))
+      .run()
+    return
+  }
+
+  repos.db
+    .update(schema.videoProviderConfigs)
+    .set({ apiKey: nextValue })
+    .where(eq(schema.videoProviderConfigs.id, record.id))
+    .run()
 }

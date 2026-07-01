@@ -114,7 +114,8 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 
 - 主窗口启用 `contextIsolation`、`sandbox`、`webSecurity`，并对外链跳转做协议白名单；默认只允许 `http:` / `https:` 用系统浏览器打开。
 - 主进程在注册 IPC 时安装统一参数校验层。所有 `ipcMain.handle` 调用会先检查参数数量和基础形状，再进入业务 handler。
-- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。返回 renderer 的配置只包含 `masked:v1:*` 掩码，不返回明文。若系统环境不支持 `safeStorage`，会回退为原值，应用仍可运行但不具备系统级密钥保护。
+- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。返回 renderer 的配置只包含 `masked:v1:*` 掩码，不返回明文。若系统环境不支持 `safeStorage`，默认拒绝保存新 Key，只有用户在设置页显式允许时才会写入 `plain:v1:` 明文降级格式。
+- 启动时会扫描模型和视频 Provider Key 的存储状态，识别 `enc:v1:` 加密、`plain:v1:` 明文降级、`masked:v1:` 掩码、旧版裸明文和不可读加密值；安全存储可用时自动把可逆明文迁移到加密格式。迁移摘要写入本地日志，单项失败会保留原值并在设置页健康提示中暴露聚合计数，不输出 Key 明文。
 - AI / 视频 HTTP provider 统一走带超时和重试的请求 helper，默认只重试网络错误和 408/429/5xx 等可恢复状态。
 
 ## 包构建约定
