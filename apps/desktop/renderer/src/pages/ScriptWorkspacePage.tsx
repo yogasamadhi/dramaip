@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
+import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { cn } from '@/lib/utils'
 
@@ -485,6 +486,14 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                     保存
                   </Button>
                 </div>
+                <ContentVersionPanel
+                  targetKind="script"
+                  targetId={script.id}
+                  currentContent={draftContent}
+                  title="剧本版本"
+                  restoreDisabled={dirty}
+                  onRestored={onChanged}
+                />
               </div>
             )}
 

@@ -337,6 +337,7 @@ const api = {
   contentVersion: {
     listByTarget: (targetKind: string, targetId: string) => invoke('contentVersion:listByTarget', targetKind, targetId),
     create: (data: unknown) => invoke('contentVersion:create', data),
+    restore: (id: string) => invoke('contentVersion:restore', id),
   },
   workflow: {
     list: (projectId?: string) => invoke('workflow:list', projectId),

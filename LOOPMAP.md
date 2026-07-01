@@ -22,7 +22,7 @@
 | L2-01 | Codex/平台安全 | done | 建立 IPC 业务 schema 单一来源 | `packages/core/src/ipc-contract.ts`、`packages/core/src/schemas` | 高风险 create/update/run 通道不再使用裸 `objectPayload`；schema 覆盖项目、章节、模型、视频、模板、创意诊断核心入口；IPC 单测通过 |
 | L2-02 | Codex/平台安全 | todo | 收紧 IPC fallback 策略 | `packages/core/src/ipc-contract.ts`、IPC 测试 | 未登记 channel 默认拒绝或只允许显式白名单；新增通道必须补 exact schema；测试覆盖未知 channel、错误参数、越权形状 |
 | L3-01 | Codex/创作体验 | done | 为 AI 覆写增加 diff 预览 | `packages/ai/src/nodes/save-result.node.ts`、renderer AI 预览组件、内容版本表 | 章节/剧本/镜头 Prompt 覆写前可查看差异；用户确认后写入；取消不会修改正文 |
-| L3-02 | Codex/创作体验 | todo | 增加版本比较与一键恢复 | `content_versions` repository、Workspace/Script/Shot 页面 | 用户可查看历史版本、比较当前版本、恢复指定版本；恢复操作也生成新版本记录；相关 smoke/单测通过 |
+| L3-02 | Codex/创作体验 | done | 增加版本比较与一键恢复 | `content_versions` repository、Workspace/Script/Shot 页面 | 用户可查看历史版本、比较当前版本、恢复指定版本；恢复操作也生成新版本记录；相关 smoke/单测通过 |
 | L3-03 | Codex/创作体验 | todo | 明确自动落库任务策略 | AI workflow、prompt registry、UI 文案 | 每类任务标记“预览后采用”或“自动写入”；危险覆写默认走确认；文档与 UI 行为一致 |
 | L4-01 | Codex/安全 | done | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
 | L4-02 | Codex/安全 | todo | 增加密钥迁移和健康检查 | secrets、设置页、诊断文档 | 能识别明文/加密/掩码状态；启动时迁移可审计；失败不丢 key 且提示可操作 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（17 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L4-01、L8-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L8-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -190,6 +190,16 @@
 - 实现结果：章节正文、已有剧本正文、镜头 Prompt 的 AI 覆写任务先返回 `text_preview`；renderer 展示逐行 diff，用户采用后才通过 `ai:applyResult` 写库并创建内容版本/Prompt 版本；取消不会修改正文。批量剧本生成只补未生成集，避免批量路径覆盖已有剧本。
 - 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试），新增测试覆盖预览不落库和采用后写入；`git diff --check` 通过。
 - Diff 审查：变更限定在 AI 覆写预览、采用落库、renderer diff 弹窗、IPC 类型/schema 放宽和本 loop 单测；未纳入 `UPDATE.md` 删除状态。
+
+### L3-02：版本比较与一键恢复
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 本 loop 范围：`packages/core/src/types/index.ts`、`packages/core/src/ipc-contract.ts`、`packages/db/src/schema.ts`、`packages/db/src/repositories/creative.repo.ts`、`apps/desktop/electron/ipc/creative.ipc.ts`、`apps/desktop/electron/preload.ts`、renderer IPC 类型、`ContentVersionPanel`、章节/剧本/镜头页面、IPC 单测、DB smoke、`LOOPMAP.md`。
+- 实现结果：新增 `contentVersion:restore` IPC；章节/剧本/镜头可查看内容版本、与当前内容做逐行差异比较并恢复指定版本；恢复前自动写入当前内容检查点，恢复后写入 `restore` 来源的新内容版本；镜头恢复同步追加 Prompt 版本快照。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试）；`pnpm test:db` 通过，并覆盖 `contentVersion` 按 id 查询。
+- Diff 审查：变更限定在内容版本恢复服务、版本比较 UI、IPC/schema/test、DB smoke 和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
 
 ### L4-01：API Key 降级保护
 

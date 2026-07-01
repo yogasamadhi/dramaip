@@ -432,6 +432,11 @@ export function createContentVersion(
   return contentVersionFromRow(row as ContentVersionRow)
 }
 
+export function getContentVersion(db: DB, id: string): ContentVersion | undefined {
+  const [row] = db.select().from(contentVersions).where(eq(contentVersions.id, id)).limit(1).all()
+  return row ? contentVersionFromRow(row as ContentVersionRow) : undefined
+}
+
 export function listContentVersionsByTarget(db: DB, targetKind: string, targetId: string): ContentVersion[] {
   return db
     .select()

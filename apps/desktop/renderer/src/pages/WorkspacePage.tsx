@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AiAssistantPanel } from '@/components/AiAssistantPanel'
+import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
@@ -528,12 +529,23 @@ export function WorkspacePage() {
         <aside className="w-80 shrink-0 overflow-hidden border-l bg-muted/20">
           {section === 'chapters' ? (
             <ScrollArea className="h-full">
-              <AiAssistantPanel
-                projectId={project.id}
-                chapter={selected}
-                onChapterUpdated={onChapterUpdated}
-                onTextPreview={setTextPreview}
-              />
+              <div className="space-y-3 p-3">
+                {selected && (
+                  <ContentVersionPanel
+                    targetKind="chapter"
+                    targetId={selected.id}
+                    currentContent={selected.content}
+                    title="章节版本"
+                    onRestored={onChapterUpdated}
+                  />
+                )}
+                <AiAssistantPanel
+                  projectId={project.id}
+                  chapter={selected}
+                  onChapterUpdated={onChapterUpdated}
+                  onTextPreview={setTextPreview}
+                />
+              </div>
             </ScrollArea>
           ) : (
             <div className="p-4 text-sm text-muted-foreground">

@@ -32,7 +32,7 @@ const writingRoomTargetKind = enumFromValues(WRITING_ROOM_TARGET_KINDS, 'Writing
 const creativeTargetKind = z.enum(['project', 'chapter', 'adaptation', 'episode', 'script', 'scene', 'shot'])
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'applied', 'dismissed'])
-const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint'])
+const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
 
 const projectInput = z
   .object({
@@ -358,6 +358,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'revisionTask:update': [id, revisionTaskPatch],
   'revisionTask:apply': [id],
   'contentVersion:create': [contentVersionInput],
+  'contentVersion:restore': [id],
   'contentVersion:listByTarget': [id, id],
   'caseStudy:create': [caseStudyInput],
   'caseStudy:update': [id, caseStudyPatch],

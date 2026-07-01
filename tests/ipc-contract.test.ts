@@ -40,6 +40,7 @@ test('keeps high-risk channels in the shared contract', () => {
     'revisionTask:apply',
     'contentVersion:create',
     'contentVersion:listByTarget',
+    'contentVersion:restore',
   ]) {
     assert.ok(channel in IPC_EXACT_SCHEMAS, `${channel} should have an exact IPC schema`)
   }
@@ -47,6 +48,7 @@ test('keeps high-risk channels in the shared contract', () => {
 
 test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('contentVersion:listByTarget', ['chapter', 'c1']), ['chapter', 'c1'])
+  assert.deepEqual(validateIpcArgs('contentVersion:restore', ['v1']), ['v1'])
   assert.deepEqual(validateIpcArgs('creative:freshness:list', []), [])
   assert.deepEqual(validateIpcArgs('creative:freshness:list', ['p1']), ['p1'])
   assert.throws(() => validateIpcArgs('revisionTask:apply', []), /参数数量错误/)
@@ -73,5 +75,11 @@ test('validates high-risk business IPC payload schemas', () => {
         { targetKind: 'chapter', targetId: 'c1', label: 'v1', content: '正文' },
       ]),
     /source/,
+  )
+  assert.deepEqual(
+    validateIpcArgs('contentVersion:create', [
+      { targetKind: 'chapter', targetId: 'c1', label: '恢复', source: 'restore', content: '正文' },
+    ]),
+    [{ targetKind: 'chapter', targetId: 'c1', label: '恢复', source: 'restore', content: '正文' }],
   )
 })

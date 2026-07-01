@@ -441,6 +441,7 @@ function main() {
     content: cUpd?.content ?? '',
   })
   assert(repos.creative.listContentVersionsByTarget(repos.db, 'chapter', c1.id)[0]?.id === version.id, 'contentVersion 按 target 查询')
+  assert(repos.creative.getContentVersion(repos.db, version.id)?.id === version.id, 'contentVersion 按 id 查询')
   const gate = repos.creative.createQualityGateReport(repos.db, {
     projectId: p1.id,
     targetKind: 'chapter',

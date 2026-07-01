@@ -711,7 +711,7 @@ export type RevisionTaskStatus = 'open' | 'accepted' | 'applied' | 'dismissed'
 export type RevisionTaskPriority = 'must' | 'should' | 'could'
 export type QualityGateStage = 'novel_to_adaptation' | 'episodes_to_scripts' | 'scripts_to_shots' | 'shots_to_video'
 export type QualityGateVerdict = 'pass' | 'warn' | 'block'
-export type ContentVersionSource = 'ai_overwrite' | 'adopt_preview' | 'revision_task' | 'manual_checkpoint'
+export type ContentVersionSource = 'ai_overwrite' | 'adopt_preview' | 'revision_task' | 'manual_checkpoint' | 'restore'
 export type WorkflowRunStatus = 'pending' | 'running' | 'success' | 'failed'
 
 export interface CreativeCaseStudy {

@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
+import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import {
   Select,
@@ -562,6 +563,14 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                       <Pencil className="h-3.5 w-3.5" /> 保存
                     </Button>
                   </div>
+                  <ContentVersionPanel
+                    targetKind="shot"
+                    targetId={activeShot.id}
+                    currentContent={draft.videoPrompt}
+                    title="Prompt 版本比较"
+                    restoreDisabled={dirty}
+                    onRestored={onChanged}
+                  />
                 </div>
 
                 {/* 审查结果 */}

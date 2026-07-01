@@ -643,7 +643,7 @@ export const contentVersions = sqliteTable('content_versions', {
   targetKind: text('target_kind').notNull(),
   targetId: text('target_id').notNull(),
   label: text('label').notNull(),
-  source: text('source', { enum: ['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint'] }).notNull(),
+  source: text('source', { enum: ['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'] }).notNull(),
   content: text('content').notNull().default(''),
   meta: text('meta'),
   createdAt: text('created_at').notNull(),

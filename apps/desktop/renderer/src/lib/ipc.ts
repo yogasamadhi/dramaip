@@ -204,6 +204,12 @@ export interface DatabaseBackupResult {
   backups?: DatabaseBackupInfo[]
 }
 
+export interface ContentVersionRestoreResult {
+  ok: boolean
+  error?: string
+  result?: ContentVersion
+}
+
 /** v0.7 提交视频生成任务的输入 */
 export interface CreateVideoTaskInput {
   providerConfigId: string
@@ -507,6 +513,7 @@ export interface StudioApi {
   contentVersion: {
     listByTarget(targetKind: string, targetId: string): Promise<ContentVersion[]>
     create(data: Partial<ContentVersion> & { targetKind: ContentVersion['targetKind']; targetId: string; label: string; source: ContentVersion['source']; content: string }): Promise<ContentVersion>
+    restore(id: string): Promise<ContentVersionRestoreResult>
   }
   workflow: {
     list(projectId?: string): Promise<WorkflowRun[]>

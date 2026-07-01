@@ -2,7 +2,13 @@
 import { basename, extname } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
 import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron'
-import { CREATIVE_WORKFLOW_TEMPLATES, TASK_TYPE_LABELS, type NovelTaskType, type WorkflowRunStep } from '@sdns/core'
+import {
+  CREATIVE_WORKFLOW_TEMPLATES,
+  TASK_TYPE_LABELS,
+  type ContentVersion,
+  type NovelTaskType,
+  type WorkflowRunStep,
+} from '@sdns/core'
 import { resolveProviderForTask, runNovelWorkflow, type NovelWorkflowInput } from '@sdns/ai'
 import { getRepos } from '../db'
 
@@ -70,9 +76,126 @@ export function registerCreativeIpc(): void {
   ipcMain.handle('contentVersion:create', (_e, data: unknown) =>
     repos().creative.createContentVersion(repos().db, data as never),
   )
+  ipcMain.handle('contentVersion:restore', (_e, id: string) => restoreContentVersion(id))
 
   ipcMain.handle('workflow:list', (_e, projectId?: string) => repos().creative.listWorkflowRuns(repos().db, projectId))
   ipcMain.handle('workflow:run', async (_e, input: WorkflowInput) => runCreativeWorkflow(input))
+}
+
+function stringMeta(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function restoreContentVersion(id: string): { ok: boolean; error?: string; result?: ContentVersion } {
+  const r = getRepos()
+  const db = r.db
+  const version = r.creative.getContentVersion(db, id)
+  if (!version) return { ok: false, error: '未找到内容版本' }
+
+  try {
+    if (version.targetKind === 'chapter') {
+      const chapter = r.chapter.getChapter(db, version.targetId)
+      if (!chapter) return { ok: false, error: '未找到章节' }
+      const before = r.creative.createContentVersion(db, {
+        projectId: version.projectId ?? chapter.projectId,
+        targetKind: 'chapter',
+        targetId: chapter.id,
+        label: `恢复前：${chapter.title}`,
+        source: 'manual_checkpoint',
+        content: chapter.content,
+        meta: { phase: 'before_restore', restoreFromVersionId: version.id },
+      })
+      const updated = r.chapter.updateChapterContent(db, chapter.id, version.content)
+      const restored = r.creative.createContentVersion(db, {
+        projectId: version.projectId ?? chapter.projectId,
+        targetKind: 'chapter',
+        targetId: chapter.id,
+        label: `恢复：${version.label}`,
+        source: 'restore',
+        content: updated?.content ?? version.content,
+        meta: { phase: 'after_restore', restoreFromVersionId: version.id, beforeVersionId: before.id },
+      })
+      return { ok: true, result: restored }
+    }
+
+    if (version.targetKind === 'script') {
+      const script = r.script.getScript(db, version.targetId)
+      if (!script) return { ok: false, error: '未找到剧本' }
+      const before = r.creative.createContentVersion(db, {
+        projectId: version.projectId,
+        targetKind: 'script',
+        targetId: script.id,
+        label: `恢复前：${script.title}`,
+        source: 'manual_checkpoint',
+        content: script.content,
+        meta: { phase: 'before_restore', restoreFromVersionId: version.id },
+      })
+      const updated = r.script.updateScriptContent(db, script.id, version.content)
+      const restored = r.creative.createContentVersion(db, {
+        projectId: version.projectId,
+        targetKind: 'script',
+        targetId: script.id,
+        label: `恢复：${version.label}`,
+        source: 'restore',
+        content: updated?.content ?? version.content,
+        meta: { phase: 'after_restore', restoreFromVersionId: version.id, beforeVersionId: before.id },
+      })
+      return { ok: true, result: restored }
+    }
+
+    if (version.targetKind === 'shot') {
+      const shot = r.shot.getShot(db, version.targetId)
+      if (!shot) return { ok: false, error: '未找到镜头' }
+      const before = r.creative.createContentVersion(db, {
+        projectId: version.projectId,
+        targetKind: 'shot',
+        targetId: shot.id,
+        label: `恢复前：镜头 ${shot.shotNumber}`,
+        source: 'manual_checkpoint',
+        content: shot.videoPrompt,
+        meta: {
+          phase: 'before_restore',
+          restoreFromVersionId: version.id,
+          negativePrompt: shot.negativePrompt,
+          imagePrompt: shot.imagePrompt,
+        },
+      })
+      const negativePrompt = stringMeta(version.meta?.negativePrompt) ?? shot.negativePrompt
+      const imagePrompt = stringMeta(version.meta?.imagePrompt) ?? shot.imagePrompt
+      const patch: { videoPrompt: string; negativePrompt?: string; imagePrompt?: string } = { videoPrompt: version.content }
+      if (negativePrompt !== undefined) patch.negativePrompt = negativePrompt
+      if (imagePrompt !== undefined) patch.imagePrompt = imagePrompt
+      const updated = r.shot.updateShot(db, shot.id, patch)
+      r.shot.appendPromptVersion(db, {
+        shotId: shot.id,
+        taskType: 'restore_shot_prompt',
+        videoPrompt: updated?.videoPrompt ?? version.content,
+        negativePrompt: updated?.negativePrompt,
+        imagePrompt: updated?.imagePrompt,
+        note: `恢复：${version.label}`,
+      })
+      const restored = r.creative.createContentVersion(db, {
+        projectId: version.projectId,
+        targetKind: 'shot',
+        targetId: shot.id,
+        label: `恢复：${version.label}`,
+        source: 'restore',
+        content: updated?.videoPrompt ?? version.content,
+        meta: {
+          phase: 'after_restore',
+          restoreFromVersionId: version.id,
+          beforeVersionId: before.id,
+          negativePrompt: updated?.negativePrompt,
+          imagePrompt: updated?.imagePrompt,
+        },
+      })
+      return { ok: true, result: restored }
+    }
+
+    return { ok: false, error: '当前版本目标暂不支持恢复' }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 async function importCaseStudyDocuments() {
