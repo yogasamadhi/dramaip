@@ -12,70 +12,19 @@ import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskTyp
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
 import { logger } from '../logger'
+import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
 
 export function registerAiIpc(): void {
   ipcMain.handle('ai:run', async (_evt, input: NovelWorkflowInput) => {
-    const repos = getRepos()
-    const longTaskId = createAiLongTask(repos, input)
-    logger.info('ai', 'run started', { longTaskId, taskType: input.taskType, projectId: input.projectId })
-
-    try {
-      // v1.0：按任务组解析模型（命中绑定则用绑定模型，否则默认模型）
-      const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
-      const result = await runNovelWorkflow({ repos, provider }, input)
-      finishAiLongTask(repos, longTaskId, result)
-      logger.info('ai', 'run finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
-      return { ...result, longTaskId }
-    } catch (e) {
-      repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
-        errorMessage: e instanceof Error ? e.message : String(e),
-      })
-      logger.error('ai', 'run failed', { longTaskId, taskType: input.taskType, error: e instanceof Error ? e.message : String(e) })
-      return {
-        ok: false,
-        error: e instanceof Error ? e.message : String(e),
-        result: undefined,
-        aiRunId: undefined,
-        longTaskId,
-        state: null,
-      }
-    }
+    return runAiTask(input)
   })
 
   ipcMain.handle('ai:runStream', async (evt, input: NovelWorkflowInput, requestId: string) => {
-    const repos = getRepos()
-    const longTaskId = createAiLongTask(repos, input)
-    logger.info('ai', 'runStream started', { longTaskId, taskType: input.taskType, projectId: input.projectId })
-
-    try {
-      const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
-      const result = await runNovelWorkflow(
-        {
-          repos,
-          provider,
-          onToken: (chunk) => {
-            evt.sender.send('ai:stream:chunk', { requestId, chunk })
-          },
-        },
-        input,
-      )
-      finishAiLongTask(repos, longTaskId, result)
-      logger.info('ai', 'runStream finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
-      return { ...result, longTaskId }
-    } catch (e) {
-      repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
-        errorMessage: e instanceof Error ? e.message : String(e),
-      })
-      logger.error('ai', 'runStream failed', { longTaskId, taskType: input.taskType, error: e instanceof Error ? e.message : String(e) })
-      return {
-        ok: false,
-        error: e instanceof Error ? e.message : String(e),
-        result: undefined,
-        aiRunId: undefined,
-        longTaskId,
-        state: null,
-      }
-    }
+    return runAiTask(input, {
+      onToken: (chunk) => {
+        evt.sender.send('ai:stream:chunk', { requestId, chunk })
+      },
+    })
   })
 
   // generate 类产物「预览后落库」入口（项目说明.md §10.3 / §11.1-11.4）
@@ -120,6 +69,60 @@ export function registerAiIpc(): void {
   })
 }
 
+export async function runAiTask(
+  input: NovelWorkflowInput,
+  options: { onToken?: (token: string) => void } = {},
+): Promise<{
+  ok: boolean
+  error?: string
+  result?: { kind: string; data: unknown }
+  aiRunId?: string
+  longTaskId: string
+  state: unknown
+}> {
+  const repos = getRepos()
+  const longTaskId = createAiLongTask(repos, input)
+  const runtime = beginLongTaskRun('ai', longTaskId)
+  logger.info('ai', 'run started', { longTaskId, taskType: input.taskType, projectId: input.projectId })
+  if (!runtime.ok) {
+    repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', { errorMessage: runtime.error })
+    return failedAiResult(longTaskId, runtime.error ?? 'AI 任务并发限制')
+  }
+
+  try {
+    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
+    const result = await runNovelWorkflow(
+      {
+        repos,
+        provider,
+        onToken: options.onToken,
+        signal: runtime.signal,
+      },
+      input,
+    )
+    if (isLongTaskCanceled(repos, longTaskId) || runtime.signal?.aborted) {
+      repos.longTask.finishLongTask(repos.db, longTaskId, 'canceled', { errorMessage: '任务已取消' })
+      return failedAiResult(longTaskId, '任务已取消')
+    }
+    finishAiLongTask(repos, longTaskId, result)
+    logger.info('ai', 'run finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
+    return { ...result, longTaskId }
+  } catch (e) {
+    const canceled = runtime.signal?.aborted || isLongTaskCanceled(repos, longTaskId)
+    repos.longTask.finishLongTask(repos.db, longTaskId, canceled ? 'canceled' : 'failed', {
+      errorMessage: canceled ? '任务已取消' : e instanceof Error ? e.message : String(e),
+    })
+    logger[canceled ? 'warn' : 'error']('ai', canceled ? 'run canceled' : 'run failed', {
+      longTaskId,
+      taskType: input.taskType,
+      error: e instanceof Error ? e.message : String(e),
+    })
+    return failedAiResult(longTaskId, canceled ? '任务已取消' : e instanceof Error ? e.message : String(e))
+  } finally {
+    finishLongTaskRun(longTaskId)
+  }
+}
+
 function createAiLongTask(repos: ReturnType<typeof getRepos>, input: NovelWorkflowInput): string {
   const task = repos.longTask.createLongTask(repos.db, {
     kind: 'ai',
@@ -130,7 +133,10 @@ function createAiLongTask(repos: ReturnType<typeof getRepos>, input: NovelWorkfl
     episodeId: input.episodeId,
     sceneId: input.sceneId,
     shotId: input.shotId,
-    input: summarizeAiInput(input),
+    input: {
+      ...summarizeAiInput(input),
+      retryInput: buildAiRetryInput(input),
+    },
   })
   repos.longTask.markLongTaskRunning(repos.db, task.id)
   return task.id
@@ -150,6 +156,37 @@ function summarizeAiInput(input: NovelWorkflowInput): Record<string, unknown> {
     hasTemplateContent: Boolean(input.templateContent),
     hasUserInstruction: Boolean(input.userInstruction?.trim()),
     chatMessageCount: input.chatHistory?.length ?? 0,
+  }
+}
+
+function buildAiRetryInput(input: NovelWorkflowInput): NovelWorkflowInput {
+  const { currentChapter: _currentChapter, ...rest } = input
+  void _currentChapter
+  return {
+    ...rest,
+    chatHistory: input.chatHistory?.slice(-20),
+  }
+}
+
+function isLongTaskCanceled(repos: ReturnType<typeof getRepos>, longTaskId: string): boolean {
+  return repos.longTask.getLongTask(repos.db, longTaskId)?.status === 'canceled'
+}
+
+function failedAiResult(longTaskId: string, error: string): {
+  ok: false
+  error: string
+  result: undefined
+  aiRunId: undefined
+  longTaskId: string
+  state: null
+} {
+  return {
+    ok: false,
+    error,
+    result: undefined,
+    aiRunId: undefined,
+    longTaskId,
+    state: null,
   }
 }
 

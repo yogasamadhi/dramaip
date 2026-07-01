@@ -73,6 +73,21 @@ export function TaskMonitorPage() {
     }
   }
 
+  async function retryTask(task: LongTask) {
+    setBusy(task.id)
+    try {
+      const result = await ipc.longTask.retry(task.id)
+      if (!result.ok) {
+        toast.error('重试失败：' + (result.error ?? '未知错误'))
+        return
+      }
+      toast.success('已重新提交任务')
+      await reload()
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
@@ -126,17 +141,30 @@ export function TaskMonitorPage() {
                           </div>
                           {task.errorMessage && <div className="mt-2 text-xs text-destructive">{task.errorMessage}</div>}
                         </div>
-                        {(task.status === 'pending' || task.status === 'running') && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void cancelTask(task)}
-                            disabled={busy === task.id}
-                          >
-                            {busy === task.id ? <Loader2 className="animate-spin" /> : <Ban />}
-                            取消
-                          </Button>
-                        )}
+                        <div className="flex gap-2">
+                          {task.status === 'failed' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void retryTask(task)}
+                              disabled={busy === task.id}
+                            >
+                              {busy === task.id ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                              重试
+                            </Button>
+                          )}
+                          {(task.status === 'pending' || task.status === 'running') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void cancelTask(task)}
+                              disabled={busy === task.id}
+                            >
+                              {busy === task.id ? <Loader2 className="animate-spin" /> : <Ban />}
+                              取消
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -17,6 +17,7 @@ export interface NovelWorkflowDeps {
   repos: Repositories
   provider?: LLMProvider
   onToken?: (token: string) => void
+  signal?: AbortSignal
 }
 
 export interface NovelWorkflowInput {
@@ -51,16 +52,24 @@ export interface NovelWorkflowResult {
 
 /** 构建并编译工作流图 */
 export function buildNovelWorkflow(deps: NovelWorkflowDeps) {
-  const nodeDeps: NodeDeps = { repos: deps.repos, provider: deps.provider, onToken: deps.onToken }
+  const nodeDeps: NodeDeps = { repos: deps.repos, provider: deps.provider, onToken: deps.onToken, signal: deps.signal }
+  const cancellable = <T extends Partial<NovelGraphStateType> | Promise<Partial<NovelGraphStateType>>>(
+    fn: (state: NovelGraphStateType) => T,
+  ) => async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {
+    throwIfAborted(deps.signal)
+    const next = await fn(state)
+    throwIfAborted(deps.signal)
+    return next
+  }
 
   const graph = new StateGraph(NovelGraphState)
-    .addNode('load_project_context', createLoadProjectContextNode(nodeDeps))
-    .addNode('build_prompt', createBuildPromptNode(nodeDeps))
-    .addNode('call_model', createCallModelNode(nodeDeps))
-    .addNode('parse_output', createParseOutputNode(nodeDeps))
-    .addNode('validate_output', createValidateOutputNode(nodeDeps))
-    .addNode('save_result', createSaveResultNode(nodeDeps))
-    .addNode('save_ai_run', createSaveAiRunNode(nodeDeps))
+    .addNode('load_project_context', cancellable(createLoadProjectContextNode(nodeDeps)))
+    .addNode('build_prompt', cancellable(createBuildPromptNode(nodeDeps)))
+    .addNode('call_model', cancellable(createCallModelNode(nodeDeps)))
+    .addNode('parse_output', cancellable(createParseOutputNode(nodeDeps)))
+    .addNode('validate_output', cancellable(createValidateOutputNode(nodeDeps)))
+    .addNode('save_result', cancellable(createSaveResultNode(nodeDeps)))
+    .addNode('save_ai_run', cancellable(createSaveAiRunNode(nodeDeps)))
     .addEdge(START, 'load_project_context')
     .addEdge('load_project_context', 'build_prompt')
     .addEdge('build_prompt', 'call_model')
@@ -102,4 +111,8 @@ export async function runNovelWorkflow(
     aiRunId: state.aiRunId,
     state,
   }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new Error('任务已取消')
 }

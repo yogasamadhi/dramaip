@@ -6,4 +6,5 @@ export interface NodeDeps {
   repos: Repositories
   provider?: LLMProvider
   onToken?: (token: string) => void
+  signal?: AbortSignal
 }

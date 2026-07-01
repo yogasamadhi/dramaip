@@ -250,6 +250,13 @@ export interface LongTaskCancelResult {
   task?: LongTask
 }
 
+export interface LongTaskRetryResult {
+  ok: boolean
+  error?: string
+  longTaskId?: string
+  task?: LongTask
+}
+
 export type RendererLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 /** v0.7 提交视频生成任务的输入 */
@@ -281,6 +288,7 @@ export interface StudioApi {
     list(projectId?: string): Promise<LongTask[]>
     get(id: string): Promise<LongTask | undefined>
     cancel(id: string): Promise<LongTaskCancelResult>
+    retry(id: string): Promise<LongTaskRetryResult>
   }
   project: {
     list(): Promise<Project[]>

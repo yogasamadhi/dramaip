@@ -26,6 +26,7 @@ const api = {
     list: (projectId?: string) => invoke('longTask:list', projectId),
     get: (id: string) => invoke('longTask:get', id),
     cancel: (id: string) => invoke('longTask:cancel', id),
+    retry: (id: string) => invoke('longTask:retry', id),
   },
   project: {
     list: () => invoke('project:list'),

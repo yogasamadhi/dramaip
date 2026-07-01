@@ -27,6 +27,7 @@ export function createCallModelNode(deps: NodeDeps) {
       messages,
       temperature: effectiveType === 'evaluate_ai_drama_fit' ? 0.2 : 0.9,
       responseFormat: isJsonTask(effectiveType) ? 'json' : 'text',
+      signal: deps.signal,
     }
 
     const startedAt = Date.now()
@@ -55,6 +56,7 @@ export function createCallModelNode(deps: NodeDeps) {
         latencyMs: Date.now() - startedAt,
       }
     } catch (e) {
+      if (deps.signal?.aborted) throw new Error('任务已取消')
       return {
         error: `模型调用失败：${e instanceof Error ? e.message : String(e)}`,
         retryable: false,
