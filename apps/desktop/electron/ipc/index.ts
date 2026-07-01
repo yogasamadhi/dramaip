@@ -13,6 +13,7 @@ import { registerCreativeIpc } from './creative.ipc'
 import { registerSecurityIpc } from './security.ipc'
 import { registerDataBackupIpc } from './data-backup.ipc'
 import { registerTaskIpc } from './task.ipc'
+import { registerLogIpc } from './log.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -20,6 +21,7 @@ export function registerAllIpc(): void {
   registerSecurityIpc()
   registerDataBackupIpc()
   registerTaskIpc()
+  registerLogIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

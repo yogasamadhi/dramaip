@@ -3,6 +3,7 @@ import { app, BrowserWindow, shell, session } from 'electron'
 import { join } from 'node:path'
 import { safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
+import { installProcessLoggers, logger } from './logger'
 
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
 
@@ -75,13 +76,19 @@ function createWindow(): void {
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
   if (devUrl) {
-    void mainWindow.loadURL(devUrl)
+    void mainWindow.loadURL(devUrl).catch((error) => {
+      logger.error('main', 'loadURL failed', { message: error.message, stack: error.stack })
+    })
   } else {
-    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html')).catch((error) => {
+      logger.error('main', 'loadFile failed', { message: error.message, stack: error.stack })
+    })
   }
 }
 
 app.whenReady().then(() => {
+  installProcessLoggers()
+  logger.info('main', 'app ready', { version: app.getVersion(), platform: process.platform })
   installSecurityHeaders()
   safeInitDatabase()
   registerAllIpc()

@@ -38,7 +38,7 @@
 | L8-01 | Codex/发布工程 | done | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
 | L8-02 | Codex/发布工程 | todo | 建立跨平台打包 smoke | electron-builder、CI、release 文档 | macOS/Windows/Linux 安装包可构建；至少验证应用启动和数据库初始化；产物不包含源码外敏感文件 |
 | L8-03 | Codex/发布工程 | todo | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
-| L9-01 | Codex/可观测性 | todo | 增加本地日志系统 | Electron main、renderer、AI/video services | 主进程、渲染进程、AI、视频任务写入滚动日志；日志不包含 API Key 或上传原文 |
+| L9-01 | Codex/可观测性 | done | 增加本地日志系统 | Electron main、renderer、AI/video services | 主进程、渲染进程、AI、视频任务写入滚动日志；日志不包含 API Key 或上传原文 |
 | L9-02 | Codex/可观测性 | todo | 增加诊断包导出 | 设置页/帮助页、日志、环境信息 | 用户可导出诊断包；包含版本、系统、迁移版本、最近错误和脱敏日志；不包含正文/密钥，除非用户显式选择 |
 | L9-03 | Codex/稳定性 | todo | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
 | L10-01 | Codex/测试 | todo | 增加前端 E2E smoke | Playwright 或 Electron 测试工具、核心页面 | 覆盖创建项目、创建章节、模型配置表单、项目包导入导出最小路径；CI 可运行或有本地命令 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（19 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -240,3 +240,13 @@
 - 实现结果：新增 GitHub Actions CI，push/PR 触发；使用 Node 22 与 pnpm 11.2.2；缓存 pnpm store、Electron 下载缓存、electron-builder 缓存与 `better-sqlite3` 原生模块路径；依次运行 `pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试）；`pnpm test:db` 通过（沙箱内因 node-gyp/electron-gyp 用户缓存权限失败，已按规则在沙箱外重跑通过）。
 - Diff 审查：变更限定在 CI 工作流和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
+
+### L9-01：本地日志系统
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 本 loop 范围：Electron 主进程本地滚动日志、renderer 日志 IPC、AI/视频任务关键事件日志、IPC schema/test、`LOOPMAP.md`。
+- 实现结果：新增 `userData/logs/studio.log` JSON Lines 滚动日志；主进程记录启动、窗口加载失败和进程异常；renderer 未处理异常通过 `log:renderer` 上报脱敏元信息；AI `run/runStream` 与视频提交/轮询/重试记录开始、完成和失败事件；日志写入统一脱敏 API Key、Bearer token、prompt/content/raw/text 等正文类字段。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（19 个单元测试），新增日志 IPC schema 校验用例。
+- Diff 审查：变更限定在本地日志系统、受控日志 IPC、AI/video 任务日志、renderer 异常上报、IPC schema/test 和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。

@@ -33,6 +33,7 @@ const creativeTargetKind = z.enum(['project', 'chapter', 'adaptation', 'episode'
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'applied', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
+const logLevel = z.enum(['debug', 'info', 'warn', 'error'])
 
 const projectInput = z
   .object({
@@ -298,6 +299,7 @@ const caseStudyInput = z
 const caseStudyPatch = caseStudyInput.partial().passthrough()
 
 export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
+  'log:renderer': [logLevel, id, id, z.record(z.unknown()).optional()],
   'security:getSecretStorageStatus': [],
   'dataBackup:list': [],
   'dataBackup:create': [],

@@ -219,6 +219,8 @@ export interface LongTaskCancelResult {
   task?: LongTask
 }
 
+export type RendererLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
 /** v0.7 提交视频生成任务的输入 */
 export interface CreateVideoTaskInput {
   providerConfigId: string
@@ -233,6 +235,9 @@ export interface CreateVideoTaskInput {
 }
 
 export interface StudioApi {
+  log: {
+    renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
+  }
   security: {
     getSecretStorageStatus(): Promise<SecretStorageStatus>
   }

@@ -3,11 +3,17 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const invoke = ipcRenderer.invoke.bind(ipcRenderer)
 
+type RendererLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
 function createRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 const api = {
+  log: {
+    renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
+      invoke('log:renderer', level, scope, message, meta),
+  },
   security: {
     getSecretStorageStatus: () => invoke('security:getSecretStorageStatus'),
   },

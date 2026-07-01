@@ -6,6 +6,12 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('project:list', []), [])
   assert.deepEqual(validateIpcArgs('chapter:list', ['project-1']), ['project-1'])
   assert.deepEqual(validateIpcArgs('outline:list', ['project-1', 'book']), ['project-1', 'book'])
+  assert.deepEqual(validateIpcArgs('log:renderer', ['error', 'runtime', 'unhandled error', { messageLength: 42 }]), [
+    'error',
+    'runtime',
+    'unhandled error',
+    { messageLength: 42 },
+  ])
 })
 
 test('rejects IPC calls with invalid arity or shape', () => {
@@ -13,10 +19,12 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('chapter:list', []), /参数数量错误/)
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
+  assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
 })
 
 test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
+    'log:renderer',
     'security:getSecretStorageStatus',
     'dataBackup:list',
     'dataBackup:create',

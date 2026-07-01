@@ -11,22 +11,26 @@ import {
 import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
+import { logger } from '../logger'
 
 export function registerAiIpc(): void {
   ipcMain.handle('ai:run', async (_evt, input: NovelWorkflowInput) => {
     const repos = getRepos()
     const longTaskId = createAiLongTask(repos, input)
+    logger.info('ai', 'run started', { longTaskId, taskType: input.taskType, projectId: input.projectId })
 
     try {
       // v1.0：按任务组解析模型（命中绑定则用绑定模型，否则默认模型）
       const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
       const result = await runNovelWorkflow({ repos, provider }, input)
       finishAiLongTask(repos, longTaskId, result)
+      logger.info('ai', 'run finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
       return { ...result, longTaskId }
     } catch (e) {
       repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
         errorMessage: e instanceof Error ? e.message : String(e),
       })
+      logger.error('ai', 'run failed', { longTaskId, taskType: input.taskType, error: e instanceof Error ? e.message : String(e) })
       return {
         ok: false,
         error: e instanceof Error ? e.message : String(e),
@@ -41,6 +45,7 @@ export function registerAiIpc(): void {
   ipcMain.handle('ai:runStream', async (evt, input: NovelWorkflowInput, requestId: string) => {
     const repos = getRepos()
     const longTaskId = createAiLongTask(repos, input)
+    logger.info('ai', 'runStream started', { longTaskId, taskType: input.taskType, projectId: input.projectId })
 
     try {
       const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
@@ -55,11 +60,13 @@ export function registerAiIpc(): void {
         input,
       )
       finishAiLongTask(repos, longTaskId, result)
+      logger.info('ai', 'runStream finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
       return { ...result, longTaskId }
     } catch (e) {
       repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', {
         errorMessage: e instanceof Error ? e.message : String(e),
       })
+      logger.error('ai', 'runStream failed', { longTaskId, taskType: input.taskType, error: e instanceof Error ? e.message : String(e) })
       return {
         ok: false,
         error: e instanceof Error ? e.message : String(e),

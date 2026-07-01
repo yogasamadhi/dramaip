@@ -10,6 +10,7 @@ import {
   selectBestVideoResult,
 } from '@sdns/ai'
 import { maskVideoConfig } from '../secrets'
+import { logger } from '../logger'
 
 export function registerVideoIpc(): void {
   const repos = () => getRepos()
@@ -64,14 +65,17 @@ export function registerVideoIpc(): void {
     }) => {
       const r = repos()
       const longTaskId = createVideoLongTask(r, input, '视频生成')
+      logger.info('video', 'task create started', { longTaskId, shotId: input.shotId, providerConfigId: input.providerConfigId })
       try {
         const result = await createVideoGenerationTask({ repos: r }, input)
         syncVideoLongTask(r, longTaskId, result.task, result.results)
+        logger.info('video', 'task create finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
         return { ok: true, longTaskId, ...result }
       } catch (e) {
         r.longTask.finishLongTask(r.db, longTaskId, 'failed', {
           errorMessage: e instanceof Error ? e.message : String(e),
         })
+        logger.error('video', 'task create failed', { longTaskId, error: e instanceof Error ? e.message : String(e) })
         return { ok: false, longTaskId, error: e instanceof Error ? e.message : String(e) }
       }
     },
@@ -84,8 +88,10 @@ export function registerVideoIpc(): void {
       const result = await checkVideoTaskStatus({ repos: r }, taskId)
       const longTask = result.task ? r.longTask.getLongTaskByRelatedEntity(r.db, 'video', result.task.id) : undefined
       if (longTask) syncVideoLongTask(r, longTask.id, result.task, result.results)
+      logger.info('video', 'task status checked', { longTaskId: longTask?.id, videoTaskId: taskId, status: result.task.status })
       return { ok: true, longTaskId: longTask?.id, ...result }
     } catch (e) {
+      logger.error('video', 'task status failed', { videoTaskId: taskId, error: e instanceof Error ? e.message : String(e) })
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
@@ -109,14 +115,17 @@ export function registerVideoIpc(): void {
       },
       '重试视频生成',
     )
+    logger.info('video', 'task retry started', { longTaskId, originalTaskId: taskId, providerConfigId })
     try {
       const result = await retryVideoTask({ repos: r }, taskId, providerConfigId)
       syncVideoLongTask(r, longTaskId, result.task, result.results)
+      logger.info('video', 'task retry finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
       return { ok: true, longTaskId, ...result }
     } catch (e) {
       r.longTask.finishLongTask(r.db, longTaskId, 'failed', {
         errorMessage: e instanceof Error ? e.message : String(e),
       })
+      logger.error('video', 'task retry failed', { longTaskId, originalTaskId: taskId, error: e instanceof Error ? e.message : String(e) })
       return { ok: false, longTaskId, error: e instanceof Error ? e.message : String(e) }
     }
   })
