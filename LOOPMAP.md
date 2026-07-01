@@ -42,7 +42,7 @@
 | L9-02 | Codex/可观测性 | todo | 增加诊断包导出 | 设置页/帮助页、日志、环境信息 | 用户可导出诊断包；包含版本、系统、迁移版本、最近错误和脱敏日志；不包含正文/密钥，除非用户显式选择 |
 | L9-03 | Codex/稳定性 | todo | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
 | L10-01 | Codex/测试 | todo | 增加前端 E2E smoke | Playwright 或 Electron 测试工具、核心页面 | 覆盖创建项目、创建章节、模型配置表单、项目包导入导出最小路径；CI 可运行或有本地命令 |
-| L10-02 | Codex/测试 | todo | 增加 AI workflow mock 回归 | `packages/ai`、tests | 使用 mock provider 覆盖成功、JSON 修复重试、模型失败、空输出、写入内容版本；`pnpm test:unit` 通过 |
+| L10-02 | Codex/测试 | done | 增加 AI workflow mock 回归 | `packages/ai`、tests | 使用 mock provider 覆盖成功、JSON 修复重试、模型失败、空输出、写入内容版本；`pnpm test:unit` 通过 |
 | L10-03 | Codex/测试 | todo | 增加迁移回放测试 | `packages/db/src/migrator.ts`、fixtures、smoke | 从旧版 fixture 升级到最新 schema；重复迁移幂等；失败迁移回滚可测 |
 | L11-01 | Codex/安全 | todo | 收紧 Electron 外链与 CSP | `apps/desktop/electron/main.ts` | 默认只允许 HTTPS；localhost/dev 仅开发态；CSP 与图片/媒体来源策略有测试或手工验证记录 |
 | L11-02 | Codex/安全 | todo | 增加文件导入安全限制 | 项目包导入、样本文档导入、视频素材导入 | 文件大小、扩展名、解析失败、超大文本截断策略统一；错误提示可操作；不会阻塞主进程 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（19 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（24 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -250,3 +250,14 @@
 - 实现结果：新增 `userData/logs/studio.log` JSON Lines 滚动日志；主进程记录启动、窗口加载失败和进程异常；renderer 未处理异常通过 `log:renderer` 上报脱敏元信息；AI `run/runStream` 与视频提交/轮询/重试记录开始、完成和失败事件；日志写入统一脱敏 API Key、Bearer token、prompt/content/raw/text 等正文类字段。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（19 个单元测试），新增日志 IPC schema 校验用例。
 - Diff 审查：变更限定在本地日志系统、受控日志 IPC、AI/video 任务日志、renderer 异常上报、IPC schema/test 和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
+
+### L10-02：AI workflow mock 回归
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L10-02 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`tests/ai-workflow-mock.test.ts`、`LOOPMAP.md`。
+- 实现结果：新增 mock AI workflow 回归夹具，复用真实 JSON parser、`GenerateProjectResultSchema`、`saveAiRun` 节点和采用落库 service；覆盖成功 JSON 任务、JSON 解析失败后一轮修复重试、模型调用失败记账、空文本输出失败、采用项目生成结果并写入内容版本。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（24 个单元测试）。
+- Diff 审查：变更限定在 AI workflow mock 回归测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
