@@ -35,7 +35,7 @@
 | L7-01 | Codex/AI 基础设施 | todo | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
 | L7-02 | Codex/AI 基础设施 | todo | 增加上下文预览与调试导出 | AI run、设置/诊断页 | 用户可查看本次发送给模型的上下文摘要；敏感样本文档仍不写入日志；诊断导出可复现问题 |
 | L7-03 | Codex/AI 基础设施 | todo | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
-| L8-01 | Codex/发布工程 | todo | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
+| L8-01 | Codex/发布工程 | done | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
 | L8-02 | Codex/发布工程 | todo | 建立跨平台打包 smoke | electron-builder、CI、release 文档 | macOS/Windows/Linux 安装包可构建；至少验证应用启动和数据库初始化；产物不包含源码外敏感文件 |
 | L8-03 | Codex/发布工程 | todo | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
 | L9-01 | Codex/可观测性 | todo | 增加本地日志系统 | Electron main、renderer、AI/video services | 主进程、渲染进程、AI、视频任务写入滚动日志；日志不包含 API Key 或上传原文 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm test` 可通过，包含 typecheck、13 个单元测试、DB smoke，并会在结束时重编 `better-sqlite3` 回 Electron ABI。
-- 现有明显缺口：无 CI、无 E2E、无打包 smoke、无签名/公证/自动更新闭环、IPC 业务 schema 不完整、备份恢复入口缺失、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L2-01、L3-01、L4-01 状态；其余 loop 仍为 `todo`。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（17 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、备份恢复入口缺失、长任务队列缺失、真实视频平台适配仍需专用实现。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L2-01、L3-01、L4-01、L8-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -190,3 +190,13 @@
 - 实现结果：`safeStorage` 不可用时默认拒绝保存 API Key；用户在模型/视频 Provider 设置页显式勾选后才允许以 `plain:v1:` 降级格式保存；设置页显示明确警告；启动时仅在安全存储可用时自动迁移既有密钥。
 - 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试），并把安全存储状态 IPC 纳入 exact schema 清单；`git diff --check` 通过。
 - Diff 审查：变更限定在密钥保护策略、只读安全状态 IPC、模型/视频设置页降级确认和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
+
+### L8-01：CI 基线
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 本 loop 范围：`.github/workflows/ci.yml`、`LOOPMAP.md`。
+- 实现结果：新增 GitHub Actions CI，push/PR 触发；使用 Node 22 与 pnpm 11.2.2；缓存 pnpm store、Electron 下载缓存、electron-builder 缓存与 `better-sqlite3` 原生模块路径；依次运行 `pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试）；`pnpm test:db` 通过（沙箱内因 node-gyp/electron-gyp 用户缓存权限失败，已按规则在沙箱外重跑通过）。
+- Diff 审查：变更限定在 CI 工作流和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
