@@ -14,6 +14,10 @@ const api = {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),
   },
+  diagnostic: {
+    exportPackage: (options?: { includeContent?: boolean }) =>
+      invoke('diagnostic:exportPackage', options ?? {}),
+  },
   security: {
     getSecretStorageStatus: () => invoke('security:getSecretStorageStatus'),
   },

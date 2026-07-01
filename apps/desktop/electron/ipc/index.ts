@@ -14,6 +14,7 @@ import { registerSecurityIpc } from './security.ipc'
 import { registerDataBackupIpc } from './data-backup.ipc'
 import { registerTaskIpc } from './task.ipc'
 import { registerLogIpc } from './log.ipc'
+import { registerDiagnosticIpc } from './diagnostic.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -22,6 +23,7 @@ export function registerAllIpc(): void {
   registerDataBackupIpc()
   registerTaskIpc()
   registerLogIpc()
+  registerDiagnosticIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

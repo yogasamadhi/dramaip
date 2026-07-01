@@ -24,6 +24,10 @@ test('validates exact IPC channel arguments', () => {
     'unhandled error',
     { messageLength: 42 },
   ])
+  assert.deepEqual(validateIpcArgs('diagnostic:exportPackage', []), [])
+  assert.deepEqual(validateIpcArgs('diagnostic:exportPackage', [{ includeContent: true }]), [
+    { includeContent: true },
+  ])
 })
 
 test('rejects IPC calls with invalid arity or shape', () => {
@@ -32,6 +36,10 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
   assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
+  assert.throws(
+    () => validateIpcArgs('diagnostic:exportPackage', [{ includeContent: true, apiKey: 'secret' }]),
+    /参数校验失败/,
+  )
   assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
   assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
 })
@@ -45,6 +53,7 @@ test('requires every registered Electron IPC channel to have a shared schema', (
 test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
     'log:renderer',
+    'diagnostic:exportPackage',
     'security:getSecretStorageStatus',
     'dataBackup:list',
     'dataBackup:create',

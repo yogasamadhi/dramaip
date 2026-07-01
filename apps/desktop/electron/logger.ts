@@ -40,6 +40,11 @@ function logPath(): string {
   return join(dir, 'studio.log')
 }
 
+export function getLogFilePaths(): string[] {
+  const current = logPath()
+  return [`${current}.1`, current]
+}
+
 function rotateIfNeeded(path: string): void {
   if (!existsSync(path)) return
   if (statSync(path).size < MAX_LOG_BYTES) return

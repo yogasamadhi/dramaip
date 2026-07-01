@@ -1,6 +1,7 @@
 export * from './client'
 export * as schema from './schema'
 export { INITIAL_SCHEMA_SQL } from './migrations'
+export { LATEST_MIGRATION_VERSION } from './migrator'
 
 export * as projectRepo from './repositories/project.repo'
 export * as characterRepo from './repositories/character.repo'

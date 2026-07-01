@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Bug, Download, Eye, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Download, Eye, FileJson, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import type { AiContextPreview, AiRun } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
@@ -22,6 +22,8 @@ export function AiDiagnosticsPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [preview, setPreview] = useState<AiContextPreview | null>(null)
+  const [includeContent, setIncludeContent] = useState(false)
+  const [exportingPackage, setExportingPackage] = useState(false)
 
   async function reload() {
     setLoading(true)
@@ -63,14 +65,32 @@ export function AiDiagnosticsPage() {
     }
   }
 
+  async function exportDiagnosticPackage() {
+    setExportingPackage(true)
+    try {
+      const result = await ipc.diagnostic.exportPackage({ includeContent })
+      if (result.saved) {
+        toast.success(
+          `已导出诊断包：${result.summary?.errorLines ?? 0} 条错误，迁移 v${result.summary?.appliedMigrationVersion ?? '—'}/${result.summary?.latestMigrationVersion ?? '—'}`,
+        )
+      } else if (result.error) {
+        toast.error(result.error)
+      }
+    } catch (error) {
+      toast.error('诊断包导出失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setExportingPackage(false)
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
         <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
           <ArrowLeft />
         </Button>
-        <Bug className="h-5 w-5" />
-        <h1 className="text-lg font-semibold">AI 诊断</h1>
+        <FileJson className="h-5 w-5" />
+        <h1 className="text-lg font-semibold">诊断与日志</h1>
         <div className="ml-auto">
           <Button variant="outline" size="sm" onClick={() => void reload()} disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
@@ -81,7 +101,38 @@ export function AiDiagnosticsPage() {
 
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="mx-auto max-w-6xl p-6">
+          <div className="mx-auto max-w-6xl space-y-6 p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ShieldCheck className="h-4 w-4" />
+                  诊断包
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      包含版本、系统、迁移版本、最近错误和脱敏日志；默认不包含正文、Prompt、AI 输入输出或密钥。
+                    </p>
+                    <label className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={includeContent}
+                        onChange={(event) => setIncludeContent(event.target.checked)}
+                      />
+                      <span>包含最近日志中的正文类字段片段</span>
+                    </label>
+                  </div>
+                  <Button onClick={() => void exportDiagnosticPackage()} disabled={exportingPackage}>
+                    {exportingPackage ? <Loader2 className="animate-spin" /> : <Download />}
+                    导出诊断包
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">最近 AI 调用</CardTitle>

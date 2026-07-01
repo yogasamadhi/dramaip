@@ -138,6 +138,20 @@ export interface ExportResult {
   error?: string
 }
 
+export interface DiagnosticExportOptions {
+  includeContent?: boolean
+}
+
+export interface DiagnosticExportResult extends ExportResult {
+  summary?: {
+    includeContent: boolean
+    logLines: number
+    errorLines: number
+    appliedMigrationVersion: number
+    latestMigrationVersion: number
+  }
+}
+
 /** v1.0 项目包导入结果 */
 export interface ProjectImportResult {
   ok: boolean
@@ -300,6 +314,9 @@ export interface CreateVideoTaskInput {
 export interface StudioApi {
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
+  }
+  diagnostic: {
+    exportPackage(options?: DiagnosticExportOptions): Promise<DiagnosticExportResult>
   }
   security: {
     getSecretStorageStatus(): Promise<SecretStorageStatus>

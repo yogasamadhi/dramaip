@@ -3,6 +3,7 @@ import { app, dialog } from 'electron'
 import { basename, join, resolve, sep } from 'node:path'
 import { existsSync, readdirSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
 import {
+  LATEST_MIGRATION_VERSION,
   backupSqliteDatabase,
   createDb,
   createRepositories,
@@ -39,6 +40,18 @@ export interface DatabaseBackupResult {
   backup?: DatabaseBackupInfo
   safetyBackup?: DatabaseBackupInfo
   backups?: DatabaseBackupInfo[]
+}
+
+export interface DatabaseMigrationInfo {
+  latestVersion: number
+  appliedVersion: number
+  applied: Array<{ version: number; appliedAt: string }>
+}
+
+export interface DatabaseRuntimeInfo {
+  userData: string
+  dbPath: string
+  migration: DatabaseMigrationInfo
 }
 
 export function initDatabase(): void {
@@ -181,6 +194,47 @@ export function listDatabaseBackups(): DatabaseBackupInfo[] {
     .filter(isBackupFile)
     .map((fileName) => getBackupInfo(join(backupDir, fileName)))
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+}
+
+export function getDatabaseRuntimeInfo(): DatabaseRuntimeInfo {
+  const { userData, dbPath } = getDatabasePaths()
+  return {
+    userData,
+    dbPath,
+    migration: getDatabaseMigrationInfo(),
+  }
+}
+
+export function getDatabaseMigrationInfo(): DatabaseMigrationInfo {
+  if (!rawDb) {
+    return {
+      latestVersion: LATEST_MIGRATION_VERSION,
+      appliedVersion: 0,
+      applied: [],
+    }
+  }
+
+  try {
+    const rows = rawDb
+      .prepare('SELECT version, applied_at AS appliedAt FROM schema_migrations ORDER BY version ASC')
+      .all() as Array<{ version?: number; appliedAt?: string }>
+    const applied = rows
+      .filter((row): row is { version: number; appliedAt: string } =>
+        typeof row.version === 'number' && typeof row.appliedAt === 'string',
+      )
+      .map((row) => ({ version: row.version, appliedAt: row.appliedAt }))
+    return {
+      latestVersion: LATEST_MIGRATION_VERSION,
+      appliedVersion: applied.at(-1)?.version ?? 0,
+      applied,
+    }
+  } catch {
+    return {
+      latestVersion: LATEST_MIGRATION_VERSION,
+      appliedVersion: 0,
+      applied: [],
+    }
+  }
 }
 
 export function createManualDatabaseBackup(): DatabaseBackupResult {
