@@ -1,7 +1,7 @@
 // DB 冒烟测试：验证 repository（含 cast 辅助）在运行期 CRUD + 持久化正确
 import os from 'node:os'
 import path from 'node:path'
-import { createDb } from '../packages/db/src/client'
+import { backupSqliteDatabase, createDb } from '../packages/db/src/client'
 import { createRepositories } from '../packages/db/src/index'
 import { BUILT_IN_AGENTS, BUILT_IN_TEMPLATES, BUILT_IN_GENRE_PRESETS } from '@sdns/core'
 import {
@@ -12,6 +12,7 @@ import {
 } from '@sdns/export'
 
 const dbPath = path.join(os.tmpdir(), `sdns-db-smoke-${process.pid}.sqlite`)
+const backupPath = path.join(os.tmpdir(), `sdns-db-smoke-backup-${process.pid}.sqlite`)
 const { db } = createDb(dbPath)
 const repos = createRepositories(db)
 
@@ -514,6 +515,13 @@ function main() {
   assert(repos2.modelConfig.listModelConfigs(repos2.db).length === 2, '重新打开数据库：模型配置持久化')
   assert(repos2.videoProviderConfig.listVideoProviderConfigs(repos2.db).length === 2, '重新打开数据库：视频 Provider 持久化')
   assert(repos2.videoTask.listVideoTasks(repos2.db).length === 2, '重新打开数据库：视频任务持久化')
+
+  // v1.0 数据安全：WAL 模式下生成可独立打开的一致性备份
+  backupSqliteDatabase(dbPath, backupPath)
+  const { db: backupDb } = createDb(backupPath)
+  const backupRepos = createRepositories(backupDb)
+  assert(backupRepos.project.listProjects(backupRepos.db).length === 1, '一致性备份：项目可恢复读取')
+  assert(backupRepos.videoTask.listVideoTasks(backupRepos.db).length === 2, '一致性备份：视频任务可恢复读取')
 
   // v0.7 显式清理（video_* 表无 FK，手动验证删除）
   repos.videoResult.deleteVideoResultsByTask(repos.db, vt1.id)

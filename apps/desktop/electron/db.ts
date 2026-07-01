@@ -1,8 +1,8 @@
 // 数据库单例：在 app ready 后初始化，存放于 userData 目录
 import { app, dialog } from 'electron'
 import { join } from 'node:path'
-import { existsSync, readdirSync, copyFileSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
-import { createDb, createRepositories, type Repositories } from '@sdns/db'
+import { existsSync, readdirSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
+import { backupSqliteDatabase, createDb, createRepositories, type Repositories } from '@sdns/db'
 import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
 import { encryptExistingSecrets, installSecretProtection } from './secrets'
 
@@ -30,7 +30,8 @@ export function initDatabase(): void {
 /**
  * v1.0：启动自动备份 SQLite（ROADMAP v1.0-2）。
  * - 把 studio.db 复制到 userData/backups/studio-YYYYMMDD-HHmmss.db
- * - 保留最近 MAX_BACKUPS 份，超出按时间最旧删除（含 WAL 残留时尽力而为）。
+ * - 备份前 checkpoint WAL，生成可独立打开的 SQLite 快照。
+ * - 保留最近 MAX_BACKUPS 份，超出按时间最旧删除。
  */
 function backupDatabase(userData: string, dbPath: string): void {
   if (!existsSync(dbPath)) return // 首次启动，库还没建
@@ -40,8 +41,7 @@ function backupDatabase(userData: string, dbPath: string): void {
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
   const backupPath = join(backupDir, `studio-${stamp}.db`)
-  copyFileSync(dbPath, backupPath)
-  // 同步 WAL/SHM 快照（若存在）——拷贝主 db 即可还原数据
+  backupSqliteDatabase(dbPath, backupPath)
   // 滚动删除：按修改时间保留最近 MAX_BACKUPS 份
   const files = readdirSync(backupDir)
     .filter((f) => f.startsWith('studio-') && f.endsWith('.db'))

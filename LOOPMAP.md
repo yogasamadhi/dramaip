@@ -16,7 +16,7 @@
 | Loop | Owner | 状态 | 目标 | 主要范围 | 验收 |
 | --- | --- | --- | --- | --- | --- |
 | L0-01 | Codex/工程负责人 | done | 建立生产优化基线分支与执行基线 | `README.md`、`DEVELOPMENT.md`、`LOOPMAP.md`、项目脚本 | 完成远程同步；记录当前测试基线；确认无凭据/构建产物入库；`pnpm test` 通过或记录阻塞 |
-| L1-01 | Codex/数据安全 | todo | 强化 SQLite 备份一致性 | `apps/desktop/electron/db.ts`、`packages/db/src/client.ts`、DB 测试 | 备份前执行 checkpoint 或使用 SQLite backup API；覆盖 WAL 场景；新增/扩展 DB smoke；`pnpm test:db` 通过 |
+| L1-01 | Codex/数据安全 | done | 强化 SQLite 备份一致性 | `apps/desktop/electron/db.ts`、`packages/db/src/client.ts`、DB 测试 | 备份前执行 checkpoint 或使用 SQLite backup API；覆盖 WAL 场景；新增/扩展 DB smoke；`pnpm test:db` 通过 |
 | L1-02 | Codex/数据安全 | todo | 增加备份恢复与手动备份入口 | Electron IPC、renderer 设置页/数据页、文档 | 用户可查看备份、手动创建备份、恢复指定备份；恢复前自动二次备份；错误有结构化提示 |
 | L1-03 | Codex/数据安全 | todo | 项目包导入导出 schema 化与预检 | `packages/export/src/project-package.ts`、`packages/core/src/schemas`、测试 | `.sdnspkg` 解析使用 Zod/schema 校验；导入前显示版本、项目名、数据规模；损坏包/高版本包提示清晰；项目包往返测试通过 |
 | L2-01 | Codex/平台安全 | todo | 建立 IPC 业务 schema 单一来源 | `packages/core/src/ipc-contract.ts`、`packages/core/src/schemas` | 高风险 create/update/run 通道不再使用裸 `objectPayload`；schema 覆盖项目、章节、模型、视频、模板、创意诊断核心入口；IPC 单测通过 |
@@ -150,3 +150,13 @@
 - 本 loop 范围：仅更新 `LOOPMAP.md` 中的基线记录与执行状态。
 - 本地验证：`git diff --check` 通过；`pnpm test` 通过（typecheck、13 个单元测试、DB smoke，结束后已重编 `better-sqlite3` 回 Electron ABI）。
 - Diff 审查：仅包含 `LOOPMAP.md` 的 loop 规划与 L0-01 基线记录；未纳入 `UPDATE.md` 删除状态。
+
+### L1-01：SQLite 一致性备份
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 本 loop 范围：`packages/db/src/client.ts`、`apps/desktop/electron/db.ts`、`scripts/smoke-db.ts`、`LOOPMAP.md`。
+- 实现结果：新增 `backupSqliteDatabase()`，备份时先 checkpoint WAL，再用 SQLite `VACUUM INTO` 生成可独立打开的快照；桌面端启动备份改用该函数。
+- 本地验证：`git diff --check` 通过；`pnpm --filter @sdns/db typecheck` 通过；`pnpm --filter @sdns/desktop typecheck` 通过；`pnpm test:db` 通过，并覆盖一致性备份可恢复读取。
+- Diff 审查：变更限定在 DB client、桌面启动备份、DB smoke 和本 loop 文档状态。
