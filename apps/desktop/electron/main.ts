@@ -7,8 +7,8 @@ import { initDatabase, safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
 import { runDesktopE2eSmoke } from './e2e-smoke'
+import { canOpenExternalUrl, createContentSecurityPolicy } from './security-policy'
 
-const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
 const PACKAGE_SMOKE_USER_DATA_ENV = 'SDNS_PACKAGE_SMOKE_USER_DATA'
@@ -16,34 +16,16 @@ const E2E_SMOKE_ENV = 'SDNS_E2E_SMOKE'
 const E2E_SMOKE_RESULT_ENV = 'SDNS_E2E_SMOKE_RESULT'
 const E2E_SMOKE_USER_DATA_ENV = 'SDNS_E2E_SMOKE_USER_DATA'
 
-function canOpenExternal(url: string): boolean {
-  try {
-    return ALLOWED_EXTERNAL_PROTOCOLS.has(new URL(url).protocol)
-  } catch {
-    return false
-  }
+function isDevRuntime(): boolean {
+  return Boolean(process.env['ELECTRON_RENDERER_URL'])
 }
 
 function installSecurityHeaders(): void {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const dev = Boolean(process.env['ELECTRON_RENDERER_URL'])
-    const scriptSrc = dev ? "script-src 'self' 'unsafe-eval' 'unsafe-inline';" : "script-src 'self';"
-    const connectSrc = dev
-      ? "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"
-      : "connect-src 'self';"
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          [
-            "default-src 'self';",
-            scriptSrc,
-            "style-src 'self' 'unsafe-inline';",
-            "img-src 'self' data: https: file:;",
-            "media-src 'self' data: https: file:;",
-            connectSrc,
-          ].join(' '),
-        ],
+        'Content-Security-Policy': [createContentSecurityPolicy({ dev: isDevRuntime() })],
         'X-Content-Type-Options': ['nosniff'],
       },
     })
@@ -192,14 +174,14 @@ function createWindow(options: { show?: boolean } = {}): BrowserWindow {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (canOpenExternal(url)) void shell.openExternal(url)
+    if (canOpenExternalUrl(url, { dev: isDevRuntime() })) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (url === mainWindow.webContents.getURL()) return
     event.preventDefault()
-    if (canOpenExternal(url)) void shell.openExternal(url)
+    if (canOpenExternalUrl(url, { dev: isDevRuntime() })) void shell.openExternal(url)
   })
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
