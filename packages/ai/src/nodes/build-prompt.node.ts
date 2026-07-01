@@ -9,6 +9,7 @@ import {
   buildMemoryContext,
   buildScriptContext,
   buildShotContext,
+  applyContextBudget,
 } from '../context/context-builder'
 import { effectiveTaskType, getPromptTemplate, isJsonTask } from '../prompts/loader'
 import type { NovelTaskType } from '@sdns/core'
@@ -44,7 +45,7 @@ export function createBuildPromptNode(_deps: NodeDeps) {
 
     // 上下文构建依据「实际作用域」taskType（template_run → templateScope）
     const effectiveType = effectiveTaskType(state.taskType, state.templateScope)
-    const contextText = buildContext(state, effectiveType)
+    const contextText = applyContextBudget(buildContext(state, effectiveType), effectiveType)
     const parts: string[] = [template.trim()]
     if (contextText.trim()) {
       parts.push('---\n\n# 输入材料\n\n' + contextText.trim())

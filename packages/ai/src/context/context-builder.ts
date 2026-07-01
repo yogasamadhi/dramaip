@@ -17,6 +17,7 @@ import type {
   HighlightAnalysis,
   AudienceSimulation,
   NarrativeCurveReport,
+  NovelTaskType,
   Outline,
   Project,
   QualityGateReport,
@@ -27,6 +28,50 @@ import type {
   StoryEvent,
   VisualSetting,
 } from '@sdns/core'
+
+const DEFAULT_CONTEXT_TOKEN_BUDGET = 5_000
+const CONTEXT_TOKEN_BUDGETS: Partial<Record<NovelTaskType, number>> = {
+  chat_project: 3_500,
+  convert_novel_to_episodes: 6_500,
+  generate_ai_drama_script: 7_000,
+  rewrite_ai_drama_script: 7_000,
+  split_script_to_scenes: 7_000,
+  split_scene_to_shots: 5_500,
+  generate_shot_prompt: 4_000,
+  rewrite_shot_prompt: 4_000,
+  optimize_prompt_for_video_platform: 4_000,
+  check_consistency: 6_000,
+  build_long_context: 7_000,
+  analyze_trope_freshness: 6_000,
+  generate_revision_tasks: 6_000,
+}
+
+export function estimateContextTokens(text: string): number {
+  return Math.ceil(text.replace(/\s+/g, ' ').length / 2)
+}
+
+export function contextBudgetForTask(taskType: NovelTaskType): number {
+  return CONTEXT_TOKEN_BUDGETS[taskType] ?? DEFAULT_CONTEXT_TOKEN_BUDGET
+}
+
+export function applyContextBudget(text: string, taskType: NovelTaskType): string {
+  const budget = contextBudgetForTask(taskType)
+  if (estimateContextTokens(text) <= budget) return text
+
+  const note = `\n\n## 上下文裁剪说明\n原始上下文约 ${estimateContextTokens(text)} tokens，已按 ${budget} token 预算保留开头的设定/关键实体与末尾的最近记录。\n\n`
+  const charBudget = Math.max(600, budget * 2 - note.length)
+  const headSize = Math.floor(charBudget * 0.58)
+  const tailSize = charBudget - headSize
+  return `${text.slice(0, headSize).trimEnd()}${note}${text.slice(-tailSize).trimStart()}`
+}
+
+function limitList<T>(items: T[] | undefined, limit: number): T[] {
+  return (items ?? []).slice(0, limit)
+}
+
+function limitRecent<T>(items: T[] | undefined, limit: number): T[] {
+  return (items ?? []).slice(-limit)
+}
 
 export interface ChapterContextInput {
   project?: Project
@@ -104,7 +149,7 @@ export function buildChapterContext(input: ChapterContextInput): string {
 
   if (characters?.length) {
     const profileByChar = new Map((input.visualProfiles ?? []).map((p) => [p.characterId, p]))
-    const body = characters
+    const body = limitList(characters, 30)
       .map((c) => {
         const core = [c.identity, c.personality, c.desire].filter(Boolean).join('；')
         const parts: string[] = []
@@ -195,7 +240,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
 
   if (characters?.length) {
     const profileByChar = new Map((visualProfiles ?? []).map((p) => [p.characterId, p]))
-    const body = characters
+    const body = limitList(characters, 40)
       .map((c) => {
         const id = `（id:${c.id}）`
         const core = [c.identity, c.personality, c.desire].filter(Boolean).join('；')
@@ -208,7 +253,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
   }
 
   if (chapterMemories?.length) {
-    const body = chapterMemories
+    const body = limitRecent(chapterMemories, 30)
       .map((m, i) => `第${i + 1}章记忆：${m.summary}`)
       .join('\n')
     sections.push(block('已有章节记忆', body))
@@ -216,7 +261,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
 
   if (characterStates?.length) {
     const nameById = new Map((characters ?? []).map((c) => [c.id, c.name]))
-    const body = characterStates
+    const body = limitList(characterStates, 60)
       .map((s) => {
         const name = nameById.get(s.characterId) ?? s.characterId
         const parts = [line('状态', s.currentStatus), line('情绪', s.emotionalState)].filter(Boolean)
@@ -235,7 +280,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
   }
 
   if (foreshadowings?.length) {
-    const body = foreshadowings
+    const body = limitList(foreshadowings, 80)
       .map((f) => `- [${f.status}] ${f.title}：${f.description}`)
       .join('\n')
     sections.push(block('伏笔清单', body))
@@ -324,7 +369,7 @@ export function buildChatContext(input: ChapterContextInput): string {
   }
 
   if (chatHistory?.length) {
-    const body = chatHistory.map((m) => `${m.role === 'user' ? '用户' : '助手'}：${m.content}`).join('\n')
+    const body = limitRecent(chatHistory, 12).map((m) => `${m.role === 'user' ? '用户' : '助手'}：${m.content}`).join('\n')
     sections.push(block('历史对话', body))
   } else {
     sections.push(block('历史对话', '（这是第一轮，请主动开场引导用户）'))
@@ -376,7 +421,7 @@ export function buildAdaptationContext(input: ChapterContextInput): string {
   }
 
   if (characters?.length) {
-    const body = characters.map((c) => `- ${c.name}（${c.role}）：${[c.identity, c.desire].filter(Boolean).join('；')}`).join('\n')
+    const body = limitList(characters, 40).map((c) => `- ${c.name}（${c.role}）：${[c.identity, c.desire].filter(Boolean).join('；')}`).join('\n')
     sections.push(block('人物设定', body))
   }
 
@@ -387,14 +432,14 @@ export function buildAdaptationContext(input: ChapterContextInput): string {
 
   if (chapters?.length) {
     // 分集生成需要知道每一章大概内容，给前若干章摘要（控制长度）
-    const body = chapters
+    const body = limitList(chapters, 80)
       .map((c, i) => `第${i + 1}章 ${c.title}${c.summary ? `：${c.summary}` : ''}`)
       .join('\n')
     sections.push(block('源小说章节', body))
   }
 
   if (episodes?.length) {
-    const body = episodes
+    const body = limitList(episodes, 80)
       .map(
         (e) =>
           `第${e.episodeNumber}集《${e.title}》：${e.summary}（钩子：${e.hook}；冲突：${e.mainConflict}；悬念：${e.cliffhanger}）`,
@@ -437,7 +482,7 @@ export function buildScriptContext(input: ChapterContextInput): string {
   }
 
   if (characters?.length) {
-    const body = characters
+    const body = limitList(characters, 40)
       .map((c) => {
         const visual = [c.visualDescription, c.appearancePrompt].filter(Boolean).join('；')
         return `- ${c.name}（${c.role}）：${[c.identity, c.personality, c.desire].filter(Boolean).join('；')}${visual ? `；视觉：${visual}` : ''}`
@@ -485,7 +530,7 @@ export function buildScriptContext(input: ChapterContextInput): string {
 
   // 已有场景（拆分/审稿参考）
   if (scenes?.length) {
-    const body = scenes
+    const body = limitList(scenes, 80)
       .map((s, i) => `场景${i + 1}「${s.title}」（${s.location}）：${s.summary}`)
       .join('\n')
     sections.push(block('已有场景', body))
@@ -514,7 +559,7 @@ export function buildShotContext(input: ChapterContextInput): string {
   // 人物视觉档案（角色一致性依据）
   if (characters?.length) {
     const profileByChar = new Map((visualProfiles ?? []).map((p) => [p.characterId, p]))
-    const body = characters
+    const body = limitList(characters, 40)
       .map((c) => {
         const vp = profileByChar.get(c.id)
         const visual = [c.visualDescription, c.appearancePrompt, vp?.appearancePrompt].filter(Boolean).join('；')
@@ -526,7 +571,7 @@ export function buildShotContext(input: ChapterContextInput): string {
 
   // 场景/世界视觉设定（场景一致性依据）
   if (visualSettings?.length) {
-    const body = visualSettings
+    const body = limitList(visualSettings, 40)
       .map((v) => `- ${v.title}（${v.type}）：${v.visualPrompt}`)
       .join('\n')
     sections.push(block('视觉设定（场景一致性依据）', body))
@@ -547,7 +592,7 @@ export function buildShotContext(input: ChapterContextInput): string {
 
   // 当前场景已有镜头（保持连贯，避免重复）
   if (shots?.length) {
-    const body = shots
+    const body = limitList(shots, 80)
       .map((s, i) => `镜头${i + 1}（${s.cameraAngle ?? ''}/${s.cameraMovement ?? ''}）：${s.visualDescription}`)
       .join('\n')
     sections.push(block('本场景已有镜头', body))
@@ -645,5 +690,3 @@ export function buildCreativeContext(input: ChapterContextInput): string {
 
   return sections.filter((s) => s.trim()).join('\n\n')
 }
-
-

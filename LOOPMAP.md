@@ -32,7 +32,7 @@
 | L6-01 | Codex/任务系统 | done | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
 | L6-02 | Codex/任务系统 | todo | 支持取消、重试、并发限制 | AI workflow、HTTP provider、UI | 用户可取消运行中任务；失败任务可重试；同类任务并发可配置或有限制；取消不会产生半写入 |
 | L6-03 | Codex/任务系统 | todo | 批量生成进度持久化 | 剧本批量生成、分镜批量生成、工作流记录 | 批量任务中断后可看到已完成/失败项；重跑只补未完成项；UI 显示进度与错误明细 |
-| L7-01 | Codex/AI 基础设施 | todo | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
+| L7-01 | Codex/AI 基础设施 | done | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
 | L7-02 | Codex/AI 基础设施 | todo | 增加上下文预览与调试导出 | AI run、设置/诊断页 | 用户可查看本次发送给模型的上下文摘要；敏感样本文档仍不写入日志；诊断导出可复现问题 |
 | L7-03 | Codex/AI 基础设施 | todo | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
 | L8-01 | Codex/发布工程 | done | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（17 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（19 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L8-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -220,6 +220,16 @@
 - 实现结果：新增 `long_tasks` 通用任务账本和 v6 迁移；AI `run/runStream` 与视频提交/轮询/重试写入统一任务状态；状态模型覆盖 `pending/running/success/failed/canceled`；设置页新增任务队列，可恢复查看 AI/视频长任务并本地标记取消；视频任务状态扩展 `canceled`。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（17 个单元测试）；`pnpm test:db` 通过，并覆盖 long task CRUD、状态流转和项目删除级联。
 - Diff 审查：变更限定在长任务模型、迁移、AI/video 任务记录、任务队列查询 UI、IPC schema/test、DB smoke 和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
+
+### L7-01：上下文 token 预算与裁剪
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 本 loop 范围：`packages/ai/src/context/context-builder.ts`、`packages/ai/src/nodes/build-prompt.node.ts`、上下文预算单测、`LOOPMAP.md`。
+- 实现结果：新增任务级上下文 token 预算、粗略 token 估算和首尾保留裁剪；build prompt 出口统一应用预算；聊天上下文保留最近轮次，人物/章节/分集/场景/镜头等长列表加数量上限，避免大项目无限拼接。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（19 个单元测试），新增大项目上下文裁剪与聊天历史裁剪测试。
+- Diff 审查：变更限定在上下文构建、prompt 出口预算应用、预算单测和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。
 
 ### L8-01：CI 基线
 
