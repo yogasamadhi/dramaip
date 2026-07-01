@@ -19,7 +19,7 @@
 | L1-01 | Codex/数据安全 | done | 强化 SQLite 备份一致性 | `apps/desktop/electron/db.ts`、`packages/db/src/client.ts`、DB 测试 | 备份前执行 checkpoint 或使用 SQLite backup API；覆盖 WAL 场景；新增/扩展 DB smoke；`pnpm test:db` 通过 |
 | L1-02 | Codex/数据安全 | todo | 增加备份恢复与手动备份入口 | Electron IPC、renderer 设置页/数据页、文档 | 用户可查看备份、手动创建备份、恢复指定备份；恢复前自动二次备份；错误有结构化提示 |
 | L1-03 | Codex/数据安全 | todo | 项目包导入导出 schema 化与预检 | `packages/export/src/project-package.ts`、`packages/core/src/schemas`、测试 | `.sdnspkg` 解析使用 Zod/schema 校验；导入前显示版本、项目名、数据规模；损坏包/高版本包提示清晰；项目包往返测试通过 |
-| L2-01 | Codex/平台安全 | todo | 建立 IPC 业务 schema 单一来源 | `packages/core/src/ipc-contract.ts`、`packages/core/src/schemas` | 高风险 create/update/run 通道不再使用裸 `objectPayload`；schema 覆盖项目、章节、模型、视频、模板、创意诊断核心入口；IPC 单测通过 |
+| L2-01 | Codex/平台安全 | done | 建立 IPC 业务 schema 单一来源 | `packages/core/src/ipc-contract.ts`、`packages/core/src/schemas` | 高风险 create/update/run 通道不再使用裸 `objectPayload`；schema 覆盖项目、章节、模型、视频、模板、创意诊断核心入口；IPC 单测通过 |
 | L2-02 | Codex/平台安全 | todo | 收紧 IPC fallback 策略 | `packages/core/src/ipc-contract.ts`、IPC 测试 | 未登记 channel 默认拒绝或只允许显式白名单；新增通道必须补 exact schema；测试覆盖未知 channel、错误参数、越权形状 |
 | L3-01 | Codex/创作体验 | todo | 为 AI 覆写增加 diff 预览 | `packages/ai/src/nodes/save-result.node.ts`、renderer AI 预览组件、内容版本表 | 章节/剧本/镜头 Prompt 覆写前可查看差异；用户确认后写入；取消不会修改正文 |
 | L3-02 | Codex/创作体验 | todo | 增加版本比较与一键恢复 | `content_versions` repository、Workspace/Script/Shot 页面 | 用户可查看历史版本、比较当前版本、恢复指定版本；恢复操作也生成新版本记录；相关 smoke/单测通过 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm test` 可通过，包含 typecheck、13 个单元测试、DB smoke，并会在结束时重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 CI、无 E2E、无打包 smoke、无签名/公证/自动更新闭环、IPC 业务 schema 不完整、备份恢复入口缺失、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：本文件仅是 loop 规划，所有 loop 初始状态均为 `todo`；实际执行后按 LOOPRULE 更新状态。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L2-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -160,3 +160,13 @@
 - 实现结果：新增 `backupSqliteDatabase()`，备份时先 checkpoint WAL，再用 SQLite `VACUUM INTO` 生成可独立打开的快照；桌面端启动备份改用该函数。
 - 本地验证：`git diff --check` 通过；`pnpm --filter @sdns/db typecheck` 通过；`pnpm --filter @sdns/desktop typecheck` 通过；`pnpm test:db` 通过，并覆盖一致性备份可恢复读取。
 - Diff 审查：变更限定在 DB client、桌面启动备份、DB smoke 和本 loop 文档状态。
+
+### L2-01：IPC 业务 schema 单一来源
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 本 loop 范围：`packages/core/src/ipc-contract.ts`、`tests/ipc-contract.test.ts`、`LOOPMAP.md`。
+- 实现结果：为项目、章节、人物、大纲、模型、视频 Provider/任务/结果、模板、Agent、编剧室、类型预设、创意工作流、修稿任务、内容版本、样本库等高风险 create/update/run 通道建立业务字段 schema；枚举值复用 core 常量；保留 `passthrough` 兼容现有扩展字段。
+- 本地验证：`pnpm typecheck` 通过；`pnpm test:unit` 通过（14 个单元测试），并新增高风险 IPC payload 拦截用例；`git diff --check` 通过。
+- Diff 审查：变更限定在 IPC 合约、IPC 单测和本 loop 文档状态；未纳入 `UPDATE.md` 删除状态。

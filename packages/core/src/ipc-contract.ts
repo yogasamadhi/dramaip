@@ -1,12 +1,123 @@
 import { z } from 'zod'
+import {
+  CREATIVE_WORKFLOW_TEMPLATES,
+  TASK_GROUPS,
+  TASK_TYPE_LABELS,
+  TEMPLATE_TYPES,
+  VIDEO_PROVIDER_KINDS,
+  WRITING_ROOM_TARGET_KINDS,
+} from './constants'
 
 const id = z.string().min(1)
 const maybeId = z.string().min(1).optional()
 const objectPayload = z.object({}).passthrough()
 const stringArray = z.array(z.string().min(1))
+const looseStringArray = z.array(z.string())
+const requiredUnknown = z.custom<unknown>((value) => value !== undefined, { message: 'Required' })
+
+function enumFromValues<T extends string>(values: readonly T[], label: string): z.ZodEnum<[T, ...T[]]> {
+  if (values.length === 0) throw new Error(`${label} 枚举不能为空`)
+  return z.enum(values as [T, ...T[]])
+}
+
+const novelTaskType = enumFromValues(Object.keys(TASK_TYPE_LABELS), 'NovelTaskType')
+const taskGroupKey = enumFromValues(TASK_GROUPS.map((group) => group.key), 'TaskGroup')
+const templateType = enumFromValues(TEMPLATE_TYPES, 'TemplateType')
+const templateScope = z.union([novelTaskType, z.literal('snippet')])
+const workflowTemplateKey = enumFromValues(
+  CREATIVE_WORKFLOW_TEMPLATES.map((template) => template.key),
+  'CreativeWorkflowTemplate',
+)
+const writingRoomTargetKind = enumFromValues(WRITING_ROOM_TARGET_KINDS, 'WritingRoomTargetKind')
+const creativeTargetKind = z.enum(['project', 'chapter', 'adaptation', 'episode', 'script', 'scene', 'shot'])
+const revisionTaskPriority = z.enum(['must', 'should', 'could'])
+const revisionTaskStatus = z.enum(['open', 'accepted', 'applied', 'dismissed'])
+const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint'])
+
+const projectInput = z
+  .object({
+    title: id,
+    shortDramaType: id,
+    targetAudience: z.string().optional(),
+    targetWordCount: z.number().int().positive().optional(),
+    targetEpisodeCount: z.number().int().positive().optional(),
+    coreHook: z.string().optional(),
+    emotionalCore: z.string().optional(),
+    coreSellingPoint: z.string().optional(),
+    synopsis: z.string().optional(),
+    styleGuide: z.string().optional(),
+    visualStyleDirection: z.string().optional(),
+  })
+  .passthrough()
+const projectPatch = projectInput.partial().passthrough()
+
+const chapterInput = z
+  .object({
+    projectId: id,
+    title: id,
+    orderIndex: z.number().int().optional(),
+    summary: z.string().optional(),
+    outline: z.string().optional(),
+    content: z.string().optional(),
+    mainConflict: z.string().optional(),
+    hook: z.string().optional(),
+    highlight: z.string().optional(),
+    reversal: z.string().optional(),
+    cliffhanger: z.string().optional(),
+    shortDramaNote: z.string().optional(),
+    aiVideoNote: z.string().optional(),
+  })
+  .passthrough()
+const chapterPatch = chapterInput.omit({ projectId: true }).partial().passthrough()
+
+const characterInput = z
+  .object({
+    projectId: id,
+    name: id,
+    role: id,
+  })
+  .passthrough()
+const characterPatch = characterInput.omit({ projectId: true }).partial().passthrough()
+
+const outlineInput = z
+  .object({
+    projectId: id,
+    type: z.enum(['book', 'chapter']),
+    title: id,
+    content: z.string().optional(),
+    orderIndex: z.number().int().optional(),
+  })
+  .passthrough()
+const outlinePatch = outlineInput.omit({ projectId: true }).partial().passthrough()
+
+const modelConfigInput = z
+  .object({
+    id: maybeId,
+    name: id,
+    provider: id,
+    baseUrl: id,
+    apiKey: z.string().optional(),
+    model: id,
+    isDefault: z.boolean().optional(),
+  })
+  .passthrough()
+const modelConfigPatch = modelConfigInput.omit({ id: true }).partial().passthrough()
+
+const videoProviderConfigInput = z
+  .object({
+    name: id,
+    kind: z.enum(VIDEO_PROVIDER_KINDS),
+    baseUrl: z.string().optional(),
+    apiKey: z.string().optional(),
+    model: z.string().optional(),
+    isDefault: z.boolean().optional(),
+    defaultParams: z.string().optional(),
+  })
+  .passthrough()
+const videoProviderConfigPatch = videoProviderConfigInput.partial().passthrough()
 
 const aiTaskInput = objectPayload.extend({
-  taskType: z.string().min(1),
+  taskType: novelTaskType,
   projectId: maybeId,
   chapterId: maybeId,
   characterId: maybeId,
@@ -16,14 +127,17 @@ const aiTaskInput = objectPayload.extend({
   shotId: maybeId,
   userInstruction: z.string().optional(),
   templateContent: z.string().optional(),
-  templateScope: z.string().optional(),
+  templateScope: novelTaskType.optional(),
   chatHistory: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).optional(),
 })
 
-const applyArtifactInput = objectPayload.extend({
+const applyArtifactInput = z.object({
   projectId: id,
-  taskType: id,
-})
+  taskType: novelTaskType,
+  data: requiredUnknown,
+  characterId: maybeId,
+  adaptationProjectId: maybeId,
+}).passthrough()
 
 const createVideoTaskInput = objectPayload.extend({
   providerConfigId: id,
@@ -37,11 +151,165 @@ const createVideoTaskInput = objectPayload.extend({
   note: z.string().optional(),
 })
 
+const updateVideoTaskInput = z
+  .object({
+    status: z.enum(['pending', 'running', 'success', 'failed']).optional(),
+    remoteTaskId: z.string().optional(),
+    resultVideoUrl: z.string().optional(),
+    errorMessage: z.string().optional(),
+    note: z.string().optional(),
+  })
+  .passthrough()
+
+const updateVideoResultInput = z
+  .object({
+    resultVideoUrl: z.string().optional(),
+    coverImageUrl: z.string().optional(),
+    isBest: z.boolean().optional(),
+    note: z.string().optional(),
+    rawMeta: z.string().optional(),
+  })
+  .passthrough()
+
+const templateInput = z
+  .object({
+    name: id,
+    type: templateType,
+    content: z.string().min(1),
+    description: z.string().optional(),
+    variables: looseStringArray.optional(),
+    scope: templateScope.optional(),
+    builtIn: z.boolean().optional(),
+  })
+  .passthrough()
+const templatePatch = templateInput.partial().passthrough()
+
+const templateRunInput = z
+  .object({
+    templateId: id,
+    projectId: maybeId,
+    variables: z.record(z.string()).optional(),
+    userInstruction: z.string().optional(),
+  })
+  .passthrough()
+
+const agentInput = z
+  .object({
+    name: id,
+    role: id,
+    systemPrompt: z.string().min(1),
+    outputSchema: z.string().optional(),
+    enabled: z.boolean().optional(),
+    builtIn: z.boolean().optional(),
+  })
+  .passthrough()
+const agentPatch = agentInput.partial().passthrough()
+
+const writingRoomInput = z
+  .object({
+    targetKind: writingRoomTargetKind,
+    targetId: id,
+    projectId: maybeId,
+    chapterId: maybeId,
+    adaptationProjectId: maybeId,
+    episodeId: maybeId,
+    sceneId: maybeId,
+    shotId: maybeId,
+    agentIds: stringArray.optional(),
+    userInstruction: z.string().optional(),
+  })
+  .passthrough()
+
+const genrePresetInput = z
+  .object({
+    name: id,
+    visualStyle: z.string().min(1),
+    shotPromptAdvice: z.string().min(1),
+    aiVideoRisks: z.string().min(1),
+    description: z.string().optional(),
+    commonRelationships: looseStringArray.optional(),
+    commonHighlights: looseStringArray.optional(),
+    commonReversals: looseStringArray.optional(),
+    commonOpenings: looseStringArray.optional(),
+    commonCliffhangers: looseStringArray.optional(),
+    builtIn: z.boolean().optional(),
+  })
+  .passthrough()
+const genrePresetPatch = genrePresetInput.partial().passthrough()
+
+const workflowRunInput = z
+  .object({
+    templateKey: workflowTemplateKey,
+    projectId: maybeId,
+    chapterId: maybeId,
+    adaptationProjectId: maybeId,
+    episodeId: maybeId,
+    sceneId: maybeId,
+    shotId: maybeId,
+    userInstruction: z.string().optional(),
+  })
+  .passthrough()
+
+const revisionTaskInput = z
+  .object({
+    projectId: maybeId,
+    targetKind: creativeTargetKind,
+    targetId: maybeId,
+    sourceReportId: maybeId,
+    title: id,
+    description: z.string().min(1),
+    priority: revisionTaskPriority.optional(),
+    status: revisionTaskStatus.optional(),
+    suggestedAction: z.string().min(1),
+    expectedBenefit: z.record(z.unknown()).optional(),
+    appliedVersionId: maybeId,
+  })
+  .passthrough()
+const revisionTaskPatch = revisionTaskInput.partial().passthrough()
+
+const contentVersionInput = z
+  .object({
+    projectId: maybeId,
+    targetKind: creativeTargetKind,
+    targetId: id,
+    label: id,
+    source: contentVersionSource,
+    content: z.string(),
+    meta: z.record(z.unknown()).optional(),
+  })
+  .passthrough()
+
+const caseStudyInput = z
+  .object({
+    title: id,
+    sourceType: z.string().optional(),
+    genre: z.string().optional(),
+    summary: z.string().optional(),
+    relationshipPatterns: looseStringArray.optional(),
+    openingHooks: looseStringArray.optional(),
+    highlightBeats: looseStringArray.optional(),
+    reversalMechanisms: looseStringArray.optional(),
+    cliffhangers: looseStringArray.optional(),
+    visualPatterns: looseStringArray.optional(),
+    riskTags: looseStringArray.optional(),
+    notes: z.string().optional(),
+  })
+  .passthrough()
+const caseStudyPatch = caseStudyInput.partial().passthrough()
+
 export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'project:list': [],
+  'project:create': [projectInput],
+  'project:update': [id, projectPatch],
   'chapter:list': [id],
+  'chapter:create': [chapterInput],
+  'chapter:update': [id, chapterPatch],
   'character:list': [id],
+  'character:create': [characterInput],
+  'character:update': [id, characterPatch],
   'outline:list': [id, z.enum(['book', 'chapter']).optional()],
+  'outline:create': [outlineInput],
+  'outline:update': [id, outlinePatch],
   'chapterMemory:list': [id],
   'characterState:list': [id],
   'visualProfile:list': [id],
@@ -60,22 +328,35 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'aiRun:summarize': [],
   'model:list': [],
   'model:getDefault': [],
+  'model:create': [modelConfigInput],
+  'model:update': [id, modelConfigPatch],
   'model:setDefault': [id],
   'model:listTaskBindings': [],
-  'model:upsertTaskBinding': [id, id],
-  'model:deleteTaskBinding': [id],
-  'model:testConnection': [objectPayload],
+  'model:upsertTaskBinding': [taskGroupKey, id],
+  'model:deleteTaskBinding': [taskGroupKey],
+  'model:testConnection': [modelConfigInput],
   'ai:run': [aiTaskInput],
   'ai:runStream': [aiTaskInput, id],
   'ai:applyResult': [applyArtifactInput],
   'chapter:updateContent': [id, z.string()],
   'episode:reorder': [stringArray],
+  'agent:create': [agentInput],
+  'agent:update': [id, agentPatch],
   'template:extractVariables': [z.string()],
-  'template:run': [objectPayload],
-  'writingRoom:run': [objectPayload],
-  'workflow:run': [objectPayload],
+  'template:create': [templateInput],
+  'template:update': [id, templatePatch],
+  'template:run': [templateRunInput],
+  'writingRoom:run': [writingRoomInput],
+  'genrePreset:create': [genrePresetInput],
+  'genrePreset:update': [id, genrePresetPatch],
+  'workflow:run': [workflowRunInput],
+  'revisionTask:create': [revisionTaskInput],
+  'revisionTask:update': [id, revisionTaskPatch],
   'revisionTask:apply': [id],
+  'contentVersion:create': [contentVersionInput],
   'contentVersion:listByTarget': [id, id],
+  'caseStudy:create': [caseStudyInput],
+  'caseStudy:update': [id, caseStudyPatch],
   'creative:freshness:list': [maybeId],
   'creative:freshness:listByTarget': [id, maybeId],
   'creative:antiTrope:listByTarget': [id, maybeId],
@@ -85,9 +366,13 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'revisionTask:list': [maybeId],
   'revisionTask:listByTarget': [id, maybeId],
   'workflow:list': [maybeId],
+  'videoProvider:create': [videoProviderConfigInput],
+  'videoProvider:update': [id, videoProviderConfigPatch],
   'videoTask:create': [createVideoTaskInput],
   'videoTask:retry': [id, maybeId],
+  'videoTask:update': [id, updateVideoTaskInput],
   'videoResult:selectBest': [id],
+  'videoResult:update': [id, updateVideoResultInput],
   'export:projectMarkdown': [id],
   'export:projectJson': [id],
   'export:chapterMarkdown': [id],

@@ -17,13 +17,24 @@ test('rejects IPC calls with invalid arity or shape', () => {
 
 test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
+    'project:create',
+    'project:update',
     'ai:run',
     'ai:runStream',
     'ai:applyResult',
+    'model:create',
+    'model:update',
+    'model:upsertTaskBinding',
     'model:testConnection',
+    'template:run',
+    'writingRoom:run',
     'videoTask:create',
+    'videoTask:update',
+    'videoProvider:create',
     'workflow:run',
+    'revisionTask:create',
     'revisionTask:apply',
+    'contentVersion:create',
     'contentVersion:listByTarget',
   ]) {
     assert.ok(channel in IPC_EXACT_SCHEMAS, `${channel} should have an exact IPC schema`)
@@ -35,4 +46,25 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('creative:freshness:list', []), [])
   assert.deepEqual(validateIpcArgs('creative:freshness:list', ['p1']), ['p1'])
   assert.throws(() => validateIpcArgs('revisionTask:apply', []), /参数数量错误/)
+})
+
+test('validates high-risk business IPC payload schemas', () => {
+  assert.deepEqual(validateIpcArgs('project:create', [{ title: '短剧项目', shortDramaType: '复仇' }]), [
+    { title: '短剧项目', shortDramaType: '复仇' },
+  ])
+  assert.throws(() => validateIpcArgs('project:create', [{ title: '短剧项目' }]), /shortDramaType/)
+  assert.throws(() => validateIpcArgs('ai:run', [{ taskType: 'unknown_task' }]), /taskType/)
+  assert.throws(() => validateIpcArgs('model:upsertTaskBinding', ['unknown_group', 'm1']), /参数校验失败/)
+  assert.throws(
+    () => validateIpcArgs('template:run', [{ templateId: 't1', variables: { name: 1 } }]),
+    /variables.name/,
+  )
+  assert.throws(() => validateIpcArgs('workflow:run', [{ templateKey: 'unknown_workflow' }]), /templateKey/)
+  assert.throws(
+    () =>
+      validateIpcArgs('contentVersion:create', [
+        { targetKind: 'chapter', targetId: 'c1', label: 'v1', content: '正文' },
+      ]),
+    /source/,
+  )
 })
