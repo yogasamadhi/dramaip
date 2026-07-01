@@ -100,6 +100,7 @@ pnpm install            # 安装依赖（.npmrc 已配置 Electron 镜像）
 pnpm typecheck          # 全量类型检查（5 个包）
 pnpm test:unit          # Node 内置 test runner + tsx 的轻量单元测试
 pnpm test:db           # Node ABI 下运行 DB smoke 测试
+pnpm test:e2e          # Electron E2E smoke：创建项目/章节/模型配置/项目包往返
 pnpm test              # typecheck + unit + DB smoke
 pnpm format:check      # 轻量格式检查（尾随空白/文件末尾换行）
 pnpm dev                # 启动开发模式
@@ -108,6 +109,7 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smoke
 ```
 
+- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
 - 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
 - 打包 smoke 详见 [RELEASE.md](./RELEASE.md)。
 - 跑 `smoke-db.ts` 需为当前 Node ABI 重新编译 better-sqlite3（详见 [CONTRIBUTING](./CONTRIBUTING.md)）。

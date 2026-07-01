@@ -10,6 +10,8 @@
     "package": "pnpm --filter @sdns/desktop package",
     "package:smoke": "node scripts/package-smoke.mjs",
     "package:smoke:dir": "node scripts/package-smoke.mjs --dir",
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:e2e:skip-build": "node scripts/e2e-smoke.mjs --skip-build",
     "db:generate": "pnpm --filter @sdns/db generate",
     "db:push": "pnpm --filter @sdns/db push",
     "rebuild": "pnpm rebuild:electron",

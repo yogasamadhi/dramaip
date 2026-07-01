@@ -6,11 +6,15 @@ import { DB_FILE_NAME } from '@sdns/core'
 import { initDatabase, safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
+import { runDesktopE2eSmoke } from './e2e-smoke'
 
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
 const PACKAGE_SMOKE_USER_DATA_ENV = 'SDNS_PACKAGE_SMOKE_USER_DATA'
+const E2E_SMOKE_ENV = 'SDNS_E2E_SMOKE'
+const E2E_SMOKE_RESULT_ENV = 'SDNS_E2E_SMOKE_RESULT'
+const E2E_SMOKE_USER_DATA_ENV = 'SDNS_E2E_SMOKE_USER_DATA'
 
 function canOpenExternal(url: string): boolean {
   try {
@@ -57,7 +61,10 @@ function getSmokeArg(name: string): string | undefined {
 
 function configurePackageSmokeUserData(): void {
   const userData =
-    process.env[PACKAGE_SMOKE_USER_DATA_ENV] ?? getSmokeArg('sdns-package-smoke-user-data')
+    process.env[PACKAGE_SMOKE_USER_DATA_ENV] ??
+    getSmokeArg('sdns-package-smoke-user-data') ??
+    process.env[E2E_SMOKE_USER_DATA_ENV] ??
+    getSmokeArg('sdns-e2e-smoke-user-data')
   if (userData) app.setPath('userData', userData)
 }
 
@@ -98,7 +105,69 @@ function runPackageSmoke(): void {
   }
 }
 
-function createWindow(): void {
+function isE2eSmoke(): boolean {
+  return process.env[E2E_SMOKE_ENV] === '1' || process.argv.includes('--sdns-e2e-smoke')
+}
+
+function writeE2eSmokeResult(payload: Record<string, unknown>): void {
+  const resultPath =
+    process.env[E2E_SMOKE_RESULT_ENV] ?? getSmokeArg('sdns-e2e-smoke-result')
+  if (!resultPath) return
+  mkdirSync(dirname(resultPath), { recursive: true })
+  writeFileSync(
+    resultPath,
+    JSON.stringify(
+      {
+        ...payload,
+        version: app.getVersion(),
+        platform: process.platform,
+        userData: app.getPath('userData'),
+      },
+      null,
+      2,
+    ),
+  )
+}
+
+function waitForWindowLoaded(mainWindow: BrowserWindow): Promise<void> {
+  if (!mainWindow.webContents.isLoadingMainFrame()) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      mainWindow.webContents.removeListener('did-finish-load', onFinish)
+      mainWindow.webContents.removeListener('did-fail-load', onFail)
+    }
+    const onFinish = () => {
+      cleanup()
+      resolve()
+    }
+    const onFail = (_event: Electron.Event, _errorCode: number, errorDescription: string) => {
+      cleanup()
+      reject(new Error(errorDescription))
+    }
+    mainWindow.webContents.once('did-finish-load', onFinish)
+    mainWindow.webContents.once('did-fail-load', onFail)
+  })
+}
+
+async function runE2eSmoke(): Promise<void> {
+  try {
+    initDatabase()
+    registerAllIpc()
+    const mainWindow = createWindow({ show: false })
+    await waitForWindowLoaded(mainWindow)
+    const result = await runDesktopE2eSmoke(mainWindow)
+    writeE2eSmokeResult({ ok: true, ...result })
+    app.exit(0)
+  } catch (error) {
+    writeE2eSmokeResult({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    app.exit(1)
+  }
+}
+
+function createWindow(options: { show?: boolean } = {}): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
@@ -118,7 +187,9 @@ function createWindow(): void {
     },
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow.show())
+  mainWindow.on('ready-to-show', () => {
+    if (options.show !== false) mainWindow.show()
+  })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (canOpenExternal(url)) void shell.openExternal(url)
@@ -141,6 +212,8 @@ function createWindow(): void {
       logger.error('main', 'loadFile failed', { message: error.message, stack: error.stack })
     })
   }
+
+  return mainWindow
 }
 
 configurePackageSmokeUserData()
@@ -151,6 +224,10 @@ app.whenReady().then(() => {
   installSecurityHeaders()
   if (isPackageSmoke()) {
     runPackageSmoke()
+    return
+  }
+  if (isE2eSmoke()) {
+    void runE2eSmoke()
     return
   }
   safeInitDatabase()

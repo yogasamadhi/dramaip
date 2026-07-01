@@ -61,6 +61,7 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
 | `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
 | `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / JSON parser） |
+| `pnpm test:e2e` | 构建桌面端并运行 Electron E2E smoke（创建项目/章节/模型配置/项目包往返） |
 | `pnpm test` | 类型检查 + 单元测试 + DB 冒烟测试 |
 
 ## 数据层冒烟测试
