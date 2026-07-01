@@ -46,7 +46,7 @@
 | L10-03 | Codex/测试 | done | 增加迁移回放测试 | `packages/db/src/migrator.ts`、fixtures、smoke | 从旧版 fixture 升级到最新 schema；重复迁移幂等；失败迁移回滚可测 |
 | L11-01 | Codex/安全 | done | 收紧 Electron 外链与 CSP | `apps/desktop/electron/main.ts`、`apps/desktop/electron/security-policy.ts`、测试 | 默认只允许 HTTPS；localhost/dev 仅开发态；CSP 与图片/媒体来源策略有测试或手工验证记录 |
 | L11-02 | Codex/安全 | done | 增加文件导入安全限制 | 项目包导入、样本文档导入、视频素材导入 | 文件大小、扩展名、解析失败、超大文本截断策略统一；错误提示可操作；不会阻塞主进程 |
-| L12-01 | Codex/产品体验 | todo | 增加质量闸门仪表盘 | Workspace/Adaptation/Script/Shot 页面 | 用户能看到未记忆章节、未审稿剧本、高风险镜头、失败任务；点击可跳转处理 |
+| L12-01 | Codex/产品体验 | done | 增加质量闸门仪表盘 | Workspace/Adaptation/Script/Shot 页面 | 用户能看到未记忆章节、未审稿剧本、高风险镜头、失败任务；点击可跳转处理 |
 | L12-02 | Codex/产品体验 | todo | 增加全局搜索 | DB repository、renderer 页面 | 可搜索项目、人物、章节、剧本、场景、镜头 Prompt、AI 记录；大项目响应可接受 |
 | L12-03 | Codex/产品体验 | todo | 完善完整工作流模板 | creative workflow、template、UI | 从小说到分集、剧本、分镜、视频任务有可复用流水线；每步可暂停、查看结果、重试 |
 | L13-01 | Codex/资产管理 | todo | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（60 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（63 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
 - 现有明显缺口：E2E 已有最小 Electron smoke 但覆盖仍需扩展，自动更新运行时代码尚未接入，长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -437,6 +437,17 @@
 - 实现结果：新增统一文件导入策略，项目包限制为 `.sdnspkg/.json` 且最大 20MB；样本文档限制为 `.md/.txt/.docx` 且最大 10MB，文本仍统一截断到 80,000 字符；视频素材限制为常见视频/图片扩展且最大 300MB；项目包和样本文档读取前先异步 stat/扩展名校验；本地 `file://` 视频素材复制前校验；远程视频素材按响应扩展/类型和 `content-length` 预检，写盘前再按实际字节数复核。
 - 本地验证：`pnpm --filter @sdns/desktop typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/file-import-security.test.ts` 通过（3 个导入安全测试）；`pnpm test:unit` 通过（60 个单元测试）；`git diff --check` 通过。
 - Diff 审查：变更限定在文件导入安全 helper、三个导入/归档入口、导入安全测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含二进制文件、构建产物、密码、token 或证书。
+
+### L12-01：质量闸门仪表盘
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L12-01 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：工作台导航常量、`WorkspacePage`、质量闸门面板组件、质量闸门纯判断 helper、单测、`LOOPMAP.md`。
+- 实现结果：工作台新增“质量闸门”入口；面板聚合章节记忆、改编项目、剧本审稿、镜头审查和长任务数据；展示未生成章节记忆、已有正文但未审稿剧本、高难度/低分镜头、失败长任务；按阻塞/提醒计数；每条待办可跳转到记忆面板、剧本页、分镜页或任务监控页；面板支持刷新且不新增数据库迁移。
+- 本地验证：`pnpm --filter @sdns/desktop typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/quality-gate-dashboard.test.ts` 通过（3 个质量闸门 helper 测试）；`pnpm test:unit` 通过（63 个单元测试）；`git diff --check` 通过。
+- Diff 审查：变更限定在质量闸门 UI、导航常量、可测聚合 helper、测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含数据库迁移、构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 

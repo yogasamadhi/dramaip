@@ -44,6 +44,7 @@ import { BeatSection } from '@/components/sections/BeatSection'
 import { HighlightSection } from '@/components/sections/HighlightSection'
 import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibilitySection'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
+import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
 import { cn } from '@/lib/utils'
 
 const ChapterEditor = lazy(() =>
@@ -403,6 +404,17 @@ export function WorkspacePage() {
                 </div>
               </div>
             </ScrollArea>
+          )}
+
+          {section === 'quality-gates' && (
+            <QualityGateDashboardSection
+              projectId={project.id}
+              chapters={chapters}
+              onOpenWorkspaceTarget={(nextSection, chapterId) => {
+                if (chapterId) setSelectedId(chapterId)
+                setSection(nextSection)
+              }}
+            />
           )}
 
           {section === 'ai-runs' && (
