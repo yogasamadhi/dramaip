@@ -93,6 +93,8 @@ API Key 仅本地保存于 `model_configs` 表。
 
 - [开发文档](./DEVELOPMENT.md) —— 架构、数据流、新增 AI 任务、数据库迁移、构建打包
 - [贡献指南](./CONTRIBUTING.md) —— 开发约定、提交规范、本地优先原则
+- [用户手册](./USER_GUIDE.md) —— 安装启动、模型配置、创作流程、备份恢复、项目包、视频生成
+- [故障排查](./TROUBLESHOOTING.md) —— AI 失败、视频平台、数据库备份、项目包、日志诊断
 - [Prompt 工程指南](./PROMPT_GUIDE.md) —— prompt 体系、JSON 输出规范、模板系统、多 Agent 编剧室
 - [AI 视频生成链路指南](./AI_VIDEO_GUIDE.md) —— 剧本→分镜→镜头→视频平台、各平台 Prompt 要点与风险
 - [ROADMAP](./ROADMAP.md) —— 版本规划与进度

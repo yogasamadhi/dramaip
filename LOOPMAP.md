@@ -52,7 +52,7 @@
 | L13-01 | Codex/资产管理 | done | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
 | L13-02 | Codex/资产管理 | done | 资产引用接入角色/镜头/视频 | VisualProfile、Shot、VideoResult UI | 角色视觉档案和镜头 Prompt 可引用本地资产；缺失文件有提示；导出/导入能保持引用或说明缺失 |
 | L14-01 | Codex/文档 | done | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
-| L14-02 | Codex/文档 | todo | 增加用户手册与故障排查 | 新增用户文档、README 索引 | 覆盖安装、模型配置、备份恢复、项目包、AI 失败、视频平台配置、日志诊断 |
+| L14-02 | Codex/文档 | done | 增加用户手册与故障排查 | 新增用户文档、README 索引 | 覆盖安装、模型配置、备份恢复、项目包、AI 失败、视频平台配置、日志诊断 |
 | L15-01 | Codex/Release | todo | Release Candidate 全量闸门 | 全仓、CI、打包产物、文档 | `pnpm test` 通过；跨平台打包 smoke 通过；安全检查通过；文档状态更新；tag/release note 草稿完成 |
 
 ## 2. 推荐执行批次
@@ -503,6 +503,17 @@
 - 实现结果：移除过期 `ensureSchema()` 初始化表述，改为 `createDb()` 启动时运行 `runMigrations()` 与 `schema_migrations` 版本记录；将 DB smoke 文档统一到 `pnpm test:db`，说明脚本自动切 Node ABI 并恢复 Electron ABI；修正 pnpm 版本要求、lint 含义、迁移章节锚点、外链安全策略和项目包可选资产清单说明。
 - 本地验证：`README.md` / `DEVELOPMENT.md` / `CONTRIBUTING.md` 过期词搜索无命中；`pnpm format:check` 通过；`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（65 个单元测试）。
 - Diff 审查：变更限定在 README/DEVELOPMENT/CONTRIBUTING 文档口径和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
+
+### L14-02：增加用户手册与故障排查
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L14-02 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：新增 `USER_GUIDE.md`、`TROUBLESHOOTING.md`，更新 `README.md` 文档索引和 `LOOPMAP.md`。
+- 实现结果：新增用户手册，覆盖安装启动、首次模型配置、基础创作流程、资产引用、备份恢复、项目包导入导出、视频生成配置和诊断入口；新增故障排查文档，覆盖启动/native 模块、模型配置、AI 失败、视频平台、备份恢复、项目包和日志诊断；README 文档索引增加用户手册与故障排查入口。
+- 本地验证：`pnpm format:check` 通过；`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（65 个单元测试）。
+- Diff 审查：变更限定在新增用户文档、README 索引和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 
