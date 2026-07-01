@@ -51,7 +51,7 @@
 | L12-03 | Codex/产品体验 | done | 完善完整工作流模板 | creative workflow、template、UI | 从小说到分集、剧本、分镜、视频任务有可复用流水线；每步可暂停、查看结果、重试 |
 | L13-01 | Codex/资产管理 | done | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
 | L13-02 | Codex/资产管理 | done | 资产引用接入角色/镜头/视频 | VisualProfile、Shot、VideoResult UI | 角色视觉档案和镜头 Prompt 可引用本地资产；缺失文件有提示；导出/导入能保持引用或说明缺失 |
-| L14-01 | Codex/文档 | todo | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
+| L14-01 | Codex/文档 | done | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
 | L14-02 | Codex/文档 | todo | 增加用户手册与故障排查 | 新增用户文档、README 索引 | 覆盖安装、模型配置、备份恢复、项目包、AI 失败、视频平台配置、日志诊断 |
 | L15-01 | Codex/Release | todo | Release Candidate 全量闸门 | 全仓、CI、打包产物、文档 | `pnpm test` 通过；跨平台打包 smoke 通过；安全检查通过；文档状态更新；tag/release note 草稿完成 |
 
@@ -492,6 +492,17 @@
 - 实现结果：新增受控 `asset:*` IPC，并在读取资产时刷新本地文件缺失状态；人物视觉档案可录入参考图 URL/本地路径并同步为 `character_reference` 资产；镜头 Prompt 编辑器可录入参考图并同步为 `shot` 来源资产；视频生成提交会自动收集镜头参考图与角色视觉档案参考图作为 `referenceImageUrls`；视频任务成功/查询/重试返回结果后自动为成片和封面建立或更新 `video_result`/`cover_image` 资产；删除视频结果/任务时清理关联资产；项目包导入补齐视觉档案与视觉设定 id 映射，导入资产保持远端引用或标记缺失。
 - 本地验证：`pnpm typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ipc-contract.test.ts tests/project-package.test.ts` 通过；`pnpm test:unit` 通过（65 个单元测试）；`pnpm test:db` 通过，并在结束后重编 `better-sqlite3` 回 Electron ABI；`git diff --check` 通过。
 - Diff 审查：变更限定在资产引用 IPC/UI、视频结果资产同步、项目包资产来源重映射、IPC/DB smoke 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含二进制资产、构建产物、密码、token 或证书。
+
+### L14-01：修正文档与实现不一致
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L14-01 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md`、`LOOPMAP.md`。
+- 实现结果：移除过期 `ensureSchema()` 初始化表述，改为 `createDb()` 启动时运行 `runMigrations()` 与 `schema_migrations` 版本记录；将 DB smoke 文档统一到 `pnpm test:db`，说明脚本自动切 Node ABI 并恢复 Electron ABI；修正 pnpm 版本要求、lint 含义、迁移章节锚点、外链安全策略和项目包可选资产清单说明。
+- 本地验证：`README.md` / `DEVELOPMENT.md` / `CONTRIBUTING.md` 过期词搜索无命中；`pnpm format:check` 通过；`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（65 个单元测试）。
+- Diff 审查：变更限定在 README/DEVELOPMENT/CONTRIBUTING 文档口径和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 

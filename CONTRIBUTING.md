@@ -10,7 +10,7 @@ cd dramaIp
 pnpm install
 ```
 
-要求：Node 20+、pnpm 9+。跨平台（macOS / Windows / Linux）。
+要求：Node 20+；建议通过 Corepack 使用仓库 `packageManager` 指定的 pnpm 版本。跨平台（macOS / Windows / Linux）。
 
 ## 常用命令
 
@@ -18,19 +18,17 @@ pnpm install
 pnpm dev                # 启动 Electron + Vite 热更新开发模式
 pnpm typecheck          # 全量类型检查（提交前必跑）
 pnpm --filter @sdns/core typecheck   # 单包类型检查
-pnpm lint               # 代码检查（如配置）
+pnpm lint               # 当前等同于 typecheck
+pnpm test:unit          # Node 内置 test runner + tsx 单元测试
+pnpm test:db            # 迁移回放 + DB smoke，并恢复 Electron ABI
 ```
 
 ### 跑 DB 冒烟测试
 
-`scripts/smoke-db.ts` 验证迁移幂等、各 repository CRUD、项目包导入导出往返。better-sqlite3 默认按 **Electron** ABI 编译；在系统 Node 下运行需先重编译：
+`scripts/smoke-db.ts` 验证迁移幂等、各 repository CRUD、项目包导入导出往返。better-sqlite3 是原生模块，`pnpm test:db` 会自动切到 Node ABI、跑完 smoke 后切回 Electron ABI：
 
 ```bash
-# 为当前 Node ABI 重编译（仅本地测试用，提交前请勿改动 node_modules 产物）
-cd node_modules/.pnpm/better-sqlite3@<版本>/node_modules/better-sqlite3
-pnpm dlx node-gyp rebuild
-cd - && npx tsx scripts/smoke-db.ts
-# 测完若要恢复为 Electron ABI：pnpm rebuild better-sqlite3
+pnpm test:db
 ```
 
 ## 代码约定
@@ -72,7 +70,7 @@ chore: 构建/依赖/工具链
 
 - 一个提交做一件事，描述清晰。
 - 提交前确保 `pnpm typecheck` 全绿。
-- 涉及数据库结构变化必须加迁移（见 [DEVELOPMENT](./DEVELOPMENT.md#数据库迁移机制v10)）并扩展 `smoke-db.ts`。
+- 涉及数据库结构变化必须加迁移（见 [DEVELOPMENT](./DEVELOPMENT.md#数据库迁移机制)）并扩展 `smoke-db.ts`。
 
 ## 本地优先原则
 
@@ -85,7 +83,7 @@ chore: 构建/依赖/工具链
 | 想做的事 | 看这里 |
 |---|---|
 | 加一个 AI 任务 | [DEVELOPMENT - 新增一个 AI 任务](./DEVELOPMENT.md#新增一个-ai-任务最常见扩展) |
-| 改数据库 | [DEVELOPMENT - 数据库迁移机制](./DEVELOPMENT.md#数据库迁移机制v10) |
+| 改数据库 | [DEVELOPMENT - 数据库迁移机制](./DEVELOPMENT.md#数据库迁移机制) |
 | 写 prompt | [PROMPT_GUIDE](./PROMPT_GUIDE.md) |
 | AI 视频链路 | [AI_VIDEO_GUIDE](./AI_VIDEO_GUIDE.md) |
 | 打包发布 | [DEVELOPMENT - 构建与打包](./DEVELOPMENT.md#构建与打包) |

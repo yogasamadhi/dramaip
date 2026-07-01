@@ -46,8 +46,9 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 > 说明当前 shell 设了 `ELECTRON_RUN_AS_NODE=1`（常见于从其它基于 Electron 的工具里启动）。
 > 解决：`env -u ELECTRON_RUN_AS_NODE pnpm dev`，或在新终端里运行。
 
-数据库表在应用首次启动时由 `ensureSchema()` 幂等自动创建（原始 `CREATE TABLE`），
-无需手动跑迁移；如需根据 Drizzle schema 重新生成 SQL，可用 `pnpm db:generate` / `pnpm db:push`。
+数据库连接由 `packages/db/src/client.ts` 的 `createDb()` 创建；应用启动时会自动执行
+`packages/db/src/migrator.ts` 中的版本化迁移，并记录到 `schema_migrations`。无需手动跑
+数据库迁移；`pnpm db:generate` / `pnpm db:push` 仅用于维护 Drizzle schema 相关产物，不是运行时升级入口。
 
 ## 常用脚本
 
@@ -61,20 +62,18 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
 | `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
 | `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / JSON parser） |
+| `pnpm test:db` | 运行迁移回放与 DB 冒烟测试，并在结束后恢复 Electron ABI |
 | `pnpm test:e2e` | 构建桌面端并运行 Electron E2E smoke（创建项目/章节/模型配置/项目包往返） |
 | `pnpm test` | 类型检查 + 单元测试 + DB 冒烟测试 |
 
 ## 数据层冒烟测试
 
-`scripts/smoke-db.ts` 覆盖全部实体的 CRUD、级联删除与持久化（注入式，无需 API key）。
-better-sqlite3 是原生模块，需先按 Node ABI 编译再跑：
+`pnpm test:db` 会先把 better-sqlite3 编译到当前 Node ABI，运行迁移回放与
+`scripts/smoke-db.ts`，最后再把 better-sqlite3 编译回 Electron ABI。
+`scripts/smoke-db.ts` 覆盖全部实体的 CRUD、级联删除、持久化和项目包往返（注入式，无需 API key）。
 
 ```bash
-# 1) 切到 Node ABI（冒烟用）
-(cd node_modules/.pnpm/$(ls node_modules/.pnpm | grep -m1 '^better-sqlite3@')/node_modules/better-sqlite3 && pnpm dlx node-gyp rebuild)
-pnpm dlx tsx scripts/smoke-db.ts
-# 2) 跑完切回 Electron ABI，否则 pnpm dev 会崩
-pnpm rebuild
+pnpm test:db
 ```
 
 ## 数据存储
@@ -87,7 +86,7 @@ API Key 仅本地保存于 `model_configs` 表。
 - **事务化升级**：每个数据库 migration 与版本记录在同一事务中提交，失败会回滚，避免半升级状态。
 - **自动备份**：每次启动自动复制一份 `studio.db` 到 `userData/backups/`，保留最近 7 份。
 - **项目包导入导出**：工作台「导出 → 完整项目包（.sdnspkg）」导出项目全部关联数据；首页「导入项目包」可还原为新项目（id 重映射、外键保留）。
-- **项目包 v2**：包含创意诊断报告、反套路方案、修稿任务、内容版本、质量闸门、观众模拟、曲线报告、工作流记录和本地样本库。
+- **项目包 v2**：包含创意诊断报告、反套路方案、修稿任务、内容版本、质量闸门、观众模拟、曲线报告、工作流记录、本地样本库和可选资产清单。
 - **密钥保护**：模型与视频 Provider 的 API Key 仅在主进程解密使用，返回界面时显示为掩码。
 
 ## 文档
