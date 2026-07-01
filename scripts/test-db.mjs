@@ -11,6 +11,7 @@ function run(command, args) {
 }
 
 let status = run(process.execPath, ['scripts/rebuild-better-sqlite3-node.mjs'])
+if (status === 0) status = run(pnpm, ['exec', 'tsx', 'tests/db-migration-replay.db.ts'])
 if (status === 0) status = run(pnpm, ['exec', 'tsx', 'scripts/smoke-db.ts'])
 
 const restoreStatus = run(pnpm, ['rebuild:electron'])
