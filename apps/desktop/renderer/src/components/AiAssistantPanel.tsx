@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { Sparkles, Loader2 } from 'lucide-react'
 import type { Chapter, NovelTaskType, TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
-import { TASK_TYPE_LABELS } from '@sdns/core'
+import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -53,10 +53,11 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
       })
       if (res.ok) {
         if (res.result?.kind === 'text_preview') {
-          toast.success(`${label} 完成，请确认`, { id: toastId })
+          toast.success(`${label} 完成，预览后采用`, { id: toastId })
           onTextPreview?.(res.result.data as TextDiffPreviewPayload)
         } else {
-          toast.success(`${label} 完成`, { id: toastId })
+          const policy = TASK_WRITE_POLICIES[taskType]
+          toast.success(`${label} 完成${policy.policy === 'auto_write' ? '，已写入' : ''}`, { id: toastId })
           await onChapterUpdated()
         }
       } else {
@@ -98,7 +99,9 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
           >
             {running === a.taskType ? <Loader2 className="animate-spin" /> : null}
             <span className="font-medium">{a.label}</span>
-            <span className="ml-auto text-xs font-normal text-muted-foreground">{a.desc}</span>
+            <span className="ml-auto max-w-[58%] truncate text-xs font-normal text-muted-foreground">
+              {a.desc} · {TASK_WRITE_POLICIES[a.taskType].label}
+            </span>
           </Button>
         ))}
       </div>

@@ -23,7 +23,7 @@
 | L2-02 | Codex/平台安全 | done | 收紧 IPC fallback 策略 | `packages/core/src/ipc-contract.ts`、IPC 测试 | 未登记 channel 默认拒绝或只允许显式白名单；新增通道必须补 exact schema；测试覆盖未知 channel、错误参数、越权形状 |
 | L3-01 | Codex/创作体验 | done | 为 AI 覆写增加 diff 预览 | `packages/ai/src/nodes/save-result.node.ts`、renderer AI 预览组件、内容版本表 | 章节/剧本/镜头 Prompt 覆写前可查看差异；用户确认后写入；取消不会修改正文 |
 | L3-02 | Codex/创作体验 | done | 增加版本比较与一键恢复 | `content_versions` repository、Workspace/Script/Shot 页面 | 用户可查看历史版本、比较当前版本、恢复指定版本；恢复操作也生成新版本记录；相关 smoke/单测通过 |
-| L3-03 | Codex/创作体验 | todo | 明确自动落库任务策略 | AI workflow、prompt registry、UI 文案 | 每类任务标记“预览后采用”或“自动写入”；危险覆写默认走确认；文档与 UI 行为一致 |
+| L3-03 | Codex/创作体验 | done | 明确自动落库任务策略 | AI workflow、prompt registry、UI 文案 | 每类任务标记“预览后采用”或“自动写入”；危险覆写默认走确认；文档与 UI 行为一致 |
 | L4-01 | Codex/安全 | done | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
 | L4-02 | Codex/安全 | todo | 增加密钥迁移和健康检查 | secrets、设置页、诊断文档 | 能识别明文/加密/掩码状态；启动时迁移可审计；失败不丢 key 且提示可操作 |
 | L5-01 | Codex/视频平台 | todo | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（28 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（29 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -283,3 +283,14 @@
 - 实现结果：移除基于 action 名称的隐式 IPC fallback；保留现有低风险通道的显式 fallback 白名单；未登记 channel 默认拒绝；单测扫描所有 Electron `ipcMain.handle` 注册点，确保新增通道必须补共享 schema。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（28 个单元测试），覆盖未知 channel、伪装 create channel、错误参数形状和注册通道 schema 完整性。
 - Diff 审查：变更限定在 IPC 合约 fallback 收紧、IPC 单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L3-03：自动落库任务策略
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L3-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`packages/core/src/constants/index.ts`、`packages/ai/src/prompts/loader.ts`、`packages/ai/src/index.ts`、章节/剧本 AI UI、任务注册单测、`LOOPMAP.md`。
+- 实现结果：新增 `TASK_WRITE_POLICIES` 覆盖所有 `NovelTaskType`，区分预览后采用、条件确认、自动写入和仅返回结果；AI prompt registry 暴露策略查询；章节与剧本 UI 的按钮/完成提示显示实际落库策略；危险正文/剧本/镜头覆写任务保持预览确认路径。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（29 个单元测试），新增所有 taskType 必须声明写入策略的覆盖测试。
+- Diff 审查：变更限定在任务写入策略常量、AI registry 查询、章节/剧本 UI 文案、任务注册测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。

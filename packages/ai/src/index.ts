@@ -27,6 +27,7 @@ export {
   type WritingRoomStateType,
 } from './graphs/writing-room.graph'
 export { renderTemplate, extractTemplateVariables } from './prompts/template-render'
+export { getTaskWritePolicy } from './prompts/loader'
 // v1.0 模型配置增强：按任务指定模型 + 连接测试
 export { resolveProviderForTask, type ProviderResolution } from './providers/task-provider-resolver'
 // v0.7 AI 视频平台对接

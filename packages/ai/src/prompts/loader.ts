@@ -35,8 +35,10 @@ import {
   VideoCostRiskResultSchema,
   VisualProfileResultSchema,
   VisualSettingResultSchema,
+  taskWritePolicy,
 } from '@sdns/core'
 import type { z } from 'zod'
+import { effectiveTaskType } from './task-types'
 export { effectiveTaskType, TEXT_CHAPTER_TASKS, isTextChapterTask } from './task-types'
 
 import generateProject from './zh-CN/project/generate-project.md?raw'
@@ -202,4 +204,8 @@ export const JSON_TASKS: ReadonlySet<NovelTaskType> = new Set(
 
 export function isJsonTask(taskType: NovelTaskType): boolean {
   return JSON_TASKS.has(taskType)
+}
+
+export function getTaskWritePolicy(taskType: NovelTaskType, templateScope?: NovelTaskType) {
+  return taskWritePolicy(effectiveTaskType(taskType, templateScope))
 }

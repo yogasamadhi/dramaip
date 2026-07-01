@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { TASK_WRITE_POLICIES } from '../packages/core/src/constants'
 
 function read(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -30,6 +31,18 @@ test('json task definitions declare schemas', () => {
   const loader = read('../packages/ai/src/prompts/loader.ts')
   const missingSchema = [...loader.matchAll(/^\s{2}([a-z0-9_]+): \{ prompt: .*?output: 'json'(?!.*schema:)/gm)].map((m) => m[1])
   assert.deepEqual(missingSchema, [])
+})
+
+test('declares write policy for every NovelTaskType', () => {
+  const types = extractNovelTaskTypes(read('../packages/core/src/types/index.ts'))
+  const policyKeys = Object.keys(TASK_WRITE_POLICIES)
+
+  assert.deepEqual(policyKeys.sort(), types.sort())
+  assert.equal(TASK_WRITE_POLICIES.rewrite_chapter.policy, 'preview_then_adopt')
+  assert.equal(TASK_WRITE_POLICIES.rewrite_ai_drama_script.policy, 'preview_then_adopt')
+  assert.equal(TASK_WRITE_POLICIES.rewrite_shot_prompt.policy, 'preview_then_adopt')
+  assert.equal(TASK_WRITE_POLICIES.generate_ai_drama_script.policy, 'conditional_preview')
+  assert.equal(TASK_WRITE_POLICIES.evaluate_ai_drama_fit.policy, 'auto_write')
 })
 
 test('creative strategy tasks have labels and task group', () => {

@@ -13,7 +13,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { AdaptationProject, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS } from '@sdns/core'
+import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -67,7 +67,7 @@ export function ScriptWorkspacePage() {
     [scripts, activeEpisodeId],
   )
 
-  // ===== AI：单集生成 / 重写 / 增强（自动 upsert） =====
+  // ===== AI：单集生成 / 重写 / 增强（按任务策略预览或写入） =====
   async function runScriptTask(episode: Episode, taskType: 'generate_ai_drama_script' | ScriptTaskType) {
     if (!adaptation) return
     setBusy(episode.id + taskType)
@@ -82,10 +82,11 @@ export function ScriptWorkspacePage() {
       })
       if (res.ok) {
         if (res.result?.kind === 'text_preview') {
-          toast.success(`${label}完成，请确认`, { id: tid })
+          toast.success(`${label}完成，预览后采用`, { id: tid })
           setTextPreview(res.result.data as TextDiffPreviewPayload)
         } else {
-          toast.success(`${label}完成`, { id: tid })
+          const policy = TASK_WRITE_POLICIES[taskType]
+          toast.success(`${label}完成${policy.policy === 'auto_write' || policy.policy === 'conditional_preview' ? '，已保存' : ''}`, { id: tid })
           setVersion((v) => v + 1)
         }
       } else {
@@ -418,7 +419,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
 
         {!script ? (
           <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-            本集还没有剧本。点击「生成剧本」，AI 会根据本集分集大纲、人物设定与前后集剧情生成完整 AI 短剧剧本。
+            本集还没有剧本。点击「生成剧本」，AI 会生成完整 AI 短剧剧本并保存；已有剧本的改写会先预览差异。
           </div>
         ) : (
           <>

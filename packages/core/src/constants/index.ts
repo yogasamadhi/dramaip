@@ -1,5 +1,5 @@
 // 常量 —— 短剧类型预设、工作台导航、任务类型映射（§5.2 / §5.3 / §10.1）
-import type { WritingRoomTargetKind } from '../types'
+import type { NovelTaskType, WritingRoomTargetKind } from '../types'
 
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = [
@@ -130,6 +130,93 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   writing_room_review: '编剧室 Agent 审稿',
   writing_room_consolidate: '编剧室整合建议',
   template_run: '模板驱动生成',
+}
+
+export type AiTaskWritePolicy = 'preview_then_adopt' | 'conditional_preview' | 'auto_write' | 'display_only'
+
+export interface AiTaskWritePolicyDefinition {
+  policy: AiTaskWritePolicy
+  label: string
+  description: string
+}
+
+export const TASK_WRITE_POLICY_LABELS: Record<AiTaskWritePolicy, string> = {
+  preview_then_adopt: '预览后采用',
+  conditional_preview: '按内容状态确认',
+  auto_write: '自动写入',
+  display_only: '仅返回结果',
+}
+
+function taskPolicy(policy: AiTaskWritePolicy, description: string): AiTaskWritePolicyDefinition {
+  return { policy, label: TASK_WRITE_POLICY_LABELS[policy], description }
+}
+
+/** AI 任务落库策略：UI 与 workflow 共同遵循，避免危险覆写绕过确认。 */
+export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinition> = {
+  generate_project: taskPolicy('preview_then_adopt', '生成项目设定，用户采用后更新项目。'),
+  generate_characters: taskPolicy('preview_then_adopt', '生成人物卡，用户采用后新增人物。'),
+  generate_book_outline: taskPolicy('preview_then_adopt', '生成全书大纲，用户采用后写入大纲。'),
+  generate_chapter_outline: taskPolicy('preview_then_adopt', '生成章节大纲，用户采用后新增大纲。'),
+  generate_chapter: taskPolicy('preview_then_adopt', '生成章节正文，用户确认差异后写入。'),
+  continue_chapter: taskPolicy('preview_then_adopt', '续写章节正文，用户确认差异后写入。'),
+  rewrite_chapter: taskPolicy('preview_then_adopt', '改写章节正文，用户确认差异后写入。'),
+  polish_chapter: taskPolicy('preview_then_adopt', '润色章节正文，用户确认差异后写入。'),
+  expand_chapter: taskPolicy('preview_then_adopt', '扩写章节正文，用户确认差异后写入。'),
+  enhance_conflict: taskPolicy('preview_then_adopt', '增强章节冲突，用户确认差异后写入。'),
+  enhance_highlight: taskPolicy('preview_then_adopt', '增强章节爽点，用户确认差异后写入。'),
+  enhance_ai_drama_feel: taskPolicy('preview_then_adopt', '增强 AI 短剧感，用户确认差异后写入。'),
+  evaluate_ai_drama_fit: taskPolicy('auto_write', '生成评分报告并自动写入评分记录。'),
+  summarize_chapter: taskPolicy('auto_write', '生成章节记忆并自动写入记忆记录。'),
+  update_character_state: taskPolicy('auto_write', '生成人物状态快照并自动写入。'),
+  extract_story_events: taskPolicy('auto_write', '提取故事事件并自动追加。'),
+  extract_foreshadowing: taskPolicy('auto_write', '提取伏笔并自动追加。'),
+  generate_character_visual_profile: taskPolicy('preview_then_adopt', '生成人物视觉档案，用户采用后写入。'),
+  generate_visual_setting: taskPolicy('preview_then_adopt', '生成视觉设定，用户采用后写入。'),
+  check_consistency: taskPolicy('display_only', '生成一致性检查结果，仅展示给用户。'),
+  build_long_context: taskPolicy('display_only', '生成长篇上下文，仅展示给用户。'),
+  analyze_beats: taskPolicy('auto_write', '分析戏剧节拍并自动写入。'),
+  analyze_highlights: taskPolicy('auto_write', '分析爽点并自动写入。'),
+  analyze_ai_video_feasibility: taskPolicy('auto_write', '分析 AI 视频可行性并自动写入。'),
+  analyze_project_ai_drama_trend: taskPolicy('auto_write', '分析全书趋势并自动写入。'),
+  enhance_hook: taskPolicy('preview_then_adopt', '强化章节钩子，用户确认差异后写入。'),
+  enhance_reversal: taskPolicy('preview_then_adopt', '强化章节反转，用户确认差异后写入。'),
+  enhance_cliffhanger: taskPolicy('preview_then_adopt', '强化章节悬念，用户确认差异后写入。'),
+  rewrite_as_ai_drama_novel: taskPolicy('preview_then_adopt', '短剧化改写章节，用户确认差异后写入。'),
+  chat_project: taskPolicy('display_only', '项目对话结果仅展示或进入后续采用流程。'),
+  create_adaptation_strategy: taskPolicy('display_only', '生成改编策略，仅展示给用户。'),
+  convert_novel_to_episodes: taskPolicy('preview_then_adopt', '生成分集大纲，用户采用后写入。'),
+  rewrite_episode_outline: taskPolicy('auto_write', '重写单集大纲并自动更新该集。'),
+  enhance_episode_hook: taskPolicy('auto_write', '增强单集钩子并自动更新该集。'),
+  enhance_episode_visuals: taskPolicy('auto_write', '增强单集关键画面并自动更新该集。'),
+  analyze_first_10_episodes: taskPolicy('auto_write', '分析前 10 集并自动写入分析报告。'),
+  generate_ai_drama_script: taskPolicy('conditional_preview', '新剧本自动写入；已有剧本改写前返回差异预览。'),
+  split_script_to_scenes: taskPolicy('auto_write', '拆分剧本场景并自动替换场景列表。'),
+  review_ai_drama_script: taskPolicy('auto_write', '生成剧本审稿并自动写入。'),
+  rewrite_ai_drama_script: taskPolicy('preview_then_adopt', '重写剧本正文，用户确认差异后写入。'),
+  enhance_dialogue_conflict: taskPolicy('preview_then_adopt', '增强剧本对白冲突，用户确认差异后写入。'),
+  enhance_episode_cliffhanger: taskPolicy('preview_then_adopt', '增强剧本集尾悬念，用户确认差异后写入。'),
+  enhance_script_visuality: taskPolicy('preview_then_adopt', '增强剧本画面感，用户确认差异后写入。'),
+  split_scene_to_shots: taskPolicy('auto_write', '拆分场景镜头并自动替换镜头列表。'),
+  generate_shot_prompt: taskPolicy('preview_then_adopt', '生成镜头 Prompt，用户确认差异后写入。'),
+  generate_negative_prompt: taskPolicy('preview_then_adopt', '生成负面 Prompt，用户确认差异后写入。'),
+  review_shot_prompt: taskPolicy('auto_write', '生成镜头审查并自动写入。'),
+  rewrite_shot_prompt: taskPolicy('preview_then_adopt', '改写镜头 Prompt，用户确认差异后写入。'),
+  optimize_prompt_for_video_platform: taskPolicy('preview_then_adopt', '优化平台 Prompt，用户确认差异后写入。'),
+  analyze_trope_freshness: taskPolicy('auto_write', '分析套路新鲜度并自动写入报告。'),
+  generate_anti_trope_variants: taskPolicy('auto_write', '生成反套路方案并自动写入。'),
+  analyze_narrative_curve: taskPolicy('auto_write', '分析叙事曲线并自动写入报告。'),
+  generate_revision_tasks: taskPolicy('auto_write', '生成修稿任务并自动写入。'),
+  run_quality_gate: taskPolicy('auto_write', '运行质量闸门并自动写入报告。'),
+  simulate_audience_reaction: taskPolicy('auto_write', '模拟观众反应并自动写入报告。'),
+  analyze_video_cost_risk: taskPolicy('auto_write', '分析视频成本/难度并自动写入报告。'),
+  extract_case_structure: taskPolicy('auto_write', '抽取样本结构并自动写入样本库。'),
+  writing_room_review: taskPolicy('display_only', '编剧室单 Agent 审稿结果仅用于汇总。'),
+  writing_room_consolidate: taskPolicy('display_only', '编剧室整合建议仅展示给用户。'),
+  template_run: taskPolicy('display_only', '模板运行结果按模板 scope 进入展示或采用流程。'),
+}
+
+export function taskWritePolicy(taskType: NovelTaskType): AiTaskWritePolicyDefinition {
+  return TASK_WRITE_POLICIES[taskType]
 }
 
 /** v0.7 视频生成 Provider 种类预设（ROADMAP v0.7 §1） */
