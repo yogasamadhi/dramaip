@@ -3,6 +3,7 @@ import type {
   AdaptationProject,
   AgentProfile,
   AiRun,
+  AiContextPreview,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
   AudienceSimulation,
@@ -160,6 +161,12 @@ export interface AiRunSummaryRow {
   failedCount: number
   totalTokens: number
   totalLatencyMs: number
+}
+
+export interface AiContextPreviewResult {
+  ok: boolean
+  error?: string
+  preview?: AiContextPreview
 }
 
 /** v0.7 视频任务操作返回（提交/查询/重试共用） */
@@ -343,6 +350,9 @@ export interface StudioApi {
   }
   aiRun: {
     list(projectId: string): Promise<AiRun[]>
+    listRecent(projectId?: string): Promise<AiRun[]>
+    contextPreview(id: string): Promise<AiContextPreviewResult>
+    exportDebugContext(id: string): Promise<ExportResult>
     summarize(): Promise<AiRunSummaryRow[]>
   }
   model: {

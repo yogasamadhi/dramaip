@@ -54,6 +54,9 @@ test('keeps high-risk channels in the shared contract', () => {
     'longTask:cancel',
     'longTask:retry',
     'batchTask:run',
+    'aiRun:listRecent',
+    'aiRun:contextPreview',
+    'aiRun:exportDebugContext',
     'project:create',
     'project:update',
     'ai:run',
@@ -96,6 +99,10 @@ test('validates creative IPC contracts', () => {
     { kind: 'scripts', adaptationProjectId: 'a1', episodeIds: ['e1'] },
   ])
   assert.throws(() => validateIpcArgs('batchTask:run', [{ kind: 'scripts' }]), /adaptationProjectId/)
+  assert.deepEqual(validateIpcArgs('aiRun:listRecent', []), [])
+  assert.deepEqual(validateIpcArgs('aiRun:listRecent', ['p1']), ['p1'])
+  assert.deepEqual(validateIpcArgs('aiRun:contextPreview', ['run1']), ['run1'])
+  assert.deepEqual(validateIpcArgs('aiRun:exportDebugContext', ['run1']), ['run1'])
   assert.deepEqual(validateIpcArgs('template:list', []), [])
   assert.throws(() => validateIpcArgs('template:list', ['extra']), /参数数量错误/)
   assert.deepEqual(validateIpcArgs('script:updateContent', ['s1', '正文']), ['s1', '正文'])

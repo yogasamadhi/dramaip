@@ -65,6 +65,9 @@ const api = {
   },
   aiRun: {
     list: (projectId: string) => invoke('aiRun:list', projectId),
+    listRecent: (projectId?: string) => invoke('aiRun:listRecent', projectId),
+    contextPreview: (id: string) => invoke('aiRun:contextPreview', id),
+    exportDebugContext: (id: string) => invoke('aiRun:exportDebugContext', id),
     // v1.0
     summarize: () => invoke('aiRun:summarize'),
   },

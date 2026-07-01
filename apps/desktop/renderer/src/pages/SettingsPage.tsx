@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cpu, DatabaseBackup, Settings, TimerReset, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, Bug, ChevronRight, Cpu, DatabaseBackup, Settings, TimerReset, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -39,6 +39,12 @@ const SETTINGS_ITEMS = [
     description: '查看 AI 调用的 Token、耗时、成功与失败统计',
     path: '/settings/usage',
     icon: BarChart3,
+  },
+  {
+    title: 'AI 诊断',
+    description: '查看上下文摘要并导出调试 JSON',
+    path: '/settings/diagnostics',
+    icon: Bug,
   },
 ]
 

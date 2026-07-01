@@ -120,6 +120,28 @@ export interface AiRun {
   createdAt: string
 }
 
+export interface AiContextPreviewSection {
+  title: string
+  charCount: number
+  estimatedTokens: number
+  excerpt: string
+}
+
+export interface AiContextPreview {
+  aiRunId: string
+  taskType: string
+  provider: string
+  model: string
+  status: AiRun['status']
+  createdAt: string
+  inputChars: number
+  estimatedInputTokens: number
+  contextChars: number
+  estimatedContextTokens: number
+  redacted: boolean
+  sections: AiContextPreviewSection[]
+}
+
 export type LongTaskKind = 'ai' | 'video' | 'batch'
 export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 

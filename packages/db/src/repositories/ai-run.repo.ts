@@ -42,6 +42,10 @@ export function createAiRun(db: DB, data: NewAiRun): AiRun {
   return row as unknown as AiRun
 }
 
+export function getAiRun(db: DB, id: string): AiRun | undefined {
+  return db.select().from(aiRuns).where(eq(aiRuns.id, id)).get() as unknown as AiRun | undefined
+}
+
 export function listAiRunsByProject(db: DB, projectId: string, limit = 100): AiRun[] {
   return db
     .select()

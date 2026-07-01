@@ -30,6 +30,9 @@ const TemplatePage = lazy(() => import('@/pages/TemplatePage').then((m) => ({ de
 const GenrePresetPage = lazy(() => import('@/pages/GenrePresetPage').then((m) => ({ default: m.GenrePresetPage })))
 const UsageStatsPage = lazy(() => import('@/pages/UsageStatsPage').then((m) => ({ default: m.UsageStatsPage })))
 const CaseStudyPage = lazy(() => import('@/pages/CaseStudyPage').then((m) => ({ default: m.CaseStudyPage })))
+const AiDiagnosticsPage = lazy(() =>
+  import('@/pages/AiDiagnosticsPage').then((m) => ({ default: m.AiDiagnosticsPage })),
+)
 
 export default function App() {
   return (
@@ -52,6 +55,7 @@ export default function App() {
         <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
         <Route path="/settings/agents" element={<AgentSettingsPage />} />
         <Route path="/settings/usage" element={<UsageStatsPage />} />
+        <Route path="/settings/diagnostics" element={<AiDiagnosticsPage />} />
         <Route path="/templates" element={<TemplatePage />} />
         <Route path="/genres" element={<GenrePresetPage />} />
         <Route path="/case-studies" element={<CaseStudyPage />} />

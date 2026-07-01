@@ -1,6 +1,8 @@
 // 项目 / 章节 / 人物 / 大纲 / 评分 CRUD（项目说明.md §17：Repository 不进 React）
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { getRepos } from '../db'
+import { createAiContextPreview, createAiRunDebugPayload } from '../ai-context-preview'
 
 export function registerProjectIpc(): void {
   const repos = () => getRepos()
@@ -71,4 +73,31 @@ export function registerProjectIpc(): void {
   ipcMain.handle('aiRun:list', (_e, projectId: string) =>
     repos().aiRun.listAiRunsByProject(repos().db, projectId),
   )
+  ipcMain.handle('aiRun:listRecent', (_e, projectId?: string) => {
+    const r = repos()
+    return projectId ? r.aiRun.listAiRunsByProject(r.db, projectId) : r.aiRun.listAllAiRuns(r.db)
+  })
+  ipcMain.handle('aiRun:contextPreview', (_e, id: string) => {
+    const r = repos()
+    const run = r.aiRun.getAiRun(r.db, id)
+    if (!run) return { ok: false, error: '未找到 AI 调用记录' }
+    return { ok: true, preview: createAiContextPreview(run) }
+  })
+  ipcMain.handle('aiRun:exportDebugContext', async (_e, id: string) => {
+    const r = repos()
+    const run = r.aiRun.getAiRun(r.db, id)
+    if (!run) return { saved: false, error: '未找到 AI 调用记录' }
+    const win = BrowserWindow.getFocusedWindow() ?? undefined
+    const res = await dialog.showSaveDialog(win!, {
+      defaultPath: `ai-run-${run.id}-debug.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (res.canceled || !res.filePath) return { saved: false }
+    try {
+      await writeFile(res.filePath, JSON.stringify(createAiRunDebugPayload(run), null, 2), 'utf8')
+      return { saved: true, path: res.filePath }
+    } catch (e) {
+      return { saved: false, error: '写盘失败：' + (e instanceof Error ? e.message : String(e)) }
+    }
+  })
 }
