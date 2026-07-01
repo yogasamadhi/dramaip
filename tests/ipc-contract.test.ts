@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
+import { readdirSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { IPC_EXACT_SCHEMAS, validateIpcArgs } from '../packages/core/src/ipc-contract'
+import { IPC_EXACT_SCHEMAS, schemasForIpcChannel, validateIpcArgs } from '../packages/core/src/ipc-contract'
+
+function registeredIpcChannels(): string[] {
+  const dir = new URL('../apps/desktop/electron/ipc/', import.meta.url)
+  return readdirSync(dir)
+    .filter((file) => file.endsWith('.ts'))
+    .flatMap((file) => {
+      const source = readFileSync(new URL(file, dir), 'utf8')
+      return [...source.matchAll(/ipcMain\.handle\('([^']+)'/g)].map((match) => match[1])
+    })
+    .sort()
+}
 
 test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('project:list', []), [])
@@ -20,6 +32,14 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
   assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
+  assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
+  assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
+})
+
+test('requires every registered Electron IPC channel to have a shared schema', () => {
+  for (const channel of registeredIpcChannels()) {
+    assert.doesNotThrow(() => schemasForIpcChannel(channel), `${channel} should have an IPC schema`)
+  }
 })
 
 test('keeps high-risk channels in the shared contract', () => {
@@ -69,6 +89,10 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('longTask:list', []), [])
   assert.deepEqual(validateIpcArgs('longTask:list', ['p1']), ['p1'])
   assert.deepEqual(validateIpcArgs('longTask:cancel', ['task1']), ['task1'])
+  assert.deepEqual(validateIpcArgs('template:list', []), [])
+  assert.throws(() => validateIpcArgs('template:list', ['extra']), /参数数量错误/)
+  assert.deepEqual(validateIpcArgs('script:updateContent', ['s1', '正文']), ['s1', '正文'])
+  assert.throws(() => validateIpcArgs('script:updateContent', ['s1', { content: '正文' }]), /参数校验失败/)
 })
 
 test('validates high-risk business IPC payload schemas', () => {

@@ -398,33 +398,137 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'export:projectPackage': [id],
 }
 
+function channelSchemas(channels: string[], schemas: z.ZodType<unknown>[]): Record<string, z.ZodType<unknown>[]> {
+  return Object.fromEntries(channels.map((channel) => [channel, schemas]))
+}
+
+export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
+  ...channelSchemas(
+    [
+      'adaptationProject:list',
+      'agent:list',
+      'caseStudy:list',
+      'genrePreset:list',
+      'template:list',
+      'templateRun:list',
+      'videoProvider:getDefault',
+      'videoProvider:list',
+      'videoTask:list',
+    ],
+    [],
+  ),
+  ...channelSchemas(
+    [
+      'adaptationProject:get',
+      'adaptationProject:delete',
+      'adaptationProject:listByProject',
+      'agent:get',
+      'agent:delete',
+      'beat:delete',
+      'beat:listByChapter',
+      'caseStudy:delete',
+      'chapter:get',
+      'chapter:delete',
+      'chapterMemory:get',
+      'chapterMemory:delete',
+      'character:delete',
+      'characterState:delete',
+      'characterState:listByCharacter',
+      'dramaTrend:get',
+      'dramaTrend:delete',
+      'episode:delete',
+      'episodeAnalysis:get',
+      'episodeAnalysis:delete',
+      'feasibility:delete',
+      'foreshadowing:delete',
+      'genrePreset:get',
+      'genrePreset:delete',
+      'highlight:delete',
+      'model:delete',
+      'outline:delete',
+      'project:get',
+      'project:delete',
+      'promptVersion:list',
+      'scene:delete',
+      'scene:listByScript',
+      'script:get',
+      'script:getByEpisode',
+      'script:delete',
+      'scriptReview:get',
+      'scriptReview:delete',
+      'shot:get',
+      'shot:delete',
+      'shot:listByEpisode',
+      'shot:listByScene',
+      'shotReview:get',
+      'shotReview:delete',
+      'storyEvent:delete',
+      'template:get',
+      'template:delete',
+      'template:listByType',
+      'templateRun:listByTemplate',
+      'videoProvider:delete',
+      'videoProvider:setDefault',
+      'videoResult:compare',
+      'videoResult:delete',
+      'videoResult:listByShot',
+      'videoResult:listByTask',
+      'videoTask:checkStatus',
+      'videoTask:get',
+      'videoTask:delete',
+      'videoTask:listByEpisode',
+      'videoTask:listByShot',
+      'visualProfile:delete',
+      'visualProfile:getByCharacter',
+      'visualSetting:delete',
+    ],
+    [id],
+  ),
+  ...channelSchemas(
+    [
+      'adaptationProject:create',
+      'beat:create',
+      'chapterMemory:create',
+      'characterState:create',
+      'episode:create',
+      'feasibility:create',
+      'foreshadowing:create',
+      'highlight:create',
+      'script:create',
+      'shot:create',
+      'storyEvent:create',
+      'visualProfile:create',
+      'visualSetting:create',
+    ],
+    [objectPayload],
+  ),
+  ...channelSchemas(
+    [
+      'adaptationProject:update',
+      'beat:update',
+      'chapterMemory:update',
+      'episode:update',
+      'foreshadowing:update',
+      'scene:update',
+      'script:update',
+      'shot:update',
+      'storyEvent:update',
+      'visualProfile:update',
+      'visualSetting:update',
+    ],
+    [id, objectPayload],
+  ),
+  'script:updateContent': [id, z.string()],
+}
+
 export function schemasForIpcChannel(channel: string): z.ZodType<unknown>[] {
   const exact = IPC_EXACT_SCHEMAS[channel]
   if (exact) return exact
 
-  const [, action = ''] = channel.split(':')
-  if (
-    action === 'listByProject' ||
-    action === 'listByCharacter' ||
-    action === 'listByScript' ||
-    action === 'listByScene' ||
-    action === 'listByEpisode' ||
-    action === 'listByShot' ||
-    action === 'listByTask' ||
-    action === 'listByType' ||
-    action === 'listByTemplate'
-  ) {
-    return [id]
-  }
-  if (action === 'list' || action === 'getDefault') return []
-  if (action === 'get' || action === 'delete' || action === 'remove' || action === 'checkStatus' || action === 'compare') {
-    return [id]
-  }
-  if (action === 'create') return [objectPayload]
-  if (action === 'update') return [id, objectPayload]
-  if (action === 'setDefault') return [id]
+  const fallback = IPC_ALLOWED_FALLBACK_SCHEMAS[channel]
+  if (fallback) return fallback
 
-  return [z.unknown()]
+  throw new Error(`未登记 IPC channel：${channel}`)
 }
 
 export function validateIpcArgs(channel: string, args: unknown[]): unknown[] {
