@@ -3,6 +3,7 @@ import { effectiveTaskType, isJsonTask } from '../prompts/loader'
 import type { ChatInput, ChatMessage } from '@sdns/core'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
+import { checkAiBudgetBeforeCall } from '../budget'
 
 export function createCallModelNode(deps: NodeDeps) {
   return async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {
@@ -32,6 +33,17 @@ export function createCallModelNode(deps: NodeDeps) {
 
     const startedAt = Date.now()
     try {
+      const budget = checkAiBudgetBeforeCall(deps.repos, state.promptText ?? '')
+      if (!budget.ok) {
+        return {
+          error: budget.error,
+          retryable: false,
+          providerName: provider.name,
+          modelName: provider.model,
+          latencyMs: Date.now() - startedAt,
+        }
+      }
+
       if (deps.onToken && provider.stream) {
         let content = ''
         for await (const token of provider.stream(input)) {

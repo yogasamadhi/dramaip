@@ -110,6 +110,17 @@ export const aiRuns = sqliteTable('ai_runs', {
   createdAt: text('created_at').notNull(),
 })
 
+export const aiBudgetSettings = sqliteTable('ai_budget_settings', {
+  id: text('id').primaryKey(),
+  singleRunTokenLimit: integer('single_run_token_limit'),
+  dailyTokenLimit: integer('daily_token_limit'),
+  singleRunCostLimit: real('single_run_cost_limit'),
+  dailyCostLimit: real('daily_cost_limit'),
+  costPer1kTokens: real('cost_per_1k_tokens').notNull().default(0),
+  currency: text('currency').notNull().default('USD'),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const longTasks = sqliteTable('long_tasks', {
   id: text('id').primaryKey(),
   kind: text('kind', { enum: ['ai', 'video', 'batch'] }).notNull(),

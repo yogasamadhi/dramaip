@@ -98,7 +98,7 @@ function main() {
   // ai_runs（直接造一条，验证 insert + list）
   const run = repos.aiRun.createAiRun(repos.db, {
     projectId: p1.id, graphName: 'novel-workflow', type: 'generate_chapter',
-    provider: 'openai', model: 'gpt-4o', input: '{}', output: '正文', status: 'success', latencyMs: 123,
+    provider: 'openai', model: 'gpt-4o', input: '{}', output: '正文', status: 'success', latencyMs: 123, tokenUsage: 800,
   })
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 1 && !!run.id, 'createAiRun + list')
 
@@ -668,13 +668,22 @@ function main() {
   // v1.0 ai_runs 汇总（summarizeAiRuns）—— 用一个独立 ai_run（p1 已被级联删除，故挂 p2）
   const runForSum = repos.aiRun.createAiRun(repos.db, {
     projectId: p2.id, graphName: 'novel-workflow', type: 'generate_chapter',
-    provider: 'openai', model: 'gpt-4o', input: '{}', output: '正文', status: 'success', latencyMs: 200,
+    provider: 'openai', model: 'gpt-4o', input: '{}', output: '正文', status: 'success', latencyMs: 200, tokenUsage: 1200,
   })
   void runForSum
+  const budget = repos.aiBudget.upsertAiBudgetSettings(repos.db, { costPer1kTokens: 0.01, dailyTokenLimit: 10_000, currency: 'USD' })
+  assert(budget.costPer1kTokens === 0.01 && budget.dailyTokenLimit === 10_000, 'upsertAiBudgetSettings 写回')
+  const patchedBudget = repos.aiBudget.upsertAiBudgetSettings(repos.db, { singleRunTokenLimit: 500 })
+  assert(patchedBudget.singleRunTokenLimit === 500 && patchedBudget.dailyTokenLimit === 10_000, 'upsertAiBudgetSettings 局部更新保留旧值')
+  assert(repos.aiBudget.getAiBudgetSettings(repos.db).currency === 'USD', 'getAiBudgetSettings')
   const summary = repos.aiRun.summarizeAiRuns(repos.db)
   const runRow = summary.find((r) => r.model === 'gpt-4o')
   assert(!!runRow && runRow.successCount >= 1, 'summarizeAiRuns 按模型聚合成功次数')
   assert(runRow?.totalLatencyMs >= 200, 'summarizeAiRuns 耗时聚合')
+  const usage = repos.aiRun.summarizeAiRunUsage(repos.db, { costPer1kTokens: budget.costPer1kTokens })
+  const usageRow = usage.find((r) => r.model === 'gpt-4o' && r.taskGroup === 'writing')
+  assert(!!usageRow && usageRow.totalTokens >= 1200, 'summarizeAiRunUsage 按任务组聚合 Token')
+  assert((usageRow?.estimatedCost ?? 0) > 0, 'summarizeAiRunUsage 估算费用')
 
   // v1.0 完整项目包导出/导入往返（ROADMAP v1.0-2）
   // 先准备一个有数据的项目 p3

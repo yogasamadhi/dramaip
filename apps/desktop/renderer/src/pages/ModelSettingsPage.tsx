@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { AlertTriangle, ArrowLeft, Check, Loader2, Plug, Plus, Trash2 } from 'lucide-react'
-import type { TaskModelBinding } from '@sdns/core'
+import type { AiBudgetSettings, TaskModelBinding } from '@sdns/core'
 import { TASK_GROUPS } from '@sdns/core'
 import { useModelStore } from '@/stores/useModelStore'
 import { ipc } from '@/lib/ipc'
@@ -32,6 +32,15 @@ interface FormState {
   allowUnsafeApiKeyStorage: boolean
 }
 
+interface BudgetFormState {
+  singleRunTokenLimit: string
+  dailyTokenLimit: string
+  singleRunCostLimit: string
+  dailyCostLimit: string
+  costPer1kTokens: string
+  currency: string
+}
+
 const EMPTY: FormState = {
   name: '',
   provider: 'openai',
@@ -42,11 +51,21 @@ const EMPTY: FormState = {
   allowUnsafeApiKeyStorage: false,
 }
 
+const EMPTY_BUDGET: BudgetFormState = {
+  singleRunTokenLimit: '',
+  dailyTokenLimit: '',
+  singleRunCostLimit: '',
+  dailyCostLimit: '',
+  costPer1kTokens: '0',
+  currency: 'USD',
+}
+
 export function ModelSettingsPage() {
   const navigate = useNavigate()
   const { configs, defaultId, fetch, create, remove, setDefault } = useModelStore()
   const [form, setForm] = useState<FormState>(EMPTY)
   const [bindings, setBindings] = useState<TaskModelBinding[]>([])
+  const [budget, setBudget] = useState<BudgetFormState>(EMPTY_BUDGET)
   const [testing, setTesting] = useState<string | null>(null)
   const [secretStatus, setSecretStatus] = useState<Awaited<ReturnType<typeof ipc.security.getSecretStorageStatus>> | null>(null)
 
@@ -58,14 +77,21 @@ export function ModelSettingsPage() {
     setSecretStatus(await ipc.security.getSecretStorageStatus())
   }
 
+  async function reloadBudget() {
+    setBudget(toBudgetForm(await ipc.model.getBudgetSettings()))
+  }
+
   useEffect(() => {
     void fetch()
     void reloadBindings()
     void reloadSecretStatus()
+    void reloadBudget()
   }, [fetch])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
+  const setBudgetField = <K extends keyof BudgetFormState>(key: K, value: BudgetFormState[K]) =>
+    setBudget((f) => ({ ...f, [key]: value }))
 
   async function handleAdd() {
     if (!form.name.trim() || !form.baseUrl.trim() || !form.model.trim()) {
@@ -114,6 +140,19 @@ export function ModelSettingsPage() {
 
   const bindingFor = (taskGroup: string) => bindings.find((b) => b.taskGroup === taskGroup)
 
+  async function saveBudget() {
+    const updated = await ipc.model.updateBudgetSettings({
+      singleRunTokenLimit: positiveInt(budget.singleRunTokenLimit),
+      dailyTokenLimit: positiveInt(budget.dailyTokenLimit),
+      singleRunCostLimit: positiveNumber(budget.singleRunCostLimit),
+      dailyCostLimit: positiveNumber(budget.dailyCostLimit),
+      costPer1kTokens: positiveNumber(budget.costPer1kTokens) ?? 0,
+      currency: budget.currency.trim() || 'USD',
+    })
+    setBudget(toBudgetForm(updated))
+    toast.success('预算已保存')
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
@@ -131,6 +170,41 @@ export function ModelSettingsPage() {
         <ScrollArea className="h-full">
           <div className="mx-auto grid max-w-4xl grid-cols-1 gap-6 p-6 md:grid-cols-2">
             <SecretStorageHealthBanner status={secretStatus} className="md:col-span-2" />
+
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">Token / 费用预算</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>单次 Token 上限</Label>
+                  <Input type="number" min="0" value={budget.singleRunTokenLimit} onChange={(e) => setBudgetField('singleRunTokenLimit', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>每日 Token 上限</Label>
+                  <Input type="number" min="0" value={budget.dailyTokenLimit} onChange={(e) => setBudgetField('dailyTokenLimit', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>每千 Token 费用</Label>
+                  <Input type="number" min="0" step="0.0001" value={budget.costPer1kTokens} onChange={(e) => setBudgetField('costPer1kTokens', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>单次费用上限</Label>
+                  <Input type="number" min="0" step="0.0001" value={budget.singleRunCostLimit} onChange={(e) => setBudgetField('singleRunCostLimit', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>每日费用上限</Label>
+                  <Input type="number" min="0" step="0.0001" value={budget.dailyCostLimit} onChange={(e) => setBudgetField('dailyCostLimit', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>币种</Label>
+                  <Input value={budget.currency} onChange={(e) => setBudgetField('currency', e.target.value)} />
+                </div>
+                <div className="md:col-span-3">
+                  <Button onClick={saveBudget}>保存预算</Button>
+                </div>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -294,4 +368,25 @@ export function ModelSettingsPage() {
       </main>
     </div>
   )
+}
+
+function toBudgetForm(settings: AiBudgetSettings): BudgetFormState {
+  return {
+    singleRunTokenLimit: settings.singleRunTokenLimit?.toString() ?? '',
+    dailyTokenLimit: settings.dailyTokenLimit?.toString() ?? '',
+    singleRunCostLimit: settings.singleRunCostLimit?.toString() ?? '',
+    dailyCostLimit: settings.dailyCostLimit?.toString() ?? '',
+    costPer1kTokens: settings.costPer1kTokens.toString(),
+    currency: settings.currency,
+  }
+}
+
+function positiveNumber(value: string): number | undefined {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+function positiveInt(value: string): number | undefined {
+  const n = positiveNumber(value)
+  return n ? Math.floor(n) : undefined
 }

@@ -1,7 +1,8 @@
-import { desc, eq, sql } from 'drizzle-orm'
+import { desc, eq, gte, sql } from 'drizzle-orm'
 import type { DB } from '../client'
 import { aiRuns } from '../schema'
-import type { AiRun, AiRunStatus } from '@sdns/core'
+import { resolveTaskGroup, TASK_GROUP_LABELS } from '@sdns/core'
+import type { AiRun, AiRunStatus, AiRunUsageSummaryRow } from '@sdns/core'
 import { genId, now, insertRow } from './util'
 
 export interface NewAiRun {
@@ -94,4 +95,52 @@ export function summarizeAiRuns(db: DB): AiRunSummaryRow[] {
     totalTokens: Number(r.totalTokens ?? 0),
     totalLatencyMs: Number(r.totalLatencyMs ?? 0),
   }))
+}
+
+export function summarizeAiRunUsage(
+  db: DB,
+  options: { since?: string; costPer1kTokens?: number } = {},
+): AiRunUsageSummaryRow[] {
+  const query = db
+    .select({
+      type: aiRuns.type,
+      model: aiRuns.model,
+      provider: aiRuns.provider,
+      successCount: sql<number>`SUM(CASE WHEN ${aiRuns.status} = 'success' THEN 1 ELSE 0 END)`,
+      failedCount: sql<number>`SUM(CASE WHEN ${aiRuns.status} = 'failed' THEN 1 ELSE 0 END)`,
+      totalTokens: sql<number>`COALESCE(SUM(${aiRuns.tokenUsage}), 0)`,
+      totalLatencyMs: sql<number>`COALESCE(SUM(${aiRuns.latencyMs}), 0)`,
+    })
+    .from(aiRuns)
+
+  const rows = (options.since ? query.where(gte(aiRuns.createdAt, options.since)) : query)
+    .groupBy(aiRuns.type, aiRuns.model, aiRuns.provider)
+    .all()
+
+  const costPer1k = Math.max(0, options.costPer1kTokens ?? 0)
+  const buckets = new Map<string, AiRunUsageSummaryRow>()
+  for (const row of rows) {
+    const taskGroup = resolveTaskGroup(String(row.type ?? ''))
+    const model = String(row.model ?? '')
+    const provider = String(row.provider ?? '')
+    const key = `${taskGroup}\u0000${model}\u0000${provider}`
+    const existing = buckets.get(key) ?? {
+      taskGroup,
+      taskGroupLabel: TASK_GROUP_LABELS[taskGroup] ?? taskGroup,
+      model,
+      provider,
+      successCount: 0,
+      failedCount: 0,
+      totalTokens: 0,
+      totalLatencyMs: 0,
+      estimatedCost: 0,
+    }
+    existing.successCount += Number(row.successCount ?? 0)
+    existing.failedCount += Number(row.failedCount ?? 0)
+    existing.totalTokens += Number(row.totalTokens ?? 0)
+    existing.totalLatencyMs += Number(row.totalLatencyMs ?? 0)
+    existing.estimatedCost = (existing.totalTokens / 1000) * costPer1k
+    buckets.set(key, existing)
+  }
+  return [...buckets.values()].sort((a, b) => b.totalTokens - a.totalTokens)
 }

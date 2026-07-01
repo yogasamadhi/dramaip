@@ -110,6 +110,17 @@ CREATE TABLE IF NOT EXISTS ai_runs (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ai_budget_settings (
+  id TEXT PRIMARY KEY,
+  single_run_token_limit INTEGER,
+  daily_token_limit INTEGER,
+  single_run_cost_limit REAL,
+  daily_cost_limit REAL,
+  cost_per_1k_tokens REAL NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS long_tasks (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,

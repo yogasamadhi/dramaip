@@ -142,6 +142,29 @@ export interface AiContextPreview {
   sections: AiContextPreviewSection[]
 }
 
+export interface AiBudgetSettings {
+  id: 'global'
+  singleRunTokenLimit?: number
+  dailyTokenLimit?: number
+  singleRunCostLimit?: number
+  dailyCostLimit?: number
+  costPer1kTokens: number
+  currency: string
+  updatedAt: string
+}
+
+export interface AiRunUsageSummaryRow {
+  taskGroup: string
+  taskGroupLabel: string
+  model: string
+  provider: string
+  successCount: number
+  failedCount: number
+  totalTokens: number
+  totalLatencyMs: number
+  estimatedCost: number
+}
+
 export type LongTaskKind = 'ai' | 'video' | 'batch'
 export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 

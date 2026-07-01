@@ -324,6 +324,24 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(raw, 'video_results', 'archive_error', 'archive_error TEXT')
     },
   },
+  {
+    version: 8,
+    name: 'ai-budget-settings',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS ai_budget_settings (
+          id TEXT PRIMARY KEY,
+          single_run_token_limit INTEGER,
+          daily_token_limit INTEGER,
+          single_run_cost_limit REAL,
+          daily_cost_limit REAL,
+          cost_per_1k_tokens REAL NOT NULL DEFAULT 0,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          updated_at TEXT NOT NULL
+        );
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

@@ -38,4 +38,11 @@ export function registerModelIpc(): void {
     repos().taskModelBinding.deleteTaskModelBinding(repos().db, taskGroup)
     return true
   })
+
+  ipcMain.handle('model:getBudgetSettings', () =>
+    repos().aiBudget.getAiBudgetSettings(repos().db),
+  )
+  ipcMain.handle('model:updateBudgetSettings', (_e, patch: unknown) =>
+    repos().aiBudget.upsertAiBudgetSettings(repos().db, patch as never),
+  )
 }

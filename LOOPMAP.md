@@ -34,7 +34,7 @@
 | L6-03 | Codex/任务系统 | done | 批量生成进度持久化 | 剧本批量生成、分镜批量生成、工作流记录 | 批量任务中断后可看到已完成/失败项；重跑只补未完成项；UI 显示进度与错误明细 |
 | L7-01 | Codex/AI 基础设施 | done | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
 | L7-02 | Codex/AI 基础设施 | done | 增加上下文预览与调试导出 | AI run、设置/诊断页 | 用户可查看本次发送给模型的上下文摘要；敏感样本文档仍不写入日志；诊断导出可复现问题 |
-| L7-03 | Codex/AI 基础设施 | todo | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
+| L7-03 | Codex/AI 基础设施 | done | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
 | L8-01 | Codex/发布工程 | done | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
 | L8-02 | Codex/发布工程 | todo | 建立跨平台打包 smoke | electron-builder、CI、release 文档 | macOS/Windows/Linux 安装包可构建；至少验证应用启动和数据库初始化；产物不包含源码外敏感文件 |
 | L8-03 | Codex/发布工程 | todo | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（44 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（46 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -307,6 +307,17 @@
 - 实现结果：新增 AI run 最近记录、上下文预览和调试导出 IPC；上下文预览从 `ai_runs.input` 解析 `# 输入材料`，按 `##` 分段展示字符数、粗略 token 与片段摘要，并对 API Key/Bearer 等敏感串脱敏；样本文档抽取仍只保存既有占位提示，不把上传原文写入 AI 记录/日志；设置页新增 AI 诊断页，可查看最近调用上下文摘要并显式导出可复现问题的调试 JSON。
 - 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ai-context-preview.test.ts tests/ipc-contract.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（44 个单元测试）；`git diff --check` 通过。
 - Diff 审查：变更限定在 AI 上下文预览/诊断导出、设置页入口、IPC schema/test 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L7-03：Token/费用预算控制
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L7-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：AI 预算设置表/仓储/迁移、AI run token/费用汇总、模型设置页预算表单、用量统计页模型/任务组明细、模型调用前预算拦截、IPC schema/test、预算单测、DB smoke、`LOOPMAP.md`。
+- 实现结果：新增全局 Token/费用预算设置，支持单次与每日 token 上限、单次与每日费用上限、每千 tokens 估价与币种；模型调用前先估算 prompt token 与当日已用量，超预算时返回“预算提醒”并避免真实 provider 调用；统计页新增按模型/任务组的 token、成功/失败和费用估算明细。
+- 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ai-budget.test.ts tests/ipc-contract.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（46 个单元测试）；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs scripts/smoke-db.ts` 通过；`git diff --check` 通过。
+- Diff 审查：变更限定在 AI 预算设置、预算前置拦截、用量汇总 UI、IPC schema/test、预算单测、DB smoke 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
 
 ### L8-01：CI 基线
 

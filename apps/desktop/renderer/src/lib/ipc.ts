@@ -4,6 +4,7 @@ import type {
   AgentProfile,
   AiRun,
   AiContextPreview,
+  AiBudgetSettings,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
   AudienceSimulation,
@@ -39,6 +40,7 @@ import type {
   ShotReview,
   StoryEvent,
   TaskModelBinding,
+  AiRunUsageSummaryRow,
   Template,
   TemplateRun,
   TextDiffPreviewPayload,
@@ -354,6 +356,7 @@ export interface StudioApi {
     contextPreview(id: string): Promise<AiContextPreviewResult>
     exportDebugContext(id: string): Promise<ExportResult>
     summarize(): Promise<AiRunSummaryRow[]>
+    summarizeUsage(): Promise<AiRunUsageSummaryRow[]>
   }
   model: {
     list(): Promise<ModelConfig[]>
@@ -368,6 +371,8 @@ export interface StudioApi {
     listTaskBindings(): Promise<TaskModelBinding[]>
     upsertTaskBinding(taskGroup: string, modelConfigId: string): Promise<TaskModelBinding>
     deleteTaskBinding(taskGroup: string): Promise<boolean>
+    getBudgetSettings(): Promise<AiBudgetSettings>
+    updateBudgetSettings(patch: Partial<Omit<AiBudgetSettings, 'id' | 'updatedAt'>>): Promise<AiBudgetSettings>
     testConnection(config: ModelConfig): Promise<ModelConnectionTestResult>
   }
   ai: {

@@ -103,6 +103,16 @@ const modelConfigInput = z
   })
   .passthrough()
 const modelConfigPatch = modelConfigInput.omit({ id: true }).partial().passthrough()
+const aiBudgetSettingsPatch = z
+  .object({
+    singleRunTokenLimit: z.number().int().positive().optional().nullable(),
+    dailyTokenLimit: z.number().int().positive().optional().nullable(),
+    singleRunCostLimit: z.number().positive().optional().nullable(),
+    dailyCostLimit: z.number().positive().optional().nullable(),
+    costPer1kTokens: z.number().min(0).optional(),
+    currency: z.string().min(1).max(12).optional(),
+  })
+  .passthrough()
 
 const videoProviderConfigInput = z
   .object({
@@ -357,6 +367,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'aiRun:contextPreview': [id],
   'aiRun:exportDebugContext': [id],
   'aiRun:summarize': [],
+  'aiRun:summarizeUsage': [],
   'model:list': [],
   'model:getDefault': [],
   'model:create': [modelConfigInput],
@@ -365,6 +376,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'model:listTaskBindings': [],
   'model:upsertTaskBinding': [taskGroupKey, id],
   'model:deleteTaskBinding': [taskGroupKey],
+  'model:getBudgetSettings': [],
+  'model:updateBudgetSettings': [aiBudgetSettingsPatch],
   'model:testConnection': [modelConfigInput],
   'ai:run': [aiTaskInput],
   'ai:runStream': [aiTaskInput, id],

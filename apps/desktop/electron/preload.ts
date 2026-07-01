@@ -70,6 +70,7 @@ const api = {
     exportDebugContext: (id: string) => invoke('aiRun:exportDebugContext', id),
     // v1.0
     summarize: () => invoke('aiRun:summarize'),
+    summarizeUsage: () => invoke('aiRun:summarizeUsage'),
   },
   model: {
     list: () => invoke('model:list'),
@@ -83,6 +84,8 @@ const api = {
     upsertTaskBinding: (taskGroup: string, modelConfigId: string) =>
       invoke('model:upsertTaskBinding', taskGroup, modelConfigId),
     deleteTaskBinding: (taskGroup: string) => invoke('model:deleteTaskBinding', taskGroup),
+    getBudgetSettings: () => invoke('model:getBudgetSettings'),
+    updateBudgetSettings: (patch: unknown) => invoke('model:updateBudgetSettings', patch),
     testConnection: (config: unknown) => invoke('model:testConnection', config),
   },
   ai: {

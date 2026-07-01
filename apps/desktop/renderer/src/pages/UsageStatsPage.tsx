@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
 import type { AiRunSummaryRow } from '@/lib/ipc'
+import type { AiBudgetSettings, AiRunUsageSummaryRow } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,15 +21,27 @@ function formatMs(ms: number): string {
 export function UsageStatsPage() {
   const navigate = useNavigate()
   const [rows, setRows] = useState<AiRunSummaryRow[]>([])
+  const [usageRows, setUsageRows] = useState<AiRunUsageSummaryRow[]>([])
+  const [budget, setBudget] = useState<AiBudgetSettings | null>(null)
 
   useEffect(() => {
-    void (async () => setRows(await ipc.aiRun.summarize()))()
+    void (async () => {
+      const [summary, usage, settings] = await Promise.all([
+        ipc.aiRun.summarize(),
+        ipc.aiRun.summarizeUsage(),
+        ipc.model.getBudgetSettings(),
+      ])
+      setRows(summary)
+      setUsageRows(usage)
+      setBudget(settings)
+    })()
   }, [])
 
   const totalTokens = rows.reduce((s, r) => s + r.totalTokens, 0)
   const totalLatency = rows.reduce((s, r) => s + r.totalLatencyMs, 0)
   const totalSuccess = rows.reduce((s, r) => s + r.successCount, 0)
   const totalFailed = rows.reduce((s, r) => s + r.failedCount, 0)
+  const totalCost = usageRows.reduce((s, r) => s + r.estimatedCost, 0)
 
   return (
     <div className="flex h-screen flex-col">
@@ -45,7 +58,7 @@ export function UsageStatsPage() {
         <ScrollArea className="h-full">
           <div className="mx-auto max-w-4xl space-y-6 p-6">
             {/* 总览 */}
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
               <Card>
                 <CardContent className="p-4">
                   <div className="text-xs text-muted-foreground">总 Token</div>
@@ -68,6 +81,12 @@ export function UsageStatsPage() {
                 <CardContent className="p-4">
                   <div className="text-xs text-muted-foreground">失败调用</div>
                   <div className="text-2xl font-semibold text-destructive">{totalFailed}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-xs text-muted-foreground">估算费用</div>
+                  <div className="text-xl font-semibold">{formatCost(totalCost, budget?.currency ?? 'USD')}</div>
                 </CardContent>
               </Card>
             </div>
@@ -115,9 +134,55 @@ export function UsageStatsPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">按模型 / 任务组</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {usageRows.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">暂无 AI 调用记录。</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[640px] text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs text-muted-foreground">
+                          <th className="py-2 pr-3">任务组</th>
+                          <th className="pr-3">模型</th>
+                          <th className="pr-3 text-right">Token</th>
+                          <th className="pr-3 text-right">费用</th>
+                          <th className="pr-3 text-right">成功</th>
+                          <th className="pr-3 text-right">失败</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {usageRows.map((r) => (
+                          <tr key={`${r.taskGroup}-${r.model}-${r.provider}`} className="border-b align-top">
+                            <td className="py-2 pr-3">{r.taskGroupLabel}</td>
+                            <td className="pr-3 text-xs text-muted-foreground">{r.model}</td>
+                            <td className="pr-3 text-right">{r.totalTokens.toLocaleString()}</td>
+                            <td className="pr-3 text-right">{formatCost(r.estimatedCost, budget?.currency ?? 'USD')}</td>
+                            <td className="pr-3 text-right">
+                              <Badge variant="secondary">{r.successCount}</Badge>
+                            </td>
+                            <td className="pr-3 text-right">
+                              {r.failedCount > 0 ? <Badge variant="destructive">{r.failedCount}</Badge> : <span className="text-muted-foreground">0</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </ScrollArea>
       </main>
     </div>
   )
+}
+
+function formatCost(value: number, currency: string): string {
+  return `${value.toFixed(4)} ${currency}`
 }

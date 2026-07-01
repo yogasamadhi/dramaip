@@ -57,6 +57,7 @@ test('keeps high-risk channels in the shared contract', () => {
     'aiRun:listRecent',
     'aiRun:contextPreview',
     'aiRun:exportDebugContext',
+    'aiRun:summarizeUsage',
     'project:create',
     'project:update',
     'ai:run',
@@ -64,6 +65,8 @@ test('keeps high-risk channels in the shared contract', () => {
     'ai:applyResult',
     'model:create',
     'model:update',
+    'model:getBudgetSettings',
+    'model:updateBudgetSettings',
     'model:upsertTaskBinding',
     'model:testConnection',
     'template:run',
@@ -103,6 +106,7 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('aiRun:listRecent', ['p1']), ['p1'])
   assert.deepEqual(validateIpcArgs('aiRun:contextPreview', ['run1']), ['run1'])
   assert.deepEqual(validateIpcArgs('aiRun:exportDebugContext', ['run1']), ['run1'])
+  assert.deepEqual(validateIpcArgs('aiRun:summarizeUsage', []), [])
   assert.deepEqual(validateIpcArgs('template:list', []), [])
   assert.throws(() => validateIpcArgs('template:list', ['extra']), /参数数量错误/)
   assert.deepEqual(validateIpcArgs('script:updateContent', ['s1', '正文']), ['s1', '正文'])
@@ -115,6 +119,14 @@ test('validates high-risk business IPC payload schemas', () => {
   ])
   assert.throws(() => validateIpcArgs('project:create', [{ title: '短剧项目' }]), /shortDramaType/)
   assert.throws(() => validateIpcArgs('ai:run', [{ taskType: 'unknown_task' }]), /taskType/)
+  assert.deepEqual(validateIpcArgs('model:getBudgetSettings', []), [])
+  assert.deepEqual(
+    validateIpcArgs('model:updateBudgetSettings', [
+      { dailyTokenLimit: 1000, costPer1kTokens: 0.01, currency: 'USD' },
+    ]),
+    [{ dailyTokenLimit: 1000, costPer1kTokens: 0.01, currency: 'USD' }],
+  )
+  assert.throws(() => validateIpcArgs('model:updateBudgetSettings', [{ dailyTokenLimit: -1 }]), /参数校验失败/)
   assert.throws(() => validateIpcArgs('model:upsertTaskBinding', ['unknown_group', 'm1']), /参数校验失败/)
   assert.throws(
     () => validateIpcArgs('template:run', [{ templateId: 't1', variables: { name: 1 } }]),

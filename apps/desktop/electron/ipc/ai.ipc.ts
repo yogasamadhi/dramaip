@@ -67,6 +67,11 @@ export function registerAiIpc(): void {
     const repos = getRepos()
     return repos.aiRun.summarizeAiRuns(repos.db)
   })
+  ipcMain.handle('aiRun:summarizeUsage', () => {
+    const repos = getRepos()
+    const settings = repos.aiBudget.getAiBudgetSettings(repos.db)
+    return repos.aiRun.summarizeAiRunUsage(repos.db, { costPer1kTokens: settings.costPer1kTokens })
+  })
 }
 
 export async function runAiTask(
