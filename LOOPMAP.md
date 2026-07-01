@@ -43,7 +43,7 @@
 | L9-03 | Codex/稳定性 | done | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
 | L10-01 | Codex/测试 | done | 增加前端 E2E smoke | Playwright 或 Electron 测试工具、核心页面 | 覆盖创建项目、创建章节、模型配置表单、项目包导入导出最小路径；CI 可运行或有本地命令 |
 | L10-02 | Codex/测试 | done | 增加 AI workflow mock 回归 | `packages/ai`、tests | 使用 mock provider 覆盖成功、JSON 修复重试、模型失败、空输出、写入内容版本；`pnpm test:unit` 通过 |
-| L10-03 | Codex/测试 | todo | 增加迁移回放测试 | `packages/db/src/migrator.ts`、fixtures、smoke | 从旧版 fixture 升级到最新 schema；重复迁移幂等；失败迁移回滚可测 |
+| L10-03 | Codex/测试 | done | 增加迁移回放测试 | `packages/db/src/migrator.ts`、fixtures、smoke | 从旧版 fixture 升级到最新 schema；重复迁移幂等；失败迁移回滚可测 |
 | L11-01 | Codex/安全 | todo | 收紧 Electron 外链与 CSP | `apps/desktop/electron/main.ts` | 默认只允许 HTTPS；localhost/dev 仅开发态；CSP 与图片/媒体来源策略有测试或手工验证记录 |
 | L11-02 | Codex/安全 | todo | 增加文件导入安全限制 | 项目包导入、样本文档导入、视频素材导入 | 文件大小、扩展名、解析失败、超大文本截断策略统一；错误提示可操作；不会阻塞主进程 |
 | L12-01 | Codex/产品体验 | todo | 增加质量闸门仪表盘 | Workspace/Adaptation/Script/Shot 页面 | 用户能看到未记忆章节、未审稿剧本、高风险镜头、失败任务；点击可跳转处理 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（53 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（55 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：E2E 已有最小 Electron smoke 但覆盖仍需扩展，自动更新运行时代码尚未接入，长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -404,6 +404,17 @@
 - 实现结果：新增 mock AI workflow 回归夹具，复用真实 JSON parser、`GenerateProjectResultSchema`、`saveAiRun` 节点和采用落库 service；覆盖成功 JSON 任务、JSON 解析失败后一轮修复重试、模型调用失败记账、空文本输出失败、采用项目生成结果并写入内容版本。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（24 个单元测试）。
 - Diff 审查：变更限定在 AI workflow mock 回归测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L10-03：迁移回放测试
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L10-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：旧库 SQL fixture、迁移回放单测、`LOOPMAP.md`。
+- 实现结果：新增 `legacy-v0.1.sql` fixture，覆盖旧版项目/人物/章节/评分/改编项目/视频结果表；迁移回放测试验证无 `schema_migrations` 的旧库可一次升级到最新版本、旧数据保留、旧表缺失列补齐、v3/v6/v8 等版本迁移生效；重复运行 `runMigrations` 返回空数组；新增失败迁移注入用例，确认迁移事务回滚且失败版本不会写入 `schema_migrations`。
+- 本地验证：`node scripts/rebuild-better-sqlite3-node.mjs` 通过（首次沙箱因用户缓存权限失败，已按规则提升权限重跑通过）；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/db-migration-replay.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（55 个单元测试）；`pnpm test:db` 通过并在结束后重编 `better-sqlite3` 回 Electron ABI；`git diff --check` 通过。
+- Diff 审查：变更限定在迁移 fixture、迁移回放/回滚测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含二进制 SQLite、构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 
