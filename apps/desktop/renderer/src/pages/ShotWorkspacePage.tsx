@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Download,
   FileJson,
+  ListVideo,
   Loader2,
   Pencil,
   Sparkles,
@@ -13,7 +14,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, Episode, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -134,6 +135,32 @@ export function ShotWorkspacePage() {
     }
   }
 
+  async function runBatchSplit() {
+    if (!adaptation || scenes.length === 0) return
+    setBusy('batch-shots')
+    const tid = toast.loading(`正在批量拆分 ${scenes.length} 个场景的镜头…`)
+    try {
+      const res = await ipc.batchTask.run({
+        kind: 'shots',
+        projectId: adaptation.sourceProjectId,
+        adaptationProjectId: adaptation.id,
+        episodeIds: episodeId ? [episodeId] : undefined,
+        sceneIds: scenes.map((scene) => scene.id),
+      })
+      const progress = batchProgressFromTask(res.task)
+      if (res.ok) {
+        toast.success(`批量拆分完成：${formatBatchProgress(progress, '个场景')}`, { id: tid })
+      } else {
+        toast.error(`批量拆分有失败：${formatBatchProgress(progress, '个场景') || res.error || '未知错误'}`, { id: tid })
+      }
+      setVersion((v) => v + 1)
+    } catch (error) {
+      toast.error('批量拆分出错：' + (error instanceof Error ? error.message : String(error)), { id: tid })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (!adaptation) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -150,6 +177,16 @@ export function ShotWorkspacePage() {
         </Button>
         <h1 className="text-base font-semibold">{adaptation.title} · 分镜与镜头 Prompt</h1>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!activeScript || scenes.length === 0 || busy !== null}
+            onClick={() => void runBatchSplit()}
+            title="批量拆分本集镜头"
+          >
+            {busy === 'batch-shots' ? <Loader2 className="animate-spin" /> : <ListVideo />}
+            批量拆分镜头
+          </Button>
           <Select
             value={episodeId}
             onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); return p }, { replace: true })}
@@ -661,4 +698,19 @@ function ShotReviewBlock({ shotId }: { shotId: string }) {
       </div>
     </div>
   )
+}
+
+function batchProgressFromTask(task: { output?: Record<string, unknown> } | undefined): BatchTaskProgress | null {
+  const output = task?.output as unknown
+  if (!output || typeof output !== 'object') return null
+  const progress = output as Partial<BatchTaskProgress>
+  return Array.isArray(progress.items) ? progress as BatchTaskProgress : null
+}
+
+function formatBatchProgress(progress: BatchTaskProgress | null, unit: string): string {
+  if (!progress) return ''
+  const parts = [`成功 ${progress.success} ${unit}`]
+  if (progress.skipped) parts.push(`跳过 ${progress.skipped} 项`)
+  if (progress.failed) parts.push(`失败 ${progress.failed} 项`)
+  return parts.join('，')
 }

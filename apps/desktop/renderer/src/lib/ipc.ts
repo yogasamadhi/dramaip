@@ -257,6 +257,22 @@ export interface LongTaskRetryResult {
   task?: LongTask
 }
 
+export interface BatchTaskRunInput {
+  kind: 'scripts' | 'shots'
+  projectId?: string
+  adaptationProjectId: string
+  episodeIds?: string[]
+  sceneIds?: string[]
+  limit?: number
+}
+
+export interface BatchTaskRunResult {
+  ok: boolean
+  error?: string
+  longTaskId?: string
+  task?: LongTask
+}
+
 export type RendererLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 /** v0.7 提交视频生成任务的输入 */
@@ -289,6 +305,9 @@ export interface StudioApi {
     get(id: string): Promise<LongTask | undefined>
     cancel(id: string): Promise<LongTaskCancelResult>
     retry(id: string): Promise<LongTaskRetryResult>
+  }
+  batchTask: {
+    run(input: BatchTaskRunInput): Promise<BatchTaskRunResult>
   }
   project: {
     list(): Promise<Project[]>

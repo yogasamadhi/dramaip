@@ -28,6 +28,9 @@ const api = {
     cancel: (id: string) => invoke('longTask:cancel', id),
     retry: (id: string) => invoke('longTask:retry', id),
   },
+  batchTask: {
+    run: (input: unknown) => invoke('batchTask:run', input),
+  },
   project: {
     list: () => invoke('project:list'),
     get: (id: string) => invoke('project:get', id),

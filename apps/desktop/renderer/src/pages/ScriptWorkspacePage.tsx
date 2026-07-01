@@ -12,7 +12,7 @@ import {
   Split,
   Wand2,
 } from 'lucide-react'
-import type { AdaptationProject, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -107,20 +107,19 @@ export function ScriptWorkspacePage() {
     }
     setBusy('batch')
     const tid = toast.loading(`正在批量生成前 ${targets.length} 集剧本…（可能需要较长时间）`)
-    let okCount = 0
-    let failCount = 0
     try {
-      for (const ep of targets) {
-        const res = await ipc.ai.run({
-          projectId: adaptation.sourceProjectId,
-          adaptationProjectId: adaptation.id,
-          episodeId: ep.id,
-          taskType: 'generate_ai_drama_script',
-        })
-        if (res.ok) okCount++
-        else failCount++
+      const res = await ipc.batchTask.run({
+        kind: 'scripts',
+        projectId: adaptation.sourceProjectId,
+        adaptationProjectId: adaptation.id,
+        episodeIds: targets.map((ep) => ep.id),
+      })
+      const progress = batchProgressFromTask(res.task)
+      if (res.ok) {
+        toast.success(`批量完成：${formatBatchProgress(progress, '集剧本')}`, { id: tid })
+      } else {
+        toast.error(`批量生成有失败：${formatBatchProgress(progress, '集剧本') || res.error || '未知错误'}`, { id: tid })
       }
-      toast.success(`批量完成：成功 ${okCount} 集${failCount ? `，失败 ${failCount} 集` : ''}`, { id: tid })
       setVersion((v) => v + 1)
     } catch (e) {
       toast.error('批量生成出错：' + (e instanceof Error ? e.message : String(e)), { id: tid })
@@ -247,6 +246,21 @@ export function ScriptWorkspacePage() {
       />
     </div>
   )
+}
+
+function batchProgressFromTask(task: { output?: Record<string, unknown> } | undefined): BatchTaskProgress | null {
+  const output = task?.output as unknown
+  if (!output || typeof output !== 'object') return null
+  const progress = output as Partial<BatchTaskProgress>
+  return Array.isArray(progress.items) ? progress as BatchTaskProgress : null
+}
+
+function formatBatchProgress(progress: BatchTaskProgress | null, unit: string): string {
+  if (!progress) return ''
+  const parts = [`成功 ${progress.success} ${unit}`]
+  if (progress.skipped) parts.push(`跳过 ${progress.skipped} 项`)
+  if (progress.failed) parts.push(`失败 ${progress.failed} 项`)
+  return parts.join('，')
 }
 
 // ---------------------------------------------------------------------------

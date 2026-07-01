@@ -257,6 +257,17 @@ const workflowRunInput = z
   })
   .passthrough()
 
+const batchTaskRunInput = z
+  .object({
+    kind: z.enum(['scripts', 'shots']),
+    projectId: maybeId,
+    adaptationProjectId: id,
+    episodeIds: stringArray.optional(),
+    sceneIds: stringArray.optional(),
+    limit: z.number().int().positive().max(200).optional(),
+  })
+  .passthrough()
+
 const revisionTaskInput = z
   .object({
     projectId: maybeId,
@@ -314,6 +325,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'longTask:get': [id],
   'longTask:cancel': [id],
   'longTask:retry': [id],
+  'batchTask:run': [batchTaskRunInput],
   'project:list': [],
   'project:create': [projectInput],
   'project:update': [id, projectPatch],

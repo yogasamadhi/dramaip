@@ -8,6 +8,7 @@ interface RuntimeEntry {
 const DEFAULT_LIMITS: Record<LongTaskKind, number> = {
   ai: 1,
   video: 1,
+  batch: 1,
 }
 
 const running = new Map<string, RuntimeEntry>()
@@ -22,7 +23,7 @@ export function beginLongTaskRun(kind: LongTaskKind, id: string): BeginLongTaskR
   const limit = DEFAULT_LIMITS[kind]
   const active = [...running.values()].filter((entry) => entry.kind === kind).length
   if (active >= limit) {
-    return { ok: false, error: `${kind === 'ai' ? 'AI' : '视频'}任务正在运行，请稍后再试。` }
+    return { ok: false, error: `${longTaskKindLabel(kind)}任务正在运行，请稍后再试。` }
   }
   const controller = new AbortController()
   running.set(id, { kind, controller })
@@ -40,6 +41,16 @@ export function finishLongTaskRun(id: string): void {
   running.delete(id)
 }
 
+export function isLongTaskRunActive(id: string): boolean {
+  return running.has(id)
+}
+
 export function longTaskConcurrencyLimit(kind: LongTaskKind): number {
   return DEFAULT_LIMITS[kind]
+}
+
+function longTaskKindLabel(kind: LongTaskKind): string {
+  if (kind === 'ai') return 'AI'
+  if (kind === 'video') return '视频'
+  return '批量'
 }

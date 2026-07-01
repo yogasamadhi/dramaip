@@ -120,8 +120,41 @@ export interface AiRun {
   createdAt: string
 }
 
-export type LongTaskKind = 'ai' | 'video'
+export type LongTaskKind = 'ai' | 'video' | 'batch'
 export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
+
+export type BatchGenerationKind = 'scripts' | 'shots'
+export type BatchTaskItemStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'canceled'
+export type BatchTaskTargetKind = 'episode' | 'scene'
+
+export interface BatchTaskItem {
+  key: string
+  label: string
+  targetKind: BatchTaskTargetKind
+  targetId: string
+  episodeId?: string
+  sceneId?: string
+  taskType: NovelTaskType
+  status: BatchTaskItemStatus
+  aiRunId?: string
+  longTaskId?: string
+  error?: string
+  updatedAt?: string
+}
+
+export interface BatchTaskProgress extends Record<string, unknown> {
+  kind: BatchGenerationKind
+  title: string
+  total: number
+  pending: number
+  running: number
+  success: number
+  failed: number
+  skipped: number
+  canceled: number
+  items: BatchTaskItem[]
+  updatedAt: string
+}
 
 export interface LongTask {
   id: string

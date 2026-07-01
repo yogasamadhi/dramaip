@@ -112,7 +112,7 @@ export const aiRuns = sqliteTable('ai_runs', {
 
 export const longTasks = sqliteTable('long_tasks', {
   id: text('id').primaryKey(),
-  kind: text('kind', { enum: ['ai', 'video'] }).notNull(),
+  kind: text('kind', { enum: ['ai', 'video', 'batch'] }).notNull(),
   status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
   title: text('title').notNull(),
   taskType: text('task_type'),

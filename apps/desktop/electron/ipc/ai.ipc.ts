@@ -71,7 +71,7 @@ export function registerAiIpc(): void {
 
 export async function runAiTask(
   input: NovelWorkflowInput,
-  options: { onToken?: (token: string) => void } = {},
+  options: { onToken?: (token: string) => void; signal?: AbortSignal } = {},
 ): Promise<{
   ok: boolean
   error?: string
@@ -88,6 +88,7 @@ export async function runAiTask(
     repos.longTask.finishLongTask(repos.db, longTaskId, 'failed', { errorMessage: runtime.error })
     return failedAiResult(longTaskId, runtime.error ?? 'AI 任务并发限制')
   }
+  const workflowAbort = mergeAbortSignals(runtime.signal, options.signal)
 
   try {
     const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
@@ -96,11 +97,11 @@ export async function runAiTask(
         repos,
         provider,
         onToken: options.onToken,
-        signal: runtime.signal,
+        signal: workflowAbort.signal,
       },
       input,
     )
-    if (isLongTaskCanceled(repos, longTaskId) || runtime.signal?.aborted) {
+    if (isLongTaskCanceled(repos, longTaskId) || workflowAbort.signal?.aborted) {
       repos.longTask.finishLongTask(repos.db, longTaskId, 'canceled', { errorMessage: '任务已取消' })
       return failedAiResult(longTaskId, '任务已取消')
     }
@@ -108,7 +109,7 @@ export async function runAiTask(
     logger.info('ai', 'run finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
     return { ...result, longTaskId }
   } catch (e) {
-    const canceled = runtime.signal?.aborted || isLongTaskCanceled(repos, longTaskId)
+    const canceled = workflowAbort.signal?.aborted || isLongTaskCanceled(repos, longTaskId)
     repos.longTask.finishLongTask(repos.db, longTaskId, canceled ? 'canceled' : 'failed', {
       errorMessage: canceled ? '任务已取消' : e instanceof Error ? e.message : String(e),
     })
@@ -119,7 +120,30 @@ export async function runAiTask(
     })
     return failedAiResult(longTaskId, canceled ? '任务已取消' : e instanceof Error ? e.message : String(e))
   } finally {
+    workflowAbort.cleanup()
     finishLongTaskRun(longTaskId)
+  }
+}
+
+function mergeAbortSignals(...signals: Array<AbortSignal | undefined>): { signal?: AbortSignal; cleanup: () => void } {
+  const active = signals.filter((signal): signal is AbortSignal => Boolean(signal))
+  if (active.length <= 1) return { signal: active[0], cleanup: () => undefined }
+  const controller = new AbortController()
+  const abort = () => controller.abort(new Error('任务已取消'))
+  const subscribed: AbortSignal[] = []
+  for (const signal of active) {
+    if (signal.aborted) {
+      abort()
+      break
+    }
+    signal.addEventListener('abort', abort, { once: true })
+    subscribed.push(signal)
+  }
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const signal of subscribed) signal.removeEventListener('abort', abort)
+    },
   }
 }
 

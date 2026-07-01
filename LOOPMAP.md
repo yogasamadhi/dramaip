@@ -31,7 +31,7 @@
 | L5-03 | Codex/视频平台 | done | 视频结果本地归档 | 视频任务服务、DB、文件存储策略 | 可将远端视频/封面保存到本地项目资产目录；记录本地路径与远端 URL；导出项目包策略明确 |
 | L6-01 | Codex/任务系统 | done | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
 | L6-02 | Codex/任务系统 | done | 支持取消、重试、并发限制 | AI workflow、HTTP provider、UI | 用户可取消运行中任务；失败任务可重试；同类任务并发可配置或有限制；取消不会产生半写入 |
-| L6-03 | Codex/任务系统 | todo | 批量生成进度持久化 | 剧本批量生成、分镜批量生成、工作流记录 | 批量任务中断后可看到已完成/失败项；重跑只补未完成项；UI 显示进度与错误明细 |
+| L6-03 | Codex/任务系统 | done | 批量生成进度持久化 | 剧本批量生成、分镜批量生成、工作流记录 | 批量任务中断后可看到已完成/失败项；重跑只补未完成项；UI 显示进度与错误明细 |
 | L7-01 | Codex/AI 基础设施 | done | 上下文 token 预算与裁剪 | `packages/ai/src/context/context-builder.ts`、`load-project-context.node.ts` | 不再无上限拼接长文本；按任务定义上下文预算；超限时使用摘要/最近记录/关键实体；新增测试覆盖大项目 |
 | L7-02 | Codex/AI 基础设施 | todo | 增加上下文预览与调试导出 | AI run、设置/诊断页 | 用户可查看本次发送给模型的上下文摘要；敏感样本文档仍不写入日志；诊断导出可复现问题 |
 | L7-03 | Codex/AI 基础设施 | todo | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（40 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
-- 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务取消/并发/批量进度仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（42 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -275,6 +275,17 @@
 - 实现结果：新增主进程 long task runtime，AI/视频本地运行各限制 1 个并发；AI workflow 节点接入 AbortSignal，取消后停止后续落库节点；视频提交/重试在取消后不再把长任务回写成成功；任务队列可取消运行中任务、可重试失败任务；新 AI long task 保存可重试输入快照，旧任务缺少快照时提示回到原页面重跑。
 - 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/task-runtime.test.ts tests/ipc-contract.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（40 个单元测试）；`git diff --check` 通过。
 - Diff 审查：变更限定在长任务取消/重试/并发控制、AI workflow 取消信号、任务监控 UI、IPC schema/test 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L6-03：批量生成进度持久化
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L6-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：批量任务进度模型、长任务 runtime、任务 IPC、AI IPC 父级取消信号、preload/renderer IPC 类型、剧本页批量生成、分镜页批量拆镜头、任务队列明细 UI、IPC/批量进度单测、`LOOPMAP.md`。
+- 实现结果：新增 `batch` 长任务类型和批量进度结构；剧本批量生成由前端循环改为主进程批量父任务，按集持久化 `pending/running/success/failed/skipped/canceled` 明细；分镜页新增“批量拆分镜头”，按场景补齐缺失镜头并跳过已有镜头；任务队列展示批量进度条、成功/失败/跳过统计和失败项错误；失败/取消的批量任务可继续执行，只重置未完成项，已成功/已跳过项不会重复写入。
+- 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/batch-progress.test.ts tests/ipc-contract.test.ts tests/task-runtime.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（42 个单元测试）；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs scripts/smoke-db.ts` 通过；`git diff --check` 通过。
+- Diff 审查：变更限定在批量任务进度持久化、剧本/分镜批量入口、任务队列明细、IPC schema/test 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
 
 ### L7-01：上下文 token 预算与裁剪
 

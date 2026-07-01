@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Ban, Bot, Clapperboard, Loader2, RefreshCw, TimerReset } from 'lucide-react'
-import type { LongTask, LongTaskStatus } from '@sdns/core'
+import { ArrowLeft, Ban, Bot, Clapperboard, ListChecks, Loader2, RefreshCw, TimerReset } from 'lucide-react'
+import type { BatchTaskProgress, LongTask, LongTaskStatus } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,8 +32,22 @@ function formatTime(value: string): string {
 }
 
 function TaskKindIcon({ task }: { task: LongTask }) {
+  if (task.kind === 'batch') return <ListChecks className="h-4 w-4 text-primary" />
   if (task.kind === 'video') return <Clapperboard className="h-4 w-4 text-primary" />
   return <Bot className="h-4 w-4 text-primary" />
+}
+
+function taskKindLabel(task: LongTask): string {
+  if (task.kind === 'batch') return '批量'
+  return task.kind === 'video' ? '视频' : 'AI'
+}
+
+function batchProgress(task: LongTask): BatchTaskProgress | null {
+  const output = task.output as unknown
+  if (!output || typeof output !== 'object') return null
+  const progress = output as Partial<BatchTaskProgress>
+  if (task.kind !== 'batch' || !Array.isArray(progress.items)) return null
+  return progress as BatchTaskProgress
 }
 
 export function TaskMonitorPage() {
@@ -132,7 +146,7 @@ export function TaskMonitorPage() {
                             <TaskKindIcon task={task} />
                             <span className="truncate text-sm font-medium">{task.title}</span>
                             <Badge variant={STATUS_VARIANT[task.status]}>{STATUS_LABEL[task.status]}</Badge>
-                            <Badge variant="outline">{task.kind === 'video' ? '视频' : 'AI'}</Badge>
+                            <Badge variant="outline">{taskKindLabel(task)}</Badge>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span>更新：{formatTime(task.updatedAt)}</span>
@@ -140,9 +154,10 @@ export function TaskMonitorPage() {
                             {task.relatedEntityId && <span className="truncate">关联：{task.relatedEntityId}</span>}
                           </div>
                           {task.errorMessage && <div className="mt-2 text-xs text-destructive">{task.errorMessage}</div>}
+                          <BatchProgressBlock progress={batchProgress(task)} />
                         </div>
                         <div className="flex gap-2">
-                          {task.status === 'failed' && (
+                          {(task.status === 'failed' || (task.kind === 'batch' && task.status === 'canceled')) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -150,7 +165,7 @@ export function TaskMonitorPage() {
                               disabled={busy === task.id}
                             >
                               {busy === task.id ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                              重试
+                              {task.kind === 'batch' ? '继续' : '重试'}
                             </Button>
                           )}
                           {(task.status === 'pending' || task.status === 'running') && (
@@ -174,6 +189,39 @@ export function TaskMonitorPage() {
           </div>
         </ScrollArea>
       </main>
+    </div>
+  )
+}
+
+function BatchProgressBlock({ progress }: { progress: BatchTaskProgress | null }) {
+  if (!progress) return null
+  const settled = progress.success + progress.skipped
+  const percent = progress.total > 0 ? Math.round((settled / progress.total) * 100) : 100
+  const failedItems = progress.items.filter((item) => item.status === 'failed')
+  return (
+    <div className="mt-3 space-y-2 text-xs">
+      <div className="h-1.5 overflow-hidden rounded bg-muted">
+        <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
+        <span>完成 {settled} / {progress.total}</span>
+        <span>成功 {progress.success}</span>
+        {progress.skipped > 0 && <span>跳过 {progress.skipped}</span>}
+        {progress.failed > 0 && <span className="text-destructive">失败 {progress.failed}</span>}
+        {progress.running > 0 && <span>运行中 {progress.running}</span>}
+      </div>
+      {failedItems.length > 0 && (
+        <div className="space-y-1">
+          {failedItems.slice(0, 4).map((item) => (
+            <div key={item.key} className="truncate text-destructive">
+              {item.label}：{item.error ?? '未知错误'}
+            </div>
+          ))}
+          {failedItems.length > 4 && (
+            <div className="text-muted-foreground">还有 {failedItems.length - 4} 项失败</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
