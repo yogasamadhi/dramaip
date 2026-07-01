@@ -40,7 +40,7 @@
 | L8-03 | Codex/发布工程 | done | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
 | L9-01 | Codex/可观测性 | done | 增加本地日志系统 | Electron main、renderer、AI/video services | 主进程、渲染进程、AI、视频任务写入滚动日志；日志不包含 API Key 或上传原文 |
 | L9-02 | Codex/可观测性 | done | 增加诊断包导出 | 设置页/帮助页、日志、环境信息 | 用户可导出诊断包；包含版本、系统、迁移版本、最近错误和脱敏日志；不包含正文/密钥，除非用户显式选择 |
-| L9-03 | Codex/稳定性 | todo | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
+| L9-03 | Codex/稳定性 | done | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
 | L10-01 | Codex/测试 | todo | 增加前端 E2E smoke | Playwright 或 Electron 测试工具、核心页面 | 覆盖创建项目、创建章节、模型配置表单、项目包导入导出最小路径；CI 可运行或有本地命令 |
 | L10-02 | Codex/测试 | done | 增加 AI workflow mock 回归 | `packages/ai`、tests | 使用 mock provider 覆盖成功、JSON 修复重试、模型失败、空输出、写入内容版本；`pnpm test:unit` 通过 |
 | L10-03 | Codex/测试 | todo | 增加迁移回放测试 | `packages/db/src/migrator.ts`、fixtures、smoke | 从旧版 fixture 升级到最新 schema；重复迁移幂等；失败迁移回滚可测 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（50 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（53 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、自动更新运行时代码尚未接入、长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -371,6 +371,17 @@
 - 实现结果：设置页“诊断与日志”可导出 `.sdnsdiag.json` 诊断包；包内包含应用版本、系统环境、数据库路径脱敏、迁移最新/已应用版本、最近错误和最近脱敏日志；默认排除正文、Prompt、AI 输入输出、raw/text 类字段和密钥；用户显式勾选后仅保留最近日志中的正文类字段片段，并仍对 API Key、Bearer、密码、cookie、token 等密钥二次脱敏。
 - 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/core/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/diagnostics.test.ts tests/ipc-contract.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（50 个单元测试）；`git diff --check` 通过。
 - Diff 审查：变更限定在诊断包导出、脱敏测试、IPC schema/test、诊断设置页和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含密码、token、证书或构建产物。
+
+### L9-03：渲染层 Error Boundary 与崩溃恢复
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L9-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：renderer 根入口、Error Boundary 组件、运行时错误元信息 helper、错误元信息单测、`LOOPMAP.md`。
+- 实现结果：React 渲染异常由全局 Error Boundary 捕获，页面显示恢复界面而不是白屏；恢复界面提供返回首页、重载页面、导出诊断包；Boundary 捕获的错误写入 renderer 日志且只记录类型、消息长度、栈帧和组件栈帧；既有 `error`/`unhandledrejection` 全局监听继续使用同一套脱敏元信息。
+- 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/renderer-runtime-errors.test.ts tests/diagnostics.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（53 个单元测试）；`git diff --check` 通过。
+- Diff 审查：变更限定在 renderer 崩溃恢复、错误日志脱敏 helper、相关单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含密码、token、证书或构建产物。
 
 ### L10-02：AI workflow mock 回归
 
