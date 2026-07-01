@@ -60,3 +60,67 @@ jobs:
 
       - name: DB smoke
         run: pnpm test:db
+
+  package-smoke:
+    name: Package smoke (${{ matrix.os }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            smoke-command: pnpm package:smoke
+          - os: windows-latest
+            smoke-command: pnpm package:smoke
+          - os: ubuntu-latest
+            smoke-command: xvfb-run -a pnpm package:smoke
+    env:
+      CI: true
+      CSC_IDENTITY_AUTO_DISCOVERY: false
+      USE_HARD_LINKS: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Linux package smoke dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools xvfb
+
+      - name: Resolve pnpm store
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native and Electron artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.pnpm-store.outputs.path }}
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            node_modules/.pnpm/**/better-sqlite3
+          key: package-${{ runner.os }}-node22-native-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            package-${{ runner.os }}-node22-native-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build native package and run smoke
+        run: ${{ matrix.smoke-command }}

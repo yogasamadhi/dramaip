@@ -96,8 +96,8 @@ importers:
         specifier: ^0.8.10
         version: 0.8.10(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))
       zod:
-        specifier: ^3.23.8
-        version: 3.23.8
+        specifier: ^3.25.32
+        version: 3.25.32
       zustand:
         specifier: ^4.5.5
         version: 4.5.5(@types/react@19.2.17)(react@19.2.7)
@@ -157,14 +157,14 @@ importers:
         specifier: workspace:*
         version: link:../db
       zod:
-        specifier: ^3.23.8
-        version: 3.23.8
+        specifier: ^3.25.32
+        version: 3.25.32
 
   packages/core:
     dependencies:
       zod:
-        specifier: ^3.23.8
-        version: 3.23.8
+        specifier: ^3.25.32
+        version: 3.25.32
 
   packages/db:
     dependencies:
@@ -4085,9 +4085,6 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@3.23.8:
-    resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
-
   zod@3.25.32:
     resolution: {integrity: sha512-OSm2xTIRfW8CV5/QKgngwmQW/8aPfGdaQFlrGoErlgg/Epm7cjb6K6VEyExfe65a3VybUOnu381edLb0dfJl0g==}
 
@@ -4782,7 +4779,7 @@ snapshots:
       '@langchain/langgraph-checkpoint': 0.0.14(@langchain/core@0.3.80)
       '@langchain/langgraph-sdk': 0.0.32
       uuid: 10.0.0
-      zod: 3.23.8
+      zod: 3.25.32
 
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
@@ -7928,8 +7925,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.32):
     dependencies:
       zod: 3.25.32
-
-  zod@3.23.8: {}
 
   zod@3.25.32: {}
 

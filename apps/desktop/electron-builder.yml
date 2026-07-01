@@ -5,9 +5,8 @@ productName: 短剧IP小说工作室
 directories:
   output: dist
   buildResources: build
-# better-sqlite3 是原生模块，必须从 asar 中解包
+# 原生模块必须从 asar 中解包；只解包二进制，避免把依赖源码目录散落进 unpacked 产物
 asarUnpack:
-  - '**/*better-sqlite3*/**'
   - '**/*.node'
 # 应用文件
 files:

@@ -8,6 +8,8 @@
     "build": "pnpm -r --filter @sdns/desktop build",
     "preview": "pnpm --filter @sdns/desktop preview",
     "package": "pnpm --filter @sdns/desktop package",
+    "package:smoke": "node scripts/package-smoke.mjs",
+    "package:smoke:dir": "node scripts/package-smoke.mjs --dir",
     "db:generate": "pnpm --filter @sdns/db generate",
     "db:push": "pnpm --filter @sdns/db push",
     "rebuild": "pnpm rebuild:electron",

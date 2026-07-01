@@ -1,11 +1,16 @@
 // Electron 主进程入口
 import { app, BrowserWindow, shell, session } from 'electron'
-import { join } from 'node:path'
-import { safeInitDatabase } from './db'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { DB_FILE_NAME } from '@sdns/core'
+import { initDatabase, safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
 
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
+const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
+const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
+const PACKAGE_SMOKE_USER_DATA_ENV = 'SDNS_PACKAGE_SMOKE_USER_DATA'
 
 function canOpenExternal(url: string): boolean {
   try {
@@ -39,6 +44,58 @@ function installSecurityHeaders(): void {
       },
     })
   })
+}
+
+function isPackageSmoke(): boolean {
+  return process.env[PACKAGE_SMOKE_ENV] === '1' || process.argv.includes('--sdns-package-smoke')
+}
+
+function getSmokeArg(name: string): string | undefined {
+  const prefix = `--${name}=`
+  return process.argv.find((arg) => arg.startsWith(prefix))?.slice(prefix.length)
+}
+
+function configurePackageSmokeUserData(): void {
+  const userData =
+    process.env[PACKAGE_SMOKE_USER_DATA_ENV] ?? getSmokeArg('sdns-package-smoke-user-data')
+  if (userData) app.setPath('userData', userData)
+}
+
+function writePackageSmokeResult(payload: Record<string, unknown>): void {
+  const resultPath =
+    process.env[PACKAGE_SMOKE_RESULT_ENV] ?? getSmokeArg('sdns-package-smoke-result')
+  if (!resultPath) return
+  mkdirSync(dirname(resultPath), { recursive: true })
+  writeFileSync(
+    resultPath,
+    JSON.stringify(
+      {
+        ...payload,
+        version: app.getVersion(),
+        platform: process.platform,
+        userData: app.getPath('userData'),
+      },
+      null,
+      2,
+    ),
+  )
+}
+
+function runPackageSmoke(): void {
+  try {
+    initDatabase()
+    registerAllIpc()
+    const dbPath = join(app.getPath('userData'), DB_FILE_NAME)
+    if (!existsSync(dbPath)) throw new Error(`数据库文件未创建：${dbPath}`)
+    writePackageSmokeResult({ ok: true, dbPath, dbExists: true })
+    app.exit(0)
+  } catch (error) {
+    writePackageSmokeResult({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    app.exit(1)
+  }
 }
 
 function createWindow(): void {
@@ -86,10 +143,16 @@ function createWindow(): void {
   }
 }
 
+configurePackageSmokeUserData()
+
 app.whenReady().then(() => {
   installProcessLoggers()
   logger.info('main', 'app ready', { version: app.getVersion(), platform: process.platform })
   installSecurityHeaders()
+  if (isPackageSmoke()) {
+    runPackageSmoke()
+    return
+  }
   safeInitDatabase()
   registerAllIpc()
   createWindow()

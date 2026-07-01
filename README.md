@@ -56,6 +56,7 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | `pnpm dev` | 启动 Electron + Vite 开发服务 |
 | `pnpm build` | 构建产物（main / preload / renderer） |
 | `pnpm package` | 用 electron-builder 打包 |
+| `pnpm package:smoke` | 构建本平台安装包并启动打包后应用验证 DB 初始化 |
 | `pnpm db:generate` | 根据 schema 生成 SQL 迁移（可选） |
 | `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
 | `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |

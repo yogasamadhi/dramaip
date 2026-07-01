@@ -105,9 +105,11 @@ pnpm format:check      # 轻量格式检查（尾随空白/文件末尾换行）
 pnpm dev                # 启动开发模式
 pnpm --filter @sdns/desktop build   # 构建产物
 pnpm package            # electron-builder 打包（mac dmg / win nsis / linux AppImage+deb）
+pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smoke
 ```
 
-- 原生模块 `better-sqlite3` 在 `electron-builder.yml` 的 `asarUnpack` 中解包。
+- 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
+- 打包 smoke 详见 [RELEASE.md](./RELEASE.md)。
 - 跑 `smoke-db.ts` 需为当前 Node ABI 重新编译 better-sqlite3（详见 [CONTRIBUTING](./CONTRIBUTING.md)）。
 
 ## 安全与运行时边界

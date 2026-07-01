@@ -16,6 +16,6 @@
     "@sdns/db": "workspace:*",
     "@langchain/langgraph": "^0.2.43",
     "@langchain/core": "^0.3.0",
-    "zod": "^3.23.8"
+    "zod": "^3.25.32"
   }
 }
