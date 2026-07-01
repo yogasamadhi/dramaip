@@ -53,7 +53,7 @@
 | L13-02 | Codex/资产管理 | done | 资产引用接入角色/镜头/视频 | VisualProfile、Shot、VideoResult UI | 角色视觉档案和镜头 Prompt 可引用本地资产；缺失文件有提示；导出/导入能保持引用或说明缺失 |
 | L14-01 | Codex/文档 | done | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
 | L14-02 | Codex/文档 | done | 增加用户手册与故障排查 | 新增用户文档、README 索引 | 覆盖安装、模型配置、备份恢复、项目包、AI 失败、视频平台配置、日志诊断 |
-| L15-01 | Codex/Release | todo | Release Candidate 全量闸门 | 全仓、CI、打包产物、文档 | `pnpm test` 通过；跨平台打包 smoke 通过；安全检查通过；文档状态更新；tag/release note 草稿完成 |
+| L15-01 | Codex/Release | done | Release Candidate 全量闸门 | 全仓、CI、打包产物、文档 | `pnpm test` 通过；跨平台打包 smoke 通过；安全检查通过；文档状态更新；tag/release note 草稿完成 |
 
 ## 2. 推荐执行批次
 
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（65 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
+- 当前已知测试基线：`pnpm test`、`pnpm package:smoke:dir`、`pnpm package:smoke` 可在 macOS arm64 本机通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
 - 现有明显缺口：E2E 已有最小 Electron smoke 但覆盖仍需扩展，自动更新运行时代码尚未接入，长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01、L12-02、L12-03、L13-01 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01 至 L15-01；LOOPMAP 表格中的生产落地优化 loop 均已完成。
 
 ## 6. Loop 执行日志
 
@@ -514,6 +514,17 @@
 - 实现结果：新增用户手册，覆盖安装启动、首次模型配置、基础创作流程、资产引用、备份恢复、项目包导入导出、视频生成配置和诊断入口；新增故障排查文档，覆盖启动/native 模块、模型配置、AI 失败、视频平台、备份恢复、项目包和日志诊断；README 文档索引增加用户手册与故障排查入口。
 - 本地验证：`pnpm format:check` 通过；`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（65 个单元测试）。
 - Diff 审查：变更限定在新增用户文档、README 索引和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
+
+### L15-01：Release Candidate 全量闸门
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L15-01 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：全量测试、打包 smoke、安全边界检查、README 发布文档索引、`RELEASE_CANDIDATE.md` 草稿、`LOOPMAP.md`。
+- 实现结果：新增 RC 草稿，记录 `v1.0.0-rc.1` 拟定 tag、release notes、macOS arm64 本机 gate 结果、安装包产物、正式打 tag 前需等待 macOS/Windows/Linux CI package-smoke matrix 全绿的要求；README 文档索引新增发布打包与 RC 草稿入口；当前基线记录更新到 L15-01。
+- 本地验证：`pnpm test` 通过；`pnpm package:smoke:dir` 通过；`pnpm package:smoke` 通过并生成 macOS arm64 `.dmg` / `.zip`；安全边界检查通过，确认 Gitee 账号字符串未进入 tracked 文件、`.env`/发布产物/`dist`/`out` 未被 git 跟踪，package smoke 已检查 `app.asar` / `app.asar.unpacked` 禁止项；`git diff --check` 通过。
+- Diff 审查：变更限定在 RC 草稿、README 发布文档索引和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 

@@ -97,6 +97,8 @@ API Key 仅本地保存于 `model_configs` 表。
 - [故障排查](./TROUBLESHOOTING.md) —— AI 失败、视频平台、数据库备份、项目包、日志诊断
 - [Prompt 工程指南](./PROMPT_GUIDE.md) —— prompt 体系、JSON 输出规范、模板系统、多 Agent 编剧室
 - [AI 视频生成链路指南](./AI_VIDEO_GUIDE.md) —— 剧本→分镜→镜头→视频平台、各平台 Prompt 要点与风险
+- [发布打包](./RELEASE.md) —— 打包 smoke、签名公证、自动更新源和回滚策略
+- [RC 草稿](./RELEASE_CANDIDATE.md) —— 发布候选检查结果、release notes 和拟定 tag 命令
 - [ROADMAP](./ROADMAP.md) —— 版本规划与进度
 
 ## AI 调用路径
