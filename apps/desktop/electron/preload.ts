@@ -10,6 +10,9 @@ function createRequestId(): string {
 }
 
 const api = {
+  search: {
+    global: (input: { query: string; limit?: number }) => invoke('search:global', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

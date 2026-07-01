@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Settings, Trash2, BookText, Clapperboard, FileText, Library, Upload, LibraryBig } from 'lucide-react'
+import { Plus, Settings, Trash2, BookText, Clapperboard, FileText, Library, Upload, LibraryBig, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useProjectsStore } from '@/stores/useProjectsStore'
 import { ipc } from '@/lib/ipc'
@@ -51,6 +51,10 @@ export function ProjectListPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate('/search')}>
+              <Search />
+              搜索
+            </Button>
             <Button variant="outline" onClick={() => navigate('/genres')}>
               <Library />
               类型库

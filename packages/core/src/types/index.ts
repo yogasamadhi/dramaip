@@ -222,6 +222,25 @@ export interface LongTask {
   finishedAt?: string
 }
 
+export type GlobalSearchResultKind = 'project' | 'character' | 'chapter' | 'script' | 'scene' | 'shot' | 'ai_run'
+
+export interface GlobalSearchResult {
+  id: string
+  kind: GlobalSearchResultKind
+  title: string
+  subtitle?: string
+  snippet?: string
+  route: string
+  projectId?: string
+  updatedAt?: string
+}
+
+export interface GlobalSearchResponse {
+  query: string
+  results: GlobalSearchResult[]
+  total: number
+}
+
 // ---------------------------------------------------------------------------
 // v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2 §1-6）
 // ---------------------------------------------------------------------------

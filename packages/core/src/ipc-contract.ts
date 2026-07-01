@@ -331,8 +331,16 @@ const caseStudyInput = z
   .passthrough()
 const caseStudyPatch = caseStudyInput.partial().passthrough()
 
+const globalSearchInput = z
+  .object({
+    query: z.string().max(120),
+    limit: z.number().int().positive().max(20).optional(),
+  })
+  .passthrough()
+
 export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'log:renderer': [logLevel, id, id, z.record(z.unknown()).optional()],
+  'search:global': [globalSearchInput],
   'diagnostic:exportPackage': [diagnosticExportOptions],
   'security:getSecretStorageStatus': [],
   'dataBackup:list': [],

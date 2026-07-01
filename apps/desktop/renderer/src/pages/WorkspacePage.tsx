@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
 import type { AiRun, Chapter, Project, TextDiffPreviewPayload } from '@sdns/core'
@@ -62,6 +62,7 @@ function formatTime(iso: string): string {
 export function WorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [project, setProject] = useState<Project | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -101,6 +102,12 @@ export function WorkspacePage() {
   useEffect(() => {
     void loadProject()
   }, [loadProject])
+  useEffect(() => {
+    const requestedSection = searchParams.get('section')
+    if (requestedSection) setSection(requestedSection)
+    const requestedChapter = searchParams.get('chapter')
+    if (requestedChapter) setSelectedId(requestedChapter)
+  }, [searchParams])
   useEffect(() => {
     if (section === 'ai-runs') void loadAiRuns()
   }, [section, loadAiRuns])

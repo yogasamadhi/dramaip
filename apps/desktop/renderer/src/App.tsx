@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 const ProjectListPage = lazy(() => import('@/pages/ProjectListPage').then((m) => ({ default: m.ProjectListPage })))
 const CreateProjectPage = lazy(() => import('@/pages/CreateProjectPage').then((m) => ({ default: m.CreateProjectPage })))
+const SearchPage = lazy(() => import('@/pages/SearchPage').then((m) => ({ default: m.SearchPage })))
 const WorkspacePage = lazy(() => import('@/pages/WorkspacePage').then((m) => ({ default: m.WorkspacePage })))
 const CreateAdaptationPage = lazy(() =>
   import('@/pages/CreateAdaptationPage').then((m) => ({ default: m.CreateAdaptationPage })),
@@ -39,6 +40,7 @@ export default function App() {
     <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
       <Routes>
         <Route path="/" element={<ProjectListPage />} />
+        <Route path="/search" element={<SearchPage />} />
         <Route path="/projects/new" element={<CreateProjectPage />} />
         <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
         <Route path="/projects/:id/*" element={<WorkspacePage />} />

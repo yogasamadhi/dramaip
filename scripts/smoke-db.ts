@@ -739,6 +739,59 @@ function main() {
   // 导入项目的旧 id 不应残留（外键已重映射到新项目）
   assert(repos.character.getCharacter(db, c3.id)?.projectId === p3.id, '导入不影响原项目数据')
 
+  const searchAdaptation = repos.adaptationProject.createAdaptationProject(db, {
+    sourceProjectId: p3.id,
+    title: '搜索用改编',
+    targetEpisodeCount: 1,
+    adaptationStyle: '搜索快节奏',
+  })
+  const searchEpisode = repos.episode.createEpisode(db, {
+    adaptationProjectId: searchAdaptation.id,
+    episodeNumber: 1,
+    title: '霓虹追逐',
+    summary: '搜索专用分集',
+    hook: '霓虹雨夜',
+    mainConflict: '街巷追逐',
+    cliffhanger: '镜头停在红伞',
+  })
+  const searchScript = repos.script.createScript(db, {
+    adaptationProjectId: searchAdaptation.id,
+    episodeId: searchEpisode.id,
+    episodeNumber: 1,
+    title: '霓虹追逐剧本',
+    content: '搜索专用剧本正文',
+  })
+  const searchScene = repos.scene.createScene(db, {
+    scriptId: searchScript.id,
+    episodeId: searchEpisode.id,
+    sceneNumber: 1,
+    title: '霓虹巷口',
+    location: '雨夜街巷',
+    visualDescription: '霓虹灯映在积水里',
+    summary: '搜索专用场景',
+    orderIndex: 0,
+  })
+  repos.shot.createShot(db, {
+    sceneId: searchScene.id,
+    episodeId: searchEpisode.id,
+    shotNumber: 1,
+    visualDescription: '搜索镜头特写',
+    videoPrompt: 'neon alley chase with red umbrella',
+  })
+
+  const characterSearch = repos.search.globalSearch(db, { query: '女主A', limit: 5 })
+  assert(characterSearch.results.some((r) => r.kind === 'character' && r.title === '女主A'), 'globalSearch 人物命中')
+  const chapterSearch = repos.search.globalSearch(db, { query: '正文内容', limit: 5 })
+  assert(chapterSearch.results.some((r) => r.kind === 'chapter' && r.route.includes('section=chapters')), 'globalSearch 章节命中')
+  const scriptSearch = repos.search.globalSearch(db, { query: '搜索专用剧本正文', limit: 5 })
+  assert(scriptSearch.results.some((r) => r.kind === 'script' && r.route.includes('/scripts')), 'globalSearch 剧本命中')
+  const sceneSearch = repos.search.globalSearch(db, { query: '霓虹灯', limit: 5 })
+  assert(sceneSearch.results.some((r) => r.kind === 'scene' && r.route.includes('/shots?')), 'globalSearch 场景命中')
+  const shotSearch = repos.search.globalSearch(db, { query: 'red umbrella', limit: 5 })
+  assert(shotSearch.results.some((r) => r.kind === 'shot' && r.route.includes('/shots?')), 'globalSearch 镜头 Prompt 命中')
+  const aiSearch = repos.search.globalSearch(db, { query: 'gpt-4o', limit: 5 })
+  assert(aiSearch.results.some((r) => r.kind === 'ai_run' && r.route.includes('section=ai-runs')), 'globalSearch AI 记录命中')
+
   console.log(failures === 0 ? '\n✅ DB SMOKE OK' : `\n❌ DB SMOKE FAILED（${failures} 项）`)
   process.exit(failures === 0 ? 0 : 1)
 }

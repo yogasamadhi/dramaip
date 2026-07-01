@@ -23,6 +23,7 @@ import type {
   Foreshadowing,
   FreshnessReport,
   GenrePreset,
+  GlobalSearchResponse,
   HighlightAnalysis,
   LongTask,
   ModelConfig,
@@ -312,6 +313,9 @@ export interface CreateVideoTaskInput {
 }
 
 export interface StudioApi {
+  search: {
+    global(input: { query: string; limit?: number }): Promise<GlobalSearchResponse>
+  }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
   }
