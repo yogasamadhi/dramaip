@@ -559,7 +559,7 @@ export interface StudioApi {
     shotsJson(sceneId: string): Promise<ExportResult>
     shotsCsv(sceneId: string): Promise<ExportResult>
     /** v1.0：完整项目包导出 */
-    projectPackage(projectId: string): Promise<ExportResult>
+    projectPackage(projectId: string, options?: { includeAssets?: boolean }): Promise<ExportResult>
   }
   // v0.8 多 Agent 编剧室与模板系统
   agent: {

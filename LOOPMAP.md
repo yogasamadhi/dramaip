@@ -49,7 +49,7 @@
 | L12-01 | Codex/产品体验 | done | 增加质量闸门仪表盘 | Workspace/Adaptation/Script/Shot 页面 | 用户能看到未记忆章节、未审稿剧本、高风险镜头、失败任务；点击可跳转处理 |
 | L12-02 | Codex/产品体验 | done | 增加全局搜索 | DB repository、renderer 页面 | 可搜索项目、人物、章节、剧本、场景、镜头 Prompt、AI 记录；大项目响应可接受 |
 | L12-03 | Codex/产品体验 | done | 完善完整工作流模板 | creative workflow、template、UI | 从小说到分集、剧本、分镜、视频任务有可复用流水线；每步可暂停、查看结果、重试 |
-| L13-01 | Codex/资产管理 | todo | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
+| L13-01 | Codex/资产管理 | done | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
 | L13-02 | Codex/资产管理 | todo | 资产引用接入角色/镜头/视频 | VisualProfile、Shot、VideoResult UI | 角色视觉档案和镜头 Prompt 可引用本地资产；缺失文件有提示；导出/导入能保持引用或说明缺失 |
 | L14-01 | Codex/文档 | todo | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
 | L14-02 | Codex/文档 | todo | 增加用户手册与故障排查 | 新增用户文档、README 索引 | 覆盖安装、模型配置、备份恢复、项目包、AI 失败、视频平台配置、日志诊断 |
@@ -137,7 +137,7 @@
 
 - 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（65 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
 - 现有明显缺口：E2E 已有最小 Electron smoke 但覆盖仍需扩展，自动更新运行时代码尚未接入，长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01、L12-02、L12-03 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01、L12-02、L12-03、L13-01 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -470,6 +470,17 @@
 - 实现结果：新增“小说到视频任务流水线”，覆盖改编前质量闸门、分集大纲、批量剧本、批量分镜和视频任务草稿；工作流步骤支持 `ai/batch/video_tasks` 三类执行；分集、剧本、分镜和视频任务交接点可暂停检查；新增 `workflow:resume` 与 `workflow:retryStep`，可从暂停或失败步骤继续；步骤记录保存 AI run、长任务或视频任务 ID；创意诊断台展示模板说明、单步运行、步骤状态、查看结果、继续和重试；视频步骤只创建 pending 草稿，不自动提交真实视频平台。
 - 本地验证：`pnpm typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ipc-contract.test.ts tests/creative-workflow-templates.test.ts` 通过；`pnpm test:unit` 通过（65 个单元测试）；`pnpm test:db` 通过，并在结束后重编 `better-sqlite3` 回 Electron ABI；`git diff --check` 通过。
 - Diff 审查：变更限定在完整工作流模板、执行/恢复/重试、批量任务复用、创意诊断台、IPC schema/test 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
+
+### L13-01：本地资产库
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L13-01 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：资产 core 类型、`project_assets` DB schema/v9 迁移、资产 repository、项目删除级联、资产目录 helper、项目包资产清单策略、视频指南、项目包/IPC/DB smoke 测试、`LOOPMAP.md`。
+- 实现结果：新增统一 `ProjectAsset` 模型，覆盖角色参考图、场景图、风格参考、视频结果、封面、源素材等资产类型；资产记录支持本地路径、相对路径、远端 URL、来源实体、文件元信息、tags、metadata、缺失/远端状态和 `exclude/reference_only/include_binary` 打包策略；新增 `project_assets` 表和 v9 迁移索引；新增资产 repository 并接入 repository 工厂；删除项目时级联清理资产清单；新增本地目录策略 helper，约定 `userData/assets/projects/<projectId>/library/<kind>/`；项目包默认不带资产，显式 `includeAssets` 时写入 manifest 清单，导入后旧本机路径不直接复用，按远端可用性标记为 `remote_only` 或 `missing`。
+- 本地验证：`pnpm typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/project-package.test.ts tests/ipc-contract.test.ts` 通过；`pnpm test:unit` 通过（65 个单元测试）；`pnpm test:db` 通过，覆盖 v9 迁移回放、资产 CRUD/source 查询、项目删除级联、项目包 includeAssets 清单和导入后远端引用状态；`git diff --check` 通过。
+- Diff 审查：变更限定在资产模型/迁移/仓储、项目包资产清单策略、导出 IPC 选项、DB smoke、项目包/IPC 测试、视频指南和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含二进制资产、构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 

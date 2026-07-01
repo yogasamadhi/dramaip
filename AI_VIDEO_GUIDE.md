@@ -68,7 +68,9 @@
 - 视频任务成功后，主进程会尝试把远端视频和封面保存到 `userData/assets/projects/<projectId>/video-results/<taskId>/`。
 - `VideoResult` 同时记录本地路径（`localVideoPath` / `localCoverImagePath`）和远端 URL（`remoteVideoUrl` / `remoteCoverImageUrl`）；UI 优先播放本地 `file://` 资源，归档失败时保留远端 URL 和 `archiveError`。
 - OpenAI Sora content endpoint 下载时会在主进程临时附加 Bearer Key，不会把 Key 写入文件、URL、日志或 `rawMeta`。
-- 当前 `.sdnspkg` 项目包不内嵌视频二进制资产，也不把本机绝对资产路径作为跨设备可恢复承诺；导入包后仍可凭远端 URL 诊断/重下。后续资产库 loop 再提供“随包包含资产/仅引用资产”的可选策略。
+- 当前 `.sdnspkg` 项目包默认不内嵌视频二进制资产，也不把本机绝对资产路径作为跨设备可恢复承诺；导入包后仍可凭远端 URL 诊断/重下。
+- 本地资产库统一使用 `userData/assets/projects/<projectId>/library/<kind>/` 作为项目资产目录，并通过 `project_assets` 表记录角色参考图、场景图、视频结果、封面等资产清单。
+- 项目包已支持资产清单策略：默认 `assetExportMode=none`；调用导出时显式传入 `includeAssets` 才会写入 `assetExportMode=manifest` 和可随包携带的资产记录。当前清单只保存引用和元数据，不写入二进制；导入到新设备后本地路径会标记为 `missing`，远端 URL 可用时标记为 `remote_only`。
 
 ### 各平台 Prompt 风险
 

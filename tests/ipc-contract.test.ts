@@ -105,6 +105,11 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('dataBackup:list', []), [])
   assert.deepEqual(validateIpcArgs('dataBackup:restore', ['/tmp/studio.db']), ['/tmp/studio.db'])
   assert.throws(() => validateIpcArgs('dataBackup:restore', ['']), /参数校验失败/)
+  assert.deepEqual(validateIpcArgs('export:projectPackage', ['p1', { includeAssets: true }]), [
+    'p1',
+    { includeAssets: true },
+  ])
+  assert.throws(() => validateIpcArgs('export:projectPackage', ['p1', { includeAssets: true, token: 'secret' }]), /Unrecognized|unrecognized|无法识别/)
   assert.deepEqual(validateIpcArgs('longTask:list', []), [])
   assert.deepEqual(validateIpcArgs('longTask:list', ['p1']), ['p1'])
   assert.deepEqual(validateIpcArgs('longTask:cancel', ['task1']), ['task1'])

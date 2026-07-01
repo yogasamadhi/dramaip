@@ -39,6 +39,7 @@ export * as shotReviewRepo from './repositories/shot-review.repo'
 export * as videoProviderConfigRepo from './repositories/video-provider-config.repo'
 export * as videoGenerationTaskRepo from './repositories/video-generation-task.repo'
 export * as videoResultRepo from './repositories/video-result.repo'
+export * as projectAssetRepo from './repositories/project-asset.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
 export * as templateRepo from './repositories/template.repo'
@@ -82,6 +83,7 @@ import * as shotReviewRepo from './repositories/shot-review.repo'
 import * as videoProviderConfigRepo from './repositories/video-provider-config.repo'
 import * as videoGenerationTaskRepo from './repositories/video-generation-task.repo'
 import * as videoResultRepo from './repositories/video-result.repo'
+import * as projectAssetRepo from './repositories/project-asset.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
 import * as genrePresetRepo from './repositories/genre-preset.repo'
@@ -128,6 +130,7 @@ export function createRepositories(db: DB) {
     videoProviderConfig: { ...videoProviderConfigRepo },
     videoTask: { ...videoGenerationTaskRepo },
     videoResult: { ...videoResultRepo },
+    asset: { ...projectAssetRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },
     template: { ...templateRepo },

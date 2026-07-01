@@ -303,7 +303,7 @@ const api = {
     shotsJson: (sceneId: string) => invoke('export:shotsJson', sceneId),
     shotsCsv: (sceneId: string) => invoke('export:shotsCsv', sceneId),
     // v1.0：完整项目包
-    projectPackage: (projectId: string) => invoke('export:projectPackage', projectId),
+    projectPackage: (projectId: string, options?: unknown) => invoke('export:projectPackage', projectId, options),
   },
   // v0.8 多 Agent 编剧室与模板系统
   agent: {

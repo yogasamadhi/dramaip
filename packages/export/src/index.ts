@@ -32,4 +32,6 @@ export {
   type ProjectPackagePreview,
   type ProjectPackage,
   type ProjectPackageMeta,
+  type ProjectPackageAssetExportMode,
+  type ProjectPackageOptions,
 } from './project-package'

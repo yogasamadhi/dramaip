@@ -396,6 +396,23 @@ function main() {
   assert(vrAReloaded.remoteCoverImageUrl === 'https://v.local/v1a.jpg', 'videoResult remoteCoverImageUrl 写回')
   assert(vrAReloaded.localCoverImagePath === '/assets/v1a.jpg', 'videoResult localCoverImagePath 写回')
   assert(vrAReloaded.archivedAt === '2026-01-01T00:00:00.000Z', 'videoResult archivedAt 写回')
+  const videoAsset = repos.asset.createAsset(repos.db, {
+    projectId: p1.id,
+    kind: 'video_result',
+    title: '版本A 成片',
+    sourceEntityKind: 'video_result',
+    sourceEntityId: vrA.id,
+    localPath: '/assets/v1a.mp4',
+    relativePath: 'projects/p1/library/video_result/v1a.mp4',
+    remoteUrl: 'https://v.local/v1a.mp4',
+    mimeType: 'video/mp4',
+    sizeBytes: 1024,
+    tags: ['成片', '择优'],
+    metadata: { shotId: shKeep.id },
+    packagePolicy: 'reference_only',
+  })
+  assert(repos.asset.listProjectAssets(repos.db, p1.id).some((a) => a.id === videoAsset.id), 'asset listProjectAssets 写回')
+  assert(repos.asset.listAssetsBySource(repos.db, 'video_result', vrA.id)[0]?.tags.length === 2, 'asset source 查询与 tags 解析')
   // 择优：标记 vrB 为最佳，应自动取消同镜头其它最佳
   const bestB = repos.videoResult.markBestVideoResult(repos.db, vrB.id)
   assert(bestB?.isBest === true, 'markBestVideoResult 置最佳')
@@ -557,6 +574,7 @@ function main() {
   assert(repos.character.listCharacters(repos.db, p1.id).length === 0, '级联：人物已删')
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 0, '级联：ai_runs 已删')
   assert(repos.longTask.listLongTasksByProject(repos.db, p1.id).length === 0, '级联：long_tasks 已删')
+  assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 0, '级联：assets 已删')
   assert(repos.project.listProjects(repos.db).length === 1, '另一项目仍在')
 
   // 持久性：重新打开同一文件
@@ -715,14 +733,32 @@ function main() {
     source: 'manual_checkpoint',
     content: '正文内容',
   })
+  repos.asset.createAsset(db, {
+    projectId: p3.id,
+    kind: 'character_reference',
+    title: '女主参考图',
+    sourceEntityKind: 'character',
+    sourceEntityId: c3.id,
+    localPath: '/assets/heroine.png',
+    relativePath: 'projects/p3/library/character_reference/heroine.png',
+    remoteUrl: 'https://asset.local/heroine.png',
+    mimeType: 'image/png',
+    originalName: 'heroine.png',
+    tags: ['角色', '参考图'],
+    metadata: { pose: '正面' },
+    packagePolicy: 'reference_only',
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
   assert(pkg.chapters.length === 1 && (pkg.chapters[0].content ?? '').includes('正文'), 'collectProjectPackage 章节+正文')
   assert(pkg.meta.version === 2, 'collectProjectPackage 版本 = 2')
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
+  assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
+  const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
+  assert(pkgWithAssets.meta.assetExportMode === 'manifest' && pkgWithAssets.assets.length === 1, 'collectProjectPackage includeAssets 携带资产清单')
   // 序列化 → 解析往返
-  const content = serializeProjectPackage(pkg)
+  const content = serializeProjectPackage(pkgWithAssets)
   const reParsed = parseProjectPackage(content)
   assert(reParsed.meta.format === 'sdns-project-package', 'parseProjectPackage 格式校验')
   // 导入 → 新项目（id 重映射，关联正确还原）
@@ -736,6 +772,7 @@ function main() {
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
   assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
   assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
+  assert(repos.asset.listProjectAssets(db, imported.id)[0]?.status === 'remote_only', 'importProjectPackage 资产清单以远端引用状态还原')
   // 导入项目的旧 id 不应残留（外键已重映射到新项目）
   assert(repos.character.getCharacter(db, c3.id)?.projectId === p3.id, '导入不影响原项目数据')
 

@@ -29,6 +29,7 @@ import {
   promptVersions,
   videoGenerationTasks,
   videoResults,
+  projectAssets,
 } from '../schema'
 import type { OptionalId, Project } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
@@ -100,6 +101,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(evaluations).where(eq(evaluations.projectId, id)).run()
   db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()
   db.delete(longTasks).where(eq(longTasks.projectId, id)).run()
+  db.delete(projectAssets).where(eq(projectAssets.projectId, id)).run()
   db.delete(chapterMemories).where(eq(chapterMemories.projectId, id)).run()
   db.delete(characterStates).where(eq(characterStates.projectId, id)).run()
   db.delete(characterVisualProfiles).where(eq(characterVisualProfiles.projectId, id)).run()

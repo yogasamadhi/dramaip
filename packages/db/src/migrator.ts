@@ -342,6 +342,42 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 9,
+    name: 'project-asset-library',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS project_assets (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          source_entity_kind TEXT,
+          source_entity_id TEXT,
+          local_path TEXT,
+          relative_path TEXT,
+          remote_url TEXT,
+          mime_type TEXT,
+          original_name TEXT,
+          sha256 TEXT,
+          size_bytes INTEGER,
+          width INTEGER,
+          height INTEGER,
+          duration_seconds REAL,
+          tags TEXT NOT NULL DEFAULT '[]',
+          metadata TEXT NOT NULL DEFAULT '{}',
+          status TEXT NOT NULL DEFAULT 'available',
+          package_policy TEXT NOT NULL DEFAULT 'reference_only',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_assets_project_kind ON project_assets(project_id, kind);
+        CREATE INDEX IF NOT EXISTS idx_project_assets_source ON project_assets(source_entity_kind, source_entity_id);
+        CREATE INDEX IF NOT EXISTS idx_project_assets_package_policy ON project_assets(project_id, package_policy);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

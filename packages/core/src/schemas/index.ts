@@ -608,6 +608,7 @@ export const ProjectPackageSchema = z
     audienceSimulations: packageEntityArray,
     narrativeCurveReports: packageEntityArray,
     workflowRuns: packageEntityArray,
+    assets: packageEntityArray.default([]),
     adaptations: z.array(PackageAdaptationSchema).default([]),
     aiRuns: packageEntityArray,
   })

@@ -49,6 +49,7 @@ import type {
   NarrativeCurveReport,
   Outline,
   Project,
+  ProjectAsset,
   QualityGateReport,
   RevisionTask,
   Scene,
@@ -68,6 +69,13 @@ export interface ProjectPackageMeta {
   version: number
   exportedAt: string
   sourceTitle: string
+  assetExportMode?: ProjectPackageAssetExportMode
+}
+
+export type ProjectPackageAssetExportMode = 'none' | 'manifest'
+
+export interface ProjectPackageOptions {
+  includeAssets?: boolean
 }
 
 export interface ProjectPackage {
@@ -96,6 +104,7 @@ export interface ProjectPackage {
   audienceSimulations: AudienceSimulation[]
   narrativeCurveReports: NarrativeCurveReport[]
   workflowRuns: WorkflowRun[]
+  assets: ProjectAsset[]
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -121,6 +130,7 @@ export interface ProjectPackageCounts {
   contentVersions: number
   caseStudies: number
   workflowRuns: number
+  assets: number
   totalRecords: number
 }
 
@@ -134,7 +144,7 @@ export interface ProjectPackagePreview {
 }
 
 /** 收集一个项目的完整数据包 */
-export function collectProjectPackage(repos: Repositories, projectId: string): ProjectPackage {
+export function collectProjectPackage(repos: Repositories, projectId: string, options: ProjectPackageOptions = {}): ProjectPackage {
   const db = repos.db
   const project = repos.project.getProject(db, projectId)
   if (!project) throw new Error(`未找到项目 ${projectId}`)
@@ -162,6 +172,9 @@ export function collectProjectPackage(repos: Repositories, projectId: string): P
   const audienceSimulations = repos.creative.listAudienceSimulations(db, projectId)
   const narrativeCurveReports = repos.creative.listNarrativeCurveReports(db, projectId)
   const workflowRuns = repos.creative.listWorkflowRuns(db, projectId)
+  const assets = options.includeAssets
+    ? repos.asset.listProjectAssets(db, projectId).filter((asset) => asset.packagePolicy !== 'exclude')
+    : []
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
 
   // 衍生改编项目
@@ -183,6 +196,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string): P
       version: PACKAGE_VERSION,
       exportedAt: new Date().toISOString(),
       sourceTitle: project.title,
+      assetExportMode: options.includeAssets ? 'manifest' : 'none',
     },
     project,
     characters,
@@ -208,6 +222,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string): P
     audienceSimulations,
     narrativeCurveReports,
     workflowRuns,
+    assets,
     adaptations,
     aiRuns,
   }
@@ -322,6 +337,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
     contentVersions: pkg.contentVersions.length,
     caseStudies: pkg.caseStudies.length,
     workflowRuns: pkg.workflowRuns.length,
+    assets: pkg.assets?.length ?? 0,
   }
   const totalRecords = Object.values(counts).reduce((sum, count) => sum + count, 1)
   return {
@@ -615,7 +631,28 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       })
     }
 
-    // 18. ai_runs（仅记录性，重新挂到新项目；保留原始 type/model 等）
+    // 18. 本地资产库清单：项目包当前只携带引用清单，不承诺旧机器绝对路径可恢复。
+    for (const a of pkg.assets ?? []) {
+      const sourceEntityId = remapTargetId(a.sourceEntityId, idMap, oldProjectId, newProject.id)
+      if (a.sourceEntityId && !sourceEntityId) continue
+      repos.asset.createAsset(db, {
+        ...stripId(a),
+        projectId: newProject.id,
+        sourceEntityId,
+        localPath: undefined,
+        status: a.remoteUrl ? 'remote_only' : 'missing',
+        packagePolicy: 'exclude',
+        metadata: {
+          ...a.metadata,
+          importedFromPackage: true,
+          originalLocalPath: a.localPath,
+          originalRelativePath: a.relativePath,
+          originalPackagePolicy: a.packagePolicy,
+        },
+      })
+    }
+
+    // 19. ai_runs（仅记录性，重新挂到新项目；保留原始 type/model 等）
     for (const r of pkg.aiRuns) {
       repos.aiRun.createAiRun(db, {
         projectId: newProject.id,

@@ -40,6 +40,12 @@ const diagnosticExportOptions = z
   })
   .strict()
   .optional()
+const projectPackageExportOptions = z
+  .object({
+    includeAssets: z.boolean().optional(),
+  })
+  .strict()
+  .optional()
 
 const projectInput = z
   .object({
@@ -461,7 +467,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'export:shotsMarkdown': [id],
   'export:shotsJson': [id],
   'export:shotsCsv': [id],
-  'export:projectPackage': [id],
+  'export:projectPackage': [id, projectPackageExportOptions],
 }
 
 function channelSchemas(channels: string[], schemas: z.ZodType<unknown>[]): Record<string, z.ZodType<unknown>[]> {

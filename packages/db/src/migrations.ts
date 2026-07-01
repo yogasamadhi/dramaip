@@ -514,6 +514,32 @@ CREATE TABLE IF NOT EXISTS video_results (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS project_assets (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  source_entity_kind TEXT,
+  source_entity_id TEXT,
+  local_path TEXT,
+  relative_path TEXT,
+  remote_url TEXT,
+  mime_type TEXT,
+  original_name TEXT,
+  sha256 TEXT,
+  size_bytes INTEGER,
+  width INTEGER,
+  height INTEGER,
+  duration_seconds REAL,
+  tags TEXT NOT NULL DEFAULT '[]',
+  metadata TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'available',
+  package_policy TEXT NOT NULL DEFAULT 'reference_only',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS agent_profiles (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

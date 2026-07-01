@@ -19,6 +19,7 @@ import {
   serializeProjectPackage,
   previewProjectPackage,
   importProjectPackage,
+  type ProjectPackageOptions,
 } from '@sdns/export'
 import { assertReadableImportFile } from '../file-security'
 
@@ -55,7 +56,7 @@ export function registerExportIpc(): void {
       `人物 ${c.characters}，章节 ${c.chapters}，大纲 ${c.outlines}，评分 ${c.evaluations}`,
       `改编 ${c.adaptations}，分集 ${c.episodes}，剧本 ${c.scripts}，场景 ${c.scenes}`,
       `记忆/分析 ${c.memories}，创意诊断 ${c.creativeReports}，内容版本 ${c.contentVersions}`,
-      `AI 记录 ${c.aiRuns}，样本 ${c.caseStudies}，工作流 ${c.workflowRuns}`,
+      `AI 记录 ${c.aiRuns}，样本 ${c.caseStudies}，工作流 ${c.workflowRuns}，资产 ${c.assets}`,
     ].join('\n')
   }
 
@@ -179,12 +180,12 @@ export function registerExportIpc(): void {
   })
 
   // v1.0：完整项目包导出 / 导入（ROADMAP v1.0-2）
-  ipcMain.handle('export:projectPackage', async (_e, projectId: string) => {
+  ipcMain.handle('export:projectPackage', async (_e, projectId: string, options?: ProjectPackageOptions) => {
     const r = repos()
     try {
       const project = r.project.getProject(r.db, projectId)
       if (!project) return { ok: false, error: '未找到项目' }
-      const pkg = collectProjectPackage(r, projectId)
+      const pkg = collectProjectPackage(r, projectId, options)
       const content = serializeProjectPackage(pkg)
       const res = await saveFile(`${project.title}.sdnspkg`, content, [
         { name: '项目包', extensions: ['sdnspkg'] },

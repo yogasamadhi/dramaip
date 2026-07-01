@@ -47,6 +47,7 @@ function minimalPackage(): ProjectPackage {
     audienceSimulations: [],
     narrativeCurveReports: [],
     workflowRuns: [],
+    assets: [],
     adaptations: [
       {
         adaptation: { id: 'a1', sourceProjectId: 'p1', title: 'Demo Adaptation' },
@@ -66,6 +67,7 @@ test('serializes and parses a project package roundtrip', () => {
   assert.equal(parsed.meta.version, PACKAGE_VERSION)
   assert.equal(parsed.project.title, 'Demo Project')
   assert.equal(parsed.characters.length, 1)
+  assert.deepEqual(parsed.assets, [])
   assert.equal(parsed.adaptations[0].scripts[0].scenes.length, 1)
 })
 
@@ -81,6 +83,7 @@ test('previews project package version, title, and data scale', () => {
   assert.equal(preview.counts.scripts, 1)
   assert.equal(preview.counts.scenes, 1)
   assert.equal(preview.counts.contentVersions, 1)
+  assert.equal(preview.counts.assets, 0)
   assert.equal(preview.counts.aiRuns, 1)
   assert.equal(preview.counts.totalRecords, 9)
 })

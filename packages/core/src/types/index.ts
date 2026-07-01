@@ -791,6 +791,48 @@ export interface VideoProvider {
   getTaskStatus(remoteTaskId: string): Promise<VideoProviderTaskState>
 }
 
+// ---------------------------------------------------------------------------
+// v1.2 本地资产库
+// ---------------------------------------------------------------------------
+
+export type ProjectAssetKind =
+  | 'character_reference'
+  | 'scene_reference'
+  | 'style_reference'
+  | 'video_result'
+  | 'cover_image'
+  | 'source_media'
+  | 'other'
+export type ProjectAssetStatus = 'available' | 'missing' | 'remote_only'
+export type ProjectAssetPackagePolicy = 'exclude' | 'reference_only' | 'include_binary'
+export type ProjectAssetSourceKind = 'project' | 'character' | 'visual_profile' | 'visual_setting' | 'episode' | 'script' | 'scene' | 'shot' | 'video_result' | 'manual'
+
+export interface ProjectAsset {
+  id: string
+  projectId: string
+  kind: ProjectAssetKind
+  title: string
+  description?: string
+  sourceEntityKind?: ProjectAssetSourceKind
+  sourceEntityId?: string
+  localPath?: string
+  relativePath?: string
+  remoteUrl?: string
+  mimeType?: string
+  originalName?: string
+  sha256?: string
+  sizeBytes?: number
+  width?: number
+  height?: number
+  durationSeconds?: number
+  tags: string[]
+  metadata: Record<string, unknown>
+  status: ProjectAssetStatus
+  packagePolicy: ProjectAssetPackagePolicy
+  createdAt: string
+  updatedAt: string
+}
+
 /** 模型配置（对应 model_configs 表，§8） */
 export interface ModelConfig {
   id: string

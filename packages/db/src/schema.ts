@@ -532,6 +532,34 @@ export const videoResults = sqliteTable('video_results', {
   createdAt: text('created_at').notNull(),
 })
 
+export const projectAssets = sqliteTable('project_assets', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  kind: text('kind', {
+    enum: ['character_reference', 'scene_reference', 'style_reference', 'video_result', 'cover_image', 'source_media', 'other'],
+  }).notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  sourceEntityKind: text('source_entity_kind'),
+  sourceEntityId: text('source_entity_id'),
+  localPath: text('local_path'),
+  relativePath: text('relative_path'),
+  remoteUrl: text('remote_url'),
+  mimeType: text('mime_type'),
+  originalName: text('original_name'),
+  sha256: text('sha256'),
+  sizeBytes: integer('size_bytes'),
+  width: integer('width'),
+  height: integer('height'),
+  durationSeconds: real('duration_seconds'),
+  tags: text('tags').notNull().default('[]'),
+  metadata: text('metadata').notNull().default('{}'),
+  status: text('status', { enum: ['available', 'missing', 'remote_only'] }).notNull().default('available'),
+  packagePolicy: text('package_policy', { enum: ['exclude', 'reference_only', 'include_binary'] }).notNull().default('reference_only'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
 
 export const agentProfiles = sqliteTable('agent_profiles', {
