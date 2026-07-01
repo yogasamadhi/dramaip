@@ -37,7 +37,7 @@
 | L7-03 | Codex/AI 基础设施 | done | Token/费用预算控制 | 模型配置、AI run summary、UI | 可设置单次/每日 token 或费用提醒；超预算前提示；统计页按模型/任务组展示消耗 |
 | L8-01 | Codex/发布工程 | done | 建立 CI 基线 | `.github/workflows`、package scripts、文档 | CI 至少运行 install、typecheck、unit、DB smoke；原生模块缓存策略明确；PR 失败可定位 |
 | L8-02 | Codex/发布工程 | done | 建立跨平台打包 smoke | electron-builder、CI、release 文档 | macOS/Windows/Linux 安装包可构建；至少验证应用启动和数据库初始化；产物不包含源码外敏感文件 |
-| L8-03 | Codex/发布工程 | todo | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
+| L8-03 | Codex/发布工程 | done | 完成签名、公证与自动更新设计 | `electron-builder.yml`、发布文档 | mac hardened runtime 配置完整；notarization/签名变量文档化；自动更新源与回滚策略明确 |
 | L9-01 | Codex/可观测性 | done | 增加本地日志系统 | Electron main、renderer、AI/video services | 主进程、渲染进程、AI、视频任务写入滚动日志；日志不包含 API Key 或上传原文 |
 | L9-02 | Codex/可观测性 | todo | 增加诊断包导出 | 设置页/帮助页、日志、环境信息 | 用户可导出诊断包；包含版本、系统、迁移版本、最近错误和脱敏日志；不包含正文/密钥，除非用户显式选择 |
 | L9-03 | Codex/稳定性 | todo | 增加渲染层 Error Boundary 与崩溃恢复 | `apps/desktop/renderer/src`、main 进程事件 | 页面异常不白屏；提供返回首页/重载/导出诊断；未处理 promise rejection 有日志 |
@@ -136,8 +136,8 @@
 ## 5. 当前基线记录
 
 - 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（46 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
-- 现有明显缺口：无 E2E、无签名/公证/自动更新闭环、长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 现有明显缺口：无 E2E、自动更新运行时代码尚未接入、长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -339,6 +339,17 @@
 - 实现结果：新增 `package-smoke` CI job，在 macOS/Windows/Linux 原生 runner 上运行本平台安装包构建；新增本地/CI 共用的 package smoke 脚本，检查预期安装包、`app.asar`/`app.asar.unpacked` 禁止项，并通过 Electron runner 加载 packaged `app.asar`，使用临时 `userData` 验证主进程启动与 `studio.db` 初始化；主进程新增仅 smoke 环境/参数触发的无窗口启动出口；`asarUnpack` 收紧为只解包 `.node` 二进制；workspace zod 统一到 `3.25.32`，修复 packaged runtime 中 `zod/v3` 子路径不可解析的问题。
 - 本地验证：`pnpm install --frozen-lockfile --offline --ignore-scripts` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/core/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（46 个单元测试）；`node scripts/package-smoke.mjs --dir` 通过；`node scripts/package-smoke.mjs --skip-build` 通过并生成 macOS `.dmg`/`.zip` 后完成 DB 初始化 smoke；`node scripts/rebuild-better-sqlite3-node.mjs`、`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs scripts/smoke-db.ts`、`node_modules/.bin/electron-rebuild -f -w better-sqlite3` 通过；`git diff --check` 通过。
 - Diff 审查：变更限定在打包 smoke、CI 发布关卡、主进程 smoke 出口、打包依赖兼容、发布文档和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；本地 `dist` 产物和 node_modules 修复不纳入提交。
+
+### L8-03：签名、公证与自动更新设计
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已确认 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L8-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`electron-builder.yml` mac hardened runtime/entitlements/afterSign 配置、mac entitlements 文件、notarize hook、`RELEASE.md` 签名/公证/自动更新与回滚策略、`LOOPMAP.md`。
+- 实现结果：macOS 打包配置补齐 entitlements 与 `afterSign` 公证 hook；hook 在缺少 `APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` 时 no-op，避免影响本地和 PR smoke；发布文档明确 macOS/Windows 签名变量、Apple notarization 变量、generic HTTPS 更新源目录、stable/beta 通道和 metadata 回滚策略；`publish` 源改为明确的 generic HTTPS 占位源，真实发布环境需覆盖为公司控制域名。
+- 本地验证：`node --check scripts/notarize-mac.cjs` 通过；`node scripts/package-smoke.mjs --dir --skip-build` 通过，日志显示 `[notarize] skipped` 且 packaged `app.asar` 完成临时 `studio.db` 初始化；`git diff --check` 通过。
+- Diff 审查：变更限定在签名/公证设计配置、notarize hook、发布策略文档和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含任何证书、密码、token 或真实更新源密钥。
 
 ### L9-01：本地日志系统
 
