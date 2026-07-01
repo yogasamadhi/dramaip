@@ -13,6 +13,13 @@ const api = {
   search: {
     global: (input: { query: string; limit?: number }) => invoke('search:global', input),
   },
+  asset: {
+    listByProject: (projectId: string) => invoke('asset:listByProject', projectId),
+    listBySource: (sourceEntityKind: string, sourceEntityId: string) => invoke('asset:listBySource', sourceEntityKind, sourceEntityId),
+    create: (data: unknown) => invoke('asset:create', data),
+    update: (id: string, patch: unknown) => invoke('asset:update', id, patch),
+    remove: (id: string) => invoke('asset:delete', id),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

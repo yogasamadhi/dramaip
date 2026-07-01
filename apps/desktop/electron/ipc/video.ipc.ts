@@ -1,6 +1,7 @@
 // v0.7 AI 视频平台对接 IPC（ROADMAP v0.7 §3）
 // —— Provider 配置 CRUD + 视频生成任务操作（提交/查询/重试/对比/择优）
 import { ipcMain } from 'electron'
+import type { ProjectAsset, VideoGenerationTask, VideoResult } from '@sdns/core'
 import { getRepos } from '../db'
 import {
   createVideoGenerationTask,
@@ -80,6 +81,7 @@ export function registerVideoIpc(): void {
           r.videoTask.updateVideoTask(r.db, result.task.id, { status: 'canceled' })
           return { ok: false, longTaskId, error: '任务已取消', task: result.task, results: result.results }
         }
+        syncVideoResultAssets(r, result.task, result.results)
         syncVideoLongTask(r, longTaskId, result.task, result.results)
         logger.info('video', 'task create finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
         return { ok: true, longTaskId, ...result }
@@ -102,6 +104,7 @@ export function registerVideoIpc(): void {
     try {
       const result = await checkVideoTaskStatus({ repos: r, videoAssetArchiver }, taskId)
       const longTask = result.task ? r.longTask.getLongTaskByRelatedEntity(r.db, 'video', result.task.id) : undefined
+      syncVideoResultAssets(r, result.task, result.results)
       if (longTask) syncVideoLongTask(r, longTask.id, result.task, result.results)
       logger.info('video', 'task status checked', { longTaskId: longTask?.id, videoTaskId: taskId, status: result.task.status })
       return { ok: true, longTaskId: longTask?.id, ...result }
@@ -142,6 +145,7 @@ export function registerVideoIpc(): void {
         r.videoTask.updateVideoTask(r.db, result.task.id, { status: 'canceled' })
         return { ok: false, longTaskId, error: '任务已取消', task: result.task, results: result.results }
       }
+      syncVideoResultAssets(r, result.task, result.results)
       syncVideoLongTask(r, longTaskId, result.task, result.results)
       logger.info('video', 'task retry finished', { longTaskId, videoTaskId: result.task.id, status: result.task.status })
       return { ok: true, longTaskId, ...result }
@@ -161,9 +165,11 @@ export function registerVideoIpc(): void {
     repos().videoTask.updateVideoTask(repos().db, id, patch as never),
   )
   ipcMain.handle('videoTask:delete', (_e, id: string) => {
-    const db = repos().db
-    repos().videoResult.deleteVideoResultsByTask(db, id)
-    repos().videoTask.deleteVideoTask(db, id)
+    const r = repos()
+    const db = r.db
+    for (const result of r.videoResult.listVideoResultsByTask(db, id)) deleteAssetsByVideoResult(r, result.id)
+    r.videoResult.deleteVideoResultsByTask(db, id)
+    r.videoTask.deleteVideoTask(db, id)
     return true
   })
 
@@ -187,7 +193,9 @@ export function registerVideoIpc(): void {
     repos().videoResult.updateVideoResult(repos().db, id, patch as never),
   )
   ipcMain.handle('videoResult:delete', (_e, id: string) => {
-    repos().videoResult.deleteVideoResult(repos().db, id)
+    const r = repos()
+    deleteAssetsByVideoResult(r, id)
+    r.videoResult.deleteVideoResult(r.db, id)
     return true
   })
 }
@@ -250,4 +258,66 @@ function syncVideoLongTask(
     relatedEntityId: task.id,
     output,
   })
+}
+
+function syncVideoResultAssets(
+  repos: ReturnType<typeof getRepos>,
+  task: VideoGenerationTask | undefined,
+  results: VideoResult[] | undefined,
+): void {
+  if (!task?.projectId || !Array.isArray(results)) return
+  for (const result of results) {
+    if (result.resultVideoUrl || result.localVideoPath || result.remoteVideoUrl) {
+      upsertVideoAsset(repos, result, {
+        projectId: task.projectId,
+        kind: 'video_result',
+        title: `视频结果 ${result.id.slice(0, 8)}`,
+        localPath: result.localVideoPath,
+        remoteUrl: firstHttpUrl(result.remoteVideoUrl, result.resultVideoUrl),
+        mimeType: 'video/mp4',
+        tags: ['视频结果'],
+        metadata: { taskId: result.taskId, shotId: result.shotId, archivedAt: result.archivedAt, archiveError: result.archiveError },
+      })
+    }
+    if (result.coverImageUrl || result.localCoverImagePath || result.remoteCoverImageUrl) {
+      upsertVideoAsset(repos, result, {
+        projectId: task.projectId,
+        kind: 'cover_image',
+        title: `视频封面 ${result.id.slice(0, 8)}`,
+        localPath: result.localCoverImagePath,
+        remoteUrl: firstHttpUrl(result.remoteCoverImageUrl, result.coverImageUrl),
+        mimeType: 'image/jpeg',
+        tags: ['视频封面'],
+        metadata: { taskId: result.taskId, shotId: result.shotId, videoResultId: result.id },
+      })
+    }
+  }
+}
+
+function upsertVideoAsset(
+  repos: ReturnType<typeof getRepos>,
+  result: VideoResult,
+  data: Pick<ProjectAsset, 'projectId' | 'kind' | 'title' | 'tags' | 'metadata'> & Pick<Partial<ProjectAsset>, 'localPath' | 'remoteUrl' | 'mimeType'>,
+): void {
+  const status: ProjectAsset['status'] = data.localPath ? 'available' : data.remoteUrl ? 'remote_only' : 'missing'
+  const payload = {
+    ...data,
+    sourceEntityKind: 'video_result' as const,
+    sourceEntityId: result.id,
+    status,
+    packagePolicy: data.localPath ? 'include_binary' as const : 'reference_only' as const,
+  }
+  const existing = repos.asset.listAssetsBySource(repos.db, 'video_result', result.id).find((asset) => asset.kind === data.kind)
+  if (existing) repos.asset.updateAsset(repos.db, existing.id, payload)
+  else repos.asset.createAsset(repos.db, payload)
+}
+
+function deleteAssetsByVideoResult(repos: ReturnType<typeof getRepos>, resultId: string): void {
+  for (const asset of repos.asset.listAssetsBySource(repos.db, 'video_result', resultId)) {
+    repos.asset.deleteAsset(repos.db, asset.id)
+  }
+}
+
+function firstHttpUrl(...urls: Array<string | undefined>): string | undefined {
+  return urls.find((url) => Boolean(url && /^https?:\/\//i.test(url)))
 }

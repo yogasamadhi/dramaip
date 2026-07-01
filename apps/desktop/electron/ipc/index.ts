@@ -16,6 +16,7 @@ import { registerTaskIpc } from './task.ipc'
 import { registerLogIpc } from './log.ipc'
 import { registerDiagnosticIpc } from './diagnostic.ipc'
 import { registerSearchIpc } from './search.ipc'
+import { registerAssetIpc } from './asset.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -26,6 +27,7 @@ export function registerAllIpc(): void {
   registerLogIpc()
   registerDiagnosticIpc()
   registerSearchIpc()
+  registerAssetIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronRight,
   Clock,
+  ImagePlus,
   Loader2,
   RefreshCw,
   Send,
@@ -15,6 +17,7 @@ import {
 import type {
   AdaptationProject,
   Episode,
+  ProjectAsset,
   Scene,
   Script,
   Shot,
@@ -23,6 +26,7 @@ import type {
   VideoResult,
 } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetReferenceUrl } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -62,6 +66,8 @@ export function VideoGenerationPage() {
   const [providers, setProviders] = useState<VideoProviderConfig[]>([])
   const [tasks, setTasks] = useState<VideoGenerationTask[]>([])
   const [results, setResults] = useState<VideoResult[]>([])
+  const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
+  const [assetsByResult, setAssetsByResult] = useState<Record<string, ProjectAsset[]>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
 
@@ -109,13 +115,23 @@ export function VideoGenerationPage() {
 
   // 当前镜头 → 任务 + 结果
   const reloadShotData = useCallback(async () => {
-    if (!shotId) { setTasks([]); setResults([]); return }
-    const [ts, rs] = await Promise.all([
+    if (!shotId) {
+      setTasks([])
+      setResults([])
+      setShotAssets([])
+      setAssetsByResult({})
+      return
+    }
+    const [ts, rs, assets] = await Promise.all([
       ipc.videoTask.listByShot(shotId),
       ipc.videoResult.listByShot(shotId),
+      ipc.asset.listBySource('shot', shotId),
     ])
+    const resultAssets = await Promise.all(rs.map(async (result) => [result.id, await ipc.asset.listBySource('video_result', result.id)] as const))
     setTasks(ts)
     setResults(rs)
+    setShotAssets(assets)
+    setAssetsByResult(Object.fromEntries(resultAssets))
   }, [shotId])
 
   useEffect(() => {
@@ -135,6 +151,7 @@ export function VideoGenerationPage() {
     setBusy('submit')
     const tid = toast.loading('正在提交视频生成任务…')
     try {
+      const referenceImageUrls = await collectReferenceImageUrls(activeShot, shotAssets)
       const res = await ipc.videoTask.create({
         providerConfigId: provider.id,
         projectId: adaptation?.sourceProjectId,
@@ -143,7 +160,7 @@ export function VideoGenerationPage() {
         shotId: activeShot.id,
         prompt: activeShot.videoPrompt || activeShot.visualDescription,
         negativePrompt: activeShot.negativePrompt,
-        referenceImageUrls: [],
+        referenceImageUrls,
       })
       if (res.ok) {
         toast.success('任务已提交', { id: tid })
@@ -306,6 +323,7 @@ export function VideoGenerationPage() {
                     <div className="mb-0.5 font-medium text-foreground">Prompt</div>
                     <div>{activeShot.videoPrompt || activeShot.visualDescription}</div>
                     {activeShot.negativePrompt && <div className="mt-1"><span className="font-medium text-foreground">负面：</span>{activeShot.negativePrompt}</div>}
+                    <AssetBadges assets={shotAssets} />
                   </div>
 
                   {/* 默认 Provider 提示 */}
@@ -386,6 +404,7 @@ export function VideoGenerationPage() {
                               <div className="truncate text-[11px] text-muted-foreground" title={r.remoteVideoUrl}>远端：{r.remoteVideoUrl}</div>
                             )}
                             {r.archiveError && <div className="mt-1 text-[11px] text-destructive">归档失败：{r.archiveError}</div>}
+                            <AssetBadges assets={assetsByResult[r.id] ?? []} />
                             <div className="mt-1 flex gap-1">
                               {!r.isBest && (
                                 <Button size="sm" variant="ghost" onClick={() => selectBest(r.id)}>
@@ -419,6 +438,60 @@ export function VideoGenerationPage() {
 
 function Empty({ text }: { text: ReactNode }) {
   return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{text}</div>
+}
+
+async function collectReferenceImageUrls(shot: Shot, currentShotAssets: ProjectAsset[]): Promise<string[]> {
+  const freshShotAssets = await ipc.asset.listBySource('shot', shot.id).catch(() => currentShotAssets)
+  const profileAssets = await Promise.all(
+    shot.characterIds.map(async (characterId) => {
+      const profile = await ipc.visualProfile.getByCharacter(characterId)
+      if (!profile) return []
+      const assets = await ipc.asset.listBySource('visual_profile', profile.id)
+      return profile.referenceImageUrl ? [...assets, profileReferenceAsset(profile.referenceImageUrl)] : assets
+    }),
+  )
+  return uniqueStrings(
+    [...freshShotAssets, ...profileAssets.flat()]
+      .filter((asset) => asset.status !== 'missing')
+      .map(assetReferenceUrl)
+      .filter((url): url is string => Boolean(url)),
+  )
+}
+
+function profileReferenceAsset(referenceImageUrl: string): ProjectAsset {
+  const remote = /^https?:\/\//i.test(referenceImageUrl)
+  return {
+    id: `profile-reference:${referenceImageUrl}`,
+    projectId: '',
+    kind: 'character_reference',
+    title: '人物参考图',
+    remoteUrl: remote ? referenceImageUrl : undefined,
+    localPath: remote ? undefined : referenceImageUrl,
+    tags: [],
+    metadata: {},
+    status: remote ? 'remote_only' : 'available',
+    packagePolicy: 'reference_only',
+    createdAt: '',
+    updatedAt: '',
+  }
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values))
+}
+
+function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
+  if (assets.length === 0) return null
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {assets.map((asset) => (
+        <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
+          {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
+          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+        </Badge>
+      ))}
+    </div>
+  )
 }
 
 function videoResultSrc(result: VideoResult): string {

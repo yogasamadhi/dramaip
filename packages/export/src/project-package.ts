@@ -439,16 +439,18 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     for (const v of pkg.visualProfiles) {
       const newCharId = idMap.get(v.characterId)
       if (!newCharId) continue
-      repos.visualProfile.createVisualProfile(db, {
+      const created = repos.visualProfile.createVisualProfile(db, {
         ...stripId(v),
         projectId: newProject.id,
         characterId: newCharId,
       })
+      idMap.set(v.id, created.id)
     }
 
     // 9. 视觉设定
     for (const v of pkg.visualSettings) {
-      repos.visualSetting.createVisualSetting(db, { ...stripId(v), projectId: newProject.id })
+      const created = repos.visualSetting.createVisualSetting(db, { ...stripId(v), projectId: newProject.id })
+      idMap.set(v.id, created.id)
     }
 
     // 10. 故事事件

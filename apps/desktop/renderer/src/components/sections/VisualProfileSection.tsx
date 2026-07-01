@@ -1,9 +1,10 @@
 // VisualProfileSection —— 人物视觉档案（ROADMAP v0.2 §3）：列表 + 按人物生成（预览→采用）
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
-import type { Character, CharacterVisualProfile } from '@sdns/core'
+import { AlertTriangle, FilePlus2, ImagePlus, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import type { Character, CharacterVisualProfile, ProjectAsset } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -35,14 +36,17 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
   const [charId, setCharId] = useState<string>('')
   const [editing, setEditing] = useState<CharacterVisualProfile | 'new' | null>(null)
   const [form, setForm] = useState<Partial<CharacterVisualProfile>>(EMPTY)
+  const [assetsByProfile, setAssetsByProfile] = useState<Record<string, ProjectAsset[]>>({})
 
   const reload = useCallback(async () => {
     const [profiles, chars] = await Promise.all([
       ipc.visualProfile.list(projectId),
       ipc.character.list(projectId),
     ])
+    const assets = await Promise.all(profiles.map((profile) => ipc.asset.listBySource('visual_profile', profile.id)))
     setList(profiles)
     setCharacters(chars)
+    setAssetsByProfile(Object.fromEntries(profiles.map((profile, index) => [profile.id, assets[index] ?? []])))
     setCharId((prev) => prev || chars[0]?.id || '')
   }, [projectId])
 
@@ -66,15 +70,47 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
       toast.error('请选择人物并填写外观 Prompt')
       return
     }
+    let saved: CharacterVisualProfile | undefined
     if (editing === 'new') {
       const p = await ipc.visualProfile.create({ ...form, projectId })
+      saved = p
       setList((prev) => [...prev, p])
     } else if (editing) {
       const p = await ipc.visualProfile.update(editing.id, form)
-      if (p) setList((prev) => prev.map((x) => (x.id === p.id ? p : x)))
+      if (p) {
+        saved = p
+        setList((prev) => prev.map((x) => (x.id === p.id ? p : x)))
+      }
     }
+    if (saved) await syncVisualProfileAsset(saved)
     setEditing(null)
     toast.success('已保存')
+    await reload()
+  }
+
+  async function syncVisualProfileAsset(profile: CharacterVisualProfile) {
+    const reference = profile.referenceImageUrl?.trim()
+    if (!reference) return
+    const existing = await ipc.asset.listBySource('visual_profile', profile.id)
+    const fields = assetFieldsFromReference(reference)
+    const alreadyLinked = existing.some((asset) =>
+      Boolean((fields.localPath && asset.localPath === fields.localPath) || (fields.remoteUrl && asset.remoteUrl === fields.remoteUrl)),
+    )
+    if (alreadyLinked) return
+    const payload: Partial<ProjectAsset> & { projectId: string; kind: ProjectAsset['kind']; title: string } = {
+      projectId,
+      kind: 'character_reference',
+      title: `${nameById.get(profile.characterId) ?? '人物'}参考图`,
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: profile.id,
+      packagePolicy: 'reference_only',
+      tags: ['角色参考图'],
+      metadata: { characterId: profile.characterId },
+      ...fields,
+    }
+    const linked = existing.find((asset) => asset.kind === 'character_reference')
+    if (linked) await ipc.asset.update(linked.id, payload)
+    else await ipc.asset.create(payload)
   }
 
   async function remove(id: string) {
@@ -143,6 +179,8 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
                   {p.clothingStyle && <div>服装：{p.clothingStyle}</div>}
                   {p.temperament && <div>气质：{p.temperament}</div>}
                   {p.negativePrompt && <div>负面 Prompt：{p.negativePrompt}</div>}
+                  {p.referenceImageUrl && <div>参考图：{p.referenceImageUrl}</div>}
+                  <AssetBadges assets={assetsByProfile[p.id] ?? []} />
                 </div>
               </div>
             ))
@@ -175,6 +213,14 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
                 <Input value={(form[key as keyof CharacterVisualProfile] as string) ?? ''} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
               </div>
             ))}
+            <div className="col-span-2 space-y-1">
+              <Label>参考图 URL / 本地路径</Label>
+              <Input
+                value={(form.referenceImageUrl as string) ?? ''}
+                onChange={(e) => setForm({ ...form, referenceImageUrl: e.target.value })}
+                placeholder="https://... 或 /Users/.../reference.png"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
@@ -182,6 +228,20 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
+  if (assets.length === 0) return null
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {assets.map((asset) => (
+        <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
+          {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
+          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+        </Badge>
+      ))}
     </div>
   )
 }

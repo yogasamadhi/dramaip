@@ -31,6 +31,8 @@ import type {
   NovelTaskType,
   Outline,
   Project,
+  ProjectAsset,
+  ProjectAssetSourceKind,
   PromptVersion,
   QualityGateReport,
   RevisionTask,
@@ -315,6 +317,13 @@ export interface CreateVideoTaskInput {
 export interface StudioApi {
   search: {
     global(input: { query: string; limit?: number }): Promise<GlobalSearchResponse>
+  }
+  asset: {
+    listByProject(projectId: string): Promise<ProjectAsset[]>
+    listBySource(sourceEntityKind: ProjectAssetSourceKind, sourceEntityId: string): Promise<ProjectAsset[]>
+    create(data: Partial<ProjectAsset> & { projectId: string; kind: ProjectAsset['kind']; title: string }): Promise<ProjectAsset>
+    update(id: string, patch: Partial<ProjectAsset>): Promise<ProjectAsset | undefined>
+    remove(id: string): Promise<boolean>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

@@ -3,9 +3,11 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
+  AlertTriangle,
   ChevronRight,
   Download,
   FileJson,
+  ImagePlus,
   ListVideo,
   Loader2,
   Pencil,
@@ -14,10 +16,12 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -289,6 +293,8 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const [activeShotId, setActiveShotId] = useState<string | null>(null)
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
+  const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
+  const [referenceInput, setReferenceInput] = useState('')
 
   useEffect(() => {
     setActiveShotId((cur) => cur ?? shots[0]?.id ?? null)
@@ -302,6 +308,27 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
       return
     }
     void (async () => setVersions(await ipc.promptVersion.list(activeShot.id)))()
+  }, [activeShot])
+
+  useEffect(() => {
+    let canceled = false
+    if (!activeShot) {
+      setShotAssets([])
+      setReferenceInput('')
+      return () => {
+        canceled = true
+      }
+    }
+    void (async () => {
+      const assets = await ipc.asset.listBySource('shot', activeShot.id)
+      if (canceled) return
+      setShotAssets(assets)
+      const referenceAsset = assets.find(isShotReferenceAsset)
+      setReferenceInput(referenceAsset ? assetReferenceUrl(referenceAsset) ?? '' : '')
+    })()
+    return () => {
+      canceled = true
+    }
   }, [activeShot])
 
   async function runShotTask(shot: Shot, taskType: ShotPromptTaskType, instruction?: string) {
@@ -430,10 +457,33 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     if (!activeShot) return
     const updated = await ipc.shot.update(activeShot.id, draft)
     if (updated) {
+      await syncShotReferenceAsset(updated)
       toast.success('已保存')
       setDirty(false)
+      setShotAssets(await ipc.asset.listBySource('shot', updated.id))
       onChanged()
     }
+  }
+
+  async function syncShotReferenceAsset(shot: Shot) {
+    const reference = referenceInput.trim()
+    if (!reference || !sourceProjectId) return
+    const fields = assetFieldsFromReference(reference)
+    const existing = await ipc.asset.listBySource('shot', shot.id)
+    const linked = existing.find(isShotReferenceAsset)
+    const payload = {
+      projectId: sourceProjectId,
+      kind: 'scene_reference' as const,
+      title: `镜头 ${shot.shotNumber} 参考图`,
+      sourceEntityKind: 'shot' as const,
+      sourceEntityId: shot.id,
+      packagePolicy: 'reference_only' as const,
+      tags: ['镜头参考图'],
+      metadata: { sceneId: shot.sceneId, episodeId: shot.episodeId },
+      ...fields,
+    }
+    if (linked) await ipc.asset.update(linked.id, payload)
+    else await ipc.asset.create(payload)
   }
 
   return (
@@ -594,6 +644,16 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                         className="text-xs"
                       />
                     </div>
+                    <div>
+                      <div className="mb-0.5 text-xs text-muted-foreground">参考图 URL / 本地路径</div>
+                      <Input
+                        value={referenceInput}
+                        onChange={(e) => { setReferenceInput(e.target.value); setDirty(true) }}
+                        placeholder="https://... 或 /Users/.../shot-reference.png"
+                        className="text-xs"
+                      />
+                      <AssetBadges assets={shotAssets} />
+                    </div>
                   </div>
                   <div className="flex justify-end">
                     <Button size="sm" onClick={saveShot} disabled={!dirty}>
@@ -696,6 +756,24 @@ function ShotReviewBlock({ shotId }: { shotId: string }) {
           ) : <p className="text-[11px] text-muted-foreground">无</p>}
         </div>
       </div>
+    </div>
+  )
+}
+
+function isShotReferenceAsset(asset: ProjectAsset): boolean {
+  return asset.kind === 'scene_reference' || asset.kind === 'style_reference' || asset.kind === 'character_reference' || asset.kind === 'source_media'
+}
+
+function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
+  if (assets.length === 0) return null
+  return (
+    <div className="mt-1 flex flex-wrap gap-1">
+      {assets.map((asset) => (
+        <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
+          {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
+          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+        </Badge>
+      ))}
     </div>
   )
 }

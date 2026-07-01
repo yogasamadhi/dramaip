@@ -707,6 +707,12 @@ function main() {
   // 先准备一个有数据的项目 p3
   const p3 = repos.project.createProject(db, { title: '导出测试项目', shortDramaType: '女频复仇' })
   const c3 = repos.character.createCharacter(db, { projectId: p3.id, name: '女主A', role: '主角', identity: '重生者' })
+  const vp3 = repos.visualProfile.createVisualProfile(db, {
+    projectId: p3.id,
+    characterId: c3.id,
+    appearancePrompt: 'black suit, sharp eyes',
+    referenceImageUrl: 'https://asset.local/heroine-profile.png',
+  })
   const ch3 = repos.chapter.createChapter(db, { projectId: p3.id, title: '第1章', chapterNumber: 1, content: '正文内容' })
   repos.chapter.updateChapterContent(db, ch3.id, '正文内容')
   repos.creative.createFreshnessReport(db, {
@@ -748,6 +754,18 @@ function main() {
     metadata: { pose: '正面' },
     packagePolicy: 'reference_only',
   })
+  repos.asset.createAsset(db, {
+    projectId: p3.id,
+    kind: 'character_reference',
+    title: '女主视觉档案参考图',
+    sourceEntityKind: 'visual_profile',
+    sourceEntityId: vp3.id,
+    remoteUrl: 'https://asset.local/heroine-profile.png',
+    mimeType: 'image/png',
+    tags: ['角色', '视觉档案'],
+    metadata: { pose: '半身' },
+    packagePolicy: 'reference_only',
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
@@ -756,7 +774,7 @@ function main() {
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
   const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
-  assert(pkgWithAssets.meta.assetExportMode === 'manifest' && pkgWithAssets.assets.length === 1, 'collectProjectPackage includeAssets 携带资产清单')
+  assert(pkgWithAssets.meta.assetExportMode === 'manifest' && pkgWithAssets.assets.length === 2, 'collectProjectPackage includeAssets 携带资产清单')
   // 序列化 → 解析往返
   const content = serializeProjectPackage(pkgWithAssets)
   const reParsed = parseProjectPackage(content)
@@ -767,12 +785,23 @@ function main() {
   assert(imported.title.includes('导入'), 'importProjectPackage 标题加后缀')
   const importedChars = repos.character.listCharacters(db, imported.id)
   assert(importedChars.length === 1 && importedChars[0].name === '女主A', 'importProjectPackage 人物外键还原')
+  const importedProfiles = repos.visualProfile.listVisualProfiles(db, imported.id)
+  assert(importedProfiles.length === 1 && importedProfiles[0].characterId === importedChars[0].id, 'importProjectPackage 视觉档案外键还原')
   const importedChapters = repos.chapter.listChapters(db, imported.id)
   assert(importedChapters.length === 1, 'importProjectPackage 章节还原')
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
   assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
   assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
-  assert(repos.asset.listProjectAssets(db, imported.id)[0]?.status === 'remote_only', 'importProjectPackage 资产清单以远端引用状态还原')
+  const importedAssets = repos.asset.listProjectAssets(db, imported.id)
+  assert(importedAssets.every((asset) => asset.status === 'remote_only'), 'importProjectPackage 资产清单以远端引用状态还原')
+  assert(
+    importedAssets.some((asset) => asset.sourceEntityKind === 'character' && asset.sourceEntityId === importedChars[0].id),
+    'importProjectPackage 人物资产 sourceEntityId 重映射',
+  )
+  assert(
+    importedAssets.some((asset) => asset.sourceEntityKind === 'visual_profile' && asset.sourceEntityId === importedProfiles[0].id),
+    'importProjectPackage 视觉档案资产 sourceEntityId 重映射',
+  )
   // 导入项目的旧 id 不应残留（外键已重映射到新项目）
   assert(repos.character.getCharacter(db, c3.id)?.projectId === p3.id, '导入不影响原项目数据')
 

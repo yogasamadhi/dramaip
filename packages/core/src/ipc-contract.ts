@@ -30,6 +30,10 @@ const workflowTemplateKey = enumFromValues(
 )
 const writingRoomTargetKind = enumFromValues(WRITING_ROOM_TARGET_KINDS, 'WritingRoomTargetKind')
 const creativeTargetKind = z.enum(['project', 'chapter', 'adaptation', 'episode', 'script', 'scene', 'shot'])
+const projectAssetKind = z.enum(['character_reference', 'scene_reference', 'style_reference', 'video_result', 'cover_image', 'source_media', 'other'])
+const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
+const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
+const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'applied', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -46,6 +50,31 @@ const projectPackageExportOptions = z
   })
   .strict()
   .optional()
+const projectAssetInput = z
+  .object({
+    projectId: id,
+    kind: projectAssetKind,
+    title: id,
+    description: z.string().optional(),
+    sourceEntityKind: projectAssetSourceKind.optional(),
+    sourceEntityId: maybeId,
+    localPath: z.string().optional(),
+    relativePath: z.string().optional(),
+    remoteUrl: z.string().optional(),
+    mimeType: z.string().optional(),
+    originalName: z.string().optional(),
+    sha256: z.string().optional(),
+    sizeBytes: z.number().int().nonnegative().optional(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+    durationSeconds: z.number().nonnegative().optional(),
+    tags: looseStringArray.optional(),
+    metadata: z.record(z.unknown()).optional(),
+    status: projectAssetStatus.optional(),
+    packagePolicy: projectAssetPackagePolicy.optional(),
+  })
+  .strict()
+const projectAssetPatch = projectAssetInput.partial().strict()
 
 const projectInput = z
   .object({
@@ -362,6 +391,11 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'log:renderer': [logLevel, id, id, z.record(z.unknown()).optional()],
   'search:global': [globalSearchInput],
   'diagnostic:exportPackage': [diagnosticExportOptions],
+  'asset:create': [projectAssetInput],
+  'asset:update': [id, projectAssetPatch],
+  'asset:listByProject': [id],
+  'asset:listBySource': [projectAssetSourceKind, id],
+  'asset:delete': [id],
   'security:getSecretStorageStatus': [],
   'dataBackup:list': [],
   'dataBackup:create': [],

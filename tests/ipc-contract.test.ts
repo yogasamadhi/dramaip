@@ -28,6 +28,31 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('diagnostic:exportPackage', [{ includeContent: true }]), [
     { includeContent: true },
   ])
+  assert.deepEqual(validateIpcArgs('asset:listBySource', ['visual_profile', 'vp1']), ['visual_profile', 'vp1'])
+  assert.deepEqual(
+    validateIpcArgs('asset:create', [
+      {
+        projectId: 'p1',
+        kind: 'character_reference',
+        title: '人物参考图',
+        sourceEntityKind: 'visual_profile',
+        sourceEntityId: 'vp1',
+        remoteUrl: 'https://asset.local/ref.png',
+        tags: ['角色'],
+      },
+    ]),
+    [
+      {
+        projectId: 'p1',
+        kind: 'character_reference',
+        title: '人物参考图',
+        sourceEntityKind: 'visual_profile',
+        sourceEntityId: 'vp1',
+        remoteUrl: 'https://asset.local/ref.png',
+        tags: ['角色'],
+      },
+    ],
+  )
 })
 
 test('rejects IPC calls with invalid arity or shape', () => {
@@ -40,6 +65,8 @@ test('rejects IPC calls with invalid arity or shape', () => {
     () => validateIpcArgs('diagnostic:exportPackage', [{ includeContent: true, apiKey: 'secret' }]),
     /参数校验失败/,
   )
+  assert.throws(() => validateIpcArgs('asset:create', [{ projectId: 'p1', kind: 'bad', title: 'x' }]), /kind/)
+  assert.throws(() => validateIpcArgs('asset:update', ['a1', { status: 'lost' }]), /status/)
   assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
   assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
 })
@@ -54,6 +81,11 @@ test('keeps high-risk channels in the shared contract', () => {
   for (const channel of [
     'log:renderer',
     'diagnostic:exportPackage',
+    'asset:create',
+    'asset:update',
+    'asset:listByProject',
+    'asset:listBySource',
+    'asset:delete',
     'security:getSecretStorageStatus',
     'dataBackup:list',
     'dataBackup:create',
