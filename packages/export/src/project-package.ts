@@ -57,6 +57,7 @@ import type {
   VisualSetting,
   WorkflowRun,
 } from '@sdns/core'
+import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
@@ -64,7 +65,7 @@ export const PACKAGE_VERSION = 2
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
-  version: typeof PACKAGE_VERSION
+  version: number
   exportedAt: string
   sourceTitle: string
 }
@@ -103,6 +104,33 @@ export interface ProjectPackage {
     episodeAnalysis?: EpisodeAnalysis
   }>
   aiRuns: AiRun[]
+}
+
+export interface ProjectPackageCounts {
+  characters: number
+  outlines: number
+  chapters: number
+  evaluations: number
+  memories: number
+  creativeReports: number
+  adaptations: number
+  episodes: number
+  scripts: number
+  scenes: number
+  aiRuns: number
+  contentVersions: number
+  caseStudies: number
+  workflowRuns: number
+  totalRecords: number
+}
+
+export interface ProjectPackagePreview {
+  format: typeof PACKAGE_FORMAT
+  version: number
+  exportedAt: string
+  sourceTitle: string
+  projectTitle: string
+  counts: ProjectPackageCounts
 }
 
 /** 收集一个项目的完整数据包 */
@@ -216,19 +244,99 @@ function collectContentVersions(db: Repositories['db'], repos: Repositories, pro
 
 /** 序列化为 .sdnspkg 字符串（JSON） */
 export function serializeProjectPackage(pkg: ProjectPackage): string {
-  return JSON.stringify(pkg, null, 2)
+  const parsed = ProjectPackageSchema.safeParse(pkg)
+  if (!parsed.success) {
+    throw new Error(`项目包结构校验失败：${formatSchemaIssue(parsed.error.issues[0])}`)
+  }
+  return JSON.stringify(parsed.data, null, 2)
 }
 
 /** 解析 .sdnspkg 字符串 */
 export function parseProjectPackage(content: string): ProjectPackage {
-  const data = JSON.parse(content) as ProjectPackage
-  if (data?.meta?.format !== PACKAGE_FORMAT) {
+  let raw: unknown
+  try {
+    raw = JSON.parse(content) as unknown
+  } catch (e) {
+    throw new Error(`项目包 JSON 解析失败：${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('项目包结构校验失败：root: 应为对象')
+  }
+
+  const meta = (raw as { meta?: { format?: unknown; version?: unknown } }).meta
+  if (meta?.format !== PACKAGE_FORMAT) {
     throw new Error('不是有效的项目包文件（格式标识不匹配）')
   }
-  if (data.meta.version > PACKAGE_VERSION) {
-    throw new Error(`项目包版本 ${data.meta.version} 高于本程序支持版本 ${PACKAGE_VERSION}，请升级应用`)
+  if (typeof meta.version === 'number' && meta.version > PACKAGE_VERSION) {
+    throw new Error(`项目包版本 ${meta.version} 高于本程序支持版本 ${PACKAGE_VERSION}，请升级应用`)
   }
-  return data
+
+  const parsed = ProjectPackageSchema.safeParse(raw)
+  if (!parsed.success) {
+    throw new Error(`项目包结构校验失败：${formatSchemaIssue(parsed.error.issues[0])}`)
+  }
+  return parsed.data as unknown as ProjectPackage
+}
+
+export function previewProjectPackage(content: string): ProjectPackagePreview {
+  return summarizeProjectPackage(parseProjectPackage(content))
+}
+
+export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePreview {
+  const episodes = pkg.adaptations.reduce((sum, item) => sum + item.episodes.length, 0)
+  const scripts = pkg.adaptations.reduce((sum, item) => sum + item.scripts.length, 0)
+  const scenes = pkg.adaptations.reduce(
+    (sum, item) => sum + item.scripts.reduce((inner, script) => inner + script.scenes.length, 0),
+    0,
+  )
+  const creativeReports =
+    pkg.freshnessReports.length +
+    pkg.antiTropeVariants.length +
+    pkg.revisionTasks.length +
+    pkg.qualityGateReports.length +
+    pkg.audienceSimulations.length +
+    pkg.narrativeCurveReports.length
+  const counts: Omit<ProjectPackageCounts, 'totalRecords'> = {
+    characters: pkg.characters.length,
+    outlines: pkg.outlines.length,
+    chapters: pkg.chapters.length,
+    evaluations: pkg.evaluations.length,
+    memories:
+      pkg.chapterMemories.length +
+      pkg.characterStates.length +
+      pkg.visualProfiles.length +
+      pkg.visualSettings.length +
+      pkg.storyEvents.length +
+      pkg.foreshadowings.length +
+      pkg.beats.length +
+      pkg.highlightAnalyses.length +
+      pkg.feasibilityReports.length +
+      (pkg.dramaTrendReport ? 1 : 0),
+    creativeReports,
+    adaptations: pkg.adaptations.length,
+    episodes,
+    scripts,
+    scenes,
+    aiRuns: pkg.aiRuns.length,
+    contentVersions: pkg.contentVersions.length,
+    caseStudies: pkg.caseStudies.length,
+    workflowRuns: pkg.workflowRuns.length,
+  }
+  const totalRecords = Object.values(counts).reduce((sum, count) => sum + count, 1)
+  return {
+    format: pkg.meta.format,
+    version: pkg.meta.version,
+    exportedAt: pkg.meta.exportedAt,
+    sourceTitle: pkg.meta.sourceTitle,
+    projectTitle: pkg.project.title,
+    counts: { ...counts, totalRecords },
+  }
+}
+
+function formatSchemaIssue(issue: { path: Array<string | number>; message: string } | undefined): string {
+  if (!issue) return '未知结构错误'
+  return `${issue.path.join('.') || 'root'}: ${issue.message}`
 }
 
 /**

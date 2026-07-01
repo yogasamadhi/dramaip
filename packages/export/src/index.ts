@@ -23,9 +23,13 @@ export {
   collectProjectPackage,
   serializeProjectPackage,
   parseProjectPackage,
+  previewProjectPackage,
+  summarizeProjectPackage,
   importProjectPackage,
   PACKAGE_FORMAT,
   PACKAGE_VERSION,
+  type ProjectPackageCounts,
+  type ProjectPackagePreview,
   type ProjectPackage,
   type ProjectPackageMeta,
 } from './project-package'

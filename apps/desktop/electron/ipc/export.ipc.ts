@@ -17,6 +17,7 @@ import {
   exportShotsMarkdown,
   collectProjectPackage,
   serializeProjectPackage,
+  previewProjectPackage,
   importProjectPackage,
 } from '@sdns/export'
 
@@ -41,6 +42,20 @@ export function registerExportIpc(): void {
   /** v1.0：统一把「未找到实体」转为结构化错误结果，而非抛异常 */
   function notFound(what: string) {
     return { saved: false as const, error: `未找到${what}` }
+  }
+
+  function projectPackagePreviewDetail(preview: ReturnType<typeof previewProjectPackage>): string {
+    const c = preview.counts
+    return [
+      `包版本：v${preview.version}`,
+      `导出时间：${preview.exportedAt}`,
+      `项目名：${preview.projectTitle}`,
+      `数据规模：共 ${c.totalRecords} 条记录`,
+      `人物 ${c.characters}，章节 ${c.chapters}，大纲 ${c.outlines}，评分 ${c.evaluations}`,
+      `改编 ${c.adaptations}，分集 ${c.episodes}，剧本 ${c.scripts}，场景 ${c.scenes}`,
+      `记忆/分析 ${c.memories}，创意诊断 ${c.creativeReports}，内容版本 ${c.contentVersions}`,
+      `AI 记录 ${c.aiRuns}，样本 ${c.caseStudies}，工作流 ${c.workflowRuns}`,
+    ].join('\n')
   }
 
   ipcMain.handle('export:projectMarkdown', async (_e, projectId: string) => {
@@ -191,6 +206,17 @@ export function registerExportIpc(): void {
       if (open.canceled || open.filePaths.length === 0) return { ok: false, canceled: true }
       const { readFile } = await import('node:fs/promises')
       const content = await readFile(open.filePaths[0], 'utf-8')
+      const preview = previewProjectPackage(content)
+      const confirm = await dialog.showMessageBox(win!, {
+        type: 'question',
+        buttons: ['导入', '取消'],
+        defaultId: 0,
+        cancelId: 1,
+        title: '确认导入项目包',
+        message: `导入「${preview.projectTitle}」？`,
+        detail: projectPackagePreviewDetail(preview),
+      })
+      if (confirm.response !== 0) return { ok: false, canceled: true }
       const project = importProjectPackage(r, content)
       return { ok: true, project }
     } catch (e) {

@@ -540,6 +540,80 @@ export const WritingRoomConsolidatedSchema = z.object({
 })
 export type WritingRoomConsolidated = z.infer<typeof WritingRoomConsolidatedSchema>
 
+// ---------------------------------------------------------------------------
+// Project package import/export schema
+// ---------------------------------------------------------------------------
+
+const packageEntity = z.object({ id: z.string().min(1) }).passthrough()
+const packageEntityArray = z.array(packageEntity).default([])
+
+const PackageProjectSchema = packageEntity
+  .extend({
+    title: z.string().min(1),
+    shortDramaType: z.string().min(1),
+  })
+  .passthrough()
+
+const PackageMetaSchema = z
+  .object({
+    format: z.literal('sdns-project-package'),
+    version: z.number().int().positive(),
+    exportedAt: z.string().min(1),
+    sourceTitle: z.string().min(1),
+  })
+  .passthrough()
+
+const PackageAdaptationSchema = z
+  .object({
+    adaptation: packageEntity,
+    episodes: packageEntityArray,
+    scripts: z
+      .array(
+        z
+          .object({
+            script: packageEntity,
+            scenes: packageEntityArray,
+          })
+          .passthrough(),
+      )
+      .default([]),
+    episodeAnalysis: packageEntity.optional(),
+  })
+  .passthrough()
+
+export const ProjectPackageSchema = z
+  .object({
+    meta: PackageMetaSchema,
+    project: PackageProjectSchema,
+    characters: packageEntityArray,
+    outlines: packageEntityArray,
+    chapters: packageEntityArray,
+    evaluations: packageEntityArray,
+    chapterMemories: packageEntityArray,
+    characterStates: packageEntityArray,
+    visualProfiles: packageEntityArray,
+    visualSettings: packageEntityArray,
+    storyEvents: packageEntityArray,
+    foreshadowings: packageEntityArray,
+    beats: packageEntityArray,
+    highlightAnalyses: packageEntityArray,
+    feasibilityReports: packageEntityArray,
+    dramaTrendReport: packageEntity.optional(),
+    caseStudies: packageEntityArray,
+    freshnessReports: packageEntityArray,
+    antiTropeVariants: packageEntityArray,
+    revisionTasks: packageEntityArray,
+    contentVersions: packageEntityArray,
+    qualityGateReports: packageEntityArray,
+    audienceSimulations: packageEntityArray,
+    narrativeCurveReports: packageEntityArray,
+    workflowRuns: packageEntityArray,
+    adaptations: z.array(PackageAdaptationSchema).default([]),
+    aiRuns: packageEntityArray,
+  })
+  .passthrough()
+export type ProjectPackageShape = z.infer<typeof ProjectPackageSchema>
+
 export const ALL_RESULT_SCHEMAS = {
   generate_project: GenerateProjectResultSchema,
   generate_characters: GenerateCharactersResultSchema,

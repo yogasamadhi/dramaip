@@ -18,7 +18,7 @@
 | L0-01 | Codex/工程负责人 | done | 建立生产优化基线分支与执行基线 | `README.md`、`DEVELOPMENT.md`、`LOOPMAP.md`、项目脚本 | 完成远程同步；记录当前测试基线；确认无凭据/构建产物入库；`pnpm test` 通过或记录阻塞 |
 | L1-01 | Codex/数据安全 | done | 强化 SQLite 备份一致性 | `apps/desktop/electron/db.ts`、`packages/db/src/client.ts`、DB 测试 | 备份前执行 checkpoint 或使用 SQLite backup API；覆盖 WAL 场景；新增/扩展 DB smoke；`pnpm test:db` 通过 |
 | L1-02 | Codex/数据安全 | done | 增加备份恢复与手动备份入口 | Electron IPC、renderer 设置页/数据页、文档 | 用户可查看备份、手动创建备份、恢复指定备份；恢复前自动二次备份；错误有结构化提示 |
-| L1-03 | Codex/数据安全 | todo | 项目包导入导出 schema 化与预检 | `packages/export/src/project-package.ts`、`packages/core/src/schemas`、测试 | `.sdnspkg` 解析使用 Zod/schema 校验；导入前显示版本、项目名、数据规模；损坏包/高版本包提示清晰；项目包往返测试通过 |
+| L1-03 | Codex/数据安全 | done | 项目包导入导出 schema 化与预检 | `packages/export/src/project-package.ts`、`packages/core/src/schemas`、测试 | `.sdnspkg` 解析使用 Zod/schema 校验；导入前显示版本、项目名、数据规模；损坏包/高版本包提示清晰；项目包往返测试通过 |
 | L2-01 | Codex/平台安全 | done | 建立 IPC 业务 schema 单一来源 | `packages/core/src/ipc-contract.ts`、`packages/core/src/schemas` | 高风险 create/update/run 通道不再使用裸 `objectPayload`；schema 覆盖项目、章节、模型、视频、模板、创意诊断核心入口；IPC 单测通过 |
 | L2-02 | Codex/平台安全 | todo | 收紧 IPC fallback 策略 | `packages/core/src/ipc-contract.ts`、IPC 测试 | 未登记 channel 默认拒绝或只允许显式白名单；新增通道必须补 exact schema；测试覆盖未知 channel、错误参数、越权形状 |
 | L3-01 | Codex/创作体验 | done | 为 AI 覆写增加 diff 预览 | `packages/ai/src/nodes/save-result.node.ts`、renderer AI 预览组件、内容版本表 | 章节/剧本/镜头 Prompt 覆写前可查看差异；用户确认后写入；取消不会修改正文 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（24 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（27 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L3-01、L3-02、L4-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -261,3 +261,14 @@
 - 实现结果：新增 mock AI workflow 回归夹具，复用真实 JSON parser、`GenerateProjectResultSchema`、`saveAiRun` 节点和采用落库 service；覆盖成功 JSON 任务、JSON 解析失败后一轮修复重试、模型调用失败记账、空文本输出失败、采用项目生成结果并写入内容版本。
 - 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（24 个单元测试）。
 - Diff 审查：变更限定在 AI workflow mock 回归测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L1-03：项目包导入导出 schema 化与预检
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐后开始；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L1-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`packages/core/src/schemas/index.ts`、`packages/export/src/project-package.ts`、`packages/export/src/index.ts`、`apps/desktop/electron/ipc/export.ipc.ts`、`tests/project-package.test.ts`、`LOOPMAP.md`。
+- 实现结果：新增项目包 Zod schema；序列化和解析统一走 schema 校验；损坏 JSON、格式不匹配、结构缺字段和高版本包返回清晰错误；新增项目包预检摘要，导入前通过原生确认框显示版本、项目名和数据规模。
+- 本地验证：`git diff --check` 通过；`pnpm typecheck` 通过；`pnpm test:unit` 通过（27 个单元测试），覆盖项目包序列化/解析往返、预检计数、损坏包、结构错误和高版本包。
+- Diff 审查：变更限定在项目包 schema/预检、桌面导入确认、项目包测试和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
