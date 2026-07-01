@@ -2,12 +2,13 @@
 import type { VideoProvider, VideoProviderConfig } from '@sdns/core'
 import { MockVideoProvider } from './mock.provider'
 import { HttpVideoProvider } from './http.provider'
+import { adapterForVideoProviderKind } from './adapters'
 
 /**
  * 根据 Provider 配置构造 VideoProvider。
  * - mock：不调用任何真实 API，立即返回合成结果，用于无账号场景的全链路验证。
- * - jimeng/kling/hailuo/runway/pika/openai_sora/custom：走通用 HTTP 提交+轮询适配器
- *   （各平台真实字段差异需按平台文档在 http.provider 里细化或新增专用 provider）。
+ * - custom：走 OpenAI-compatible 风格的 HTTP adapter。
+ * - jimeng/kling/hailuo/runway/pika/openai_sora：走各自独立 adapter 槽位；L5-02 再填真实 API 映射。
  */
 export function videoProviderFromConfig(config: VideoProviderConfig): VideoProvider {
   switch (config.kind) {
@@ -27,6 +28,8 @@ export function videoProviderFromConfig(config: VideoProviderConfig): VideoProvi
         baseUrl: config.baseUrl ?? '',
         apiKey: config.apiKey,
         model: config.model,
+        defaultParams: config.defaultParams,
+        adapter: adapterForVideoProviderKind(config.kind),
       })
   }
 }

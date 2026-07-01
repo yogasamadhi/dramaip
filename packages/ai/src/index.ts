@@ -38,7 +38,27 @@ export type {
   VideoGenerationInput,
 } from '@sdns/core'
 export { MockVideoProvider } from './providers/video/mock.provider'
-export { HttpVideoProvider, type HttpVideoProviderOptions } from './providers/video/http.provider'
+export {
+  HttpVideoProvider,
+  FetchVideoHttpTransport,
+  type HttpVideoProviderOptions,
+  type VideoHttpTransport,
+} from './providers/video/http.provider'
+export type {
+  VideoProviderAdapter,
+  VideoProviderHttpRequest,
+  VideoProviderRequestPhase,
+  VideoProviderRuntimeConfig,
+} from './providers/video/adapter'
+export {
+  VIDEO_PROVIDER_ADAPTERS,
+  REAL_VIDEO_PROVIDER_KINDS,
+  adapterForVideoProviderKind,
+  customVideoProviderAdapter,
+  mapOpenAiCompatibleTaskState,
+  normalizeVideoProviderError,
+  type RealVideoProviderKind,
+} from './providers/video/adapters'
 export { videoProviderFromConfig } from './providers/video/factory'
 export {
   createVideoGenerationTask,

@@ -26,7 +26,7 @@
 | L3-03 | Codex/创作体验 | done | 明确自动落库任务策略 | AI workflow、prompt registry、UI 文案 | 每类任务标记“预览后采用”或“自动写入”；危险覆写默认走确认；文档与 UI 行为一致 |
 | L4-01 | Codex/安全 | done | 加固 API Key 存储降级策略 | `apps/desktop/electron/secrets.ts`、模型/视频设置页 | `safeStorage` 不可用时显示明确警告；可选择拒绝保存或显式降级；不会静默明文落库 |
 | L4-02 | Codex/安全 | done | 增加密钥迁移和健康检查 | secrets、设置页、诊断文档 | 能识别明文/加密/掩码状态；启动时迁移可审计；失败不丢 key 且提示可操作 |
-| L5-01 | Codex/视频平台 | todo | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
+| L5-01 | Codex/视频平台 | done | 拆分真实视频 Provider 适配器框架 | `packages/ai/src/providers/video`、`AI_VIDEO_GUIDE.md` | `mock/custom` 与真实平台适配器分离；每个平台有独立鉴权、请求、状态映射、错误归一化接口 |
 | L5-02 | Codex/视频平台 | todo | 落地首个真实视频平台适配 | video provider、视频设置页、视频任务页 | 至少一个真实平台完成提交、轮询、失败处理、结果保存；可用 mock 测试和真实配置手工 smoke 验证 |
 | L5-03 | Codex/视频平台 | todo | 视频结果本地归档 | 视频任务服务、DB、文件存储策略 | 可将远端视频/封面保存到本地项目资产目录；记录本地路径与远端 URL；导出项目包策略明确 |
 | L6-01 | Codex/任务系统 | done | 引入长任务队列模型 | AI IPC、video service、DB schema/migration | AI/视频长任务有 `pending/running/success/failed/canceled` 状态；任务可恢复查询；迁移与 DB smoke 通过 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（33 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（36 个单元测试）、`pnpm test:db` 可通过；DB smoke 结束后会重编 `better-sqlite3` 回 Electron ABI。
 - 现有明显缺口：无 E2E、无打包 smoke、无签名/公证/自动更新闭环、长任务队列缺失、真实视频平台适配仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L6-01、L7-01、L8-01、L9-01、L10-02 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -221,6 +221,17 @@
 - 实现结果：新增 `enc:v1:`、`plain:v1:`、`masked:v1:`、旧版裸明文和不可读加密值识别；启动时在安全存储可用时只迁移可逆明文，单项失败保留原值并写入脱敏迁移摘要；设置页展示聚合健康计数和可操作提示；诊断文档说明密钥状态和迁移审计策略。
 - 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（33 个单元测试）；`git diff --check` 通过。`pnpm typecheck` 在本机依赖恢复时卡在 Electron postinstall，已用等价桌面 tsconfig 编译替代。
 - Diff 审查：变更限定在密钥健康/迁移、设置页提示、诊断文档、单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
+
+### L5-01：真实视频 Provider 适配器框架
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐；完成后再次同步、提交并推送。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L5-01 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：`packages/ai/src/providers/video`、`packages/ai/src/index.ts`、`tests/video-provider-adapter.test.ts`、`AI_VIDEO_GUIDE.md`、`LOOPMAP.md`。
+- 实现结果：新增 `VideoProviderAdapter` 边界与 HTTP transport；`custom` 使用 OpenAI-compatible 风格 adapter；即梦、可灵、海螺、Runway、Pika、Sora 均有独立 adapter 注册位、鉴权/请求/状态映射/错误归一化接口，未填真实 API 映射前返回明确未启用错误；工厂不再把真实平台误路由到 custom 通用端点。
+- 本地验证：`apps/desktop/node_modules/.bin/tsc --noEmit -p packages/ai/tsconfig.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.node.json` 通过；`apps/desktop/node_modules/.bin/tsc --noEmit -p apps/desktop/tsconfig.web.json` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/video-provider-adapter.test.ts` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.ts` 通过（36 个单元测试）；`git diff --check` 通过。
+- Diff 审查：变更限定在视频 Provider adapter 框架、导出、指南、adapter 单测和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态。
 
 ### L6-01：长任务队列模型
 
