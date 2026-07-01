@@ -5,13 +5,15 @@ import { BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron
 import {
   CREATIVE_WORKFLOW_TEMPLATES,
   TASK_TYPE_LABELS,
+  type CreativeWorkflowTemplateStep,
   type ContentVersion,
-  type NovelTaskType,
+  type VideoGenerationTask,
   type WorkflowRunStep,
 } from '@sdns/core'
 import { resolveProviderForTask, runNovelWorkflow, type NovelWorkflowInput } from '@sdns/ai'
 import { getRepos } from '../db'
 import { assertReadableImportFile, truncateImportedText } from '../file-security'
+import { startBatchLongTask } from './task.ipc'
 
 type WorkflowInput = {
   templateKey: string
@@ -22,6 +24,18 @@ type WorkflowInput = {
   sceneId?: string
   shotId?: string
   userInstruction?: string
+  pauseAfterStep?: boolean
+}
+
+type WorkflowResumeInput = {
+  runId: string
+  pauseAfterStep?: boolean
+}
+
+type WorkflowRetryStepInput = {
+  runId: string
+  stepKey: string
+  pauseAfterStep?: boolean
 }
 
 export function registerCreativeIpc(): void {
@@ -81,6 +95,8 @@ export function registerCreativeIpc(): void {
 
   ipcMain.handle('workflow:list', (_e, projectId?: string) => repos().creative.listWorkflowRuns(repos().db, projectId))
   ipcMain.handle('workflow:run', async (_e, input: WorkflowInput) => runCreativeWorkflow(input))
+  ipcMain.handle('workflow:resume', async (_e, input: WorkflowResumeInput) => resumeCreativeWorkflow(input))
+  ipcMain.handle('workflow:retryStep', async (_e, input: WorkflowRetryStepInput) => retryWorkflowStep(input))
 }
 
 function stringMeta(value: unknown): string | undefined {
@@ -438,12 +454,7 @@ async function runCreativeWorkflow(input: WorkflowInput) {
   const tpl = CREATIVE_WORKFLOW_TEMPLATES.find((it) => it.key === input.templateKey)
   if (!tpl) return { ok: false, error: `未知工作流：${input.templateKey}` }
 
-  const steps: WorkflowRunStep[] = tpl.steps.map((taskType) => ({
-    key: taskType,
-    label: TASK_TYPE_LABELS[taskType] ?? taskType,
-    taskType: taskType as NovelTaskType,
-    status: 'pending',
-  }))
+  const steps: WorkflowRunStep[] = tpl.steps.map((step) => workflowStepFromTemplate(step, input))
   const run = r.creative.createWorkflowRun(r.db, {
     projectId: input.projectId,
     adaptationProjectId: input.adaptationProjectId,
@@ -454,13 +465,65 @@ async function runCreativeWorkflow(input: WorkflowInput) {
     steps,
   })
 
-  const currentSteps = [...steps]
-  for (let i = 0; i < currentSteps.length; i++) {
+  return advanceWorkflowRun(run.id, { pauseAfterStep: input.pauseAfterStep })
+}
+
+async function resumeCreativeWorkflow(input: WorkflowResumeInput) {
+  const r = getRepos()
+  const run = r.creative.listWorkflowRuns(r.db).find((it) => it.id === input.runId)
+  if (!run) return { ok: false, error: '未找到工作流记录' }
+  if (run.status === 'success') return { ok: false, error: '工作流已完成，无需继续' }
+  return advanceWorkflowRun(run.id, { pauseAfterStep: input.pauseAfterStep })
+}
+
+async function retryWorkflowStep(input: WorkflowRetryStepInput) {
+  const r = getRepos()
+  const run = r.creative.listWorkflowRuns(r.db).find((it) => it.id === input.runId)
+  if (!run) return { ok: false, error: '未找到工作流记录' }
+  const stepIndex = run.steps.findIndex((step) => step.key === input.stepKey)
+  if (stepIndex < 0) return { ok: false, error: '未找到工作流步骤' }
+  const steps = run.steps.map((step, index) => (index >= stepIndex ? resetWorkflowStep(step) : step))
+  r.creative.updateWorkflowRun(r.db, run.id, {
+    status: 'running',
+    currentStep: steps[stepIndex]?.key,
+    steps,
+    errorMessage: undefined,
+  })
+  return advanceWorkflowRun(run.id, { pauseAfterStep: input.pauseAfterStep })
+}
+
+async function advanceWorkflowRun(runId: string, options: { pauseAfterStep?: boolean }) {
+  const r = getRepos()
+  const run = r.creative.listWorkflowRuns(r.db).find((it) => it.id === runId)
+  if (!run) return { ok: false, error: '未找到工作流记录' }
+  const currentSteps = [...run.steps]
+  const startIndex = currentSteps.findIndex((step) => step.status !== 'success')
+  if (startIndex < 0) {
+    const done = r.creative.updateWorkflowRun(r.db, run.id, { status: 'success', currentStep: undefined, steps: currentSteps })
+    return { ok: true, result: done }
+  }
+
+  r.creative.updateWorkflowRun(r.db, run.id, { status: 'running', currentStep: currentSteps[startIndex]?.key, steps: currentSteps })
+
+  for (let i = startIndex; i < currentSteps.length; i++) {
     const step = currentSteps[i]
-    currentSteps[i] = { ...step, status: 'running' }
-    r.creative.updateWorkflowRun(r.db, run.id, { currentStep: step.key, steps: currentSteps })
-    const res = await runAiTask({ ...input, taskType: step.taskType as NovelTaskType, userInstruction: input.userInstruction })
-    currentSteps[i] = { ...step, status: res.ok ? 'success' : 'failed', aiRunId: res.aiRunId, error: res.error }
+    currentSteps[i] = {
+      ...step,
+      status: 'running',
+      error: undefined,
+      resultSummary: undefined,
+    }
+    r.creative.updateWorkflowRun(r.db, run.id, { status: 'running', currentStep: step.key, steps: currentSteps })
+    const res = await executeWorkflowStep(r, run.id, currentSteps[i])
+    currentSteps[i] = {
+      ...currentSteps[i],
+      status: res.ok ? 'success' : 'failed',
+      aiRunId: res.aiRunId,
+      longTaskId: res.longTaskId,
+      videoTaskIds: res.videoTaskIds,
+      resultSummary: res.resultSummary,
+      error: res.error,
+    }
     r.creative.updateWorkflowRun(r.db, run.id, { steps: currentSteps })
     if (!res.ok) {
       const failed = r.creative.updateWorkflowRun(r.db, run.id, {
@@ -471,6 +534,17 @@ async function runCreativeWorkflow(input: WorkflowInput) {
       })
       return { ok: false, error: res.error, result: failed }
     }
+
+    const nextStep = currentSteps.slice(i + 1).find((it) => it.status !== 'success')
+    const templateStep = templateStepForRun(run.templateKey, step.key)
+    if (nextStep && (options.pauseAfterStep || templateStep?.pauseAfter)) {
+      const paused = r.creative.updateWorkflowRun(r.db, run.id, {
+        status: 'paused',
+        currentStep: nextStep.key,
+        steps: currentSteps,
+      })
+      return { ok: true, result: paused }
+    }
   }
 
   const done = r.creative.updateWorkflowRun(r.db, run.id, {
@@ -479,6 +553,173 @@ async function runCreativeWorkflow(input: WorkflowInput) {
     steps: currentSteps,
   })
   return { ok: true, result: done }
+}
+
+function workflowStepFromTemplate(step: CreativeWorkflowTemplateStep, input: WorkflowInput): WorkflowRunStep {
+  return {
+    key: step.key,
+    label: step.label,
+    kind: step.kind,
+    taskType: step.taskType,
+    batchKind: step.batchKind,
+    status: 'pending',
+    context: workflowContext(input),
+    resultSummary: step.description,
+  }
+}
+
+function workflowContext(input: WorkflowInput): NonNullable<WorkflowRunStep['context']> {
+  return {
+    projectId: input.projectId,
+    chapterId: input.chapterId,
+    adaptationProjectId: input.adaptationProjectId,
+    episodeId: input.episodeId,
+    sceneId: input.sceneId,
+    shotId: input.shotId,
+    userInstruction: input.userInstruction,
+  }
+}
+
+function resetWorkflowStep(step: WorkflowRunStep): WorkflowRunStep {
+  return {
+    ...step,
+    status: 'pending',
+    aiRunId: undefined,
+    longTaskId: undefined,
+    videoTaskIds: undefined,
+    resultSummary: undefined,
+    error: undefined,
+  }
+}
+
+function templateStepForRun(templateKey: string, stepKey: string): CreativeWorkflowTemplateStep | undefined {
+  return CREATIVE_WORKFLOW_TEMPLATES.find((tpl) => tpl.key === templateKey)?.steps.find((step) => step.key === stepKey)
+}
+
+type StepExecutionResult = {
+  ok: boolean
+  error?: string
+  aiRunId?: string
+  longTaskId?: string
+  videoTaskIds?: string[]
+  resultSummary?: string
+}
+
+async function executeWorkflowStep(
+  r: ReturnType<typeof getRepos>,
+  runId: string,
+  step: WorkflowRunStep,
+): Promise<StepExecutionResult> {
+  const kind = step.kind ?? (step.taskType ? 'ai' : undefined)
+  if (kind === 'ai') return executeAiWorkflowStep(step)
+  if (kind === 'batch') return executeBatchWorkflowStep(r, step)
+  if (kind === 'video_tasks') return executeVideoTaskDraftStep(r, runId, step)
+  return { ok: false, error: '工作流步骤缺少可执行类型' }
+}
+
+async function executeAiWorkflowStep(step: WorkflowRunStep): Promise<StepExecutionResult> {
+  if (!step.taskType) return { ok: false, error: 'AI 步骤缺少 taskType' }
+  const res = await runAiTask({ ...step.context, taskType: step.taskType, userInstruction: step.context?.userInstruction })
+  return {
+    ok: res.ok,
+    error: res.error,
+    aiRunId: res.aiRunId,
+    resultSummary: res.ok ? `AI 步骤已完成：${TASK_TYPE_LABELS[step.taskType] ?? step.taskType}` : undefined,
+  }
+}
+
+async function executeBatchWorkflowStep(
+  r: ReturnType<typeof getRepos>,
+  step: WorkflowRunStep,
+): Promise<StepExecutionResult> {
+  if (!step.batchKind) return { ok: false, error: '批量步骤缺少 batchKind' }
+  const adaptationProjectId = resolveWorkflowAdaptationProjectId(r, step.context)
+  if (!adaptationProjectId) return { ok: false, error: '请先创建或选择改编项目，再运行剧本/分镜批量步骤' }
+  const result = await startBatchLongTask(r, {
+    kind: step.batchKind,
+    projectId: step.context?.projectId,
+    adaptationProjectId,
+    episodeIds: step.context?.episodeId ? [step.context.episodeId] : undefined,
+    sceneIds: step.context?.sceneId ? [step.context.sceneId] : undefined,
+  })
+  return {
+    ok: result.ok,
+    error: result.error,
+    longTaskId: result.longTaskId,
+    resultSummary: result.ok ? `${step.label}已完成，可在任务队列查看明细。` : undefined,
+  }
+}
+
+async function executeVideoTaskDraftStep(
+  r: ReturnType<typeof getRepos>,
+  runId: string,
+  step: WorkflowRunStep,
+): Promise<StepExecutionResult> {
+  const config = r.videoProviderConfig.getDefaultVideoProviderConfig(r.db)
+  if (!config) return { ok: false, error: '请先在视频生成设置中配置默认 Provider' }
+  const shots = collectWorkflowShots(r, step.context)
+  if (shots.length === 0) return { ok: false, error: '没有可创建视频任务的镜头，请先完成分镜步骤' }
+
+  const adaptationProjectId = resolveWorkflowAdaptationProjectId(r, step.context)
+  const adaptation = adaptationProjectId ? r.adaptationProject.getAdaptationProject(r.db, adaptationProjectId) : undefined
+  const projectId = step.context?.projectId ?? adaptation?.sourceProjectId
+  const created: VideoGenerationTask[] = []
+
+  for (const shot of shots) {
+    const existing = r.videoTask.listVideoTasksByShot(r.db, shot.id).find((task) => task.note?.includes(`workflow:${runId}`))
+    if (existing) {
+      created.push(existing)
+      continue
+    }
+    created.push(r.videoTask.createVideoTask(r.db, {
+      projectId,
+      episodeId: shot.episodeId,
+      sceneId: shot.sceneId,
+      shotId: shot.id,
+      provider: config.name,
+      model: config.model ?? 'default',
+      prompt: shot.videoPrompt || shot.visualDescription,
+      negativePrompt: shot.negativePrompt,
+      referenceImageUrls: [],
+      status: 'pending',
+      note: `工作流草稿 workflow:${runId}`,
+    }))
+  }
+
+  return {
+    ok: true,
+    videoTaskIds: created.map((task) => task.id),
+    resultSummary: `已创建/复用 ${created.length} 个视频任务草稿，进入视频页后可逐条提交。`,
+  }
+}
+
+function resolveWorkflowAdaptationProjectId(
+  r: ReturnType<typeof getRepos>,
+  context?: WorkflowRunStep['context'],
+): string | undefined {
+  if (context?.adaptationProjectId) return context.adaptationProjectId
+  if (!context?.projectId) return undefined
+  const adaptations = r.adaptationProject.listAdaptationsByProject(r.db, context.projectId)
+  return adaptations[adaptations.length - 1]?.id
+}
+
+function collectWorkflowShots(
+  r: ReturnType<typeof getRepos>,
+  context?: WorkflowRunStep['context'],
+) {
+  if (context?.shotId) {
+    const shot = r.shot.getShot(r.db, context.shotId)
+    return shot ? [shot] : []
+  }
+  if (context?.sceneId) return r.shot.listShotsByScene(r.db, context.sceneId)
+  if (context?.episodeId) return r.shot.listShotsByEpisode(r.db, context.episodeId)
+
+  const adaptationProjectId = resolveWorkflowAdaptationProjectId(r, context)
+  if (!adaptationProjectId) return []
+  return r.script
+    .listScripts(r.db, adaptationProjectId)
+    .flatMap((script) => r.scene.listScenesByScript(r.db, script.id))
+    .flatMap((scene) => r.shot.listShotsByScene(r.db, scene.id))
 }
 
 async function runAiTask(input: NovelWorkflowInput) {

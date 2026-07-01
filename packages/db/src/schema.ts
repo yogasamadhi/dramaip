@@ -747,7 +747,7 @@ export const workflowRuns = sqliteTable('workflow_runs', {
   adaptationProjectId: text('adaptation_project_id'),
   templateKey: text('template_key').notNull(),
   title: text('title').notNull(),
-  status: text('status', { enum: ['pending', 'running', 'success', 'failed'] }).notNull().default('pending'),
+  status: text('status', { enum: ['pending', 'running', 'paused', 'success', 'failed'] }).notNull().default('pending'),
   currentStep: text('current_step'),
   steps: text('steps').notNull().default('[]'),
   errorMessage: text('error_message'),

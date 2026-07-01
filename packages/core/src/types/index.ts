@@ -845,7 +845,8 @@ export type RevisionTaskPriority = 'must' | 'should' | 'could'
 export type QualityGateStage = 'novel_to_adaptation' | 'episodes_to_scripts' | 'scripts_to_shots' | 'shots_to_video'
 export type QualityGateVerdict = 'pass' | 'warn' | 'block'
 export type ContentVersionSource = 'ai_overwrite' | 'adopt_preview' | 'revision_task' | 'manual_checkpoint' | 'restore'
-export type WorkflowRunStatus = 'pending' | 'running' | 'success' | 'failed'
+export type WorkflowRunStatus = 'pending' | 'running' | 'paused' | 'success' | 'failed'
+export type WorkflowRunStepKind = 'ai' | 'batch' | 'video_tasks'
 
 export interface CreativeCaseStudy {
   id: string
@@ -994,10 +995,24 @@ export interface NarrativeCurveReport {
 export interface WorkflowRunStep {
   key: string
   label: string
+  kind?: WorkflowRunStepKind
   taskType?: NovelTaskType
+  batchKind?: 'scripts' | 'shots'
   status: WorkflowRunStatus
   aiRunId?: string
+  longTaskId?: string
+  videoTaskIds?: string[]
+  resultSummary?: string
   error?: string
+  context?: {
+    projectId?: string
+    chapterId?: string
+    adaptationProjectId?: string
+    episodeId?: string
+    sceneId?: string
+    shotId?: string
+    userInstruction?: string
+  }
 }
 
 export interface WorkflowRun {

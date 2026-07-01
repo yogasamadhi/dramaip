@@ -639,7 +639,10 @@ export interface StudioApi {
       sceneId?: string
       shotId?: string
       userInstruction?: string
+      pauseAfterStep?: boolean
     }): Promise<{ ok: boolean; error?: string; result?: WorkflowRun }>
+    resume(input: { runId: string; pauseAfterStep?: boolean }): Promise<{ ok: boolean; error?: string; result?: WorkflowRun }>
+    retryStep(input: { runId: string; stepKey: string; pauseAfterStep?: boolean }): Promise<{ ok: boolean; error?: string; result?: WorkflowRun }>
   }
 }
 

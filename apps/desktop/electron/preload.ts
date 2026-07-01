@@ -370,6 +370,8 @@ const api = {
   workflow: {
     list: (projectId?: string) => invoke('workflow:list', projectId),
     run: (input: unknown) => invoke('workflow:run', input),
+    resume: (input: unknown) => invoke('workflow:resume', input),
+    retryStep: (input: unknown) => invoke('workflow:retryStep', input),
   },
 }
 

@@ -84,6 +84,8 @@ test('keeps high-risk channels in the shared contract', () => {
     'videoTask:update',
     'videoProvider:create',
     'workflow:run',
+    'workflow:resume',
+    'workflow:retryStep',
     'revisionTask:create',
     'revisionTask:apply',
     'contentVersion:create',
@@ -118,6 +120,11 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('aiRun:summarizeUsage', []), [])
   assert.deepEqual(validateIpcArgs('template:list', []), [])
   assert.throws(() => validateIpcArgs('template:list', ['extra']), /参数数量错误/)
+  assert.deepEqual(validateIpcArgs('workflow:resume', [{ runId: 'wf1' }]), [{ runId: 'wf1' }])
+  assert.deepEqual(validateIpcArgs('workflow:retryStep', [{ runId: 'wf1', stepKey: 'convert_to_episodes' }]), [
+    { runId: 'wf1', stepKey: 'convert_to_episodes' },
+  ])
+  assert.throws(() => validateIpcArgs('workflow:retryStep', [{ runId: 'wf1' }]), /stepKey/)
   assert.deepEqual(validateIpcArgs('script:updateContent', ['s1', '正文']), ['s1', '正文'])
   assert.throws(() => validateIpcArgs('script:updateContent', ['s1', { content: '正文' }]), /参数校验失败/)
 })
@@ -141,6 +148,9 @@ test('validates high-risk business IPC payload schemas', () => {
     () => validateIpcArgs('template:run', [{ templateId: 't1', variables: { name: 1 } }]),
     /variables.name/,
   )
+  assert.deepEqual(validateIpcArgs('workflow:run', [{ templateKey: 'novel_to_video_pipeline', pauseAfterStep: true }]), [
+    { templateKey: 'novel_to_video_pipeline', pauseAfterStep: true },
+  ])
   assert.throws(() => validateIpcArgs('workflow:run', [{ templateKey: 'unknown_workflow' }]), /templateKey/)
   assert.deepEqual(validateIpcArgs('videoTask:update', ['v1', { status: 'canceled' }]), [
     'v1',

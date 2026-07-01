@@ -48,7 +48,7 @@
 | L11-02 | Codex/安全 | done | 增加文件导入安全限制 | 项目包导入、样本文档导入、视频素材导入 | 文件大小、扩展名、解析失败、超大文本截断策略统一；错误提示可操作；不会阻塞主进程 |
 | L12-01 | Codex/产品体验 | done | 增加质量闸门仪表盘 | Workspace/Adaptation/Script/Shot 页面 | 用户能看到未记忆章节、未审稿剧本、高风险镜头、失败任务；点击可跳转处理 |
 | L12-02 | Codex/产品体验 | done | 增加全局搜索 | DB repository、renderer 页面 | 可搜索项目、人物、章节、剧本、场景、镜头 Prompt、AI 记录；大项目响应可接受 |
-| L12-03 | Codex/产品体验 | todo | 完善完整工作流模板 | creative workflow、template、UI | 从小说到分集、剧本、分镜、视频任务有可复用流水线；每步可暂停、查看结果、重试 |
+| L12-03 | Codex/产品体验 | done | 完善完整工作流模板 | creative workflow、template、UI | 从小说到分集、剧本、分镜、视频任务有可复用流水线；每步可暂停、查看结果、重试 |
 | L13-01 | Codex/资产管理 | todo | 设计本地资产库 | DB schema、文件目录、导入导出策略 | 角色参考图、场景图、视频结果、封面等有统一资产模型；项目包是否包含资产可配置 |
 | L13-02 | Codex/资产管理 | todo | 资产引用接入角色/镜头/视频 | VisualProfile、Shot、VideoResult UI | 角色视觉档案和镜头 Prompt 可引用本地资产；缺失文件有提示；导出/导入能保持引用或说明缺失 |
 | L14-01 | Codex/文档 | todo | 修正文档与实现不一致 | `README.md`、`DEVELOPMENT.md`、`CONTRIBUTING.md` | 移除过期 `ensureSchema()` 表述；命令、路径、迁移说明与当前代码一致；`git diff --check` 通过 |
@@ -135,9 +135,9 @@
 
 ## 5. 当前基线记录
 
-- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（63 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
+- 当前已知测试基线：`pnpm typecheck`、`pnpm test:unit`（65 个单元测试）、`pnpm test:db` 可通过；DB smoke 会先重编 `better-sqlite3` 到 Node ABI，执行迁移回放与 DB smoke，结束后重编回 Electron ABI。
 - 现有明显缺口：E2E 已有最小 Electron smoke 但覆盖仍需扩展，自动更新运行时代码尚未接入，长任务跨会话自动续跑策略仍需补齐；真实视频平台已落地 OpenAI Sora，其他平台仍需专用实现。
-- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01、L12-02 状态；其余 loop 仍为 `todo`。
+- 当前文档状态：已按执行日志更新 L0-01、L1-01、L1-02、L1-03、L2-01、L2-02、L3-01、L3-02、L3-03、L4-01、L4-02、L5-01、L5-02、L5-03、L6-01、L6-02、L6-03、L7-01、L7-02、L7-03、L8-01、L8-02、L8-03、L9-01、L9-02、L9-03、L10-01、L10-02、L10-03、L11-01、L11-02、L12-01、L12-02、L12-03 状态；其余 loop 仍为 `todo`。
 
 ## 6. Loop 执行日志
 
@@ -459,6 +459,17 @@
 - 实现结果：新增 `search:global` IPC，按项目、人物、章节、剧本、场景、镜头 Prompt、AI 记录分组执行 DB 侧 LIKE 查询并限制每类返回数量；结果携带标题、摘要片段、类型、route 和更新时间；首页新增“搜索”入口；新增 `/search` 页面，支持 URL query、延迟查询、分组结果和点击跳转；项目工作台识别 `section/chapter` 参数，可从搜索结果跳到章节/AI 记录等工作区。
 - 本地验证：`pnpm typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ipc-contract.test.ts` 通过；`pnpm test:unit` 通过（63 个单元测试）；`pnpm test:db` 通过，新增全局搜索 DB smoke 断言覆盖人物、章节、剧本、场景、镜头 Prompt、AI 记录，并在结束后重编 `better-sqlite3` 回 Electron ABI；`git diff --check` 通过。
 - Diff 审查：变更限定在全局搜索数据入口、受控 IPC、搜索 UI、工作台定位和 DB smoke；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含数据库迁移、构建产物、密码、token 或证书。
+
+### L12-03：完整工作流模板
+
+- 状态：done
+- 目标分支：`main`
+- 远程同步：开始前已执行 `git fetch origin`，当前 `main` 与 `origin/main` 对齐。
+- 当前工作区注意事项：以用户更新后的最新 `LOOPRULE.md` 为准执行；该文件的未提交修改不属于 L12-03 范围，本 loop 不纳入提交；`UPDATE.md` 删除状态同样不纳入提交。
+- 本 loop 范围：创意工作流模板定义、workflow IPC 执行器、批量任务复用入口、renderer 创意诊断台、IPC contract、模板单测、DB schema 类型、`LOOPMAP.md`。
+- 实现结果：新增“小说到视频任务流水线”，覆盖改编前质量闸门、分集大纲、批量剧本、批量分镜和视频任务草稿；工作流步骤支持 `ai/batch/video_tasks` 三类执行；分集、剧本、分镜和视频任务交接点可暂停检查；新增 `workflow:resume` 与 `workflow:retryStep`，可从暂停或失败步骤继续；步骤记录保存 AI run、长任务或视频任务 ID；创意诊断台展示模板说明、单步运行、步骤状态、查看结果、继续和重试；视频步骤只创建 pending 草稿，不自动提交真实视频平台。
+- 本地验证：`pnpm typecheck` 通过；`node --import ./node_modules/.pnpm/tsx@4.22.4/node_modules/tsx/dist/loader.mjs --test tests/ipc-contract.test.ts tests/creative-workflow-templates.test.ts` 通过；`pnpm test:unit` 通过（65 个单元测试）；`pnpm test:db` 通过，并在结束后重编 `better-sqlite3` 回 Electron ABI；`git diff --check` 通过。
+- Diff 审查：变更限定在完整工作流模板、执行/恢复/重试、批量任务复用、创意诊断台、IPC schema/test 和本 loop 文档状态；未纳入 `LOOPRULE.md` 用户规则更新和 `UPDATE.md` 删除状态；不包含构建产物、密码、token 或证书。
 
 ### L1-03：项目包导入导出 schema 化与预检
 

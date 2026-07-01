@@ -70,7 +70,7 @@ export function registerTaskIpc(): void {
   })
 }
 
-async function startBatchLongTask(
+export async function startBatchLongTask(
   repos: ReturnType<typeof getRepos>,
   input: BatchTaskRunInput,
 ): Promise<LongTaskOpResult> {

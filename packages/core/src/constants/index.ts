@@ -1,5 +1,5 @@
 // 常量 —— 短剧类型预设、工作台导航、任务类型映射（§5.2 / §5.3 / §10.1）
-import type { NovelTaskType, WritingRoomTargetKind } from '../types'
+import type { NovelTaskType, WorkflowRunStepKind, WritingRoomTargetKind } from '../types'
 
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = [
@@ -467,25 +467,125 @@ export function resolveTaskGroup(taskType: string): string {
   return TASK_TYPE_TO_GROUP[taskType] ?? 'setup'
 }
 
-export const CREATIVE_WORKFLOW_TEMPLATES = [
+export interface CreativeWorkflowTemplateStep {
+  key: string
+  label: string
+  kind: WorkflowRunStepKind
+  taskType?: NovelTaskType
+  batchKind?: 'scripts' | 'shots'
+  pauseAfter?: boolean
+  description?: string
+}
+
+export interface CreativeWorkflowTemplate {
+  key: string
+  title: string
+  description: string
+  steps: CreativeWorkflowTemplateStep[]
+}
+
+function aiWorkflowStep(taskType: NovelTaskType, options: Partial<CreativeWorkflowTemplateStep> = {}): CreativeWorkflowTemplateStep {
+  return {
+    key: options.key ?? taskType,
+    label: options.label ?? TASK_TYPE_LABELS[taskType] ?? taskType,
+    kind: 'ai',
+    taskType,
+    pauseAfter: options.pauseAfter,
+    description: options.description,
+  }
+}
+
+function batchWorkflowStep(batchKind: 'scripts' | 'shots', label: string, options: Partial<CreativeWorkflowTemplateStep> = {}): CreativeWorkflowTemplateStep {
+  return {
+    key: options.key ?? `batch_${batchKind}`,
+    label,
+    kind: 'batch',
+    batchKind,
+    pauseAfter: options.pauseAfter,
+    description: options.description,
+  }
+}
+
+function videoTaskWorkflowStep(options: Partial<CreativeWorkflowTemplateStep> = {}): CreativeWorkflowTemplateStep {
+  return {
+    key: options.key ?? 'draft_video_tasks',
+    label: options.label ?? '创建视频任务草稿',
+    kind: 'video_tasks',
+    pauseAfter: options.pauseAfter,
+    description: options.description,
+  }
+}
+
+export const CREATIVE_WORKFLOW_TEMPLATES: CreativeWorkflowTemplate[] = [
   {
     key: 'project_full_diagnosis',
     title: '新项目完整体检',
-    steps: ['analyze_trope_freshness', 'analyze_narrative_curve', 'simulate_audience_reaction', 'generate_revision_tasks'],
+    description: '对项目整体进行新鲜度、叙事曲线、观众反应和修稿任务体检。',
+    steps: [
+      aiWorkflowStep('analyze_trope_freshness'),
+      aiWorkflowStep('analyze_narrative_curve'),
+      aiWorkflowStep('simulate_audience_reaction'),
+      aiWorkflowStep('generate_revision_tasks'),
+    ],
   },
   {
     key: 'chapter_anti_trope_revision',
     title: '章节反套路修稿',
-    steps: ['analyze_trope_freshness', 'generate_anti_trope_variants', 'generate_revision_tasks'],
+    description: '围绕当前章节生成反套路方案和可执行修稿任务。',
+    steps: [
+      aiWorkflowStep('analyze_trope_freshness'),
+      aiWorkflowStep('generate_anti_trope_variants'),
+      aiWorkflowStep('generate_revision_tasks'),
+    ],
   },
   {
     key: 'adaptation_quality_gate',
     title: '改编前质量闸门',
-    steps: ['run_quality_gate', 'simulate_audience_reaction', 'generate_revision_tasks'],
+    description: '在小说进入分集改编前运行质量闸门、观众模拟和修稿任务。',
+    steps: [
+      aiWorkflowStep('run_quality_gate'),
+      aiWorkflowStep('simulate_audience_reaction'),
+      aiWorkflowStep('generate_revision_tasks'),
+    ],
   },
   {
     key: 'video_quality_gate',
     title: '视频生成前质量闸门',
-    steps: ['analyze_video_cost_risk', 'run_quality_gate', 'generate_revision_tasks'],
+    description: '视频生成前评估成本、难度和阻塞风险。',
+    steps: [
+      aiWorkflowStep('analyze_video_cost_risk'),
+      aiWorkflowStep('run_quality_gate'),
+      aiWorkflowStep('generate_revision_tasks'),
+    ],
   },
-] as const
+  {
+    key: 'novel_to_video_pipeline',
+    title: '小说到视频任务流水线',
+    description: '从改编质量闸门、分集大纲、批量剧本、批量分镜一路生成视频任务草稿。',
+    steps: [
+      aiWorkflowStep('run_quality_gate', {
+        key: 'novel_to_adaptation_gate',
+        label: '改编前质量闸门',
+        description: '先确认小说进入分集改编前没有阻塞项。',
+      }),
+      aiWorkflowStep('convert_novel_to_episodes', {
+        key: 'convert_to_episodes',
+        label: '生成分集大纲',
+        pauseAfter: true,
+        description: '生成或更新分集大纲，完成后建议人工确认。',
+      }),
+      batchWorkflowStep('scripts', '批量生成剧本', {
+        pauseAfter: true,
+        description: '为分集批量补齐剧本，已有剧本会跳过。',
+      }),
+      batchWorkflowStep('shots', '批量拆分镜头', {
+        pauseAfter: true,
+        description: '为已有剧本场景批量拆分镜头，已有镜头会跳过。',
+      }),
+      videoTaskWorkflowStep({
+        pauseAfter: true,
+        description: '为已有镜头创建 pending 视频任务草稿，不自动提交真实平台。',
+      }),
+    ],
+  },
+]

@@ -270,8 +270,22 @@ const workflowRunInput = z
     sceneId: maybeId,
     shotId: maybeId,
     userInstruction: z.string().optional(),
+    pauseAfterStep: z.boolean().optional(),
   })
   .passthrough()
+const workflowResumeInput = z
+  .object({
+    runId: id,
+    pauseAfterStep: z.boolean().optional(),
+  })
+  .strict()
+const workflowRetryStepInput = z
+  .object({
+    runId: id,
+    stepKey: id,
+    pauseAfterStep: z.boolean().optional(),
+  })
+  .strict()
 
 const batchTaskRunInput = z
   .object({
@@ -409,6 +423,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'genrePreset:create': [genrePresetInput],
   'genrePreset:update': [id, genrePresetPatch],
   'workflow:run': [workflowRunInput],
+  'workflow:resume': [workflowResumeInput],
+  'workflow:retryStep': [workflowRetryStepInput],
   'revisionTask:create': [revisionTaskInput],
   'revisionTask:update': [id, revisionTaskPatch],
   'revisionTask:apply': [id],
