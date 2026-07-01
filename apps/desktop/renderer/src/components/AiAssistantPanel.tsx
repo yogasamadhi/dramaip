@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, Loader2 } from 'lucide-react'
-import type { Chapter, NovelTaskType } from '@sdns/core'
+import type { Chapter, NovelTaskType, TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ interface AiAssistantPanelProps {
   chapter: Chapter | null
   /** 章节类任务完成后刷新章节（让编辑器载入新内容） */
   onChapterUpdated: () => Promise<void> | void
+  onTextPreview?: (preview: TextDiffPreviewPayload) => void
 }
 
 const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 'default' | 'outline' | 'secondary' }[] = [
@@ -31,7 +32,7 @@ const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 
   { taskType: 'rewrite_as_ai_drama_novel', label: 'AI 短剧化改写', desc: '更视觉化、更短剧化', variant: 'outline' },
 ]
 
-export function AiAssistantPanel({ projectId, chapter, onChapterUpdated }: AiAssistantPanelProps) {
+export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextPreview }: AiAssistantPanelProps) {
   const [running, setRunning] = useState<NovelTaskType | null>(null)
   const [instruction, setInstruction] = useState('')
 
@@ -51,8 +52,13 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated }: AiAss
         userInstruction: instruction.trim() || undefined,
       })
       if (res.ok) {
-        toast.success(`${label} 完成`, { id: toastId })
-        await onChapterUpdated()
+        if (res.result?.kind === 'text_preview') {
+          toast.success(`${label} 完成，请确认`, { id: toastId })
+          onTextPreview?.(res.result.data as TextDiffPreviewPayload)
+        } else {
+          toast.success(`${label} 完成`, { id: toastId })
+          await onChapterUpdated()
+        }
       } else {
         toast.error(`${label} 失败：${res.error ?? '未知错误'}`, { id: toastId })
       }

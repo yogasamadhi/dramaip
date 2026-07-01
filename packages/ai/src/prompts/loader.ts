@@ -37,6 +37,7 @@ import {
   VisualSettingResultSchema,
 } from '@sdns/core'
 import type { z } from 'zod'
+export { effectiveTaskType, TEXT_CHAPTER_TASKS, isTextChapterTask } from './task-types'
 
 import generateProject from './zh-CN/project/generate-project.md?raw'
 import generateCharacter from './zh-CN/character/generate-character.md?raw'
@@ -201,28 +202,4 @@ export const JSON_TASKS: ReadonlySet<NovelTaskType> = new Set(
 
 export function isJsonTask(taskType: NovelTaskType): boolean {
   return JSON_TASKS.has(taskType)
-}
-
-/**
- * v0.8：解析一个任务「真正参与解析/校验/落库」的 taskType。
- * - 普通任务：返回自身。
- * - template_run：返回 templateScope（由 graph state 注入，如 generate_project），
- *   从而复用对应生成类任务的解析、Zod 校验与预览落库闭环；缺省回退为 generate_project。
- */
-export function effectiveTaskType(taskType: NovelTaskType, templateScope?: NovelTaskType): NovelTaskType {
-  if (taskType === 'template_run') {
-    return templateScope ?? 'generate_project'
-  }
-  return taskType
-}
-
-/** 以正文文本为输出的章节类任务 */
-export const TEXT_CHAPTER_TASKS: ReadonlySet<NovelTaskType> = new Set(
-  Object.entries(TASK_DEFINITIONS)
-    .filter(([, definition]) => definition.writesChapterContent)
-    .map(([taskType]) => taskType as NovelTaskType),
-)
-
-export function isTextChapterTask(taskType: NovelTaskType): boolean {
-  return TEXT_CHAPTER_TASKS.has(taskType)
 }

@@ -12,7 +12,7 @@ import {
   Split,
   Wand2,
 } from 'lucide-react'
-import type { AdaptationProject, Episode, Scene, Script, ScriptReview } from '@sdns/core'
+import type { AdaptationProject, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
+import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { cn } from '@/lib/utils'
 
 type ScriptTaskType =
@@ -37,6 +38,7 @@ export function ScriptWorkspacePage() {
   const [activeEpisodeId, setActiveEpisodeId] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
+  const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
 
   const reload = useCallback(async () => {
     if (!id) return
@@ -78,8 +80,13 @@ export function ScriptWorkspacePage() {
         taskType,
       })
       if (res.ok) {
-        toast.success(`${label}完成`, { id: tid })
-        setVersion((v) => v + 1)
+        if (res.result?.kind === 'text_preview') {
+          toast.success(`${label}完成，请确认`, { id: tid })
+          setTextPreview(res.result.data as TextDiffPreviewPayload)
+        } else {
+          toast.success(`${label}完成`, { id: tid })
+          setVersion((v) => v + 1)
+        }
       } else {
         toast.error(`${label}失败：` + (res.error ?? '未知错误'), { id: tid })
       }
@@ -91,7 +98,11 @@ export function ScriptWorkspacePage() {
   // ===== AI：批量生成前 N 集 =====
   async function runBatch(count: number) {
     if (!adaptation || episodes.length === 0) return
-    const targets = episodes.slice(0, count)
+    const targets = episodes.slice(0, count).filter((ep) => !scripts.some((script) => script.episodeId === ep.id))
+    if (targets.length === 0) {
+      toast.message(`前 ${Math.min(count, episodes.length)} 集已生成剧本`)
+      return
+    }
     setBusy('batch')
     const tid = toast.loading(`正在批量生成前 ${targets.length} 集剧本…（可能需要较长时间）`)
     let okCount = 0
@@ -122,6 +133,22 @@ export function ScriptWorkspacePage() {
         <Loader2 className="mr-2 animate-spin" /> 加载中…
       </div>
     )
+  }
+
+  async function handleTextAdopt() {
+    if (!adaptation || !textPreview) return
+    const res = await ipc.ai.applyResult({
+      projectId: adaptation.sourceProjectId,
+      taskType: textPreview.taskType,
+      data: textPreview,
+    })
+    if (res.ok) {
+      toast.success('已保存剧本')
+      setTextPreview(null)
+      setVersion((v) => v + 1)
+    } else {
+      toast.error('保存失败：' + (res.error ?? '未知错误'))
+    }
   }
 
   return (
@@ -210,6 +237,12 @@ export function ScriptWorkspacePage() {
           )}
         </section>
       </div>
+      <TextDiffPreviewDialog
+        open={textPreview !== null}
+        preview={textPreview}
+        onAdopt={handleTextAdopt}
+        onCancel={() => setTextPreview(null)}
+      />
     </div>
   )
 }

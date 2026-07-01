@@ -962,6 +962,39 @@ export type NovelTaskType =
 /** 编剧室审稿目标类型 */
 export type WritingRoomTargetKind = 'chapter' | 'script' | 'shot'
 
+export type TextDiffPreviewTargetKind = 'chapter' | 'script' | 'shot'
+
+export interface TextDiffPreviewPayload {
+  targetKind: TextDiffPreviewTargetKind
+  targetId?: string
+  title?: string
+  taskType: NovelTaskType
+  currentContent: string
+  nextContent: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  note?: string
+  script?: {
+    episodeNumber: number
+    title: string
+    content: string
+    hook?: string
+    mainConflict?: string
+    emotionalBeat?: string
+    reversal?: string
+    cliffhanger?: string
+    estimatedDuration?: string
+  }
+  shotPatch?: {
+    videoPrompt?: string
+    negativePrompt?: string
+    imagePrompt?: string
+  }
+}
+
 /** Agent 配置（对应 agent_profiles 表） */
 export interface AgentProfile {
   id: string

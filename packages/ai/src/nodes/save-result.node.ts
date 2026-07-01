@@ -24,9 +24,10 @@ import type {
   ShotReviewResult,
   ShotsResult,
   StoryEventsResult,
+  TextDiffPreviewPayload,
   VideoCostRiskResult,
 } from '@sdns/core'
-import { effectiveTaskType, isTextChapterTask } from '../prompts/loader'
+import { effectiveTaskType, isTextChapterTask } from '../prompts/task-types'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
 
@@ -42,24 +43,20 @@ export function createSaveResultNode(deps: NodeDeps) {
 
     if (isTextChapterTask(effectiveType) && state.chapterId) {
       const content = String(state.parsedOutput ?? '').trim()
+      const currentContent = state.currentChapter?.content ?? ''
       let next = content
-      if (taskType === 'continue_chapter' && state.currentChapter?.content?.trim()) {
-        next = `${state.currentChapter.content.trimEnd()}\n\n${content}`
+      if (taskType === 'continue_chapter' && currentContent.trim()) {
+        next = `${currentContent.trimEnd()}\n\n${content}`
       }
-      const updated = repos.chapter.updateChapterContent(db, state.chapterId, next)
-      repos.creative.createContentVersion(db, {
-        projectId: state.projectId,
+      return textPreview({
         targetKind: 'chapter',
         targetId: state.chapterId,
-        label: `AI 覆写：${taskType}`,
-        source: 'ai_overwrite',
-        content: next,
-        meta: { taskType },
+        title: state.currentChapter?.title,
+        taskType,
+        currentContent,
+        nextContent: next,
+        projectId: state.projectId,
       })
-      return {
-        currentChapter: updated ?? undefined,
-        result: { kind: 'chapter', data: { chapterId: state.chapterId, content: next } },
-      }
     }
 
     if (taskType === 'evaluate_ai_drama_fit' && state.projectId) {
@@ -300,6 +297,30 @@ export function createSaveResultNode(deps: NodeDeps) {
     ) {
       const r = state.parsedOutput as ScriptResult
       const ep = state.currentEpisode
+      if (taskType !== 'generate_ai_drama_script' || state.currentScript) {
+        return textPreview({
+          targetKind: 'script',
+          targetId: state.currentScript?.id,
+          title: `第 ${ep.episodeNumber} 集 · ${ep.title}`,
+          taskType,
+          currentContent: state.currentScript?.content ?? '',
+          nextContent: r.content,
+          projectId: state.projectId,
+          adaptationProjectId: state.adaptationProjectId,
+          episodeId: state.episodeId,
+          script: {
+            episodeNumber: ep.episodeNumber,
+            title: ep.title,
+            content: r.content,
+            hook: r.hook,
+            mainConflict: r.mainConflict,
+            emotionalBeat: r.emotionalBeat,
+            reversal: r.reversal,
+            cliffhanger: r.cliffhanger,
+            estimatedDuration: r.estimatedDuration,
+          },
+        })
+      }
       const created = repos.script.upsertScriptByEpisode(db, {
         adaptationProjectId: state.adaptationProjectId,
         episodeId: state.episodeId,
@@ -403,30 +424,33 @@ export function createSaveResultNode(deps: NodeDeps) {
     ) {
       const shot = state.currentShot
       const r = state.parsedOutput as ShotPromptResult
-      const patch: Record<string, unknown> = {}
+      const patch: TextDiffPreviewPayload['shotPatch'] = {}
       if (r.videoPrompt !== undefined) patch.videoPrompt = r.videoPrompt
       if (r.negativePrompt !== undefined) patch.negativePrompt = r.negativePrompt
       if (r.imagePrompt !== undefined) patch.imagePrompt = r.imagePrompt
-      const updated = repos.shot.updateShot(db, shot.id, patch)
-      repos.creative.createContentVersion(db, {
-        projectId: state.projectId,
+      return textPreview({
         targetKind: 'shot',
         targetId: shot.id,
-        label: `AI 覆写：${taskType}`,
-        source: 'ai_overwrite',
-        content: updated?.videoPrompt ?? r.videoPrompt ?? shot.videoPrompt,
-        meta: { taskType, negativePrompt: updated?.negativePrompt ?? r.negativePrompt ?? shot.negativePrompt },
-      })
-      // 追加一条 Prompt 版本快照
-      repos.shot.appendPromptVersion(db, {
-        shotId: shot.id,
+        title: `镜头 ${shot.shotNumber}`,
         taskType,
-        videoPrompt: updated?.videoPrompt ?? r.videoPrompt ?? shot.videoPrompt,
-        negativePrompt: updated?.negativePrompt ?? r.negativePrompt ?? shot.negativePrompt,
-        imagePrompt: updated?.imagePrompt ?? r.imagePrompt ?? shot.imagePrompt,
+        currentContent: renderShotPromptText({
+          videoPrompt: shot.videoPrompt,
+          negativePrompt: shot.negativePrompt,
+          imagePrompt: shot.imagePrompt,
+        }),
+        nextContent: renderShotPromptText({
+          videoPrompt: patch.videoPrompt ?? shot.videoPrompt,
+          negativePrompt: patch.negativePrompt ?? shot.negativePrompt,
+          imagePrompt: patch.imagePrompt ?? shot.imagePrompt,
+        }),
+        projectId: state.projectId,
+        adaptationProjectId: state.adaptationProjectId,
+        episodeId: state.episodeId,
+        sceneId: state.sceneId,
+        shotId: shot.id,
         note: taskType === 'optimize_prompt_for_video_platform' ? state.userInstruction : undefined,
+        shotPatch: patch,
       })
-      return { result: { kind: 'shot', data: updated ?? shot } }
     }
 
     // v0.6：镜头审查（按镜头 upsert；需 currentShot）
@@ -597,6 +621,22 @@ export function createSaveResultNode(deps: NodeDeps) {
     // —— check_consistency / build_long_context 仅回传结果供 UI 展示
     return { result: { kind: taskType, data: state.parsedOutput } }
   }
+}
+
+function textPreview(data: TextDiffPreviewPayload): { result: { kind: 'text_preview'; data: TextDiffPreviewPayload } } {
+  return { result: { kind: 'text_preview', data } }
+}
+
+function renderShotPromptText(input: {
+  videoPrompt?: string
+  negativePrompt?: string
+  imagePrompt?: string
+}): string {
+  return [
+    `视频 Prompt:\n${input.videoPrompt ?? ''}`,
+    `负面 Prompt:\n${input.negativePrompt ?? ''}`,
+    `图片 Prompt:\n${input.imagePrompt ?? ''}`,
+  ].join('\n\n')
 }
 
 function inferCreativeTarget(state: NovelGraphStateType): { kind: 'project' | 'chapter' | 'adaptation' | 'episode' | 'script' | 'scene' | 'shot'; id?: string; title?: string } {

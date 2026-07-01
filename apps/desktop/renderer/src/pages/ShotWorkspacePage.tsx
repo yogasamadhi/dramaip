@@ -13,7 +13,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, Episode, PromptVersion, Scene, Script, Shot, ShotReview } from '@sdns/core'
+import type { AdaptationProject, Episode, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
+import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import {
   Select,
   SelectContent,
@@ -249,6 +250,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const navigate = useNavigate()
   const [activeShotId, setActiveShotId] = useState<string | null>(null)
   const [versions, setVersions] = useState<PromptVersion[]>([])
+  const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
 
   useEffect(() => {
     setActiveShotId((cur) => cur ?? shots[0]?.id ?? null)
@@ -279,8 +281,13 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
         userInstruction: instruction,
       })
       if (res.ok) {
-        toast.success(`${label}完成`, { id: tid })
-        onChanged()
+        if (res.result?.kind === 'text_preview') {
+          toast.success(`${label}完成，请确认`, { id: tid })
+          setTextPreview(res.result.data as TextDiffPreviewPayload)
+        } else {
+          toast.success(`${label}完成`, { id: tid })
+          onChanged()
+        }
       } else {
         toast.error(`${label}失败：` + (res.error ?? '未知错误'), { id: tid })
       }
@@ -348,6 +355,22 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     toast.success('已保存 Prompt 检查点')
   }
 
+  async function handleTextAdopt() {
+    if (!textPreview) return
+    const res = await ipc.ai.applyResult({
+      projectId: sourceProjectId,
+      taskType: textPreview.taskType,
+      data: textPreview,
+    })
+    if (res.ok) {
+      toast.success('已保存 Prompt')
+      setTextPreview(null)
+      onChanged()
+    } else {
+      toast.error('保存失败：' + (res.error ?? '未知错误'))
+    }
+  }
+
   const [busy2, setBusy2] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ videoPrompt: string; negativePrompt: string; imagePrompt: string }>({
     videoPrompt: '',
@@ -376,8 +399,9 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="p-6">
+    <>
+      <ScrollArea className="h-full">
+        <div className="p-6">
         {/* 场景头 */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <Badge variant="outline">场景 {index + 1}</Badge>
@@ -567,8 +591,15 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             )}
           </div>
         )}
-      </div>
-    </ScrollArea>
+        </div>
+      </ScrollArea>
+      <TextDiffPreviewDialog
+        open={textPreview !== null}
+        preview={textPreview}
+        onAdopt={handleTextAdopt}
+        onCancel={() => setTextPreview(null)}
+      />
+    </>
   )
 }
 

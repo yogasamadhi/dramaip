@@ -8,6 +8,8 @@ import type {
   GenerateChapterOutlinesResult,
   GenerateCharactersResult,
   GenerateProjectResult,
+  NovelTaskType,
+  TextDiffPreviewPayload,
   VisualProfileResult,
   VisualSettingResult,
 } from '@sdns/core'
@@ -23,8 +25,8 @@ export type GenerateTaskType =
   | 'convert_novel_to_episodes'
 
 export interface ApplyArtifactInput {
-  projectId: string
-  taskType: GenerateTaskType
+  projectId?: string
+  taskType: NovelTaskType
   /** v0.2：generate_character_visual_profile 需要指定人物 */
   characterId?: string
   /** v0.4：convert_novel_to_episodes 需要指定改编项目 */
@@ -34,7 +36,7 @@ export interface ApplyArtifactInput {
 }
 
 export interface ApplyArtifactOutput {
-  kind: GenerateTaskType
+  kind: NovelTaskType
   /** 落库后的实体：project / Character[] / Outline / Outline[] */
   created: unknown
 }
@@ -52,10 +54,15 @@ export async function applyGeneratedArtifact(
 ): Promise<ApplyArtifactOutput> {
   const { repos } = deps
   const db = repos.db
-  const { projectId, taskType, data } = input
+  const { taskType, data } = input
+
+  if (isTextDiffPreviewTask(taskType)) {
+    return applyTextDiffPreview(deps, input)
+  }
 
   switch (taskType) {
     case 'generate_project': {
+      const projectId = requireProjectId(input.projectId, taskType)
       const r = data as GenerateProjectResult
       const updated = repos.project.updateProject(db, projectId, {
         title: r.title,
@@ -80,6 +87,7 @@ export async function applyGeneratedArtifact(
     }
 
     case 'generate_characters': {
+      const projectId = requireProjectId(input.projectId, taskType)
       const items = data as GenerateCharactersResult
       const created = items.map((it) =>
         repos.character.createCharacter(db, {
@@ -105,6 +113,7 @@ export async function applyGeneratedArtifact(
     }
 
     case 'generate_book_outline': {
+      const projectId = requireProjectId(input.projectId, taskType)
       const content = String(data ?? '').trim()
       const existing = repos.outline.listOutlines(db, projectId, 'book')
       const created =
@@ -132,6 +141,7 @@ export async function applyGeneratedArtifact(
     }
 
     case 'generate_chapter_outline': {
+      const projectId = requireProjectId(input.projectId, taskType)
       const items = data as GenerateChapterOutlinesResult
       const baseIndex = repos.outline.listOutlines(db, projectId, 'chapter').length
       const created = items.map((it, idx) =>
@@ -148,6 +158,7 @@ export async function applyGeneratedArtifact(
 
     // v0.2：人物视觉档案（每人一份，存在则更新）
     case 'generate_character_visual_profile': {
+      const projectId = requireProjectId(input.projectId, taskType)
       if (!input.characterId) throw new Error('生成人物视觉档案需要 characterId')
       const r = data as VisualProfileResult
       const created = repos.visualProfile.upsertVisualProfileByCharacter(db, {
@@ -168,6 +179,7 @@ export async function applyGeneratedArtifact(
 
     // v0.2：视觉设定（追加一条）
     case 'generate_visual_setting': {
+      const projectId = requireProjectId(input.projectId, taskType)
       const r = data as VisualSettingResult
       const created = repos.visualSetting.createVisualSetting(db, {
         projectId,
@@ -182,6 +194,7 @@ export async function applyGeneratedArtifact(
 
     // v0.4：分集大纲生成（清空旧分集后批量写入）
     case 'convert_novel_to_episodes': {
+      const projectId = requireProjectId(input.projectId, taskType)
       if (!input.adaptationProjectId) throw new Error('生成分集大纲需要 adaptationProjectId')
       const items = data as EpisodesResult
       // 清空该改编项目下已有分集（重新生成分集）
@@ -219,6 +232,140 @@ export async function applyGeneratedArtifact(
     default:
       throw new Error(`不支持的生成任务类型：${taskType}`)
   }
+}
+
+function applyTextDiffPreview(deps: NodeDeps, input: ApplyArtifactInput): ApplyArtifactOutput {
+  const { repos } = deps
+  const db = repos.db
+  const preview = asTextDiffPreviewPayload(input.data)
+  if (preview.taskType !== input.taskType) {
+    throw new Error('预览任务类型与采用任务类型不一致')
+  }
+  const projectId = input.projectId ?? preview.projectId
+
+  if (preview.targetKind === 'chapter') {
+    if (!preview.targetId) throw new Error('章节预览缺少 targetId')
+    const updated = repos.chapter.updateChapterContent(db, preview.targetId, preview.nextContent)
+    if (!updated) throw new Error('未找到要更新的章节')
+    repos.creative.createContentVersion(db, {
+      projectId,
+      targetKind: 'chapter',
+      targetId: preview.targetId,
+      label: `采纳预览：${preview.taskType}`,
+      source: 'adopt_preview',
+      content: preview.nextContent,
+      meta: { taskType: preview.taskType },
+    })
+    return { kind: preview.taskType, created: updated }
+  }
+
+  if (preview.targetKind === 'script') {
+    if (!preview.adaptationProjectId) throw new Error('剧本预览缺少 adaptationProjectId')
+    if (!preview.episodeId) throw new Error('剧本预览缺少 episodeId')
+    if (!preview.script) throw new Error('剧本预览缺少 script 数据')
+    const script = repos.script.upsertScriptByEpisode(db, {
+      adaptationProjectId: preview.adaptationProjectId,
+      episodeId: preview.episodeId,
+      episodeNumber: preview.script.episodeNumber,
+      title: preview.script.title,
+      content: preview.script.content,
+      hook: preview.script.hook,
+      mainConflict: preview.script.mainConflict,
+      emotionalBeat: preview.script.emotionalBeat,
+      reversal: preview.script.reversal,
+      cliffhanger: preview.script.cliffhanger,
+      estimatedDuration: preview.script.estimatedDuration,
+    })
+    repos.creative.createContentVersion(db, {
+      projectId,
+      targetKind: 'script',
+      targetId: script.id,
+      label: `采纳预览：${preview.taskType}`,
+      source: 'adopt_preview',
+      content: script.content,
+      meta: { taskType: preview.taskType, episodeId: preview.episodeId },
+    })
+    return { kind: preview.taskType, created: script }
+  }
+
+  if (preview.targetKind === 'shot') {
+    const shotId = preview.shotId ?? preview.targetId
+    if (!shotId) throw new Error('镜头预览缺少 shotId')
+    const patch = preview.shotPatch ?? {}
+    const updated = repos.shot.updateShot(db, shotId, patch)
+    if (!updated) throw new Error('未找到要更新的镜头')
+    repos.creative.createContentVersion(db, {
+      projectId,
+      targetKind: 'shot',
+      targetId: shotId,
+      label: `采纳预览：${preview.taskType}`,
+      source: 'adopt_preview',
+      content: updated?.videoPrompt ?? patch.videoPrompt ?? '',
+      meta: {
+        taskType: preview.taskType,
+        negativePrompt: updated?.negativePrompt ?? patch.negativePrompt,
+        imagePrompt: updated?.imagePrompt ?? patch.imagePrompt,
+      },
+    })
+    repos.shot.appendPromptVersion(db, {
+      shotId,
+      taskType: preview.taskType,
+      videoPrompt: updated?.videoPrompt ?? patch.videoPrompt,
+      negativePrompt: updated?.negativePrompt ?? patch.negativePrompt,
+      imagePrompt: updated?.imagePrompt ?? patch.imagePrompt,
+      note: preview.note,
+    })
+    return { kind: preview.taskType, created: updated }
+  }
+
+  throw new Error(`不支持的文本预览目标：${preview.targetKind}`)
+}
+
+function requireProjectId(projectId: string | undefined, taskType: NovelTaskType): string {
+  if (!projectId) throw new Error(`${taskType} 需要 projectId`)
+  return projectId
+}
+
+const TEXT_DIFF_PREVIEW_TASKS = new Set<NovelTaskType>([
+  'generate_chapter',
+  'continue_chapter',
+  'rewrite_chapter',
+  'polish_chapter',
+  'expand_chapter',
+  'enhance_conflict',
+  'enhance_highlight',
+  'enhance_ai_drama_feel',
+  'enhance_hook',
+  'enhance_reversal',
+  'enhance_cliffhanger',
+  'rewrite_as_ai_drama_novel',
+  'generate_ai_drama_script',
+  'rewrite_ai_drama_script',
+  'enhance_dialogue_conflict',
+  'enhance_episode_cliffhanger',
+  'enhance_script_visuality',
+  'generate_shot_prompt',
+  'generate_negative_prompt',
+  'rewrite_shot_prompt',
+  'optimize_prompt_for_video_platform',
+])
+
+function isTextDiffPreviewTask(taskType: NovelTaskType): boolean {
+  return TEXT_DIFF_PREVIEW_TASKS.has(taskType)
+}
+
+function asTextDiffPreviewPayload(data: unknown): TextDiffPreviewPayload {
+  if (!data || typeof data !== 'object') throw new Error('文本预览数据无效')
+  const preview = data as Partial<TextDiffPreviewPayload>
+  if (
+    (preview.targetKind !== 'chapter' && preview.targetKind !== 'script' && preview.targetKind !== 'shot') ||
+    typeof preview.taskType !== 'string' ||
+    typeof preview.currentContent !== 'string' ||
+    typeof preview.nextContent !== 'string'
+  ) {
+    throw new Error('文本预览数据缺少必要字段')
+  }
+  return preview as TextDiffPreviewPayload
 }
 
 function joinChapterOutlineContent(it: {

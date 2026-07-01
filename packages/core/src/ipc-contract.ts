@@ -132,7 +132,7 @@ const aiTaskInput = objectPayload.extend({
 })
 
 const applyArtifactInput = z.object({
-  projectId: id,
+  projectId: maybeId,
   taskType: novelTaskType,
   data: requiredUnknown,
   characterId: maybeId,

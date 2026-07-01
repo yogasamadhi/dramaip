@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
-import type { AiRun, Chapter, Project } from '@sdns/core'
+import type { AiRun, Chapter, Project, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { AiAssistantPanel } from '@/components/AiAssistantPanel'
 import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/GeneratePreviewDialog'
+import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
 import { ChatSection } from '@/components/sections/ChatSection'
 import { OutlineSection } from '@/components/sections/OutlineSection'
@@ -77,6 +78,7 @@ export function WorkspacePage() {
     data: null,
   })
   const [generating, setGenerating] = useState<PreviewTaskType | null>(null)
+  const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [dataVersion, setDataVersion] = useState(0)
   const [generateIdea, setGenerateIdea] = useState('')
 
@@ -209,6 +211,22 @@ export function WorkspacePage() {
       } else {
         setDataVersion((v) => v + 1)
       }
+    } else {
+      toast.error('保存失败：' + (res.error ?? '未知错误'))
+    }
+  }
+
+  async function handleTextAdopt() {
+    if (!project || !textPreview) return
+    const res = await ipc.ai.applyResult({
+      projectId: project.id,
+      taskType: textPreview.taskType,
+      data: textPreview,
+    })
+    if (res.ok) {
+      toast.success('已保存到项目')
+      setTextPreview(null)
+      await onChapterUpdated()
     } else {
       toast.error('保存失败：' + (res.error ?? '未知错误'))
     }
@@ -514,6 +532,7 @@ export function WorkspacePage() {
                 projectId={project.id}
                 chapter={selected}
                 onChapterUpdated={onChapterUpdated}
+                onTextPreview={setTextPreview}
               />
             </ScrollArea>
           ) : (
@@ -533,6 +552,12 @@ export function WorkspacePage() {
         data={preview.data}
         onAdopt={handleAdopt}
         onCancel={() => setPreview((p) => ({ ...p, open: false }))}
+      />
+      <TextDiffPreviewDialog
+        open={textPreview !== null}
+        preview={textPreview}
+        onAdopt={handleTextAdopt}
+        onCancel={() => setTextPreview(null)}
       />
     </div>
   )

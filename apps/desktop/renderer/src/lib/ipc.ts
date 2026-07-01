@@ -39,6 +39,7 @@ import type {
   TaskModelBinding,
   Template,
   TemplateRun,
+  TextDiffPreviewPayload,
   VideoGenerationTask,
   VideoProviderConfig,
   VideoResult,
@@ -69,7 +70,7 @@ export interface AiTaskInput {
 export interface AiTaskResult {
   ok: boolean
   error?: string
-  result?: { kind: string; data: unknown }
+  result?: { kind: string; data: unknown | TextDiffPreviewPayload }
   aiRunId?: string
 }
 
@@ -112,7 +113,7 @@ export interface TemplateRunResult {
 }
 
 export interface ApplyArtifactInput {
-  projectId: string
+  projectId?: string
   taskType: string
   data: unknown
   characterId?: string
