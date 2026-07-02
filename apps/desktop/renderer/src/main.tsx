@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { Toaster } from '@/components/ui/sonner'
 import { RendererErrorBoundary } from '@/components/RendererErrorBoundary'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import { createRendererErrorMeta } from '@/lib/runtime-errors'
 import './styles/globals.css'
 
@@ -23,11 +24,13 @@ window.addEventListener('unhandledrejection', (event) => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <HashRouter>
-      <RendererErrorBoundary>
-        <App />
-      </RendererErrorBoundary>
-      <Toaster />
-    </HashRouter>
+    <ThemeProvider>
+      <HashRouter>
+        <RendererErrorBoundary>
+          <App />
+        </RendererErrorBoundary>
+        <Toaster />
+      </HashRouter>
+    </ThemeProvider>
   </React.StrictMode>,
 )

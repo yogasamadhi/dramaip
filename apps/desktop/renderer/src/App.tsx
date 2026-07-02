@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const ProjectListPage = lazy(() => import('@/pages/ProjectListPage').then((m) => ({ default: m.ProjectListPage })))
 const CreateProjectPage = lazy(() => import('@/pages/CreateProjectPage').then((m) => ({ default: m.CreateProjectPage })))
@@ -37,32 +38,35 @@ const AiDiagnosticsPage = lazy(() =>
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
-      <Routes>
-        <Route path="/" element={<ProjectListPage />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/projects/new" element={<CreateProjectPage />} />
-        <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
-        <Route path="/projects/:id/*" element={<WorkspacePage />} />
-        <Route path="/adaptations/new" element={<CreateAdaptationPage />} />
-        <Route path="/adaptations/:id" element={<AdaptationWorkspacePage />} />
-        <Route path="/adaptations/:id/scripts" element={<ScriptWorkspacePage />} />
-        <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
-        <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/model" element={<Navigate to="/settings/models" replace />} />
-        <Route path="/settings/models" element={<ModelSettingsPage />} />
-        <Route path="/settings/data" element={<DataSettingsPage />} />
-        <Route path="/settings/tasks" element={<TaskMonitorPage />} />
-        <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
-        <Route path="/settings/agents" element={<AgentSettingsPage />} />
-        <Route path="/settings/usage" element={<UsageStatsPage />} />
-        <Route path="/settings/diagnostics" element={<AiDiagnosticsPage />} />
-        <Route path="/templates" element={<TemplatePage />} />
-        <Route path="/genres" element={<GenrePresetPage />} />
-        <Route path="/case-studies" element={<CaseStudyPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
+        <Routes>
+          <Route path="/" element={<ProjectListPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/projects/new" element={<CreateProjectPage />} />
+          <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
+          <Route path="/projects/:id/*" element={<WorkspacePage />} />
+          <Route path="/adaptations/new" element={<CreateAdaptationPage />} />
+          <Route path="/adaptations/:id" element={<AdaptationWorkspacePage />} />
+          <Route path="/adaptations/:id/scripts" element={<ScriptWorkspacePage />} />
+          <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
+          <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/model" element={<Navigate to="/settings/models" replace />} />
+          <Route path="/settings/models" element={<ModelSettingsPage />} />
+          <Route path="/settings/data" element={<DataSettingsPage />} />
+          <Route path="/settings/tasks" element={<TaskMonitorPage />} />
+          <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
+          <Route path="/settings/agents" element={<AgentSettingsPage />} />
+          <Route path="/settings/usage" element={<UsageStatsPage />} />
+          <Route path="/settings/diagnostics" element={<AiDiagnosticsPage />} />
+          <Route path="/templates" element={<TemplatePage />} />
+          <Route path="/genres" element={<GenrePresetPage />} />
+          <Route path="/case-studies" element={<CaseStudyPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+      <ThemeToggle className="fixed bottom-4 left-4 z-40" />
+    </>
   )
 }
