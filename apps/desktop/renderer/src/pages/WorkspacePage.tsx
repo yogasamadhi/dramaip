@@ -294,6 +294,20 @@ export function WorkspacePage() {
     }
   }
 
+  async function handleSubmissionExport(kind: 'md' | 'json') {
+    if (!id) return
+    try {
+      const options = { chapterLimit: 10 }
+      const res = kind === 'md'
+        ? await ipc.export.novelSubmissionMarkdown(id, options)
+        : await ipc.export.novelSubmissionJson(id, options)
+      if (res.saved) toast.success('已导出投稿包：' + res.path)
+      else toast.message('已取消导出')
+    } catch (e) {
+      toast.error('投稿包导出失败：' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+
   // v1.0：完整项目包导出（含全部关联数据，可在另一库重新导入）
   async function handleExportPackage() {
     if (!id) return
@@ -458,6 +472,12 @@ export function WorkspacePage() {
             <DropdownMenuContent>
               <DropdownMenuItem onClick={() => handleExport('md')}>导出项目 Markdown</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('json')}>导出项目 JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSubmissionExport('md')}>
+                导出小说投稿包 Markdown（前 10 章）
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSubmissionExport('json')}>
+                导出小说投稿包 JSON（前 10 章）
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExportPackage()}>
                 导出完整项目包（.sdnspkg）
               </DropdownMenuItem>

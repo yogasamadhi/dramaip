@@ -8,6 +8,8 @@ import {
   exportChapterMarkdown,
   exportProjectJson,
   exportProjectMarkdown,
+  exportNovelSubmissionJson,
+  exportNovelSubmissionMarkdown,
   exportScriptJson,
   exportScriptMarkdown,
   exportScriptsJson,
@@ -20,6 +22,8 @@ import {
   previewProjectPackage,
   importProjectPackage,
   type ProjectPackageOptions,
+  type NovelSubmissionExportData,
+  type NovelSubmissionExportOptions,
 } from '@sdns/export'
 import { assertReadableImportFile } from '../file-security'
 
@@ -60,6 +64,20 @@ export function registerExportIpc(): void {
     ].join('\n')
   }
 
+  function collectNovelSubmissionData(projectId: string): NovelSubmissionExportData | undefined {
+    const r = repos()
+    const project = r.project.getProject(r.db, projectId)
+    if (!project) return undefined
+    return {
+      project,
+      characters: r.character.listCharacters(r.db, projectId),
+      outlines: r.outline.listOutlines(r.db, projectId),
+      chapters: r.chapter.listChapters(r.db, projectId),
+      evaluations: r.evaluation.listEvaluations(r.db, projectId),
+      qualityGateReports: r.creative.listQualityGateReports(r.db, projectId),
+    }
+  }
+
   ipcMain.handle('export:projectMarkdown', async (_e, projectId: string) => {
     const db = repos().db
     const project = repos().project.getProject(db, projectId)
@@ -81,6 +99,20 @@ export function registerExportIpc(): void {
     const evaluations = repos().evaluation.listEvaluations(db, projectId)
     const json = exportProjectJson({ project, characters, outlines, chapters, evaluations })
     return saveFile(`${project.title}.json`, json, [{ name: 'JSON', extensions: ['json'] }])
+  })
+
+  ipcMain.handle('export:novelSubmissionMarkdown', async (_e, projectId: string, options?: NovelSubmissionExportOptions) => {
+    const data = collectNovelSubmissionData(projectId)
+    if (!data) return notFound('项目')
+    const md = exportNovelSubmissionMarkdown(data, options)
+    return saveFile(`${data.project.title}-小说投稿包.md`, md, [{ name: 'Markdown', extensions: ['md'] }])
+  })
+
+  ipcMain.handle('export:novelSubmissionJson', async (_e, projectId: string, options?: NovelSubmissionExportOptions) => {
+    const data = collectNovelSubmissionData(projectId)
+    if (!data) return notFound('项目')
+    const json = exportNovelSubmissionJson(data, options)
+    return saveFile(`${data.project.title}-小说投稿包.json`, json, [{ name: 'JSON', extensions: ['json'] }])
   })
 
   ipcMain.handle('export:chapterMarkdown', async (_e, chapterId: string) => {

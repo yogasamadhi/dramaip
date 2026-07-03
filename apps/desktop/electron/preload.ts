@@ -326,6 +326,8 @@ const api = {
   export: {
     projectMarkdown: (projectId: string) => invoke('export:projectMarkdown', projectId),
     projectJson: (projectId: string) => invoke('export:projectJson', projectId),
+    novelSubmissionMarkdown: (projectId: string, options?: unknown) => invoke('export:novelSubmissionMarkdown', projectId, options),
+    novelSubmissionJson: (projectId: string, options?: unknown) => invoke('export:novelSubmissionJson', projectId, options),
     chapterMarkdown: (chapterId: string) => invoke('export:chapterMarkdown', chapterId),
     adaptationMarkdown: (adaptationId: string) => invoke('export:adaptationMarkdown', adaptationId),
     adaptationJson: (adaptationId: string) => invoke('export:adaptationJson', adaptationId),

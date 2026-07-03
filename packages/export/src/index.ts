@@ -18,6 +18,19 @@ export {
   type ProjectExportJson,
 } from './json'
 export { exportShotsCsv } from './csv'
+export {
+  buildNovelSubmissionPackage,
+  exportNovelSubmissionJson,
+  exportNovelSubmissionMarkdown,
+  DEFAULT_SUBMISSION_CHAPTER_LIMIT,
+  NOVEL_SUBMISSION_PACKAGE_FORMAT,
+  NOVEL_SUBMISSION_PACKAGE_VERSION,
+  type NovelSubmissionChapterCatalogItem,
+  type NovelSubmissionExportData,
+  type NovelSubmissionExportOptions,
+  type NovelSubmissionPackage,
+  type NovelSubmissionQualitySummary,
+} from './submission'
 // v1.0 完整项目包导出 / 导入
 export {
   collectProjectPackage,

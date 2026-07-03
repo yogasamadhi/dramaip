@@ -629,6 +629,8 @@ export interface StudioApi {
   export: {
     projectMarkdown(projectId: string): Promise<ExportResult>
     projectJson(projectId: string): Promise<ExportResult>
+    novelSubmissionMarkdown(projectId: string, options?: { chapterLimit?: number }): Promise<ExportResult>
+    novelSubmissionJson(projectId: string, options?: { chapterLimit?: number }): Promise<ExportResult>
     chapterMarkdown(chapterId: string): Promise<ExportResult>
     adaptationMarkdown(adaptationId: string): Promise<ExportResult>
     adaptationJson(adaptationId: string): Promise<ExportResult>
