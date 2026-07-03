@@ -17,6 +17,7 @@ import { getRepos } from '../db'
 import { assertReadableImportFile, truncateImportedText } from '../file-security'
 import { normalizeCaseStudyText, parseCaseStudyChapters } from '../case-study-import'
 import { startBatchLongTask } from './task.ipc'
+import { isStructureSnapshot, restoreSceneShotsSnapshot, restoreScriptScenesSnapshot } from '../structure-snapshot-restore'
 
 type WorkflowInput = {
   templateKey: string
@@ -156,6 +157,9 @@ function restoreContentVersion(id: string): { ok: boolean; error?: string; resul
     if (version.targetKind === 'script') {
       const script = r.script.getScript(db, version.targetId)
       if (!script) return { ok: false, error: '未找到剧本' }
+      if (isStructureSnapshot(version, 'script_scenes')) {
+        return restoreScriptScenesSnapshot(r, version, script)
+      }
       const before = r.creative.createContentVersion(db, {
         projectId: version.projectId,
         targetKind: 'script',
@@ -176,6 +180,15 @@ function restoreContentVersion(id: string): { ok: boolean; error?: string; resul
         meta: { phase: 'after_restore', restoreFromVersionId: version.id, beforeVersionId: before.id },
       })
       return { ok: true, result: restored }
+    }
+
+    if (version.targetKind === 'scene') {
+      const scene = r.scene.getScene(db, version.targetId)
+      if (!scene) return { ok: false, error: '未找到场景' }
+      if (isStructureSnapshot(version, 'scene_shots')) {
+        return restoreSceneShotsSnapshot(r, version, scene)
+      }
+      return { ok: false, error: '当前场景版本不是可恢复的结构快照' }
     }
 
     if (version.targetKind === 'shot') {

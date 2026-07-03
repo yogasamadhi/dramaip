@@ -30,6 +30,7 @@ interface Props {
   title: string
   className?: string
   restoreDisabled?: boolean
+  versionScope?: 'content' | 'structure' | 'all'
   onRestored?: () => void | Promise<void>
 }
 
@@ -54,6 +55,7 @@ export function ContentVersionPanel({
   title,
   className,
   restoreDisabled,
+  versionScope = 'content',
   onRestored,
 }: Props) {
   const [versions, setVersions] = useState<ContentVersion[]>([])
@@ -69,7 +71,9 @@ export function ContentVersionPanel({
     }
     setLoading(true)
     try {
-      const list = await ipc.contentVersion.listByTarget(targetKind, targetId)
+      const list = (await ipc.contentVersion.listByTarget(targetKind, targetId)).filter((version) =>
+        matchesVersionScope(version, versionScope),
+      )
       setVersions(list)
       setSelectedId((current) => (list.some((v) => v.id === current) ? current : (list[0]?.id ?? '')))
     } finally {
@@ -79,7 +83,7 @@ export function ContentVersionPanel({
 
   useEffect(() => {
     void reload()
-  }, [targetKind, targetId])
+  }, [targetKind, targetId, versionScope])
 
   const selected = versions.find((version) => version.id === selectedId)
   const diff = useMemo(
@@ -208,6 +212,12 @@ export function ContentVersionPanel({
       )}
     </div>
   )
+}
+
+function matchesVersionScope(version: ContentVersion, scope: Props['versionScope']): boolean {
+  if (scope === 'all') return true
+  const structure = typeof version.meta?.structureSnapshot === 'string'
+  return scope === 'structure' ? structure : !structure
 }
 
 function buildLineDiff(previous: string, next: string): DiffLine[] {

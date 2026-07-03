@@ -81,7 +81,12 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
           onTextPreview?.(res.result.data as TextDiffPreviewPayload)
         } else {
           const policy = TASK_WRITE_POLICIES[taskType]
-          toast.success(`${label} 完成${policy.policy === 'auto_write' ? '，已写入' : ''}`, { id: toastId })
+          const savedText = policy.policy === 'snapshot_then_auto_write'
+            ? '，已保存检查点并写入'
+            : policy.policy === 'auto_write'
+              ? '，已写入'
+              : ''
+          toast.success(`${label} 完成${savedText}`, { id: toastId })
           await onChapterUpdated()
         }
       } else {
