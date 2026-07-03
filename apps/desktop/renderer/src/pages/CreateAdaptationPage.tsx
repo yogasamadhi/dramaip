@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import type { Project } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
+import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +34,7 @@ export function CreateAdaptationPage() {
   const [seasonNumber, setSeasonNumber] = useState<number>(1)
   const [chapterFrom, setChapterFrom] = useState<number>(1)
   const [chapterTo, setChapterTo] = useState<number>(50)
+  const [readiness, setReadiness] = useState<AdaptationReadinessSummary | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -45,10 +48,20 @@ export function CreateAdaptationPage() {
   // 选定源项目后：按章数自动推算「第 1 季」的章节范围与目标集数
   // （1 季约 50 章、1 章 → 2 集 → 1 季约 100 集；200~300 章小说 → 4~6 季）
   useEffect(() => {
-    if (!sourceProjectId) return
+    if (!sourceProjectId) {
+      setReadiness(null)
+      return
+    }
     void (async () => {
-      const chapters = await ipc.chapter.list(sourceProjectId)
+      const [chapters, characters, outlines, chapterMemories, qualityReports] = await Promise.all([
+        ipc.chapter.list(sourceProjectId),
+        ipc.character.list(sourceProjectId),
+        ipc.outline.list(sourceProjectId),
+        ipc.chapterMemory.list(sourceProjectId),
+        ipc.creative.listQualityGates(sourceProjectId),
+      ])
       setChapterCount(chapters.length)
+      setReadiness(buildAdaptationReadiness({ chapters, characters, outlines, chapterMemories, qualityReports }))
       const perSeason = 50 // 每季约 50 章
       const from = 1
       const to = Math.min(perSeason, chapters.length)
@@ -88,6 +101,13 @@ export function CreateAdaptationPage() {
     if (!title.trim()) {
       toast.error('请填写改编标题')
       return
+    }
+    const unresolvedCount = readiness ? readiness.warningCount + readiness.riskCount : 0
+    if (unresolvedCount > 0) {
+      const shouldContinue = window.confirm(
+        `小说就绪检查仍有 ${readiness?.riskCount ?? 0} 个风险、${readiness?.warningCount ?? 0} 个提醒。继续创建改编项目？`,
+      )
+      if (!shouldContinue) return
     }
     setSubmitting(true)
     try {
@@ -138,6 +158,8 @@ export function CreateAdaptationPage() {
             </Select>
             <p className="text-xs text-muted-foreground">AI 会读取该小说的设定、人物与章节来生成改编分集大纲。</p>
           </div>
+
+          {readiness && <AdaptationReadinessPanel readiness={readiness} />}
 
           <div className="space-y-2">
             <Label>改编标题 *</Label>

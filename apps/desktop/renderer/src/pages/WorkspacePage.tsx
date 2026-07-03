@@ -11,6 +11,8 @@ import {
   type ProjectWorkflowStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/projectWorkflowGuide'
+import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
+import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -90,12 +92,14 @@ export function WorkspacePage() {
   const [dataVersion, setDataVersion] = useState(0)
   const [generateIdea, setGenerateIdea] = useState('')
   const [workflowSnapshot, setWorkflowSnapshot] = useState<ProjectWorkflowSnapshot | null>(null)
+  const [adaptationReadiness, setAdaptationReadiness] = useState<AdaptationReadinessSummary | null>(null)
   const chapterWorkflowKey = chapters.map((chapter) => `${chapter.id}:${Boolean(chapter.content.trim())}`).join('|')
 
   const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
-    const [characters, outlines, qualityReports, adaptations] = await Promise.all([
+    const [characters, outlines, chapterMemories, qualityReports, adaptations] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
+      ipc.chapterMemory.list(currentProject.id),
       ipc.creative.listQualityGates(currentProject.id),
       ipc.adaptationProject.listByProject(currentProject.id),
     ])
@@ -132,6 +136,13 @@ export function WorkspacePage() {
       shots,
       videoTasks,
     })
+    setAdaptationReadiness(buildAdaptationReadiness({
+      chapters: projectChapters,
+      characters,
+      outlines,
+      chapterMemories,
+      qualityReports,
+    }))
   }, [])
 
   const loadProject = useCallback(async () => {
@@ -145,7 +156,10 @@ export function WorkspacePage() {
 
   useEffect(() => {
     if (project) void loadWorkflowSnapshot(project, chapters)
-    else setWorkflowSnapshot(null)
+    else {
+      setWorkflowSnapshot(null)
+      setAdaptationReadiness(null)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot])
 
@@ -502,6 +516,7 @@ export function WorkspacePage() {
                     </div>
                   </div>
                 )}
+                {adaptationReadiness && <AdaptationReadinessPanel readiness={adaptationReadiness} />}
                 <div className="rounded-md border bg-muted/30 p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
