@@ -97,6 +97,7 @@ const api = {
   inspirationFavorite: {
     list: (projectId: string) => invoke('inspirationFavorite:list', projectId),
     upsert: (data: unknown) => invoke('inspirationFavorite:upsert', data),
+    importMobile: (data: unknown) => invoke('inspirationFavorite:importMobile', data),
     remove: (id: string) => invoke('inspirationFavorite:delete', id),
     removeByCardKey: (projectId: string, cardKey: string) =>
       invoke('inspirationFavorite:deleteByCardKey', projectId, cardKey),

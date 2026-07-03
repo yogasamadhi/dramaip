@@ -118,7 +118,7 @@ export interface ProjectAgentScheme {
 }
 
 export type InspirationCardKind = 'opening' | 'relationship' | 'conflict' | 'reversal' | 'cliffhanger' | 'visual'
-export type InspirationCardSourceKind = 'genre_preset' | 'case_study' | 'template' | 'anti_trope'
+export type InspirationCardSourceKind = 'genre_preset' | 'case_study' | 'template' | 'anti_trope' | 'mobile_import'
 
 /** 项目级灵感台收藏：卡片来源实时汇总，收藏保存一份轻量快照，便于重开/导出后仍可采用 */
 export interface InspirationFavorite {
@@ -134,6 +134,19 @@ export interface InspirationFavorite {
   risk?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface MobileInspirationImportInput {
+  projectId: string
+  content: string
+  fileName?: string
+}
+
+export interface MobileInspirationImportSummary {
+  imported: number
+  skipped: number
+  warnings: string[]
+  favorites: InspirationFavorite[]
 }
 
 /** 章节 */

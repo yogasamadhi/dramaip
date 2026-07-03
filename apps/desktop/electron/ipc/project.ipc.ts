@@ -1,6 +1,7 @@
 // 项目 / 章节 / 人物 / 大纲 / 评分 CRUD（项目说明.md §17：Repository 不进 React）
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { writeFile } from 'node:fs/promises'
+import { parseMobileInspirationImport, type MobileInspirationImportInput } from '@sdns/core'
 import { getRepos } from '../db'
 import { createAiContextPreview, createAiRunDebugPayload } from '../ai-context-preview'
 
@@ -120,6 +121,18 @@ export function registerProjectIpc(): void {
   ipcMain.handle('inspirationFavorite:upsert', (_e, data: unknown) =>
     repos().inspirationFavorite.upsertInspirationFavorite(repos().db, data as never),
   )
+  ipcMain.handle('inspirationFavorite:importMobile', (_e, data: unknown) => {
+    const parsed = parseMobileInspirationImport(data as MobileInspirationImportInput)
+    const favorites = parsed.items.map((item) =>
+      repos().inspirationFavorite.upsertInspirationFavorite(repos().db, item),
+    )
+    return {
+      imported: favorites.length,
+      skipped: parsed.skipped,
+      warnings: parsed.warnings,
+      favorites,
+    }
+  })
   ipcMain.handle('inspirationFavorite:delete', (_e, id: string) => {
     repos().inspirationFavorite.deleteInspirationFavorite(repos().db, id)
     return true

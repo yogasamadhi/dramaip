@@ -98,6 +98,22 @@ test('validates exact IPC channel arguments', () => {
     ],
   )
   assert.deepEqual(
+    validateIpcArgs('inspirationFavorite:importMobile', [
+      {
+        projectId: 'project-1',
+        content: '## 婚礼现场反杀\n类型：爆款开局\n模式：公开反击。',
+        fileName: 'phone.md',
+      },
+    ]),
+    [
+      {
+        projectId: 'project-1',
+        content: '## 婚礼现场反杀\n类型：爆款开局\n模式：公开反击。',
+        fileName: 'phone.md',
+      },
+    ],
+  )
+  assert.deepEqual(
     validateIpcArgs('storyArc:create', [
       {
         projectId: 'project-1',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Bookmark, BookmarkCheck, FileInput, FilePlus2, Loader2, PenLine, Search, SendToBack, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -71,6 +71,8 @@ export function InspirationDeskSection({
   const [favoriteOnly, setFavoriteOnly] = useState(false)
   const [targetChapterId, setTargetChapterId] = useState(selectedChapter?.id ?? chapters[0]?.id ?? '')
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
+  const [importingMobile, setImportingMobile] = useState(false)
   const [schemeForm, setSchemeForm] = useState<InspirationSchemeForm>({
     genre: project.shortDramaType ?? '',
     targetAudience: project.targetAudience ?? '',
@@ -181,6 +183,40 @@ export function InspirationDeskSection({
 
   async function refreshFavorites() {
     setFavorites(await ipc.inspirationFavorite.list(project.id))
+  }
+
+  async function importMobileInspirationFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    if (file.size > 300_000) {
+      toast.error('移动灵感文件不能超过 300KB')
+      return
+    }
+
+    setImportingMobile(true)
+    const toastId = toast.loading('正在导入移动灵感...')
+    try {
+      const content = await file.text()
+      const result = await ipc.inspirationFavorite.importMobile({
+        projectId: project.id,
+        content,
+        fileName: file.name,
+      })
+      await refreshFavorites()
+      if (result.imported > 0) {
+        setSourceKind('mobile_import')
+        setFavoriteOnly(false)
+        const skipped = result.skipped > 0 ? `，跳过 ${result.skipped} 条` : ''
+        toast.success(`已导入 ${result.imported} 条移动灵感${skipped}`, { id: toastId })
+      } else {
+        toast.error(result.warnings[0] ?? '没有可导入的移动灵感', { id: toastId })
+      }
+    } catch (error) {
+      toast.error('移动灵感导入失败：' + (error instanceof Error ? error.message : String(error)), { id: toastId })
+    } finally {
+      setImportingMobile(false)
+    }
   }
 
   async function toggleFavorite(card: InspirationCard) {
@@ -389,6 +425,24 @@ export function InspirationDeskSection({
               {cards.length} 张卡片，{favorites.length} 张收藏
             </div>
           </div>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,.md,.markdown,application/json,text/markdown,text/plain"
+            className="hidden"
+            onChange={(event) => void importMobileInspirationFile(event)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            title="导入移动灵感 JSON/Markdown"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importingMobile}
+          >
+            {importingMobile ? <Loader2 className="animate-spin" /> : <FileInput />}
+            导入
+          </Button>
           <Select value={kind} onValueChange={(value) => setKind(value as KindFilter)}>
             <SelectTrigger className="w-36">
               <SelectValue />

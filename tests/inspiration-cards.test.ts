@@ -129,3 +129,28 @@ test('creates favorite payloads and appends adoption notes without duplicates', 
   assert.match(note, /灵感卡片/)
   assert.equal(appendInspirationCardNote(note, card), note)
 })
+
+test('renders mobile imported favorites as inspiration cards', () => {
+  const favorites: InspirationFavorite[] = [
+    {
+      id: 'fav-mobile',
+      projectId: 'p1',
+      cardKey: 'mobile_import:mobile%3Aphone.md:visual:abc123',
+      sourceKind: 'mobile_import',
+      sourceId: 'mobile:phone.md',
+      kind: 'visual',
+      title: '雨夜车窗倒影',
+      pattern: '男主只在车窗倒影中露出半张脸。',
+      applyTo: '封面首帧 / 分镜 Prompt',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
+
+  const cards = buildInspirationCards({ favorites })
+
+  assert.equal(cards.length, 1)
+  assert.equal(cards[0].sourceKind, 'mobile_import')
+  assert.equal(cards[0].sourceTitle, 'phone.md')
+  assert.equal(cards[0].favorite?.id, 'fav-mobile')
+})
