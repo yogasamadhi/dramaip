@@ -146,7 +146,7 @@
 
 | Loop | 优先级 | Owner | 状态 | 目标 | 主要范围 | 验收 | 验证 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| LM2-00 | P0 | 产品/工程负责人 | todo | 建立升级基线与信息架构审计 | `docs/process/LOOPMAP2.md`、`docs/product`、核心路由/导航 | 形成当前功能矩阵、主流程断点、竞品启发映射和执行批次；不改业务代码 | `git diff --check`；人工检查文档路径与 loop 粒度 | 无 |
+| LM2-00 | P0 | 产品/工程负责人 | done | 建立升级基线与信息架构审计 | `docs/process/LOOPMAP2.md`、`docs/product`、核心路由/导航 | 形成当前功能矩阵、主流程断点、竞品启发映射和执行批次；不改业务代码 | `git diff --check`；人工检查文档路径与 loop 粒度 | 无 |
 | LM2-01 | P0 | 产品体验 | todo | 重组项目工作台导航分组 | `WORKSPACE_NAV`、`WorkspacePage`、相关 section 入口 | 左侧导航按“创作、记忆、诊断、改编准备、记录”分组；章节仍是一等入口；原功能可达 | `pnpm typecheck`；手工 smoke：打开项目并切换每个分组 | LM2-00 |
 | LM2-02 | P0 | 产品体验 | todo | 增加小说到短剧视频主流程向导 | 项目概览、质量闸门、改编入口、工作流状态 | 项目概览展示阶段进度：设定、人物、大纲、章节、质量闸门、改编、剧本、分镜、视频；每阶段有完成条件和下一步 CTA | `pnpm typecheck`；手工 smoke：空项目、已有章节项目、已有改编项目三种状态 | LM2-01 |
 | LM2-03 | P0 | 产品体验/创作闭环 | todo | 增加阶段门禁与就绪检查 | 质量闸门、项目概览、改编创建入口 | 创建改编前展示小说就绪项：章节数、人物、大纲、记忆、质量闸门阻塞项；允许继续但风险明确 | `pnpm typecheck`；相关质量闸门单测或手工 smoke | LM2-02 |
@@ -288,4 +288,17 @@ Notes:
 
 ### 当前记录
 
-- 暂无已完成 loop。本文档是 LOOPMAP2 的执行地图，后续每个 loop 需要按 [LOOPRULE.md](./LOOPRULE.md) 单独闭环后再追加记录。
+```text
+Loop: LM2-00
+Target branch: main
+Loop branch: loop/lm2-00-upgrade-baseline
+Commit: 9fe91af docs: add product upgrade loop map 2
+Merge commit: 9d17e63 merge: lm2-00 upgrade baseline
+Verification: git diff --check HEAD~1 HEAD -- docs/process/LOOPMAP2.md passed; rg "^##|^###|^# " docs/process/LOOPMAP2.md confirmed required sections; git diff --check after merge passed.
+Diff review: reviewed staged/document diff before commit and final origin/main...HEAD stat before push; LM2-00 scope was docs/process/LOOPMAP2.md only, while push also included two pre-existing local main commits approved by the user.
+Remote sync: git fetch origin succeeded; git merge --ff-only origin/main reported Already up to date before merge; git fetch origin succeeded again before push.
+Push: git push origin main succeeded to Gitee, updating main from ab59be3 to 9d17e63.
+Loop branch cleanup: git branch -d loop/lm2-00-upgrade-baseline succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: User explicitly approved pushing the current main state containing four local commits to origin/main. Gitee credentials were entered only through interactive prompts.
+```
