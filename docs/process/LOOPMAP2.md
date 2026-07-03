@@ -160,7 +160,7 @@
 | LM2-11 | P1 | 长篇规划/AI | done | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
 | LM2-12 | P1 | AI 可配置性 | done | 项目级 Skills/创作规范系统 | DB 或项目文件模型、Agent settings、AI context | 每个项目可维护多份创作规范/技能，如类型节奏、人物对白、镜头 Prompt 规则；AI 按任务自动选择或用户手动指定 | `pnpm typecheck`；IPC/schema 单测；上下文单测 | LM2-05 |
 | LM2-13 | P1 | AI 可配置性 | done | 自定义 Agent 方案与技能绑定 | Agent settings、writing room、task model binding | 用户可按项目启用/禁用 Agent、指定主 Agent、绑定 Skills 和模型；不影响全局内置预设 | `pnpm typecheck`；IPC/schema 单测；手工 smoke：项目级方案切换 | LM2-12 |
-| LM2-14 | P1 | 创意产品 | todo | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
+| LM2-14 | P1 | 创意产品 | done | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
 | LM2-15 | P1 | 创意产品/AI | todo | 灵感台二期：类型化灵感生成 | genre preset、template run、AI prompts | 用户选择题材/受众/短剧方向后，可一键生成 3-5 组差异化灵感方案，并进入项目创建或章节改写 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-14 |
 | LM2-16 | P1 | 交付导出 | todo | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
 | LM2-17 | P1 | 交付导出 | todo | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
@@ -496,4 +496,19 @@ Push: git push origin main succeeded to Gitee, updating main from 9f19389 to 289
 Loop branch cleanup: git branch -d loop/lm2-13-project-agent-schemes succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Projects can now define reusable Agent schemes that select participating Agents without mutating global built-in presets, choose a primary Agent for WritingRoom consolidation, bind project Skills, and override task-group models per project. WritingRoom uses the active project scheme for Agent order, primary-Agent perspective, bound Skills, and model resolution; project packages now include projectAgentSchemes and use package version 4.
+```
+
+```text
+Loop: LM2-14
+Target branch: main
+Loop branch: loop/lm2-14-inspiration-cards
+Commit: 0c6aae5 loop(LM2-14): add inspiration card desk
+Merge commit: cc05726 merge: lm2-14 inspiration card desk
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/inspiration-cards.test.ts tests/ipc-contract.test.ts tests/project-package.test.ts tests/workspace-nav.test.ts passed before commit; pnpm test:unit passed with 99 tests before commit and after merge; pnpm test:db passed before commit and after merge with migration replay, InspirationFavorite CRUD, project package roundtrip, and DB smoke; pnpm test:e2e passed before commit and after merge with Electron smoke. A parallel post-merge DB/E2E attempt collided on native better-sqlite3 rebuild, so both checks were rerun serially and passed.
+Diff review: reviewed staged stat/name list, new InspirationDeskSection, card aggregation helper, InspirationFavorite repository/migration, IPC contracts, project package changes, DB smoke additions, and final origin/main...HEAD stat; changes were limited to LM2-14 inspiration cards, favorites, adoption, and focused tests.
+Remote sync: git fetch origin succeeded before starting LM2-14 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 9d33796 to cc05726.
+Loop branch cleanup: git branch -d loop/lm2-14-inspiration-cards succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Workspace now has a 灵感台 entry that aggregates cards from genre presets, templates, sample structure cards, and anti-trope variants into six short-drama card kinds: openings, relationships, conflicts, reversals, cliffhangers, and visual selling points. Cards can be filtered, searched, favorited persistently per project, inserted into project style settings, or inserted into chapter requirements and matching chapter metadata. Project packages now include inspirationFavorites and use package version 5.
 ```
