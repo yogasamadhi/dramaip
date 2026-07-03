@@ -642,6 +642,8 @@ export const creativeCaseStudies = sqliteTable('creative_case_studies', {
   reversalMechanisms: text('reversal_mechanisms').notNull().default('[]'),
   cliffhangers: text('cliffhangers').notNull().default('[]'),
   visualPatterns: text('visual_patterns').notNull().default('[]'),
+  rhythmCurve: text('rhythm_curve').notNull().default('[]'),
+  creativeCards: text('creative_cards').notNull().default('[]'),
   riskTags: text('risk_tags').notNull().default('[]'),
   notes: text('notes'),
   createdAt: text('created_at').notNull(),

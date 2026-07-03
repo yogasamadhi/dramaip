@@ -22,6 +22,7 @@ import type {
   CaseStudyDocument,
   CaseStudyDocumentWithChapters,
   ContentVersion,
+  CreativeCaseCard,
   CreativeCaseStudy,
   FreshnessReport,
   NarrativeCurveReport,
@@ -93,6 +94,32 @@ function stringifyNumberArray(v: number[] | undefined): string {
   return JSON.stringify(v ?? [])
 }
 
+function parseCreativeCards(value: string | null | undefined): CreativeCaseCard[] {
+  if (!value) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    console.warn('[db] 忽略无法解析的 JSON 字段：creative-cards')
+    return []
+  }
+  if (!Array.isArray(parsed)) return []
+  return parsed
+    .map<CreativeCaseCard | undefined>((item) => {
+      if (!item || typeof item !== 'object') return undefined
+      const card = item as Record<string, unknown>
+      const kind = String(card.kind ?? '')
+      if (!['hook', 'highlight', 'relationship', 'reversal', 'cliffhanger', 'visual', 'rhythm'].includes(kind)) return undefined
+      const title = String(card.title ?? '').trim()
+      const pattern = String(card.pattern ?? '').trim()
+      const applyTo = String(card.applyTo ?? '').trim()
+      if (!title || !pattern || !applyTo) return undefined
+      const risk = typeof card.risk === 'string' && card.risk.trim() ? card.risk.trim() : undefined
+      return { kind: kind as CreativeCaseCard['kind'], title, pattern, applyTo, risk }
+    })
+    .filter((card): card is CreativeCaseCard => card !== undefined)
+}
+
 function caseStudyFromRow(row: CaseStudyRow): CreativeCaseStudy {
   return {
     id: row.id,
@@ -106,6 +133,8 @@ function caseStudyFromRow(row: CaseStudyRow): CreativeCaseStudy {
     reversalMechanisms: parseJsonArray(row.reversalMechanisms),
     cliffhangers: parseJsonArray(row.cliffhangers),
     visualPatterns: parseJsonArray(row.visualPatterns),
+    rhythmCurve: numberArray(row.rhythmCurve),
+    creativeCards: parseCreativeCards(row.creativeCards),
     riskTags: parseJsonArray(row.riskTags),
     notes: row.notes ?? undefined,
     createdAt: row.createdAt,
@@ -327,6 +356,8 @@ export function createCaseStudy(db: DB, data: Partial<OptionalId<CreativeCaseStu
     reversalMechanisms: stringifyArray(data.reversalMechanisms),
     cliffhangers: stringifyArray(data.cliffhangers),
     visualPatterns: stringifyArray(data.visualPatterns),
+    rhythmCurve: stringifyNumberArray(data.rhythmCurve),
+    creativeCards: stringifyJson(data.creativeCards ?? []),
     riskTags: stringifyArray(data.riskTags),
     notes: data.notes ?? null,
     createdAt: ts,
@@ -345,7 +376,9 @@ export function updateCaseStudy(db: DB, id: string, patch: Partial<CreativeCaseS
     'cliffhangers',
     'visualPatterns',
     'riskTags',
-  ])
+  ]) as Record<string, unknown>
+  if (Array.isArray(patch.rhythmCurve)) fields.rhythmCurve = stringifyNumberArray(patch.rhythmCurve)
+  if (Array.isArray(patch.creativeCards)) fields.creativeCards = stringifyJson(patch.creativeCards)
   const [row] = updateRows(db, creativeCaseStudies, fields as Partial<typeof creativeCaseStudies.$inferInsert>).where(eq(creativeCaseStudies.id, id)).returning().all()
   return row ? caseStudyFromRow(row as CaseStudyRow) : undefined
 }
