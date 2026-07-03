@@ -1,4 +1,5 @@
 import type { AiContextPreview } from '@sdns/core'
+import type { AiContextControlGroup, AiContextControlKey, AiContextControlMode } from '@/lib/aiPreflightContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,9 +16,24 @@ interface Props {
   preview: AiContextPreview | null
   onClose: () => void
   onExport?: () => void
+  controlGroups?: AiContextControlGroup[]
+  onControlModeChange?: (key: AiContextControlKey, id: string, mode: AiContextControlMode) => void
+  onRun?: () => void
+  runLabel?: string
+  running?: boolean
 }
 
-export function AiContextPreviewDialog({ open, preview, onClose, onExport }: Props) {
+export function AiContextPreviewDialog({
+  open,
+  preview,
+  onClose,
+  onExport,
+  controlGroups,
+  onControlModeChange,
+  onRun,
+  runLabel = '执行 AI',
+  running = false,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose() }}>
       <DialogContent className="flex max-h-[88vh] max-w-4xl flex-col overflow-hidden">
@@ -35,6 +51,36 @@ export function AiContextPreviewDialog({ open, preview, onClose, onExport }: Pro
             {preview.redacted && <Badge variant="secondary">已脱敏</Badge>}
           </div>
         )}
+        {controlGroups?.length ? (
+          <ScrollArea className="max-h-52 rounded-md border">
+            <div className="space-y-3 p-3">
+              {controlGroups.map((group) => (
+                <div key={group.key} className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">{group.title}</div>
+                  {group.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2 rounded bg-muted/30 px-2 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium">{item.label}</div>
+                        {item.detail && <div className="truncate text-[11px] text-muted-foreground">{item.detail}</div>}
+                      </div>
+                      {(['pinned', 'auto', 'excluded'] as const).map((mode) => (
+                        <Button
+                          key={mode}
+                          size="sm"
+                          variant={item.mode === mode ? 'default' : 'outline'}
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => onControlModeChange?.(item.key, item.id, mode)}
+                        >
+                          {modeLabel(mode)}
+                        </Button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        ) : null}
         <ScrollArea className="min-h-0 flex-1 rounded-md border">
           <div className="space-y-4 p-4">
             {preview?.sections.length ? (
@@ -62,9 +108,20 @@ export function AiContextPreviewDialog({ open, preview, onClose, onExport }: Pro
               导出 JSON
             </Button>
           )}
+          {onRun && (
+            <Button onClick={onRun} disabled={running}>
+              {running ? '执行中…' : runLabel}
+            </Button>
+          )}
           <Button onClick={onClose}>关闭</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
+}
+
+function modeLabel(mode: AiContextControlMode): string {
+  if (mode === 'pinned') return '固定'
+  if (mode === 'excluded') return '排除'
+  return '自动'
 }

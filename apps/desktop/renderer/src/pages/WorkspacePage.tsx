@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronRight, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
-import type { AiRun, Chapter, Project, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, AiRun, Chapter, CharacterVisualProfile, CreativeCaseStudy, Project, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
@@ -12,7 +12,9 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/projectWorkflowGuide'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
+import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
+import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -94,16 +96,29 @@ export function WorkspacePage() {
   const [generateIdea, setGenerateIdea] = useState('')
   const [workflowSnapshot, setWorkflowSnapshot] = useState<ProjectWorkflowSnapshot | null>(null)
   const [adaptationReadiness, setAdaptationReadiness] = useState<AdaptationReadinessSummary | null>(null)
+  const [caseStudies, setCaseStudies] = useState<CreativeCaseStudy[]>([])
+  const [visualProfiles, setVisualProfiles] = useState<CharacterVisualProfile[]>([])
+  const [contextControls, setContextControls] = useState<AiContextControls>({})
+  const [pendingGenerate, setPendingGenerate] = useState<{
+    taskType: PreviewTaskType
+    userInstruction?: string
+    characterId?: string
+  } | null>(null)
+  const [preflightRunning, setPreflightRunning] = useState(false)
   const chapterWorkflowKey = chapters.map((chapter) => `${chapter.id}:${Boolean(chapter.content.trim())}`).join('|')
 
   const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
-    const [characters, outlines, chapterMemories, qualityReports, adaptations] = await Promise.all([
+    const [characters, outlines, chapterMemories, qualityReports, adaptations, nextVisualProfiles, nextCaseStudies] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
       ipc.chapterMemory.list(currentProject.id),
       ipc.creative.listQualityGates(currentProject.id),
       ipc.adaptationProject.listByProject(currentProject.id),
+      ipc.visualProfile.list(currentProject.id),
+      ipc.caseStudy.list(),
     ])
+    setVisualProfiles(nextVisualProfiles)
+    setCaseStudies(nextCaseStudies)
 
     const primaryAdaptation = adaptations[0]
     let episodes: ProjectWorkflowSnapshot['episodes'] = []
@@ -160,6 +175,8 @@ export function WorkspacePage() {
     else {
       setWorkflowSnapshot(null)
       setAdaptationReadiness(null)
+      setCaseStudies([])
+      setVisualProfiles([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot])
@@ -183,6 +200,17 @@ export function WorkspacePage() {
   }, [section, loadAiRuns])
 
   const selected = chapters.find((c) => c.id === selectedId) ?? null
+  const pendingGeneratePreflight = pendingGenerate ? buildAiPreflightContext(
+    pendingGenerate.taskType,
+    {
+      project,
+      chapters,
+      characters: workflowSnapshot?.characters ?? [],
+      caseStudies,
+      visualProfiles,
+    },
+    contextControls,
+  ) : null
 
   async function createChapter() {
     if (!id) return
@@ -247,8 +275,12 @@ export function WorkspacePage() {
     }
   }
 
-  // generate 类：AI 生成 → 预览 → 用户确认后落库（§11.1-11.4 / v0.2 视觉档案/设定）
   async function runGenerate(taskType: PreviewTaskType, userInstruction?: string, characterId?: string) {
+    setPendingGenerate({ taskType, userInstruction, characterId })
+  }
+
+  // generate 类：AI 生成 → 预览 → 用户确认后落库（§11.1-11.4 / v0.2 视觉档案/设定）
+  async function runGenerateNow(taskType: PreviewTaskType, userInstruction?: string, characterId?: string) {
     if (!project) return
     setGenerating(taskType)
     const label = TASK_TYPE_LABELS[taskType]
@@ -259,6 +291,7 @@ export function WorkspacePage() {
         taskType,
         characterId,
         userInstruction: userInstruction?.trim() || undefined,
+        contextControls,
       })
       if (res.ok && res.result) {
         toast.success(`${label}完成，请确认`, { id })
@@ -270,6 +303,17 @@ export function WorkspacePage() {
       toast.error(`${label}异常：${e instanceof Error ? e.message : String(e)}`, { id })
     } finally {
       setGenerating(null)
+    }
+  }
+
+  async function executePendingGenerate() {
+    if (!pendingGenerate) return
+    setPreflightRunning(true)
+    try {
+      await runGenerateNow(pendingGenerate.taskType, pendingGenerate.userInstruction, pendingGenerate.characterId)
+      setPendingGenerate(null)
+    } finally {
+      setPreflightRunning(false)
     }
   }
 
@@ -619,8 +663,12 @@ export function WorkspacePage() {
               generating={generating}
               commandContext={{
                 projectId: project.id,
+                project,
                 activeChapter: selected,
                 chapters,
+                characters: workflowSnapshot?.characters ?? [],
+                caseStudies,
+                visualProfiles,
                 adaptations: workflowSnapshot?.adaptations ?? [],
                 episodes: workflowSnapshot?.episodes ?? [],
                 scripts: workflowSnapshot?.scripts ?? [],
@@ -726,6 +774,13 @@ export function WorkspacePage() {
                   chapter={selected}
                   onChapterUpdated={onChapterUpdated}
                   onTextPreview={setTextPreview}
+                  contextData={{
+                    project,
+                    chapters,
+                    characters: workflowSnapshot?.characters ?? [],
+                    caseStudies,
+                    visualProfiles,
+                  }}
                 />
               </div>
             </ScrollArea>
@@ -752,6 +807,17 @@ export function WorkspacePage() {
         preview={textPreview}
         onAdopt={handleTextAdopt}
         onCancel={() => setTextPreview(null)}
+      />
+      <AiContextPreviewDialog
+        open={pendingGenerate !== null}
+        preview={pendingGeneratePreflight?.preview ?? null}
+        controlGroups={pendingGeneratePreflight?.groups}
+        onControlModeChange={(key, targetId, mode) =>
+          setContextControls((current) => setAiContextControlMode(current, key, targetId, mode))}
+        onRun={() => void executePendingGenerate()}
+        runLabel="执行 AI"
+        running={preflightRunning}
+        onClose={() => setPendingGenerate(null)}
       />
     </div>
   )

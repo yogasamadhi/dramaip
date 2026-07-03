@@ -1,12 +1,18 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Sparkles, Loader2 } from 'lucide-react'
-import type { Chapter, NovelTaskType, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, Chapter, NovelTaskType, TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
+import {
+  buildAiPreflightContext,
+  setAiContextControlMode,
+  type AiPreflightContextData,
+} from '@/lib/aiPreflightContext'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 
 interface AiAssistantPanelProps {
   projectId: string
@@ -14,6 +20,7 @@ interface AiAssistantPanelProps {
   /** 章节类任务完成后刷新章节（让编辑器载入新内容） */
   onChapterUpdated: () => Promise<void> | void
   onTextPreview?: (preview: TextDiffPreviewPayload) => void
+  contextData?: AiPreflightContextData
 }
 
 const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 'default' | 'outline' | 'secondary' }[] = [
@@ -32,11 +39,27 @@ const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 
   { taskType: 'rewrite_as_ai_drama_novel', label: 'AI 短剧化改写', desc: '更视觉化、更短剧化', variant: 'outline' },
 ]
 
-export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextPreview }: AiAssistantPanelProps) {
+export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextPreview, contextData }: AiAssistantPanelProps) {
   const [running, setRunning] = useState<NovelTaskType | null>(null)
   const [instruction, setInstruction] = useState('')
+  const [contextControls, setContextControls] = useState<AiContextControls>({})
+  const [pendingTask, setPendingTask] = useState<NovelTaskType | null>(null)
+  const [preflightRunning, setPreflightRunning] = useState(false)
+  const preflight = pendingTask && contextData ? buildAiPreflightContext(pendingTask, contextData, contextControls) : null
 
   async function runAction(taskType: NovelTaskType) {
+    if (!chapter) {
+      toast.error('请先选择或新建一个章节')
+      return
+    }
+    if (contextData) {
+      setPendingTask(taskType)
+      return
+    }
+    await runActionNow(taskType)
+  }
+
+  async function runActionNow(taskType: NovelTaskType) {
     if (!chapter) {
       toast.error('请先选择或新建一个章节')
       return
@@ -50,6 +73,7 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
         chapterId: chapter.id,
         taskType,
         userInstruction: instruction.trim() || undefined,
+        contextControls,
       })
       if (res.ok) {
         if (res.result?.kind === 'text_preview') {
@@ -67,6 +91,17 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
       toast.error(`${label} 异常：${e instanceof Error ? e.message : String(e)}`, { id: toastId })
     } finally {
       setRunning(null)
+    }
+  }
+
+  async function executePendingTask() {
+    if (!pendingTask) return
+    setPreflightRunning(true)
+    try {
+      await runActionNow(pendingTask)
+      setPendingTask(null)
+    } finally {
+      setPreflightRunning(false)
     }
   }
 
@@ -107,6 +142,17 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
       </div>
 
       {!chapter && <p className="text-xs text-muted-foreground">新建或选择章节后即可使用 AI 功能。</p>}
+      <AiContextPreviewDialog
+        open={pendingTask !== null}
+        preview={preflight?.preview ?? null}
+        controlGroups={preflight?.groups}
+        onControlModeChange={(key, targetId, mode) =>
+          setContextControls((current) => setAiContextControlMode(current, key, targetId, mode))}
+        onRun={() => void executePendingTask()}
+        runLabel="执行 AI"
+        running={preflightRunning}
+        onClose={() => setPendingTask(null)}
+      />
     </div>
   )
 }
