@@ -67,6 +67,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     characters: state.characters,
     outlines: state.outlines,
     storyArcs: state.storyArcs,
+    projectSkills: state.projectSkills,
     chapters: state.chapters,
     currentChapter: state.currentChapter,
     chapterMemories: state.chapterMemories,

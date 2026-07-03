@@ -9,6 +9,7 @@
 //   "project": Project,
 //   "characters": Character[],
 //   "outlines": Outline[],
+//   "projectSkills": ProjectSkill[],
 //   "chapters": Chapter[],
 //   "evaluations": Evaluation[],
 //   "chapterMemories": ChapterMemory[],
@@ -50,6 +51,7 @@ import type {
   Outline,
   Project,
   ProjectAsset,
+  ProjectSkill,
   QualityGateReport,
   RevisionTask,
   Scene,
@@ -62,7 +64,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 2
+export const PACKAGE_VERSION = 3
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -83,6 +85,7 @@ export interface ProjectPackage {
   project: Project
   characters: Character[]
   outlines: Outline[]
+  projectSkills: ProjectSkill[]
   chapters: Chapter[]
   evaluations: Evaluation[]
   chapterMemories: ChapterMemory[]
@@ -121,6 +124,7 @@ export interface ProjectPackageCounts {
   chapters: number
   evaluations: number
   memories: number
+  projectSkills: number
   creativeReports: number
   adaptations: number
   episodes: number
@@ -151,6 +155,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
 
   const characters = repos.character.listCharacters(db, projectId)
   const outlines = repos.outline.listOutlines(db, projectId)
+  const projectSkills = repos.projectSkill.listProjectSkills(db, projectId)
   const chapters = repos.chapter.listChapters(db, projectId)
   const evaluations = repos.evaluation.listEvaluations(db, projectId)
   const chapterMemories = repos.chapterMemory.listChapterMemories(db, projectId)
@@ -201,6 +206,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     project,
     characters,
     outlines,
+    projectSkills,
     chapters,
     evaluations,
     chapterMemories,
@@ -328,6 +334,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
       pkg.highlightAnalyses.length +
       pkg.feasibilityReports.length +
       (pkg.dramaTrendReport ? 1 : 0),
+    projectSkills: pkg.projectSkills?.length ?? 0,
     creativeReports,
     adaptations: pkg.adaptations.length,
     episodes,
@@ -393,6 +400,12 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     for (const o of pkg.outlines) {
       const created = repos.outline.createOutline(db, { ...stripId(o), projectId: newProject.id })
       idMap.set(o.id, created.id)
+    }
+
+    // 3.1 项目级创作规范 / Skills
+    for (const s of pkg.projectSkills ?? []) {
+      const created = repos.projectSkill.createProjectSkill(db, { ...stripId(s), projectId: newProject.id })
+      idMap.set(s.id, created.id)
     }
 
     // 4. 章节

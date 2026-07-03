@@ -108,6 +108,7 @@ export function ChatSection({
           chapters: commandContext.chapters,
           characters: commandContext.characters,
           storyArcs: commandContext.storyArcs,
+          projectSkills: commandContext.projectSkills,
           caseStudies: commandContext.caseStudies,
           visualProfiles: commandContext.visualProfiles,
         },

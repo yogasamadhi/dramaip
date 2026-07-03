@@ -451,6 +451,29 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 13,
+    name: 'project-skills',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS project_skills (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          description TEXT,
+          task_types TEXT NOT NULL DEFAULT '[]',
+          content TEXT NOT NULL DEFAULT '',
+          priority INTEGER NOT NULL DEFAULT 0,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_skills_project_priority ON project_skills(project_id, enabled, priority);
+        CREATE INDEX IF NOT EXISTS idx_project_skills_project_category ON project_skills(project_id, category);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

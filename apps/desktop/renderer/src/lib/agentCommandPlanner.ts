@@ -7,6 +7,7 @@ import type {
   Episode,
   NovelTaskType,
   Project,
+  ProjectSkill,
   Scene,
   Script,
   Shot,
@@ -35,6 +36,7 @@ export interface AgentCommandContext {
   chapters: Chapter[]
   characters: Character[]
   storyArcs: StoryArc[]
+  projectSkills: ProjectSkill[]
   caseStudies: CreativeCaseStudy[]
   visualProfiles: CharacterVisualProfile[]
   adaptations: AdaptationProject[]

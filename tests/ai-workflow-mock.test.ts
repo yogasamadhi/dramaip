@@ -101,6 +101,7 @@ function createHarness() {
         return arc
       },
     },
+    projectSkill: { listEnabledProjectSkills: () => [] },
     chapter: { listChapters: () => [], getChapter: () => undefined },
     chapterMemory: { listChapterMemories: () => [] },
     characterState: { listCharacterStates: () => [] },

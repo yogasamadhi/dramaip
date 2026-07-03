@@ -80,6 +80,24 @@ export interface StoryArc {
   updatedAt: string
 }
 
+export type ProjectSkillCategory = 'genre_pacing' | 'dialogue' | 'shot_prompt' | 'platform_delivery' | 'style' | 'custom'
+
+/** 项目级创作规范 / Skill：按任务自动注入，也可在生成前手动固定或排除 */
+export interface ProjectSkill {
+  id: string
+  projectId: string
+  name: string
+  category: ProjectSkillCategory
+  description?: string
+  /** 为空表示适用于所有 AI 任务 */
+  taskTypes: NovelTaskType[]
+  content: string
+  priority: number
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 /** 章节 */
 export interface Chapter {
   id: string
@@ -168,6 +186,7 @@ export interface AiContextControlCollection {
   chapters?: string[]
   characters?: string[]
   storyArcs?: string[]
+  projectSkills?: string[]
   caseStudies?: string[]
   visualProfiles?: string[]
 }

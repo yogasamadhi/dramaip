@@ -117,6 +117,29 @@ function main() {
   const stageUpdated = repos.storyArc.updateStoryArc(repos.db, stage.id, { targetChapterCount: 3 })
   assert(stageUpdated?.targetChapterCount === 3, 'updateStoryArc 写回目标章节')
 
+  // 项目级 Skills / 创作规范
+  const writingSkill = repos.projectSkill.createProjectSkill(repos.db, {
+    projectId: p1.id,
+    name: '复仇爽文节奏规范',
+    category: 'genre_pacing',
+    taskTypes: ['generate_chapter', 'rewrite_chapter'],
+    content: '每章必须有明确压迫、反制和追看钩子。',
+    priority: 20,
+  })
+  const promptSkill = repos.projectSkill.createProjectSkill(repos.db, {
+    projectId: p1.id,
+    name: '镜头 Prompt 规则',
+    category: 'shot_prompt',
+    taskTypes: ['generate_shot_prompt'],
+    content: '镜头 Prompt 需要包含主体、景别、动作和光线。',
+    enabled: false,
+  })
+  assert(repos.projectSkill.listProjectSkills(repos.db, p1.id).length === 2, 'createProjectSkill + list')
+  assert(repos.projectSkill.listProjectSkillsForTask(repos.db, p1.id, 'generate_chapter')[0]?.id === writingSkill.id, 'listProjectSkillsForTask 匹配任务')
+  assert(!repos.projectSkill.listProjectSkillsForTask(repos.db, p1.id, 'generate_shot_prompt').some((s) => s.id === promptSkill.id), '禁用 ProjectSkill 不进入任务上下文')
+  const skillUpdated = repos.projectSkill.updateProjectSkill(repos.db, writingSkill.id, { priority: 30 })
+  assert(skillUpdated?.priority === 30, 'updateProjectSkill 写回优先级')
+
   // 模型配置
   const m = repos.modelConfig.createModelConfig(repos.db, {
     name: '默认', provider: 'openai', baseUrl: 'https://api.example.com/v1', apiKey: 'sk-x', model: 'gpt-4o', isDefault: true,
@@ -800,11 +823,20 @@ function main() {
     metadata: { pose: '半身' },
     packagePolicy: 'reference_only',
   })
+  repos.projectSkill.createProjectSkill(db, {
+    projectId: p3.id,
+    name: '导出节奏规范',
+    category: 'genre_pacing',
+    taskTypes: ['generate_chapter'],
+    content: '导出项目每章保持强钩子。',
+    priority: 12,
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
   assert(pkg.chapters.length === 1 && (pkg.chapters[0].content ?? '').includes('正文'), 'collectProjectPackage 章节+正文')
-  assert(pkg.meta.version === 2, 'collectProjectPackage 版本 = 2')
+  assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
+  assert(pkg.meta.version === 3, 'collectProjectPackage 版本 = 3')
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
   const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
@@ -824,6 +856,7 @@ function main() {
   const importedChapters = repos.chapter.listChapters(db, imported.id)
   assert(importedChapters.length === 1, 'importProjectPackage 章节还原')
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
+  assert(repos.projectSkill.listProjectSkills(db, imported.id).length === 1, 'importProjectPackage 创作规范还原')
   assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
   assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
   const importedAssets = repos.asset.listProjectAssets(db, imported.id)

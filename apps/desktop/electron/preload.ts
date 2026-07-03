@@ -80,6 +80,12 @@ const api = {
     update: (id: string, patch: unknown) => invoke('storyArc:update', id, patch),
     remove: (id: string) => invoke('storyArc:delete', id),
   },
+  projectSkill: {
+    list: (projectId: string) => invoke('projectSkill:list', projectId),
+    create: (data: unknown) => invoke('projectSkill:create', data),
+    update: (id: string, patch: unknown) => invoke('projectSkill:update', id, patch),
+    remove: (id: string) => invoke('projectSkill:delete', id),
+  },
   evaluation: {
     list: (projectId: string) => invoke('evaluation:list', projectId),
   },

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   CREATIVE_WORKFLOW_TEMPLATES,
+  PROJECT_SKILL_CATEGORIES,
   TASK_GROUPS,
   TASK_TYPE_LABELS,
   TEMPLATE_TYPES,
@@ -151,6 +152,21 @@ const storyArcInput = z
   })
   .passthrough()
 const storyArcPatch = storyArcInput.omit({ projectId: true }).partial().passthrough()
+
+const projectSkillCategory = enumFromValues(PROJECT_SKILL_CATEGORIES, 'ProjectSkillCategory')
+const projectSkillInput = z
+  .object({
+    projectId: id,
+    name: id,
+    category: projectSkillCategory,
+    description: z.string().optional(),
+    taskTypes: z.array(novelTaskType).optional(),
+    content: z.string().min(1),
+    priority: z.number().int().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .passthrough()
+const projectSkillPatch = projectSkillInput.omit({ projectId: true }).partial().passthrough()
 
 const modelConfigInput = z
   .object({
@@ -485,6 +501,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'storyArc:list': [id, storyArcKind.optional()],
   'storyArc:create': [storyArcInput],
   'storyArc:update': [id, storyArcPatch],
+  'projectSkill:list': [id],
+  'projectSkill:create': [projectSkillInput],
+  'projectSkill:update': [id, projectSkillPatch],
+  'projectSkill:delete': [id],
   'chapterMemory:list': [id],
   'characterState:list': [id],
   'visualProfile:list': [id],
@@ -628,6 +648,7 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'outline:delete',
       'project:get',
       'project:delete',
+      'projectSkill:delete',
       'promptVersion:list',
       'scene:delete',
       'scene:listByScript',

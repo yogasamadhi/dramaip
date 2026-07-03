@@ -36,6 +36,7 @@ import type {
   Project,
   ProjectAsset,
   ProjectAssetSourceKind,
+  ProjectSkill,
   PromptVersion,
   QualityGateReport,
   RevisionTask,
@@ -414,6 +415,12 @@ export interface StudioApi {
     list(projectId: string, kind?: StoryArc['kind']): Promise<StoryArc[]>
     create(data: Partial<StoryArc> & { projectId: string; kind: StoryArc['kind']; title: string }): Promise<StoryArc>
     update(id: string, patch: Partial<StoryArc>): Promise<StoryArc | undefined>
+    remove(id: string): Promise<boolean>
+  }
+  projectSkill: {
+    list(projectId: string): Promise<ProjectSkill[]>
+    create(data: Partial<ProjectSkill> & { projectId: string; name: string; category: ProjectSkill['category']; content: string }): Promise<ProjectSkill>
+    update(id: string, patch: Partial<ProjectSkill>): Promise<ProjectSkill | undefined>
     remove(id: string): Promise<boolean>
   }
   evaluation: {

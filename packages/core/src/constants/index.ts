@@ -1,5 +1,12 @@
 // 常量 —— 短剧类型预设、工作台导航、任务类型映射（§5.2 / §5.3 / §10.1）
-import type { NovelTaskType, WorkflowRunStepKind, WritingRoomTargetKind } from '../types'
+import type {
+  AiContextControls,
+  NovelTaskType,
+  ProjectSkill,
+  ProjectSkillCategory,
+  WorkflowRunStepKind,
+  WritingRoomTargetKind,
+} from '../types'
 
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = [
@@ -48,6 +55,7 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'characters', label: '人物卡' },
   { key: 'outline', label: '大纲' },
   { key: 'story-planning', label: '长篇规划' },
+  { key: 'project-skills', label: '创作规范' },
   { key: 'chapters', label: '章节' },
   { key: 'evaluation', label: 'AI短剧评分' },
   // v0.2 长篇一致性与视觉记忆系统
@@ -83,7 +91,7 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
     key: 'creation',
     label: '创作',
-    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline', 'story-planning']),
+    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline', 'story-planning', 'project-skills']),
   },
   {
     key: 'memory',
@@ -530,6 +538,55 @@ export const TASK_GROUP_LABELS: Record<string, string> = Object.fromEntries(
 /** 根据任意 taskType 解析其所属任务组（未知类型归入 setup） */
 export function resolveTaskGroup(taskType: string): string {
   return TASK_TYPE_TO_GROUP[taskType] ?? 'setup'
+}
+
+export const PROJECT_SKILL_CATEGORIES: ProjectSkillCategory[] = [
+  'genre_pacing',
+  'dialogue',
+  'shot_prompt',
+  'platform_delivery',
+  'style',
+  'custom',
+]
+
+export const PROJECT_SKILL_CATEGORY_LABELS: Record<ProjectSkillCategory, string> = {
+  genre_pacing: '类型节奏',
+  dialogue: '人物对白',
+  shot_prompt: '镜头 Prompt',
+  platform_delivery: '平台交付',
+  style: '作者风格',
+  custom: '自定义',
+}
+
+export function projectSkillAppliesToTask(
+  skill: Pick<ProjectSkill, 'enabled' | 'taskTypes'>,
+  taskType: NovelTaskType,
+): boolean {
+  return skill.enabled && (skill.taskTypes.length === 0 || skill.taskTypes.includes(taskType))
+}
+
+export function selectProjectSkillsForTask(
+  skills: ProjectSkill[],
+  taskType: NovelTaskType,
+  controls?: AiContextControls,
+): ProjectSkill[] {
+  const enabled = skills.filter((skill) => skill.enabled)
+  const autoSelected = enabled.filter((skill) => projectSkillAppliesToTask(skill, taskType))
+  const selected = new Map(autoSelected.map((skill) => [skill.id, skill]))
+  for (const id of controls?.pinned?.projectSkills ?? []) {
+    const pinned = enabled.find((skill) => skill.id === id)
+    if (pinned) selected.set(pinned.id, pinned)
+  }
+  const excluded = new Set(controls?.excluded?.projectSkills ?? [])
+  const pinnedOrder = new Map((controls?.pinned?.projectSkills ?? []).map((id, index) => [id, index]))
+  return [...selected.values()]
+    .filter((skill) => !excluded.has(skill.id))
+    .sort((a, b) => {
+      const ap = pinnedOrder.get(a.id)
+      const bp = pinnedOrder.get(b.id)
+      if (ap !== undefined || bp !== undefined) return (ap ?? Number.MAX_SAFE_INTEGER) - (bp ?? Number.MAX_SAFE_INTEGER)
+      return b.priority - a.priority || a.createdAt.localeCompare(b.createdAt)
+    })
 }
 
 export interface CreativeWorkflowTemplateStep {
