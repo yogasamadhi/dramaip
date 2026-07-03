@@ -163,7 +163,7 @@
 | LM2-14 | P1 | 创意产品 | done | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
 | LM2-15 | P1 | 创意产品/AI | done | 灵感台二期：类型化灵感生成 | genre preset、template run、AI prompts | 用户选择题材/受众/短剧方向后，可一键生成 3-5 组差异化灵感方案，并进入项目创建或章节改写 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-14 |
 | LM2-16 | P1 | 交付导出 | done | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
-| LM2-17 | P1 | 交付导出 | todo | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
+| LM2-17 | P1 | 交付导出 | done | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
 | LM2-18 | P1 | 文本质量 | todo | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
 | LM2-19 | P2 | 视频资产 | todo | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
 | LM2-20 | P2 | 视频资产/AI | todo | 封面、配音与字幕生成草稿 | AI prompts、asset UI、video workflow | 可从小说/剧本生成封面 prompt、角色音色建议、旁白/字幕草稿；仅生成草稿，不接真实 TTS 平台 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-19 |
@@ -541,4 +541,19 @@ Push: git push origin main succeeded to Gitee, updating main from 9b0eeff to a81
 Loop branch cleanup: git branch -d loop/lm2-16-novel-submission-export succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Workspace export menu now provides novel submission package Markdown and JSON exports for the first 10 chapters. The package includes project synopsis and selling points, character bios, full chapter catalog, sampled front chapters, and quality summaries from AI evaluations and quality gate reports. Export logic is isolated in @sdns/export and covered by focused export tests plus shared IPC contract validation.
+```
+
+```text
+Loop: LM2-17
+Target branch: main
+Loop branch: loop/lm2-17-drama-delivery-export
+Commit: a73e8f1 loop(LM2-17): add drama delivery exports
+Merge commit: 3f26251 merge: lm2-17 drama delivery exports
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/drama-delivery-export.test.ts tests/ipc-contract.test.ts passed before commit and after merge; node --import tsx --test tests/drama-delivery-export.test.ts passed as focused export smoke; pnpm test:unit passed with 107 tests before commit and after merge; pnpm test:e2e passed before commit and after merge with Electron smoke after rerunning with required escalation because electron-rebuild needed to write ~/.electron-gyp outside the workspace sandbox.
+Diff review: reviewed staged stat/name list, new packages/export drama-delivery module, export IPC/preload/renderer contracts, strict IPC schemas, Adaptation/Script/Shot workspace export buttons, focused export tests, IPC contract tests, and final origin/main...HEAD stat; changes were limited to LM2-17 short drama proposal, episode delivery, and shot delivery exports.
+Remote sync: git fetch origin succeeded before starting LM2-17 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from ab75505 to 3f26251.
+Loop branch cleanup: git branch -d loop/lm2-17-drama-delivery-export succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: @sdns/export now builds short drama proposal packages, episode delivery packages, and shot delivery packages as Markdown/JSON, plus shot delivery CSV for production handoff. Proposal exports include project selling points, character bios, visual style, episode outlines, first 10 episode analysis, and video risk summary. Episode and shot delivery exports include scripts, scenes, shots, video Prompt, negative Prompt, review scores, and risk flags. Adaptation, Script, and Shot workspaces now expose the corresponding delivery export buttons through strict shared IPC contracts.
 ```
