@@ -83,6 +83,7 @@ function runElectronE2eSmoke() {
         assert(result.importedProjectId, `E2E imported project id missing: ${JSON.stringify(result)}`)
         assert(Array.isArray(result.steps), `E2E steps missing: ${JSON.stringify(result)}`)
         assert(result.steps.every((step) => step.ok === true), `E2E step failed: ${JSON.stringify(result.steps, null, 2)}`)
+        console.log(`E2E smoke steps: ${result.steps.map((step) => step.name).join(', ')}`)
         console.log(`E2E smoke userData: ${relative(rootDir, result.userData)}`)
         console.log(`E2E smoke project: ${result.projectId} -> ${result.importedProjectId}`)
         rmSync(smokeDir, { recursive: true, force: true })
