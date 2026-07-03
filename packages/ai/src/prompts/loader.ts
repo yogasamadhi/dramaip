@@ -21,6 +21,7 @@ import {
   GenerateChapterOutlinesResultSchema,
   GenerateCharactersResultSchema,
   GenerateProjectResultSchema,
+  GenerateStoryArcOutlineResultSchema,
   HighlightAnalysisResultSchema,
   NarrativeCurveResultSchema,
   QualityGateResultSchema,
@@ -45,6 +46,7 @@ import generateProject from './zh-CN/project/generate-project.md?raw'
 import generateCharacter from './zh-CN/character/generate-character.md?raw'
 import generateBookOutline from './zh-CN/outline/generate-book-outline.md?raw'
 import generateChapterOutline from './zh-CN/outline/generate-chapter-outline.md?raw'
+import generateStoryArcOutline from './zh-CN/outline/generate-story-arc-outline.md?raw'
 import generateChapter from './zh-CN/chapter/generate-chapter.md?raw'
 import continueChapter from './zh-CN/chapter/continue-chapter.md?raw'
 import rewriteChapter from './zh-CN/chapter/rewrite-chapter.md?raw'
@@ -122,6 +124,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   generate_characters: { prompt: generateCharacter, output: 'json', schema: GenerateCharactersResultSchema },
   generate_book_outline: { prompt: generateBookOutline, output: 'text' },
   generate_chapter_outline: { prompt: generateChapterOutline, output: 'json', schema: GenerateChapterOutlinesResultSchema },
+  generate_story_arc_outline: { prompt: generateStoryArcOutline, output: 'json', schema: GenerateStoryArcOutlineResultSchema },
   generate_chapter: { prompt: generateChapter, output: 'text', writesChapterContent: true },
   continue_chapter: { prompt: continueChapter, output: 'text', writesChapterContent: true },
   rewrite_chapter: { prompt: rewriteChapter, output: 'text', writesChapterContent: true },

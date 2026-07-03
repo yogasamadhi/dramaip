@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Chapter, Character, Project } from '@sdns/core'
+import type { Chapter, Character, Project, StoryArc } from '@sdns/core'
 import { applyContextControls } from '../packages/ai/src/context/context-controls'
 import { buildAiPreflightContext } from '../apps/desktop/renderer/src/lib/aiPreflightContext'
 
@@ -25,6 +25,23 @@ test('preflight preview exposes pinned and excluded context choices', () => {
       { id: 'char1', projectId: 'p1', name: '女主', role: '主角', createdAt: '', updatedAt: '' },
       { id: 'char2', projectId: 'p1', name: '反派', role: '反派', createdAt: '', updatedAt: '' },
     ] as Character[],
+    storyArcs: [
+      {
+        id: 'arc1',
+        projectId: 'p1',
+        kind: 'unit',
+        title: '宴会反击单元',
+        targetChapterCount: 8,
+        chapterStart: 1,
+        chapterEnd: 8,
+        coreConflict: '宴会羞辱与公开反制',
+        keyHighlights: [],
+        foreshadowingPayoffs: [],
+        orderIndex: 0,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ] as StoryArc[],
     caseStudies: [],
     visualProfiles: [],
   }, {
@@ -36,5 +53,6 @@ test('preflight preview exposes pinned and excluded context choices', () => {
   assert.match(preview.preview.sections[0]?.excerpt ?? '', /排除人物：1 项/)
   assert.match(preview.preview.sections.find((section) => section.title === '章节上下文')?.excerpt ?? '', /第二章/)
   assert.doesNotMatch(preview.preview.sections.find((section) => section.title === '人物上下文')?.excerpt ?? '', /反派/)
+  assert.match(preview.preview.sections.find((section) => section.title === '长篇规划')?.excerpt ?? '', /宴会反击单元/)
   assert.equal(preview.groups.find((group) => group.key === 'chapters')?.items.find((item) => item.id === 'c2')?.mode, 'pinned')
 })

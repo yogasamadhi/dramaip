@@ -128,6 +128,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   generate_characters: '生成人物卡',
   generate_book_outline: '生成全书大纲',
   generate_chapter_outline: '生成章节大纲',
+  generate_story_arc_outline: '生成卷/单元规划',
   generate_chapter: '生成章节正文',
   continue_chapter: '续写章节',
   rewrite_chapter: '改写章节',
@@ -219,6 +220,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   generate_characters: taskPolicy('preview_then_adopt', '生成人物卡，用户采用后新增人物。'),
   generate_book_outline: taskPolicy('preview_then_adopt', '生成全书大纲，用户采用后写入大纲。'),
   generate_chapter_outline: taskPolicy('preview_then_adopt', '生成章节大纲，用户采用后新增大纲。'),
+  generate_story_arc_outline: taskPolicy('preview_then_adopt', '生成卷/单元/剧情阶段规划，用户采用后写入长篇规划。'),
   generate_chapter: taskPolicy('preview_then_adopt', '生成章节正文，用户确认差异后写入。'),
   continue_chapter: taskPolicy('preview_then_adopt', '续写章节正文，用户确认差异后写入。'),
   rewrite_chapter: taskPolicy('preview_then_adopt', '改写章节正文，用户确认差异后写入。'),
@@ -356,6 +358,7 @@ export const TEMPLATE_SCOPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'generate_characters', label: '生成人物卡' },
   { value: 'generate_book_outline', label: '生成全书大纲' },
   { value: 'generate_chapter_outline', label: '生成章节大纲' },
+  { value: 'generate_story_arc_outline', label: '生成卷/单元规划' },
   { value: 'snippet', label: '纯片段（不落库）' },
 ]
 
@@ -427,6 +430,7 @@ export const TASK_GROUPS: TaskGroup[] = [
       'generate_characters',
       'generate_book_outline',
       'generate_chapter_outline',
+      'generate_story_arc_outline',
       'chat_project',
     ],
   },

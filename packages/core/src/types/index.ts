@@ -167,6 +167,7 @@ export interface AiContextPreview {
 export interface AiContextControlCollection {
   chapters?: string[]
   characters?: string[]
+  storyArcs?: string[]
   caseStudies?: string[]
   visualProfiles?: string[]
 }
@@ -1159,6 +1160,7 @@ export type NovelTaskType =
   | 'generate_characters'
   | 'generate_book_outline'
   | 'generate_chapter_outline'
+  | 'generate_story_arc_outline'
   | 'generate_chapter'
   | 'continue_chapter'
   | 'rewrite_chapter'

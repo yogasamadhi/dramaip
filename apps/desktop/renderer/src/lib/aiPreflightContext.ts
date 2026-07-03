@@ -9,6 +9,7 @@ import type {
   CreativeCaseStudy,
   NovelTaskType,
   Project,
+  StoryArc,
 } from '@sdns/core'
 
 export type AiContextControlKey = keyof AiContextControlCollection
@@ -32,6 +33,7 @@ export interface AiPreflightContextData {
   project?: Project | null
   chapters: Chapter[]
   characters: Character[]
+  storyArcs: StoryArc[]
   caseStudies: CreativeCaseStudy[]
   visualProfiles: CharacterVisualProfile[]
 }
@@ -45,6 +47,7 @@ const DEFAULT_CONTEXT_TOKEN_BUDGET = 5_000
 const CONTEXT_TOKEN_BUDGETS: Partial<Record<NovelTaskType, number>> = {
   chat_project: 3_500,
   convert_novel_to_episodes: 6_500,
+  generate_story_arc_outline: 6_500,
   generate_ai_drama_script: 7_000,
   rewrite_ai_drama_script: 7_000,
   split_script_to_scenes: 7_000,
@@ -65,9 +68,10 @@ export function buildAiPreflightContext(
 ): AiPreflightContextResult {
   const chapters = applyControls(data.chapters, 'chapters', controls)
   const characters = applyControls(data.characters, 'characters', controls)
+  const storyArcs = applyControls(data.storyArcs, 'storyArcs', controls)
   const caseStudies = applyControls(data.caseStudies, 'caseStudies', controls)
   const visualProfiles = applyControls(data.visualProfiles, 'visualProfiles', controls)
-  const rawSections = buildRawSections({ ...data, chapters, characters, caseStudies, visualProfiles }, controls)
+  const rawSections = buildRawSections({ ...data, chapters, characters, storyArcs, caseStudies, visualProfiles }, controls)
   const budget = CONTEXT_TOKEN_BUDGETS[taskType] ?? DEFAULT_CONTEXT_TOKEN_BUDGET
   const { sections, trimmedTitles } = applyPreviewBudget(rawSections, budget)
   if (trimmedTitles.length) {
@@ -121,6 +125,8 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
     controlLine('排除章节', controls.excluded?.chapters),
     controlLine('固定人物', controls.pinned?.characters),
     controlLine('排除人物', controls.excluded?.characters),
+    controlLine('固定长篇规划', controls.pinned?.storyArcs),
+    controlLine('排除长篇规划', controls.excluded?.storyArcs),
     controlLine('固定样本', controls.pinned?.caseStudies),
     controlLine('排除样本', controls.excluded?.caseStudies),
     controlLine('固定视觉档案', controls.pinned?.visualProfiles),
@@ -150,6 +156,16 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
     sections.push(section('人物上下文', data.characters.slice(0, 40).map((character) =>
       `- ${character.name}（${character.role}）：${[character.identity, character.personality, character.desire].filter(Boolean).join('；') || '暂无补充'}`,
     ).join('\n')))
+  }
+
+  if (data.storyArcs.length) {
+    const parentById = new Map(data.storyArcs.map((arc) => [arc.id, arc.title]))
+    sections.push(section('长篇规划', data.storyArcs.slice(0, 60).map((arc) => {
+      const parent = arc.parentId ? `上级：${parentById.get(arc.parentId) ?? arc.parentId}；` : ''
+      const range = arc.chapterStart || arc.chapterEnd ? `章节：${arc.chapterStart ?? '?'}-${arc.chapterEnd ?? '?'}；` : ''
+      const target = [arc.targetChapterCount ? `${arc.targetChapterCount}章` : '', arc.targetWordCount ? `${arc.targetWordCount}字` : ''].filter(Boolean).join('/')
+      return `- ${arc.title}（${arc.kind}）：${parent}${range}${target ? `目标：${target}；` : ''}${arc.coreConflict || arc.summary || '暂无补充'}`
+    }).join('\n')))
   }
 
   if (data.caseStudies.length) {
@@ -189,6 +205,17 @@ function buildControlGroups(data: AiPreflightContextData, controls: AiContextCon
         label: `${character.name}（${character.role}）`,
         detail: [character.identity, character.desire].filter(Boolean).join('；'),
         mode: modeFor(controls, 'characters', character.id),
+      })),
+    },
+    {
+      key: 'storyArcs',
+      title: '长篇规划',
+      items: data.storyArcs.slice(0, 60).map((arc) => ({
+        key: 'storyArcs',
+        id: arc.id,
+        label: arc.title,
+        detail: [arc.coreConflict, arc.summary].filter(Boolean).join('；'),
+        mode: modeFor(controls, 'storyArcs', arc.id),
       })),
     },
     {

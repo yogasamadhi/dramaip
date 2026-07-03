@@ -62,6 +62,7 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
       let project = undefined
       let characters: Awaited<ReturnType<typeof repos.character.listCharacters>> = []
       let outlines: Awaited<ReturnType<typeof repos.outline.listOutlines>> = []
+      let storyArcs: Awaited<ReturnType<typeof repos.storyArc.listStoryArcs>> = []
       let chapters: Awaited<ReturnType<typeof repos.chapter.listChapters>> = []
       let chapterMemories: Awaited<ReturnType<typeof repos.chapterMemory.listChapterMemories>> = []
       let characterStates: Awaited<ReturnType<typeof repos.characterState.listCharacterStates>> = []
@@ -87,6 +88,7 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
 
         characters = repos.character.listCharacters(db, projectId)
         outlines = repos.outline.listOutlines(db, projectId)
+        storyArcs = repos.storyArc.listStoryArcs(db, projectId)
         chapters = repos.chapter.listChapters(db, projectId)
 
         // v0.2：加载长篇一致性与视觉记忆上下文
@@ -127,6 +129,7 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
 
       chapters = applyContextControls(chapters, 'chapters', state.contextControls)
       characters = applyContextControls(characters, 'characters', state.contextControls)
+      storyArcs = applyContextControls(storyArcs, 'storyArcs', state.contextControls)
       visualProfiles = applyContextControls(visualProfiles, 'visualProfiles', state.contextControls)
       const controlledCaseStudies = applyContextControls(creativeCaseStudies, 'caseStudies', state.contextControls)
 
@@ -134,6 +137,7 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         project,
         characters,
         outlines,
+        storyArcs,
         chapters,
         currentChapter: currentChapter ?? undefined,
         chapterMemories,

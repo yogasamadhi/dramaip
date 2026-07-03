@@ -27,6 +27,7 @@ import type {
   Scene,
   Script,
   Shot,
+  StoryArc,
   StoryEvent,
   VisualSetting,
 } from '@sdns/core'
@@ -56,6 +57,7 @@ export const NovelGraphState = Annotation.Root({
   project: Annotation<Project | undefined>(),
   characters: Annotation<Character[] | undefined>(),
   outlines: Annotation<Outline[] | undefined>(),
+  storyArcs: Annotation<StoryArc[] | undefined>(),
   chapters: Annotation<Chapter[] | undefined>(),
   currentChapter: Annotation<Chapter | undefined>(),
 

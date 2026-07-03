@@ -7,6 +7,7 @@ import type {
   GenerateChapterOutlinesResult,
   GenerateCharactersResult,
   GenerateProjectResult,
+  GenerateStoryArcOutlineResult,
   VisualProfileResult,
   VisualSettingResult,
 } from '@sdns/core'
@@ -27,6 +28,7 @@ export type PreviewTaskType =
   | 'generate_characters'
   | 'generate_book_outline'
   | 'generate_chapter_outline'
+  | 'generate_story_arc_outline'
   | 'generate_character_visual_profile'
   | 'generate_visual_setting'
   | 'convert_novel_to_episodes'
@@ -44,6 +46,7 @@ const TITLE: Record<PreviewTaskType, string> = {
   generate_characters: 'AI 生成的人物卡',
   generate_book_outline: 'AI 生成的全书大纲',
   generate_chapter_outline: 'AI 生成的章节大纲',
+  generate_story_arc_outline: 'AI 生成的卷/单元规划',
   generate_character_visual_profile: 'AI 生成的人物视觉档案',
   generate_visual_setting: 'AI 生成的视觉设定',
   convert_novel_to_episodes: 'AI 生成的分集大纲',
@@ -82,6 +85,9 @@ export function GeneratePreviewDialog({ open, taskType, data, onAdopt, onCancel 
           {taskType === 'generate_book_outline' && <TextPreview text={String(data ?? '')} />}
           {taskType === 'generate_chapter_outline' && (
             <ChapterOutlinesPreview data={data as GenerateChapterOutlinesResult} />
+          )}
+          {taskType === 'generate_story_arc_outline' && (
+            <StoryArcOutlinesPreview data={data as GenerateStoryArcOutlineResult} />
           )}
           {taskType === 'generate_character_visual_profile' && (
             <VisualProfilePreview data={data as VisualProfileResult} />
@@ -175,6 +181,40 @@ function ChapterOutlinesPreview({ data }: { data: GenerateChapterOutlinesResult 
       ))}
     </div>
   )
+}
+
+function StoryArcOutlinesPreview({ data }: { data: GenerateStoryArcOutlineResult }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">将新增 {data.length} 条长篇规划</p>
+      {data.map((arc, i) => (
+        <div key={i} className="rounded-md border p-3">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <Badge variant="outline">{storyArcKindLabel(arc.kind)}</Badge>
+            <span className="font-medium">{arc.title}</span>
+            {arc.parentTitle && <span className="text-xs text-muted-foreground">上级：{arc.parentTitle}</span>}
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+            {arc.targetWordCount && <span>目标字数：{arc.targetWordCount}</span>}
+            {arc.targetChapterCount && <span>目标章节：{arc.targetChapterCount}</span>}
+            {(arc.chapterStart || arc.chapterEnd) && (
+              <span>章节范围：{arc.chapterStart ?? '?'}-{arc.chapterEnd ?? '?'}</span>
+            )}
+          </div>
+          {arc.summary && <p className="mt-1 text-xs text-muted-foreground">{arc.summary}</p>}
+          {arc.coreConflict && <Field label="核心矛盾" value={arc.coreConflict} />}
+          {arc.keyHighlights?.length ? <Field label="关键爽点" value={arc.keyHighlights.join('；')} /> : null}
+          {arc.foreshadowingPayoffs?.length ? <Field label="伏笔回收" value={arc.foreshadowingPayoffs.join('；')} /> : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function storyArcKindLabel(kind: GenerateStoryArcOutlineResult[number]['kind']): string {
+  if (kind === 'volume') return '卷'
+  if (kind === 'unit') return '单元'
+  return '剧情阶段'
 }
 
 function TextPreview({ text }: { text: string }) {

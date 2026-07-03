@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { ChatInput, ChatOutput, LLMProvider, NovelTaskType, Project } from '@sdns/core'
-import { GenerateProjectResultSchema } from '@sdns/core'
+import type { ChatInput, ChatOutput, LLMProvider, NovelTaskType, Project, StoryArc } from '@sdns/core'
+import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { createSaveAiRunNode } from '../packages/ai/src/nodes/save-ai-run.node'
 import { extractJson } from '../packages/ai/src/parsers/json'
@@ -55,6 +55,7 @@ function createHarness() {
   const aiRuns: AiRunRow[] = []
   const contentVersions: Array<Record<string, unknown>> = []
   const projectUpdates: Array<Record<string, unknown>> = []
+  const storyArcs: StoryArc[] = []
   const now = new Date('2026-01-01T00:00:00.000Z').toISOString()
   const project: Project = {
     id: 'p1',
@@ -75,6 +76,31 @@ function createHarness() {
     },
     character: { listCharacters: () => [] },
     outline: { listOutlines: () => [] },
+    storyArc: {
+      listStoryArcs: () => storyArcs,
+      createStoryArc: (_db: unknown, row: Partial<StoryArc> & { projectId: string; kind: StoryArc['kind']; title: string }) => {
+        const arc: StoryArc = {
+          id: `arc-${storyArcs.length + 1}`,
+          projectId: row.projectId,
+          parentId: row.parentId,
+          kind: row.kind,
+          title: row.title,
+          summary: row.summary,
+          targetWordCount: row.targetWordCount,
+          targetChapterCount: row.targetChapterCount,
+          chapterStart: row.chapterStart,
+          chapterEnd: row.chapterEnd,
+          coreConflict: row.coreConflict,
+          keyHighlights: row.keyHighlights ?? [],
+          foreshadowingPayoffs: row.foreshadowingPayoffs ?? [],
+          orderIndex: row.orderIndex ?? storyArcs.length,
+          createdAt: now,
+          updatedAt: now,
+        }
+        storyArcs.push(arc)
+        return arc
+      },
+    },
     chapter: { listChapters: () => [], getChapter: () => undefined },
     chapterMemory: { listChapterMemories: () => [] },
     characterState: { listCharacterStates: () => [] },
@@ -113,7 +139,7 @@ function createHarness() {
     },
   } as never
 
-  return { aiRuns, contentVersions, projectUpdates, repos }
+  return { aiRuns, contentVersions, projectUpdates, repos, storyArcs }
 }
 
 async function runMockProjectWorkflow(input: {
@@ -291,4 +317,53 @@ test('adopts generated project output with a content version snapshot', async ()
   assert.equal(contentVersions[0].targetKind, 'project')
   assert.equal(contentVersions[0].source, 'adopt_preview')
   assert.match(String(contentVersions[0].content), /Adopted Project/)
+})
+
+test('adopts generated story arc outlines with hierarchy and a content version snapshot', async () => {
+  const { contentVersions, repos, storyArcs } = createHarness()
+  const payload = GenerateStoryArcOutlineResultSchema.parse([
+    {
+      kind: 'volume',
+      title: '第一卷 归来复仇',
+      targetChapterCount: 40,
+      targetWordCount: 120000,
+      coreConflict: '女主回归后与旧豪门正面交锋',
+      keyHighlights: ['身份揭露'],
+      foreshadowingPayoffs: ['玉佩身世'],
+    },
+    {
+      kind: 'unit',
+      parentTitle: '第一卷 归来复仇',
+      title: '宴会反击单元',
+      targetChapterCount: 8,
+      chapterStart: 1,
+      chapterEnd: 8,
+      coreConflict: '宴会羞辱与公开反制',
+    },
+    {
+      kind: 'stage',
+      parentTitle: '宴会反击单元',
+      title: '当众反杀阶段',
+      targetChapterCount: 3,
+      chapterStart: 1,
+      chapterEnd: 3,
+      keyHighlights: ['当众打脸'],
+    },
+  ])
+
+  const out = await applyGeneratedArtifact(
+    { repos },
+    { projectId: 'p1', taskType: 'generate_story_arc_outline', data: payload },
+  )
+
+  assert.equal(out.kind, 'generate_story_arc_outline')
+  assert.equal(storyArcs.length, 3)
+  assert.equal(storyArcs[1].parentId, storyArcs[0].id)
+  assert.equal(storyArcs[2].parentId, storyArcs[1].id)
+  assert.equal(storyArcs[0].targetWordCount, 120000)
+  assert.deepEqual(storyArcs[2].keyHighlights, ['当众打脸'])
+  assert.equal(contentVersions.length, 1)
+  assert.equal(contentVersions[0].targetKind, 'project')
+  assert.equal(contentVersions[0].source, 'adopt_preview')
+  assert.match(String(contentVersions[0].content), /宴会反击单元/)
 })

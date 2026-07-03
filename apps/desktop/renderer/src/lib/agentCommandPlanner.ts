@@ -10,6 +10,7 @@ import type {
   Scene,
   Script,
   Shot,
+  StoryArc,
 } from '@sdns/core'
 
 export type AgentCommandKind = 'chapter' | 'episodes' | 'shots'
@@ -33,6 +34,7 @@ export interface AgentCommandContext {
   activeChapter?: Chapter | null
   chapters: Chapter[]
   characters: Character[]
+  storyArcs: StoryArc[]
   caseStudies: CreativeCaseStudy[]
   visualProfiles: CharacterVisualProfile[]
   adaptations: AdaptationProject[]
