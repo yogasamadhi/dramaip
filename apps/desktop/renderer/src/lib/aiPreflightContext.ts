@@ -191,7 +191,7 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
 
   if (data.visualProfiles.length) {
     sections.push(section('视觉档案', data.visualProfiles.slice(0, 30).map((profile) =>
-      `- ${profile.characterId}：${[profile.appearancePrompt, profile.faceDescription, profile.clothingStyle].filter(Boolean).join('；')}`,
+      `- ${profile.characterId}：${[profile.appearancePrompt, profile.castingPrompt, profile.faceDescription, profile.clothingStyle, profile.voiceTone].filter(Boolean).join('；')}`,
     ).join('\n')))
   }
 
@@ -266,7 +266,7 @@ function buildControlGroups(data: AiPreflightContextData, controls: AiContextCon
         key: 'visualProfiles',
         id: profile.id,
         label: profile.characterId,
-        detail: profile.appearancePrompt,
+        detail: [profile.appearancePrompt, profile.castingPrompt, profile.voiceTone].filter(Boolean).join('；'),
         mode: modeFor(controls, 'visualProfiles', profile.id),
       })),
     },

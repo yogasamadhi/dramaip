@@ -180,6 +180,7 @@ export type ForeshadowingResult = z.infer<typeof ForeshadowingResultSchema>
 /** generate_character_visual_profile：人物视觉档案 */
 export const VisualProfileResultSchema = z.object({
   appearancePrompt: z.string().min(1),
+  castingPrompt: z.string().optional(),
   faceDescription: z.string().optional(),
   hairstyle: z.string().optional(),
   clothingStyle: z.string().optional(),
@@ -188,6 +189,7 @@ export const VisualProfileResultSchema = z.object({
   temperament: z.string().optional(),
   colorPalette: z.string().optional(),
   negativePrompt: z.string().optional(),
+  voiceTone: z.string().optional(),
 })
 export type VisualProfileResult = z.infer<typeof VisualProfileResultSchema>
 
@@ -670,6 +672,7 @@ const PackageAdaptationSchema = z
           .object({
             script: packageEntity,
             scenes: packageEntityArray,
+            shots: packageEntityArray.default([]),
           })
           .passthrough(),
       )

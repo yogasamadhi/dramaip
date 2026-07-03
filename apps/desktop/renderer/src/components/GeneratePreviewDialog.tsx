@@ -225,6 +225,7 @@ function VisualProfilePreview({ data }: { data: VisualProfileResult }) {
   return (
     <div className="space-y-2">
       <Field label="外观 Prompt" value={data.appearancePrompt} block strong />
+      <Field label="选角描述" value={data.castingPrompt} block />
       <Field label="脸部描述" value={data.faceDescription} />
       <Field label="发型" value={data.hairstyle} />
       <Field label="服装风格" value={data.clothingStyle} />
@@ -232,6 +233,7 @@ function VisualProfilePreview({ data }: { data: VisualProfileResult }) {
       <Field label="年龄感" value={data.ageLook} />
       <Field label="气质" value={data.temperament} />
       <Field label="配色方案" value={data.colorPalette} />
+      <Field label="音色描述" value={data.voiceTone} block />
       <Field label="负面 Prompt" value={data.negativePrompt} block />
     </div>
   )

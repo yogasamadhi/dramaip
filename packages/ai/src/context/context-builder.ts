@@ -225,6 +225,8 @@ export function buildChapterContext(input: ChapterContextInput): string {
         if (c.visualDescription) parts.push(`视觉：${c.visualDescription}`)
         const vp = profileByChar.get(c.id)
         if (vp?.appearancePrompt) parts.push(`外观 Prompt：${vp.appearancePrompt}`)
+        if (vp?.castingPrompt) parts.push(`选角：${vp.castingPrompt}`)
+        if (vp?.voiceTone) parts.push(`音色：${vp.voiceTone}`)
         const visual = parts.length ? `；${parts.join('；')}` : ''
         return `- ${c.name}（${c.role}）：${core}${visual}`
       })
@@ -323,7 +325,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
         const id = `（id:${c.id}）`
         const core = [c.identity, c.personality, c.desire].filter(Boolean).join('；')
         const vp = profileByChar.get(c.id)
-        const visual = [c.visualDescription, vp?.appearancePrompt].filter(Boolean).join('；')
+        const visual = [c.visualDescription, vp?.appearancePrompt, vp?.castingPrompt, vp?.voiceTone].filter(Boolean).join('；')
         return `- ${c.name}${id}（${c.role}）：${core}${visual ? `；视觉：${visual}` : ''}`
       })
       .join('\n')
@@ -644,7 +646,7 @@ export function buildShotContext(input: ChapterContextInput): string {
     const body = limitList(characters, 40)
       .map((c) => {
         const vp = profileByChar.get(c.id)
-        const visual = [c.visualDescription, c.appearancePrompt, vp?.appearancePrompt].filter(Boolean).join('；')
+        const visual = [c.visualDescription, c.appearancePrompt, vp?.appearancePrompt, vp?.castingPrompt, vp?.voiceTone].filter(Boolean).join('；')
         return `- ${c.name}（${c.role}）${visual ? `：${visual}` : ''}`
       })
       .join('\n')

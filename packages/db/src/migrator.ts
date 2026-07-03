@@ -523,6 +523,16 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 16,
+    name: 'video-preproduction-assets',
+    up(raw) {
+      addColumnIfMissing(raw, 'character_visual_profiles', 'casting_prompt', 'casting_prompt TEXT')
+      addColumnIfMissing(raw, 'character_visual_profiles', 'actor_reference_url', 'actor_reference_url TEXT')
+      addColumnIfMissing(raw, 'character_visual_profiles', 'voice_tone', 'voice_tone TEXT')
+      addColumnIfMissing(raw, 'character_visual_profiles', 'voice_sample_url', 'voice_sample_url TEXT')
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

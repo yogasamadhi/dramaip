@@ -51,6 +51,7 @@ export function createVisualProfile(
     projectId: data.projectId,
     characterId: data.characterId,
     appearancePrompt: data.appearancePrompt,
+    castingPrompt: data.castingPrompt ?? null,
     faceDescription: data.faceDescription ?? null,
     hairstyle: data.hairstyle ?? null,
     clothingStyle: data.clothingStyle ?? null,
@@ -60,6 +61,9 @@ export function createVisualProfile(
     colorPalette: data.colorPalette ?? null,
     negativePrompt: data.negativePrompt ?? null,
     referenceImageUrl: data.referenceImageUrl ?? null,
+    actorReferenceUrl: data.actorReferenceUrl ?? null,
+    voiceTone: data.voiceTone ?? null,
+    voiceSampleUrl: data.voiceSampleUrl ?? null,
   }
   const [row] = insertRow(db, characterVisualProfiles, value)
   return row as unknown as CharacterVisualProfile

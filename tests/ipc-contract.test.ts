@@ -154,6 +154,30 @@ test('validates exact IPC channel arguments', () => {
       },
     ],
   )
+  assert.deepEqual(
+    validateIpcArgs('asset:create', [
+      {
+        projectId: 'p1',
+        kind: 'first_frame_image',
+        title: '镜头首帧',
+        sourceEntityKind: 'shot',
+        sourceEntityId: 'shot1',
+        remoteUrl: 'https://asset.local/first-frame.png',
+        tags: ['首帧图'],
+      },
+    ]),
+    [
+      {
+        projectId: 'p1',
+        kind: 'first_frame_image',
+        title: '镜头首帧',
+        sourceEntityKind: 'shot',
+        sourceEntityId: 'shot1',
+        remoteUrl: 'https://asset.local/first-frame.png',
+        tags: ['首帧图'],
+      },
+    ],
+  )
 })
 
 test('rejects IPC calls with invalid arity or shape', () => {

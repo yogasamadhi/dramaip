@@ -211,6 +211,7 @@ export async function applyGeneratedArtifact(
         projectId,
         characterId: input.characterId,
         appearancePrompt: r.appearancePrompt,
+        castingPrompt: r.castingPrompt,
         faceDescription: r.faceDescription,
         hairstyle: r.hairstyle,
         clothingStyle: r.clothingStyle,
@@ -219,6 +220,7 @@ export async function applyGeneratedArtifact(
         temperament: r.temperament,
         colorPalette: r.colorPalette,
         negativePrompt: r.negativePrompt,
+        voiceTone: r.voiceTone,
       })
       return { kind: taskType, created }
     }

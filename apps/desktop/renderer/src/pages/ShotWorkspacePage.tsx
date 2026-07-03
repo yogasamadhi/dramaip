@@ -19,7 +19,7 @@ import {
 import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
-import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
+import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -304,6 +304,10 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
   const [referenceInput, setReferenceInput] = useState('')
+  const [firstFrameInput, setFirstFrameInput] = useState('')
+  const [coverInput, setCoverInput] = useState('')
+  const [narrationInput, setNarrationInput] = useState('')
+  const [subtitleInput, setSubtitleInput] = useState('')
 
   useEffect(() => {
     setActiveShotId((cur) => cur ?? shots[0]?.id ?? null)
@@ -324,6 +328,10 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     if (!activeShot) {
       setShotAssets([])
       setReferenceInput('')
+      setFirstFrameInput('')
+      setCoverInput('')
+      setNarrationInput('')
+      setSubtitleInput('')
       return () => {
         canceled = true
       }
@@ -334,6 +342,10 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
       setShotAssets(assets)
       const referenceAsset = assets.find(isShotReferenceAsset)
       setReferenceInput(referenceAsset ? assetReferenceUrl(referenceAsset) ?? '' : '')
+      setFirstFrameInput(assetInputValue(assets.find((asset) => asset.kind === 'first_frame_image')))
+      setCoverInput(assetInputValue(assets.find((asset) => asset.kind === 'cover_image')))
+      setNarrationInput(assetInputValue(assets.find((asset) => asset.kind === 'narration_audio')))
+      setSubtitleInput(assetInputValue(assets.find((asset) => asset.kind === 'subtitle_file')))
     })()
     return () => {
       canceled = true
@@ -466,7 +478,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     if (!activeShot) return
     const updated = await ipc.shot.update(activeShot.id, draft)
     if (updated) {
-      await syncShotReferenceAsset(updated)
+      await syncShotAssets(updated)
       toast.success('已保存')
       setDirty(false)
       setShotAssets(await ipc.asset.listBySource('shot', updated.id))
@@ -474,21 +486,61 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     }
   }
 
-  async function syncShotReferenceAsset(shot: Shot) {
-    const reference = referenceInput.trim()
-    if (!reference || !sourceProjectId) return
-    const fields = assetFieldsFromReference(reference)
-    const existing = await ipc.asset.listBySource('shot', shot.id)
-    const linked = existing.find(isShotReferenceAsset)
-    const payload = {
-      projectId: sourceProjectId,
-      kind: 'scene_reference' as const,
+  async function syncShotAssets(shot: Shot) {
+    const projectId = sourceProjectId
+    if (!projectId) return
+    const common = { sceneId: shot.sceneId, episodeId: shot.episodeId }
+    await syncShotAsset(projectId, shot, 'scene_reference', referenceInput, {
       title: `镜头 ${shot.shotNumber} 参考图`,
+      tags: ['镜头参考图'],
+      metadata: { ...common, role: 'shot_reference' },
+    })
+    await syncShotAsset(projectId, shot, 'first_frame_image', firstFrameInput, {
+      title: `镜头 ${shot.shotNumber} 首帧图`,
+      tags: ['首帧图'],
+      metadata: { ...common, role: 'first_frame' },
+    })
+    await syncShotAsset(projectId, shot, 'cover_image', coverInput, {
+      title: `镜头 ${shot.shotNumber} 封面图`,
+      tags: ['封面图'],
+      metadata: { ...common, role: 'shot_cover' },
+    })
+    await syncShotAsset(projectId, shot, 'narration_audio', narrationInput, {
+      title: `镜头 ${shot.shotNumber} 旁白音频`,
+      tags: ['旁白音频'],
+      metadata: { ...common, role: 'narration_audio' },
+    })
+    await syncShotAsset(projectId, shot, 'subtitle_file', subtitleInput, {
+      title: `镜头 ${shot.shotNumber} 字幕文件`,
+      tags: ['字幕文件'],
+      metadata: { ...common, role: 'subtitle_file' },
+    })
+  }
+
+  async function syncShotAsset(
+    projectId: string,
+    shot: Shot,
+    kind: ProjectAsset['kind'],
+    reference: string,
+    payloadInfo: Pick<ProjectAsset, 'title' | 'tags' | 'metadata'>,
+  ) {
+    const existing = await ipc.asset.listBySource('shot', shot.id)
+    const linked = existing.find((asset) => asset.kind === kind)
+    const trimmed = reference.trim()
+    if (!trimmed) {
+      if (linked) await ipc.asset.remove(linked.id)
+      return
+    }
+    const fields = assetFieldsFromReference(trimmed)
+    const payload = {
+      projectId,
+      kind,
+      title: payloadInfo.title,
       sourceEntityKind: 'shot' as const,
       sourceEntityId: shot.id,
       packagePolicy: 'reference_only' as const,
-      tags: ['镜头参考图'],
-      metadata: { sceneId: shot.sceneId, episodeId: shot.episodeId },
+      tags: payloadInfo.tags,
+      metadata: payloadInfo.metadata,
       ...fields,
     }
     if (linked) await ipc.asset.update(linked.id, payload)
@@ -657,15 +709,53 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                       />
                     </div>
                     <div>
-                      <div className="mb-0.5 text-xs text-muted-foreground">参考图 URL / 本地路径</div>
+                      <div className="mb-0.5 text-xs text-muted-foreground">镜头参考图 URL / 本地路径</div>
                       <Input
                         value={referenceInput}
                         onChange={(e) => { setReferenceInput(e.target.value); setDirty(true) }}
                         placeholder="https://... 或 /Users/.../shot-reference.png"
                         className="text-xs"
                       />
-                      <AssetBadges assets={shotAssets} />
                     </div>
+                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                      <div>
+                        <div className="mb-0.5 text-xs text-muted-foreground">首帧图 URL / 本地路径</div>
+                        <Input
+                          value={firstFrameInput}
+                          onChange={(e) => { setFirstFrameInput(e.target.value); setDirty(true) }}
+                          placeholder="https://... 或 /Users/.../first-frame.png"
+                          className="text-xs"
+                        />
+                      </div>
+                      <div>
+                        <div className="mb-0.5 text-xs text-muted-foreground">封面图 URL / 本地路径</div>
+                        <Input
+                          value={coverInput}
+                          onChange={(e) => { setCoverInput(e.target.value); setDirty(true) }}
+                          placeholder="https://... 或 /Users/.../cover.png"
+                          className="text-xs"
+                        />
+                      </div>
+                      <div>
+                        <div className="mb-0.5 text-xs text-muted-foreground">旁白音频 URL / 本地路径</div>
+                        <Input
+                          value={narrationInput}
+                          onChange={(e) => { setNarrationInput(e.target.value); setDirty(true) }}
+                          placeholder="https://... 或 /Users/.../narration.mp3"
+                          className="text-xs"
+                        />
+                      </div>
+                      <div>
+                        <div className="mb-0.5 text-xs text-muted-foreground">字幕文件 URL / 本地路径</div>
+                        <Input
+                          value={subtitleInput}
+                          onChange={(e) => { setSubtitleInput(e.target.value); setDirty(true) }}
+                          placeholder="https://... 或 /Users/.../subtitle.srt"
+                          className="text-xs"
+                        />
+                      </div>
+                    </div>
+                    <AssetBadges assets={shotAssets} />
                   </div>
                   <div className="flex justify-end">
                     <Button size="sm" onClick={saveShot} disabled={!dirty}>
@@ -785,6 +875,10 @@ function isShotReferenceAsset(asset: ProjectAsset): boolean {
   return asset.kind === 'scene_reference' || asset.kind === 'style_reference' || asset.kind === 'character_reference' || asset.kind === 'source_media'
 }
 
+function assetInputValue(asset: ProjectAsset | undefined): string {
+  return asset ? assetReferenceUrl(asset) ?? '' : ''
+}
+
 function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
   if (assets.length === 0) return null
   return (
@@ -792,7 +886,7 @@ function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
       {assets.map((asset) => (
         <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
           {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
-          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+          {ASSET_KIND_LABEL[asset.kind]} · {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
         </Badge>
       ))}
     </div>

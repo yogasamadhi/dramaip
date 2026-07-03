@@ -26,7 +26,7 @@ import type {
   VideoResult,
 } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
-import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetReferenceUrl } from '@/lib/assets'
+import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -453,6 +453,7 @@ async function collectReferenceImageUrls(shot: Shot, currentShotAssets: ProjectA
   return uniqueStrings(
     [...freshShotAssets, ...profileAssets.flat()]
       .filter((asset) => asset.status !== 'missing')
+      .filter(isVideoReferenceImageAsset)
       .map(assetReferenceUrl)
       .filter((url): url is string => Boolean(url)),
   )
@@ -487,7 +488,7 @@ function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
       {assets.map((asset) => (
         <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
           {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
-          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+          {ASSET_KIND_LABEL[asset.kind]} · {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
         </Badge>
       ))}
     </div>

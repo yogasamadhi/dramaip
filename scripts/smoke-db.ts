@@ -884,6 +884,57 @@ function main() {
     metadata: { pose: '半身' },
     packagePolicy: 'reference_only',
   })
+  const ap3 = repos.adaptationProject.createAdaptationProject(db, {
+    sourceProjectId: p3.id,
+    title: '导出测试短剧',
+    targetEpisodeCount: 1,
+    adaptationStyle: '竖屏短剧',
+  })
+  const ep3 = repos.episode.createEpisode(db, {
+    adaptationProjectId: ap3.id,
+    episodeNumber: 1,
+    title: '第 1 集',
+    summary: '女主回归',
+    hook: '雨夜推门',
+    mainConflict: '旧敌重逢',
+    cliffhanger: '身份曝光',
+  })
+  const script3 = repos.script.createScript(db, {
+    adaptationProjectId: ap3.id,
+    episodeId: ep3.id,
+    episodeNumber: 1,
+    title: '第 1 集剧本',
+    content: '雨夜门口，女主抬眼。',
+  })
+  const scene3 = repos.scene.createScene(db, {
+    scriptId: script3.id,
+    episodeId: ep3.id,
+    sceneNumber: 1,
+    title: '雨夜门口',
+    location: '别墅门口',
+    visualDescription: '冷雨、车灯、黑伞',
+    summary: '女主归来。',
+  })
+  const shot3 = repos.shot.createShot(db, {
+    sceneId: scene3.id,
+    episodeId: ep3.id,
+    shotNumber: 1,
+    visualDescription: '黑伞下女主抬眼，车灯扫过雨滴。',
+    characterIds: [c3.id],
+    videoPrompt: 'vertical drama first frame, black umbrella, rain, sharp eyes',
+  })
+  repos.asset.createAsset(db, {
+    projectId: p3.id,
+    kind: 'first_frame_image',
+    title: '导出镜头首帧',
+    sourceEntityKind: 'shot',
+    sourceEntityId: shot3.id,
+    remoteUrl: 'https://asset.local/first-frame.png',
+    mimeType: 'image/png',
+    tags: ['首帧图'],
+    metadata: { sceneId: scene3.id, episodeId: ep3.id },
+    packagePolicy: 'reference_only',
+  })
   const exportSkill = repos.projectSkill.createProjectSkill(db, {
     projectId: p3.id,
     name: '导出节奏规范',
@@ -918,11 +969,15 @@ function main() {
   assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
   assert(pkg.projectAgentSchemes.length === 1 && pkg.projectAgentSchemes[0].skillIds[0] === exportSkill.id, 'collectProjectPackage Agent 方案')
   assert(pkg.inspirationFavorites.length === 1 && pkg.inspirationFavorites[0].title === '样本开局卡', 'collectProjectPackage 灵感收藏')
-  assert(pkg.meta.version === 5, 'collectProjectPackage 版本 = 5')
+  assert(pkg.meta.version === 6, 'collectProjectPackage 版本 = 6')
+  assert(
+    pkg.adaptations.length === 1 && pkg.adaptations[0].scripts[0].shots[0]?.id === shot3.id,
+    'collectProjectPackage 改编镜头正确',
+  )
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
   const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
-  assert(pkgWithAssets.meta.assetExportMode === 'manifest' && pkgWithAssets.assets.length === 2, 'collectProjectPackage includeAssets 携带资产清单')
+  assert(pkgWithAssets.meta.assetExportMode === 'manifest' && pkgWithAssets.assets.length === 3, 'collectProjectPackage includeAssets 携带资产清单')
   // 序列化 → 解析往返
   const content = serializeProjectPackage(pkgWithAssets)
   const reParsed = parseProjectPackage(content)
@@ -935,6 +990,12 @@ function main() {
   assert(importedChars.length === 1 && importedChars[0].name === '女主A', 'importProjectPackage 人物外键还原')
   const importedProfiles = repos.visualProfile.listVisualProfiles(db, imported.id)
   assert(importedProfiles.length === 1 && importedProfiles[0].characterId === importedChars[0].id, 'importProjectPackage 视觉档案外键还原')
+  const importedAdaptations = repos.adaptationProject.listAdaptationsByProject(db, imported.id)
+  const importedEpisodes = importedAdaptations[0] ? repos.episode.listEpisodes(db, importedAdaptations[0].id) : []
+  const importedScripts = importedAdaptations[0] ? repos.script.listScripts(db, importedAdaptations[0].id) : []
+  const importedScenes = importedScripts[0] ? repos.scene.listScenesByScript(db, importedScripts[0].id) : []
+  const importedShots = importedScenes[0] ? repos.shot.listShotsByScene(db, importedScenes[0].id) : []
+  assert(importedShots.length === 1 && importedShots[0].visualDescription.includes('黑伞'), 'importProjectPackage 镜头还原')
   const importedChapters = repos.chapter.listChapters(db, imported.id)
   assert(importedChapters.length === 1, 'importProjectPackage 章节还原')
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
@@ -957,6 +1018,10 @@ function main() {
   assert(
     importedAssets.some((asset) => asset.sourceEntityKind === 'visual_profile' && asset.sourceEntityId === importedProfiles[0].id),
     'importProjectPackage 视觉档案资产 sourceEntityId 重映射',
+  )
+  assert(
+    importedAssets.some((asset) => asset.kind === 'first_frame_image' && asset.sourceEntityKind === 'shot' && asset.sourceEntityId === importedShots[0].id),
+    'importProjectPackage 镜头前置资产 sourceEntityId 重映射',
   )
   // 导入项目的旧 id 不应残留（外键已重映射到新项目）
   assert(repos.character.getCharacter(db, c3.id)?.projectId === p3.id, '导入不影响原项目数据')

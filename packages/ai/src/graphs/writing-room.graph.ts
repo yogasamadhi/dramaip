@@ -497,7 +497,7 @@ function buildReviewContext(input: ReviewContextInput): string {
     const body = characters
       .map((c) => {
         const vp = profileByChar.get(c.id)
-        const visual = [c.visualDescription, c.appearancePrompt, vp?.appearancePrompt].filter(Boolean).join('；')
+        const visual = [c.visualDescription, c.appearancePrompt, vp?.appearancePrompt, vp?.castingPrompt, vp?.voiceTone].filter(Boolean).join('；')
         return `- ${c.name}（${c.role}）：${[c.identity, c.personality, c.desire].filter(Boolean).join('；')}${visual ? `；视觉：${visual}` : ''}`
       })
       .join('\n')
