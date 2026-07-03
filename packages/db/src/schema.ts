@@ -52,6 +52,25 @@ export const outlines = sqliteTable('outlines', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const storyArcs = sqliteTable('story_arcs', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  parentId: text('parent_id'),
+  kind: text('kind', { enum: ['volume', 'unit', 'stage'] }).notNull(),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  targetWordCount: integer('target_word_count'),
+  targetChapterCount: integer('target_chapter_count'),
+  chapterStart: integer('chapter_start'),
+  chapterEnd: integer('chapter_end'),
+  coreConflict: text('core_conflict'),
+  keyHighlights: text('key_highlights').notNull().default('[]'),
+  foreshadowingPayoffs: text('foreshadowing_payoffs').notNull().default('[]'),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const chapters = sqliteTable('chapters', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),

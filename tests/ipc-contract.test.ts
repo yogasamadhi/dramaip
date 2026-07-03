@@ -18,6 +18,29 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('project:list', []), [])
   assert.deepEqual(validateIpcArgs('chapter:list', ['project-1']), ['project-1'])
   assert.deepEqual(validateIpcArgs('outline:list', ['project-1', 'book']), ['project-1', 'book'])
+  assert.deepEqual(validateIpcArgs('storyArc:list', ['project-1', 'volume']), ['project-1', 'volume'])
+  assert.deepEqual(
+    validateIpcArgs('storyArc:create', [
+      {
+        projectId: 'project-1',
+        kind: 'stage',
+        title: '中段反击',
+        targetWordCount: 80000,
+        keyHighlights: ['反击爽点'],
+        foreshadowingPayoffs: ['回收玉佩'],
+      },
+    ]),
+    [
+      {
+        projectId: 'project-1',
+        kind: 'stage',
+        title: '中段反击',
+        targetWordCount: 80000,
+        keyHighlights: ['反击爽点'],
+        foreshadowingPayoffs: ['回收玉佩'],
+      },
+    ],
+  )
   assert.deepEqual(validateIpcArgs('log:renderer', ['error', 'runtime', 'unhandled error', { messageLength: 42 }]), [
     'error',
     'runtime',
@@ -59,6 +82,7 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('project:list', ['extra']), /参数数量错误/)
   assert.throws(() => validateIpcArgs('chapter:list', []), /参数数量错误/)
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
+  assert.throws(() => validateIpcArgs('storyArc:create', [{ projectId: 'project-1', kind: 'act', title: 'x' }]), /kind/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
   assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
   assert.throws(

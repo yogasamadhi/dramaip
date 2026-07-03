@@ -423,6 +423,34 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(raw, 'creative_case_studies', 'creative_cards', "creative_cards TEXT NOT NULL DEFAULT '[]'")
     },
   },
+  {
+    version: 12,
+    name: 'story-arcs',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS story_arcs (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          parent_id TEXT,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT,
+          target_word_count INTEGER,
+          target_chapter_count INTEGER,
+          chapter_start INTEGER,
+          chapter_end INTEGER,
+          core_conflict TEXT,
+          key_highlights TEXT NOT NULL DEFAULT '[]',
+          foreshadowing_payoffs TEXT NOT NULL DEFAULT '[]',
+          order_index INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_story_arcs_project_kind_order ON story_arcs(project_id, kind, order_index);
+        CREATE INDEX IF NOT EXISTS idx_story_arcs_parent_order ON story_arcs(parent_id, order_index);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

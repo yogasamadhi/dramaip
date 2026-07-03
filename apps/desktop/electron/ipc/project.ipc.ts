@@ -64,6 +64,19 @@ export function registerProjectIpc(): void {
     return true
   })
 
+  // ---------- 长篇规划：卷 / 单元 / 剧情阶段 ----------
+  ipcMain.handle('storyArc:list', (_e, projectId: string, kind?: 'volume' | 'unit' | 'stage') =>
+    repos().storyArc.listStoryArcs(repos().db, projectId, kind),
+  )
+  ipcMain.handle('storyArc:create', (_e, data: unknown) => repos().storyArc.createStoryArc(repos().db, data as never))
+  ipcMain.handle('storyArc:update', (_e, id: string, patch: unknown) =>
+    repos().storyArc.updateStoryArc(repos().db, id, patch as never),
+  )
+  ipcMain.handle('storyArc:delete', (_e, id: string) => {
+    repos().storyArc.deleteStoryArc(repos().db, id)
+    return true
+  })
+
   // ---------- 评分（只读列表，生成在 ai 流程中） ----------
   ipcMain.handle('evaluation:list', (_e, projectId: string) =>
     repos().evaluation.listEvaluations(repos().db, projectId),

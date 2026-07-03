@@ -132,6 +132,26 @@ const outlineInput = z
   .passthrough()
 const outlinePatch = outlineInput.omit({ projectId: true }).partial().passthrough()
 
+const storyArcKind = z.enum(['volume', 'unit', 'stage'])
+const storyArcInput = z
+  .object({
+    projectId: id,
+    parentId: maybeId,
+    kind: storyArcKind,
+    title: id,
+    summary: z.string().optional(),
+    targetWordCount: z.number().int().positive().optional(),
+    targetChapterCount: z.number().int().positive().optional(),
+    chapterStart: z.number().int().positive().optional(),
+    chapterEnd: z.number().int().positive().optional(),
+    coreConflict: z.string().optional(),
+    keyHighlights: z.array(z.string()).optional(),
+    foreshadowingPayoffs: z.array(z.string()).optional(),
+    orderIndex: z.number().int().optional(),
+  })
+  .passthrough()
+const storyArcPatch = storyArcInput.omit({ projectId: true }).partial().passthrough()
+
 const modelConfigInput = z
   .object({
     id: maybeId,
@@ -462,6 +482,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'outline:list': [id, z.enum(['book', 'chapter']).optional()],
   'outline:create': [outlineInput],
   'outline:update': [id, outlinePatch],
+  'storyArc:list': [id, storyArcKind.optional()],
+  'storyArc:create': [storyArcInput],
+  'storyArc:update': [id, storyArcPatch],
   'chapterMemory:list': [id],
   'characterState:list': [id],
   'visualProfile:list': [id],
@@ -608,6 +631,7 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'promptVersion:list',
       'scene:delete',
       'scene:listByScript',
+      'storyArc:delete',
       'script:get',
       'script:getByEpisode',
       'script:delete',
