@@ -16,6 +16,7 @@ export const TEXT_CHAPTER_TASKS: ReadonlySet<NovelTaskType> = new Set([
   'enhance_conflict',
   'enhance_highlight',
   'enhance_ai_drama_feel',
+  'enhance_author_style',
   'enhance_hook',
   'enhance_reversal',
   'enhance_cliffhanger',

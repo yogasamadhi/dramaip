@@ -523,6 +523,42 @@ export const VideoCostRiskResultSchema = z.object({
 })
 export type VideoCostRiskResult = z.infer<typeof VideoCostRiskResultSchema>
 
+const textQualityIssueKind = z.enum([
+  'style_drift',
+  'repetitive_sentence',
+  'cliche_expression',
+  'dialogue_weakness',
+  'originality_risk',
+  'web_polish',
+])
+const textQualitySeverity = z.enum(['low', 'medium', 'high'])
+
+export const TextQualityIssueSchema = z.object({
+  kind: textQualityIssueKind,
+  severity: textQualitySeverity,
+  evidence: z.string().min(1),
+  suggestion: z.string().min(1),
+})
+export const TextQualityReportResultSchema = z.object({
+  styleStrengthScore: score,
+  authorVoiceScore: score,
+  sentenceVarietyScore: score,
+  dialogueEnergyScore: score,
+  webReadabilityScore: score,
+  originalityRiskScore: score,
+  overallScore: score,
+  styleAnchors: strArr,
+  repetitivePatterns: strArr,
+  originalityRiskSignals: strArr,
+  dialogueEnhancementSuggestions: strArr,
+  polishSuggestions: strArr,
+  safeRevisionPrinciples: strArr,
+  issues: z.array(TextQualityIssueSchema).max(30),
+  summary: z.string().min(1),
+})
+export type TextQualityIssue = z.infer<typeof TextQualityIssueSchema>
+export type TextQualityReportResult = z.infer<typeof TextQualityReportResultSchema>
+
 export const CaseStructureResultSchema = z.object({
   title: z.string().min(1),
   sourceType: z.string().optional(),
@@ -728,6 +764,7 @@ export const ALL_RESULT_SCHEMAS = {
   run_quality_gate: QualityGateResultSchema,
   simulate_audience_reaction: AudienceSimulationResultSchema,
   analyze_video_cost_risk: VideoCostRiskResultSchema,
+  analyze_text_quality: TextQualityReportResultSchema,
   extract_case_structure: CaseStructureResultSchema,
   generate_inspiration_schemes: InspirationSchemesResultSchema,
   // v0.8（template_run 的实际 schema 由 scope 动态解析；这里登记两类固定 schema 便于查询）

@@ -32,6 +32,7 @@ const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 
   { taskType: 'enhance_conflict', label: '增强冲突', desc: '让矛盾更尖锐', variant: 'secondary' },
   { taskType: 'enhance_highlight', label: '增强爽点', desc: '放大打脸逆袭高潮', variant: 'secondary' },
   { taskType: 'enhance_ai_drama_feel', label: '增强 AI 短剧感', desc: '强化爽点与镜头感', variant: 'secondary' },
+  { taskType: 'enhance_author_style', label: '作者风格强化', desc: '统一声口与句式节奏', variant: 'secondary' },
   // v0.3 AI 短剧小说强化
   { taskType: 'enhance_hook', label: '强化钩子', desc: '提升开篇与节点牵引', variant: 'secondary' },
   { taskType: 'enhance_reversal', label: '强化反转', desc: '增强反转与信息差爽感', variant: 'secondary' },

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { ChatInput, ChatOutput, LLMProvider, NovelTaskType, Project, StoryArc } from '@sdns/core'
-import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema, InspirationSchemesResultSchema } from '@sdns/core'
+import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema, InspirationSchemesResultSchema, TextQualityReportResultSchema } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { createSaveAiRunNode } from '../packages/ai/src/nodes/save-ai-run.node'
 import { extractJson } from '../packages/ai/src/parsers/json'
@@ -97,6 +97,33 @@ function inspirationSchemesPayload(): unknown {
         chapterRewriteBrief: '把章节改成葬礼遗嘱反杀。',
       },
     ],
+  }
+}
+
+function textQualityPayload(): unknown {
+  return {
+    styleStrengthScore: 76,
+    authorVoiceScore: 72,
+    sentenceVarietyScore: 68,
+    dialogueEnergyScore: 81,
+    webReadabilityScore: 84,
+    originalityRiskScore: 42,
+    overallScore: 78,
+    styleAnchors: ['短句推进', '动作承接情绪'],
+    repetitivePatterns: ['连续三段以“她抬头”开头'],
+    originalityRiskSignals: ['通用复仇宣言偏多'],
+    dialogueEnhancementSuggestions: ['让反派用利益威胁替代泛泛嘲讽'],
+    polishSuggestions: ['把抽象愤怒改成具体动作'],
+    safeRevisionPrinciples: ['用本项目角色秘密和场景道具替代通用套路表达'],
+    issues: [
+      {
+        kind: 'repetitive_sentence',
+        severity: 'medium',
+        evidence: '连续段落使用相同动作开头。',
+        suggestion: '改为不同感官、动作和对白切入。',
+      },
+    ],
+    summary: '文本已有短剧节奏，但句式变化和角色专属表达仍可加强。',
   }
 }
 
@@ -349,6 +376,15 @@ test('runs inspiration scheme generation through the mock workflow', async () =>
   assert.match(provider.calls[0].messages[1].content, /3-5/)
   assert.equal(aiRuns[0].status, 'success')
   assert.equal(aiRuns[0].type, 'generate_inspiration_schemes')
+})
+
+test('parses text quality reports with originality risk safeguards', () => {
+  const parsed = TextQualityReportResultSchema.parse(textQualityPayload())
+
+  assert.equal(parsed.overallScore, 78)
+  assert.equal(parsed.originalityRiskScore, 42)
+  assert.equal(parsed.issues[0].kind, 'repetitive_sentence')
+  assert.match(parsed.safeRevisionPrinciples[0], /角色秘密/)
 })
 
 test('repairs invalid JSON once before saving a successful run', async () => {

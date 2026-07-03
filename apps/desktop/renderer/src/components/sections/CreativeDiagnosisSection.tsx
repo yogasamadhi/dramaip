@@ -12,6 +12,7 @@ import type {
   NarrativeCurveReport,
   QualityGateReport,
   RevisionTask,
+  TextQualityReportResult,
   TextDiffPreviewPayload,
   WorkflowRun,
   WorkflowRunStep,
@@ -62,6 +63,7 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
   const [gates, setGates] = useState<QualityGateReport[]>([])
   const [audiences, setAudiences] = useState<AudienceSimulation[]>([])
   const [curves, setCurves] = useState<NarrativeCurveReport[]>([])
+  const [textQuality, setTextQuality] = useState<TextQualityReportResult | null>(null)
   const [workflows, setWorkflows] = useState<WorkflowRun[]>([])
   const [adaptations, setAdaptations] = useState<AdaptationProject[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -112,6 +114,9 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
       }
       const res = await ipc.ai.run(input)
       if (res.ok) {
+        if (taskType === 'analyze_text_quality' && res.result?.data) {
+          setTextQuality(res.result.data as TextQualityReportResult)
+        }
         toast.success(`${TASK_TYPE_LABELS[taskType]}完成`, { id: tid })
         await reload()
       } else {
@@ -299,6 +304,9 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
             <Button size="sm" variant="outline" onClick={() => runTask('analyze_video_cost_risk')} disabled={busy !== null}>
               视频风险
             </Button>
+            <Button size="sm" variant="outline" onClick={() => runTask('analyze_text_quality')} disabled={busy !== null}>
+              文本质量
+            </Button>
             <Button size="sm" variant="secondary" onClick={saveCheckpoint} disabled={!chapter}>
               <Save /> 检查点
             </Button>
@@ -311,6 +319,42 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
           <MetricCard title="质量闸门" score={latestGate?.score} badge={latestGate?.verdict} detail={[...(latestGate?.blockingIssues ?? []), ...(latestGate?.warnings ?? [])].slice(0, 2).join(' / ')} />
           <MetricCard title="观众留存" score={latestAudience?.retentionScore} detail={latestAudience?.summary} />
         </div>
+
+        {textQuality && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">文本质量与原创性风险</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <MetricPill label="综合" value={textQuality.overallScore} />
+                <MetricPill label="作者声口" value={textQuality.authorVoiceScore} />
+                <MetricPill label="句式变化" value={textQuality.sentenceVarietyScore} />
+                <MetricPill label="原创风险" value={textQuality.originalityRiskScore} invert />
+              </div>
+              <p className="text-muted-foreground">{textQuality.summary}</p>
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                <ListBlock title="重复句式" empty="暂无重复句式" items={textQuality.repetitivePatterns.slice(0, 5)} />
+                <ListBlock title="原创风险信号" empty="暂无明显风险" items={textQuality.originalityRiskSignals.slice(0, 5)} />
+                <ListBlock title="安全修订原则" empty="暂无建议" items={textQuality.safeRevisionPrinciples.slice(0, 5)} />
+              </div>
+              {textQuality.issues.length > 0 && (
+                <div className="space-y-2">
+                  {textQuality.issues.slice(0, 5).map((issue, index) => (
+                    <div key={index} className="rounded-md border p-2 text-xs">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Badge variant={issue.severity === 'high' ? 'destructive' : 'outline'}>{issue.severity}</Badge>
+                        <span className="font-medium">{issue.kind}</span>
+                      </div>
+                      <p className="text-muted-foreground">{issue.evidence}</p>
+                      <p className="mt-1">{issue.suggestion}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="pb-3">
@@ -432,7 +476,8 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
 
 function MetricCard({ title, score, detail, badge, invert }: { title: string; score?: number; detail?: string; badge?: string; invert?: boolean }) {
   const shown = score == null ? '—' : Math.round(score)
-  const variant = score == null ? 'outline' : invert ? scoreVariant(100 - score) : scoreVariant(score)
+  const normalizedScore = score == null ? null : invert ? 100 - score : score
+  const variant = normalizedScore == null ? 'outline' : scoreVariant(normalizedScore)
   return (
     <Card>
       <CardContent className="p-4">
@@ -442,11 +487,25 @@ function MetricCard({ title, score, detail, badge, invert }: { title: string; sc
         </div>
         <div className="mb-1 flex items-end gap-2">
           <span className="text-2xl font-semibold">{shown}</span>
-          {score != null && <Badge variant={variant}>{score >= 75 ? '高' : score >= 60 ? '中' : '低'}</Badge>}
+          {normalizedScore != null && <Badge variant={variant}>{normalizedScore >= 75 ? '高' : normalizedScore >= 60 ? '中' : '低'}</Badge>}
         </div>
         <p className="line-clamp-2 min-h-[2.5rem] text-xs text-muted-foreground">{detail || '暂无数据'}</p>
       </CardContent>
     </Card>
+  )
+}
+
+function MetricPill({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
+  const normalizedScore = invert ? 100 - value : value
+  const variant = scoreVariant(normalizedScore)
+  return (
+    <div className="rounded-md border p-2">
+      <div className="mb-1 text-xs text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-2">
+        <span className="text-lg font-semibold">{Math.round(value)}</span>
+        <Badge variant={variant}>{normalizedScore >= 75 ? '高' : normalizedScore >= 60 ? '中' : '低'}</Badge>
+      </div>
+    </div>
   )
 }
 
