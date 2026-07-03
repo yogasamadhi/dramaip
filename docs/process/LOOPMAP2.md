@@ -158,7 +158,7 @@
 | LM2-09 | P0 | AI 安全/体验 | done | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
 | LM2-10 | P1 | 长篇规划 | done | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
 | LM2-11 | P1 | 长篇规划/AI | done | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
-| LM2-12 | P1 | AI 可配置性 | todo | 项目级 Skills/创作规范系统 | DB 或项目文件模型、Agent settings、AI context | 每个项目可维护多份创作规范/技能，如类型节奏、人物对白、镜头 Prompt 规则；AI 按任务自动选择或用户手动指定 | `pnpm typecheck`；IPC/schema 单测；上下文单测 | LM2-05 |
+| LM2-12 | P1 | AI 可配置性 | done | 项目级 Skills/创作规范系统 | DB 或项目文件模型、Agent settings、AI context | 每个项目可维护多份创作规范/技能，如类型节奏、人物对白、镜头 Prompt 规则；AI 按任务自动选择或用户手动指定 | `pnpm typecheck`；IPC/schema 单测；上下文单测 | LM2-05 |
 | LM2-13 | P1 | AI 可配置性 | todo | 自定义 Agent 方案与技能绑定 | Agent settings、writing room、task model binding | 用户可按项目启用/禁用 Agent、指定主 Agent、绑定 Skills 和模型；不影响全局内置预设 | `pnpm typecheck`；IPC/schema 单测；手工 smoke：项目级方案切换 | LM2-12 |
 | LM2-14 | P1 | 创意产品 | todo | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
 | LM2-15 | P1 | 创意产品/AI | todo | 灵感台二期：类型化灵感生成 | genre preset、template run、AI prompts | 用户选择题材/受众/短剧方向后，可一键生成 3-5 组差异化灵感方案，并进入项目创建或章节改写 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-14 |
@@ -466,4 +466,19 @@ Push: git push origin main succeeded to Gitee, updating main from bf1c7d9 to ba8
 Loop branch cleanup: git branch -d loop/lm2-11-story-arc-generation succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: AI can now generate volume/unit/stage outlines through preview_then_adopt, adopted outlines create story arcs with hierarchy and a content version snapshot, chapter context includes matching story arc goals, and the long-form planning UI shows AI generation plus chapter budget completion.
+```
+
+```text
+Loop: LM2-12
+Target branch: main
+Loop branch: loop/lm2-12-project-skills
+Commit: 68f59a6 loop(LM2-12): add project creative skills
+Merge commit: 66df494 merge: lm2-12 project creative skills
+Verification: git diff --cached --check passed before commit; git diff --check passed after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/ipc-contract.test.ts tests/ai-context-controls.test.ts tests/ai-workflow-mock.test.ts tests/project-package.test.ts tests/workspace-nav.test.ts passed before commit; pnpm test:unit passed with 95 tests before commit and after merge; pnpm test:db passed before commit and after merge with migration replay, ProjectSkill CRUD, project package roundtrip, and DB smoke; pnpm test:e2e passed before commit and after merge with Electron smoke.
+Diff review: reviewed staged stat/name list and final origin/main...HEAD stat; changes were limited to project Skill DB schema/repo/migration, IPC/preload/renderer contracts, Workspace creative standards UI, AI context/preflight selection, project package import/export, and focused tests.
+Remote sync: git fetch origin succeeded before starting LM2-12 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 951f6a4 to 66df494.
+Loop branch cleanup: git branch -d loop/lm2-12-project-skills succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Projects can now maintain multiple enabled/disabled creative Skills with category, priority, content, and task scopes. AI preflight and backend prompt context select matching Skills automatically per task, while users can pin or exclude Skills from the context panel. Project packages now include projectSkills and use package version 3.
 ```
