@@ -512,6 +512,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'workflow:retryStep': [workflowRetryStepInput],
   'revisionTask:create': [revisionTaskInput],
   'revisionTask:update': [id, revisionTaskPatch],
+  'revisionTask:preview': [id],
+  'revisionTask:complete': [id],
   'revisionTask:apply': [id],
   'contentVersion:create': [contentVersionInput],
   'contentVersion:restore': [id],

@@ -12,6 +12,7 @@ import type {
   NarrativeCurveReport,
   QualityGateReport,
   RevisionTask,
+  TextDiffPreviewPayload,
   WorkflowRun,
   WorkflowRunStep,
 } from '@sdns/core'
@@ -22,6 +23,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { revisionTaskReviewInstruction, supportsRevisionTaskPreview } from '@/lib/revisionTaskLoop'
 
 interface Props {
   projectId: string
@@ -62,6 +65,8 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
   const [workflows, setWorkflows] = useState<WorkflowRun[]>([])
   const [adaptations, setAdaptations] = useState<AdaptationProject[]>([])
   const [busy, setBusy] = useState<string | null>(null)
+  const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
+  const [pendingRevisionTask, setPendingRevisionTask] = useState<RevisionTask | null>(null)
 
   const target = useMemo(
     () => (chapter ? { kind: 'chapter', id: chapter.id, label: chapter.title } : { kind: 'project', id: projectId, label: '项目整体' }),
@@ -207,20 +212,54 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
     await reload()
   }
 
-  async function applyTask(task: RevisionTask) {
+  async function previewTask(task: RevisionTask) {
     setBusy(task.id)
-    const tid = toast.loading('正在应用修稿任务…')
+    const tid = toast.loading('正在生成修稿预览…')
     try {
-      const res = await ipc.revisionTask.apply(task.id)
-      if (res.ok) {
-        toast.success('修稿任务已应用', { id: tid })
+      const res = await ipc.revisionTask.preview(task.id)
+      if (res.ok && res.preview) {
+        setPendingRevisionTask(task)
+        setTextPreview(res.preview)
+        toast.success('已生成修稿预览', { id: tid })
       } else {
-        toast.error('应用失败：' + (res.error ?? '未知错误'), { id: tid })
+        toast.error('预览失败：' + (res.error ?? '未知错误'), { id: tid })
       }
       await reload()
     } finally {
       setBusy(null)
     }
+  }
+
+  async function adoptRevisionPreview() {
+    if (!textPreview || !pendingRevisionTask) return
+    const res = await ipc.ai.applyResult({
+      projectId,
+      adaptationProjectId: textPreview.adaptationProjectId,
+      taskType: textPreview.taskType,
+      data: textPreview,
+    })
+    if (!res.ok) {
+      toast.error('采用失败：' + (res.error ?? '未知错误'))
+      return
+    }
+    const completed = await ipc.revisionTask.complete(pendingRevisionTask.id)
+    if (!completed.ok) {
+      toast.error('任务状态更新失败：' + (completed.error ?? '未知错误'))
+      return
+    }
+    toast.success('修稿任务已采用')
+    setTextPreview(null)
+    setPendingRevisionTask(null)
+    await reload()
+  }
+
+  function cancelRevisionPreview() {
+    setTextPreview(null)
+    setPendingRevisionTask(null)
+  }
+
+  async function recheckTask(task: RevisionTask) {
+    await runTask('run_quality_gate', revisionTaskReviewInstruction(task))
   }
 
   const latestFreshness = freshness[0]
@@ -229,8 +268,9 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
   const latestCurve = curves[0]
 
   return (
-    <ScrollArea className="h-full">
-      <div className="space-y-4 p-6">
+    <>
+      <ScrollArea className="h-full">
+        <div className="space-y-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div>
             <h2 className="text-lg font-semibold">创意诊断台</h2>
@@ -336,9 +376,18 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
                     <Badge variant={t.priority === 'must' ? 'destructive' : 'secondary'}>{t.priority}</Badge>
                     <Badge variant="outline">{t.status}</Badge>
                     <span className="font-medium">{t.title}</span>
-                    <Button className="ml-auto" size="sm" variant="ghost" onClick={() => applyTask(t)} disabled={busy !== null || t.status === 'applied'}>
-                      应用
-                    </Button>
+                    <div className="ml-auto flex gap-1">
+                      {t.status === 'applied' ? (
+                        <Button size="sm" variant="ghost" onClick={() => void recheckTask(t)} disabled={busy !== null}>
+                          复检
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => void previewTask(t)} disabled={busy !== null || !supportsRevisionTaskPreview(t)}>
+                          {busy === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                          预览
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <p className="text-muted-foreground">{t.description}</p>
                   <p className="mt-1 text-xs">行动：{t.suggestedAction}</p>
@@ -369,8 +418,15 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
         </Card>
 
         <Separator />
-      </div>
-    </ScrollArea>
+        </div>
+      </ScrollArea>
+      <TextDiffPreviewDialog
+        open={textPreview !== null}
+        preview={textPreview}
+        onAdopt={adoptRevisionPreview}
+        onCancel={cancelRevisionPreview}
+      />
+    </>
   )
 }
 
