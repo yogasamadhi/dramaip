@@ -164,7 +164,7 @@
 | LM2-15 | P1 | 创意产品/AI | done | 灵感台二期：类型化灵感生成 | genre preset、template run、AI prompts | 用户选择题材/受众/短剧方向后，可一键生成 3-5 组差异化灵感方案，并进入项目创建或章节改写 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-14 |
 | LM2-16 | P1 | 交付导出 | done | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
 | LM2-17 | P1 | 交付导出 | done | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
-| LM2-18 | P1 | 文本质量 | todo | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
+| LM2-18 | P1 | 文本质量 | done | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
 | LM2-19 | P2 | 视频资产 | todo | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
 | LM2-20 | P2 | 视频资产/AI | todo | 封面、配音与字幕生成草稿 | AI prompts、asset UI、video workflow | 可从小说/剧本生成封面 prompt、角色音色建议、旁白/字幕草稿；仅生成草稿，不接真实 TTS 平台 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-19 |
 | LM2-21 | P2 | 移动/轻量入口 | todo | 移动灵感记录与桌面导入设计 | 文档、数据模型、轻量导入 IPC | 明确移动端只做灵感记录/云端后续设计；桌面可导入灵感 JSON/Markdown 进入灵感台 | 文档 `git diff --check`；如实现导入则追加 typecheck/unit | LM2-14 |
@@ -556,4 +556,19 @@ Push: git push origin main succeeded to Gitee, updating main from ab75505 to 3f2
 Loop branch cleanup: git branch -d loop/lm2-17-drama-delivery-export succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: @sdns/export now builds short drama proposal packages, episode delivery packages, and shot delivery packages as Markdown/JSON, plus shot delivery CSV for production handoff. Proposal exports include project selling points, character bios, visual style, episode outlines, first 10 episode analysis, and video risk summary. Episode and shot delivery exports include scripts, scenes, shots, video Prompt, negative Prompt, review scores, and risk flags. Adaptation, Script, and Shot workspaces now expose the corresponding delivery export buttons through strict shared IPC contracts.
+```
+
+```text
+Loop: LM2-18
+Target branch: main
+Loop branch: loop/lm2-18-style-originality
+Commit: ad87622 loop(LM2-18): add style originality guidance
+Merge commit: b698b4a merge: lm2-18 style originality guidance
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/ai-task-registry.test.ts tests/ai-workflow-mock.test.ts tests/save-result-preview.test.ts passed before commit and after merge; pnpm test:unit passed with 108 tests before commit and after merge; pnpm test:e2e passed before commit and after merge with Electron smoke after rerunning with required escalation because electron-rebuild needed to write ~/.electron-gyp outside the workspace sandbox.
+Diff review: reviewed staged stat/name list, new style/originality prompts, AI task registration, preview persistence, CreativeDiagnosisSection text quality UI, chapter/script assistant buttons, and final main status; changes were limited to LM2-18 author style strengthening, dialogue voice strengthening, and display-only text quality/originality risk diagnosis.
+Remote sync: git fetch origin succeeded before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 9e9da6f to b698b4a.
+Loop branch cleanup: git branch -d loop/lm2-18-style-originality succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Chapter AI assistant now offers 作者风格强化 through preview_then_adopt, Script workspace offers 强化对白风格 through script text preview, and Creative Diagnosis can run a display-only 文本质量与原创性风险 report. Prompts explicitly frame originality risk as safe creative revision and forbid evasion, plagiarism-check bypass, hidden-source, or platform-review circumvention guidance.
 ```
