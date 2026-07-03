@@ -368,9 +368,14 @@ function main() {
   const shUpd = repos.shot.updateShot(repos.db, sh1.id, {
     videoPrompt: 'close-up of a woman holding an umbrella in heavy rain, 9:16',
     negativePrompt: 'extra fingers, blurry',
+    coverPrompt: 'vertical cover, umbrella close-up, revenge title space',
+    subtitleDraft: '1\n00:00:00,000 --> 00:00:02,000\n她回来了。',
     aiVideoDifficulty: 'low',
   })
-  assert(shUpd?.videoPrompt.includes('umbrella') && shUpd.aiVideoDifficulty === 'low', 'updateShot Prompt + 难度写回')
+  assert(
+    shUpd?.videoPrompt.includes('umbrella') && shUpd.aiVideoDifficulty === 'low' && shUpd.coverPrompt?.includes('cover') && shUpd.subtitleDraft?.includes('她回来了'),
+    'updateShot Prompt + 难度 + 前置草稿写回',
+  )
 
   // Prompt 版本：append 递增
   const pv1 = repos.shot.appendPromptVersion(repos.db, {

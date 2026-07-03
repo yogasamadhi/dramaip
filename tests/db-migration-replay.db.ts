@@ -76,6 +76,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('voice_tone'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('voice_sample_url'))
+    assert.ok(columns(raw, 'shots').includes('subtitle_draft'))
+    assert.ok(columns(raw, 'shots').includes('cover_prompt'))
     assert.ok(columns(raw, 'chapters').includes('ai_video_note'))
     assert.ok(columns(raw, 'evaluations').includes('ai_video_feasibility_score'))
     assert.ok(columns(raw, 'evaluations').includes('character_consistency_score'))

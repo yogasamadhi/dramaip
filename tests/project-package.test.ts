@@ -187,6 +187,8 @@ test('serializes video preproduction asset manifests', () => {
       visualDescription: '雨夜门口，女主抬眼。',
       characterIds: ['char1'],
       videoPrompt: '',
+      coverPrompt: 'vertical cover, heroine in rain, cold gaze',
+      subtitleDraft: '1\n00:00:00,000 --> 00:00:02,000\n她回来了。',
       createdAt: pkg.meta.exportedAt,
       updatedAt: pkg.meta.exportedAt,
     },
@@ -200,6 +202,7 @@ test('serializes video preproduction asset manifests', () => {
   assert.equal(parsed.visualProfiles[0].castingPrompt, '25-30 岁，清冷克制，眼神有压迫感。')
   assert.equal(parsed.visualProfiles[0].voiceTone, '低频、克制、尾音短。')
   assert.equal(parsed.adaptations[0].scripts[0].shots[0].id, 'shot1')
+  assert.equal(parsed.adaptations[0].scripts[0].shots[0].subtitleDraft, '1\n00:00:00,000 --> 00:00:02,000\n她回来了。')
   assert.equal(parsed.assets.map((asset) => asset.kind).join(','), 'casting_reference,first_frame_image,subtitle_file')
   assert.equal(preview.counts.shots, 1)
   assert.equal(preview.counts.assets, 3)

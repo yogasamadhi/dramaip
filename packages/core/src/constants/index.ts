@@ -191,6 +191,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   review_shot_prompt: '镜头审查',
   rewrite_shot_prompt: '改写镜头 Prompt',
   optimize_prompt_for_video_platform: '优化镜头 Prompt（视频平台）',
+  generate_video_asset_drafts: '生成视频资产草稿',
   // v1.1 创意诊断与反套路迭代系统
   analyze_trope_freshness: '套路新鲜度分析',
   generate_anti_trope_variants: '生成反套路方案',
@@ -282,6 +283,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   review_shot_prompt: taskPolicy('auto_write', '生成镜头审查并自动写入。'),
   rewrite_shot_prompt: taskPolicy('preview_then_adopt', '改写镜头 Prompt，用户确认差异后写入。'),
   optimize_prompt_for_video_platform: taskPolicy('preview_then_adopt', '优化平台 Prompt，用户确认差异后写入。'),
+  generate_video_asset_drafts: taskPolicy('display_only', '生成封面、首帧、旁白、字幕和音色草稿，仅展示或由用户手动采用。'),
   analyze_trope_freshness: taskPolicy('auto_write', '分析套路新鲜度并自动写入报告。'),
   generate_anti_trope_variants: taskPolicy('auto_write', '生成反套路方案并自动写入。'),
   analyze_narrative_curve: taskPolicy('auto_write', '分析叙事曲线并自动写入报告。'),
@@ -515,6 +517,7 @@ export const TASK_GROUPS: TaskGroup[] = [
       'review_shot_prompt',
       'rewrite_shot_prompt',
       'optimize_prompt_for_video_platform',
+      'generate_video_asset_drafts',
     ],
   },
   {

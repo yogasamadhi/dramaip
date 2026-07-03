@@ -21,6 +21,7 @@ import type {
   Scene,
   Script,
   Shot,
+  VideoAssetDraftResult,
   VideoGenerationTask,
   VideoProviderConfig,
   VideoResult,
@@ -68,6 +69,7 @@ export function VideoGenerationPage() {
   const [results, setResults] = useState<VideoResult[]>([])
   const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
   const [assetsByResult, setAssetsByResult] = useState<Record<string, ProjectAsset[]>>({})
+  const [assetDraft, setAssetDraft] = useState<VideoAssetDraftResult | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
 
@@ -141,6 +143,10 @@ export function VideoGenerationPage() {
     void reloadShotData()
   }, [reloadShotData])
 
+  useEffect(() => {
+    setAssetDraft(null)
+  }, [shotId])
+
   async function submitTask() {
     if (!activeShot) return
     const provider = providers.find((p) => p.isDefault) ?? providers[0]
@@ -212,6 +218,46 @@ export function VideoGenerationPage() {
       setVersion((v) => v + 1)
     } else {
       toast.error('操作失败')
+    }
+  }
+
+  async function generateVideoAssetDrafts() {
+    if (!activeShot) return
+    setBusy('asset-draft')
+    const tid = toast.loading('正在生成视频资产草稿…')
+    try {
+      const res = await ipc.ai.run({
+        projectId: adaptation?.sourceProjectId,
+        adaptationProjectId: adaptation?.id,
+        episodeId: activeShot.episodeId,
+        sceneId: activeShot.sceneId,
+        shotId: activeShot.id,
+        taskType: 'generate_video_asset_drafts',
+      })
+      if (res.ok && res.result?.kind === 'generate_video_asset_drafts') {
+        setAssetDraft(res.result.data as VideoAssetDraftResult)
+        toast.success('视频资产草稿已生成', { id: tid })
+      } else {
+        toast.error('生成失败：' + (res.error ?? '未知错误'), { id: tid })
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function applyVideoAssetDrafts(draft: VideoAssetDraftResult) {
+    if (!activeShot) return
+    const updated = await ipc.shot.update(activeShot.id, {
+      imagePrompt: draft.firstFramePrompt ?? activeShot.imagePrompt,
+      coverPrompt: draft.coverPrompt ?? activeShot.coverPrompt,
+      narration: draft.narrationDraft ?? activeShot.narration,
+      subtitleDraft: draft.subtitleDraft ?? activeShot.subtitleDraft,
+    }) as Shot | undefined
+    if (updated) {
+      setShots((items) => items.map((shot) => (shot.id === updated.id ? updated : shot)))
+      toast.success('已写入镜头草稿')
+    } else {
+      toast.error('写入镜头草稿失败')
     }
   }
 
@@ -323,13 +369,22 @@ export function VideoGenerationPage() {
                     <div className="mb-0.5 font-medium text-foreground">Prompt</div>
                     <div>{activeShot.videoPrompt || activeShot.visualDescription}</div>
                     {activeShot.negativePrompt && <div className="mt-1"><span className="font-medium text-foreground">负面：</span>{activeShot.negativePrompt}</div>}
+                    {activeShot.imagePrompt && <div className="mt-1"><span className="font-medium text-foreground">首帧：</span>{activeShot.imagePrompt}</div>}
+                    {activeShot.coverPrompt && <div className="mt-1"><span className="font-medium text-foreground">封面：</span>{activeShot.coverPrompt}</div>}
+                    {activeShot.narration && <div className="mt-1"><span className="font-medium text-foreground">旁白：</span>{activeShot.narration}</div>}
+                    {activeShot.subtitleDraft && <div className="mt-1 whitespace-pre-wrap"><span className="font-medium text-foreground">字幕：</span>{activeShot.subtitleDraft}</div>}
                     <AssetBadges assets={shotAssets} />
+                    <VideoAssetDraftPanel draft={assetDraft} onApply={applyVideoAssetDrafts} />
                   </div>
 
                   {/* 默认 Provider 提示 */}
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    当前 Provider：{providers.find((p) => p.isDefault)?.name ?? providers[0]?.name ?? '（未配置，请先到视频生成设置）'}
-                  </p>
+                  <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>当前 Provider：{providers.find((p) => p.isDefault)?.name ?? providers[0]?.name ?? '（未配置，请先到视频生成设置）'}</span>
+                    <Button size="sm" variant="outline" onClick={generateVideoAssetDrafts} disabled={busy !== null}>
+                      {busy === 'asset-draft' ? <Loader2 className="animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                      生成资产草稿
+                    </Button>
+                  </div>
 
                   {/* 任务列表 */}
                   <div className="mb-4">
@@ -432,6 +487,60 @@ export function VideoGenerationPage() {
           </section>
         </div>
       )}
+    </div>
+  )
+}
+
+function VideoAssetDraftPanel({ draft, onApply }: { draft: VideoAssetDraftResult | null; onApply: (draft: VideoAssetDraftResult) => void }) {
+  if (!draft) return null
+  return (
+    <div className="mt-2 rounded-md border bg-background p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="font-medium text-foreground">视频资产草稿</span>
+        {draft.subtitleFormat && <Badge variant="outline">{draft.subtitleFormat.toUpperCase()}</Badge>}
+        <Button size="sm" variant="secondary" className="ml-auto" onClick={() => onApply(draft)}>
+          <Check className="h-3.5 w-3.5" /> 写入镜头草稿
+        </Button>
+      </div>
+      <div className="space-y-1.5">
+        <DraftField label="封面 Prompt" value={draft.coverPrompt} />
+        <DraftField label="首帧 Prompt" value={draft.firstFramePrompt} />
+        <DraftField label="旁白草稿" value={draft.narrationDraft} />
+        <DraftField label="字幕草稿" value={draft.subtitleDraft} preserve />
+        {draft.voiceSuggestions.length > 0 && (
+          <div>
+            <div className="font-medium text-foreground">音色建议</div>
+            <div className="mt-1 space-y-1">
+              {draft.voiceSuggestions.map((voice, index) => (
+                <div key={`${voice.characterId ?? voice.characterName}-${index}`} className="rounded bg-muted/40 p-2">
+                  <div className="font-medium text-foreground">{voice.characterName}</div>
+                  <div>{voice.voiceTone}</div>
+                  {voice.delivery && <div>表演：{voice.delivery}</div>}
+                  {voice.sampleDirection && <div>样本方向：{voice.sampleDirection}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {draft.assetNotes.length > 0 && (
+          <div>
+            <div className="font-medium text-foreground">制作备注</div>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {draft.assetNotes.map((note, index) => <li key={index}>{note}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DraftField({ label, value, preserve }: { label: string; value?: string; preserve?: boolean }) {
+  if (!value) return null
+  return (
+    <div>
+      <div className="font-medium text-foreground">{label}</div>
+      <div className={preserve ? 'whitespace-pre-wrap rounded bg-muted/40 p-2' : 'whitespace-pre-wrap'}>{value}</div>
     </div>
   )
 }

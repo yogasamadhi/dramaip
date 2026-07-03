@@ -176,9 +176,11 @@ function searchShots(db: DB, query: string, term: string, limit: number): Global
       like(shots.visualDescription, term),
       like(shots.dialogue, term),
       like(shots.narration, term),
+      like(shots.subtitleDraft, term),
       like(shots.videoPrompt, term),
       like(shots.negativePrompt, term),
       like(shots.imagePrompt, term),
+      like(shots.coverPrompt, term),
       like(shots.consistencyNotes, term),
     ))
     .orderBy(desc(shots.updatedAt))
@@ -194,7 +196,7 @@ function searchShots(db: DB, query: string, term: string, limit: number): Global
         kind: 'shot' as GlobalSearchResultKind,
         title: `第 ${row.shotNumber} 镜`,
         subtitle: `${script.title} / ${scene.title}`,
-        snippet: snippet(query, row.visualDescription, row.dialogue, row.videoPrompt, row.negativePrompt, row.imagePrompt, row.consistencyNotes),
+        snippet: snippet(query, row.visualDescription, row.dialogue, row.narration, row.subtitleDraft, row.videoPrompt, row.negativePrompt, row.imagePrompt, row.coverPrompt, row.consistencyNotes),
         route: `/adaptations/${script.adaptationProjectId}/shots?episode=${row.episodeId}&scene=${row.sceneId}&shot=${row.id}`,
         updatedAt: row.updatedAt,
       }]

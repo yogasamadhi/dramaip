@@ -693,9 +693,11 @@ export function buildShotContext(input: ChapterContextInput): string {
       line('动作', currentShot.action),
       line('对白', currentShot.dialogue),
       line('旁白', currentShot.narration),
+      line('字幕草稿', currentShot.subtitleDraft),
       line('当前视频 Prompt', currentShot.videoPrompt),
       line('当前负面 Prompt', currentShot.negativePrompt),
       line('当前图片 Prompt', currentShot.imagePrompt),
+      line('当前封面 Prompt', currentShot.coverPrompt),
     ].filter(Boolean)
     sections.push(block('当前镜头', fields.join('\n')))
   }

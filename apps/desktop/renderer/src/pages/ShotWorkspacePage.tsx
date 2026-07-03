@@ -16,7 +16,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload, VideoAssetDraftResult } from '@sdns/core'
 import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
@@ -303,6 +303,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
+  const [assetDraft, setAssetDraft] = useState<VideoAssetDraftResult | null>(null)
   const [referenceInput, setReferenceInput] = useState('')
   const [firstFrameInput, setFirstFrameInput] = useState('')
   const [coverInput, setCoverInput] = useState('')
@@ -327,6 +328,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     let canceled = false
     if (!activeShot) {
       setShotAssets([])
+      setAssetDraft(null)
       setReferenceInput('')
       setFirstFrameInput('')
       setCoverInput('')
@@ -340,6 +342,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
       const assets = await ipc.asset.listBySource('shot', activeShot.id)
       if (canceled) return
       setShotAssets(assets)
+      setAssetDraft(null)
       const referenceAsset = assets.find(isShotReferenceAsset)
       setReferenceInput(referenceAsset ? assetReferenceUrl(referenceAsset) ?? '' : '')
       setFirstFrameInput(assetInputValue(assets.find((asset) => asset.kind === 'first_frame_image')))
@@ -428,6 +431,41 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     }
   }
 
+  async function runVideoAssetDraftTask(shot: Shot) {
+    setBusy2(shot.id + 'video-assets')
+    const tid = toast.loading('正在生成视频资产草稿…')
+    try {
+      const res = await ipc.ai.run({
+        projectId: sourceProjectId,
+        adaptationProjectId,
+        episodeId: scene.episodeId,
+        sceneId: scene.id,
+        shotId: shot.id,
+        taskType: 'generate_video_asset_drafts',
+      })
+      if (res.ok && res.result?.kind === 'generate_video_asset_drafts') {
+        setAssetDraft(res.result.data as VideoAssetDraftResult)
+        toast.success('视频资产草稿已生成', { id: tid })
+      } else {
+        toast.error('生成失败：' + (res.error ?? '未知错误'), { id: tid })
+      }
+    } finally {
+      setBusy2(null)
+    }
+  }
+
+  function applyVideoAssetDraft(draftResult: VideoAssetDraftResult) {
+    setDraft((current) => ({
+      ...current,
+      imagePrompt: draftResult.firstFramePrompt || current.imagePrompt,
+      coverPrompt: draftResult.coverPrompt || current.coverPrompt,
+      narration: draftResult.narrationDraft || current.narration,
+      subtitleDraft: draftResult.subtitleDraft || current.subtitleDraft,
+    }))
+    setDirty(true)
+    toast.success('已填入草稿，保存后写入镜头')
+  }
+
   async function savePromptCheckpoint(shot: Shot) {
     await ipc.contentVersion.create({
       projectId: sourceProjectId,
@@ -436,7 +474,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
       label: `Prompt 检查点：镜头 ${shot.shotNumber}`,
       source: 'manual_checkpoint',
       content: shot.videoPrompt,
-      meta: { negativePrompt: shot.negativePrompt, imagePrompt: shot.imagePrompt },
+      meta: { negativePrompt: shot.negativePrompt, imagePrompt: shot.imagePrompt, coverPrompt: shot.coverPrompt, narration: shot.narration, subtitleDraft: shot.subtitleDraft },
     })
     toast.success('已保存 Prompt 检查点')
   }
@@ -458,10 +496,13 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   }
 
   const [busy2, setBusy2] = useState<string | null>(null)
-  const [draft, setDraft] = useState<{ videoPrompt: string; negativePrompt: string; imagePrompt: string }>({
+  const [draft, setDraft] = useState<{ videoPrompt: string; negativePrompt: string; imagePrompt: string; coverPrompt: string; narration: string; subtitleDraft: string }>({
     videoPrompt: '',
     negativePrompt: '',
     imagePrompt: '',
+    coverPrompt: '',
+    narration: '',
+    subtitleDraft: '',
   })
   const [dirty, setDirty] = useState(false)
 
@@ -470,6 +511,9 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
       videoPrompt: activeShot?.videoPrompt ?? '',
       negativePrompt: activeShot?.negativePrompt ?? '',
       imagePrompt: activeShot?.imagePrompt ?? '',
+      coverPrompt: activeShot?.coverPrompt ?? '',
+      narration: activeShot?.narration ?? '',
+      subtitleDraft: activeShot?.subtitleDraft ?? '',
     })
     setDirty(false)
   }, [activeShot?.id, activeShot?.updatedAt])
@@ -626,6 +670,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                   <div className="mt-1">画面：{activeShot.visualDescription}</div>
                   {activeShot.dialogue && <div className="mt-0.5">对白：{activeShot.dialogue}</div>}
                   {activeShot.narration && <div className="mt-0.5">旁白：{activeShot.narration}</div>}
+                  {activeShot.subtitleDraft && <div className="mt-0.5">字幕草稿：{activeShot.subtitleDraft}</div>}
                 </div>
 
                 {/* AI 操作 */}
@@ -656,6 +701,9 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                   </Button>
                   <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeShotTask(activeShot)}>
                     <Sparkles className="h-3.5 w-3.5" /> 视频风险
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runVideoAssetDraftTask(activeShot)}>
+                    <Sparkles className="h-3.5 w-3.5" /> {TASK_TYPE_LABELS.generate_video_asset_drafts}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => savePromptCheckpoint(activeShot)}>
                     <Pencil className="h-3.5 w-3.5" /> 检查点
@@ -709,6 +757,33 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                       />
                     </div>
                     <div>
+                      <div className="mb-0.5 text-xs text-muted-foreground">封面 Prompt</div>
+                      <Textarea
+                        value={draft.coverPrompt}
+                        onChange={(e) => { setDraft({ ...draft, coverPrompt: e.target.value }); setDirty(true) }}
+                        rows={2}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-0.5 text-xs text-muted-foreground">旁白草稿</div>
+                      <Textarea
+                        value={draft.narration}
+                        onChange={(e) => { setDraft({ ...draft, narration: e.target.value }); setDirty(true) }}
+                        rows={2}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-0.5 text-xs text-muted-foreground">字幕草稿</div>
+                      <Textarea
+                        value={draft.subtitleDraft}
+                        onChange={(e) => { setDraft({ ...draft, subtitleDraft: e.target.value }); setDirty(true) }}
+                        rows={4}
+                        className="text-xs"
+                      />
+                    </div>
+                    <div>
                       <div className="mb-0.5 text-xs text-muted-foreground">镜头参考图 URL / 本地路径</div>
                       <Input
                         value={referenceInput}
@@ -757,6 +832,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     </div>
                     <AssetBadges assets={shotAssets} />
                   </div>
+                  <VideoAssetDraftPanel draft={assetDraft} onApply={applyVideoAssetDraft} />
                   <div className="flex justify-end">
                     <Button size="sm" onClick={saveShot} disabled={!dirty}>
                       <Pencil className="h-3.5 w-3.5" /> 保存
@@ -817,6 +893,60 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
         onCancel={() => setTextPreview(null)}
       />
     </>
+  )
+}
+
+function VideoAssetDraftPanel({ draft, onApply }: { draft: VideoAssetDraftResult | null; onApply: (draft: VideoAssetDraftResult) => void }) {
+  if (!draft) return null
+  return (
+    <div className="rounded-md border p-3 text-xs">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-sm font-medium">视频资产草稿</span>
+        {draft.subtitleFormat && <Badge variant="outline">{draft.subtitleFormat.toUpperCase()}</Badge>}
+        <Button size="sm" variant="secondary" className="ml-auto" onClick={() => onApply(draft)}>
+          <Pencil className="h-3.5 w-3.5" /> 填入镜头草稿
+        </Button>
+      </div>
+      <div className="space-y-1.5 text-muted-foreground">
+        <DraftField label="封面 Prompt" value={draft.coverPrompt} />
+        <DraftField label="首帧 Prompt" value={draft.firstFramePrompt} />
+        <DraftField label="旁白草稿" value={draft.narrationDraft} />
+        <DraftField label="字幕草稿" value={draft.subtitleDraft} preserve />
+        {draft.voiceSuggestions.length > 0 && (
+          <div>
+            <div className="font-medium text-foreground">音色建议</div>
+            <div className="mt-1 space-y-1">
+              {draft.voiceSuggestions.map((voice, index) => (
+                <div key={`${voice.characterId ?? voice.characterName}-${index}`} className="rounded bg-muted/40 p-2">
+                  <div className="font-medium text-foreground">{voice.characterName}</div>
+                  <div>{voice.voiceTone}</div>
+                  {voice.delivery && <div>表演：{voice.delivery}</div>}
+                  {voice.sampleDirection && <div>样本方向：{voice.sampleDirection}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {draft.assetNotes.length > 0 && (
+          <div>
+            <div className="font-medium text-foreground">制作备注</div>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {draft.assetNotes.map((note, index) => <li key={index}>{note}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DraftField({ label, value, preserve }: { label: string; value?: string; preserve?: boolean }) {
+  if (!value) return null
+  return (
+    <div>
+      <div className="font-medium text-foreground">{label}</div>
+      <div className={preserve ? 'whitespace-pre-wrap rounded bg-muted/40 p-2' : 'whitespace-pre-wrap'}>{value}</div>
+    </div>
   )
 }
 

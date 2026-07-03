@@ -686,6 +686,8 @@ export interface Shot {
   dialogue?: string
   /** 本镜头旁白 */
   narration?: string
+  /** 字幕草稿（SRT/VTT/纯文本均可，供交付前人工整理） */
+  subtitleDraft?: string
 
   /** 镜头角度（如「特写」「中景」） */
   cameraAngle?: string
@@ -702,6 +704,8 @@ export interface Shot {
   negativePrompt?: string
   /** 图片 Prompt（首帧/关键帧，可选） */
   imagePrompt?: string
+  /** 封面 Prompt（用于封面图或视频封面草稿） */
+  coverPrompt?: string
 
   /** 角色/场景一致性提示 */
   consistencyNotes?: string
@@ -1280,6 +1284,7 @@ export type NovelTaskType =
   | 'review_shot_prompt'
   | 'rewrite_shot_prompt'
   | 'optimize_prompt_for_video_platform'
+  | 'generate_video_asset_drafts'
   // v1.1 创意诊断与反套路迭代系统
   | 'analyze_trope_freshness'
   | 'generate_anti_trope_variants'
