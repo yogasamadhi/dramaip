@@ -167,7 +167,7 @@
 | LM2-18 | P1 | 文本质量 | done | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
 | LM2-19 | P2 | 视频资产 | done | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
 | LM2-20 | P2 | 视频资产/AI | done | 封面、配音与字幕生成草稿 | AI prompts、asset UI、video workflow | 可从小说/剧本生成封面 prompt、角色音色建议、旁白/字幕草稿；仅生成草稿，不接真实 TTS 平台 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-19 |
-| LM2-21 | P2 | 移动/轻量入口 | todo | 移动灵感记录与桌面导入设计 | 文档、数据模型、轻量导入 IPC | 明确移动端只做灵感记录/云端后续设计；桌面可导入灵感 JSON/Markdown 进入灵感台 | 文档 `git diff --check`；如实现导入则追加 typecheck/unit | LM2-14 |
+| LM2-21 | P2 | 移动/轻量入口 | done | 移动灵感记录与桌面导入设计 | 文档、数据模型、轻量导入 IPC | 明确移动端只做灵感记录/云端后续设计；桌面可导入灵感 JSON/Markdown 进入灵感台 | 文档 `git diff --check`；如实现导入则追加 typecheck/unit | LM2-14 |
 | LM2-22 | P2 | 生态/同步预研 | todo | 云同步、资源市场、知识库路线设计 | `docs/product`、架构文档 | 输出不进入当前实现的路线图：数据边界、隐私、冲突处理、收费/资源审核、知识库语义搜索方案 | 文档 `git diff --check`；人工评审 | LM2-00 |
 | LM2-23 | P0 | 测试/发布 | todo | 升级后端到端 smoke 覆盖 | Electron E2E、mock AI、fixture 项目 | 覆盖主流程向导、对话指挥台、智能拆书最小路径、修稿任务采用、投稿包导出 | `pnpm test:e2e` 或记录本地 Electron smoke；`pnpm test:unit` | LM2-02、LM2-04、LM2-07、LM2-08 |
 | LM2-24 | P0 | 文档/产品 | todo | 更新用户手册与产品路线 | `README.md`、`USER_GUIDE.md`、`ROADMAP.md`、`TROUBLESHOOTING.md` | 文档解释新主流程、拆书、上下文控制、Agent 指挥台、导出包；旧入口说明与代码一致 | `git diff --check`；人工检查路径、命令、页面名 | 对应功能 loop 完成后 |
@@ -601,4 +601,19 @@ Push: git push origin main succeeded to Gitee, updating main from 9792a69 to 869
 Loop branch cleanup: git branch -d loop/lm2-20-video-draft-generation succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Added display-only generate_video_asset_drafts AI task for cover Prompt, first-frame Prompt, narration draft, subtitle draft, and character voice suggestions. Shot records now persist coverPrompt and subtitleDraft; shot/video pages can generate a draft and explicitly fill or write it back, while the prompt forbids calling real TTS/video platforms, real-actor voice imitation, platform evasion, or review-bypass guidance.
+```
+
+```text
+Loop: LM2-21
+Target branch: main
+Loop branch: loop/lm2-21-mobile-inspiration-import
+Commit: b7ded9b loop(LM2-21): add mobile inspiration import
+Merge commit: 5081351 merge: lm2-21 mobile inspiration import
+Verification: git diff --cached --check passed before commit; git diff --check passed after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/mobile-inspiration-import.test.ts tests/inspiration-cards.test.ts tests/ipc-contract.test.ts passed before commit and after merge; pnpm test:unit passed with 115 tests before and after merge; pnpm test:db passed before and after merge with migration replay and DB smoke after rerunning with required escalation for better-sqlite3/electron native cache writes; pnpm test:e2e passed after merge with Electron smoke after required escalation.
+Diff review: reviewed staged diff/stat/name list, new mobile inspiration import parser, desktop import IPC/preload/renderer contracts, InspirationDesk import UI, mobile_import source kind, documentation, and focused tests. Final origin/main...HEAD stat matched LM2-21 scope.
+Remote sync: git fetch origin succeeded before LM2-21 implementation and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from f1da310 to 5081351.
+Loop branch cleanup: git branch -d loop/lm2-21-mobile-inspiration-import succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Added docs/product/MOBILE_INSPIRATION_IMPORT.md to define the mobile boundary: mobile records only capture lightweight inspiration cards, cloud sync remains LM2-22 design work, and desktop remains the trusted write/adoption surface. Desktop 灵感台 can import JSON/Markdown into inspiration favorites through the new inspirationFavorite:importMobile IPC; imported records appear as mobile_import cards and require explicit user adoption into project settings or chapter requirements.
 ```
