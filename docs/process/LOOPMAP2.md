@@ -162,7 +162,7 @@
 | LM2-13 | P1 | AI 可配置性 | done | 自定义 Agent 方案与技能绑定 | Agent settings、writing room、task model binding | 用户可按项目启用/禁用 Agent、指定主 Agent、绑定 Skills 和模型；不影响全局内置预设 | `pnpm typecheck`；IPC/schema 单测；手工 smoke：项目级方案切换 | LM2-12 |
 | LM2-14 | P1 | 创意产品 | done | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
 | LM2-15 | P1 | 创意产品/AI | done | 灵感台二期：类型化灵感生成 | genre preset、template run、AI prompts | 用户选择题材/受众/短剧方向后，可一键生成 3-5 组差异化灵感方案，并进入项目创建或章节改写 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-14 |
-| LM2-16 | P1 | 交付导出 | todo | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
+| LM2-16 | P1 | 交付导出 | done | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
 | LM2-17 | P1 | 交付导出 | todo | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
 | LM2-18 | P1 | 文本质量 | todo | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
 | LM2-19 | P2 | 视频资产 | todo | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
@@ -526,4 +526,19 @@ Push: git push origin main succeeded to Gitee, updating main from 2f97a02 to 536
 Loop branch cleanup: git branch -d loop/lm2-15-inspiration-generation succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: 灵感台 now offers a typed generator that uses genre, audience, short-drama direction, and an optional template_run scope to produce 3-5 structured inspiration schemes. Generated schemes remain display-only until the user chooses a safe path: creating a prefilled new project or generating a chapter rewrite through the existing TextDiffPreviewDialog. The new AI task is registered with schema validation, task policy, template scope, task group, built-in inspiration template, and AI mock coverage.
+```
+
+```text
+Loop: LM2-16
+Target branch: main
+Loop branch: loop/lm2-16-novel-submission-export
+Commit: 6090738 loop(LM2-16): add novel submission export
+Merge commit: a816357 merge: lm2-16 novel submission export
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/submission-export.test.ts tests/ipc-contract.test.ts passed before commit; pnpm test:unit passed with 104 tests before commit and after merge; pnpm test:e2e passed before commit and after merge with Electron smoke.
+Diff review: reviewed staged stat/name list, new packages/export submission module, export IPC/preload/renderer contracts, Workspace export menu, IPC schemas, and final origin/main...HEAD stat; changes were limited to LM2-16 novel submission package export.
+Remote sync: git fetch origin succeeded before starting LM2-16 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 9b0eeff to a816357.
+Loop branch cleanup: git branch -d loop/lm2-16-novel-submission-export succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Workspace export menu now provides novel submission package Markdown and JSON exports for the first 10 chapters. The package includes project synopsis and selling points, character bios, full chapter catalog, sampled front chapters, and quality summaries from AI evaluations and quality gate reports. Export logic is isolated in @sdns/export and covered by focused export tests plus shared IPC contract validation.
 ```
