@@ -156,7 +156,7 @@
 | LM2-07 | P0 | 样本库/AI | done | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
 | LM2-08 | P0 | 创作闭环 | done | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
 | LM2-09 | P0 | AI 安全/体验 | done | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
-| LM2-10 | P1 | 长篇规划 | todo | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
+| LM2-10 | P1 | 长篇规划 | done | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
 | LM2-11 | P1 | 长篇规划/AI | todo | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
 | LM2-12 | P1 | AI 可配置性 | todo | 项目级 Skills/创作规范系统 | DB 或项目文件模型、Agent settings、AI context | 每个项目可维护多份创作规范/技能，如类型节奏、人物对白、镜头 Prompt 规则；AI 按任务自动选择或用户手动指定 | `pnpm typecheck`；IPC/schema 单测；上下文单测 | LM2-05 |
 | LM2-13 | P1 | AI 可配置性 | todo | 自定义 Agent 方案与技能绑定 | Agent settings、writing room、task model binding | 用户可按项目启用/禁用 Agent、指定主 Agent、绑定 Skills 和模型；不影响全局内置预设 | `pnpm typecheck`；IPC/schema 单测；手工 smoke：项目级方案切换 | LM2-12 |
@@ -436,4 +436,19 @@ Push: git push origin main succeeded to Gitee, updating main from 8ff53fc to 70d
 Loop branch cleanup: git branch -d loop/lm2-09-high-impact-write-safety succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: split_script_to_scenes and split_scene_to_shots now use snapshot_then_auto_write. Before replacing scenes or shots, the workflow stores a manual structure checkpoint with nested scene/shot data; contentVersion restore can rebuild script scene lists and scene shot lists, and renderer panels expose structure versions separately from text/Prompt history.
+```
+
+```text
+Loop: LM2-10
+Target branch: main
+Loop branch: loop/lm2-10-story-planning-model
+Commit: f852924 loop(LM2-10): add story planning arcs
+Merge commit: 92b30fa merge: lm2-10 story planning model
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; pnpm test:unit passed with 92 tests before commit and after merge; pnpm test:db passed before commit and after merge, including DB migration replay and story_arcs smoke coverage; pnpm test:e2e passed after merge with Electron smoke.
+Diff review: reviewed staged stat/name list, new StoryPlanningSection and story-arc repository files, and final origin/main...HEAD stat; changes were limited to story arc DB schema/repo/migration, shared types and IPC contracts, Workspace long-form planning UI, and focused DB/IPC/nav tests.
+Remote sync: git fetch origin succeeded before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 3cab27b to 92b30fa.
+Loop branch cleanup: git branch -d loop/lm2-10-story-planning-model succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Projects can now maintain volumes, units, and story stages in the workspace Long-form Planning section. Each story arc persists target words, target chapters, chapter range, core conflict, key highlights, and foreshadowing payoff plans through shared IPC and SQLite migration version 12.
 ```
