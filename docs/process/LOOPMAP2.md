@@ -157,7 +157,7 @@
 | LM2-08 | P0 | 创作闭环 | done | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
 | LM2-09 | P0 | AI 安全/体验 | done | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
 | LM2-10 | P1 | 长篇规划 | done | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
-| LM2-11 | P1 | 长篇规划/AI | todo | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
+| LM2-11 | P1 | 长篇规划/AI | done | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
 | LM2-12 | P1 | AI 可配置性 | todo | 项目级 Skills/创作规范系统 | DB 或项目文件模型、Agent settings、AI context | 每个项目可维护多份创作规范/技能，如类型节奏、人物对白、镜头 Prompt 规则；AI 按任务自动选择或用户手动指定 | `pnpm typecheck`；IPC/schema 单测；上下文单测 | LM2-05 |
 | LM2-13 | P1 | AI 可配置性 | todo | 自定义 Agent 方案与技能绑定 | Agent settings、writing room、task model binding | 用户可按项目启用/禁用 Agent、指定主 Agent、绑定 Skills 和模型；不影响全局内置预设 | `pnpm typecheck`；IPC/schema 单测；手工 smoke：项目级方案切换 | LM2-12 |
 | LM2-14 | P1 | 创意产品 | todo | 灵感台一期：创作卡片库 | 类型库、模板、样本卡片、反套路方案 | 汇总爆款开局、人物关系、冲突机制、反转、集尾悬念、视频画面卖点卡；卡片可收藏、插入项目设定或章节要求 | `pnpm typecheck`；手工 smoke：卡片生成、收藏、采用 | LM2-07 |
@@ -451,4 +451,19 @@ Push: git push origin main succeeded to Gitee, updating main from 3cab27b to 92b
 Loop branch cleanup: git branch -d loop/lm2-10-story-planning-model succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Projects can now maintain volumes, units, and story stages in the workspace Long-form Planning section. Each story arc persists target words, target chapters, chapter range, core conflict, key highlights, and foreshadowing payoff plans through shared IPC and SQLite migration version 12.
+```
+
+```text
+Loop: LM2-11
+Target branch: main
+Loop branch: loop/lm2-11-story-arc-generation
+Commit: 7521f5e loop(LM2-11): generate story planning outlines
+Merge commit: ba8abcd merge: lm2-11 story arc generation
+Verification: git diff --check passed before commit and after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/ai-workflow-mock.test.ts tests/ai-task-registry.test.ts tests/ai-context-controls.test.ts tests/workspace-nav.test.ts passed before commit; pnpm test:unit passed with 93 tests before commit and after merge; pnpm test:e2e passed after merge with Electron smoke.
+Diff review: reviewed staged stat/name list, new generate_story_arc_outline prompt/schema, AI persistence/context wiring, StoryPlanningSection budget UI, GeneratePreviewDialog renderer, and final origin/main...HEAD stat; changes were limited to story arc generation, adoption, context controls, and chapter budget completion display.
+Remote sync: git fetch origin succeeded before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from bf1c7d9 to ba8abcd.
+Loop branch cleanup: git branch -d loop/lm2-11-story-arc-generation succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: AI can now generate volume/unit/stage outlines through preview_then_adopt, adopted outlines create story arcs with hierarchy and a content version snapshot, chapter context includes matching story arc goals, and the long-form planning UI shows AI generation plus chapter budget completion.
 ```
