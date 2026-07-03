@@ -514,6 +514,20 @@ export const CaseStructureResultSchema = z.object({
   reversalMechanisms: strArr,
   cliffhangers: strArr,
   visualPatterns: strArr,
+  rhythmCurve: z.array(z.number().min(0).max(10)).optional(),
+  creativeCards: z
+    .array(
+      z
+        .object({
+          kind: z.enum(['hook', 'highlight', 'relationship', 'reversal', 'cliffhanger', 'visual', 'rhythm']),
+          title: z.string().min(1),
+          pattern: z.string().min(1),
+          applyTo: z.string().min(1),
+          risk: z.string().optional(),
+        })
+        .passthrough(),
+    )
+    .optional(),
   riskTags: strArr,
   notes: z.string().optional(),
 })

@@ -24,6 +24,48 @@ function Tags({ label, items }: { label: string; items: string[] }) {
   )
 }
 
+function RhythmCurve({ values }: { values: number[] }) {
+  if (!values.length) return null
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-muted-foreground">节奏曲线</div>
+      <div className="flex h-12 items-end gap-1 rounded-md border p-2">
+        {values.map((value, index) => (
+          <div
+            key={index}
+            className="w-full rounded-sm bg-primary/70"
+            style={{ height: `${Math.max(8, Math.min(10, value) * 10)}%` }}
+            title={`段落 ${index + 1}: ${value}`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CreativeCards({ item }: { item: CreativeCaseStudy }) {
+  const cards = item.creativeCards ?? []
+  if (!cards.length) return null
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-muted-foreground">创作卡片</div>
+      <div className="space-y-2">
+        {cards.slice(0, 6).map((card, index) => (
+          <div key={`${card.kind}-${card.title}-${index}`} className="rounded-md border p-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">{card.kind}</Badge>
+              <span className="font-medium">{card.title}</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{card.pattern}</p>
+            <p className="mt-1 text-xs">适用：{card.applyTo}</p>
+            {card.risk && <p className="mt-1 text-xs text-muted-foreground">风险：{card.risk}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function titleFromFileName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '') || '样本文档'
 }
@@ -168,6 +210,7 @@ export function CaseStudyPage() {
           `文件名：${doc.fileName}`,
           doc.truncated ? '注意：文档较长，已按导入安全策略截取文本用于结构抽取。' : '',
           '以下为用户确认后的章节拆分，仅用于本次结构抽取，不写入项目正文。',
+          '请抽取钩子、爽点、人物关系、反转、悬念、节奏曲线和 5-12 张可复用创作卡片；不要输出原文长摘录。',
           '',
           chapters.map((chapter) => `## ${chapter.title}\n${chapter.content}`).join('\n\n'),
         ].filter(Boolean).join('\n'),
@@ -370,6 +413,8 @@ export function CaseStudyPage() {
                       <Tags label="反转机制" items={it.reversalMechanisms} />
                       <Tags label="结尾悬念" items={it.cliffhangers} />
                       <Tags label="视觉模式" items={it.visualPatterns} />
+                      <RhythmCurve values={it.rhythmCurve ?? []} />
+                      <CreativeCards item={it} />
                       <Tags label="风险标签" items={it.riskTags} />
                     </CardContent>
                   </Card>

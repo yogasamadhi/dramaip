@@ -362,6 +362,15 @@ const contentVersionInput = z
   })
   .passthrough()
 
+const creativeCaseCard = z
+  .object({
+    kind: z.enum(['hook', 'highlight', 'relationship', 'reversal', 'cliffhanger', 'visual', 'rhythm']),
+    title: z.string().min(1),
+    pattern: z.string().min(1),
+    applyTo: z.string().min(1),
+    risk: z.string().optional(),
+  })
+  .passthrough()
 const caseStudyInput = z
   .object({
     title: id,
@@ -374,6 +383,8 @@ const caseStudyInput = z
     reversalMechanisms: looseStringArray.optional(),
     cliffhangers: looseStringArray.optional(),
     visualPatterns: looseStringArray.optional(),
+    rhythmCurve: z.array(z.number().min(0).max(10)).optional(),
+    creativeCards: z.array(creativeCaseCard).optional(),
     riskTags: looseStringArray.optional(),
     notes: z.string().optional(),
   })

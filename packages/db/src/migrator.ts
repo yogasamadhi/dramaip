@@ -415,6 +415,14 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 11,
+    name: 'case-study-creative-cards',
+    up(raw) {
+      addColumnIfMissing(raw, 'creative_case_studies', 'rhythm_curve', "rhythm_curve TEXT NOT NULL DEFAULT '[]'")
+      addColumnIfMissing(raw, 'creative_case_studies', 'creative_cards', "creative_cards TEXT NOT NULL DEFAULT '[]'")
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

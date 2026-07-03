@@ -635,11 +635,15 @@ export function buildCreativeContext(input: ChapterContextInput): string {
     const body = creativeCaseStudies
       .slice(0, 12)
       .map((c) => {
+        const rhythmCurve = c.rhythmCurve ?? []
+        const creativeCards = c.creativeCards ?? []
         const pieces = [
           c.genre ? `类型：${c.genre}` : '',
           c.openingHooks.length ? `开场：${c.openingHooks.join(' / ')}` : '',
           c.highlightBeats.length ? `爽点：${c.highlightBeats.join(' / ')}` : '',
           c.reversalMechanisms.length ? `反转：${c.reversalMechanisms.join(' / ')}` : '',
+          rhythmCurve.length ? `节奏：${rhythmCurve.join('-')}` : '',
+          creativeCards.length ? `卡片：${creativeCards.slice(0, 4).map((card) => `${card.title}/${card.applyTo}`).join(' / ')}` : '',
           c.riskTags.length ? `风险：${c.riskTags.join(' / ')}` : '',
         ].filter(Boolean)
         return `- ${c.title}：${pieces.join('；')}`

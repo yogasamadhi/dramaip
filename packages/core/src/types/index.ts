@@ -914,10 +914,22 @@ export interface CreativeCaseStudy {
   reversalMechanisms: string[]
   cliffhangers: string[]
   visualPatterns: string[]
+  rhythmCurve: number[]
+  creativeCards: CreativeCaseCard[]
   riskTags: string[]
   notes?: string
   createdAt: string
   updatedAt: string
+}
+
+export type CreativeCaseCardKind = 'hook' | 'highlight' | 'relationship' | 'reversal' | 'cliffhanger' | 'visual' | 'rhythm'
+
+export interface CreativeCaseCard {
+  kind: CreativeCaseCardKind
+  title: string
+  pattern: string
+  applyTo: string
+  risk?: string
 }
 
 export type CaseStudyChapterStatus = 'parsed' | 'needs_review' | 'manual'
