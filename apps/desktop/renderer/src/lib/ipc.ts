@@ -194,6 +194,19 @@ export interface AiContextPreviewResult {
   preview?: AiContextPreview
 }
 
+export interface RevisionTaskPreviewResult {
+  ok: boolean
+  error?: string
+  preview?: TextDiffPreviewPayload
+  aiRunId?: string
+}
+
+export interface RevisionTaskCompleteResult {
+  ok: boolean
+  error?: string
+  result?: ContentVersion
+}
+
 /** v0.7 视频任务操作返回（提交/查询/重试共用） */
 export interface VideoTaskOpResult {
   ok: boolean
@@ -660,7 +673,9 @@ export interface StudioApi {
     listByTarget(targetKind: string, targetId?: string): Promise<RevisionTask[]>
     create(data: Partial<RevisionTask> & { targetKind: RevisionTask['targetKind']; title: string; description: string; suggestedAction: string }): Promise<RevisionTask>
     update(id: string, patch: Partial<RevisionTask>): Promise<RevisionTask | undefined>
-    apply(id: string): Promise<{ ok: boolean; error?: string; result?: ContentVersion }>
+    preview(id: string): Promise<RevisionTaskPreviewResult>
+    complete(id: string): Promise<RevisionTaskCompleteResult>
+    apply(id: string): Promise<RevisionTaskPreviewResult>
   }
   contentVersion: {
     listByTarget(targetKind: string, targetId: string): Promise<ContentVersion[]>

@@ -371,6 +371,8 @@ const api = {
     listByTarget: (targetKind: string, targetId?: string) => invoke('revisionTask:listByTarget', targetKind, targetId),
     create: (data: unknown) => invoke('revisionTask:create', data),
     update: (id: string, patch: unknown) => invoke('revisionTask:update', id, patch),
+    preview: (id: string) => invoke('revisionTask:preview', id),
+    complete: (id: string) => invoke('revisionTask:complete', id),
     apply: (id: string) => invoke('revisionTask:apply', id),
   },
   contentVersion: {
