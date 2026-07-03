@@ -409,6 +409,25 @@ export const ShotPromptResultSchema = z.object({
 })
 export type ShotPromptResult = z.infer<typeof ShotPromptResultSchema>
 
+/** generate_video_asset_drafts：封面/首帧/旁白/字幕/音色草稿，仅展示或人工采用 */
+export const VideoAssetVoiceSuggestionSchema = z.object({
+  characterId: z.string().optional(),
+  characterName: z.string().min(1),
+  voiceTone: z.string().min(1),
+  delivery: z.string().optional(),
+  sampleDirection: z.string().optional(),
+})
+export const VideoAssetDraftResultSchema = z.object({
+  coverPrompt: z.string().min(1),
+  firstFramePrompt: z.string().optional(),
+  narrationDraft: z.string().optional(),
+  subtitleDraft: z.string().optional(),
+  subtitleFormat: z.enum(['srt', 'vtt', 'plain']).optional(),
+  voiceSuggestions: z.array(VideoAssetVoiceSuggestionSchema).default([]),
+  assetNotes: strArr,
+})
+export type VideoAssetDraftResult = z.infer<typeof VideoAssetDraftResultSchema>
+
 /** review_shot_prompt：镜头审查（评分 + 问题 + 建议 + 难度） */
 export const ShotReviewResultSchema = z.object({
   lengthScore: score,
@@ -759,6 +778,7 @@ export const ALL_RESULT_SCHEMAS = {
   review_shot_prompt: ShotReviewResultSchema,
   rewrite_shot_prompt: ShotPromptResultSchema,
   optimize_prompt_for_video_platform: ShotPromptResultSchema,
+  generate_video_asset_drafts: VideoAssetDraftResultSchema,
   // v1.1
   analyze_trope_freshness: FreshnessReportResultSchema,
   generate_anti_trope_variants: AntiTropeVariantsResultSchema,

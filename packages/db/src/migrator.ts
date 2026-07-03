@@ -533,6 +533,14 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(raw, 'character_visual_profiles', 'voice_sample_url', 'voice_sample_url TEXT')
     },
   },
+  {
+    version: 17,
+    name: 'video-asset-draft-fields',
+    up(raw) {
+      addColumnIfMissing(raw, 'shots', 'subtitle_draft', 'subtitle_draft TEXT')
+      addColumnIfMissing(raw, 'shots', 'cover_prompt', 'cover_prompt TEXT')
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

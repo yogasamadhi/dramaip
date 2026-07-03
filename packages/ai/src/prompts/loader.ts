@@ -35,6 +35,7 @@ import {
   ShotsResultSchema,
   StoryEventsResultSchema,
   TextQualityReportResultSchema,
+  VideoAssetDraftResultSchema,
   VideoCostRiskResultSchema,
   VisualProfileResultSchema,
   VisualSettingResultSchema,
@@ -101,6 +102,7 @@ import generateNegativePrompt from './zh-CN/shot/generate-negative-prompt.md?raw
 import reviewShotPrompt from './zh-CN/shot/review-shot-prompt.md?raw'
 import rewriteShotPrompt from './zh-CN/shot/rewrite-shot-prompt.md?raw'
 import optimizePromptForVideoPlatform from './zh-CN/shot/optimize-prompt-for-video-platform.md?raw'
+import generateVideoAssetDrafts from './zh-CN/shot/generate-video-asset-drafts.md?raw'
 // v1.1 创意诊断与反套路迭代系统
 import analyzeTropeFreshness from './zh-CN/creative/analyze-trope-freshness.md?raw'
 import generateAntiTropeVariants from './zh-CN/creative/generate-anti-trope-variants.md?raw'
@@ -183,6 +185,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   review_shot_prompt: { prompt: reviewShotPrompt, output: 'json', schema: ShotReviewResultSchema },
   rewrite_shot_prompt: { prompt: rewriteShotPrompt, output: 'json', schema: ShotPromptResultSchema },
   optimize_prompt_for_video_platform: { prompt: optimizePromptForVideoPlatform, output: 'json', schema: ShotPromptResultSchema },
+  generate_video_asset_drafts: { prompt: generateVideoAssetDrafts, output: 'json', schema: VideoAssetDraftResultSchema },
   // v1.1
   analyze_trope_freshness: { prompt: analyzeTropeFreshness, output: 'json', schema: FreshnessReportResultSchema },
   generate_anti_trope_variants: { prompt: generateAntiTropeVariants, output: 'json', schema: AntiTropeVariantsResultSchema },

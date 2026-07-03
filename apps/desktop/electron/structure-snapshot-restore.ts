@@ -145,6 +145,7 @@ function restoreShotsForScene(repos: Repositories, scene: Scene, shots: ShotStru
       characterIds: shot.characterIds,
       dialogue: shot.dialogue,
       narration: shot.narration,
+      subtitleDraft: shot.subtitleDraft,
       cameraAngle: shot.cameraAngle,
       cameraMovement: shot.cameraMovement,
       emotion: shot.emotion,
@@ -152,6 +153,7 @@ function restoreShotsForScene(repos: Repositories, scene: Scene, shots: ShotStru
       videoPrompt: shot.videoPrompt,
       negativePrompt: shot.negativePrompt,
       imagePrompt: shot.imagePrompt,
+      coverPrompt: shot.coverPrompt,
       consistencyNotes: shot.consistencyNotes,
       aiVideoDifficulty: shot.aiVideoDifficulty,
     })

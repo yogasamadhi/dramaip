@@ -130,6 +130,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'review_shot_prompt':
     case 'rewrite_shot_prompt':
     case 'optimize_prompt_for_video_platform':
+    case 'generate_video_asset_drafts':
       return buildShotContext(common)
     // v0.2：记忆/视觉/一致性任务使用记忆上下文（含历史状态、事件、伏笔）
     case 'summarize_chapter':

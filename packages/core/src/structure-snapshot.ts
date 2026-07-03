@@ -9,6 +9,7 @@ export interface ShotStructureSnapshot {
   characterIds: string[]
   dialogue?: string
   narration?: string
+  subtitleDraft?: string
   cameraAngle?: string
   cameraMovement?: string
   emotion?: string
@@ -16,6 +17,7 @@ export interface ShotStructureSnapshot {
   videoPrompt?: string
   negativePrompt?: string
   imagePrompt?: string
+  coverPrompt?: string
   consistencyNotes?: string
   aiVideoDifficulty?: Shot['aiVideoDifficulty']
 }
@@ -40,6 +42,7 @@ export function snapshotShot(shot: Shot): ShotStructureSnapshot {
     characterIds: shot.characterIds,
     dialogue: shot.dialogue,
     narration: shot.narration,
+    subtitleDraft: shot.subtitleDraft,
     cameraAngle: shot.cameraAngle,
     cameraMovement: shot.cameraMovement,
     emotion: shot.emotion,
@@ -47,6 +50,7 @@ export function snapshotShot(shot: Shot): ShotStructureSnapshot {
     videoPrompt: shot.videoPrompt,
     negativePrompt: shot.negativePrompt,
     imagePrompt: shot.imagePrompt,
+    coverPrompt: shot.coverPrompt,
     consistencyNotes: shot.consistencyNotes,
     aiVideoDifficulty: shot.aiVideoDifficulty,
   }
@@ -96,6 +100,7 @@ export function parseShotStructureSnapshot(value: unknown): ShotStructureSnapsho
       characterIds: asStringArray(record.characterIds),
       dialogue: optionalString(record.dialogue),
       narration: optionalString(record.narration),
+      subtitleDraft: optionalString(record.subtitleDraft),
       cameraAngle: optionalString(record.cameraAngle),
       cameraMovement: optionalString(record.cameraMovement),
       emotion: optionalString(record.emotion),
@@ -103,6 +108,7 @@ export function parseShotStructureSnapshot(value: unknown): ShotStructureSnapsho
       videoPrompt: optionalString(record.videoPrompt),
       negativePrompt: optionalString(record.negativePrompt),
       imagePrompt: optionalString(record.imagePrompt),
+      coverPrompt: optionalString(record.coverPrompt),
       consistencyNotes: optionalString(record.consistencyNotes),
       aiVideoDifficulty: optionalDifficulty(record.aiVideoDifficulty),
     }
@@ -136,7 +142,8 @@ export function renderShotStructureSnapshot(shots: readonly ShotStructureSnapsho
         shot.durationSeconds ? `${shot.durationSeconds}s` : undefined,
       ].filter(Boolean)
       const prompt = shot.videoPrompt ? `\nPrompt：${shot.videoPrompt}` : ''
-      return `${parts.join(' · ')}\n${shot.visualDescription}${prompt}`
+      const subtitle = shot.subtitleDraft ? `\n字幕草稿：${shot.subtitleDraft}` : ''
+      return `${parts.join(' · ')}\n${shot.visualDescription}${prompt}${subtitle}`
     })
     .join('\n\n')
 }

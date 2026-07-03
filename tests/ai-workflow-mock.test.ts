@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { ChatInput, ChatOutput, LLMProvider, NovelTaskType, Project, StoryArc } from '@sdns/core'
-import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema, InspirationSchemesResultSchema, TextQualityReportResultSchema } from '@sdns/core'
+import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema, InspirationSchemesResultSchema, TextQualityReportResultSchema, VideoAssetDraftResultSchema } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { createSaveAiRunNode } from '../packages/ai/src/nodes/save-ai-run.node'
 import { extractJson } from '../packages/ai/src/parsers/json'
@@ -124,6 +124,26 @@ function textQualityPayload(): unknown {
       },
     ],
     summary: '文本已有短剧节奏，但句式变化和角色专属表达仍可加强。',
+  }
+}
+
+function videoAssetDraftPayload(): unknown {
+  return {
+    coverPrompt: 'vertical short drama cover, rain gate, heroine with cold gaze, bold revenge tension',
+    firstFramePrompt: '9:16 first frame, black umbrella, cold rain, car headlights, heroine raises her eyes',
+    narrationDraft: '这一夜，她不再退让。',
+    subtitleDraft: '1\n00:00:00,000 --> 00:00:02,000\n这一夜，她不再退让。',
+    subtitleFormat: 'srt',
+    voiceSuggestions: [
+      {
+        characterId: 'char-heroine',
+        characterName: '林晚',
+        voiceTone: '低频、克制、带冷感',
+        delivery: '前半句压低，尾句短促收住',
+        sampleDirection: '录制一段雨夜独白样本，不模仿真实演员',
+      },
+    ],
+    assetNotes: ['封面留出标题区', '字幕时间轴仅为草稿占位'],
   }
 }
 
@@ -333,6 +353,44 @@ async function runMockInspirationSchemeWorkflow(input: {
   }
 }
 
+async function runMockVideoAssetDraftWorkflow(input: {
+  repos: never
+  provider: LLMProvider
+  projectId?: string
+  prompt: string
+}) {
+  const output = await input.provider.chat({
+    messages: [
+      { role: 'system', content: 'mock workflow' },
+      { role: 'user', content: input.prompt },
+    ],
+    responseFormat: 'json',
+  })
+  const parsed = extractJson(output.content)
+  const result = VideoAssetDraftResultSchema.safeParse(parsed)
+  const error = result.success ? '' : result.error.message
+  const save = createSaveAiRunNode({ repos: input.repos, provider: input.provider } as never)
+  const saved = await save({
+    projectId: input.projectId,
+    taskType: 'generate_video_asset_drafts',
+    promptText: input.prompt,
+    rawOutput: output.content,
+    parsedOutput: result.success ? result.data : undefined,
+    error,
+    providerName: input.provider.name,
+    modelName: input.provider.model,
+    tokenUsage: output.tokenUsage,
+    latencyMs: 0,
+  } as never)
+
+  return {
+    ok: result.success,
+    error: error || undefined,
+    result: result.success ? { kind: 'generate_video_asset_drafts', data: result.data } : undefined,
+    aiRunId: saved.aiRunId,
+  }
+}
+
 test('runs a successful JSON workflow with a mock provider', async () => {
   const { aiRuns, repos } = createHarness()
   const provider = new SequenceProvider([jsonOutput(projectPayload())])
@@ -376,6 +434,29 @@ test('runs inspiration scheme generation through the mock workflow', async () =>
   assert.match(provider.calls[0].messages[1].content, /3-5/)
   assert.equal(aiRuns[0].status, 'success')
   assert.equal(aiRuns[0].type, 'generate_inspiration_schemes')
+})
+
+test('runs video asset draft generation through the mock workflow', async () => {
+  const { aiRuns, repos } = createHarness()
+  const provider = new SequenceProvider([jsonOutput(videoAssetDraftPayload())])
+
+  const result = await runMockVideoAssetDraftWorkflow({
+    repos,
+    provider,
+    projectId: 'p1',
+    prompt: '请为当前镜头生成封面、首帧、旁白、字幕和音色草稿。',
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.result?.kind, 'generate_video_asset_drafts')
+  const parsed = VideoAssetDraftResultSchema.parse(result.result?.data)
+  assert.match(parsed.coverPrompt, /vertical short drama cover/)
+  assert.match(parsed.subtitleDraft ?? '', /00:00:00,000/)
+  assert.equal(parsed.voiceSuggestions[0].characterName, '林晚')
+  assert.equal(provider.calls[0].responseFormat, 'json')
+  assert.match(provider.calls[0].messages[1].content, /字幕/)
+  assert.equal(aiRuns[0].status, 'success')
+  assert.equal(aiRuns[0].type, 'generate_video_asset_drafts')
 })
 
 test('parses text quality reports with originality risk safeguards', () => {

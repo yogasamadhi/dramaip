@@ -44,6 +44,7 @@ test('declares write policy for every NovelTaskType', () => {
   assert.equal(TASK_WRITE_POLICIES.enhance_script_dialogue_voice.policy, 'preview_then_adopt')
   assert.equal(TASK_WRITE_POLICIES.rewrite_shot_prompt.policy, 'preview_then_adopt')
   assert.equal(TASK_WRITE_POLICIES.analyze_text_quality.policy, 'display_only')
+  assert.equal(TASK_WRITE_POLICIES.generate_video_asset_drafts.policy, 'display_only')
   assert.equal(TASK_WRITE_POLICIES.generate_ai_drama_script.policy, 'conditional_preview')
   assert.equal(TASK_WRITE_POLICIES.split_script_to_scenes.policy, 'snapshot_then_auto_write')
   assert.equal(TASK_WRITE_POLICIES.split_scene_to_shots.policy, 'snapshot_then_auto_write')
