@@ -1395,3 +1395,5 @@ Prompt 市场
 ```
 
 这些不进入 v1.0 主线，避免过早复杂化。
+
+云同步、资源市场和知识库的后续边界见 [ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md](./ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)。在该路线进入实现前，产品继续保持本地优先，账号、支付、公共市场和云端语义搜索不作为当前主流程依赖。
