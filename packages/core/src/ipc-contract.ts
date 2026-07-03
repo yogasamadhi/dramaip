@@ -51,6 +51,12 @@ const projectPackageExportOptions = z
   })
   .strict()
   .optional()
+const novelSubmissionExportOptions = z
+  .object({
+    chapterLimit: z.number().int().positive().max(100).optional(),
+  })
+  .strict()
+  .optional()
 const projectAssetInput = z
   .object({
     projectId: id,
@@ -623,6 +629,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'videoResult:update': [id, updateVideoResultInput],
   'export:projectMarkdown': [id],
   'export:projectJson': [id],
+  'export:novelSubmissionMarkdown': [id, novelSubmissionExportOptions],
+  'export:novelSubmissionJson': [id, novelSubmissionExportOptions],
   'export:chapterMarkdown': [id],
   'export:adaptationMarkdown': [id],
   'export:adaptationJson': [id],
