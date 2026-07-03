@@ -171,7 +171,7 @@
 | LM2-22 | P2 | 生态/同步预研 | done | 云同步、资源市场、知识库路线设计 | `docs/product`、架构文档 | 输出不进入当前实现的路线图：数据边界、隐私、冲突处理、收费/资源审核、知识库语义搜索方案 | 文档 `git diff --check`；人工评审 | LM2-00 |
 | LM2-23 | P0 | 测试/发布 | done | 升级后端到端 smoke 覆盖 | Electron E2E、mock AI、fixture 项目 | 覆盖主流程向导、对话指挥台、智能拆书最小路径、修稿任务采用、投稿包导出 | `pnpm test:e2e` 或记录本地 Electron smoke；`pnpm test:unit` | LM2-02、LM2-04、LM2-07、LM2-08 |
 | LM2-24 | P0 | 文档/产品 | done | 更新用户手册与产品路线 | `README.md`、`USER_GUIDE.md`、`ROADMAP.md`、`TROUBLESHOOTING.md` | 文档解释新主流程、拆书、上下文控制、Agent 指挥台、导出包；旧入口说明与代码一致 | `git diff --check`；人工检查路径、命令、页面名 | 对应功能 loop 完成后 |
-| LM2-25 | P0 | Release | todo | LOOPMAP2 全量验收闸门 | 全仓、文档、测试、打包 smoke | P0/P1 目标完成后运行完整回归；确认未完成 P2 不阻塞发布；生成发布说明和回滚提示 | `pnpm test`；必要时 `pnpm package:smoke`；最终 diff 审查 | P0/P1 完成 |
+| LM2-25 | P0 | Release | done | LOOPMAP2 全量验收闸门 | 全仓、文档、测试、打包 smoke | P0/P1 目标完成后运行完整回归；确认未完成 P2 不阻塞发布；生成发布说明和回滚提示 | `pnpm test`；必要时 `pnpm package:smoke`；最终 diff 审查 | P0/P1 完成 |
 
 ## 7. 推荐执行批次
 
@@ -661,4 +661,19 @@ Push: git push origin main succeeded to Gitee, updating main from 15d20c1 to 27b
 Loop branch cleanup: git branch -d loop/lm2-24-product-docs succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Product documentation now reflects the LOOPMAP2 implementation instead of the older tool-list framing. README summarizes the current product surface and validation scripts; USER_GUIDE walks the real creation path and export entrances; ROADMAP marks the current LOOPMAP2 landed state with cloud/mobile ecosystem boundaries; TROUBLESHOOTING covers Agent/context, sample study, mobile inspiration import, delivery package, and local validation failure modes.
+```
+
+```text
+Loop: LM2-25
+Target branch: main
+Loop branch: loop/lm2-25-release-gate
+Commit: a06a00c loop(LM2-25): record release gate
+Merge commit: bff69f5 merge: lm2-25 release gate
+Verification: pnpm test passed with workspace typecheck, 115 unit tests, DB migration replay, DB smoke, and Electron ABI restore; pnpm package:smoke passed with macOS dmg/zip generation, app.asar boundary check, packaged app launch, and smoke DB initialization; pnpm test:e2e passed with steps open-create-project-page, create-project, create-chapter, create-model-config, p0-fixture-project, p0-main-workflow-guide, p0-agent-command-console-plan, p0-case-study-card-path, p0-revision-task-adoption, p0-novel-submission-export, and project-package-roundtrip; git diff --check and pnpm format:check passed after merge; credential/account grep and tracked artifact/env scans returned no tracked matches.
+Diff review: reviewed staged diff/stat/name list for docs/release/RELEASE_CANDIDATE.md and final main status; changes were limited to the LOOPMAP2 release candidate gate results, release notes, known caveats, and rollback notes.
+Remote sync: git fetch origin succeeded before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 38da6bf to bff69f5.
+Loop branch cleanup: git branch -d loop/lm2-25-release-gate succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: LOOPMAP2 P0/P1 release gate is green on the local macOS arm64 workstation. P2 cloud sync, marketplace, and cloud semantic search remain roadmap/design work and do not block this release candidate; mobile remains a lightweight inspiration import path with desktop as the trusted adoption surface. RELEASE_CANDIDATE.md now carries current gate results, LOOPMAP2 highlights, caveats, generated artifact names, and rollback guidance.
 ```
