@@ -290,6 +290,7 @@ export function createSaveResultNode(deps: NodeDeps) {
       (taskType === 'generate_ai_drama_script' ||
         taskType === 'rewrite_ai_drama_script' ||
         taskType === 'enhance_dialogue_conflict' ||
+        taskType === 'enhance_script_dialogue_voice' ||
         taskType === 'enhance_episode_cliffhanger' ||
         taskType === 'enhance_script_visuality') &&
       state.episodeId &&

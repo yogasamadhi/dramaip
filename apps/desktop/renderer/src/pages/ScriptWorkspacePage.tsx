@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 type ScriptTaskType =
   | 'rewrite_ai_drama_script'
   | 'enhance_dialogue_conflict'
+  | 'enhance_script_dialogue_voice'
   | 'enhance_episode_cliffhanger'
   | 'enhance_script_visuality'
 
@@ -408,6 +409,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
   const taskBtns: { type: ScriptTaskType; label: string }[] = [
     { type: 'rewrite_ai_drama_script', label: '重写' },
     { type: 'enhance_dialogue_conflict', label: '增强对白冲突' },
+    { type: 'enhance_script_dialogue_voice', label: '强化对白风格' },
     { type: 'enhance_episode_cliffhanger', label: '增强集尾悬念' },
     { type: 'enhance_script_visuality', label: '增强画面感' },
   ]

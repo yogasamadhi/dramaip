@@ -34,6 +34,7 @@ import {
   ShotReviewResultSchema,
   ShotsResultSchema,
   StoryEventsResultSchema,
+  TextQualityReportResultSchema,
   VideoCostRiskResultSchema,
   VisualProfileResultSchema,
   VisualSettingResultSchema,
@@ -56,6 +57,7 @@ import expandChapter from './zh-CN/chapter/expand-chapter.md?raw'
 import enhanceConflict from './zh-CN/chapter/enhance-conflict.md?raw'
 import enhanceHighlight from './zh-CN/chapter/enhance-highlight.md?raw'
 import enhanceAiDramaFeel from './zh-CN/chapter/enhance-ai-drama-feel.md?raw'
+import enhanceAuthorStyle from './zh-CN/chapter/enhance-author-style.md?raw'
 import evaluateAiDramaFit from './zh-CN/evaluation/evaluate-ai-drama-fit.md?raw'
 // v0.2 长篇一致性与视觉记忆系统
 import summarizeChapter from './zh-CN/memory/summarize-chapter.md?raw'
@@ -89,6 +91,7 @@ import splitScriptToScenes from './zh-CN/script/split-script-to-scenes.md?raw'
 import reviewAiDramaScript from './zh-CN/script/review-ai-drama-script.md?raw'
 import rewriteAiDramaScript from './zh-CN/script/rewrite-ai-drama-script.md?raw'
 import enhanceDialogueConflict from './zh-CN/script/enhance-dialogue-conflict.md?raw'
+import enhanceScriptDialogueVoice from './zh-CN/script/enhance-script-dialogue-voice.md?raw'
 import enhanceEpisodeCliffhanger from './zh-CN/script/enhance-episode-cliffhanger.md?raw'
 import enhanceScriptVisuality from './zh-CN/script/enhance-script-visuality.md?raw'
 // v0.6 分镜与镜头 Prompt 生成
@@ -106,6 +109,7 @@ import generateRevisionTasks from './zh-CN/creative/generate-revision-tasks.md?r
 import runQualityGate from './zh-CN/creative/run-quality-gate.md?raw'
 import simulateAudienceReaction from './zh-CN/creative/simulate-audience-reaction.md?raw'
 import analyzeVideoCostRisk from './zh-CN/creative/analyze-video-cost-risk.md?raw'
+import analyzeTextQuality from './zh-CN/creative/analyze-text-quality.md?raw'
 import extractCaseStructure from './zh-CN/creative/extract-case-structure.md?raw'
 import generateInspirationSchemes from './zh-CN/creative/generate-inspiration-schemes.md?raw'
 // v0.8 多 Agent 编剧室与模板系统
@@ -135,6 +139,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   enhance_conflict: { prompt: enhanceConflict, output: 'text', writesChapterContent: true },
   enhance_highlight: { prompt: enhanceHighlight, output: 'text', writesChapterContent: true },
   enhance_ai_drama_feel: { prompt: enhanceAiDramaFeel, output: 'text', writesChapterContent: true },
+  enhance_author_style: { prompt: enhanceAuthorStyle, output: 'text', writesChapterContent: true },
   evaluate_ai_drama_fit: { prompt: evaluateAiDramaFit, output: 'json', schema: EvaluationResultSchema },
   // v0.2
   summarize_chapter: { prompt: summarizeChapter, output: 'json', schema: ChapterMemoryResultSchema },
@@ -168,6 +173,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   review_ai_drama_script: { prompt: reviewAiDramaScript, output: 'json', schema: ScriptReviewResultSchema },
   rewrite_ai_drama_script: { prompt: rewriteAiDramaScript, output: 'json', schema: ScriptResultSchema },
   enhance_dialogue_conflict: { prompt: enhanceDialogueConflict, output: 'json', schema: ScriptResultSchema },
+  enhance_script_dialogue_voice: { prompt: enhanceScriptDialogueVoice, output: 'json', schema: ScriptResultSchema },
   enhance_episode_cliffhanger: { prompt: enhanceEpisodeCliffhanger, output: 'json', schema: ScriptResultSchema },
   enhance_script_visuality: { prompt: enhanceScriptVisuality, output: 'json', schema: ScriptResultSchema },
   // v0.6
@@ -185,6 +191,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   run_quality_gate: { prompt: runQualityGate, output: 'json', schema: QualityGateResultSchema },
   simulate_audience_reaction: { prompt: simulateAudienceReaction, output: 'json', schema: AudienceSimulationResultSchema },
   analyze_video_cost_risk: { prompt: analyzeVideoCostRisk, output: 'json', schema: VideoCostRiskResultSchema },
+  analyze_text_quality: { prompt: analyzeTextQuality, output: 'json', schema: TextQualityReportResultSchema },
   extract_case_structure: { prompt: extractCaseStructure, output: 'json', schema: CaseStructureResultSchema },
   generate_inspiration_schemes: { prompt: generateInspirationSchemes, output: 'json', schema: InspirationSchemesResultSchema },
   // v0.8

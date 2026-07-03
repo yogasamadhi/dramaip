@@ -119,6 +119,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'review_ai_drama_script':
     case 'rewrite_ai_drama_script':
     case 'enhance_dialogue_conflict':
+    case 'enhance_script_dialogue_voice':
     case 'enhance_episode_cliffhanger':
     case 'enhance_script_visuality':
       return buildScriptContext(common)
@@ -153,6 +154,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'run_quality_gate':
     case 'simulate_audience_reaction':
     case 'analyze_video_cost_risk':
+    case 'analyze_text_quality':
     case 'extract_case_structure':
     case 'generate_inspiration_schemes':
       return buildCreativeContext(common)

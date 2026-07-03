@@ -60,6 +60,18 @@ test('returns chapter text preview without writing content', async () => {
   assert.equal(out.result?.kind, 'text_preview')
   assert.deepEqual((out.result?.data as TextDiffPreviewPayload).currentContent, '旧正文')
   assert.deepEqual((out.result?.data as TextDiffPreviewPayload).nextContent, '新正文')
+
+  const styleOut = await save({
+    projectId: 'p1',
+    chapterId: 'c1',
+    taskType: 'enhance_author_style',
+    currentChapter: { id: 'c1', title: '第一章', content: '旧正文' },
+    parsedOutput: '作者风格强化正文',
+  } as never)
+
+  assert.deepEqual(calls, [])
+  assert.equal(styleOut.result?.kind, 'text_preview')
+  assert.deepEqual((styleOut.result?.data as TextDiffPreviewPayload).nextContent, '作者风格强化正文')
 })
 
 test('returns script and shot text previews without overwriting records', async () => {
@@ -75,6 +87,15 @@ test('returns script and shot text previews without overwriting records', async 
     currentScript: { id: 's1', content: '旧剧本' },
     parsedOutput: { content: '新剧本', hook: '新钩子' },
   } as never)
+  const dialogueOut = await save({
+    projectId: 'p1',
+    adaptationProjectId: 'a1',
+    episodeId: 'e1',
+    taskType: 'enhance_script_dialogue_voice',
+    currentEpisode: { id: 'e1', episodeNumber: 1, title: '第一集' },
+    currentScript: { id: 's1', content: '旧剧本' },
+    parsedOutput: { content: '对白风格强化剧本', hook: '新钩子' },
+  } as never)
   const shotOut = await save({
     projectId: 'p1',
     adaptationProjectId: 'a1',
@@ -89,6 +110,8 @@ test('returns script and shot text previews without overwriting records', async 
   assert.deepEqual(calls, [])
   assert.equal(scriptOut.result?.kind, 'text_preview')
   assert.equal((scriptOut.result?.data as TextDiffPreviewPayload).nextContent, '新剧本')
+  assert.equal(dialogueOut.result?.kind, 'text_preview')
+  assert.equal((dialogueOut.result?.data as TextDiffPreviewPayload).nextContent, '对白风格强化剧本')
   assert.equal(shotOut.result?.kind, 'text_preview')
   assert.match((shotOut.result?.data as TextDiffPreviewPayload).nextContent, /新 prompt/)
 })

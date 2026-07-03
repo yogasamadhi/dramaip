@@ -1226,6 +1226,7 @@ export type NovelTaskType =
   | 'enhance_conflict'
   | 'enhance_highlight'
   | 'enhance_ai_drama_feel'
+  | 'enhance_author_style'
   | 'evaluate_ai_drama_fit'
   // v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2）
   | 'summarize_chapter'
@@ -1260,6 +1261,7 @@ export type NovelTaskType =
   | 'review_ai_drama_script'
   | 'rewrite_ai_drama_script'
   | 'enhance_dialogue_conflict'
+  | 'enhance_script_dialogue_voice'
   | 'enhance_episode_cliffhanger'
   | 'enhance_script_visuality'
   // v0.6 分镜与镜头 Prompt 生成（ROADMAP v0.6）
@@ -1277,6 +1279,7 @@ export type NovelTaskType =
   | 'run_quality_gate'
   | 'simulate_audience_reaction'
   | 'analyze_video_cost_risk'
+  | 'analyze_text_quality'
   | 'extract_case_structure'
   | 'generate_inspiration_schemes'
   // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
