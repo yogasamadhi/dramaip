@@ -1,6 +1,6 @@
 # 开发文档
 
-本文档面向贡献者，说明项目架构、各包职责、数据流，以及「新增一个 AI 任务」「数据库迁移」「构建打包」的标准步骤。开始前请先读 [README](./README.md) 了解产品定位与安装。
+本文档面向贡献者，说明项目架构、各包职责、数据流，以及「新增一个 AI 任务」「数据库迁移」「构建打包」的标准步骤。开始前请先读 [README](../../README.md) 了解产品定位与安装。
 
 ## 技术栈
 
@@ -111,7 +111,7 @@ pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smok
 
 - `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
 - 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
-- 打包 smoke 详见 [RELEASE.md](./RELEASE.md)。
+- 打包 smoke 详见 [RELEASE.md](../release/RELEASE.md)。
 - `pnpm test:db` 封装了 `pnpm rebuild:node` 与 `pnpm rebuild:electron`，通常不需要手动进入 `node_modules` 重编。
 
 ## 安全与运行时边界

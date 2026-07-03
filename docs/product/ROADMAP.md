@@ -1320,13 +1320,14 @@ Linux 可选。
 需要文档：
 
 ```txt
-README.md
-PROJECT_BRIEF.md
-ROADMAP.md
-CONTRIBUTING.md
-DEVELOPMENT.md
-PROMPT_GUIDE.md
-AI_VIDEO_GUIDE.md
+docs/README.md
+docs/product/README.md
+docs/product/PROJECT_BRIEF.md
+docs/product/ROADMAP.md
+docs/engineering/CONTRIBUTING.md
+docs/engineering/DEVELOPMENT.md
+docs/engineering/PROMPT_GUIDE.md
+docs/engineering/AI_VIDEO_GUIDE.md
 ```
 
 ---

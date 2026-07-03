@@ -1,6 +1,6 @@
 # Production Optimization Loop Map
 
-本文档依据 [LOOPRULE.md](LOOPRULE.md) 编写，用于把“短剧 IP 小说写作工作台”的生产落地优化拆成可执行、可审查、可验证、可提交推送的小闭环。
+本文档依据 [LOOPRULE.md](./LOOPRULE.md) 编写，用于把“短剧 IP 小说写作工作台”的生产落地优化拆成可执行、可审查、可验证、可提交推送的小闭环。
 
 ## 0. 执行约定
 

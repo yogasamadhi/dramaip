@@ -2,7 +2,7 @@
 
 本地优先的桌面端 AI 写作工具，专门用于创作「适合改编为短剧的中文小说」。
 
-基于 [PROJECT_BRIEF.md](./PROJECT_BRIEF.md) 构建。
+基于 [PROJECT_BRIEF.md](./docs/product/PROJECT_BRIEF.md) 构建。
 
 ## 核心能力
 
@@ -91,15 +91,16 @@ API Key 仅本地保存于 `model_configs` 表。
 
 ## 文档
 
-- [开发文档](./DEVELOPMENT.md) —— 架构、数据流、新增 AI 任务、数据库迁移、构建打包
-- [贡献指南](./CONTRIBUTING.md) —— 开发约定、提交规范、本地优先原则
-- [用户手册](./USER_GUIDE.md) —— 安装启动、模型配置、创作流程、备份恢复、项目包、视频生成
-- [故障排查](./TROUBLESHOOTING.md) —— AI 失败、视频平台、数据库备份、项目包、日志诊断
-- [Prompt 工程指南](./PROMPT_GUIDE.md) —— prompt 体系、JSON 输出规范、模板系统、多 Agent 编剧室
-- [AI 视频生成链路指南](./AI_VIDEO_GUIDE.md) —— 剧本→分镜→镜头→视频平台、各平台 Prompt 要点与风险
-- [发布打包](./RELEASE.md) —— 打包 smoke、签名公证、自动更新源和回滚策略
-- [RC 草稿](./RELEASE_CANDIDATE.md) —— 发布候选检查结果、release notes 和拟定 tag 命令
-- [ROADMAP](./ROADMAP.md) —— 版本规划与进度
+- [文档目录](./docs/README.md) —— 按产品、开发、发布、流程分类的文档入口
+- [开发文档](./docs/engineering/DEVELOPMENT.md) —— 架构、数据流、新增 AI 任务、数据库迁移、构建打包
+- [贡献指南](./docs/engineering/CONTRIBUTING.md) —— 开发约定、提交规范、本地优先原则
+- [用户手册](./docs/product/USER_GUIDE.md) —— 安装启动、模型配置、创作流程、备份恢复、项目包、视频生成
+- [故障排查](./docs/product/TROUBLESHOOTING.md) —— AI 失败、视频平台、数据库备份、项目包、日志诊断
+- [Prompt 工程指南](./docs/engineering/PROMPT_GUIDE.md) —— prompt 体系、JSON 输出规范、模板系统、多 Agent 编剧室
+- [AI 视频生成链路指南](./docs/engineering/AI_VIDEO_GUIDE.md) —— 剧本→分镜→镜头→视频平台、各平台 Prompt 要点与风险
+- [发布打包](./docs/release/RELEASE.md) —— 打包 smoke、签名公证、自动更新源和回滚策略
+- [RC 草稿](./docs/release/RELEASE_CANDIDATE.md) —— 发布候选检查结果、release notes 和拟定 tag 命令
+- [ROADMAP](./docs/product/ROADMAP.md) —— 版本规划与进度
 
 ## AI 调用路径
 
