@@ -44,6 +44,7 @@ export const INSPIRATION_SOURCE_LABELS: Record<InspirationCardSourceKind, string
   case_study: '样本卡片',
   template: '模板',
   anti_trope: '反套路',
+  mobile_import: '移动导入',
 }
 
 export function buildInspirationCards(input: InspirationCardInput): InspirationCard[] {
@@ -55,7 +56,7 @@ export function buildInspirationCards(input: InspirationCardInput): InspirationC
 
   const favorites = new Map((input.favorites ?? []).map((favorite) => [favorite.cardKey, favorite]))
   const seen = new Set<string>()
-  return cards
+  const liveCards = cards
     .filter((card) => {
       if (!card.pattern.trim()) return false
       if (seen.has(card.key)) return false
@@ -63,6 +64,13 @@ export function buildInspirationCards(input: InspirationCardInput): InspirationC
       return true
     })
     .map((card) => ({ ...card, favorite: favorites.get(card.key) }))
+  const favoriteCards = (input.favorites ?? [])
+    .filter((favorite) => !seen.has(favorite.cardKey) && favorite.pattern.trim())
+    .map((favorite) => {
+      seen.add(favorite.cardKey)
+      return cardFromFavorite(favorite)
+    })
+  return [...liveCards, ...favoriteCards]
 }
 
 export function favoritePayloadFromCard(projectId: string, card: InspirationCard): Omit<InspirationFavorite, 'id' | 'createdAt' | 'updatedAt'> {
@@ -238,6 +246,26 @@ function cardFromAntiTropeVariant(variant: AntiTropeVariant): InspirationCard {
     applyTo: variant.sampleRewrite ? `可替换片段：${excerpt(variant.sampleRewrite, 120)}` : '章节反转 / 冲突升级',
     risk: variant.risks.join('；') || undefined,
   })
+}
+
+function cardFromFavorite(favorite: InspirationFavorite): InspirationCard {
+  return {
+    key: favorite.cardKey,
+    sourceKind: favorite.sourceKind,
+    sourceId: favorite.sourceId,
+    sourceTitle: sourceTitleFromFavorite(favorite),
+    kind: favorite.kind,
+    title: favorite.title,
+    pattern: favorite.pattern,
+    applyTo: favorite.applyTo,
+    risk: favorite.risk,
+    favorite,
+  }
+}
+
+function sourceTitleFromFavorite(favorite: InspirationFavorite): string {
+  if (favorite.sourceKind === 'mobile_import') return favorite.sourceId?.replace(/^mobile:/, '') || '移动灵感记录'
+  return '收藏快照'
 }
 
 function mapCaseCardKind(kind: CreativeCaseCard['kind']): InspirationCardKind {

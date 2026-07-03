@@ -3,6 +3,7 @@ export * from './schemas'
 export * from './constants'
 export * from './ipc-contract'
 export * from './structure-snapshot'
+export * from './mobile-inspiration'
 // v0.8 内置 Agent / 类型预设种子数据（仅在 db seed 时使用，不进 UI 常量）
 export {
   BUILT_IN_AGENTS,

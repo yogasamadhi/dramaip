@@ -29,6 +29,8 @@ import type {
   GlobalSearchResponse,
   HighlightAnalysis,
   InspirationFavorite,
+  MobileInspirationImportInput,
+  MobileInspirationImportSummary,
   LongTask,
   ModelConfig,
   NarrativeCurveReport,
@@ -446,6 +448,7 @@ export interface StudioApi {
         applyTo: string
       },
     ): Promise<InspirationFavorite>
+    importMobile(data: MobileInspirationImportInput): Promise<MobileInspirationImportSummary>
     remove(id: string): Promise<boolean>
     removeByCardKey(projectId: string, cardKey: string): Promise<boolean>
   }

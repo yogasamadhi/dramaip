@@ -105,7 +105,7 @@ export const inspirationFavorites = sqliteTable('inspiration_favorites', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   cardKey: text('card_key').notNull(),
-  sourceKind: text('source_kind', { enum: ['genre_preset', 'case_study', 'template', 'anti_trope'] }).notNull(),
+  sourceKind: text('source_kind', { enum: ['genre_preset', 'case_study', 'template', 'anti_trope', 'mobile_import'] }).notNull(),
   sourceId: text('source_id'),
   kind: text('kind', { enum: ['opening', 'relationship', 'conflict', 'reversal', 'cliffhanger', 'visual'] }).notNull(),
   title: text('title').notNull(),
