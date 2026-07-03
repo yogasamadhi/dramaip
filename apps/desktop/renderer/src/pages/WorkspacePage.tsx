@@ -1,10 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
 import type { AiRun, Chapter, Project, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import {
+  buildProjectWorkflowStages,
+  type ProjectWorkflowSnapshot,
+  type ProjectWorkflowStage,
+  type ProjectWorkflowStageKey,
+} from '@/lib/projectWorkflowGuide'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -83,6 +89,50 @@ export function WorkspacePage() {
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [dataVersion, setDataVersion] = useState(0)
   const [generateIdea, setGenerateIdea] = useState('')
+  const [workflowSnapshot, setWorkflowSnapshot] = useState<ProjectWorkflowSnapshot | null>(null)
+  const chapterWorkflowKey = chapters.map((chapter) => `${chapter.id}:${Boolean(chapter.content.trim())}`).join('|')
+
+  const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
+    const [characters, outlines, qualityReports, adaptations] = await Promise.all([
+      ipc.character.list(currentProject.id),
+      ipc.outline.list(currentProject.id),
+      ipc.creative.listQualityGates(currentProject.id),
+      ipc.adaptationProject.listByProject(currentProject.id),
+    ])
+
+    const primaryAdaptation = adaptations[0]
+    let episodes: ProjectWorkflowSnapshot['episodes'] = []
+    let scripts: ProjectWorkflowSnapshot['scripts'] = []
+    let scenes: ProjectWorkflowSnapshot['scenes'] = []
+    let shots: ProjectWorkflowSnapshot['shots'] = []
+    let videoTasks: ProjectWorkflowSnapshot['videoTasks'] = []
+
+    if (primaryAdaptation) {
+      episodes = await ipc.episode.list(primaryAdaptation.id)
+      scripts = await ipc.script.list(primaryAdaptation.id)
+      scenes = (await Promise.all(scripts.map((script) => ipc.scene.listByScript(script.id)))).flat()
+      shots = (await Promise.all(episodes.map((episode) => ipc.shot.listByEpisode(episode.id)))).flat()
+      const taskGroups = await Promise.all(
+        episodes.map((episode) => ipc.videoTask.listByEpisode(episode.id)),
+      )
+      const taskMap = new Map(taskGroups.flat().map((task) => [task.id, task]))
+      videoTasks = [...taskMap.values()]
+    }
+
+    setWorkflowSnapshot({
+      project: currentProject,
+      chapters: projectChapters,
+      characters,
+      outlines,
+      qualityReports,
+      adaptations,
+      episodes,
+      scripts,
+      scenes,
+      shots,
+      videoTasks,
+    })
+  }, [])
 
   const loadProject = useCallback(async () => {
     if (!id) return
@@ -92,6 +142,12 @@ export function WorkspacePage() {
     setChapters(cs)
     setSelectedId((prev) => (prev && cs.some((c) => c.id === prev) ? prev : (cs[0]?.id ?? null)))
   }, [id])
+
+  useEffect(() => {
+    if (project) void loadWorkflowSnapshot(project, chapters)
+    else setWorkflowSnapshot(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot])
 
   const loadAiRuns = useCallback(async () => {
     if (!id) return
@@ -237,6 +293,42 @@ export function WorkspacePage() {
       await onChapterUpdated()
     } else {
       toast.error('保存失败：' + (res.error ?? '未知错误'))
+    }
+  }
+
+  const workflowStages = workflowSnapshot ? buildProjectWorkflowStages(workflowSnapshot) : []
+  const primaryAdaptation = workflowSnapshot?.adaptations[0]
+
+  function openAdaptationPath(path: 'overview' | 'scripts' | 'shots' | 'video') {
+    if (!project) return
+    if (!primaryAdaptation) {
+      navigate(`/adaptations/new?source=${project.id}`)
+      return
+    }
+    const suffix = path === 'overview' ? '' : `/${path}`
+    navigate(`/adaptations/${primaryAdaptation.id}${suffix}`)
+  }
+
+  function handleWorkflowStageAction(stageKey: ProjectWorkflowStageKey) {
+    if (!project) return
+    if (stageKey === 'setup') {
+      setSection('overview')
+    } else if (stageKey === 'characters') {
+      setSection('characters')
+    } else if (stageKey === 'outline') {
+      setSection('outline')
+    } else if (stageKey === 'chapters') {
+      setSection('chapters')
+    } else if (stageKey === 'quality') {
+      setSection('quality-gates')
+    } else if (stageKey === 'adaptation') {
+      openAdaptationPath('overview')
+    } else if (stageKey === 'scripts') {
+      openAdaptationPath('scripts')
+    } else if (stageKey === 'shots') {
+      openAdaptationPath('shots')
+    } else if (stageKey === 'video') {
+      openAdaptationPath('video')
     }
   }
 
@@ -387,6 +479,29 @@ export function WorkspacePage() {
             <ScrollArea className="h-full">
               <div className="space-y-3 p-6 text-sm">
                 <h2 className="text-lg font-semibold">{project.title}</h2>
+                {workflowStages.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">主流程</div>
+                        <div className="text-xs text-muted-foreground">小说创作到短剧视频资产</div>
+                      </div>
+                      <Badge variant="secondary">
+                        {workflowStages.filter((stage) => stage.complete).length}/{workflowStages.length}
+                      </Badge>
+                    </div>
+                    <div className="overflow-hidden rounded-md border">
+                      {workflowStages.map((stage, index) => (
+                        <WorkflowStageRow
+                          key={stage.key}
+                          index={index}
+                          stage={stage}
+                          onOpen={() => handleWorkflowStageAction(stage.key)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-md border bg-muted/30 p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
@@ -616,6 +731,51 @@ function Meta({ label, value }: { label: string; value?: string | number }) {
     <div>
       <span className="text-muted-foreground">{label}：</span>
       <span>{value ?? '—'}</span>
+    </div>
+  )
+}
+
+function WorkflowStageRow({
+  index,
+  stage,
+  onOpen,
+}: {
+  index: number
+  stage: ProjectWorkflowStage
+  onOpen: () => void
+}) {
+  const statusLabel = stage.status === 'done' ? '完成' : stage.status === 'active' ? '当前' : '待办'
+
+  return (
+    <div className="flex items-center gap-3 border-b px-3 py-2 last:border-b-0">
+      <div
+        className={cn(
+          'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium',
+          stage.status === 'done'
+            ? 'bg-primary text-primary-foreground'
+            : stage.status === 'active'
+              ? 'bg-accent text-accent-foreground'
+              : 'bg-muted text-muted-foreground',
+        )}
+      >
+        {index + 1}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{stage.title}</span>
+          <Badge variant={stage.status === 'done' ? 'default' : 'secondary'}>{statusLabel}</Badge>
+        </div>
+        <div className="truncate text-xs text-muted-foreground">{stage.detail}</div>
+      </div>
+      <Button
+        size="sm"
+        variant={stage.status === 'active' ? 'default' : 'outline'}
+        className="shrink-0"
+        onClick={onOpen}
+      >
+        {stage.actionLabel}
+        <ChevronRight />
+      </Button>
     </div>
   )
 }
