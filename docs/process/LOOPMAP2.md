@@ -152,7 +152,7 @@
 | LM2-03 | P0 | 产品体验/创作闭环 | done | 增加阶段门禁与就绪检查 | 质量闸门、项目概览、改编创建入口 | 创建改编前展示小说就绪项：章节数、人物、大纲、记忆、质量闸门阻塞项；允许继续但风险明确 | `pnpm typecheck`；相关质量闸门单测或手工 smoke | LM2-02 |
 | LM2-04 | P0 | AI 产品/基础设施 | done | 建立对话式 Agent 指挥台 MVP | 项目对话、AI run router、任务识别、预览采用 | 用户可输入自然语言命令，系统识别目标实体与任务类型，生成执行计划并调用既有 AI workflow；高风险写入仍走预览 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：改章节、生成分集、拆镜头三类命令 | LM2-02 |
 | LM2-05 | P0 | AI 基础设施 | done | 上下文透明控制面板 | `AiContextPreviewDialog`、context builder、AI run 输入预览 | 每次 AI 生成前可查看将使用的上下文分段、token 估算、被裁剪项；用户可固定/排除章节、人物、样本和视觉档案 | `pnpm typecheck`；上下文预算/预览单测；手工 smoke | LM2-04 |
-| LM2-06 | P0 | 样本库/AI | todo | 智能拆书一期：导入与拆章 | 样本库、导入安全、章节解析、DB schema/repo | 支持导入 txt/md/docx 样本文档，按章节识别拆分，错误章节可人工修正；不保存到项目正文 | `pnpm typecheck`；文件导入安全测试；DB smoke 视 schema 变化执行 | LM2-00 |
+| LM2-06 | P0 | 样本库/AI | done | 智能拆书一期：导入与拆章 | 样本库、导入安全、章节解析、DB schema/repo | 支持导入 txt/md/docx 样本文档，按章节识别拆分，错误章节可人工修正；不保存到项目正文 | `pnpm typecheck`；文件导入安全测试；DB smoke 视 schema 变化执行 | LM2-00 |
 | LM2-07 | P0 | 样本库/AI | todo | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
 | LM2-08 | P0 | 创作闭环 | todo | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
 | LM2-09 | P0 | AI 安全/体验 | todo | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
@@ -376,4 +376,19 @@ Push: git push origin main succeeded to Gitee, updating main from f3f26de to 967
 Loop branch cleanup: git branch -d loop/lm2-05-context-control-panel succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Project generation, chapter assistant actions, and Agent commands now open a preflight context panel with token estimates, budget trimming, and pin/auto/exclude controls for chapters, characters, samples, and visual profiles; selected controls are passed into the AI workflow and applied when loading project context.
+```
+
+```text
+Loop: LM2-06
+Target branch: main
+Loop branch: loop/lm2-06-sample-import-chapters
+Commit: c6b520b loop(LM2-06): add sample document chapter import
+Merge commit: b5aa3fb merge: lm2-06 sample import chapters
+Verification: git diff --check passed before and after merge; pnpm format:check passed; pnpm typecheck passed; node --import tsx --test tests/case-study-import.test.ts tests/file-import-security.test.ts tests/ipc-contract.test.ts passed; pnpm test:unit passed with 82 tests; pnpm test:db passed with migration replay and DB smoke; pnpm test:e2e passed after building and launching Electron smoke.
+Diff review: reviewed staged diff and final origin/main...HEAD stat; changes were limited to sample chapter parser, case study import IPC/preload/renderer contracts, CaseStudyPage import review UI, case study document/chapter DB schema and repo APIs, migration replay assertions, and parser tests.
+Remote sync: git fetch origin succeeded before starting LM2-06 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 57abd90 to b5aa3fb.
+Loop branch cleanup: git branch -d loop/lm2-06-sample-import-chapters succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Sample library now imports .md/.txt/.docx, parses Chinese/English/Markdown chapter headings, lets users correct pending split titles/body text, and saves only document/chapter metadata plus short previews. Full imported text remains transient for correction or the existing redacted AI extraction path, and is not written to project chapters.
 ```
