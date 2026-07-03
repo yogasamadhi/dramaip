@@ -160,7 +160,7 @@ export function ScriptWorkspacePage() {
         </Button>
         <h1 className="text-base font-semibold">{adaptation.title} · AI 短剧剧本</h1>
         <Badge variant="secondary">{scripts.length} / {episodes.length} 集剧本</Badge>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -170,6 +170,12 @@ export function ScriptWorkspacePage() {
           >
             {busy === 'batch' ? <Loader2 className="animate-spin" /> : <ListVideo />}
             批量生成前 10 集
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaEpisodeDeliveryMarkdown(adaptation.id)}>
+            <Download /> 交付包
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaEpisodeDeliveryJson(adaptation.id)}>
+            <FileJson /> 交付 JSON
           </Button>
           <Button size="sm" variant="outline" onClick={() => ipc.export.scriptsMarkdown(adaptation.id)}>
             <Download /> Markdown

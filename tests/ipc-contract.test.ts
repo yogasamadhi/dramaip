@@ -258,6 +258,12 @@ test('validates creative IPC contracts', () => {
     { includeAssets: true },
   ])
   assert.throws(() => validateIpcArgs('export:projectPackage', ['p1', { includeAssets: true, token: 'secret' }]), /Unrecognized|unrecognized|无法识别/)
+  assert.deepEqual(validateIpcArgs('export:dramaProposalMarkdown', ['a1', { episodeLimit: 10 }]), [
+    'a1',
+    { episodeLimit: 10 },
+  ])
+  assert.deepEqual(validateIpcArgs('export:dramaShotDeliveryCsv', ['a1']), ['a1'])
+  assert.throws(() => validateIpcArgs('export:dramaEpisodeDeliveryJson', ['a1', { episodeLimit: 10, token: 'secret' }]), /Unrecognized|unrecognized|无法识别/)
   assert.deepEqual(validateIpcArgs('longTask:list', []), [])
   assert.deepEqual(validateIpcArgs('longTask:list', ['p1']), ['p1'])
   assert.deepEqual(validateIpcArgs('longTask:cancel', ['task1']), ['task1'])

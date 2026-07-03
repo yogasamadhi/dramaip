@@ -10,6 +10,13 @@ import {
   exportProjectMarkdown,
   exportNovelSubmissionJson,
   exportNovelSubmissionMarkdown,
+  exportDramaEpisodeDeliveryJson,
+  exportDramaEpisodeDeliveryMarkdown,
+  exportDramaProposalJson,
+  exportDramaProposalMarkdown,
+  exportDramaShotDeliveryCsv,
+  exportDramaShotDeliveryJson,
+  exportDramaShotDeliveryMarkdown,
   exportScriptJson,
   exportScriptMarkdown,
   exportScriptsJson,
@@ -22,6 +29,8 @@ import {
   previewProjectPackage,
   importProjectPackage,
   type ProjectPackageOptions,
+  type DramaDeliveryExportData,
+  type DramaDeliveryExportOptions,
   type NovelSubmissionExportData,
   type NovelSubmissionExportOptions,
 } from '@sdns/export'
@@ -78,6 +87,34 @@ export function registerExportIpc(): void {
     }
   }
 
+  function collectDramaDeliveryData(adaptationId: string): DramaDeliveryExportData | undefined {
+    const r = repos()
+    const adaptation = r.adaptationProject.getAdaptationProject(r.db, adaptationId)
+    if (!adaptation) return undefined
+    const project = adaptation.sourceProjectId ? r.project.getProject(r.db, adaptation.sourceProjectId) : undefined
+    const characters = adaptation.sourceProjectId ? r.character.listCharacters(r.db, adaptation.sourceProjectId) : []
+    const episodes = r.episode.listEpisodes(r.db, adaptationId)
+    const scripts = r.script.listScripts(r.db, adaptationId)
+    const scenes = scripts.flatMap((script) => r.scene.listScenesByScript(r.db, script.id))
+    const shots = scenes.flatMap((scene) => r.shot.listShotsByScene(r.db, scene.id))
+    return {
+      project,
+      adaptation,
+      characters,
+      episodes,
+      episodeAnalysis: r.episodeAnalysis.getEpisodeAnalysis(r.db, adaptationId),
+      scripts,
+      scenes,
+      shots,
+      scriptReviews: scripts
+        .map((script) => r.scriptReview.getScriptReview(r.db, script.id))
+        .filter((review): review is NonNullable<typeof review> => Boolean(review)),
+      shotReviews: shots
+        .map((shot) => r.shotReview.getShotReview(r.db, shot.id))
+        .filter((review): review is NonNullable<typeof review> => Boolean(review)),
+    }
+  }
+
   ipcMain.handle('export:projectMarkdown', async (_e, projectId: string) => {
     const db = repos().db
     const project = repos().project.getProject(db, projectId)
@@ -113,6 +150,55 @@ export function registerExportIpc(): void {
     if (!data) return notFound('项目')
     const json = exportNovelSubmissionJson(data, options)
     return saveFile(`${data.project.title}-小说投稿包.json`, json, [{ name: 'JSON', extensions: ['json'] }])
+  })
+
+  ipcMain.handle('export:dramaProposalMarkdown', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const md = exportDramaProposalMarkdown(data, options)
+    return saveFile(`${data.adaptation.title}-短剧提案包.md`, md, [{ name: 'Markdown', extensions: ['md'] }])
+  })
+
+  ipcMain.handle('export:dramaProposalJson', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const json = exportDramaProposalJson(data, options)
+    return saveFile(`${data.adaptation.title}-短剧提案包.json`, json, [{ name: 'JSON', extensions: ['json'] }])
+  })
+
+  ipcMain.handle('export:dramaEpisodeDeliveryMarkdown', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const md = exportDramaEpisodeDeliveryMarkdown(data, options)
+    return saveFile(`${data.adaptation.title}-分集交付包.md`, md, [{ name: 'Markdown', extensions: ['md'] }])
+  })
+
+  ipcMain.handle('export:dramaEpisodeDeliveryJson', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const json = exportDramaEpisodeDeliveryJson(data, options)
+    return saveFile(`${data.adaptation.title}-分集交付包.json`, json, [{ name: 'JSON', extensions: ['json'] }])
+  })
+
+  ipcMain.handle('export:dramaShotDeliveryMarkdown', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const md = exportDramaShotDeliveryMarkdown(data, options)
+    return saveFile(`${data.adaptation.title}-分镜交付包.md`, md, [{ name: 'Markdown', extensions: ['md'] }])
+  })
+
+  ipcMain.handle('export:dramaShotDeliveryJson', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const json = exportDramaShotDeliveryJson(data, options)
+    return saveFile(`${data.adaptation.title}-分镜交付包.json`, json, [{ name: 'JSON', extensions: ['json'] }])
+  })
+
+  ipcMain.handle('export:dramaShotDeliveryCsv', async (_e, adaptationId: string, options?: DramaDeliveryExportOptions) => {
+    const data = collectDramaDeliveryData(adaptationId)
+    if (!data) return notFound('改编项目')
+    const csv = exportDramaShotDeliveryCsv(data, options)
+    return saveFile(`${data.adaptation.title}-分镜交付表.csv`, csv, [{ name: 'CSV', extensions: ['csv'] }])
   })
 
   ipcMain.handle('export:chapterMarkdown', async (_e, chapterId: string) => {
