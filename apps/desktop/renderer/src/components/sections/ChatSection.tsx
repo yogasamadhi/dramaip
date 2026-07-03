@@ -1,8 +1,14 @@
 // ChatSection —— 项目对话（与 AI 多轮对话逐步聊清项目设定，字段实时写回）
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Send, Sparkles, Wand2 } from 'lucide-react'
+import { Loader2, Play, Send, Sparkles, Wand2 } from 'lucide-react'
+import { TASK_TYPE_LABELS, type TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import {
+  buildAgentCommandPlan,
+  type AgentCommandContext,
+  type AgentCommandPlan,
+} from '@/lib/agentCommandPlanner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -14,6 +20,9 @@ interface ChatMessage {
   content: string
   /** 本轮更新的字段（仅 assistant 消息有） */
   patches?: string[]
+  commandPlan?: AgentCommandPlan
+  commandStatus?: 'pending' | 'running' | 'done' | 'failed'
+  commandResult?: string
 }
 
 /** 项目可更新字段 → 中文标签，用于提示用户哪些被更新了 */
@@ -65,12 +74,25 @@ interface Props {
   /** 项目当前设定是否几乎为空（用于决定 AI 是否主动开场） */
   onGenerate: (taskType: PreviewTaskType, userInstruction?: string) => void
   generating: PreviewTaskType | null
+  commandContext?: AgentCommandContext
+  onTextPreview?: (preview: TextDiffPreviewPayload) => void
+  onGeneratePreview?: (payload: { taskType: PreviewTaskType; data: unknown; adaptationProjectId?: string }) => void
+  onCommandCompleted?: () => void
 }
 
-export function ChatSection({ projectId, onGenerate, generating }: Props) {
+export function ChatSection({
+  projectId,
+  onGenerate,
+  generating,
+  commandContext,
+  onTextPreview,
+  onGeneratePreview,
+  onCommandCompleted,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
+  const [commandRunningIndex, setCommandRunningIndex] = useState<number | null>(null)
   const [project, setProject] = useState<{ title?: string; shortDramaType?: string; coreHook?: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -104,6 +126,23 @@ export function ChatSection({ projectId, onGenerate, generating }: Props) {
     const text = input.trim()
     if (!text || busy) return
     setInput('')
+    const commandPlan = commandContext ? buildAgentCommandPlan(text, commandContext) : null
+    if (commandPlan) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: text },
+        {
+          role: 'assistant',
+          content: commandPlan.status === 'ready'
+            ? '我把这条指令整理成了执行计划，确认后再调用 AI。'
+            : '这条指令还缺少执行条件，先把卡点列出来。',
+          commandPlan,
+          commandStatus: 'pending',
+        },
+      ])
+      return
+    }
+
     const nextHistory: ChatMessage[] = [...messages, { role: 'user', content: text }]
     const assistantIndex = nextHistory.length
     setMessages([...nextHistory, { role: 'assistant', content: '' }])
@@ -165,11 +204,75 @@ export function ChatSection({ projectId, onGenerate, generating }: Props) {
     }
   }
 
+  async function executeCommand(plan: AgentCommandPlan, assistantIndex: number) {
+    if (plan.status !== 'ready' || !plan.input || commandRunningIndex !== null) return
+    if (plan.confirmBeforeRun) {
+      const shouldRun = window.confirm(`${plan.title}会${plan.warnings.join('；')}。继续执行？`)
+      if (!shouldRun) return
+    }
+
+    setCommandRunningIndex(assistantIndex)
+    setMessages((prev) =>
+      prev.map((message, index) => (
+        index === assistantIndex ? { ...message, commandStatus: 'running', commandResult: undefined } : message
+      )),
+    )
+    const label = TASK_TYPE_LABELS[plan.taskType] ?? plan.taskType
+    const toastId = toast.loading(`正在执行：${label}…`)
+    try {
+      const res = await ipc.ai.run(plan.input)
+      if (!res.ok) {
+        const error = res.error ?? '未知错误'
+        toast.error(`${label}失败：${error}`, { id: toastId })
+        setMessages((prev) =>
+          prev.map((message, index) => (
+            index === assistantIndex
+              ? { ...message, commandStatus: 'failed', commandResult: `执行失败：${error}` }
+              : message
+          )),
+        )
+        return
+      }
+
+      let resultText = `${label}已完成。`
+      if (res.result?.kind === 'text_preview') {
+        onTextPreview?.(res.result.data as TextDiffPreviewPayload)
+        resultText = '已生成文本差异预览，确认采用后才会写入。'
+      } else if (plan.resultMode === 'artifact_preview' && res.result) {
+        onGeneratePreview?.({
+          taskType: plan.taskType as PreviewTaskType,
+          data: res.result.data,
+          adaptationProjectId: plan.input.adaptationProjectId,
+        })
+        resultText = '已生成结构化预览，确认采用后才会写入。'
+      } else {
+        onCommandCompleted?.()
+        resultText = plan.resultMode === 'auto_write' ? '已执行并刷新项目状态。' : resultText
+      }
+      toast.success(label + '完成', { id: toastId })
+      setMessages((prev) =>
+        prev.map((message, index) => (
+          index === assistantIndex ? { ...message, commandStatus: 'done', commandResult: resultText } : message
+        )),
+      )
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      toast.error(`${label}异常：${error}`, { id: toastId })
+      setMessages((prev) =>
+        prev.map((message, index) => (
+          index === assistantIndex ? { ...message, commandStatus: 'failed', commandResult: `执行异常：${error}` } : message
+        )),
+      )
+    } finally {
+      setCommandRunningIndex(null)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-4 py-2">
         <Sparkles className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-semibold">项目对话</h2>
+        <h2 className="text-sm font-semibold">Agent 指挥台</h2>
         {project?.shortDramaType && <Badge variant="secondary">{project.shortDramaType}</Badge>}
         <div className="ml-auto">
           <Button
@@ -210,6 +313,15 @@ export function ChatSection({ projectId, onGenerate, generating }: Props) {
                     ))}
                   </div>
                 )}
+                {m.commandPlan && (
+                  <CommandPlanCard
+                    plan={m.commandPlan}
+                    status={m.commandStatus ?? 'pending'}
+                    result={m.commandResult}
+                    running={commandRunningIndex !== null}
+                    onRun={() => executeCommand(m.commandPlan as AgentCommandPlan, i)}
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -227,7 +339,7 @@ export function ChatSection({ projectId, onGenerate, generating }: Props) {
                 void send()
               }
             }}
-            placeholder="和 AI 聊聊你的项目设定…（回车发送）"
+            placeholder="输入项目想法，或直接下达创作指令…"
             disabled={busy}
           />
           <Button size="icon" onClick={send} disabled={busy || !input.trim()}>
@@ -235,9 +347,67 @@ export function ChatSection({ projectId, onGenerate, generating }: Props) {
           </Button>
         </div>
         <p className="mt-1 px-1 text-[11px] text-muted-foreground">
-          AI 会逐步问你类型、卖点、钩子、受众等，聊清楚的字段会自动填进「项目概览」。
+          可聊设定，也可让 Agent 先列计划再执行章节、分集和分镜任务。
         </p>
       </div>
+    </div>
+  )
+}
+
+function CommandPlanCard({
+  plan,
+  status,
+  result,
+  running,
+  onRun,
+}: {
+  plan: AgentCommandPlan
+  status: 'pending' | 'running' | 'done' | 'failed'
+  result?: string
+  running: boolean
+  onRun: () => void
+}) {
+  const resultModeLabel = plan.resultMode === 'text_preview'
+    ? '差异预览'
+    : plan.resultMode === 'artifact_preview'
+      ? '结构预览'
+      : '确认后写入'
+
+  return (
+    <div className="mt-2 rounded-md border bg-background/80 p-3 text-xs text-foreground">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <Badge variant="outline">{TASK_TYPE_LABELS[plan.taskType] ?? plan.taskType}</Badge>
+        <Badge variant={plan.resultMode === 'auto_write' ? 'destructive' : 'secondary'}>
+          {resultModeLabel}
+        </Badge>
+      </div>
+      <div className="space-y-1">
+        <div className="text-sm font-medium">{plan.title}</div>
+        <div className="text-muted-foreground">目标：{plan.targetLabel}</div>
+        <div className="text-muted-foreground">{plan.summary}</div>
+      </div>
+      {(plan.warnings.length > 0 || plan.blockedReasons.length > 0) && (
+        <div className="mt-2 space-y-1 text-muted-foreground">
+          {plan.blockedReasons.map((reason) => (
+            <div key={reason}>卡点：{reason}</div>
+          ))}
+          {plan.warnings.map((warning) => (
+            <div key={warning}>提示：{warning}</div>
+          ))}
+        </div>
+      )}
+      {result && <div className="mt-2 text-muted-foreground">{result}</div>}
+      {plan.status === 'ready' && status !== 'done' && (
+        <Button size="sm" className="mt-3" onClick={onRun} disabled={running || status === 'running'}>
+          {status === 'running' ? <Loader2 className="animate-spin" /> : <Play />}
+          执行计划
+        </Button>
+      )}
+      {status === 'done' && (
+        <Badge variant="secondary" className="mt-3">
+          已完成
+        </Badge>
+      )}
     </div>
   )
 }

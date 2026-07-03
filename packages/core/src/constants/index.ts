@@ -44,7 +44,7 @@ export interface WorkspaceNavGroup {
 export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
-  { key: 'chat', label: '项目对话' },
+  { key: 'chat', label: 'Agent 指挥台' },
   { key: 'characters', label: '人物卡' },
   { key: 'outline', label: '大纲' },
   { key: 'chapters', label: '章节' },
