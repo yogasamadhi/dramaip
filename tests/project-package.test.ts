@@ -89,7 +89,7 @@ function minimalPackage(): ProjectPackage {
       {
         adaptation: { id: 'a1', sourceProjectId: 'p1', title: 'Demo Adaptation' },
         episodes: [{ id: 'e1', adaptationProjectId: 'a1' }],
-        scripts: [{ script: { id: 's1', adaptationProjectId: 'a1', episodeId: 'e1' }, scenes: [{ id: 'sc1', scriptId: 's1' }] }],
+        scripts: [{ script: { id: 's1', adaptationProjectId: 'a1', episodeId: 'e1' }, scenes: [{ id: 'sc1', scriptId: 's1' }], shots: [] }],
       },
     ],
     aiRuns: [{ id: 'run1', graphName: 'novel_workflow', type: 'generate_project', provider: 'mock', model: 'mock', input: '', output: '', status: 'success' }],
@@ -109,6 +109,100 @@ test('serializes and parses a project package roundtrip', () => {
   assert.equal(parsed.inspirationFavorites.length, 1)
   assert.deepEqual(parsed.assets, [])
   assert.equal(parsed.adaptations[0].scripts[0].scenes.length, 1)
+  assert.deepEqual(parsed.adaptations[0].scripts[0].shots, [])
+})
+
+test('serializes video preproduction asset manifests', () => {
+  const pkg = minimalPackage()
+  pkg.visualProfiles = [
+    {
+      id: 'vp1',
+      projectId: 'p1',
+      characterId: 'char1',
+      appearancePrompt: '黑色风衣，冷白皮，雨夜反光。',
+      castingPrompt: '25-30 岁，清冷克制，眼神有压迫感。',
+      actorReferenceUrl: 'https://asset.example.test/cast.png',
+      voiceTone: '低频、克制、尾音短。',
+      voiceSampleUrl: 'https://asset.example.test/voice.mp3',
+      createdAt: pkg.meta.exportedAt,
+      updatedAt: pkg.meta.exportedAt,
+    },
+  ]
+  pkg.assets = [
+    {
+      id: 'asset-cast',
+      projectId: 'p1',
+      kind: 'casting_reference',
+      title: '女主选角参考',
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: 'vp1',
+      remoteUrl: 'https://asset.example.test/cast.png',
+      mimeType: 'image/png',
+      tags: ['选角参考'],
+      metadata: { characterId: 'char1' },
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+      createdAt: pkg.meta.exportedAt,
+      updatedAt: pkg.meta.exportedAt,
+    },
+    {
+      id: 'asset-first-frame',
+      projectId: 'p1',
+      kind: 'first_frame_image',
+      title: '镜头首帧',
+      sourceEntityKind: 'shot',
+      sourceEntityId: 'shot1',
+      remoteUrl: 'https://asset.example.test/first-frame.png',
+      mimeType: 'image/png',
+      tags: ['首帧图'],
+      metadata: { sceneId: 'sc1' },
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+      createdAt: pkg.meta.exportedAt,
+      updatedAt: pkg.meta.exportedAt,
+    },
+    {
+      id: 'asset-subtitle',
+      projectId: 'p1',
+      kind: 'subtitle_file',
+      title: '镜头字幕',
+      sourceEntityKind: 'shot',
+      sourceEntityId: 'shot1',
+      remoteUrl: 'https://asset.example.test/subtitle.srt',
+      mimeType: 'application/x-subrip',
+      tags: ['字幕文件'],
+      metadata: { sceneId: 'sc1' },
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+      createdAt: pkg.meta.exportedAt,
+      updatedAt: pkg.meta.exportedAt,
+    },
+  ]
+  pkg.adaptations[0].scripts[0].shots = [
+    {
+      id: 'shot1',
+      sceneId: 'sc1',
+      episodeId: 'e1',
+      shotNumber: 1,
+      visualDescription: '雨夜门口，女主抬眼。',
+      characterIds: ['char1'],
+      videoPrompt: '',
+      createdAt: pkg.meta.exportedAt,
+      updatedAt: pkg.meta.exportedAt,
+    },
+  ]
+
+  const serialized = serializeProjectPackage(pkg)
+  const parsed = parseProjectPackage(serialized)
+  const preview = previewProjectPackage(serialized)
+
+  assert.equal(parsed.meta.version, PACKAGE_VERSION)
+  assert.equal(parsed.visualProfiles[0].castingPrompt, '25-30 岁，清冷克制，眼神有压迫感。')
+  assert.equal(parsed.visualProfiles[0].voiceTone, '低频、克制、尾音短。')
+  assert.equal(parsed.adaptations[0].scripts[0].shots[0].id, 'shot1')
+  assert.equal(parsed.assets.map((asset) => asset.kind).join(','), 'casting_reference,first_frame_image,subtitle_file')
+  assert.equal(preview.counts.shots, 1)
+  assert.equal(preview.counts.assets, 3)
 })
 
 test('previews project package version, title, and data scale', () => {
@@ -125,6 +219,7 @@ test('previews project package version, title, and data scale', () => {
   assert.equal(preview.counts.episodes, 1)
   assert.equal(preview.counts.scripts, 1)
   assert.equal(preview.counts.scenes, 1)
+  assert.equal(preview.counts.shots, 0)
   assert.equal(preview.counts.contentVersions, 1)
   assert.equal(preview.counts.assets, 0)
   assert.equal(preview.counts.aiRuns, 1)

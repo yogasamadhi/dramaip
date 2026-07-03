@@ -31,7 +31,20 @@ const workflowTemplateKey = enumFromValues(
 )
 const writingRoomTargetKind = enumFromValues(WRITING_ROOM_TARGET_KINDS, 'WritingRoomTargetKind')
 const creativeTargetKind = z.enum(['project', 'chapter', 'adaptation', 'episode', 'script', 'scene', 'shot'])
-const projectAssetKind = z.enum(['character_reference', 'scene_reference', 'style_reference', 'video_result', 'cover_image', 'source_media', 'other'])
+const projectAssetKind = z.enum([
+  'character_reference',
+  'casting_reference',
+  'voice_reference',
+  'scene_reference',
+  'style_reference',
+  'video_result',
+  'cover_image',
+  'first_frame_image',
+  'narration_audio',
+  'subtitle_file',
+  'source_media',
+  'other',
+])
 const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
 const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])

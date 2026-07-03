@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS character_visual_profiles (
   project_id TEXT NOT NULL,
   character_id TEXT NOT NULL,
   appearance_prompt TEXT NOT NULL,
+  casting_prompt TEXT,
   face_description TEXT,
   hairstyle TEXT,
   clothing_style TEXT,
@@ -197,6 +198,9 @@ CREATE TABLE IF NOT EXISTS character_visual_profiles (
   color_palette TEXT,
   negative_prompt TEXT,
   reference_image_url TEXT,
+  actor_reference_url TEXT,
+  voice_tone TEXT,
+  voice_sample_url TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

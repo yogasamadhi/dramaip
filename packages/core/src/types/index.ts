@@ -374,6 +374,7 @@ export interface CharacterVisualProfile {
   projectId: string
   characterId: string
   appearancePrompt: string
+  castingPrompt?: string
   faceDescription?: string
   hairstyle?: string
   clothingStyle?: string
@@ -383,6 +384,9 @@ export interface CharacterVisualProfile {
   colorPalette?: string
   negativePrompt?: string
   referenceImageUrl?: string
+  actorReferenceUrl?: string
+  voiceTone?: string
+  voiceSampleUrl?: string
   createdAt: string
   updatedAt: string
 }
@@ -889,10 +893,15 @@ export interface VideoProvider {
 
 export type ProjectAssetKind =
   | 'character_reference'
+  | 'casting_reference'
+  | 'voice_reference'
   | 'scene_reference'
   | 'style_reference'
   | 'video_result'
   | 'cover_image'
+  | 'first_frame_image'
+  | 'narration_audio'
+  | 'subtitle_file'
   | 'source_media'
   | 'other'
 export type ProjectAssetStatus = 'available' | 'missing' | 'remote_only'

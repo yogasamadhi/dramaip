@@ -60,6 +60,7 @@ import type {
   RevisionTask,
   Scene,
   Script,
+  Shot,
   StoryEvent,
   VisualSetting,
   WorkflowRun,
@@ -68,7 +69,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 5
+export const PACKAGE_VERSION = 6
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -118,7 +119,7 @@ export interface ProjectPackage {
   adaptations: Array<{
     adaptation: AdaptationProject
     episodes: Episode[]
-    scripts: Array<{ script: Script; scenes: Scene[] }>
+    scripts: Array<{ script: Script; scenes: Scene[]; shots: Shot[] }>
     episodeAnalysis?: EpisodeAnalysis
   }>
   aiRuns: AiRun[]
@@ -138,6 +139,7 @@ export interface ProjectPackageCounts {
   episodes: number
   scripts: number
   scenes: number
+  shots: number
   aiRuns: number
   contentVersions: number
   caseStudies: number
@@ -197,10 +199,11 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     .listAdaptationsByProject(db, projectId)
     .map((adaptation) => {
       const episodes = repos.episode.listEpisodes(db, adaptation.id)
-      const scripts = repos.script.listScripts(db, adaptation.id).map((script) => ({
-        script,
-        scenes: repos.scene.listScenesByScript(db, script.id),
-      }))
+      const scripts = repos.script.listScripts(db, adaptation.id).map((script) => {
+        const scenes = repos.scene.listScenesByScript(db, script.id)
+        const shots = scenes.flatMap((scene) => repos.shot.listShotsByScene(db, scene.id))
+        return { script, scenes, shots }
+      })
       const episodeAnalysis = repos.episodeAnalysis.getEpisodeAnalysis(db, adaptation.id) ?? undefined
       return { adaptation, episodes, scripts, episodeAnalysis }
     })
@@ -323,6 +326,10 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
     (sum, item) => sum + item.scripts.reduce((inner, script) => inner + script.scenes.length, 0),
     0,
   )
+  const shots = pkg.adaptations.reduce(
+    (sum, item) => sum + item.scripts.reduce((inner, script) => inner + (script.shots?.length ?? 0), 0),
+    0,
+  )
   const creativeReports =
     pkg.freshnessReports.length +
     pkg.antiTropeVariants.length +
@@ -354,6 +361,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
     episodes,
     scripts,
     scenes,
+    shots,
     aiRuns: pkg.aiRuns.length,
     contentVersions: pkg.contentVersions.length,
     caseStudies: pkg.caseStudies.length,
@@ -571,7 +579,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         episodeIdMap.set(ep.id, created.id)
         idMap.set(ep.id, created.id)
       }
-      for (const { script, scenes } of ap.scripts) {
+      for (const { script, scenes, shots = [] } of ap.scripts) {
         const newEpisodeId = script.episodeId ? episodeIdMap.get(script.episodeId) : undefined
         if (!newEpisodeId) continue
         const createdScript = repos.script.createScript(db, {
@@ -589,6 +597,17 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
             episodeId: newEpisodeId,
           })
           idMap.set(sc.id, createdScene.id)
+        }
+        for (const shot of shots) {
+          const newSceneId = idMap.get(shot.sceneId)
+          const mappedEpisodeId = idMap.get(shot.episodeId) ?? newEpisodeId
+          if (!newSceneId) continue
+          const createdShot = repos.shot.createShot(db, {
+            ...stripId(shot),
+            sceneId: newSceneId,
+            episodeId: mappedEpisodeId,
+          })
+          idMap.set(shot.id, createdShot.id)
         }
       }
       if (ap.episodeAnalysis) {

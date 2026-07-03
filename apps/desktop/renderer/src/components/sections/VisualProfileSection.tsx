@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { AlertTriangle, FilePlus2, ImagePlus, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Character, CharacterVisualProfile, ProjectAsset } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
-import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference } from '@/lib/assets'
+import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -82,33 +82,55 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
         setList((prev) => prev.map((x) => (x.id === p.id ? p : x)))
       }
     }
-    if (saved) await syncVisualProfileAsset(saved)
+    if (saved) await syncVisualProfileAssets(saved)
     setEditing(null)
     toast.success('已保存')
     await reload()
   }
 
-  async function syncVisualProfileAsset(profile: CharacterVisualProfile) {
-    const reference = profile.referenceImageUrl?.trim()
-    if (!reference) return
+  async function syncVisualProfileAssets(profile: CharacterVisualProfile) {
+    await syncVisualProfileAsset(profile, 'character_reference', profile.referenceImageUrl, {
+      title: `${nameById.get(profile.characterId) ?? '人物'}参考图`,
+      tags: ['角色参考图'],
+      metadata: { characterId: profile.characterId, role: 'appearance_reference' },
+    })
+    await syncVisualProfileAsset(profile, 'casting_reference', profile.actorReferenceUrl, {
+      title: `${nameById.get(profile.characterId) ?? '人物'}选角参考`,
+      tags: ['选角参考'],
+      metadata: { characterId: profile.characterId, role: 'casting_reference', castingPrompt: profile.castingPrompt },
+    })
+    await syncVisualProfileAsset(profile, 'voice_reference', profile.voiceSampleUrl, {
+      title: `${nameById.get(profile.characterId) ?? '人物'}音色样本`,
+      tags: ['音色参考'],
+      metadata: { characterId: profile.characterId, role: 'voice_reference', voiceTone: profile.voiceTone },
+    })
+  }
+
+  async function syncVisualProfileAsset(
+    profile: CharacterVisualProfile,
+    kind: ProjectAsset['kind'],
+    reference: string | undefined,
+    payloadInfo: Pick<ProjectAsset, 'title' | 'tags' | 'metadata'>,
+  ) {
     const existing = await ipc.asset.listBySource('visual_profile', profile.id)
-    const fields = assetFieldsFromReference(reference)
-    const alreadyLinked = existing.some((asset) =>
-      Boolean((fields.localPath && asset.localPath === fields.localPath) || (fields.remoteUrl && asset.remoteUrl === fields.remoteUrl)),
-    )
-    if (alreadyLinked) return
+    const linked = existing.find((asset) => asset.kind === kind)
+    const trimmed = reference?.trim()
+    if (!trimmed) {
+      if (linked) await ipc.asset.remove(linked.id)
+      return
+    }
+    const fields = assetFieldsFromReference(trimmed)
     const payload: Partial<ProjectAsset> & { projectId: string; kind: ProjectAsset['kind']; title: string } = {
       projectId,
-      kind: 'character_reference',
-      title: `${nameById.get(profile.characterId) ?? '人物'}参考图`,
+      kind,
+      title: payloadInfo.title,
       sourceEntityKind: 'visual_profile',
       sourceEntityId: profile.id,
       packagePolicy: 'reference_only',
-      tags: ['角色参考图'],
-      metadata: { characterId: profile.characterId },
+      tags: payloadInfo.tags,
+      metadata: payloadInfo.metadata,
       ...fields,
     }
-    const linked = existing.find((asset) => asset.kind === 'character_reference')
     if (linked) await ipc.asset.update(linked.id, payload)
     else await ipc.asset.create(payload)
   }
@@ -174,12 +196,16 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
                 </div>
                 <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                   <div className="whitespace-pre-wrap">外观 Prompt：{p.appearancePrompt}</div>
+                  {p.castingPrompt && <div>选角：{p.castingPrompt}</div>}
                   {p.faceDescription && <div>脸部：{p.faceDescription}</div>}
                   {p.hairstyle && <div>发型：{p.hairstyle}</div>}
                   {p.clothingStyle && <div>服装：{p.clothingStyle}</div>}
                   {p.temperament && <div>气质：{p.temperament}</div>}
+                  {p.voiceTone && <div>音色：{p.voiceTone}</div>}
                   {p.negativePrompt && <div>负面 Prompt：{p.negativePrompt}</div>}
                   {p.referenceImageUrl && <div>参考图：{p.referenceImageUrl}</div>}
+                  {p.actorReferenceUrl && <div>选角参考：{p.actorReferenceUrl}</div>}
+                  {p.voiceSampleUrl && <div>音色样本：{p.voiceSampleUrl}</div>}
                   <AssetBadges assets={assetsByProfile[p.id] ?? []} />
                 </div>
               </div>
@@ -199,12 +225,14 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
               <Textarea value={(form.appearancePrompt as string) ?? ''} onChange={(e) => setForm({ ...form, appearancePrompt: e.target.value })} rows={3} />
             </div>
             {[
+              ['castingPrompt', '选角描述'],
               ['faceDescription', '脸部描述'],
               ['hairstyle', '发型'],
               ['clothingStyle', '服装风格'],
               ['bodyType', '体型'],
               ['ageLook', '年龄感'],
               ['temperament', '气质'],
+              ['voiceTone', '音色描述'],
               ['colorPalette', '配色方案'],
               ['negativePrompt', '负面 Prompt'],
             ].map(([key, label]) => (
@@ -219,6 +247,22 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
                 value={(form.referenceImageUrl as string) ?? ''}
                 onChange={(e) => setForm({ ...form, referenceImageUrl: e.target.value })}
                 placeholder="https://... 或 /Users/.../reference.png"
+              />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>选角参考 URL / 本地路径</Label>
+              <Input
+                value={(form.actorReferenceUrl as string) ?? ''}
+                onChange={(e) => setForm({ ...form, actorReferenceUrl: e.target.value })}
+                placeholder="https://... 或 /Users/.../actor-reference.png"
+              />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>音色样本 URL / 本地路径</Label>
+              <Input
+                value={(form.voiceSampleUrl as string) ?? ''}
+                onChange={(e) => setForm({ ...form, voiceSampleUrl: e.target.value })}
+                placeholder="https://... 或 /Users/.../voice-sample.mp3"
               />
             </div>
           </div>
@@ -239,7 +283,7 @@ function AssetBadges({ assets }: { assets: ProjectAsset[] }) {
       {assets.map((asset) => (
         <Badge key={asset.id} variant={ASSET_STATUS_VARIANT[asset.status]}>
           {asset.status === 'missing' ? <AlertTriangle className="h-3 w-3" /> : <ImagePlus className="h-3 w-3" />}
-          {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
+          {ASSET_KIND_LABEL[asset.kind]} · {asset.title} · {ASSET_STATUS_LABEL[asset.status]}
         </Badge>
       ))}
     </div>
