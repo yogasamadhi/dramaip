@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronRight, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, CharacterVisualProfile, CreativeCaseStudy, Project, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, AiRun, Chapter, CharacterVisualProfile, CreativeCaseStudy, Project, ProjectSkill, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
@@ -41,6 +41,7 @@ import { CharactersSection } from '@/components/sections/CharactersSection'
 import { ChatSection } from '@/components/sections/ChatSection'
 import { OutlineSection } from '@/components/sections/OutlineSection'
 import { StoryPlanningSection } from '@/components/sections/StoryPlanningSection'
+import { ProjectSkillsSection } from '@/components/sections/ProjectSkillsSection'
 import { EvaluationSection } from '@/components/sections/EvaluationSection'
 import { MemorySection } from '@/components/sections/MemorySection'
 import { CharacterStateSection } from '@/components/sections/CharacterStateSection'
@@ -100,6 +101,7 @@ export function WorkspacePage() {
   const [caseStudies, setCaseStudies] = useState<CreativeCaseStudy[]>([])
   const [visualProfiles, setVisualProfiles] = useState<CharacterVisualProfile[]>([])
   const [storyArcs, setStoryArcs] = useState<StoryArc[]>([])
+  const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
   const [contextControls, setContextControls] = useState<AiContextControls>({})
   const [pendingGenerate, setPendingGenerate] = useState<{
     taskType: PreviewTaskType
@@ -110,7 +112,17 @@ export function WorkspacePage() {
   const chapterWorkflowKey = chapters.map((chapter) => `${chapter.id}:${Boolean(chapter.content.trim())}`).join('|')
 
   const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
-    const [characters, outlines, chapterMemories, qualityReports, adaptations, nextVisualProfiles, nextCaseStudies, nextStoryArcs] = await Promise.all([
+    const [
+      characters,
+      outlines,
+      chapterMemories,
+      qualityReports,
+      adaptations,
+      nextVisualProfiles,
+      nextCaseStudies,
+      nextStoryArcs,
+      nextProjectSkills,
+    ] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
       ipc.chapterMemory.list(currentProject.id),
@@ -119,10 +131,12 @@ export function WorkspacePage() {
       ipc.visualProfile.list(currentProject.id),
       ipc.caseStudy.list(),
       ipc.storyArc.list(currentProject.id),
+      ipc.projectSkill.list(currentProject.id),
     ])
     setVisualProfiles(nextVisualProfiles)
     setCaseStudies(nextCaseStudies)
     setStoryArcs(nextStoryArcs)
+    setProjectSkills(nextProjectSkills)
 
     const primaryAdaptation = adaptations[0]
     let episodes: ProjectWorkflowSnapshot['episodes'] = []
@@ -182,6 +196,7 @@ export function WorkspacePage() {
       setCaseStudies([])
       setVisualProfiles([])
       setStoryArcs([])
+      setProjectSkills([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot])
@@ -212,6 +227,7 @@ export function WorkspacePage() {
       chapters,
       characters: workflowSnapshot?.characters ?? [],
       storyArcs,
+      projectSkills,
       caseStudies,
       visualProfiles,
     },
@@ -674,6 +690,7 @@ export function WorkspacePage() {
                 chapters,
                 characters: workflowSnapshot?.characters ?? [],
                 storyArcs,
+                projectSkills,
                 caseStudies,
                 visualProfiles,
                 adaptations: workflowSnapshot?.adaptations ?? [],
@@ -715,6 +732,10 @@ export function WorkspacePage() {
               onGenerate={runGenerate}
               generating={generating}
             />
+          )}
+
+          {section === 'project-skills' && (
+            <ProjectSkillsSection projectId={project.id} version={dataVersion} onChanged={() => setDataVersion((v) => v + 1)} />
           )}
 
           {section === 'evaluation' && <EvaluationSection projectId={project.id} chapter={selected} />}
@@ -796,6 +817,7 @@ export function WorkspacePage() {
                     chapters,
                     characters: workflowSnapshot?.characters ?? [],
                     storyArcs,
+                    projectSkills,
                     caseStudies,
                     visualProfiles,
                   }}

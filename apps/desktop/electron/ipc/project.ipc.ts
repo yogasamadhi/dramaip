@@ -77,6 +77,21 @@ export function registerProjectIpc(): void {
     return true
   })
 
+  // ---------- 项目级创作规范 / Skills ----------
+  ipcMain.handle('projectSkill:list', (_e, projectId: string) =>
+    repos().projectSkill.listProjectSkills(repos().db, projectId),
+  )
+  ipcMain.handle('projectSkill:create', (_e, data: unknown) =>
+    repos().projectSkill.createProjectSkill(repos().db, data as never),
+  )
+  ipcMain.handle('projectSkill:update', (_e, id: string, patch: unknown) =>
+    repos().projectSkill.updateProjectSkill(repos().db, id, patch as never),
+  )
+  ipcMain.handle('projectSkill:delete', (_e, id: string) => {
+    repos().projectSkill.deleteProjectSkill(repos().db, id)
+    return true
+  })
+
   // ---------- 评分（只读列表，生成在 ai 流程中） ----------
   ipcMain.handle('evaluation:list', (_e, projectId: string) =>
     repos().evaluation.listEvaluations(repos().db, projectId),

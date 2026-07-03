@@ -71,6 +71,22 @@ export const storyArcs = sqliteTable('story_arcs', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const projectSkills = sqliteTable('project_skills', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  category: text('category', {
+    enum: ['genre_pacing', 'dialogue', 'shot_prompt', 'platform_delivery', 'style', 'custom'],
+  }).notNull(),
+  description: text('description'),
+  taskTypes: text('task_types').notNull().default('[]'),
+  content: text('content').notNull().default(''),
+  priority: integer('priority').notNull().default(0),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const chapters = sqliteTable('chapters', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),

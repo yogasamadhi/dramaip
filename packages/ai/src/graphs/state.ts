@@ -24,6 +24,7 @@ import type {
   NovelTaskType,
   Outline,
   Project,
+  ProjectSkill,
   Scene,
   Script,
   Shot,
@@ -58,6 +59,7 @@ export const NovelGraphState = Annotation.Root({
   characters: Annotation<Character[] | undefined>(),
   outlines: Annotation<Outline[] | undefined>(),
   storyArcs: Annotation<StoryArc[] | undefined>(),
+  projectSkills: Annotation<ProjectSkill[] | undefined>(),
   chapters: Annotation<Chapter[] | undefined>(),
   currentChapter: Annotation<Chapter | undefined>(),
 

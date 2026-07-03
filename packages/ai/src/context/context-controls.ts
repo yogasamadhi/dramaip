@@ -1,6 +1,6 @@
 import type { AiContextControls } from '@sdns/core'
 
-export type AiContextControlKey = 'chapters' | 'characters' | 'storyArcs' | 'caseStudies' | 'visualProfiles'
+export type AiContextControlKey = 'chapters' | 'characters' | 'storyArcs' | 'projectSkills' | 'caseStudies' | 'visualProfiles'
 
 export function applyContextControls<T extends { id: string }>(
   items: T[],

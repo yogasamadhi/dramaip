@@ -19,6 +19,31 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('chapter:list', ['project-1']), ['project-1'])
   assert.deepEqual(validateIpcArgs('outline:list', ['project-1', 'book']), ['project-1', 'book'])
   assert.deepEqual(validateIpcArgs('storyArc:list', ['project-1', 'volume']), ['project-1', 'volume'])
+  assert.deepEqual(validateIpcArgs('projectSkill:list', ['project-1']), ['project-1'])
+  assert.deepEqual(
+    validateIpcArgs('projectSkill:create', [
+      {
+        projectId: 'project-1',
+        name: '人物对白规范',
+        category: 'dialogue',
+        taskTypes: ['generate_chapter', 'rewrite_chapter'],
+        content: '对白短、狠、带潜台词。',
+        priority: 10,
+        enabled: true,
+      },
+    ]),
+    [
+      {
+        projectId: 'project-1',
+        name: '人物对白规范',
+        category: 'dialogue',
+        taskTypes: ['generate_chapter', 'rewrite_chapter'],
+        content: '对白短、狠、带潜台词。',
+        priority: 10,
+        enabled: true,
+      },
+    ],
+  )
   assert.deepEqual(
     validateIpcArgs('storyArc:create', [
       {
@@ -83,6 +108,8 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('chapter:list', []), /参数数量错误/)
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('storyArc:create', [{ projectId: 'project-1', kind: 'act', title: 'x' }]), /kind/)
+  assert.throws(() => validateIpcArgs('projectSkill:create', [{ projectId: 'project-1', name: 'x', category: 'bad', content: 'x' }]), /category/)
+  assert.throws(() => validateIpcArgs('projectSkill:update', ['skill-1', { taskTypes: ['unknown_task'] }]), /taskTypes/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
   assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
   assert.throws(
@@ -110,6 +137,9 @@ test('keeps high-risk channels in the shared contract', () => {
     'asset:listByProject',
     'asset:listBySource',
     'asset:delete',
+    'projectSkill:create',
+    'projectSkill:update',
+    'projectSkill:delete',
     'security:getSecretStorageStatus',
     'dataBackup:list',
     'dataBackup:create',

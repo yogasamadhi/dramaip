@@ -20,6 +20,7 @@ import type {
   NovelTaskType,
   Outline,
   Project,
+  ProjectSkill,
   QualityGateReport,
   RevisionTask,
   Scene,
@@ -29,6 +30,7 @@ import type {
   StoryEvent,
   VisualSetting,
 } from '@sdns/core'
+import { PROJECT_SKILL_CATEGORY_LABELS, TASK_TYPE_LABELS } from '@sdns/core'
 
 const DEFAULT_CONTEXT_TOKEN_BUDGET = 5_000
 const CONTEXT_TOKEN_BUDGETS: Partial<Record<NovelTaskType, number>> = {
@@ -80,6 +82,7 @@ export interface ChapterContextInput {
   characters?: Character[]
   outlines?: Outline[]
   storyArcs?: StoryArc[]
+  projectSkills?: ProjectSkill[]
   chapters?: Chapter[]
   currentChapter?: Chapter
   /** 最近章节摘要条数 */
@@ -170,9 +173,32 @@ function isChapterInsideArc(chapterNumber: number, arc: StoryArc): boolean {
   return Boolean(arc.chapterStart || arc.chapterEnd)
 }
 
+function renderProjectSkills(skills: ProjectSkill[]): string {
+  return limitList(skills, 20)
+    .map((skill) => {
+      const scope = skill.taskTypes.length
+        ? skill.taskTypes.map((type) => TASK_TYPE_LABELS[type] ?? type).join('、')
+        : '所有 AI 任务'
+      const parts = [
+        `分类：${PROJECT_SKILL_CATEGORY_LABELS[skill.category]}`,
+        `适用：${scope}`,
+        `优先级：${skill.priority}`,
+        skill.description ? `说明：${skill.description}` : '',
+      ].filter(Boolean)
+      return `- ${skill.name}（${parts.join('；')}）\n${skill.content.trim()}`
+    })
+    .join('\n')
+}
+
+function appendProjectSkillSection(sections: string[], projectSkills?: ProjectSkill[]): void {
+  if (projectSkills?.length) {
+    sections.push(block('项目创作规范', renderProjectSkills(projectSkills)))
+  }
+}
+
 /** 生成章节正文 / 章节辅助时使用的上下文 */
 export function buildChapterContext(input: ChapterContextInput): string {
-  const { project, characters, outlines, storyArcs, chapters, currentChapter } = input
+  const { project, characters, outlines, storyArcs, projectSkills, chapters, currentChapter } = input
   const sections: string[] = []
 
   if (project) {
@@ -213,6 +239,8 @@ export function buildChapterContext(input: ChapterContextInput): string {
     sections.push(block('长篇规划', renderStoryArcs(storyArcs, currentChapter)))
   }
 
+  appendProjectSkillSection(sections, projectSkills)
+
   if (currentChapter) {
     const fields = [
       line('章节标题', currentChapter.title),
@@ -242,7 +270,7 @@ export function buildChapterContext(input: ChapterContextInput): string {
 
 /** 评分任务上下文：项目设定 + 当前章节正文 */
 export function buildEvaluationContext(input: ChapterContextInput): string {
-  const { project, currentChapter } = input
+  const { project, projectSkills, currentChapter } = input
   const sections: string[] = []
   if (project) {
     const fields = [
@@ -252,6 +280,7 @@ export function buildEvaluationContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('项目设定', fields.join('\n')))
   }
+  appendProjectSkillSection(sections, projectSkills)
   if (currentChapter?.content?.trim()) {
     sections.push(block('待评章节正文', currentChapter.content.trim()))
   }
@@ -268,6 +297,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
     project,
     characters,
     visualProfiles,
+    projectSkills,
     currentChapter,
     chapterMemories,
     characterStates,
@@ -284,6 +314,7 @@ export function buildMemoryContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('项目设定', fields.join('\n')))
   }
+  appendProjectSkillSection(sections, projectSkills)
 
   if (characters?.length) {
     const profileByChar = new Map((visualProfiles ?? []).map((p) => [p.characterId, p]))
@@ -395,7 +426,7 @@ export function buildAnalysisContext(input: ChapterContextInput): string {
  * 当前项目设定（让 AI 知道哪些已填、哪些待聊）+ 完整对话历史。
  */
 export function buildChatContext(input: ChapterContextInput): string {
-  const { project, chatHistory } = input
+  const { project, projectSkills, chatHistory } = input
   const sections: string[] = []
 
   if (project) {
@@ -414,6 +445,7 @@ export function buildChatContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('当前项目设定（已填部分）', filled.length ? filled.join('\n') : '（暂无，需逐步聊清）'))
   }
+  appendProjectSkillSection(sections, projectSkills)
 
   if (chatHistory?.length) {
     const body = limitRecent(chatHistory, 12).map((m) => `${m.role === 'user' ? '用户' : '助手'}：${m.content}`).join('\n')
@@ -430,7 +462,7 @@ export function buildChatContext(input: ChapterContextInput): string {
  * 改编项目设定 + 源小说（项目设定/人物/章节大纲摘要）+ 已有分集 + 改编策略。
  */
 export function buildAdaptationContext(input: ChapterContextInput): string {
-  const { project, characters, outlines, chapters, adaptationProject, episodes } = input
+  const { project, characters, outlines, projectSkills, chapters, adaptationProject, episodes } = input
   const sections: string[] = []
 
   if (adaptationProject) {
@@ -466,6 +498,7 @@ export function buildAdaptationContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('源小说项目设定', fields.join('\n')))
   }
+  appendProjectSkillSection(sections, projectSkills)
 
   if (characters?.length) {
     const body = limitList(characters, 40).map((c) => `- ${c.name}（${c.role}）：${[c.identity, c.desire].filter(Boolean).join('；')}`).join('\n')
@@ -503,7 +536,7 @@ export function buildAdaptationContext(input: ChapterContextInput): string {
  * 在改编上下文基础上，聚焦当前集分集大纲 + 当前剧本正文 + 前后集剧情 + 已有场景。
  */
 export function buildScriptContext(input: ChapterContextInput): string {
-  const { project, characters, adaptationProject, episodes, currentEpisode, currentScript, scenes } = input
+  const { project, characters, projectSkills, adaptationProject, episodes, currentEpisode, currentScript, scenes } = input
   const sections: string[] = []
 
   if (adaptationProject) {
@@ -527,6 +560,7 @@ export function buildScriptContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('源小说项目设定', fields.join('\n')))
   }
+  appendProjectSkillSection(sections, projectSkills)
 
   if (characters?.length) {
     const body = limitList(characters, 40)
@@ -591,7 +625,7 @@ export function buildScriptContext(input: ChapterContextInput): string {
  * 改编视觉风格 + 人物视觉档案 + 当前场景 + 当前场景已有镜头 + 当前镜头（生成/改写时）。
  */
 export function buildShotContext(input: ChapterContextInput): string {
-  const { adaptationProject, characters, visualProfiles, visualSettings, currentScene, shots, currentShot } = input
+  const { adaptationProject, characters, projectSkills, visualProfiles, visualSettings, currentScene, shots, currentShot } = input
   const sections: string[] = []
 
   if (adaptationProject) {
@@ -602,6 +636,7 @@ export function buildShotContext(input: ChapterContextInput): string {
     ].filter(Boolean)
     sections.push(block('改编视觉设定', fields.join('\n')))
   }
+  appendProjectSkillSection(sections, projectSkills)
 
   // 人物视觉档案（角色一致性依据）
   if (characters?.length) {

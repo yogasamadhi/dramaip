@@ -89,6 +89,9 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'story_arcs'))
     assert.ok(columns(raw, 'story_arcs').includes('target_word_count'))
     assert.ok(columns(raw, 'story_arcs').includes('foreshadowing_payoffs'))
+    assert.ok(tableExists(raw, 'project_skills'))
+    assert.ok(columns(raw, 'project_skills').includes('task_types'))
+    assert.ok(columns(raw, 'project_skills').includes('priority'))
 
     assert.deepEqual(runMigrations(migrationRaw(raw)), [])
     assert.deepEqual(appliedVersions(raw), applied)

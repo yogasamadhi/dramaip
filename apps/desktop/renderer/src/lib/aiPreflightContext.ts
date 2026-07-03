@@ -9,8 +9,10 @@ import type {
   CreativeCaseStudy,
   NovelTaskType,
   Project,
+  ProjectSkill,
   StoryArc,
 } from '@sdns/core'
+import { PROJECT_SKILL_CATEGORY_LABELS, TASK_TYPE_LABELS, selectProjectSkillsForTask } from '@sdns/core'
 
 export type AiContextControlKey = keyof AiContextControlCollection
 export type AiContextControlMode = 'auto' | 'pinned' | 'excluded'
@@ -34,6 +36,7 @@ export interface AiPreflightContextData {
   chapters: Chapter[]
   characters: Character[]
   storyArcs: StoryArc[]
+  projectSkills: ProjectSkill[]
   caseStudies: CreativeCaseStudy[]
   visualProfiles: CharacterVisualProfile[]
 }
@@ -69,9 +72,10 @@ export function buildAiPreflightContext(
   const chapters = applyControls(data.chapters, 'chapters', controls)
   const characters = applyControls(data.characters, 'characters', controls)
   const storyArcs = applyControls(data.storyArcs, 'storyArcs', controls)
+  const projectSkills = selectProjectSkillsForTask(data.projectSkills, taskType, controls)
   const caseStudies = applyControls(data.caseStudies, 'caseStudies', controls)
   const visualProfiles = applyControls(data.visualProfiles, 'visualProfiles', controls)
-  const rawSections = buildRawSections({ ...data, chapters, characters, storyArcs, caseStudies, visualProfiles }, controls)
+  const rawSections = buildRawSections({ ...data, chapters, characters, storyArcs, projectSkills, caseStudies, visualProfiles }, controls)
   const budget = CONTEXT_TOKEN_BUDGETS[taskType] ?? DEFAULT_CONTEXT_TOKEN_BUDGET
   const { sections, trimmedTitles } = applyPreviewBudget(rawSections, budget)
   if (trimmedTitles.length) {
@@ -127,6 +131,8 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
     controlLine('排除人物', controls.excluded?.characters),
     controlLine('固定长篇规划', controls.pinned?.storyArcs),
     controlLine('排除长篇规划', controls.excluded?.storyArcs),
+    controlLine('固定创作规范', controls.pinned?.projectSkills),
+    controlLine('排除创作规范', controls.excluded?.projectSkills),
     controlLine('固定样本', controls.pinned?.caseStudies),
     controlLine('排除样本', controls.excluded?.caseStudies),
     controlLine('固定视觉档案', controls.pinned?.visualProfiles),
@@ -165,6 +171,15 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
       const range = arc.chapterStart || arc.chapterEnd ? `章节：${arc.chapterStart ?? '?'}-${arc.chapterEnd ?? '?'}；` : ''
       const target = [arc.targetChapterCount ? `${arc.targetChapterCount}章` : '', arc.targetWordCount ? `${arc.targetWordCount}字` : ''].filter(Boolean).join('/')
       return `- ${arc.title}（${arc.kind}）：${parent}${range}${target ? `目标：${target}；` : ''}${arc.coreConflict || arc.summary || '暂无补充'}`
+    }).join('\n')))
+  }
+
+  if (data.projectSkills.length) {
+    sections.push(section('项目创作规范', data.projectSkills.slice(0, 30).map((skill) => {
+      const scope = skill.taskTypes.length
+        ? skill.taskTypes.map((taskType) => TASK_TYPE_LABELS[taskType] ?? taskType).join('、')
+        : '所有 AI 任务'
+      return `- ${skill.name}（${PROJECT_SKILL_CATEGORY_LABELS[skill.category]}；适用：${scope}；优先级：${skill.priority}）：${skill.description || excerptText(skill.content, 160)}`
     }).join('\n')))
   }
 
@@ -216,6 +231,21 @@ function buildControlGroups(data: AiPreflightContextData, controls: AiContextCon
         label: arc.title,
         detail: [arc.coreConflict, arc.summary].filter(Boolean).join('；'),
         mode: modeFor(controls, 'storyArcs', arc.id),
+      })),
+    },
+    {
+      key: 'projectSkills',
+      title: '创作规范',
+      items: data.projectSkills.filter((skill) => skill.enabled).slice(0, 50).map((skill) => ({
+        key: 'projectSkills',
+        id: skill.id,
+        label: skill.name,
+        detail: [
+          PROJECT_SKILL_CATEGORY_LABELS[skill.category],
+          skill.taskTypes.length ? `${skill.taskTypes.length} 个任务` : '所有任务',
+          skill.description || excerptText(skill.content, 48),
+        ].filter(Boolean).join('；'),
+        mode: modeFor(controls, 'projectSkills', skill.id),
       })),
     },
     {
@@ -318,7 +348,7 @@ function compactControls(controls: AiContextControls): AiContextControls {
 function compactCollection(collection: AiContextControlCollection | undefined): AiContextControlCollection | undefined {
   if (!collection) return undefined
   const next: AiContextControlCollection = {}
-  for (const key of ['chapters', 'characters', 'caseStudies', 'visualProfiles'] as const) {
+  for (const key of ['chapters', 'characters', 'storyArcs', 'projectSkills', 'caseStudies', 'visualProfiles'] as const) {
     const values = collection[key]
     if (values?.length) next[key] = values
   }
