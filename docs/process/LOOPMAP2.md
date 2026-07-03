@@ -165,7 +165,7 @@
 | LM2-16 | P1 | 交付导出 | done | 小说投稿包导出 | `packages/export`、export IPC/UI | 导出投稿包包含作品简介、卖点、人物小传、前 N 章、章节目录、质量摘要；支持 Markdown/JSON 或目录包 | `pnpm typecheck`；export 单测；人工检查导出内容 | LM2-02 |
 | LM2-17 | P1 | 交付导出 | done | 短剧提案包与分集交付包导出 | export、adaptation/script/shot pages | 导出短剧提案：核心卖点、分集大纲、人物、视觉风格、前 10 集分析、视频风险；分镜包含场景/镜头/Prompt/负面 Prompt | `pnpm typecheck`；export 单测；手工导出 smoke | LM2-16 |
 | LM2-18 | P1 | 文本质量 | done | 作者风格强化与原创性风险提示 | AI prompts、章节/剧本助手、诊断报告 | 提供“作者风格学习、重复句式检测、网文化润色、对白增强、原创性风险提示”；不使用“绕过检测”类灰色表达 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-08 |
-| LM2-19 | P2 | 视频资产 | todo | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
+| LM2-19 | P2 | 视频资产 | done | 视频前置资产模型扩展 | DB schema、asset library、visual profile、shot/video pages | 建模角色选角、音色、旁白、字幕、封面、首帧图；与人物视觉档案和镜头资产关联 | `pnpm typecheck`；`pnpm test:db`；资产导入导出测试 | LM2-17 |
 | LM2-20 | P2 | 视频资产/AI | todo | 封面、配音与字幕生成草稿 | AI prompts、asset UI、video workflow | 可从小说/剧本生成封面 prompt、角色音色建议、旁白/字幕草稿；仅生成草稿，不接真实 TTS 平台 | `pnpm typecheck`；AI mock 单测；手工 smoke | LM2-19 |
 | LM2-21 | P2 | 移动/轻量入口 | todo | 移动灵感记录与桌面导入设计 | 文档、数据模型、轻量导入 IPC | 明确移动端只做灵感记录/云端后续设计；桌面可导入灵感 JSON/Markdown 进入灵感台 | 文档 `git diff --check`；如实现导入则追加 typecheck/unit | LM2-14 |
 | LM2-22 | P2 | 生态/同步预研 | todo | 云同步、资源市场、知识库路线设计 | `docs/product`、架构文档 | 输出不进入当前实现的路线图：数据边界、隐私、冲突处理、收费/资源审核、知识库语义搜索方案 | 文档 `git diff --check`；人工评审 | LM2-00 |
@@ -571,4 +571,19 @@ Push: git push origin main succeeded to Gitee, updating main from 9e9da6f to b69
 Loop branch cleanup: git branch -d loop/lm2-18-style-originality succeeded after merge push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Chapter AI assistant now offers 作者风格强化 through preview_then_adopt, Script workspace offers 强化对白风格 through script text preview, and Creative Diagnosis can run a display-only 文本质量与原创性风险 report. Prompts explicitly frame originality risk as safe creative revision and forbid evasion, plagiarism-check bypass, hidden-source, or platform-review circumvention guidance.
+```
+
+```text
+Loop: LM2-19
+Target branch: main
+Loop branch: loop/lm2-19-video-asset-model
+Commit: fb2927c loop(LM2-19): add video preproduction asset model
+Merge commit: 6246af5 merge: lm2-19 video asset model
+Verification: git diff --cached --check passed before commit; git diff --check passed after merge; pnpm format:check passed after merge; pnpm typecheck passed after merge; node --import tsx --test tests/video-preproduction-assets.test.ts tests/ipc-contract.test.ts tests/project-package.test.ts passed with 11 tests; pnpm test:db passed after rerunning with required escalation because better-sqlite3/electron-rebuild needed user cache directories outside the workspace sandbox; pnpm test:unit passed with 110 tests; pnpm test:e2e passed with Electron smoke after required escalation.
+Diff review: reviewed staged diff/stat/name list and final origin/main...HEAD stat; changes were limited to video preproduction asset kinds, visual profile casting/voice fields, shot/video asset UI, AI context/persistence wiring, DB migration/schema, project package shot and asset roundtrip, smoke coverage, and focused tests.
+Remote sync: git fetch origin succeeded before merge and before push; main and origin/main were confirmed aligned before merging; git merge --ff-only origin/main reported Already up to date before push.
+Push: git push origin main succeeded to Gitee, updating main from 8922f33 to 6246af5.
+Loop branch cleanup: git branch -d loop/lm2-19-video-asset-model succeeded after merge push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Project assets now model casting references, voice references, first-frame images, narration audio, and subtitle files. Visual profiles can carry casting and voice guidance, shot assets can track reference, first frame, cover, narration, and subtitle entries, video generation only submits image-capable assets as references, and project package version 6 preserves shots plus shot-linked preproduction assets.
 ```
