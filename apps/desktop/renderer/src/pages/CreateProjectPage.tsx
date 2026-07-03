@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronDown, ChevronUp, Library, MessageSquare, Sparkles } from 'lucide-react'
 import type { GenrePreset } from '@sdns/core'
@@ -16,12 +16,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 
 export function CreateProjectPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const create = useProjectsStore((s) => s.create)
+  const requestedTitle = searchParams.get('title') ?? ''
+  const requestedType = searchParams.get('type') ?? searchParams.get('genre') ?? ''
+  const requestedAudience = searchParams.get('audience') ?? ''
+  const requestedHook = searchParams.get('hook') ?? ''
+  const requestedDirection = searchParams.get('direction') ?? ''
+  const requestedIdea = searchParams.get('idea') ?? ''
   const [title, setTitle] = useState('')
   const [shortDramaType, setShortDramaType] = useState<string>(SHORT_DRAMA_TYPES[0])
+  const [targetAudience, setTargetAudience] = useState('')
+  const [coreHook, setCoreHook] = useState('')
+  const [coreSellingPoint, setCoreSellingPoint] = useState('')
+  const [idea, setIdea] = useState('')
   const [advanced, setAdvanced] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [genrePresets, setGenrePresets] = useState<GenrePreset[]>([])
@@ -32,9 +44,19 @@ export function CreateProjectPage() {
       const presets = await ipc.genrePreset.list()
       setGenrePresets(presets)
       // 优先用类型库第一项作为默认
-      if (presets.length) setShortDramaType(presets[0].name)
+      if (presets.length && !requestedType) setShortDramaType(presets[0].name)
     })()
-  }, [])
+  }, [requestedType])
+
+  useEffect(() => {
+    if (requestedTitle) setTitle((value) => value || requestedTitle)
+    if (requestedType) setShortDramaType(requestedType)
+    if (requestedAudience) setTargetAudience((value) => value || requestedAudience)
+    if (requestedHook) setCoreHook((value) => value || requestedHook)
+    if (requestedDirection) setCoreSellingPoint((value) => value || requestedDirection)
+    if (requestedIdea) setIdea((value) => value || requestedIdea)
+    if (requestedType || requestedAudience || requestedHook || requestedDirection || requestedIdea) setAdvanced(true)
+  }, [requestedAudience, requestedDirection, requestedHook, requestedIdea, requestedTitle, requestedType])
 
   const typeOptions = Array.from(new Set([...genrePresets.map((p) => p.name), ...SHORT_DRAMA_TYPES]))
 
@@ -45,7 +67,17 @@ export function CreateProjectPage() {
     }
     setSubmitting(true)
     try {
-      const project = await create({ title: title.trim(), shortDramaType })
+      const trimmedIdea = idea.trim()
+      const hook = coreHook.trim() || trimmedIdea.split('\n').find((line) => line.trim())?.trim()
+      const project = await create({
+        title: title.trim(),
+        shortDramaType,
+        targetAudience: targetAudience.trim() || undefined,
+        coreHook: hook || undefined,
+        coreSellingPoint: coreSellingPoint.trim() || undefined,
+        synopsis: trimmedIdea || undefined,
+        styleGuide: trimmedIdea ? `【灵感方案】\n${trimmedIdea}` : undefined,
+      })
       toast.success('项目已创建，去和 AI 聊聊设定吧')
       navigate(`/projects/${project.id}`)
     } catch (e) {
@@ -118,6 +150,39 @@ export function CreateProjectPage() {
                   <Library className="h-3 w-3" />
                   管理类型库
                 </Button>
+              </div>
+              <div className="space-y-2">
+                <Label>目标受众</Label>
+                <Input
+                  value={targetAudience}
+                  onChange={(e) => setTargetAudience(e.target.value)}
+                  placeholder="例如：18-35 岁女性短剧用户"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>一句话钩子</Label>
+                <Input
+                  value={coreHook}
+                  onChange={(e) => setCoreHook(e.target.value)}
+                  placeholder="例如：她重回婚礼现场，当众夺回被偷走的人生"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>核心爽点 / 短剧方向</Label>
+                <Input
+                  value={coreSellingPoint}
+                  onChange={(e) => setCoreSellingPoint(e.target.value)}
+                  placeholder="例如：强压迫、公开反击、集集反转"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>灵感摘要</Label>
+                <Textarea
+                  value={idea}
+                  onChange={(e) => setIdea(e.target.value)}
+                  rows={6}
+                  placeholder="从灵感台带入的方案摘要"
+                />
               </div>
             </div>
           )}

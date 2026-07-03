@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bookmark, BookmarkCheck, FileInput, Loader2, Search, SendToBack, Sparkles } from 'lucide-react'
+import { Bookmark, BookmarkCheck, FileInput, FilePlus2, Loader2, PenLine, Search, SendToBack, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Chapter, InspirationCardKind, InspirationCardSourceKind, InspirationFavorite, Project } from '@sdns/core'
-import { ipc } from '@/lib/ipc'
+import {
+  InspirationSchemesResultSchema,
+  type Chapter,
+  type InspirationCardKind,
+  type InspirationCardSourceKind,
+  type InspirationFavorite,
+  type InspirationSchemeItem,
+  type Project,
+  type TextDiffPreviewPayload,
+} from '@sdns/core'
+import { ipc, type AiTaskInput } from '@/lib/ipc'
 import {
   appendInspirationCardNote,
   buildInspirationCards,
@@ -11,11 +20,20 @@ import {
   INSPIRATION_SOURCE_LABELS,
   type InspirationCard,
 } from '@/lib/inspirationCards'
+import {
+  buildInspirationSchemeInstruction,
+  buildSchemeRewriteInstruction,
+  normalizeInspirationSchemeForm,
+  schemeToProjectSeed,
+  type InspirationProjectSeed,
+  type InspirationSchemeForm,
+} from '@/lib/inspirationSchemes'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 type KindFilter = InspirationCardKind | 'all'
@@ -29,6 +47,8 @@ interface InspirationDeskSectionProps {
   onProjectUpdated(project: Project): void
   onChapterUpdated(chapter: Chapter): void
   onOpenChapter(chapterId: string): void
+  onCreateProject(seed: InspirationProjectSeed): void
+  onTextPreview(preview: TextDiffPreviewPayload): void
 }
 
 export function InspirationDeskSection({
@@ -39,6 +59,8 @@ export function InspirationDeskSection({
   onProjectUpdated,
   onChapterUpdated,
   onOpenChapter,
+  onCreateProject,
+  onTextPreview,
 }: InspirationDeskSectionProps) {
   const [loading, setLoading] = useState(true)
   const [favorites, setFavorites] = useState<InspirationFavorite[]>([])
@@ -49,6 +71,16 @@ export function InspirationDeskSection({
   const [favoriteOnly, setFavoriteOnly] = useState(false)
   const [targetChapterId, setTargetChapterId] = useState(selectedChapter?.id ?? chapters[0]?.id ?? '')
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [schemeForm, setSchemeForm] = useState<InspirationSchemeForm>({
+    genre: project.shortDramaType ?? '',
+    targetAudience: project.targetAudience ?? '',
+    shortDramaDirection: project.coreSellingPoint ?? '',
+    brief: '',
+  })
+  const [schemeTemplateId, setSchemeTemplateId] = useState('')
+  const [generatingSchemes, setGeneratingSchemes] = useState(false)
+  const [schemes, setSchemes] = useState<InspirationSchemeItem[]>([])
+  const [schemeBusyKey, setSchemeBusyKey] = useState<string | null>(null)
 
   useEffect(() => {
     setTargetChapterId((current) => {
@@ -56,6 +88,15 @@ export function InspirationDeskSection({
       return selectedChapter?.id ?? chapters[0]?.id ?? ''
     })
   }, [chapters, selectedChapter?.id])
+
+  useEffect(() => {
+    setSchemeForm((current) => ({
+      ...current,
+      genre: current.genre || project.shortDramaType || '',
+      targetAudience: current.targetAudience || project.targetAudience || '',
+      shortDramaDirection: current.shortDramaDirection || project.coreSellingPoint || '',
+    }))
+  }, [project.coreSellingPoint, project.id, project.shortDramaType, project.targetAudience])
 
   useEffect(() => {
     let alive = true
@@ -114,6 +155,29 @@ export function InspirationDeskSection({
       return { kind: cardKind, count: cards.filter((card) => card.kind === cardKind).length }
     })
   }, [cards])
+  const generationTemplates = useMemo(
+    () => (sourceData.templates ?? []).filter((template) => template.scope === 'generate_inspiration_schemes'),
+    [sourceData.templates],
+  )
+  const genreOptions = useMemo(() => {
+    return Array.from(new Set([
+      project.shortDramaType,
+      ...(sourceData.genrePresets ?? []).map((preset) => preset.name),
+      schemeForm.genre,
+    ].map((value) => value?.trim()).filter(Boolean) as string[]))
+  }, [project.shortDramaType, schemeForm.genre, sourceData.genrePresets])
+
+  useEffect(() => {
+    if (!generationTemplates.length) {
+      setSchemeTemplateId((current) => (current === 'direct' ? current : ''))
+      return
+    }
+    setSchemeTemplateId((current) => {
+      if (current === 'direct') return current
+      if (current && generationTemplates.some((template) => template.id === current)) return current
+      return generationTemplates[0].id
+    })
+  }, [generationTemplates])
 
   async function refreshFavorites() {
     setFavorites(await ipc.inspirationFavorite.list(project.id))
@@ -180,9 +244,144 @@ export function InspirationDeskSection({
     }
   }
 
+  async function generateSchemes() {
+    const normalized = normalizeInspirationSchemeForm(schemeForm, project)
+    setSchemeForm(normalized)
+    setGeneratingSchemes(true)
+    const toastId = toast.loading('正在生成灵感方案...')
+    try {
+      const userInstruction = buildInspirationSchemeInstruction(normalized)
+      let aiInput: AiTaskInput = {
+        projectId: project.id,
+        taskType: 'generate_inspiration_schemes' as const,
+        userInstruction,
+      }
+      if (schemeTemplateId && schemeTemplateId !== 'direct') {
+        const runRes = await ipc.template.run({
+          templateId: schemeTemplateId,
+          projectId: project.id,
+          variables: {
+            genre: normalized.genre,
+            targetAudience: normalized.targetAudience,
+            shortDramaDirection: normalized.shortDramaDirection,
+            brief: normalized.brief ?? '',
+          },
+          userInstruction,
+        })
+        if (!runRes.ok || !runRes.aiInput) {
+          toast.error('模板运行失败：' + (runRes.error ?? '未知错误'), { id: toastId })
+          return
+        }
+        aiInput = runRes.aiInput
+      }
+
+      const res = await ipc.ai.run(aiInput)
+      if (!res.ok || !res.result) {
+        toast.error('灵感方案生成失败：' + (res.error ?? '未知错误'), { id: toastId })
+        return
+      }
+      const parsed = InspirationSchemesResultSchema.safeParse(res.result.data)
+      if (!parsed.success) {
+        toast.error('灵感方案格式不完整，请重试', { id: toastId })
+        return
+      }
+      setSchemes(parsed.data.schemes)
+      toast.success(`已生成 ${parsed.data.schemes.length} 组灵感方案`, { id: toastId })
+    } catch (error) {
+      toast.error('灵感方案生成异常：' + (error instanceof Error ? error.message : String(error)), { id: toastId })
+    } finally {
+      setGeneratingSchemes(false)
+    }
+  }
+
+  function createProjectFromScheme(scheme: InspirationSchemeItem) {
+    onCreateProject(schemeToProjectSeed(scheme, normalizeInspirationSchemeForm(schemeForm, project)))
+  }
+
+  async function rewriteChapterWithScheme(scheme: InspirationSchemeItem) {
+    const chapter = chapters.find((item) => item.id === targetChapterId)
+    if (!chapter) {
+      toast.error('请先选择目标章节')
+      return
+    }
+    const key = schemeKey(scheme)
+    setSchemeBusyKey(key)
+    const toastId = toast.loading('正在生成章节改写预览...')
+    try {
+      const res = await ipc.ai.run({
+        projectId: project.id,
+        chapterId: chapter.id,
+        taskType: 'rewrite_chapter',
+        userInstruction: buildSchemeRewriteInstruction(scheme, chapter),
+      })
+      if (res.ok && res.result?.kind === 'text_preview') {
+        onTextPreview(res.result.data as TextDiffPreviewPayload)
+        toast.success('改写预览已生成', { id: toastId })
+      } else {
+        toast.error('章节改写失败：' + (res.error ?? '未返回文本预览'), { id: toastId })
+      }
+    } catch (error) {
+      toast.error('章节改写异常：' + (error instanceof Error ? error.message : String(error)), { id: toastId })
+    } finally {
+      setSchemeBusyKey(null)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="space-y-3 border-b p-4">
+        <div className="space-y-3 rounded-md border bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-auto flex items-center gap-2 text-sm font-medium">
+              <Sparkles className="h-4 w-4" />
+              生成灵感方案
+            </div>
+            <Select value={schemeTemplateId || 'direct'} onValueChange={setSchemeTemplateId}>
+              <SelectTrigger className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="direct">直接生成</SelectItem>
+                {generationTemplates.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button type="button" size="sm" onClick={() => void generateSchemes()} disabled={generatingSchemes}>
+              {generatingSchemes ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              生成
+            </Button>
+          </div>
+          <div className="grid gap-2 lg:grid-cols-3">
+            <Select value={schemeForm.genre || undefined} onValueChange={(value) => setSchemeForm((form) => ({ ...form, genre: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="题材" />
+              </SelectTrigger>
+              <SelectContent>
+                {genreOptions.map((option) => (
+                  <SelectItem key={option} value={option}>{option}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              value={schemeForm.targetAudience}
+              onChange={(event) => setSchemeForm((form) => ({ ...form, targetAudience: event.target.value }))}
+              placeholder="目标受众"
+            />
+            <Input
+              value={schemeForm.shortDramaDirection}
+              onChange={(event) => setSchemeForm((form) => ({ ...form, shortDramaDirection: event.target.value }))}
+              placeholder="短剧方向"
+            />
+          </div>
+          <Textarea
+            value={schemeForm.brief ?? ''}
+            onChange={(event) => setSchemeForm((form) => ({ ...form, brief: event.target.value }))}
+            placeholder="补充要求"
+            rows={2}
+          />
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <div className="mr-auto">
             <h2 className="text-base font-semibold">灵感台</h2>
@@ -262,6 +461,29 @@ export function InspirationDeskSection({
       </div>
 
       <ScrollArea className="flex-1">
+        {schemes.length > 0 && (
+          <div className="border-b p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm font-medium">生成方案</div>
+              <Badge variant="secondary">{schemes.length} 组</Badge>
+            </div>
+            <div className="grid gap-3 xl:grid-cols-2">
+              {schemes.map((scheme) => {
+                const key = schemeKey(scheme)
+                return (
+                  <InspirationSchemeItemCard
+                    key={key}
+                    scheme={scheme}
+                    busy={schemeBusyKey === key}
+                    chapterDisabled={chapters.length === 0}
+                    onCreateProject={() => createProjectFromScheme(scheme)}
+                    onRewriteChapter={() => void rewriteChapterWithScheme(scheme)}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
         {loading ? (
           <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -288,6 +510,77 @@ export function InspirationDeskSection({
           </div>
         )}
       </ScrollArea>
+    </div>
+  )
+}
+
+function schemeKey(scheme: InspirationSchemeItem): string {
+  return `${scheme.title}:${scheme.coreHook}`.trim()
+}
+
+function InspirationSchemeItemCard({
+  scheme,
+  busy,
+  chapterDisabled,
+  onCreateProject,
+  onRewriteChapter,
+}: {
+  scheme: InspirationSchemeItem
+  busy: boolean
+  chapterDisabled: boolean
+  onCreateProject: () => void
+  onRewriteChapter: () => void
+}) {
+  return (
+    <article className="flex min-h-72 flex-col rounded-md border bg-background p-3 text-sm shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <Badge>{scheme.genre || '灵感方案'}</Badge>
+        {scheme.targetAudience && <Badge variant="outline">{scheme.targetAudience}</Badge>}
+        {scheme.shortDramaDirection && <Badge variant="secondary">{scheme.shortDramaDirection}</Badge>}
+      </div>
+      <h3 className="break-words font-medium leading-6">{scheme.title}</h3>
+      <div className="mt-2 flex-1 space-y-2">
+        <p className="whitespace-pre-wrap break-words leading-6">{scheme.coreHook}</p>
+        <div className="grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-2">
+          <SchemeMeta label="冲突" value={scheme.conflictMechanism} />
+          <SchemeMeta label="反转" value={scheme.keyReversal} />
+          <SchemeMeta label="尾钩" value={scheme.cliffhanger} />
+          <SchemeMeta label="画面" value={scheme.visualSellingPoint} />
+        </div>
+        <div className="rounded-md bg-muted/40 p-2 text-xs leading-5 text-muted-foreground">
+          {scheme.chapterRewriteBrief}
+        </div>
+        {scheme.riskNotes.length > 0 && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-900">
+            {scheme.riskNotes.join('；')}
+          </div>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={onCreateProject}>
+          <FilePlus2 />
+          创建项目
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          onClick={onRewriteChapter}
+          disabled={busy || chapterDisabled}
+          className={cn(chapterDisabled && 'opacity-60')}
+        >
+          {busy ? <Loader2 className="animate-spin" /> : <PenLine />}
+          改写章节
+        </Button>
+      </div>
+    </article>
+  )
+}
+
+function SchemeMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-muted/30 p-2">
+      <span className="font-medium text-foreground">{label}：</span>
+      {value}
     </div>
   )
 }

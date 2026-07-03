@@ -553,6 +553,33 @@ export const CaseStructureResultSchema = z.object({
 })
 export type CaseStructureResult = z.infer<typeof CaseStructureResultSchema>
 
+/** LM2-15：类型化灵感方案生成（3-5 组差异化方案） */
+export const InspirationSchemeItemSchema = z.object({
+  title: z.string().min(1),
+  genre: z.string().optional(),
+  targetAudience: z.string().optional(),
+  shortDramaDirection: z.string().optional(),
+  differentiation: z.string().optional(),
+  coreHook: z.string().min(1),
+  premise: z.string().min(1),
+  emotionalCore: z.string().optional(),
+  protagonist: z.string().optional(),
+  relationship: z.string().optional(),
+  conflictMechanism: z.string().min(1),
+  openingHook: z.string().min(1),
+  keyReversal: z.string().min(1),
+  cliffhanger: z.string().min(1),
+  visualSellingPoint: z.string().min(1),
+  chapterRewriteBrief: z.string().min(1),
+  projectSeed: z.string().optional(),
+  riskNotes: z.array(z.string()).default([]),
+})
+export const InspirationSchemesResultSchema = z.object({
+  schemes: z.array(InspirationSchemeItemSchema).min(3).max(5),
+})
+export type InspirationSchemeItem = z.infer<typeof InspirationSchemeItemSchema>
+export type InspirationSchemesResult = z.infer<typeof InspirationSchemesResultSchema>
+
 // ---------------------------------------------------------------------------
 // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
 // ---------------------------------------------------------------------------
@@ -702,6 +729,7 @@ export const ALL_RESULT_SCHEMAS = {
   simulate_audience_reaction: AudienceSimulationResultSchema,
   analyze_video_cost_risk: VideoCostRiskResultSchema,
   extract_case_structure: CaseStructureResultSchema,
+  generate_inspiration_schemes: InspirationSchemesResultSchema,
   // v0.8（template_run 的实际 schema 由 scope 动态解析；这里登记两类固定 schema 便于查询）
   writing_room_review: AgentReviewOutputSchema,
   writing_room_consolidate: WritingRoomConsolidatedSchema,

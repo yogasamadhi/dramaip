@@ -23,6 +23,7 @@ import {
   GenerateProjectResultSchema,
   GenerateStoryArcOutlineResultSchema,
   HighlightAnalysisResultSchema,
+  InspirationSchemesResultSchema,
   NarrativeCurveResultSchema,
   QualityGateResultSchema,
   RevisionTasksResultSchema,
@@ -106,6 +107,7 @@ import runQualityGate from './zh-CN/creative/run-quality-gate.md?raw'
 import simulateAudienceReaction from './zh-CN/creative/simulate-audience-reaction.md?raw'
 import analyzeVideoCostRisk from './zh-CN/creative/analyze-video-cost-risk.md?raw'
 import extractCaseStructure from './zh-CN/creative/extract-case-structure.md?raw'
+import generateInspirationSchemes from './zh-CN/creative/generate-inspiration-schemes.md?raw'
 // v0.8 多 Agent 编剧室与模板系统
 // writing_room_* 由 writing-room.graph 内部直接引用 agent prompts；
 // template_run 的实际正文来自 graph state 的 templateContent（此处仅为占位，保证 REGISTRY 完整）。
@@ -184,6 +186,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   simulate_audience_reaction: { prompt: simulateAudienceReaction, output: 'json', schema: AudienceSimulationResultSchema },
   analyze_video_cost_risk: { prompt: analyzeVideoCostRisk, output: 'json', schema: VideoCostRiskResultSchema },
   extract_case_structure: { prompt: extractCaseStructure, output: 'json', schema: CaseStructureResultSchema },
+  generate_inspiration_schemes: { prompt: generateInspirationSchemes, output: 'json', schema: InspirationSchemesResultSchema },
   // v0.8
   writing_room_review: { prompt: agentReviewPrompt, output: 'text' },
   writing_room_consolidate: { prompt: consolidatePrompt, output: 'text' },

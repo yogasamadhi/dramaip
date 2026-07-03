@@ -154,6 +154,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'simulate_audience_reaction':
     case 'analyze_video_cost_risk':
     case 'extract_case_structure':
+    case 'generate_inspiration_schemes':
       return buildCreativeContext(common)
     case 'generate_project':
     case 'generate_characters':

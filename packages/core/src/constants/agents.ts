@@ -161,4 +161,19 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplatePreset[] = [
     ].join('\n'),
     variables: ['plotStage', 'highlightFocus'],
   },
+  {
+    name: '灵感台类型化方案模板',
+    type: 'inspiration',
+    scope: 'generate_inspiration_schemes',
+    description: '根据题材、受众和短剧方向生成 3-5 组差异化灵感方案。',
+    content: [
+      '请为短剧 IP 小说生成 3-5 组差异化灵感方案。',
+      '题材：{{genre}}',
+      '目标受众：{{targetAudience}}',
+      '短剧方向：{{shortDramaDirection}}',
+      '补充要求：{{brief}}',
+      '每组方案必须能进入项目创建，也能转成章节改写要求。',
+    ].join('\n'),
+    variables: ['genre', 'targetAudience', 'shortDramaDirection', 'brief'],
+  },
 ]
