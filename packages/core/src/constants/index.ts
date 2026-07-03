@@ -35,6 +35,12 @@ export interface WorkspaceNavKey {
   label: string
 }
 
+export interface WorkspaceNavGroup {
+  key: string
+  label: string
+  items: WorkspaceNavKey[]
+}
+
 export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
@@ -60,6 +66,59 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'ai-runs', label: 'AI 调用记录' },
   // v0.8 多 Agent 编剧室
   { key: 'writing-room', label: '编剧室' },
+]
+
+const WORKSPACE_NAV_BY_KEY = new Map(WORKSPACE_NAV.map((item) => [item.key, item]))
+
+function workspaceNavItems(keys: string[]): WorkspaceNavKey[] {
+  return keys.map((key) => {
+    const item = WORKSPACE_NAV_BY_KEY.get(key)
+    if (!item) throw new Error(`Unknown workspace nav key: ${key}`)
+    return item
+  })
+}
+
+export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
+  {
+    key: 'creation',
+    label: '创作',
+    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline']),
+  },
+  {
+    key: 'memory',
+    label: '记忆',
+    items: workspaceNavItems([
+      'memory',
+      'character-state',
+      'visual-profile',
+      'visual-setting',
+      'timeline',
+      'foreshadowing',
+      'consistency',
+    ]),
+  },
+  {
+    key: 'diagnosis',
+    label: '诊断',
+    items: workspaceNavItems([
+      'quality-gates',
+      'evaluation',
+      'ai-dashboard',
+      'creative-diagnosis',
+      'beats',
+      'highlights',
+    ]),
+  },
+  {
+    key: 'adaptation',
+    label: '改编准备',
+    items: workspaceNavItems(['ai-video', 'writing-room']),
+  },
+  {
+    key: 'records',
+    label: '记录',
+    items: workspaceNavItems(['ai-runs']),
+  },
 ]
 
 /** 任务类型 → 中文标签（用于 UI / 日志） */

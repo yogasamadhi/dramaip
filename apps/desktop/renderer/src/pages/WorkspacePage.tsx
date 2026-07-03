@@ -3,14 +3,13 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
 import type { AiRun, Chapter, Project, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS, WORKSPACE_NAV } from '@sdns/core'
+import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -277,33 +276,51 @@ export function WorkspacePage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* 左：项目导航 */}
-        <nav className="w-52 shrink-0 border-r p-2">
-          {WORKSPACE_NAV.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => {
-                // v0.8：编剧室是独立页面
-                if (item.key === 'writing-room') {
-                  void navigate(`/projects/${project.id}/writing-room`)
-                  return
-                }
-                setSection(item.key)
-              }}
-              className={cn(
-                'mb-0.5 flex w-full items-center rounded-md px-3 py-2 text-sm transition-colors',
-                section === item.key
-                  ? 'bg-accent font-medium text-accent-foreground'
-                  : 'hover:bg-accent/60',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-          <Separator className="my-2" />
-          <Button variant="outline" size="sm" className="w-full" onClick={createChapter}>
-            <FilePlus2 />
-            新建章节
-          </Button>
+        <nav className="flex w-56 shrink-0 flex-col border-r">
+          <ScrollArea className="flex-1">
+            <div className="space-y-3 p-2">
+              {WORKSPACE_NAV_GROUPS.map((group) => (
+                <div key={group.key} className="space-y-1">
+                  <div className="px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                    {group.label}
+                  </div>
+                  {group.items.map((item) => {
+                    const active = section === item.key
+                    const isChapterEntry = item.key === 'chapters'
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => {
+                          // v0.8：编剧室是独立页面
+                          if (item.key === 'writing-room') {
+                            void navigate(`/projects/${project.id}/writing-room`)
+                            return
+                          }
+                          setSection(item.key)
+                        }}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors',
+                          active
+                            ? 'bg-accent font-medium text-accent-foreground'
+                            : 'hover:bg-accent/60',
+                          isChapterEntry && 'font-medium',
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="border-t p-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={createChapter}>
+              <FilePlus2 />
+              新建章节
+            </Button>
+          </div>
         </nav>
 
         {/* 中：主区 */}
