@@ -82,6 +82,7 @@ export function WorkspacePage() {
     taskType: PreviewTaskType
     data: unknown
     characterId?: string
+    adaptationProjectId?: string
   }>({
     open: false,
     taskType: 'generate_project',
@@ -279,6 +280,7 @@ export function WorkspacePage() {
       taskType: preview.taskType,
       data: preview.data,
       characterId: preview.characterId,
+      adaptationProjectId: preview.adaptationProjectId,
     })
     if (res.ok) {
       toast.success('已保存到项目')
@@ -615,6 +617,20 @@ export function WorkspacePage() {
               projectId={project.id}
               onGenerate={runGenerate}
               generating={generating}
+              commandContext={{
+                projectId: project.id,
+                activeChapter: selected,
+                chapters,
+                adaptations: workflowSnapshot?.adaptations ?? [],
+                episodes: workflowSnapshot?.episodes ?? [],
+                scripts: workflowSnapshot?.scripts ?? [],
+                scenes: workflowSnapshot?.scenes ?? [],
+                shots: workflowSnapshot?.shots ?? [],
+              }}
+              onTextPreview={setTextPreview}
+              onGeneratePreview={({ taskType, data, adaptationProjectId }) =>
+                setPreview({ open: true, taskType, data, adaptationProjectId })}
+              onCommandCompleted={() => setDataVersion((v) => v + 1)}
             />
           )}
 
