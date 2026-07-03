@@ -147,7 +147,7 @@
 | Loop | 优先级 | Owner | 状态 | 目标 | 主要范围 | 验收 | 验证 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | LM2-00 | P0 | 产品/工程负责人 | done | 建立升级基线与信息架构审计 | `docs/process/LOOPMAP2.md`、`docs/product`、核心路由/导航 | 形成当前功能矩阵、主流程断点、竞品启发映射和执行批次；不改业务代码 | `git diff --check`；人工检查文档路径与 loop 粒度 | 无 |
-| LM2-01 | P0 | 产品体验 | todo | 重组项目工作台导航分组 | `WORKSPACE_NAV`、`WorkspacePage`、相关 section 入口 | 左侧导航按“创作、记忆、诊断、改编准备、记录”分组；章节仍是一等入口；原功能可达 | `pnpm typecheck`；手工 smoke：打开项目并切换每个分组 | LM2-00 |
+| LM2-01 | P0 | 产品体验 | done | 重组项目工作台导航分组 | `WORKSPACE_NAV`、`WorkspacePage`、相关 section 入口 | 左侧导航按“创作、记忆、诊断、改编准备、记录”分组；章节仍是一等入口；原功能可达 | `pnpm typecheck`；手工 smoke：打开项目并切换每个分组 | LM2-00 |
 | LM2-02 | P0 | 产品体验 | todo | 增加小说到短剧视频主流程向导 | 项目概览、质量闸门、改编入口、工作流状态 | 项目概览展示阶段进度：设定、人物、大纲、章节、质量闸门、改编、剧本、分镜、视频；每阶段有完成条件和下一步 CTA | `pnpm typecheck`；手工 smoke：空项目、已有章节项目、已有改编项目三种状态 | LM2-01 |
 | LM2-03 | P0 | 产品体验/创作闭环 | todo | 增加阶段门禁与就绪检查 | 质量闸门、项目概览、改编创建入口 | 创建改编前展示小说就绪项：章节数、人物、大纲、记忆、质量闸门阻塞项；允许继续但风险明确 | `pnpm typecheck`；相关质量闸门单测或手工 smoke | LM2-02 |
 | LM2-04 | P0 | AI 产品/基础设施 | todo | 建立对话式 Agent 指挥台 MVP | 项目对话、AI run router、任务识别、预览采用 | 用户可输入自然语言命令，系统识别目标实体与任务类型，生成执行计划并调用既有 AI workflow；高风险写入仍走预览 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：改章节、生成分集、拆镜头三类命令 | LM2-02 |
@@ -301,4 +301,19 @@ Push: git push origin main succeeded to Gitee, updating main from ab59be3 to 9d1
 Loop branch cleanup: git branch -d loop/lm2-00-upgrade-baseline succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: User explicitly approved pushing the current main state containing four local commits to origin/main. Gitee credentials were entered only through interactive prompts.
+```
+
+```text
+Loop: LM2-01
+Target branch: main
+Loop branch: loop/lm2-01-workspace-nav-groups
+Commit: 09a0852 loop(LM2-01): group workspace navigation
+Merge commit: a7d8d48 merge: lm2-01 workspace nav groups
+Verification: git diff --check passed; pnpm typecheck passed; node --import tsx --test tests/workspace-nav.test.ts passed; pnpm test:unit passed with 67 tests; pnpm test:e2e passed after building and launching Electron smoke.
+Diff review: reviewed staged diff and final origin/main...HEAD stat; changes were limited to grouped workspace nav constants, WorkspacePage rendering, and nav coverage tests.
+Remote sync: git fetch origin succeeded before starting LM2-01 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 0b5255a to a7d8d48.
+Loop branch cleanup: git branch -d loop/lm2-01-workspace-nav-groups succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: The grouped nav keeps every previous WORKSPACE_NAV entry reachable; tests assert all nav items appear exactly once and that chapters remains the first creation entry.
 ```
