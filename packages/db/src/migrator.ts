@@ -497,6 +497,32 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 15,
+    name: 'inspiration-favorites',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS inspiration_favorites (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          card_key TEXT NOT NULL,
+          source_kind TEXT NOT NULL,
+          source_id TEXT,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          pattern TEXT NOT NULL DEFAULT '',
+          apply_to TEXT NOT NULL DEFAULT '',
+          risk TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_inspiration_favorites_project_card
+          ON inspiration_favorites(project_id, card_key);
+        CREATE INDEX IF NOT EXISTS idx_inspiration_favorites_project_kind
+          ON inspiration_favorites(project_id, kind, updated_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

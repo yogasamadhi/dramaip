@@ -623,6 +623,7 @@ export const ProjectPackageSchema = z
     outlines: packageEntityArray,
     projectSkills: packageEntityArray.default([]),
     projectAgentSchemes: packageEntityArray.default([]),
+    inspirationFavorites: packageEntityArray.default([]),
     chapters: packageEntityArray,
     evaluations: packageEntityArray,
     chapterMemories: packageEntityArray,

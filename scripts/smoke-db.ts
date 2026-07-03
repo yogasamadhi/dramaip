@@ -186,6 +186,31 @@ function main() {
     'updateProjectAgentScheme 可切换 active 并更新模型覆盖',
   )
 
+  const favorite = repos.inspirationFavorite.upsertInspirationFavorite(repos.db, {
+    projectId: p1.id,
+    cardKey: 'genre-1:opening:1',
+    sourceKind: 'genre_preset',
+    sourceId: 'genre-1',
+    kind: 'opening',
+    title: '强钩子开局',
+    pattern: '女主第一幕公开反击。',
+    applyTo: '第一章钩子',
+  })
+  assert(
+    repos.inspirationFavorite.listInspirationFavorites(repos.db, p1.id)[0]?.id === favorite.id,
+    'upsertInspirationFavorite + list',
+  )
+  const favoriteUpdated = repos.inspirationFavorite.upsertInspirationFavorite(repos.db, {
+    ...favorite,
+    title: '强钩子开局（更新）',
+  })
+  assert(
+    favoriteUpdated.id === favorite.id &&
+      favoriteUpdated.title.includes('更新') &&
+      repos.inspirationFavorite.listInspirationFavorites(repos.db, p1.id).length === 1,
+    'upsertInspirationFavorite 同卡片覆盖',
+  )
+
   // ai_runs（直接造一条，验证 insert + list）
   const run = repos.aiRun.createAiRun(repos.db, {
     projectId: p1.id, graphName: 'novel-workflow', type: 'generate_chapter',
@@ -667,6 +692,7 @@ function main() {
   assert(repos.longTask.listLongTasksByProject(repos.db, p1.id).length === 0, '级联：long_tasks 已删')
   assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 0, '级联：assets 已删')
   assert(repos.storyArc.listStoryArcs(repos.db, p1.id).length === 0, '级联：story_arcs 已删')
+  assert(repos.inspirationFavorite.listInspirationFavorites(repos.db, p1.id).length === 0, '级联：灵感收藏已删')
   assert(repos.project.listProjects(repos.db).length === 1, '另一项目仍在')
 
   // 持久性：重新打开同一文件
@@ -875,13 +901,24 @@ function main() {
     modelBindings: { writing_room: m2.id },
     active: true,
   })
+  repos.inspirationFavorite.upsertInspirationFavorite(db, {
+    projectId: p3.id,
+    cardKey: 'case-structure:opening:1',
+    sourceKind: 'case_study',
+    sourceId: 'case-1',
+    kind: 'opening',
+    title: '样本开局卡',
+    pattern: '第一屏先给强结果，再倒回原因。',
+    applyTo: '第一章钩子',
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
   assert(pkg.chapters.length === 1 && (pkg.chapters[0].content ?? '').includes('正文'), 'collectProjectPackage 章节+正文')
   assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
   assert(pkg.projectAgentSchemes.length === 1 && pkg.projectAgentSchemes[0].skillIds[0] === exportSkill.id, 'collectProjectPackage Agent 方案')
-  assert(pkg.meta.version === 4, 'collectProjectPackage 版本 = 4')
+  assert(pkg.inspirationFavorites.length === 1 && pkg.inspirationFavorites[0].title === '样本开局卡', 'collectProjectPackage 灵感收藏')
+  assert(pkg.meta.version === 5, 'collectProjectPackage 版本 = 5')
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
   const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
@@ -908,6 +945,7 @@ function main() {
     importedSchemes.length === 1 && importedSchemes[0].skillIds[0] === importedSkills[0].id,
     'importProjectPackage Agent 方案还原并重映射 Skill',
   )
+  assert(repos.inspirationFavorite.listInspirationFavorites(db, imported.id).length === 1, 'importProjectPackage 灵感收藏还原')
   assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
   assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
   const importedAssets = repos.asset.listProjectAssets(db, imported.id)

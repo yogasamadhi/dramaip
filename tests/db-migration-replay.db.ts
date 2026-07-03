@@ -95,6 +95,9 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'project_agent_schemes'))
     assert.ok(columns(raw, 'project_agent_schemes').includes('primary_agent_id'))
     assert.ok(columns(raw, 'project_agent_schemes').includes('model_bindings'))
+    assert.ok(tableExists(raw, 'inspiration_favorites'))
+    assert.ok(columns(raw, 'inspiration_favorites').includes('card_key'))
+    assert.ok(columns(raw, 'inspiration_favorites').includes('source_kind'))
 
     assert.deepEqual(runMigrations(migrationRaw(raw)), [])
     assert.deepEqual(appliedVersions(raw), applied)

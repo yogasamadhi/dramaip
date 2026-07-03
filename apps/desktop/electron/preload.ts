@@ -94,6 +94,13 @@ const api = {
     setActive: (id: string) => invoke('projectAgentScheme:setActive', id),
     remove: (id: string) => invoke('projectAgentScheme:delete', id),
   },
+  inspirationFavorite: {
+    list: (projectId: string) => invoke('inspirationFavorite:list', projectId),
+    upsert: (data: unknown) => invoke('inspirationFavorite:upsert', data),
+    remove: (id: string) => invoke('inspirationFavorite:delete', id),
+    removeByCardKey: (projectId: string, cardKey: string) =>
+      invoke('inspirationFavorite:deleteByCardKey', projectId, cardKey),
+  },
   evaluation: {
     list: (projectId: string) => invoke('evaluation:list', projectId),
   },
