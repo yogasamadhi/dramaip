@@ -6,6 +6,7 @@ import {
   outlines,
   storyArcs,
   projectSkills,
+  projectAgentSchemes,
   chapters,
   evaluations,
   aiRuns,
@@ -101,6 +102,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(characters).where(eq(characters.projectId, id)).run()
   db.delete(storyArcs).where(eq(storyArcs.projectId, id)).run()
   db.delete(projectSkills).where(eq(projectSkills.projectId, id)).run()
+  db.delete(projectAgentSchemes).where(eq(projectAgentSchemes.projectId, id)).run()
   db.delete(outlines).where(eq(outlines.projectId, id)).run()
   db.delete(evaluations).where(eq(evaluations.projectId, id)).run()
   db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()

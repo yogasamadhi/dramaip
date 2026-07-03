@@ -23,11 +23,23 @@ export function resolveProviderForTask(
   repos: Repositories,
   taskType: NovelTaskType,
   templateScope?: NovelTaskType,
+  projectId?: string,
 ): ProviderResolution {
   const db = repos.db
   // template_run 归组依据其实际 scope
   const effectiveForGrouping = taskType === 'template_run' ? (templateScope ?? 'generate_project') : taskType
   const group = resolveTaskGroup(effectiveForGrouping)
+
+  if (projectId) {
+    const scheme = repos.projectAgentScheme.getActiveProjectAgentScheme(db, projectId)
+    const modelConfigId = scheme?.modelBindings[group]
+    if (modelConfigId) {
+      const config = repos.modelConfig.getModelConfig(db, modelConfigId)
+      if (config) {
+        return { provider: providerFromModelConfig(config), config, fromBinding: true }
+      }
+    }
+  }
 
   const binding = repos.taskModelBinding.getTaskModelBinding(db, group)
   if (binding) {

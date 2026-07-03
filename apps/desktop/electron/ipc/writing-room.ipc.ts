@@ -32,7 +32,7 @@ export function registerWritingRoomIpc(): void {
   ipcMain.handle('writingRoom:run', async (_e, input: WritingRoomInput) => {
     const r = repos()
     // v1.0：编剧室用 writing_room 任务组的模型
-    const { provider } = resolveProviderForTask(r, 'writing_room_consolidate' as NovelTaskType)
+    const { provider } = resolveProviderForTask(r, 'writing_room_consolidate' as NovelTaskType, undefined, input.projectId)
     try {
       const result = await runWritingRoomWorkflow({ repos: r, provider }, input)
       return result

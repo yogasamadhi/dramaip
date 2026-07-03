@@ -168,6 +168,20 @@ const projectSkillInput = z
   .passthrough()
 const projectSkillPatch = projectSkillInput.omit({ projectId: true }).partial().passthrough()
 
+const projectAgentSchemeInput = z
+  .object({
+    projectId: id,
+    name: id,
+    description: z.string().optional(),
+    primaryAgentId: maybeId,
+    agentIds: stringArray.optional(),
+    skillIds: stringArray.optional(),
+    modelBindings: z.record(taskGroupKey, id).optional(),
+    active: z.boolean().optional(),
+  })
+  .passthrough()
+const projectAgentSchemePatch = projectAgentSchemeInput.omit({ projectId: true }).partial().passthrough()
+
 const modelConfigInput = z
   .object({
     id: maybeId,
@@ -505,6 +519,12 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'projectSkill:create': [projectSkillInput],
   'projectSkill:update': [id, projectSkillPatch],
   'projectSkill:delete': [id],
+  'projectAgentScheme:list': [id],
+  'projectAgentScheme:getActive': [id],
+  'projectAgentScheme:create': [projectAgentSchemeInput],
+  'projectAgentScheme:update': [id, projectAgentSchemePatch],
+  'projectAgentScheme:setActive': [id],
+  'projectAgentScheme:delete': [id],
   'chapterMemory:list': [id],
   'characterState:list': [id],
   'visualProfile:list': [id],

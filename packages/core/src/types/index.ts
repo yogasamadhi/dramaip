@@ -98,6 +98,25 @@ export interface ProjectSkill {
   updatedAt: string
 }
 
+/** 项目级 Agent 方案：组合全局 Agent、项目 Skills 和任务组模型覆盖，不修改全局内置预设 */
+export interface ProjectAgentScheme {
+  id: string
+  projectId: string
+  name: string
+  description?: string
+  /** 主 Agent 用于整合意见和作为方案的默认牵头视角 */
+  primaryAgentId?: string
+  /** 本项目方案启用的 Agent；为空表示回退全局启用 Agent */
+  agentIds: string[]
+  /** 本项目方案显式绑定的 Skills；为空表示按任务自动选择项目 Skills */
+  skillIds: string[]
+  /** 任务组 -> 模型配置 id；为空的任务组回退全局任务模型绑定或默认模型 */
+  modelBindings: Record<string, string>
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 /** 章节 */
 export interface Chapter {
   id: string

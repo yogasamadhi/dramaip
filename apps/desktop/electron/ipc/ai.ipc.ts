@@ -96,7 +96,7 @@ export async function runAiTask(
   const workflowAbort = mergeAbortSignals(runtime.signal, options.signal)
 
   try {
-    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope)
+    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope, input.projectId)
     const result = await runNovelWorkflow(
       {
         repos,

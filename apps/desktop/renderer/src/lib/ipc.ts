@@ -36,6 +36,7 @@ import type {
   Project,
   ProjectAsset,
   ProjectAssetSourceKind,
+  ProjectAgentScheme,
   ProjectSkill,
   PromptVersion,
   QualityGateReport,
@@ -421,6 +422,14 @@ export interface StudioApi {
     list(projectId: string): Promise<ProjectSkill[]>
     create(data: Partial<ProjectSkill> & { projectId: string; name: string; category: ProjectSkill['category']; content: string }): Promise<ProjectSkill>
     update(id: string, patch: Partial<ProjectSkill>): Promise<ProjectSkill | undefined>
+    remove(id: string): Promise<boolean>
+  }
+  projectAgentScheme: {
+    list(projectId: string): Promise<ProjectAgentScheme[]>
+    getActive(projectId: string): Promise<ProjectAgentScheme | undefined>
+    create(data: Partial<ProjectAgentScheme> & { projectId: string; name: string }): Promise<ProjectAgentScheme>
+    update(id: string, patch: Partial<ProjectAgentScheme>): Promise<ProjectAgentScheme | undefined>
+    setActive(id: string): Promise<ProjectAgentScheme | undefined>
     remove(id: string): Promise<boolean>
   }
   evaluation: {

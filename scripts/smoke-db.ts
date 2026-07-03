@@ -151,6 +151,41 @@ function main() {
   const def2 = repos.modelConfig.getDefaultModelConfig(repos.db)
   assert(def2?.id === m2.id, '第二个 isDefault 后，旧的被取消默认')
 
+  // 项目级 Agent 方案：绑定 Agent / Skills / 任务模型覆盖，不改全局 Agent
+  const scheme1 = repos.projectAgentScheme.createProjectAgentScheme(repos.db, {
+    projectId: p1.id,
+    name: '短剧审稿方案',
+    primaryAgentId: 'chief_editor',
+    agentIds: ['chief_editor', 'visual_director'],
+    skillIds: [writingSkill.id],
+    modelBindings: { writing_room: m2.id },
+    active: true,
+  })
+  assert(scheme1.active && scheme1.skillIds[0] === writingSkill.id, 'createProjectAgentScheme 写回绑定')
+  assert(repos.projectAgentScheme.getActiveProjectAgentScheme(repos.db, p1.id)?.id === scheme1.id, 'getActiveProjectAgentScheme')
+  const scheme2 = repos.projectAgentScheme.createProjectAgentScheme(repos.db, {
+    projectId: p1.id,
+    name: '对白专项方案',
+    primaryAgentId: 'script_doctor',
+    agentIds: ['script_doctor'],
+    skillIds: [writingSkill.id],
+    modelBindings: { writing: m.id },
+    active: true,
+  })
+  assert(repos.projectAgentScheme.getActiveProjectAgentScheme(repos.db, p1.id)?.id === scheme2.id, '新 active 方案会替换旧 active')
+  const scheme1Reloaded = repos.projectAgentScheme.getProjectAgentScheme(repos.db, scheme1.id)
+  assert(scheme1Reloaded?.active === false, '旧项目 Agent 方案被置为备用')
+  const scheme1Updated = repos.projectAgentScheme.updateProjectAgentScheme(repos.db, scheme1.id, {
+    active: true,
+    modelBindings: { writing_room: m.id, writing: m2.id },
+  })
+  assert(
+    scheme1Updated?.active === true &&
+      scheme1Updated.modelBindings.writing_room === m.id &&
+      repos.projectAgentScheme.getActiveProjectAgentScheme(repos.db, p1.id)?.id === scheme1.id,
+    'updateProjectAgentScheme 可切换 active 并更新模型覆盖',
+  )
+
   // ai_runs（直接造一条，验证 insert + list）
   const run = repos.aiRun.createAiRun(repos.db, {
     projectId: p1.id, graphName: 'novel-workflow', type: 'generate_chapter',
@@ -823,7 +858,7 @@ function main() {
     metadata: { pose: '半身' },
     packagePolicy: 'reference_only',
   })
-  repos.projectSkill.createProjectSkill(db, {
+  const exportSkill = repos.projectSkill.createProjectSkill(db, {
     projectId: p3.id,
     name: '导出节奏规范',
     category: 'genre_pacing',
@@ -831,12 +866,22 @@ function main() {
     content: '导出项目每章保持强钩子。',
     priority: 12,
   })
+  repos.projectAgentScheme.createProjectAgentScheme(db, {
+    projectId: p3.id,
+    name: '导出 Agent 方案',
+    primaryAgentId: 'chief_editor',
+    agentIds: ['chief_editor', 'highlight_optimizer'],
+    skillIds: [exportSkill.id],
+    modelBindings: { writing_room: m2.id },
+    active: true,
+  })
   const pkg = collectProjectPackage(repos, p3.id)
   assert(pkg.project.id === p3.id, 'collectProjectPackage 项目正确')
   assert(pkg.characters.length === 1 && pkg.characters[0].name === '女主A', 'collectProjectPackage 人物正确')
   assert(pkg.chapters.length === 1 && (pkg.chapters[0].content ?? '').includes('正文'), 'collectProjectPackage 章节+正文')
   assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
-  assert(pkg.meta.version === 3, 'collectProjectPackage 版本 = 3')
+  assert(pkg.projectAgentSchemes.length === 1 && pkg.projectAgentSchemes[0].skillIds[0] === exportSkill.id, 'collectProjectPackage Agent 方案')
+  assert(pkg.meta.version === 4, 'collectProjectPackage 版本 = 4')
   assert(pkg.freshnessReports.length === 1 && pkg.contentVersions.length === 1, 'collectProjectPackage 创意诊断数据')
   assert(pkg.meta.assetExportMode === 'none' && pkg.assets.length === 0, 'collectProjectPackage 默认不随包携带资产清单')
   const pkgWithAssets = collectProjectPackage(repos, p3.id, { includeAssets: true })
@@ -856,7 +901,13 @@ function main() {
   const importedChapters = repos.chapter.listChapters(db, imported.id)
   assert(importedChapters.length === 1, 'importProjectPackage 章节还原')
   assert((importedChapters[0].content ?? '').includes('正文'), 'importProjectPackage 章节正文还原')
-  assert(repos.projectSkill.listProjectSkills(db, imported.id).length === 1, 'importProjectPackage 创作规范还原')
+  const importedSkills = repos.projectSkill.listProjectSkills(db, imported.id)
+  assert(importedSkills.length === 1, 'importProjectPackage 创作规范还原')
+  const importedSchemes = repos.projectAgentScheme.listProjectAgentSchemes(db, imported.id)
+  assert(
+    importedSchemes.length === 1 && importedSchemes[0].skillIds[0] === importedSkills[0].id,
+    'importProjectPackage Agent 方案还原并重映射 Skill',
+  )
   assert(repos.creative.listFreshnessReports(db, imported.id).length === 1, 'importProjectPackage 新鲜度报告还原')
   assert(repos.creative.listContentVersionsByTarget(db, 'chapter', importedChapters[0].id).length === 1, 'importProjectPackage 内容版本还原')
   const importedAssets = repos.asset.listProjectAssets(db, imported.id)

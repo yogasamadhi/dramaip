@@ -474,6 +474,29 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 14,
+    name: 'project-agent-schemes',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS project_agent_schemes (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          primary_agent_id TEXT,
+          agent_ids TEXT NOT NULL DEFAULT '[]',
+          skill_ids TEXT NOT NULL DEFAULT '[]',
+          model_bindings TEXT NOT NULL DEFAULT '{}',
+          active INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_project_agent_schemes_project_active
+          ON project_agent_schemes(project_id, active, updated_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

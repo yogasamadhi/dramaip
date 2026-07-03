@@ -8,6 +8,7 @@ export * as characterRepo from './repositories/character.repo'
 export * as outlineRepo from './repositories/outline.repo'
 export * as storyArcRepo from './repositories/story-arc.repo'
 export * as projectSkillRepo from './repositories/project-skill.repo'
+export * as projectAgentSchemeRepo from './repositories/project-agent-scheme.repo'
 export * as chapterRepo from './repositories/chapter.repo'
 export * as evaluationRepo from './repositories/evaluation.repo'
 export * as aiRunRepo from './repositories/ai-run.repo'
@@ -60,6 +61,7 @@ import * as characterRepo from './repositories/character.repo'
 import * as outlineRepo from './repositories/outline.repo'
 import * as storyArcRepo from './repositories/story-arc.repo'
 import * as projectSkillRepo from './repositories/project-skill.repo'
+import * as projectAgentSchemeRepo from './repositories/project-agent-scheme.repo'
 import * as chapterRepo from './repositories/chapter.repo'
 import * as evaluationRepo from './repositories/evaluation.repo'
 import * as aiRunRepo from './repositories/ai-run.repo'
@@ -103,6 +105,7 @@ export function createRepositories(db: DB) {
     outline: { ...outlineRepo },
     storyArc: { ...storyArcRepo },
     projectSkill: { ...projectSkillRepo },
+    projectAgentScheme: { ...projectAgentSchemeRepo },
     chapter: { ...chapterRepo },
     evaluation: { ...evaluationRepo },
     aiRun: { ...aiRunRepo },

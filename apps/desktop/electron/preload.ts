@@ -86,6 +86,14 @@ const api = {
     update: (id: string, patch: unknown) => invoke('projectSkill:update', id, patch),
     remove: (id: string) => invoke('projectSkill:delete', id),
   },
+  projectAgentScheme: {
+    list: (projectId: string) => invoke('projectAgentScheme:list', projectId),
+    getActive: (projectId: string) => invoke('projectAgentScheme:getActive', projectId),
+    create: (data: unknown) => invoke('projectAgentScheme:create', data),
+    update: (id: string, patch: unknown) => invoke('projectAgentScheme:update', id, patch),
+    setActive: (id: string) => invoke('projectAgentScheme:setActive', id),
+    remove: (id: string) => invoke('projectAgentScheme:delete', id),
+  },
   evaluation: {
     list: (projectId: string) => invoke('evaluation:list', projectId),
   },
