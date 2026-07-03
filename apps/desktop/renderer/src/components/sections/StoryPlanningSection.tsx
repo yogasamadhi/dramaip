@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { FilePlus2, Pencil, Trash2 } from 'lucide-react'
-import type { StoryArc, StoryArcKind } from '@sdns/core'
+import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
+import type { Chapter, StoryArc, StoryArcKind } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { cn } from '@/lib/utils'
+import type { PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -22,6 +23,9 @@ import {
 interface Props {
   projectId: string
   version: number
+  chapters: Chapter[]
+  onGenerate: (taskType: PreviewTaskType, userInstruction?: string) => void
+  generating: PreviewTaskType | null
 }
 
 interface StoryArcForm {
@@ -46,7 +50,7 @@ const KIND_LABEL: Record<StoryArcKind, string> = {
 
 const KIND_ORDER: StoryArcKind[] = ['volume', 'unit', 'stage']
 
-export function StoryPlanningSection({ projectId, version }: Props) {
+export function StoryPlanningSection({ projectId, version, chapters, onGenerate, generating }: Props) {
   const [arcs, setArcs] = useState<StoryArc[]>([])
   const [activeKind, setActiveKind] = useState<StoryArcKind>('volume')
   const [editing, setEditing] = useState<StoryArc | 'new' | null>(null)
@@ -128,10 +132,21 @@ export function StoryPlanningSection({ projectId, version }: Props) {
           ))}
         </div>
         <Badge variant="secondary">{filtered.length}</Badge>
-        <Button size="sm" className="ml-auto" onClick={() => openNew()}>
-          <FilePlus2 />
-          新建{KIND_LABEL[activeKind]}
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onGenerate('generate_story_arc_outline')}
+            disabled={generating !== null}
+          >
+            {generating === 'generate_story_arc_outline' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            AI 生成规划
+          </Button>
+          <Button size="sm" onClick={() => openNew()}>
+            <FilePlus2 />
+            新建{KIND_LABEL[activeKind]}
+          </Button>
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
@@ -162,7 +177,7 @@ export function StoryPlanningSection({ projectId, version }: Props) {
                   <span>目标字数：{arc.targetWordCount ? `${arc.targetWordCount}` : '未设定'}</span>
                   <span>目标章节：{arc.targetChapterCount ? `${arc.targetChapterCount}` : '未设定'}</span>
                   <span>章节范围：{chapterRangeLabel(arc)}</span>
-                  <span>排序：{arc.orderIndex + 1}</span>
+                  <span>完成度：{chapterProgressLabel(arc, chapters)}</span>
                 </div>
                 {arc.summary && <p className="mt-2 text-xs text-muted-foreground">{arc.summary}</p>}
                 {arc.coreConflict && (
@@ -342,4 +357,19 @@ function chapterRangeLabel(arc: StoryArc): string {
   if (arc.chapterStart) return `从 ${arc.chapterStart}`
   if (arc.chapterEnd) return `至 ${arc.chapterEnd}`
   return '未设定'
+}
+
+function chapterProgressLabel(arc: StoryArc, chapters: Chapter[]): string {
+  const scoped = chapters.filter((chapter) => chapterInArc(chapter, arc))
+  const written = scoped.filter((chapter) => chapter.content.trim()).length
+  const target = arc.targetChapterCount ?? scoped.length
+  if (!target) return '未设定'
+  return `${written}/${target} 章`
+}
+
+function chapterInArc(chapter: Chapter, arc: StoryArc): boolean {
+  const chapterNumber = chapter.orderIndex + 1
+  if (arc.chapterStart && chapterNumber < arc.chapterStart) return false
+  if (arc.chapterEnd && chapterNumber > arc.chapterEnd) return false
+  return Boolean(arc.chapterStart || arc.chapterEnd)
 }

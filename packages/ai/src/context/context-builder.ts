@@ -25,6 +25,7 @@ import type {
   Scene,
   Script,
   Shot,
+  StoryArc,
   StoryEvent,
   VisualSetting,
 } from '@sdns/core'
@@ -33,6 +34,7 @@ const DEFAULT_CONTEXT_TOKEN_BUDGET = 5_000
 const CONTEXT_TOKEN_BUDGETS: Partial<Record<NovelTaskType, number>> = {
   chat_project: 3_500,
   convert_novel_to_episodes: 6_500,
+  generate_story_arc_outline: 6_500,
   generate_ai_drama_script: 7_000,
   rewrite_ai_drama_script: 7_000,
   split_script_to_scenes: 7_000,
@@ -77,6 +79,7 @@ export interface ChapterContextInput {
   project?: Project
   characters?: Character[]
   outlines?: Outline[]
+  storyArcs?: StoryArc[]
   chapters?: Chapter[]
   currentChapter?: Chapter
   /** 最近章节摘要条数 */
@@ -127,9 +130,49 @@ function block(title: string, body: string): string {
   return `## ${title}\n${body.trim()}`
 }
 
+const STORY_ARC_KIND_LABEL: Record<StoryArc['kind'], string> = {
+  volume: '卷',
+  unit: '单元',
+  stage: '剧情阶段',
+}
+
+function renderStoryArcs(arcs: StoryArc[], currentChapter?: Chapter): string {
+  const byId = new Map(arcs.map((arc) => [arc.id, arc]))
+  const currentChapterNumber = currentChapter ? currentChapter.orderIndex + 1 : undefined
+  return limitList(arcs, 80)
+    .map((arc) => {
+      const parts = [
+        arc.parentId ? `上级：${byId.get(arc.parentId)?.title ?? arc.parentId}` : '',
+        formatStoryArcChapterRange(arc),
+        arc.targetChapterCount ? `目标章节：${arc.targetChapterCount}` : '',
+        arc.targetWordCount ? `目标字数：${arc.targetWordCount}` : '',
+        arc.coreConflict ? `核心矛盾：${arc.coreConflict}` : '',
+        arc.summary ? `摘要：${arc.summary}` : '',
+        arc.keyHighlights.length ? `关键爽点：${arc.keyHighlights.join('；')}` : '',
+        arc.foreshadowingPayoffs.length ? `伏笔回收：${arc.foreshadowingPayoffs.join('；')}` : '',
+      ].filter(Boolean)
+      const active = currentChapterNumber && isChapterInsideArc(currentChapterNumber, arc) ? '（当前章节所属）' : ''
+      return `- [${STORY_ARC_KIND_LABEL[arc.kind]}] ${arc.title}${active}：${parts.join('；')}`
+    })
+    .join('\n')
+}
+
+function formatStoryArcChapterRange(arc: StoryArc): string {
+  if (arc.chapterStart && arc.chapterEnd) return `章节范围：${arc.chapterStart}-${arc.chapterEnd}`
+  if (arc.chapterStart) return `章节范围：从 ${arc.chapterStart}`
+  if (arc.chapterEnd) return `章节范围：至 ${arc.chapterEnd}`
+  return ''
+}
+
+function isChapterInsideArc(chapterNumber: number, arc: StoryArc): boolean {
+  if (arc.chapterStart && chapterNumber < arc.chapterStart) return false
+  if (arc.chapterEnd && chapterNumber > arc.chapterEnd) return false
+  return Boolean(arc.chapterStart || arc.chapterEnd)
+}
+
 /** 生成章节正文 / 章节辅助时使用的上下文 */
 export function buildChapterContext(input: ChapterContextInput): string {
-  const { project, characters, outlines, chapters, currentChapter } = input
+  const { project, characters, outlines, storyArcs, chapters, currentChapter } = input
   const sections: string[] = []
 
   if (project) {
@@ -165,6 +208,10 @@ export function buildChapterContext(input: ChapterContextInput): string {
 
   const bookOutline = outlines?.filter((o) => o.type === 'book').map((o) => o.content).join('\n')
   sections.push(block('全书大纲', bookOutline ?? ''))
+
+  if (storyArcs?.length) {
+    sections.push(block('长篇规划', renderStoryArcs(storyArcs, currentChapter)))
+  }
 
   if (currentChapter) {
     const fields = [

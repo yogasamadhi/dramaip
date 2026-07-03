@@ -8,7 +8,9 @@ import type {
   GenerateChapterOutlinesResult,
   GenerateCharactersResult,
   GenerateProjectResult,
+  GenerateStoryArcOutlineResult,
   NovelTaskType,
+  StoryArc,
   TextDiffPreviewPayload,
   VisualProfileResult,
   VisualSettingResult,
@@ -20,6 +22,7 @@ export type GenerateTaskType =
   | 'generate_characters'
   | 'generate_book_outline'
   | 'generate_chapter_outline'
+  | 'generate_story_arc_outline'
   | 'generate_character_visual_profile'
   | 'generate_visual_setting'
   | 'convert_novel_to_episodes'
@@ -47,6 +50,7 @@ export interface ApplyArtifactOutput {
  * - generate_characters：追加人物（不清空已有）
  * - generate_book_outline：已有全书大纲则更新内容，否则新建
  * - generate_chapter_outline：追加章节大纲（orderIndex 接在现有之后）
+ * - generate_story_arc_outline：追加卷/单元/剧情阶段规划（按 parentTitle 或最近父级建立层级）
  */
 export async function applyGeneratedArtifact(
   deps: NodeDeps,
@@ -153,6 +157,48 @@ export async function applyGeneratedArtifact(
           orderIndex: baseIndex + idx,
         }),
       )
+      return { kind: taskType, created }
+    }
+
+    case 'generate_story_arc_outline': {
+      const projectId = requireProjectId(input.projectId, taskType)
+      const items = data as GenerateStoryArcOutlineResult
+      const existing = repos.storyArc.listStoryArcs(db, projectId)
+      const titleToId = new Map(existing.map((arc) => [arc.title, arc.id]))
+      let lastVolumeId = lastStoryArcId(existing, 'volume')
+      let lastUnitId = lastStoryArcId(existing, 'unit')
+      const baseIndex = existing.length
+      const created = items.map((it, idx) => {
+        const parentId = resolveStoryArcParentId(it, titleToId, lastVolumeId, lastUnitId)
+        const arc = repos.storyArc.createStoryArc(db, {
+          projectId,
+          parentId,
+          kind: it.kind,
+          title: it.title,
+          summary: it.summary,
+          targetWordCount: it.targetWordCount,
+          targetChapterCount: it.targetChapterCount,
+          chapterStart: it.chapterStart,
+          chapterEnd: it.chapterEnd,
+          coreConflict: it.coreConflict,
+          keyHighlights: it.keyHighlights ?? [],
+          foreshadowingPayoffs: it.foreshadowingPayoffs ?? [],
+          orderIndex: baseIndex + idx,
+        })
+        titleToId.set(arc.title, arc.id)
+        if (arc.kind === 'volume') lastVolumeId = arc.id
+        if (arc.kind === 'unit') lastUnitId = arc.id
+        return arc
+      })
+      repos.creative.createContentVersion(db, {
+        projectId,
+        targetKind: 'project',
+        targetId: projectId,
+        label: '采纳预览：长篇规划',
+        source: 'adopt_preview',
+        content: JSON.stringify(items, null, 2),
+        meta: { taskType, storyArcIds: created.map((arc) => arc.id) },
+      })
       return { kind: taskType, created }
     }
 
@@ -324,6 +370,24 @@ function applyTextDiffPreview(deps: NodeDeps, input: ApplyArtifactInput): ApplyA
 function requireProjectId(projectId: string | undefined, taskType: NovelTaskType): string {
   if (!projectId) throw new Error(`${taskType} 需要 projectId`)
   return projectId
+}
+
+function lastStoryArcId(arcs: StoryArc[], kind: StoryArc['kind']): string | undefined {
+  for (let index = arcs.length - 1; index >= 0; index -= 1) {
+    if (arcs[index].kind === kind) return arcs[index].id
+  }
+  return undefined
+}
+
+function resolveStoryArcParentId(
+  item: GenerateStoryArcOutlineResult[number],
+  titleToId: Map<string, string>,
+  lastVolumeId: string | undefined,
+  lastUnitId: string | undefined,
+): string | undefined {
+  if (item.kind === 'volume') return undefined
+  if (item.parentTitle && titleToId.has(item.parentTitle)) return titleToId.get(item.parentTitle)
+  return item.kind === 'unit' ? lastVolumeId : lastUnitId
 }
 
 const TEXT_DIFF_PREVIEW_TASKS = new Set<NovelTaskType>([

@@ -66,6 +66,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     project: state.project,
     characters: state.characters,
     outlines: state.outlines,
+    storyArcs: state.storyArcs,
     chapters: state.chapters,
     currentChapter: state.currentChapter,
     chapterMemories: state.chapterMemories,
@@ -157,6 +158,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
     case 'generate_characters':
     case 'generate_book_outline':
     case 'generate_chapter_outline':
+    case 'generate_story_arc_outline':
       return buildChapterContext(common)
     default:
       // 文本章节任务（含 v0.3 的 enhance_hook/reversal/cliffhanger 与 rewrite_as_ai_drama_novel）

@@ -60,6 +60,26 @@ export const GenerateChapterOutlinesResultSchema = z
   .max(200)
 export type GenerateChapterOutlinesResult = z.infer<typeof GenerateChapterOutlinesResultSchema>
 
+/** LM2-11：生成卷 / 单元 / 剧情阶段规划（JSON 数组） */
+export const StoryArcOutlineItemSchema = z.object({
+  kind: z.enum(['volume', 'unit', 'stage']),
+  title: z.string().min(1),
+  parentTitle: z.string().optional(),
+  summary: z.string().optional(),
+  targetWordCount: z.number().int().positive().optional(),
+  targetChapterCount: z.number().int().positive().optional(),
+  chapterStart: z.number().int().positive().optional(),
+  chapterEnd: z.number().int().positive().optional(),
+  coreConflict: z.string().optional(),
+  keyHighlights: z.array(z.string()).optional(),
+  foreshadowingPayoffs: z.array(z.string()).optional(),
+})
+export const GenerateStoryArcOutlineResultSchema = z
+  .array(StoryArcOutlineItemSchema)
+  .min(1)
+  .max(120)
+export type GenerateStoryArcOutlineResult = z.infer<typeof GenerateStoryArcOutlineResultSchema>
+
 /** §11.7 AI 短剧适配度评分（严格 JSON） */
 export const EvaluationResultSchema = z.object({
   totalScore: score,
@@ -633,6 +653,7 @@ export const ALL_RESULT_SCHEMAS = {
   generate_project: GenerateProjectResultSchema,
   generate_characters: GenerateCharactersResultSchema,
   generate_chapter_outline: GenerateChapterOutlinesResultSchema,
+  generate_story_arc_outline: GenerateStoryArcOutlineResultSchema,
   evaluate_ai_drama_fit: EvaluationResultSchema,
   summarize_chapter: ChapterMemoryResultSchema,
   update_character_state: CharacterStateResultSchema,
