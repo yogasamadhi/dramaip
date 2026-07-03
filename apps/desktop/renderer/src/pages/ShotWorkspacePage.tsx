@@ -180,7 +180,7 @@ export function ShotWorkspacePage() {
           <ArrowLeft />
         </Button>
         <h1 className="text-base font-semibold">{adaptation.title} · 分镜与镜头 Prompt</h1>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -190,6 +190,15 @@ export function ShotWorkspacePage() {
           >
             {busy === 'batch-shots' ? <Loader2 className="animate-spin" /> : <ListVideo />}
             批量拆分镜头
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryMarkdown(adaptation.id)}>
+            <Download /> 分镜包
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryJson(adaptation.id)}>
+            <FileJson /> 分镜 JSON
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryCsv(adaptation.id)}>
+            <Table /> 分镜 CSV
           </Button>
           <Select
             value={episodeId}

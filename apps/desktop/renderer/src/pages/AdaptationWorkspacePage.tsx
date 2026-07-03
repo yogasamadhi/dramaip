@@ -220,12 +220,18 @@ export function AdaptationWorkspacePage() {
         <h1 className="text-base font-semibold">{adaptation.title}</h1>
         <Badge variant="secondary">{adaptation.targetEpisodeCount} 集</Badge>
         <Badge variant="outline">{adaptation.adaptationStyle}</Badge>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaProposalMarkdown(adaptation.id, { episodeLimit: 10 })}>
+            <Download /> 提案包
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaProposalJson(adaptation.id, { episodeLimit: 10 })}>
+            <FileJson /> 提案 JSON
+          </Button>
           <Button size="sm" variant="outline" onClick={() => ipc.export.adaptationMarkdown(adaptation.id)}>
-            <Download /> Markdown
+            <Download /> 大纲 MD
           </Button>
           <Button size="sm" variant="outline" onClick={() => ipc.export.adaptationJson(adaptation.id)}>
-            <FileJson /> JSON
+            <FileJson /> 大纲 JSON
           </Button>
         </div>
       </header>

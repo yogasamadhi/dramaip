@@ -631,6 +631,13 @@ export interface StudioApi {
     projectJson(projectId: string): Promise<ExportResult>
     novelSubmissionMarkdown(projectId: string, options?: { chapterLimit?: number }): Promise<ExportResult>
     novelSubmissionJson(projectId: string, options?: { chapterLimit?: number }): Promise<ExportResult>
+    dramaProposalMarkdown(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaProposalJson(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaEpisodeDeliveryMarkdown(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaEpisodeDeliveryJson(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaShotDeliveryMarkdown(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaShotDeliveryJson(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
+    dramaShotDeliveryCsv(adaptationId: string, options?: { episodeLimit?: number }): Promise<ExportResult>
     chapterMarkdown(chapterId: string): Promise<ExportResult>
     adaptationMarkdown(adaptationId: string): Promise<ExportResult>
     adaptationJson(adaptationId: string): Promise<ExportResult>
