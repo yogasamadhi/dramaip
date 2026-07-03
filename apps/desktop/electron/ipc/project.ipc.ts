@@ -92,6 +92,27 @@ export function registerProjectIpc(): void {
     return true
   })
 
+  // ---------- 项目级 Agent 方案 ----------
+  ipcMain.handle('projectAgentScheme:list', (_e, projectId: string) =>
+    repos().projectAgentScheme.listProjectAgentSchemes(repos().db, projectId),
+  )
+  ipcMain.handle('projectAgentScheme:getActive', (_e, projectId: string) =>
+    repos().projectAgentScheme.getActiveProjectAgentScheme(repos().db, projectId),
+  )
+  ipcMain.handle('projectAgentScheme:create', (_e, data: unknown) =>
+    repos().projectAgentScheme.createProjectAgentScheme(repos().db, data as never),
+  )
+  ipcMain.handle('projectAgentScheme:update', (_e, id: string, patch: unknown) =>
+    repos().projectAgentScheme.updateProjectAgentScheme(repos().db, id, patch as never),
+  )
+  ipcMain.handle('projectAgentScheme:setActive', (_e, id: string) =>
+    repos().projectAgentScheme.setActiveProjectAgentScheme(repos().db, id),
+  )
+  ipcMain.handle('projectAgentScheme:delete', (_e, id: string) => {
+    repos().projectAgentScheme.deleteProjectAgentScheme(repos().db, id)
+    return true
+  })
+
   // ---------- 评分（只读列表，生成在 ai 流程中） ----------
   ipcMain.handle('evaluation:list', (_e, projectId: string) =>
     repos().evaluation.listEvaluations(repos().db, projectId),

@@ -42,6 +42,7 @@ import { ChatSection } from '@/components/sections/ChatSection'
 import { OutlineSection } from '@/components/sections/OutlineSection'
 import { StoryPlanningSection } from '@/components/sections/StoryPlanningSection'
 import { ProjectSkillsSection } from '@/components/sections/ProjectSkillsSection'
+import { ProjectAgentSchemesSection } from '@/components/sections/ProjectAgentSchemesSection'
 import { EvaluationSection } from '@/components/sections/EvaluationSection'
 import { MemorySection } from '@/components/sections/MemorySection'
 import { CharacterStateSection } from '@/components/sections/CharacterStateSection'
@@ -736,6 +737,10 @@ export function WorkspacePage() {
 
           {section === 'project-skills' && (
             <ProjectSkillsSection projectId={project.id} version={dataVersion} onChanged={() => setDataVersion((v) => v + 1)} />
+          )}
+
+          {section === 'agent-schemes' && (
+            <ProjectAgentSchemesSection projectId={project.id} version={dataVersion} onChanged={() => setDataVersion((v) => v + 1)} />
           )}
 
           {section === 'evaluation' && <EvaluationSection projectId={project.id} chapter={selected} />}

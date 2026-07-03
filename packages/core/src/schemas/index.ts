@@ -622,6 +622,7 @@ export const ProjectPackageSchema = z
     characters: packageEntityArray,
     outlines: packageEntityArray,
     projectSkills: packageEntityArray.default([]),
+    projectAgentSchemes: packageEntityArray.default([]),
     chapters: packageEntityArray,
     evaluations: packageEntityArray,
     chapterMemories: packageEntityArray,

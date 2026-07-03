@@ -19,6 +19,8 @@ import type {
   CharacterVisualProfile,
   Foreshadowing,
   Project,
+  ProjectAgentScheme,
+  ProjectSkill,
   Scene,
   Script,
   Shot,
@@ -28,11 +30,20 @@ import type {
   WritingRoomResult,
   WritingRoomTargetKind,
 } from '@sdns/core'
-import { AgentReviewOutputSchema, WritingRoomConsolidatedSchema } from '@sdns/core'
+import {
+  AgentReviewOutputSchema,
+  PROJECT_SKILL_CATEGORY_LABELS,
+  WritingRoomConsolidatedSchema,
+} from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 import type { ChatInput, ChatMessage, LLMProvider } from '@sdns/core'
 
 import { extractJson } from '../parsers/json'
+import {
+  selectWritingRoomAgents,
+  selectWritingRoomProjectSkills,
+  type WritingRoomAgentContext,
+} from '../agents/project-agent-scheme'
 import agentReviewPrompt from '../prompts/zh-CN/agent/agent-review.md?raw'
 import consolidatePrompt from '../prompts/zh-CN/agent/consolidate-review.md?raw'
 
@@ -69,13 +80,6 @@ export interface WritingRoomResultPayload {
   aiRunIds?: Record<string, string>
 }
 
-interface AgentReviewContext {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-}
-
 export const WritingRoomState = Annotation.Root({
   // 输入
   targetKind: Annotation<WritingRoomTargetKind>(),
@@ -104,9 +108,12 @@ export const WritingRoomState = Annotation.Root({
   currentShot: Annotation<Shot | undefined>(),
   shots: Annotation<Shot[] | undefined>(),
   contextText: Annotation<string | undefined>(),
+  projectAgentScheme: Annotation<ProjectAgentScheme | undefined>(),
+  projectSkills: Annotation<ProjectSkill[] | undefined>(),
 
   // 处理中间态
-  agents: Annotation<AgentReviewContext[] | undefined>(),
+  agents: Annotation<WritingRoomAgentContext[] | undefined>(),
+  primaryAgent: Annotation<WritingRoomAgentContext | undefined>(),
   reviews: Annotation<AgentReviewResult[]>({ reducer: (a, b) => [...(a ?? []), ...(b ?? [])] }),
   consolidated: Annotation<WritingRoomConsolidated | undefined>(),
   error: Annotation<string | undefined>(),
@@ -162,11 +169,10 @@ function createLoadTargetContextNode(deps: WritingRoomDeps) {
     const db = repos.db
     try {
       // 解析参与 Agent（默认全部启用）
+      const pid = state.projectId
       const allAgents = repos.agentProfile.listAgentProfiles(db)
-      const wanted = state.agentIds?.length ? state.agentIds : allAgents.filter((a) => a.enabled).map((a) => a.id)
-      const agents: AgentReviewContext[] = allAgents
-        .filter((a) => wanted.includes(a.id))
-        .map((a) => ({ id: a.id, name: a.name, role: a.role, systemPrompt: a.systemPrompt }))
+      const projectAgentScheme = pid ? repos.projectAgentScheme.getActiveProjectAgentScheme(db, pid) : undefined
+      const { agents, primaryAgent } = selectWritingRoomAgents(allAgents, state.agentIds, projectAgentScheme)
 
       // 项目上下文（章节类必须有 projectId；剧本/镜头允许缺源项目）
       let project: Project | undefined
@@ -177,7 +183,7 @@ function createLoadTargetContextNode(deps: WritingRoomDeps) {
       let visualSettings: VisualSetting[] = []
       let storyEvents: StoryEvent[] = []
       let foreshadowings: Foreshadowing[] = []
-      const pid = state.projectId
+      let projectSkills: ProjectSkill[] = []
       if (pid) {
         project = repos.project.getProject(db, pid)
         if (!project) return { error: `未找到项目 ${pid}` }
@@ -188,6 +194,11 @@ function createLoadTargetContextNode(deps: WritingRoomDeps) {
         visualSettings = repos.visualSetting.listVisualSettings(db, pid)
         storyEvents = repos.storyEvent.listStoryEvents(db, pid)
         foreshadowings = repos.foreshadowing.listForeshadowings(db, pid)
+        projectSkills = selectWritingRoomProjectSkills(
+          repos.projectSkill.listProjectSkills(db, pid),
+          repos.projectSkill.listEnabledProjectSkills(db, pid),
+          projectAgentScheme,
+        )
       }
 
       // 目标内容（章节/剧本/镜头）
@@ -234,13 +245,18 @@ function createLoadTargetContextNode(deps: WritingRoomDeps) {
         scenes,
         currentShot,
         shots,
+        projectAgentScheme,
+        projectSkills,
         targetKind: state.targetKind,
         userInstruction: state.userInstruction,
       })
 
       return {
         agents,
+        primaryAgent,
         project,
+        projectAgentScheme,
+        projectSkills,
         characters,
         chapterMemories,
         characterStates,
@@ -358,8 +374,11 @@ function createConsolidateNode(deps: WritingRoomDeps) {
           `## ${r.agentName}（${r.role}）评分：${r.score}\n- 问题：${r.issues.join('；') || '（无）'}\n- 建议：${r.suggestions.join('；') || '（无）'}\n- 小结：${r.summary}`,
       )
       .join('\n\n')
+    const primaryAgentText = state.primaryAgent
+      ? `\n\n# 项目主 Agent\n${state.primaryAgent.name}（${state.primaryAgent.role}）作为本项目方案的主 Agent。整合时优先保持它的审稿视角与判断标准。\n${state.primaryAgent.systemPrompt}`
+      : ''
     const messages: ChatMessage[] = [
-      { role: 'system', content: consolidatePrompt },
+      { role: 'system', content: `${consolidatePrompt}${primaryAgentText}` },
       { role: 'user', content: `# 审稿目标类型：${state.targetKind}\n\n# 各 Agent 审稿意见\n\n${reviewsText}` },
     ]
     const startedAt = Date.now()
@@ -422,6 +441,8 @@ interface ReviewContextInput {
   scenes?: Scene[]
   currentShot?: Shot
   shots?: Shot[]
+  projectAgentScheme?: ProjectAgentScheme
+  projectSkills?: ProjectSkill[]
   targetKind: WritingRoomTargetKind
   userInstruction?: string
 }
@@ -434,6 +455,12 @@ function line(label: string, value?: string | number | null): string {
 function block(title: string, body: string): string {
   if (!body.trim()) return ''
   return `## ${title}\n${body.trim()}`
+}
+
+function renderProjectSkill(skill: ProjectSkill): string {
+  const category = PROJECT_SKILL_CATEGORY_LABELS[skill.category] ?? skill.category
+  const description = skill.description ? `\n用途：${skill.description}` : ''
+  return `### ${skill.name}（${category}）${description}\n${skill.content.trim()}`
 }
 
 function buildReviewContext(input: ReviewContextInput): string {
@@ -451,6 +478,18 @@ function buildReviewContext(input: ReviewContextInput): string {
       line('视觉风格方向', project.visualStyleDirection),
     ].filter(Boolean)
     sections.push(block('项目设定', fields.join('\n')))
+  }
+
+  if (input.projectAgentScheme) {
+    const fields = [
+      line('方案名称', input.projectAgentScheme.name),
+      line('方案说明', input.projectAgentScheme.description),
+    ].filter(Boolean)
+    sections.push(block('项目 Agent 方案', fields.join('\n')))
+  }
+
+  if (input.projectSkills?.length) {
+    sections.push(block('项目创作规范', input.projectSkills.map(renderProjectSkill).join('\n\n')))
   }
 
   if (characters?.length) {

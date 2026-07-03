@@ -87,6 +87,20 @@ export const projectSkills = sqliteTable('project_skills', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const projectAgentSchemes = sqliteTable('project_agent_schemes', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  primaryAgentId: text('primary_agent_id'),
+  agentIds: text('agent_ids').notNull().default('[]'),
+  skillIds: text('skill_ids').notNull().default('[]'),
+  modelBindings: text('model_bindings').notNull().default('{}'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const chapters = sqliteTable('chapters', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),

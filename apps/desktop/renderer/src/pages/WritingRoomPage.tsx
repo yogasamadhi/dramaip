@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Bot, CheckCircle2, Loader2, Sparkles, Users } from 'lucide-react'
-import type { AgentProfile, Chapter, Project, WritingRoomResult } from '@sdns/core'
+import type { AgentProfile, Chapter, Project, ProjectAgentScheme, WritingRoomResult } from '@sdns/core'
 import { AGENT_ROLE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -79,6 +79,8 @@ export function WritingRoomPage() {
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [chapterId, setChapterId] = useState<string | null>(null)
   const [agents, setAgents] = useState<AgentProfile[]>([])
+  const [schemes, setSchemes] = useState<ProjectAgentScheme[]>([])
+  const [schemeId, setSchemeId] = useState<string | null>(null)
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
   const [instruction, setInstruction] = useState('')
   const [busy, setBusy] = useState(false)
@@ -93,7 +95,11 @@ export function WritingRoomPage() {
     setChapterId((prev) => prev ?? cs[0]?.id ?? null)
     const ags = await ipc.agent.list()
     setAgents(ags)
-    setSelectedAgents(new Set(ags.filter((a) => a.enabled).map((a) => a.id)))
+    const nextSchemes = await ipc.projectAgentScheme.list(id)
+    const activeScheme = nextSchemes.find((scheme) => scheme.active)
+    setSchemes(nextSchemes)
+    setSchemeId(activeScheme?.id ?? null)
+    setSelectedAgents(new Set(activeScheme?.agentIds.length ? activeScheme.agentIds : ags.filter((a) => a.enabled).map((a) => a.id)))
   }, [id])
 
   useEffect(() => {
@@ -107,6 +113,17 @@ export function WritingRoomPage() {
       else next.add(agentId)
       return next
     })
+  }
+
+  async function switchScheme(nextSchemeId: string) {
+    const scheme = schemes.find((item) => item.id === nextSchemeId)
+    if (!scheme) return
+    const updated = await ipc.projectAgentScheme.setActive(scheme.id)
+    const active = updated ?? scheme
+    setSchemeId(active.id)
+    setSchemes((prev) => prev.map((item) => ({ ...item, active: item.id === active.id })))
+    setSelectedAgents(new Set(active.agentIds))
+    toast.success('已切换项目 Agent 方案')
   }
 
   async function run() {
@@ -180,6 +197,24 @@ export function WritingRoomPage() {
                 </Select>
               )}
             </div>
+
+            {schemes.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">项目 Agent 方案</div>
+                <Select value={schemeId ?? undefined} onValueChange={(value) => void switchScheme(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择方案" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {schemes.map((scheme) => (
+                      <SelectItem key={scheme.id} value={scheme.id}>
+                        {scheme.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

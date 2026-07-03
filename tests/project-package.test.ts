@@ -39,6 +39,18 @@ function minimalPackage(): ProjectPackage {
         enabled: true,
       },
     ],
+    projectAgentSchemes: [
+      {
+        id: 'scheme1',
+        projectId: 'p1',
+        name: '短剧审稿方案',
+        primaryAgentId: 'agent-chief',
+        agentIds: ['agent-chief', 'agent-visual'],
+        skillIds: ['skill1'],
+        modelBindings: { writing_room: 'model-fast' },
+        active: true,
+      },
+    ],
     chapters: [{ id: 'c1', projectId: 'p1', title: 'Chapter 1', orderIndex: 0, content: '', createdAt: now, updatedAt: now }],
     evaluations: [],
     chapterMemories: [],
@@ -80,6 +92,7 @@ test('serializes and parses a project package roundtrip', () => {
   assert.equal(parsed.project.title, 'Demo Project')
   assert.equal(parsed.characters.length, 1)
   assert.equal(parsed.projectSkills.length, 1)
+  assert.equal(parsed.projectAgentSchemes.length, 1)
   assert.deepEqual(parsed.assets, [])
   assert.equal(parsed.adaptations[0].scripts[0].scenes.length, 1)
 })
@@ -92,6 +105,7 @@ test('previews project package version, title, and data scale', () => {
   assert.equal(preview.counts.characters, 1)
   assert.equal(preview.counts.chapters, 1)
   assert.equal(preview.counts.projectSkills, 1)
+  assert.equal(preview.counts.projectAgentSchemes, 1)
   assert.equal(preview.counts.adaptations, 1)
   assert.equal(preview.counts.episodes, 1)
   assert.equal(preview.counts.scripts, 1)
@@ -99,7 +113,7 @@ test('previews project package version, title, and data scale', () => {
   assert.equal(preview.counts.contentVersions, 1)
   assert.equal(preview.counts.assets, 0)
   assert.equal(preview.counts.aiRuns, 1)
-  assert.equal(preview.counts.totalRecords, 10)
+  assert.equal(preview.counts.totalRecords, 11)
 })
 
 test('rejects malformed, invalid, and newer project packages clearly', () => {

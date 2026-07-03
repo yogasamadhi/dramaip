@@ -17,4 +17,5 @@ test('keeps chapters as the primary creation entry', () => {
   assert.equal(creationGroup.label, '创作')
   assert.equal(creationGroup.items[0]?.key, 'chapters')
   assert.ok(creationGroup.items.some((item) => item.key === 'story-planning'))
+  assert.ok(creationGroup.items.some((item) => item.key === 'agent-schemes'))
 })

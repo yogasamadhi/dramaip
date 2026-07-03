@@ -787,6 +787,6 @@ function collectWorkflowShots(
 
 async function runAiTask(input: NovelWorkflowInput) {
   const r = getRepos()
-  const { provider } = resolveProviderForTask(r, input.taskType, input.templateScope)
+  const { provider } = resolveProviderForTask(r, input.taskType, input.templateScope, input.projectId)
   return runNovelWorkflow({ repos: r, provider }, input)
 }

@@ -20,6 +20,8 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('outline:list', ['project-1', 'book']), ['project-1', 'book'])
   assert.deepEqual(validateIpcArgs('storyArc:list', ['project-1', 'volume']), ['project-1', 'volume'])
   assert.deepEqual(validateIpcArgs('projectSkill:list', ['project-1']), ['project-1'])
+  assert.deepEqual(validateIpcArgs('projectAgentScheme:list', ['project-1']), ['project-1'])
+  assert.deepEqual(validateIpcArgs('projectAgentScheme:getActive', ['project-1']), ['project-1'])
   assert.deepEqual(
     validateIpcArgs('projectSkill:create', [
       {
@@ -41,6 +43,30 @@ test('validates exact IPC channel arguments', () => {
         content: '对白短、狠、带潜台词。',
         priority: 10,
         enabled: true,
+      },
+    ],
+  )
+  assert.deepEqual(
+    validateIpcArgs('projectAgentScheme:create', [
+      {
+        projectId: 'project-1',
+        name: '短剧审稿方案',
+        primaryAgentId: 'agent-1',
+        agentIds: ['agent-1', 'agent-2'],
+        skillIds: ['skill-1'],
+        modelBindings: { writing_room: 'model-1' },
+        active: true,
+      },
+    ]),
+    [
+      {
+        projectId: 'project-1',
+        name: '短剧审稿方案',
+        primaryAgentId: 'agent-1',
+        agentIds: ['agent-1', 'agent-2'],
+        skillIds: ['skill-1'],
+        modelBindings: { writing_room: 'model-1' },
+        active: true,
       },
     ],
   )
@@ -110,6 +136,7 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('storyArc:create', [{ projectId: 'project-1', kind: 'act', title: 'x' }]), /kind/)
   assert.throws(() => validateIpcArgs('projectSkill:create', [{ projectId: 'project-1', name: 'x', category: 'bad', content: 'x' }]), /category/)
   assert.throws(() => validateIpcArgs('projectSkill:update', ['skill-1', { taskTypes: ['unknown_task'] }]), /taskTypes/)
+  assert.throws(() => validateIpcArgs('projectAgentScheme:create', [{ projectId: 'project-1', name: 'x', modelBindings: { unknown: 'm1' } }]), /modelBindings/)
   assert.throws(() => validateIpcArgs('videoTask:create', [{ providerConfigId: 'p1' }]), /prompt/)
   assert.throws(() => validateIpcArgs('log:renderer', ['trace', 'runtime', 'message']), /参数校验失败/)
   assert.throws(
@@ -140,6 +167,10 @@ test('keeps high-risk channels in the shared contract', () => {
     'projectSkill:create',
     'projectSkill:update',
     'projectSkill:delete',
+    'projectAgentScheme:create',
+    'projectAgentScheme:update',
+    'projectAgentScheme:setActive',
+    'projectAgentScheme:delete',
     'security:getSecretStorageStatus',
     'dataBackup:list',
     'dataBackup:create',
