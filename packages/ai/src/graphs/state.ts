@@ -2,6 +2,7 @@
 import { Annotation } from '@langchain/langgraph'
 import type {
   AdaptationProject,
+  AiContextControls,
   AiVideoFeasibilityReport,
   Beat,
   Chapter,
@@ -48,6 +49,8 @@ export const NovelGraphState = Annotation.Root({
   userInstruction: Annotation<string | undefined>(),
   /** v0.x 对话式项目设定：多轮对话历史（role/content） */
   chatHistory: Annotation<Array<{ role: 'user' | 'assistant'; content: string }> | undefined>(),
+  /** v1.2 生成前上下文控制 */
+  contextControls: Annotation<AiContextControls | undefined>(),
 
   // 上下文（loadProjectContext 加载）
   project: Annotation<Project | undefined>(),

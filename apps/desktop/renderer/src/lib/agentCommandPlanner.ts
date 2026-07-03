@@ -1,4 +1,16 @@
-import type { AdaptationProject, Chapter, Episode, NovelTaskType, Scene, Script, Shot } from '@sdns/core'
+import type {
+  AdaptationProject,
+  Chapter,
+  Character,
+  CharacterVisualProfile,
+  CreativeCaseStudy,
+  Episode,
+  NovelTaskType,
+  Project,
+  Scene,
+  Script,
+  Shot,
+} from '@sdns/core'
 
 export type AgentCommandKind = 'chapter' | 'episodes' | 'shots'
 export type AgentCommandStatus = 'ready' | 'blocked'
@@ -17,8 +29,12 @@ export interface AgentCommandAiInput {
 
 export interface AgentCommandContext {
   projectId: string
+  project?: Project | null
   activeChapter?: Chapter | null
   chapters: Chapter[]
+  characters: Character[]
+  caseStudies: CreativeCaseStudy[]
+  visualProfiles: CharacterVisualProfile[]
   adaptations: AdaptationProject[]
   episodes: Episode[]
   scripts: Script[]

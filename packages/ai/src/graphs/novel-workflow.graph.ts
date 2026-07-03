@@ -1,6 +1,6 @@
 // novel-workflow.graph.ts —— LangGraph.js 工作流组装与执行（项目说明.md §10）
 import { END, START, StateGraph } from '@langchain/langgraph'
-import type { Chapter, LLMProvider, NovelTaskType } from '@sdns/core'
+import type { AiContextControls, Chapter, LLMProvider, NovelTaskType } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 import { NovelGraphState, type NovelGraphStateType } from './state'
@@ -35,6 +35,8 @@ export interface NovelWorkflowInput {
   userInstruction?: string
   /** 对话式项目设定的多轮历史 */
   chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
+  /** 生成前上下文控制：固定或排除上下文实体 */
+  contextControls?: AiContextControls
   currentChapter?: Chapter
   /** v0.8 模板驱动生成：渲染后的模板正文（仅 taskType='template_run' 使用） */
   templateContent?: string

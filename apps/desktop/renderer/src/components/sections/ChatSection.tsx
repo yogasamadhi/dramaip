@@ -2,18 +2,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Play, Send, Sparkles, Wand2 } from 'lucide-react'
-import { TASK_TYPE_LABELS, type TextDiffPreviewPayload } from '@sdns/core'
+import { TASK_TYPE_LABELS, type AiContextControls, type TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
   buildAgentCommandPlan,
   type AgentCommandContext,
   type AgentCommandPlan,
 } from '@/lib/agentCommandPlanner'
+import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import type { PreviewTaskType } from '@/components/GeneratePreviewDialog'
+import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -93,8 +95,24 @@ export function ChatSection({
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [commandRunningIndex, setCommandRunningIndex] = useState<number | null>(null)
+  const [contextControls, setContextControls] = useState<AiContextControls>({})
+  const [pendingCommand, setPendingCommand] = useState<{ plan: AgentCommandPlan; assistantIndex: number } | null>(null)
+  const [preflightRunning, setPreflightRunning] = useState(false)
   const [project, setProject] = useState<{ title?: string; shortDramaType?: string; coreHook?: string } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const preflight = pendingCommand && commandContext
+    ? buildAiPreflightContext(
+        pendingCommand.plan.taskType,
+        {
+          project: commandContext.project,
+          chapters: commandContext.chapters,
+          characters: commandContext.characters,
+          caseStudies: commandContext.caseStudies,
+          visualProfiles: commandContext.visualProfiles,
+        },
+        contextControls,
+      )
+    : null
 
   // 加载项目，若设定为空则让 AI 主动开场
   const init = useCallback(async () => {
@@ -204,6 +222,25 @@ export function ChatSection({
     }
   }
 
+  function openCommandPreflight(plan: AgentCommandPlan, assistantIndex: number) {
+    if (!commandContext) {
+      void executeCommand(plan, assistantIndex)
+      return
+    }
+    setPendingCommand({ plan, assistantIndex })
+  }
+
+  async function runPendingCommand() {
+    if (!pendingCommand) return
+    setPreflightRunning(true)
+    try {
+      await executeCommand(pendingCommand.plan, pendingCommand.assistantIndex)
+      setPendingCommand(null)
+    } finally {
+      setPreflightRunning(false)
+    }
+  }
+
   async function executeCommand(plan: AgentCommandPlan, assistantIndex: number) {
     if (plan.status !== 'ready' || !plan.input || commandRunningIndex !== null) return
     if (plan.confirmBeforeRun) {
@@ -220,7 +257,7 @@ export function ChatSection({
     const label = TASK_TYPE_LABELS[plan.taskType] ?? plan.taskType
     const toastId = toast.loading(`正在执行：${label}…`)
     try {
-      const res = await ipc.ai.run(plan.input)
+      const res = await ipc.ai.run({ ...plan.input, contextControls })
       if (!res.ok) {
         const error = res.error ?? '未知错误'
         toast.error(`${label}失败：${error}`, { id: toastId })
@@ -319,7 +356,7 @@ export function ChatSection({
                     status={m.commandStatus ?? 'pending'}
                     result={m.commandResult}
                     running={commandRunningIndex !== null}
-                    onRun={() => executeCommand(m.commandPlan as AgentCommandPlan, i)}
+                    onRun={() => openCommandPreflight(m.commandPlan as AgentCommandPlan, i)}
                   />
                 )}
               </div>
@@ -350,6 +387,17 @@ export function ChatSection({
           可聊设定，也可让 Agent 先列计划再执行章节、分集和分镜任务。
         </p>
       </div>
+      <AiContextPreviewDialog
+        open={pendingCommand !== null}
+        preview={preflight?.preview ?? null}
+        controlGroups={preflight?.groups}
+        onControlModeChange={(key, id, mode) =>
+          setContextControls((current) => setAiContextControlMode(current, key, id, mode))}
+        onRun={() => void runPendingCommand()}
+        runLabel="执行 AI"
+        running={preflightRunning}
+        onClose={() => setPendingCommand(null)}
+      />
     </div>
   )
 }

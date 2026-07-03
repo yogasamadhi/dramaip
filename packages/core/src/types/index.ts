@@ -142,6 +142,18 @@ export interface AiContextPreview {
   sections: AiContextPreviewSection[]
 }
 
+export interface AiContextControlCollection {
+  chapters?: string[]
+  characters?: string[]
+  caseStudies?: string[]
+  visualProfiles?: string[]
+}
+
+export interface AiContextControls {
+  pinned?: AiContextControlCollection
+  excluded?: AiContextControlCollection
+}
+
 export interface AiBudgetSettings {
   id: 'global'
   singleRunTokenLimit?: number

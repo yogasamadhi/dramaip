@@ -185,6 +185,7 @@ function summarizeAiInput(input: NovelWorkflowInput): Record<string, unknown> {
     hasTemplateContent: Boolean(input.templateContent),
     hasUserInstruction: Boolean(input.userInstruction?.trim()),
     chatMessageCount: input.chatHistory?.length ?? 0,
+    hasContextControls: Boolean(input.contextControls),
   }
 }
 
@@ -194,6 +195,7 @@ function buildAiRetryInput(input: NovelWorkflowInput): NovelWorkflowInput {
   return {
     ...rest,
     chatHistory: input.chatHistory?.slice(-20),
+    contextControls: input.contextControls,
   }
 }
 

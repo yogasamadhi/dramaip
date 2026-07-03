@@ -1,6 +1,7 @@
 // loadProjectContextNode —— 从 SQLite 读取项目 / 人物 / 大纲 / 章节（§10.2）
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
+import { applyContextControls } from '../context/context-controls'
 
 export function createLoadProjectContextNode(deps: NodeDeps) {
   return async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {
@@ -124,6 +125,11 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         currentChapter = repos.chapter.getChapter(db, state.chapterId) ?? currentChapter
       }
 
+      chapters = applyContextControls(chapters, 'chapters', state.contextControls)
+      characters = applyContextControls(characters, 'characters', state.contextControls)
+      visualProfiles = applyContextControls(visualProfiles, 'visualProfiles', state.contextControls)
+      const controlledCaseStudies = applyContextControls(creativeCaseStudies, 'caseStudies', state.contextControls)
+
       return {
         project,
         characters,
@@ -141,7 +147,7 @@ export function createLoadProjectContextNode(deps: NodeDeps) {
         highlightAnalyses,
         feasibilityReports,
         dramaTrendReport,
-        creativeCaseStudies,
+        creativeCaseStudies: controlledCaseStudies,
         freshnessReports,
         qualityGateReports,
         revisionTasks,

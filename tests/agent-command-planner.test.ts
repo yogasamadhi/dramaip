@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { AdaptationProject, Chapter, Episode, Scene, Script, Shot } from '@sdns/core'
+import type { AdaptationProject, Chapter, Character, CharacterVisualProfile, CreativeCaseStudy, Episode, Project, Scene, Script, Shot } from '@sdns/core'
 import { buildAgentCommandPlan, type AgentCommandContext } from '../apps/desktop/renderer/src/lib/agentCommandPlanner'
 
 function chapter(id: string, orderIndex: number, title: string, content = '正文'): Chapter {
@@ -57,8 +57,12 @@ function context(patch: Partial<AgentCommandContext> = {}): AgentCommandContext 
 
   return {
     projectId: 'p1',
+    project: { id: 'p1', title: '短剧小说', shortDramaType: '复仇', createdAt: '', updatedAt: '' } as Project,
     activeChapter: chapter('c2', 1, '第二章'),
     chapters: [chapter('c1', 0, '第一章'), chapter('c2', 1, '第二章')],
+    characters: [{ id: 'char1', projectId: 'p1', name: '女主', role: '主角', createdAt: '', updatedAt: '' } as Character],
+    caseStudies: [{ id: 'case1', title: '爆款样本', relationshipPatterns: [], openingHooks: [], highlightBeats: [], reversalMechanisms: [], cliffhangers: [], visualPatterns: [], riskTags: [], createdAt: '', updatedAt: '' } as CreativeCaseStudy],
+    visualProfiles: [{ id: 'vp1', projectId: 'p1', characterId: 'char1', appearancePrompt: '红裙', createdAt: '', updatedAt: '' } as CharacterVisualProfile],
     adaptations: [adaptation],
     episodes: [episode],
     scripts: [script],
