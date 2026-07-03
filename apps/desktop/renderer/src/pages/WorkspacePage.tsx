@@ -13,6 +13,7 @@ import {
 } from '@/lib/projectWorkflowGuide'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
 import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
+import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { Button } from '@/components/ui/button'
@@ -399,6 +400,18 @@ export function WorkspacePage() {
     navigate(`/adaptations/${primaryAdaptation.id}${suffix}`)
   }
 
+  function openProjectCreationFromInspiration(seed: InspirationProjectSeed) {
+    const params = new URLSearchParams({
+      title: seed.title,
+      type: seed.type,
+      audience: seed.audience,
+      direction: seed.direction,
+      hook: seed.hook,
+      idea: seed.idea,
+    })
+    navigate(`/projects/new?${params.toString()}`)
+  }
+
   function handleWorkflowStageAction(stageKey: ProjectWorkflowStageKey) {
     if (!project) return
     if (stageKey === 'setup') {
@@ -739,6 +752,8 @@ export function WorkspacePage() {
                 setSection('chapters')
                 setEditorNonce((n) => n + 1)
               }}
+              onCreateProject={openProjectCreationFromInspiration}
+              onTextPreview={setTextPreview}
             />
           )}
 

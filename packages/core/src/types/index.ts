@@ -1278,6 +1278,7 @@ export type NovelTaskType =
   | 'simulate_audience_reaction'
   | 'analyze_video_cost_risk'
   | 'extract_case_structure'
+  | 'generate_inspiration_schemes'
   // v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
   | 'writing_room_review'
   | 'writing_room_consolidate'

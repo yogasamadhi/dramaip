@@ -198,6 +198,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   simulate_audience_reaction: '模拟观众反应',
   analyze_video_cost_risk: '视频成本/难度预估',
   extract_case_structure: '抽取样本结构',
+  generate_inspiration_schemes: '生成灵感方案',
   // v0.8 多 Agent 编剧室与模板系统
   writing_room_review: '编剧室 Agent 审稿',
   writing_room_consolidate: '编剧室整合建议',
@@ -284,6 +285,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   simulate_audience_reaction: taskPolicy('auto_write', '模拟观众反应并自动写入报告。'),
   analyze_video_cost_risk: taskPolicy('auto_write', '分析视频成本/难度并自动写入报告。'),
   extract_case_structure: taskPolicy('auto_write', '抽取样本结构并自动写入样本库。'),
+  generate_inspiration_schemes: taskPolicy('display_only', '生成灵感方案，仅展示；用户显式进入项目创建或章节改写预览。'),
   writing_room_review: taskPolicy('display_only', '编剧室单 Agent 审稿结果仅用于汇总。'),
   writing_room_consolidate: taskPolicy('display_only', '编剧室整合建议仅展示给用户。'),
   template_run: taskPolicy('display_only', '模板运行结果按模板 scope 进入展示或采用流程。'),
@@ -346,6 +348,7 @@ export const TEMPLATE_TYPES: string[] = [
   'shot',
   'prompt',
   'pitch',
+  'inspiration',
 ]
 
 /** 模板类型 → 中文标签 */
@@ -360,6 +363,7 @@ export const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   shot: '分镜模板',
   prompt: '镜头Prompt模板',
   pitch: 'Pitch模板',
+  inspiration: '灵感方案模板',
 }
 
 /** 模板 scope（可驱动的生成类 taskType）→ 中文标签 */
@@ -369,6 +373,7 @@ export const TEMPLATE_SCOPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'generate_book_outline', label: '生成全书大纲' },
   { value: 'generate_chapter_outline', label: '生成章节大纲' },
   { value: 'generate_story_arc_outline', label: '生成卷/单元规划' },
+  { value: 'generate_inspiration_schemes', label: '生成灵感方案' },
   { value: 'snippet', label: '纯片段（不落库）' },
 ]
 
@@ -517,6 +522,7 @@ export const TASK_GROUPS: TaskGroup[] = [
       'simulate_audience_reaction',
       'analyze_video_cost_risk',
       'extract_case_structure',
+      'generate_inspiration_schemes',
     ],
   },
   {

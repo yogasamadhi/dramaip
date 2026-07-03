@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { ChatInput, ChatOutput, LLMProvider, NovelTaskType, Project, StoryArc } from '@sdns/core'
-import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema } from '@sdns/core'
+import { GenerateProjectResultSchema, GenerateStoryArcOutlineResultSchema, InspirationSchemesResultSchema } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { createSaveAiRunNode } from '../packages/ai/src/nodes/save-ai-run.node'
 import { extractJson } from '../packages/ai/src/parsers/json'
@@ -49,6 +49,55 @@ function projectPayload(overrides: Record<string, unknown> = {}): Record<string,
 
 function jsonOutput(value: unknown): string {
   return JSON.stringify(value)
+}
+
+function inspirationSchemesPayload(): unknown {
+  return {
+    schemes: [
+      {
+        title: '婚礼夺回人生',
+        genre: '女频复仇',
+        targetAudience: '18-35 岁女性短剧用户',
+        shortDramaDirection: '强压迫后公开反击',
+        differentiation: '第一章直接夺回身份',
+        coreHook: '她重回婚礼现场，当众夺回被偷走的人生。',
+        premise: '女主被假千金夺走身份后重生回订婚宴。',
+        emotionalCore: '从被替代到自我确认',
+        protagonist: '冷静克制的真千金',
+        relationship: '真假千金互为镜像',
+        conflictMechanism: '公开证据和家族利益正面碰撞',
+        openingHook: '婚礼大屏突然播放亲子鉴定。',
+        keyReversal: '男主不是救赎者，而是当年证据保管人。',
+        cliffhanger: '女主说出下一份证据时，父亲突然昏倒。',
+        visualSellingPoint: '豪门宴会、证据投屏、近景反应切换。',
+        chapterRewriteBrief: '把章节改成婚礼现场公开反击，结尾留父亲昏倒尾钩。',
+        projectSeed: '真千金重生回婚礼，用证据夺回身份并反查旧案。',
+        riskNotes: ['避免照搬真假千金套路'],
+      },
+      {
+        title: '直播间审判',
+        coreHook: '她把豪门审判搬进直播间。',
+        premise: '女主被全网误解后设计一场公开自证。',
+        conflictMechanism: '舆论压力与证据链递进',
+        openingHook: '直播一开，黑粉先刷满弹幕。',
+        keyReversal: '最大黑粉是女主安排的证人。',
+        cliffhanger: '账号背后 IP 指向男主公司。',
+        visualSellingPoint: '弹幕、手机屏、豪门客厅对切。',
+        chapterRewriteBrief: '把章节改成直播自证结构。',
+      },
+      {
+        title: '遗嘱反杀',
+        coreHook: '她在葬礼上公布第二份遗嘱。',
+        premise: '女主被赶出家门后带律师回到葬礼。',
+        conflictMechanism: '继承权、亲情绑架和法律证据',
+        openingHook: '葬礼上全家逼她签放弃书。',
+        keyReversal: '遗嘱真正继承人不是女主，而是她的公司。',
+        cliffhanger: '律师递出第三份密封文件。',
+        visualSellingPoint: '黑白葬礼、文件特写、沉默对峙。',
+        chapterRewriteBrief: '把章节改成葬礼遗嘱反杀。',
+      },
+    ],
+  }
 }
 
 function createHarness() {
@@ -219,6 +268,44 @@ async function runMockProjectWorkflow(input: {
   }
 }
 
+async function runMockInspirationSchemeWorkflow(input: {
+  repos: never
+  provider: LLMProvider
+  projectId?: string
+  prompt: string
+}) {
+  const output = await input.provider.chat({
+    messages: [
+      { role: 'system', content: 'mock workflow' },
+      { role: 'user', content: input.prompt },
+    ],
+    responseFormat: 'json',
+  })
+  const parsed = extractJson(output.content)
+  const result = InspirationSchemesResultSchema.safeParse(parsed)
+  const error = result.success ? '' : result.error.message
+  const save = createSaveAiRunNode({ repos: input.repos, provider: input.provider } as never)
+  const saved = await save({
+    projectId: input.projectId,
+    taskType: 'generate_inspiration_schemes',
+    promptText: input.prompt,
+    rawOutput: output.content,
+    parsedOutput: result.success ? result.data : undefined,
+    error,
+    providerName: input.provider.name,
+    modelName: input.provider.model,
+    tokenUsage: output.tokenUsage,
+    latencyMs: 0,
+  } as never)
+
+  return {
+    ok: result.success,
+    error: error || undefined,
+    result: result.success ? { kind: 'generate_inspiration_schemes', data: result.data } : undefined,
+    aiRunId: saved.aiRunId,
+  }
+}
+
 test('runs a successful JSON workflow with a mock provider', async () => {
   const { aiRuns, repos } = createHarness()
   const provider = new SequenceProvider([jsonOutput(projectPayload())])
@@ -240,6 +327,28 @@ test('runs a successful JSON workflow with a mock provider', async () => {
   assert.equal(aiRuns[0].status, 'success')
   assert.equal(aiRuns[0].provider, 'mock')
   assert.equal(aiRuns[0].model, 'mock-workflow')
+})
+
+test('runs inspiration scheme generation through the mock workflow', async () => {
+  const { aiRuns, repos } = createHarness()
+  const provider = new SequenceProvider([jsonOutput(inspirationSchemesPayload())])
+
+  const result = await runMockInspirationSchemeWorkflow({
+    repos,
+    provider,
+    projectId: 'p1',
+    prompt: '请生成 3-5 组灵感方案。\n题材：女频复仇\n目标受众：18-35 岁女性短剧用户\n短剧方向：强压迫后公开反击',
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.result?.kind, 'generate_inspiration_schemes')
+  const parsed = InspirationSchemesResultSchema.parse(result.result?.data)
+  assert.equal(parsed.schemes.length, 3)
+  assert.match(parsed.schemes[0].chapterRewriteBrief, /婚礼现场公开反击/)
+  assert.equal(provider.calls[0].responseFormat, 'json')
+  assert.match(provider.calls[0].messages[1].content, /3-5/)
+  assert.equal(aiRuns[0].status, 'success')
+  assert.equal(aiRuns[0].type, 'generate_inspiration_schemes')
 })
 
 test('repairs invalid JSON once before saving a successful run', async () => {
