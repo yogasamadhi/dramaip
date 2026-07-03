@@ -13,6 +13,7 @@ import {
 import { resolveProviderForTask, runNovelWorkflow, type NovelWorkflowInput } from '@sdns/ai'
 import { getRepos } from '../db'
 import { assertReadableImportFile, truncateImportedText } from '../file-security'
+import { normalizeCaseStudyText, parseCaseStudyChapters } from '../case-study-import'
 import { startBatchLongTask } from './task.ipc'
 
 type WorkflowInput = {
@@ -42,7 +43,18 @@ export function registerCreativeIpc(): void {
   const repos = () => getRepos()
 
   ipcMain.handle('caseStudy:list', () => repos().creative.listCaseStudies(repos().db))
+  ipcMain.handle('caseStudy:listDocuments', () => repos().creative.listCaseStudyDocuments(repos().db))
   ipcMain.handle('caseStudy:importDocuments', async () => importCaseStudyDocuments())
+  ipcMain.handle('caseStudy:createDocument', (_e, data: unknown) =>
+    repos().creative.createCaseStudyDocument(repos().db, data as never),
+  )
+  ipcMain.handle('caseStudy:updateDocumentChapter', (_e, id: string, patch: unknown) =>
+    repos().creative.updateCaseStudyDocumentChapter(repos().db, id, patch as never),
+  )
+  ipcMain.handle('caseStudy:deleteDocument', (_e, id: string) => {
+    repos().creative.deleteCaseStudyDocument(repos().db, id)
+    return true
+  })
   ipcMain.handle('caseStudy:create', (_e, data: unknown) => repos().creative.createCaseStudy(repos().db, data as never))
   ipcMain.handle('caseStudy:update', (_e, id: string, patch: unknown) =>
     repos().creative.updateCaseStudy(repos().db, id, patch as never),
@@ -242,6 +254,8 @@ async function importCaseStudyDocuments() {
           path: filePath,
           text: '',
           truncated: false,
+          chapters: [],
+          parseWarnings: [],
           error: e instanceof Error ? e.message : String(e),
         })
       }
@@ -265,13 +279,19 @@ async function readCaseStudyDocument(filePath: string) {
   } else {
     throw new Error('仅支持 .md / .txt / .docx')
   }
-  const cleaned = text.replace(/\r\n/g, '\n').replace(/\n{4,}/g, '\n\n\n').trim()
+  const cleaned = normalizeCaseStudyText(text)
   const truncated = truncateImportedText('caseStudyDocument', cleaned)
+  const parsed = parseCaseStudyChapters(truncated.text, fileName)
+  const parseWarnings = [...parsed.warnings]
+  if (truncated.truncated) parseWarnings.unshift('文档较长，已按导入安全策略截取前 80000 字符用于拆章。')
   return {
     fileName,
     path: filePath,
+    sourceType: ext.slice(1),
     text: truncated.text,
     truncated: truncated.truncated,
+    chapters: parsed.chapters,
+    parseWarnings,
   }
 }
 

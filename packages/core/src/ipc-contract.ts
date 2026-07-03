@@ -379,6 +379,40 @@ const caseStudyInput = z
   })
   .passthrough()
 const caseStudyPatch = caseStudyInput.partial().passthrough()
+const caseStudyChapterStatus = z.enum(['parsed', 'needs_review', 'manual'])
+const caseStudyImportChapterInput = z
+  .object({
+    orderIndex: z.number().int().nonnegative().optional(),
+    title: z.string().min(1),
+    content: z.string().optional(),
+    textPreview: z.string().optional(),
+    charCount: z.number().int().nonnegative().optional(),
+    wordCount: z.number().int().nonnegative().optional(),
+    status: caseStudyChapterStatus.optional(),
+    warning: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .passthrough()
+const caseStudyDocumentInput = z
+  .object({
+    title: z.string().min(1),
+    fileName: z.string().min(1),
+    sourceType: z.string().optional(),
+    truncated: z.boolean().optional(),
+    parseWarnings: looseStringArray.optional(),
+    chapters: z.array(caseStudyImportChapterInput),
+  })
+  .passthrough()
+const caseStudyDocumentChapterPatch = z
+  .object({
+    title: z.string().min(1).optional(),
+    textPreview: z.string().optional(),
+    charCount: z.number().int().nonnegative().optional(),
+    wordCount: z.number().int().nonnegative().optional(),
+    status: caseStudyChapterStatus.optional(),
+    notes: z.string().optional(),
+  })
+  .passthrough()
 
 const globalSearchInput = z
   .object({
@@ -473,6 +507,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'contentVersion:listByTarget': [id, id],
   'caseStudy:create': [caseStudyInput],
   'caseStudy:update': [id, caseStudyPatch],
+  'caseStudy:createDocument': [caseStudyDocumentInput],
+  'caseStudy:updateDocumentChapter': [id, caseStudyDocumentChapterPatch],
   'creative:freshness:list': [maybeId],
   'creative:freshness:listByTarget': [id, maybeId],
   'creative:antiTrope:listByTarget': [id, maybeId],
@@ -514,6 +550,7 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'adaptationProject:list',
       'agent:list',
       'caseStudy:list',
+      'caseStudy:listDocuments',
       'genrePreset:list',
       'template:list',
       'templateRun:list',
@@ -533,6 +570,7 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'beat:delete',
       'beat:listByChapter',
       'caseStudy:delete',
+      'caseStudy:deleteDocument',
       'chapter:get',
       'chapter:delete',
       'chapterMemory:get',

@@ -378,6 +378,43 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 10,
+    name: 'case-study-document-chapters',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS case_study_documents (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          source_type TEXT,
+          chapter_count INTEGER NOT NULL DEFAULT 0,
+          total_chars INTEGER NOT NULL DEFAULT 0,
+          truncated INTEGER NOT NULL DEFAULT 0,
+          parse_warnings TEXT NOT NULL DEFAULT '[]',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS case_study_chapters (
+          id TEXT PRIMARY KEY,
+          document_id TEXT NOT NULL,
+          order_index INTEGER NOT NULL DEFAULT 0,
+          title TEXT NOT NULL,
+          text_preview TEXT NOT NULL DEFAULT '',
+          char_count INTEGER NOT NULL DEFAULT 0,
+          word_count INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'parsed',
+          notes TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_case_study_documents_updated ON case_study_documents(updated_at);
+        CREATE INDEX IF NOT EXISTS idx_case_study_chapters_document_order ON case_study_chapters(document_id, order_index);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

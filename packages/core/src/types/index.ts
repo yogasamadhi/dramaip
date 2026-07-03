@@ -920,6 +920,39 @@ export interface CreativeCaseStudy {
   updatedAt: string
 }
 
+export type CaseStudyChapterStatus = 'parsed' | 'needs_review' | 'manual'
+
+export interface CaseStudyDocument {
+  id: string
+  title: string
+  fileName: string
+  sourceType?: string
+  chapterCount: number
+  totalChars: number
+  truncated: boolean
+  parseWarnings: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CaseStudyChapter {
+  id: string
+  documentId: string
+  orderIndex: number
+  title: string
+  textPreview: string
+  charCount: number
+  wordCount: number
+  status: CaseStudyChapterStatus
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CaseStudyDocumentWithChapters extends CaseStudyDocument {
+  chapters: CaseStudyChapter[]
+}
+
 export interface FreshnessReport {
   id: string
   projectId?: string

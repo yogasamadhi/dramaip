@@ -14,6 +14,9 @@ import type {
   Character,
   CharacterState,
   CharacterVisualProfile,
+  CaseStudyChapter,
+  CaseStudyChapterStatus,
+  CaseStudyDocumentWithChapters,
   ContentVersion,
   CreativeCaseStudy,
   DramaTrendReport,
@@ -203,9 +206,22 @@ export interface VideoTaskOpResult {
 export interface CaseStudyImportDocument {
   fileName: string
   path: string
+  sourceType?: string
   text: string
   truncated: boolean
+  chapters: CaseStudyImportChapter[]
+  parseWarnings: string[]
   error?: string
+}
+
+export interface CaseStudyImportChapter {
+  orderIndex: number
+  title: string
+  content: string
+  charCount: number
+  wordCount: number
+  status: CaseStudyChapterStatus
+  warning?: string
 }
 
 export interface CaseStudyImportResult {
@@ -615,7 +631,18 @@ export interface StudioApi {
   // v1.1 创意诊断与反套路迭代系统
   caseStudy: {
     list(): Promise<CreativeCaseStudy[]>
+    listDocuments(): Promise<CaseStudyDocumentWithChapters[]>
     importDocuments(): Promise<CaseStudyImportResult>
+    createDocument(data: {
+      title: string
+      fileName: string
+      sourceType?: string
+      truncated?: boolean
+      parseWarnings?: string[]
+      chapters: CaseStudyImportChapter[]
+    }): Promise<CaseStudyDocumentWithChapters>
+    updateDocumentChapter(id: string, patch: Partial<CaseStudyChapter>): Promise<CaseStudyChapter | undefined>
+    deleteDocument(id: string): Promise<boolean>
     create(data: Partial<CreativeCaseStudy> & { title: string }): Promise<CreativeCaseStudy>
     update(id: string, patch: Partial<CreativeCaseStudy>): Promise<CreativeCaseStudy | undefined>
     remove(id: string): Promise<boolean>
