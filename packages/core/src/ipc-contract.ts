@@ -182,6 +182,22 @@ const projectAgentSchemeInput = z
   .passthrough()
 const projectAgentSchemePatch = projectAgentSchemeInput.omit({ projectId: true }).partial().passthrough()
 
+const inspirationCardKind = z.enum(['opening', 'relationship', 'conflict', 'reversal', 'cliffhanger', 'visual'])
+const inspirationCardSourceKind = z.enum(['genre_preset', 'case_study', 'template', 'anti_trope'])
+const inspirationFavoriteInput = z
+  .object({
+    projectId: id,
+    cardKey: id,
+    sourceKind: inspirationCardSourceKind,
+    sourceId: maybeId,
+    kind: inspirationCardKind,
+    title: id,
+    pattern: z.string(),
+    applyTo: z.string(),
+    risk: z.string().optional(),
+  })
+  .passthrough()
+
 const modelConfigInput = z
   .object({
     id: maybeId,
@@ -525,6 +541,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'projectAgentScheme:update': [id, projectAgentSchemePatch],
   'projectAgentScheme:setActive': [id],
   'projectAgentScheme:delete': [id],
+  'inspirationFavorite:list': [id],
+  'inspirationFavorite:upsert': [inspirationFavoriteInput],
+  'inspirationFavorite:delete': [id],
+  'inspirationFavorite:deleteByCardKey': [id, id],
   'chapterMemory:list': [id],
   'characterState:list': [id],
   'visualProfile:list': [id],

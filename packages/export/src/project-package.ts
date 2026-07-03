@@ -11,6 +11,7 @@
 //   "outlines": Outline[],
 //   "projectSkills": ProjectSkill[],
 //   "projectAgentSchemes": ProjectAgentScheme[],
+//   "inspirationFavorites": InspirationFavorite[],
 //   "chapters": Chapter[],
 //   "evaluations": Evaluation[],
 //   "chapterMemories": ChapterMemory[],
@@ -48,6 +49,7 @@ import type {
   Foreshadowing,
   FreshnessReport,
   HighlightAnalysis,
+  InspirationFavorite,
   NarrativeCurveReport,
   Outline,
   Project,
@@ -66,7 +68,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 4
+export const PACKAGE_VERSION = 5
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -89,6 +91,7 @@ export interface ProjectPackage {
   outlines: Outline[]
   projectSkills: ProjectSkill[]
   projectAgentSchemes: ProjectAgentScheme[]
+  inspirationFavorites: InspirationFavorite[]
   chapters: Chapter[]
   evaluations: Evaluation[]
   chapterMemories: ChapterMemory[]
@@ -129,6 +132,7 @@ export interface ProjectPackageCounts {
   memories: number
   projectSkills: number
   projectAgentSchemes: number
+  inspirationFavorites: number
   creativeReports: number
   adaptations: number
   episodes: number
@@ -161,6 +165,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const outlines = repos.outline.listOutlines(db, projectId)
   const projectSkills = repos.projectSkill.listProjectSkills(db, projectId)
   const projectAgentSchemes = repos.projectAgentScheme.listProjectAgentSchemes(db, projectId)
+  const inspirationFavorites = repos.inspirationFavorite.listInspirationFavorites(db, projectId)
   const chapters = repos.chapter.listChapters(db, projectId)
   const evaluations = repos.evaluation.listEvaluations(db, projectId)
   const chapterMemories = repos.chapterMemory.listChapterMemories(db, projectId)
@@ -213,6 +218,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     outlines,
     projectSkills,
     projectAgentSchemes,
+    inspirationFavorites,
     chapters,
     evaluations,
     chapterMemories,
@@ -342,6 +348,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
       (pkg.dramaTrendReport ? 1 : 0),
     projectSkills: pkg.projectSkills?.length ?? 0,
     projectAgentSchemes: pkg.projectAgentSchemes?.length ?? 0,
+    inspirationFavorites: pkg.inspirationFavorites?.length ?? 0,
     creativeReports,
     adaptations: pkg.adaptations.length,
     episodes,
@@ -424,6 +431,17 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         skillIds,
       })
       idMap.set(s.id, created.id)
+    }
+
+    // 3.3 灵感台收藏（来源 id 仅当来自本包内实体时重映射，否则保留来源引用作展示）
+    for (const f of pkg.inspirationFavorites ?? []) {
+      const sourceId = f.sourceId ? (idMap.get(f.sourceId) ?? f.sourceId) : undefined
+      const created = repos.inspirationFavorite.upsertInspirationFavorite(db, {
+        ...stripId(f),
+        projectId: newProject.id,
+        sourceId,
+      })
+      idMap.set(f.id, created.id)
     }
 
     // 4. 章节

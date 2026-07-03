@@ -52,6 +52,7 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
   { key: 'chat', label: 'Agent 指挥台' },
+  { key: 'inspiration', label: '灵感台' },
   { key: 'characters', label: '人物卡' },
   { key: 'outline', label: '大纲' },
   { key: 'story-planning', label: '长篇规划' },
@@ -92,7 +93,7 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
     key: 'creation',
     label: '创作',
-    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline', 'story-planning', 'project-skills', 'agent-schemes']),
+    items: workspaceNavItems(['chapters', 'overview', 'chat', 'inspiration', 'characters', 'outline', 'story-planning', 'project-skills', 'agent-schemes']),
   },
   {
     key: 'memory',

@@ -39,6 +39,7 @@ import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/Genera
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
 import { ChatSection } from '@/components/sections/ChatSection'
+import { InspirationDeskSection } from '@/components/sections/InspirationDeskSection'
 import { OutlineSection } from '@/components/sections/OutlineSection'
 import { StoryPlanningSection } from '@/components/sections/StoryPlanningSection'
 import { ProjectSkillsSection } from '@/components/sections/ProjectSkillsSection'
@@ -273,6 +274,12 @@ export function WorkspacePage() {
     if (fresh) setChapters((prev) => prev.map((c) => (c.id === fresh.id ? fresh : c)))
     setEditorNonce((n) => n + 1)
     if (section === 'ai-runs') void loadAiRuns()
+  }
+
+  function applyChapterUpdate(updated: Chapter) {
+    setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+    setDataVersion((v) => v + 1)
+    if (updated.id === selectedId) setEditorNonce((n) => n + 1)
   }
 
   async function handleExport(kind: 'md' | 'json') {
@@ -713,6 +720,25 @@ export function WorkspacePage() {
               version={dataVersion}
               onGenerate={runGenerate}
               generating={generating}
+            />
+          )}
+
+          {section === 'inspiration' && (
+            <InspirationDeskSection
+              project={project}
+              chapters={chapters}
+              selectedChapter={selected}
+              version={dataVersion}
+              onProjectUpdated={(updated) => {
+                setProject(updated)
+                setDataVersion((v) => v + 1)
+              }}
+              onChapterUpdated={applyChapterUpdate}
+              onOpenChapter={(chapterId) => {
+                setSelectedId(chapterId)
+                setSection('chapters')
+                setEditorNonce((n) => n + 1)
+              }}
             />
           )}
 

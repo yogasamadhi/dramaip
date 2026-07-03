@@ -101,6 +101,21 @@ export const projectAgentSchemes = sqliteTable('project_agent_schemes', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const inspirationFavorites = sqliteTable('inspiration_favorites', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  cardKey: text('card_key').notNull(),
+  sourceKind: text('source_kind', { enum: ['genre_preset', 'case_study', 'template', 'anti_trope'] }).notNull(),
+  sourceId: text('source_id'),
+  kind: text('kind', { enum: ['opening', 'relationship', 'conflict', 'reversal', 'cliffhanger', 'visual'] }).notNull(),
+  title: text('title').notNull(),
+  pattern: text('pattern').notNull().default(''),
+  applyTo: text('apply_to').notNull().default(''),
+  risk: text('risk'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const chapters = sqliteTable('chapters', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),

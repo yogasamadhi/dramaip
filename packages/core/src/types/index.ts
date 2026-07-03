@@ -117,6 +117,25 @@ export interface ProjectAgentScheme {
   updatedAt: string
 }
 
+export type InspirationCardKind = 'opening' | 'relationship' | 'conflict' | 'reversal' | 'cliffhanger' | 'visual'
+export type InspirationCardSourceKind = 'genre_preset' | 'case_study' | 'template' | 'anti_trope'
+
+/** 项目级灵感台收藏：卡片来源实时汇总，收藏保存一份轻量快照，便于重开/导出后仍可采用 */
+export interface InspirationFavorite {
+  id: string
+  projectId: string
+  cardKey: string
+  sourceKind: InspirationCardSourceKind
+  sourceId?: string
+  kind: InspirationCardKind
+  title: string
+  pattern: string
+  applyTo: string
+  risk?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 章节 */
 export interface Chapter {
   id: string

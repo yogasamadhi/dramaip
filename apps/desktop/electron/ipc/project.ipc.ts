@@ -113,6 +113,22 @@ export function registerProjectIpc(): void {
     return true
   })
 
+  // ---------- 灵感台收藏 ----------
+  ipcMain.handle('inspirationFavorite:list', (_e, projectId: string) =>
+    repos().inspirationFavorite.listInspirationFavorites(repos().db, projectId),
+  )
+  ipcMain.handle('inspirationFavorite:upsert', (_e, data: unknown) =>
+    repos().inspirationFavorite.upsertInspirationFavorite(repos().db, data as never),
+  )
+  ipcMain.handle('inspirationFavorite:delete', (_e, id: string) => {
+    repos().inspirationFavorite.deleteInspirationFavorite(repos().db, id)
+    return true
+  })
+  ipcMain.handle('inspirationFavorite:deleteByCardKey', (_e, projectId: string, cardKey: string) => {
+    repos().inspirationFavorite.deleteInspirationFavoriteByCardKey(repos().db, projectId, cardKey)
+    return true
+  })
+
   // ---------- 评分（只读列表，生成在 ai 流程中） ----------
   ipcMain.handle('evaluation:list', (_e, projectId: string) =>
     repos().evaluation.listEvaluations(repos().db, projectId),

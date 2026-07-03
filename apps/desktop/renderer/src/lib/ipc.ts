@@ -28,6 +28,7 @@ import type {
   GenrePreset,
   GlobalSearchResponse,
   HighlightAnalysis,
+  InspirationFavorite,
   LongTask,
   ModelConfig,
   NarrativeCurveReport,
@@ -431,6 +432,22 @@ export interface StudioApi {
     update(id: string, patch: Partial<ProjectAgentScheme>): Promise<ProjectAgentScheme | undefined>
     setActive(id: string): Promise<ProjectAgentScheme | undefined>
     remove(id: string): Promise<boolean>
+  }
+  inspirationFavorite: {
+    list(projectId: string): Promise<InspirationFavorite[]>
+    upsert(
+      data: Partial<InspirationFavorite> & {
+        projectId: string
+        cardKey: string
+        sourceKind: InspirationFavorite['sourceKind']
+        kind: InspirationFavorite['kind']
+        title: string
+        pattern: string
+        applyTo: string
+      },
+    ): Promise<InspirationFavorite>
+    remove(id: string): Promise<boolean>
+    removeByCardKey(projectId: string, cardKey: string): Promise<boolean>
   }
   evaluation: {
     list(projectId: string): Promise<Evaluation[]>
