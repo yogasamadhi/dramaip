@@ -153,7 +153,7 @@
 | LM2-04 | P0 | AI 产品/基础设施 | done | 建立对话式 Agent 指挥台 MVP | 项目对话、AI run router、任务识别、预览采用 | 用户可输入自然语言命令，系统识别目标实体与任务类型，生成执行计划并调用既有 AI workflow；高风险写入仍走预览 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：改章节、生成分集、拆镜头三类命令 | LM2-02 |
 | LM2-05 | P0 | AI 基础设施 | done | 上下文透明控制面板 | `AiContextPreviewDialog`、context builder、AI run 输入预览 | 每次 AI 生成前可查看将使用的上下文分段、token 估算、被裁剪项；用户可固定/排除章节、人物、样本和视觉档案 | `pnpm typecheck`；上下文预算/预览单测；手工 smoke | LM2-04 |
 | LM2-06 | P0 | 样本库/AI | done | 智能拆书一期：导入与拆章 | 样本库、导入安全、章节解析、DB schema/repo | 支持导入 txt/md/docx 样本文档，按章节识别拆分，错误章节可人工修正；不保存到项目正文 | `pnpm typecheck`；文件导入安全测试；DB smoke 视 schema 变化执行 | LM2-00 |
-| LM2-07 | P0 | 样本库/AI | todo | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
+| LM2-07 | P0 | 样本库/AI | done | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
 | LM2-08 | P0 | 创作闭环 | todo | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
 | LM2-09 | P0 | AI 安全/体验 | todo | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
 | LM2-10 | P1 | 长篇规划 | todo | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
@@ -391,4 +391,19 @@ Push: git push origin main succeeded to Gitee, updating main from 57abd90 to b5a
 Loop branch cleanup: git branch -d loop/lm2-06-sample-import-chapters succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Sample library now imports .md/.txt/.docx, parses Chinese/English/Markdown chapter headings, lets users correct pending split titles/body text, and saves only document/chapter metadata plus short previews. Full imported text remains transient for correction or the existing redacted AI extraction path, and is not written to project chapters.
+```
+
+```text
+Loop: LM2-07
+Target branch: main
+Loop branch: loop/lm2-07-structure-cards
+Commit: a7fb8ea loop(LM2-07): add sample structure cards
+Merge commit: df8bf6c merge: lm2-07 sample structure cards
+Verification: git diff --check passed before and after merge; pnpm format:check passed; pnpm typecheck passed; node --import tsx --test tests/case-study-cards.test.ts tests/case-study-import.test.ts tests/file-import-security.test.ts tests/ipc-contract.test.ts passed; pnpm test:unit passed with 84 tests; pnpm test:db passed with migration replay and DB smoke; pnpm test:e2e passed after building and launching Electron smoke.
+Diff review: reviewed staged diff and final origin/main...HEAD stat; changes were limited to extract_case_structure prompt/schema, creative card and rhythm fields, case study DB persistence, sample library card display, creative context inclusion, migration replay assertions, and card tests.
+Remote sync: git fetch origin succeeded before starting LM2-07 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 0c77735 to df8bf6c.
+Loop branch cleanup: git branch -d loop/lm2-07-structure-cards succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Sample extraction now produces abstract rhythm curves and reusable creative cards for hooks, highlights, relationships, reversals, cliffhangers, visuals, and rhythm. The prompt and tests require abstract patterns instead of source excerpts, and creative diagnosis context can reuse card titles/applicability without copying sample text.
 ```
