@@ -154,7 +154,7 @@
 | LM2-05 | P0 | AI 基础设施 | done | 上下文透明控制面板 | `AiContextPreviewDialog`、context builder、AI run 输入预览 | 每次 AI 生成前可查看将使用的上下文分段、token 估算、被裁剪项；用户可固定/排除章节、人物、样本和视觉档案 | `pnpm typecheck`；上下文预算/预览单测；手工 smoke | LM2-04 |
 | LM2-06 | P0 | 样本库/AI | done | 智能拆书一期：导入与拆章 | 样本库、导入安全、章节解析、DB schema/repo | 支持导入 txt/md/docx 样本文档，按章节识别拆分，错误章节可人工修正；不保存到项目正文 | `pnpm typecheck`；文件导入安全测试；DB smoke 视 schema 变化执行 | LM2-00 |
 | LM2-07 | P0 | 样本库/AI | done | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
-| LM2-08 | P0 | 创作闭环 | todo | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
+| LM2-08 | P0 | 创作闭环 | done | 统一诊断到修稿任务再到 diff 采用的闭环 | 创意诊断、修稿任务、`TextDiffPreviewDialog`、`ContentVersionPanel` | 质量闸门/审稿/观众模拟可生成修稿任务；任务可触发改写预览；采用后标记任务状态并可复检 | `pnpm typecheck`；修稿任务单测；手工 smoke：章节任务应用与复检 | LM2-03 |
 | LM2-09 | P0 | AI 安全/体验 | todo | 收紧高影响自动写入策略 | `TASK_WRITE_POLICIES`、拆场景、拆镜头、批量工作流 | 拆场景/拆镜头/批量结构替换前有候选预览或自动版本快照；失败可恢复；UI 文案说明影响 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：拆场景、拆镜头、取消采用 | LM2-08 |
 | LM2-10 | P1 | 长篇规划 | todo | 增加卷/单元/剧情阶段模型 | DB schema/repo、core types、Outline/Workspace UI | 项目可维护卷、单元、剧情阶段；每个阶段可设置目标字数、目标章节、核心矛盾、关键爽点和回收伏笔 | `pnpm typecheck`；`pnpm test:db`；DB migration replay | LM2-02 |
 | LM2-11 | P1 | 长篇规划/AI | todo | 卷/单元大纲生成与章节预算 | AI prompts、outline section、chapter generation context | AI 可生成卷/单元大纲，章节生成引用所属单元目标；工作台显示章节预算与完成度 | `pnpm typecheck`；AI mock workflow 单测；手工 smoke | LM2-10 |
@@ -406,4 +406,19 @@ Push: git push origin main succeeded to Gitee, updating main from 0c77735 to df8
 Loop branch cleanup: git branch -d loop/lm2-07-structure-cards succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Sample extraction now produces abstract rhythm curves and reusable creative cards for hooks, highlights, relationships, reversals, cliffhangers, visuals, and rhythm. The prompt and tests require abstract patterns instead of source excerpts, and creative diagnosis context can reuse card titles/applicability without copying sample text.
+```
+
+```text
+Loop: LM2-08
+Target branch: main
+Loop branch: loop/lm2-08-revision-task-loop
+Commit: b28a28f loop(LM2-08): add revision task preview adoption
+Merge commit: fff1ca0 merge: lm2-08 revision task loop
+Verification: git diff --cached --check passed before commit; git diff --check passed after merge; pnpm format:check passed before commit and after merge; pnpm typecheck passed before commit and after merge; node --import tsx --test tests/revision-task-loop.test.ts tests/ipc-contract.test.ts passed before commit and after merge; pnpm test:unit passed with 86 tests; pnpm test:e2e passed after authorized rebuild and Electron smoke.
+Diff review: reviewed staged stat/name list and final main status; changes were limited to revisionTask preview/complete IPC, preload/renderer IPC contracts, CreativeDiagnosisSection diff preview adoption and recheck controls, IPC shared schemas, and revision task helper tests.
+Remote sync: git fetch origin succeeded before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from dbb18bc to fff1ca0.
+Loop branch cleanup: git branch -d loop/lm2-08-revision-task-loop succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Revision tasks now open TextDiffPreviewDialog instead of silently writing content; adopting a preview uses the existing ai.applyResult path, records a revision_task content version, marks the task applied, and enables quality-gate recheck for applied tasks. Legacy revisionTask.apply now returns a preview for compatibility.
 ```
