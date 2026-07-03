@@ -44,6 +44,7 @@ import type {
   ScriptReview,
   Shot,
   ShotReview,
+  StoryArc,
   StoryEvent,
   TaskModelBinding,
   AiRunUsageSummaryRow,
@@ -407,6 +408,12 @@ export interface StudioApi {
     list(projectId: string, type?: 'book' | 'chapter'): Promise<Outline[]>
     create(data: unknown): Promise<Outline>
     update(id: string, patch: unknown): Promise<Outline | undefined>
+    remove(id: string): Promise<boolean>
+  }
+  storyArc: {
+    list(projectId: string, kind?: StoryArc['kind']): Promise<StoryArc[]>
+    create(data: Partial<StoryArc> & { projectId: string; kind: StoryArc['kind']; title: string }): Promise<StoryArc>
+    update(id: string, patch: Partial<StoryArc>): Promise<StoryArc | undefined>
     remove(id: string): Promise<boolean>
   }
   evaluation: {

@@ -84,6 +84,39 @@ function main() {
   const o = repos.outline.createOutline(repos.db, { projectId: p1.id, type: 'book', title: '全书大纲', content: '## 开端' })
   assert(repos.outline.listOutlines(repos.db, p1.id).length === 1, 'createOutline + list')
 
+  // 长篇规划：卷 / 单元 / 剧情阶段
+  const volume = repos.storyArc.createStoryArc(repos.db, {
+    projectId: p1.id,
+    kind: 'volume',
+    title: '第一卷 归来复仇',
+    targetWordCount: 120000,
+    targetChapterCount: 40,
+    coreConflict: '女主回归后与旧豪门正面交锋',
+    keyHighlights: ['身份揭露', '资源反杀'],
+    foreshadowingPayoffs: ['玉佩身世'],
+  })
+  const unit = repos.storyArc.createStoryArc(repos.db, {
+    projectId: p1.id,
+    parentId: volume.id,
+    kind: 'unit',
+    title: '宴会反击单元',
+    chapterStart: 1,
+    chapterEnd: 8,
+    coreConflict: '宴会羞辱与公开反制',
+  })
+  const stage = repos.storyArc.createStoryArc(repos.db, {
+    projectId: p1.id,
+    parentId: unit.id,
+    kind: 'stage',
+    title: '反击爆点',
+    keyHighlights: ['当众打脸'],
+    foreshadowingPayoffs: ['监控证据'],
+  })
+  assert(repos.storyArc.listStoryArcs(repos.db, p1.id).length === 3, 'createStoryArc + list')
+  assert(repos.storyArc.listStoryArcsByParent(repos.db, p1.id, volume.id)[0]?.id === unit.id, 'listStoryArcsByParent')
+  const stageUpdated = repos.storyArc.updateStoryArc(repos.db, stage.id, { targetChapterCount: 3 })
+  assert(stageUpdated?.targetChapterCount === 3, 'updateStoryArc 写回目标章节')
+
   // 模型配置
   const m = repos.modelConfig.createModelConfig(repos.db, {
     name: '默认', provider: 'openai', baseUrl: 'https://api.example.com/v1', apiKey: 'sk-x', model: 'gpt-4o', isDefault: true,
@@ -575,6 +608,7 @@ function main() {
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 0, '级联：ai_runs 已删')
   assert(repos.longTask.listLongTasksByProject(repos.db, p1.id).length === 0, '级联：long_tasks 已删')
   assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 0, '级联：assets 已删')
+  assert(repos.storyArc.listStoryArcs(repos.db, p1.id).length === 0, '级联：story_arcs 已删')
   assert(repos.project.listProjects(repos.db).length === 1, '另一项目仍在')
 
   // 持久性：重新打开同一文件

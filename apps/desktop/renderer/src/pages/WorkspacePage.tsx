@@ -40,6 +40,7 @@ import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
 import { ChatSection } from '@/components/sections/ChatSection'
 import { OutlineSection } from '@/components/sections/OutlineSection'
+import { StoryPlanningSection } from '@/components/sections/StoryPlanningSection'
 import { EvaluationSection } from '@/components/sections/EvaluationSection'
 import { MemorySection } from '@/components/sections/MemorySection'
 import { CharacterStateSection } from '@/components/sections/CharacterStateSection'
@@ -698,6 +699,10 @@ export function WorkspacePage() {
               onGenerate={runGenerate}
               generating={generating}
             />
+          )}
+
+          {section === 'story-planning' && (
+            <StoryPlanningSection projectId={project.id} version={dataVersion} />
           )}
 
           {section === 'evaluation' && <EvaluationSection projectId={project.id} chapter={selected} />}

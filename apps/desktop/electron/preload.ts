@@ -74,6 +74,12 @@ const api = {
     update: (id: string, patch: unknown) => invoke('outline:update', id, patch),
     remove: (id: string) => invoke('outline:delete', id),
   },
+  storyArc: {
+    list: (projectId: string, kind?: 'volume' | 'unit' | 'stage') => invoke('storyArc:list', projectId, kind),
+    create: (data: unknown) => invoke('storyArc:create', data),
+    update: (id: string, patch: unknown) => invoke('storyArc:update', id, patch),
+    remove: (id: string) => invoke('storyArc:delete', id),
+  },
   evaluation: {
     list: (projectId: string) => invoke('evaluation:list', projectId),
   },

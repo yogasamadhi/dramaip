@@ -6,6 +6,7 @@ export { LATEST_MIGRATION_VERSION } from './migrator'
 export * as projectRepo from './repositories/project.repo'
 export * as characterRepo from './repositories/character.repo'
 export * as outlineRepo from './repositories/outline.repo'
+export * as storyArcRepo from './repositories/story-arc.repo'
 export * as chapterRepo from './repositories/chapter.repo'
 export * as evaluationRepo from './repositories/evaluation.repo'
 export * as aiRunRepo from './repositories/ai-run.repo'
@@ -56,6 +57,7 @@ import type { DB } from './client'
 import * as projectRepo from './repositories/project.repo'
 import * as characterRepo from './repositories/character.repo'
 import * as outlineRepo from './repositories/outline.repo'
+import * as storyArcRepo from './repositories/story-arc.repo'
 import * as chapterRepo from './repositories/chapter.repo'
 import * as evaluationRepo from './repositories/evaluation.repo'
 import * as aiRunRepo from './repositories/ai-run.repo'
@@ -97,6 +99,7 @@ export function createRepositories(db: DB) {
     project: { ...projectRepo },
     character: { ...characterRepo },
     outline: { ...outlineRepo },
+    storyArc: { ...storyArcRepo },
     chapter: { ...chapterRepo },
     evaluation: { ...evaluationRepo },
     aiRun: { ...aiRunRepo },

@@ -58,6 +58,28 @@ export interface Outline {
   updatedAt: string
 }
 
+export type StoryArcKind = 'volume' | 'unit' | 'stage'
+
+/** 长篇规划：卷 / 单元 / 剧情阶段 */
+export interface StoryArc {
+  id: string
+  projectId: string
+  parentId?: string
+  kind: StoryArcKind
+  title: string
+  summary?: string
+  targetWordCount?: number
+  targetChapterCount?: number
+  chapterStart?: number
+  chapterEnd?: number
+  coreConflict?: string
+  keyHighlights: string[]
+  foreshadowingPayoffs: string[]
+  orderIndex: number
+  createdAt: string
+  updatedAt: string
+}
+
 /** 章节 */
 export interface Chapter {
   id: string

@@ -47,6 +47,7 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'chat', label: 'Agent 指挥台' },
   { key: 'characters', label: '人物卡' },
   { key: 'outline', label: '大纲' },
+  { key: 'story-planning', label: '长篇规划' },
   { key: 'chapters', label: '章节' },
   { key: 'evaluation', label: 'AI短剧评分' },
   // v0.2 长篇一致性与视觉记忆系统
@@ -82,7 +83,7 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
     key: 'creation',
     label: '创作',
-    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline']),
+    items: workspaceNavItems(['chapters', 'overview', 'chat', 'characters', 'outline', 'story-planning']),
   },
   {
     key: 'memory',
