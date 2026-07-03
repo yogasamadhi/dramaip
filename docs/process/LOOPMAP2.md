@@ -150,7 +150,7 @@
 | LM2-01 | P0 | 产品体验 | done | 重组项目工作台导航分组 | `WORKSPACE_NAV`、`WorkspacePage`、相关 section 入口 | 左侧导航按“创作、记忆、诊断、改编准备、记录”分组；章节仍是一等入口；原功能可达 | `pnpm typecheck`；手工 smoke：打开项目并切换每个分组 | LM2-00 |
 | LM2-02 | P0 | 产品体验 | done | 增加小说到短剧视频主流程向导 | 项目概览、质量闸门、改编入口、工作流状态 | 项目概览展示阶段进度：设定、人物、大纲、章节、质量闸门、改编、剧本、分镜、视频；每阶段有完成条件和下一步 CTA | `pnpm typecheck`；手工 smoke：空项目、已有章节项目、已有改编项目三种状态 | LM2-01 |
 | LM2-03 | P0 | 产品体验/创作闭环 | done | 增加阶段门禁与就绪检查 | 质量闸门、项目概览、改编创建入口 | 创建改编前展示小说就绪项：章节数、人物、大纲、记忆、质量闸门阻塞项；允许继续但风险明确 | `pnpm typecheck`；相关质量闸门单测或手工 smoke | LM2-02 |
-| LM2-04 | P0 | AI 产品/基础设施 | todo | 建立对话式 Agent 指挥台 MVP | 项目对话、AI run router、任务识别、预览采用 | 用户可输入自然语言命令，系统识别目标实体与任务类型，生成执行计划并调用既有 AI workflow；高风险写入仍走预览 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：改章节、生成分集、拆镜头三类命令 | LM2-02 |
+| LM2-04 | P0 | AI 产品/基础设施 | done | 建立对话式 Agent 指挥台 MVP | 项目对话、AI run router、任务识别、预览采用 | 用户可输入自然语言命令，系统识别目标实体与任务类型，生成执行计划并调用既有 AI workflow；高风险写入仍走预览 | `pnpm typecheck`；`pnpm test:unit`；手工 smoke：改章节、生成分集、拆镜头三类命令 | LM2-02 |
 | LM2-05 | P0 | AI 基础设施 | todo | 上下文透明控制面板 | `AiContextPreviewDialog`、context builder、AI run 输入预览 | 每次 AI 生成前可查看将使用的上下文分段、token 估算、被裁剪项；用户可固定/排除章节、人物、样本和视觉档案 | `pnpm typecheck`；上下文预算/预览单测；手工 smoke | LM2-04 |
 | LM2-06 | P0 | 样本库/AI | todo | 智能拆书一期：导入与拆章 | 样本库、导入安全、章节解析、DB schema/repo | 支持导入 txt/md/docx 样本文档，按章节识别拆分，错误章节可人工修正；不保存到项目正文 | `pnpm typecheck`；文件导入安全测试；DB smoke 视 schema 变化执行 | LM2-00 |
 | LM2-07 | P0 | 样本库/AI | todo | 智能拆书二期：结构抽取与创作卡片 | 样本结构、AI prompt、样本库 UI、创意诊断上下文 | 从拆章结果抽取钩子、爽点、人物关系、反转、悬念、节奏曲线，生成可复用创作卡片；不输出原文长摘录 | `pnpm typecheck`；AI workflow mock 单测；手工 smoke：导入样本并生成卡片 | LM2-06 |
@@ -346,4 +346,19 @@ Push: git push origin main succeeded to Gitee, updating main from 0cea1a3 to 072
 Loop branch cleanup: git branch -d loop/lm2-03-adaptation-readiness succeeded after push.
 Current branch/worktree: main; only this completion record was pending before the record commit.
 Notes: Project overview and adaptation creation now show chapter count, characters, outline, memory coverage, and quality gate blockers; creating an adaptation remains allowed after an explicit risk confirmation.
+```
+
+```text
+Loop: LM2-04
+Target branch: main
+Loop branch: loop/lm2-04-agent-command-console
+Commit: 4899ee1 loop(LM2-04): add agent command console
+Merge commit: 06383d3 merge: lm2-04 agent command console
+Verification: git diff --check passed before and after merge; pnpm format:check passed; pnpm typecheck passed; node --import tsx --test tests/agent-command-planner.test.ts tests/workspace-nav.test.ts passed; pnpm test:unit passed with 77 tests; pnpm test:e2e passed after building and launching Electron smoke.
+Diff review: reviewed staged diff and final origin/main...HEAD stat; changes were limited to Agent command planning, ChatSection command execution UI, WorkspacePage preview wiring, Agent nav label, and planner tests.
+Remote sync: git fetch origin succeeded before starting LM2-04 and before merge; git merge --ff-only origin/main reported Already up to date before merge.
+Push: git push origin main succeeded to Gitee, updating main from 9f5a31f to 06383d3.
+Loop branch cleanup: git branch -d loop/lm2-04-agent-command-console succeeded after push.
+Current branch/worktree: main; only this completion record was pending before the record commit.
+Notes: Agent 指挥台 now turns natural-language chapter, episode, and shot commands into execution plans, then calls existing AI workflows only after user confirmation. Chapter edits and episode generation use existing preview/adopt dialogs; shot splitting shows a plan plus confirmation because the underlying workflow still auto-writes.
 ```
