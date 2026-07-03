@@ -6,11 +6,14 @@
 
 ## 核心能力
 
-- 小说创作：项目设定、人物卡、大纲、章节编辑、AI 续写/改写/润色。
+- 主流程向导：在项目工作台按「设定 -> 人物 -> 大纲 -> 章节 -> 质量闸门 -> 改编 -> 剧本 -> 分镜 -> 视频」检查进度和下一步。
+- 小说创作：项目设定、人物卡、大纲、章节编辑、AI 续写/改写/润色，并支持修稿任务预览采用。
 - 长篇一致性：章节记忆、人物状态、事件时间线、伏笔、视觉档案、一致性检查。
+- AI 可信控制：Agent 指挥台可把自然语言命令转成执行计划；生成前可查看上下文分段、token 估算，并固定或排除章节、人物、样本和视觉档案。
 - 短剧改编：小说转分集大纲、剧本生成、拆场景、分镜、镜头 Prompt、视频任务。
 - 创意诊断：新鲜度评分、反套路三档方案、爽点/钩子曲线、修稿任务单、质量闸门、观众模拟、视频风险前置。
-- 本地样本库：上传 `.md` / `.txt` / `.docx` 样本文档，由 AI 抽取案例结构，只保存抽象结构标签，用于反套路和创意诊断上下文。
+- 本地样本库与灵感台：上传 `.md` / `.txt` / `.docx` 样本文档，拆章并抽取抽象结构卡片；灵感台汇总样本卡、类型模板、反套路方案和移动灵感导入。
+- 交付导出：支持完整项目包、小说投稿包、短剧提案包、分集交付包、分镜交付 Markdown / JSON / CSV。
 
 ## 技术栈
 
@@ -61,9 +64,9 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | `pnpm db:generate` | 根据 schema 生成 SQL 迁移（可选） |
 | `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
 | `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
-| `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / JSON parser） |
+| `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / 导出包 / JSON parser） |
 | `pnpm test:db` | 运行迁移回放与 DB 冒烟测试，并在结束后恢复 Electron ABI |
-| `pnpm test:e2e` | 构建桌面端并运行 Electron E2E smoke（创建项目/章节/模型配置/项目包往返） |
+| `pnpm test:e2e` | 构建桌面端并运行 Electron E2E smoke（项目/章节/模型配置、P0 主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出、项目包往返） |
 | `pnpm test` | 类型检查 + 单元测试 + DB 冒烟测试 |
 
 ## 数据层冒烟测试
@@ -86,7 +89,7 @@ API Key 仅本地保存于 `model_configs` 表。
 - **事务化升级**：每个数据库 migration 与版本记录在同一事务中提交，失败会回滚，避免半升级状态。
 - **自动备份**：每次启动自动复制一份 `studio.db` 到 `userData/backups/`，保留最近 7 份。
 - **项目包导入导出**：工作台「导出 → 完整项目包（.sdnspkg）」导出项目全部关联数据；首页「导入项目包」可还原为新项目（id 重映射、外键保留）。
-- **项目包 v2**：包含创意诊断报告、反套路方案、修稿任务、内容版本、质量闸门、观众模拟、曲线报告、工作流记录、本地样本库和可选资产清单。
+- **项目包 v6**：包含创意诊断报告、反套路方案、修稿任务、内容版本、质量闸门、观众模拟、曲线报告、工作流记录、项目 Skills、项目 Agent 方案、灵感台收藏、本地样本库、视频前置资产和可选资产清单。
 - **密钥保护**：模型与视频 Provider 的 API Key 仅在主进程解密使用，返回界面时显示为掩码。
 
 ## 文档
@@ -96,6 +99,8 @@ API Key 仅本地保存于 `model_configs` 表。
 - [贡献指南](./docs/engineering/CONTRIBUTING.md) —— 开发约定、提交规范、本地优先原则
 - [用户手册](./docs/product/USER_GUIDE.md) —— 安装启动、模型配置、创作流程、备份恢复、项目包、视频生成
 - [故障排查](./docs/product/TROUBLESHOOTING.md) —— AI 失败、视频平台、数据库备份、项目包、日志诊断
+- [移动灵感导入](./docs/product/MOBILE_INSPIRATION_IMPORT.md) —— 移动端轻量记录边界与桌面灵感台 JSON/Markdown 导入格式
+- [生态同步与知识库边界](./docs/product/ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md) —— 云同步、资源市场和语义知识库的后续路线与隐私边界
 - [Prompt 工程指南](./docs/engineering/PROMPT_GUIDE.md) —— prompt 体系、JSON 输出规范、模板系统、多 Agent 编剧室
 - [AI 视频生成链路指南](./docs/engineering/AI_VIDEO_GUIDE.md) —— 剧本→分镜→镜头→视频平台、各平台 Prompt 要点与风险
 - [发布打包](./docs/release/RELEASE.md) —— 打包 smoke、签名公证、自动更新源和回滚策略
