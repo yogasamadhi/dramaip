@@ -648,6 +648,33 @@ export const creativeCaseStudies = sqliteTable('creative_case_studies', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const caseStudyDocuments = sqliteTable('case_study_documents', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  fileName: text('file_name').notNull(),
+  sourceType: text('source_type'),
+  chapterCount: integer('chapter_count').notNull().default(0),
+  totalChars: integer('total_chars').notNull().default(0),
+  truncated: integer('truncated', { mode: 'boolean' }).notNull().default(false),
+  parseWarnings: text('parse_warnings').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const caseStudyChapters = sqliteTable('case_study_chapters', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  title: text('title').notNull(),
+  textPreview: text('text_preview').notNull().default(''),
+  charCount: integer('char_count').notNull().default(0),
+  wordCount: integer('word_count').notNull().default(0),
+  status: text('status', { enum: ['parsed', 'needs_review', 'manual'] }).notNull().default('parsed'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const freshnessReports = sqliteTable('freshness_reports', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),

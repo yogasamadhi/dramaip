@@ -1,9 +1,11 @@
 // creative.repo —— v1.1 创意诊断与反套路迭代系统
-import { and, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import type { DB } from '../client'
 import {
   antiTropeVariants,
   audienceSimulations,
+  caseStudyChapters,
+  caseStudyDocuments,
   contentVersions,
   creativeCaseStudies,
   freshnessReports,
@@ -15,6 +17,10 @@ import {
 import type {
   AntiTropeVariant,
   AudienceSimulation,
+  CaseStudyChapter,
+  CaseStudyChapterStatus,
+  CaseStudyDocument,
+  CaseStudyDocumentWithChapters,
   ContentVersion,
   CreativeCaseStudy,
   FreshnessReport,
@@ -39,6 +45,8 @@ import {
 } from './util'
 
 type CaseStudyRow = typeof creativeCaseStudies.$inferSelect
+type CaseStudyDocumentRow = typeof caseStudyDocuments.$inferSelect
+type CaseStudyChapterRow = typeof caseStudyChapters.$inferSelect
 type FreshnessRow = typeof freshnessReports.$inferSelect
 type AntiTropeRow = typeof antiTropeVariants.$inferSelect
 type RevisionTaskRow = typeof revisionTasks.$inferSelect
@@ -49,6 +57,27 @@ type CurveRow = typeof narrativeCurveReports.$inferSelect
 type WorkflowRow = typeof workflowRuns.$inferSelect
 
 const emptyBenefit: RevisionTaskBenefit = { retention: 0, freshness: 0, visual: 0, cost: 0 }
+const CASE_STUDY_CHAPTER_PREVIEW_LIMIT = 600
+
+type CaseStudyDocumentChapterInput = {
+  orderIndex?: number
+  title: string
+  content?: string
+  textPreview?: string
+  charCount?: number
+  wordCount?: number
+  status?: CaseStudyChapterStatus
+  notes?: string
+}
+
+type CaseStudyDocumentInput = {
+  title: string
+  fileName: string
+  sourceType?: string
+  truncated?: boolean
+  parseWarnings?: string[]
+  chapters: CaseStudyDocumentChapterInput[]
+}
 
 function numberArray(v: string | null | undefined): number[] {
   if (!v) return []
@@ -82,6 +111,45 @@ function caseStudyFromRow(row: CaseStudyRow): CreativeCaseStudy {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+}
+
+function caseStudyDocumentFromRow(row: CaseStudyDocumentRow): CaseStudyDocument {
+  return {
+    id: row.id,
+    title: row.title,
+    fileName: row.fileName,
+    sourceType: row.sourceType ?? undefined,
+    chapterCount: row.chapterCount,
+    totalChars: row.totalChars,
+    truncated: row.truncated,
+    parseWarnings: parseJsonArray(row.parseWarnings),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+function caseStudyChapterFromRow(row: CaseStudyChapterRow): CaseStudyChapter {
+  return {
+    id: row.id,
+    documentId: row.documentId,
+    orderIndex: row.orderIndex,
+    title: row.title,
+    textPreview: row.textPreview,
+    charCount: row.charCount,
+    wordCount: row.wordCount,
+    status: row.status as CaseStudyChapterStatus,
+    notes: row.notes ?? undefined,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+function previewText(value: string | undefined): string {
+  if (!value) return ''
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  return normalized.length > CASE_STUDY_CHAPTER_PREVIEW_LIMIT
+    ? normalized.slice(0, CASE_STUDY_CHAPTER_PREVIEW_LIMIT)
+    : normalized
 }
 
 function freshnessFromRow(row: FreshnessRow): FreshnessReport {
@@ -284,6 +352,91 @@ export function updateCaseStudy(db: DB, id: string, patch: Partial<CreativeCaseS
 
 export function deleteCaseStudy(db: DB, id: string): void {
   db.delete(creativeCaseStudies).where(eq(creativeCaseStudies.id, id)).run()
+}
+
+export function listCaseStudyDocuments(db: DB): CaseStudyDocumentWithChapters[] {
+  return db
+    .select()
+    .from(caseStudyDocuments)
+    .orderBy(desc(caseStudyDocuments.updatedAt))
+    .all()
+    .map((row) => {
+      const document = caseStudyDocumentFromRow(row as CaseStudyDocumentRow)
+      return { ...document, chapters: listCaseStudyChapters(db, document.id) }
+    })
+}
+
+export function listCaseStudyChapters(db: DB, documentId: string): CaseStudyChapter[] {
+  return db
+    .select()
+    .from(caseStudyChapters)
+    .where(eq(caseStudyChapters.documentId, documentId))
+    .orderBy(asc(caseStudyChapters.orderIndex))
+    .all()
+    .map((row) => caseStudyChapterFromRow(row as CaseStudyChapterRow))
+}
+
+export function createCaseStudyDocument(db: DB, data: CaseStudyDocumentInput): CaseStudyDocumentWithChapters {
+  const ts = now()
+  const documentId = genId()
+  const chapters = data.chapters.map((chapter, index) => ({
+    ...chapter,
+    orderIndex: chapter.orderIndex ?? index,
+    charCount: chapter.charCount ?? chapter.content?.length ?? chapter.textPreview?.length ?? 0,
+    wordCount: chapter.wordCount ?? 0,
+    textPreview: previewText(chapter.textPreview ?? chapter.content),
+  }))
+  const value: typeof caseStudyDocuments.$inferInsert = {
+    id: documentId,
+    title: data.title,
+    fileName: data.fileName,
+    sourceType: data.sourceType ?? null,
+    chapterCount: chapters.length,
+    totalChars: chapters.reduce((sum, chapter) => sum + chapter.charCount, 0),
+    truncated: Boolean(data.truncated),
+    parseWarnings: stringifyArray(data.parseWarnings),
+    createdAt: ts,
+    updatedAt: ts,
+  }
+  const [row] = insertRow(db, caseStudyDocuments, value)
+
+  for (const chapter of chapters) {
+    const chapterValue: typeof caseStudyChapters.$inferInsert = {
+      id: genId(),
+      documentId,
+      orderIndex: chapter.orderIndex,
+      title: chapter.title,
+      textPreview: chapter.textPreview,
+      charCount: chapter.charCount,
+      wordCount: chapter.wordCount,
+      status: chapter.status ?? 'parsed',
+      notes: chapter.notes ?? null,
+      createdAt: ts,
+      updatedAt: ts,
+    }
+    insertRow(db, caseStudyChapters, chapterValue)
+  }
+
+  return { ...caseStudyDocumentFromRow(row as CaseStudyDocumentRow), chapters: listCaseStudyChapters(db, documentId) }
+}
+
+export function updateCaseStudyDocumentChapter(
+  db: DB,
+  id: string,
+  patch: Partial<Pick<CaseStudyChapter, 'title' | 'textPreview' | 'charCount' | 'wordCount' | 'status' | 'notes'>>,
+): CaseStudyChapter | undefined {
+  const fields: Partial<typeof caseStudyChapters.$inferInsert> = {
+    ...patch,
+    textPreview: patch.textPreview ? previewText(patch.textPreview) : patch.textPreview,
+    updatedAt: now(),
+  }
+  const [row] = updateRows(db, caseStudyChapters, fields).where(eq(caseStudyChapters.id, id)).returning().all()
+  return row ? caseStudyChapterFromRow(row as CaseStudyChapterRow) : undefined
+}
+
+export function deleteCaseStudyDocument(db: DB, id: string): void {
+  db.delete(caseStudyChapters).where(eq(caseStudyChapters.documentId, id)).run()
+  db.delete(caseStudyDocuments).where(eq(caseStudyDocuments.id, id)).run()
 }
 
 export function listFreshnessReports(db: DB, projectId?: string): FreshnessReport[] {

@@ -347,7 +347,11 @@ const api = {
   // v1.1 创意诊断与反套路迭代系统
   caseStudy: {
     list: () => invoke('caseStudy:list'),
+    listDocuments: () => invoke('caseStudy:listDocuments'),
     importDocuments: () => invoke('caseStudy:importDocuments'),
+    createDocument: (data: unknown) => invoke('caseStudy:createDocument', data),
+    updateDocumentChapter: (id: string, patch: unknown) => invoke('caseStudy:updateDocumentChapter', id, patch),
+    deleteDocument: (id: string) => invoke('caseStudy:deleteDocument', id),
     create: (data: unknown) => invoke('caseStudy:create', data),
     update: (id: string, patch: unknown) => invoke('caseStudy:update', id, patch),
     remove: (id: string) => invoke('caseStudy:delete', id),
