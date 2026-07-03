@@ -17,7 +17,7 @@ import {
   Video,
 } from 'lucide-react'
 import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS } from '@sdns/core'
+import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
@@ -129,7 +129,7 @@ export function ShotWorkspacePage() {
         taskType: 'split_scene_to_shots',
       })
       if (res.ok) {
-        toast.success('镜头拆分完成', { id: tid })
+        toast.success('镜头拆分完成，已保存结构检查点', { id: tid })
         setVersion((v) => v + 1)
       } else {
         toast.error('拆分失败：' + (res.error ?? '未知错误'), { id: tid })
@@ -142,7 +142,7 @@ export function ShotWorkspacePage() {
   async function runBatchSplit() {
     if (!adaptation || scenes.length === 0) return
     setBusy('batch-shots')
-    const tid = toast.loading(`正在批量拆分 ${scenes.length} 个场景的镜头…`)
+    const tid = toast.loading(`正在批量拆分镜头…会跳过已有镜头的场景，写入前自动保存检查点`)
     try {
       const res = await ipc.batchTask.run({
         kind: 'shots',
@@ -512,6 +512,9 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
           </div>
         </div>
         <p className="mb-3 text-xs text-muted-foreground">{scene.summary}{scene.visualDescription ? `；画面：${scene.visualDescription}` : ''}</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          AI 拆分镜头会替换当前镜头列表，并在写入前自动保存可恢复的结构检查点；批量拆分会跳过已有镜头的场景。
+        </p>
 
         {shots.length === 0 ? (
           <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -697,6 +700,15 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             )}
           </div>
         )}
+        <ContentVersionPanel
+          targetKind="scene"
+          targetId={scene.id}
+          currentContent={renderShotStructureSnapshot(shots.map((shot) => snapshotShot(shot)))}
+          title="镜头结构版本"
+          versionScope="structure"
+          restoreDisabled={dirty}
+          onRestored={onChanged}
+        />
         </div>
       </ScrollArea>
       <TextDiffPreviewDialog

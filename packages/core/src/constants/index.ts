@@ -192,7 +192,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   template_run: '模板驱动生成',
 }
 
-export type AiTaskWritePolicy = 'preview_then_adopt' | 'conditional_preview' | 'auto_write' | 'display_only'
+export type AiTaskWritePolicy = 'preview_then_adopt' | 'conditional_preview' | 'snapshot_then_auto_write' | 'auto_write' | 'display_only'
 
 export interface AiTaskWritePolicyDefinition {
   policy: AiTaskWritePolicy
@@ -203,6 +203,7 @@ export interface AiTaskWritePolicyDefinition {
 export const TASK_WRITE_POLICY_LABELS: Record<AiTaskWritePolicy, string> = {
   preview_then_adopt: '预览后采用',
   conditional_preview: '按内容状态确认',
+  snapshot_then_auto_write: '快照后写入',
   auto_write: '自动写入',
   display_only: '仅返回结果',
 }
@@ -250,13 +251,13 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   enhance_episode_visuals: taskPolicy('auto_write', '增强单集关键画面并自动更新该集。'),
   analyze_first_10_episodes: taskPolicy('auto_write', '分析前 10 集并自动写入分析报告。'),
   generate_ai_drama_script: taskPolicy('conditional_preview', '新剧本自动写入；已有剧本改写前返回差异预览。'),
-  split_script_to_scenes: taskPolicy('auto_write', '拆分剧本场景并自动替换场景列表。'),
+  split_script_to_scenes: taskPolicy('snapshot_then_auto_write', '拆分剧本场景前自动保存结构检查点，再替换场景列表。'),
   review_ai_drama_script: taskPolicy('auto_write', '生成剧本审稿并自动写入。'),
   rewrite_ai_drama_script: taskPolicy('preview_then_adopt', '重写剧本正文，用户确认差异后写入。'),
   enhance_dialogue_conflict: taskPolicy('preview_then_adopt', '增强剧本对白冲突，用户确认差异后写入。'),
   enhance_episode_cliffhanger: taskPolicy('preview_then_adopt', '增强剧本集尾悬念，用户确认差异后写入。'),
   enhance_script_visuality: taskPolicy('preview_then_adopt', '增强剧本画面感，用户确认差异后写入。'),
-  split_scene_to_shots: taskPolicy('auto_write', '拆分场景镜头并自动替换镜头列表。'),
+  split_scene_to_shots: taskPolicy('snapshot_then_auto_write', '拆分场景镜头前自动保存结构检查点，再替换镜头列表。'),
   generate_shot_prompt: taskPolicy('preview_then_adopt', '生成镜头 Prompt，用户确认差异后写入。'),
   generate_negative_prompt: taskPolicy('preview_then_adopt', '生成负面 Prompt，用户确认差异后写入。'),
   review_shot_prompt: taskPolicy('auto_write', '生成镜头审查并自动写入。'),

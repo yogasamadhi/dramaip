@@ -13,7 +13,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { AdaptationProject, BatchTaskProgress, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
+import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES, renderSceneStructureSnapshot, snapshotScene } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -332,7 +332,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
         taskType: 'split_script_to_scenes',
       })
       if (res.ok) {
-        toast.success('场景拆分完成', { id: tid })
+        toast.success('场景拆分完成，已保存结构检查点', { id: tid })
         await loadExtras()
       } else {
         toast.error('拆分失败：' + (res.error ?? '未知错误'), { id: tid })
@@ -527,6 +527,9 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                     </Button>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  AI 拆分场景会替换当前场景列表，并在写入前自动保存可恢复的结构检查点；已有镜头会跟随场景结构一并进入快照。
+                </p>
                 {scenes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     还没有场景。点击「AI 拆分场景」，AI 会把剧本正文拆成有序的场景清单，为后续分镜做准备。
@@ -551,6 +554,17 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                     </div>
                   ))
                 )}
+                <ContentVersionPanel
+                  targetKind="script"
+                  targetId={script.id}
+                  currentContent={renderSceneStructureSnapshot(scenes.map((scene) => snapshotScene(scene)))}
+                  title="场景结构版本"
+                  versionScope="structure"
+                  onRestored={async () => {
+                    await loadExtras()
+                    onChanged()
+                  }}
+                />
               </div>
             )}
 

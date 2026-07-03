@@ -27,6 +27,7 @@ import type {
   TextDiffPreviewPayload,
   VideoCostRiskResult,
 } from '@sdns/core'
+import { renderSceneStructureSnapshot, renderShotStructureSnapshot, snapshotScene, snapshotShot } from '@sdns/core'
 import { effectiveTaskType, isTextChapterTask } from '../prompts/task-types'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
@@ -351,6 +352,25 @@ export function createSaveResultNode(deps: NodeDeps) {
       const scriptId = state.currentScript.id
       const episodeId = state.currentScript.episodeId
       const items = state.parsedOutput as ScenesResult
+      const previousScenes = repos.scene.listScenesByScript(db, scriptId).map((scene) =>
+        snapshotScene(scene, repos.shot.listShotsByScene(db, scene.id)),
+      )
+      repos.creative.createContentVersion(db, {
+        projectId: state.projectId,
+        targetKind: 'script',
+        targetId: scriptId,
+        label: `场景结构检查点：${state.currentScript.title}`,
+        source: 'manual_checkpoint',
+        content: renderSceneStructureSnapshot(previousScenes),
+        meta: {
+          phase: 'before_structure_replace',
+          structureSnapshot: 'script_scenes',
+          taskType,
+          episodeId,
+          sceneCount: previousScenes.length,
+          scenes: previousScenes,
+        },
+      })
       repos.scene.deleteScenesByScript(db, scriptId)
       const created = items.map((it, idx) =>
         repos.scene.createScene(db, {
@@ -394,6 +414,24 @@ export function createSaveResultNode(deps: NodeDeps) {
     if (taskType === 'split_scene_to_shots' && state.currentScene) {
       const scene = state.currentScene
       const items = state.parsedOutput as ShotsResult
+      const previousShots = repos.shot.listShotsByScene(db, scene.id).map(snapshotShot)
+      repos.creative.createContentVersion(db, {
+        projectId: state.projectId,
+        targetKind: 'scene',
+        targetId: scene.id,
+        label: `镜头结构检查点：${scene.title}`,
+        source: 'manual_checkpoint',
+        content: renderShotStructureSnapshot(previousShots),
+        meta: {
+          phase: 'before_structure_replace',
+          structureSnapshot: 'scene_shots',
+          taskType,
+          episodeId: scene.episodeId,
+          sceneId: scene.id,
+          shotCount: previousShots.length,
+          shots: previousShots,
+        },
+      })
       repos.shot.deleteShotsByScene(db, scene.id)
       const created = items.map((it, idx) =>
         repos.shot.createShot(db, {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Play, Send, Sparkles, Wand2 } from 'lucide-react'
-import { TASK_TYPE_LABELS, type AiContextControls, type TextDiffPreviewPayload } from '@sdns/core'
+import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES, type AiContextControls, type TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
   buildAgentCommandPlan,
@@ -284,7 +284,11 @@ export function ChatSection({
         resultText = '已生成结构化预览，确认采用后才会写入。'
       } else {
         onCommandCompleted?.()
-        resultText = plan.resultMode === 'auto_write' ? '已执行并刷新项目状态。' : resultText
+        if (TASK_WRITE_POLICIES[plan.taskType].policy === 'snapshot_then_auto_write') {
+          resultText = '已保存结构检查点并刷新项目状态。'
+        } else {
+          resultText = plan.resultMode === 'auto_write' ? '已执行并刷新项目状态。' : resultText
+        }
       }
       toast.success(label + '完成', { id: toastId })
       setMessages((prev) =>
@@ -415,11 +419,14 @@ function CommandPlanCard({
   running: boolean
   onRun: () => void
 }) {
+  const policy = TASK_WRITE_POLICIES[plan.taskType]
   const resultModeLabel = plan.resultMode === 'text_preview'
     ? '差异预览'
     : plan.resultMode === 'artifact_preview'
       ? '结构预览'
-      : '确认后写入'
+      : policy.policy === 'snapshot_then_auto_write'
+        ? '快照后写入'
+        : '确认后写入'
 
   return (
     <div className="mt-2 rounded-md border bg-background/80 p-3 text-xs text-foreground">
