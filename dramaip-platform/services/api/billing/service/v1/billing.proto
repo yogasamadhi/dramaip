@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package dramaip.billing.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/billing/service/v1;billingv1";
+
+service BillingService {
+  rpc ListPlans(ListPlansRequest) returns (ListPlansReply);
+  rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutReply);
+  rpc GetSubscription(GetSubscriptionRequest) returns (Subscription);
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription);
+}
+
+message ListPlansRequest {}
+
+message Plan {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  int64 monthly_token_quota = 4;
+  string price = 5;
+  string currency = 6;
+}
+
+message ListPlansReply {
+  repeated Plan plans = 1;
+}
+
+message CreateCheckoutRequest {
+  string user_id = 1;
+  string plan_id = 2;
+  string provider = 3;
+}
+
+message CreateCheckoutReply {
+  string order_id = 1;
+  string payment_url = 2;
+}
+
+message GetSubscriptionRequest {
+  string user_id = 1;
+}
+
+message CancelSubscriptionRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+}
+
+message Subscription {
+  string id = 1;
+  string user_id = 2;
+  string plan_id = 3;
+  string status = 4;
+  string current_period_start = 5;
+  string current_period_end = 6;
+}

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package dramaip.user.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/user/service/v1;userv1";
+
+service UserService {
+  rpc GetMe(GetMeRequest) returns (UserProfile);
+}
+
+message GetMeRequest {
+  string user_id = 1;
+}
+
+message UserProfile {
+  string id = 1;
+  string email = 2;
+  string phone = 3;
+  string status = 4;
+}

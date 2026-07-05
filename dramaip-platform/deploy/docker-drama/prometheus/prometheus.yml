@@ -1,0 +1,50 @@
+# Prometheus 抓取配置（对应 docs/技术架构.md §12 指标支柱）。
+# 容器在 compose 默认网络内，可用 service name 互访；
+# 本地 `go run` 的 Kratos 服务经 host.docker.internal 访问（macOS 默认可用）。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Kong —— 需先在 deploy/kong/kong.yml 全局启用 prometheus 插件，否则 /metrics 为空。
+  - job_name: kong
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["kong:8000"]
+
+  # RabbitMQ 4.x management 镜像自带 rabbitmq_prometheus exporter（端口 15692）。
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+
+  # Jaeger v2 自身指标（badger 配置在 8888 暴露 /metrics）。
+  - job_name: jaeger
+    static_configs:
+      - targets: ["jaeger:8888"]
+
+  # OpenTelemetry Collector 自身指标。
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
+  # 服务通过 OTLP 推到 Collector 的 metrics，由 Collector 转成 Prometheus 格式供抓取。
+  - job_name: otel-collector-otlp-metrics
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Kratos 微服务的 /metrics —— 服务尚未实现，先占位。
+  # 服务起来后取消注释，并按真实 metrics 端口调整。
+  # - job_name: kratos-services
+  #   static_configs:
+  #     - targets:
+  #         - host.docker.internal:9000   # auth
+  #         - host.docker.internal:9001   # user
+  #         - host.docker.internal:9002   # billing
+  #         - host.docker.internal:9003   # quota
+  #         - host.docker.internal:9004   # ai-gateway
+  #         - host.docker.internal:9005   # bff

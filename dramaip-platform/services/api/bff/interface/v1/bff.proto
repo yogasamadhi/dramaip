@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package dramaip.bff.interface.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/bff/interface/v1;bffv1";
+
+service BffInterface {
+  rpc GetDashboard(GetDashboardRequest) returns (Dashboard);
+}
+
+message GetDashboardRequest {
+  string user_id = 1;
+}
+
+message Dashboard {
+  string user_id = 1;
+  string email = 2;
+  string subscription_status = 3;
+  int64 quota_tokens = 4;
+  int64 used_tokens = 5;
+  int64 remaining_tokens = 6;
+}

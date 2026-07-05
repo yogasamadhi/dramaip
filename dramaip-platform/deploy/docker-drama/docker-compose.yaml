@@ -1,0 +1,158 @@
+services:
+  postgres:
+    container_name: drama-postgres
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: dramaip
+      POSTGRES_PASSWORD: dramaip
+      POSTGRES_DB: dramaip
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker-data/postgres:/var/lib/postgresql
+
+  redis:
+    container_name: drama-redis
+    image: redis:8-alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./docker-data/redis:/data
+
+  rabbitmq:
+    container_name: drama-rabbitmq
+    image: rabbitmq:4.3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: dramaip
+      RABBITMQ_DEFAULT_PASS: dramaip
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - ./docker-data/rabbitmq:/var/lib/rabbitmq
+
+  # Application external entry — the ONLY service clients may reach from outside.
+  # (postgres/redis/rabbitmq/prometheus/grafana/jaeger/otel below are dev-time
+  # infra ports; in prod (k8s) everything collapses to exposing Kong alone.)
+  kong:
+    container_name: drama-kong
+    image: kong:3.9-ubuntu
+    # Lets Linux hosts resolve the host's loopback-bound BFF; macOS already does.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - ../kong/kong.yml:/kong/declarative/kong.yml:ro
+
+  prometheus:
+    container_name: drama-prometheus
+    image: prom/prometheus:v3.11.3
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker-data/prometheus:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+
+  jaeger:
+    # v2 基于 OTel Collector；v1(all-in-one) 已于 2025-12-31 EOL。
+    # badger 落盘到 docker-data/jaeger（见 jaeger/config.yaml）。
+    container_name: drama-jaeger
+    image: jaegertracing/jaeger:2.17.0
+    command: ["--config", "/jaeger/config.yaml"]
+    ports:
+      - "16686:16686"   # Jaeger UI
+    volumes:
+      - ./jaeger/config.yaml:/jaeger/config.yaml:ro
+      - ./docker-data/jaeger:/badger
+
+  otel-collector:
+    container_name: drama-otel-collector
+    image: otel/opentelemetry-collector-contrib:0.155.0
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"     # OTLP gRPC（Kratos OTel exporter 发往这里）
+      - "4318:4318"     # OTLP HTTP
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - jaeger
+
+  grafana:
+    container_name: drama-grafana
+    image: grafana/grafana:12.3.8
+    environment:
+      GF_SECURITY_ADMIN_USER: dramaip
+      GF_SECURITY_ADMIN_PASSWORD: dramaip
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker-data/grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # 可观测性 · 日志支柱：OpenSearch 存储/检索（Fluent Bit 采集，见下方 fluent-bit service）。
+  # security plugin 禁用（dev/内网起步最简，Dashboards 免认证直连）；生产环境再开。
+  opensearch:
+    container_name: drama-opensearch
+    image: opensearchproject/opensearch:3.6.0
+    environment:
+      cluster.name: dramaip-logs
+      node.name: drama-opensearch
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "Dramaip@2026"   # 兜底：3.x 镜像 entrypoint 即便 security 禁用也可能强制检查
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"   # REST API（Dashboards / Fluent Bit 连）
+      - "9600:9600"   # 性能指标，留作后续 prometheus 抓
+    volumes:
+      - ./docker-data/opensearch:/usr/share/opensearch/data
+
+  opensearch-dashboards:
+    container_name: drama-opensearch-dashboards
+    image: opensearchproject/opensearch-dashboards:3.6.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"   # 配合 OS 侧 plugins.security.disabled=true，移除登录页与 tenantinfo 400
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+
+  # 日志采集：tail docker json-file + opensearch output 直连（无认证）。
+  # 注：Fluent Bit 无 `docker` filter 插件；容器【名】需改用 fluentbit 日志驱动或 Lua 注入。
+  # 挂宿主 /var/lib/docker/containers 是采集容器日志的标配；state 卷持久化 tail DB 偏移，
+  # 避免 fluent-bit 重启后从头重读 → OpenSearch 日志重复。
+  fluent-bit:
+    container_name: drama-fluent-bit
+    image: fluent/fluent-bit:5.0.8
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./docker-data/fluent-bit:/fluent-bit/state
+    depends_on:
+      - opensearch

@@ -1,0 +1,16 @@
+# Grafana 数据源 provisioning：接入 OpenSearch，日志检索与 OS Dashboards 并存。
+# security 禁用，无需 basicAuth / server-side auth。
+apiVersion: 1
+
+datasources:
+  - name: OpenSearch
+    type: opensearch
+    access: proxy
+    url: http://opensearch:9200
+    database: "dramaip-logs*"
+    isDefault: false
+    editable: true
+    jsonData:
+      flavor: opensearch
+      timeField: "@timestamp"
+      version: "3.6.0"

@@ -1,0 +1,14 @@
+server:
+  http:
+    addr: 0.0.0.0:8101
+  grpc:
+    addr: 0.0.0.0:9101
+data:
+  postgres:
+    dsn: postgres://dramaip:dramaip@localhost:5432/dramaip?sslmode=disable&search_path=auth
+  redis:
+    addr: localhost:6379
+jwt:
+  issuer: dramaip-auth
+  access_token_ttl: 15m
+  refresh_token_ttl: 720h

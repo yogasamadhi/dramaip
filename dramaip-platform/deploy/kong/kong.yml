@@ -1,0 +1,40 @@
+_format_version: "3.0"
+
+# Kong is the sole external entry for DramaIP clients (:8000 proxy, :8001 admin).
+# The BFF binds loopback on the host (127.0.0.1:8100); Kong reaches it via
+# host.docker.internal. Internal services (auth/user/billing/quota/ai-gateway)
+# are NOT exposed here — clients must never reach them directly.
+#
+# Cross-cutting concerns live ONLY at Kong: TLS, CORS, rate limiting, and (once
+# auth-service issues real JWTs) edge JWT verification. See docs/技术架构.md §9.
+
+services:
+  - name: dramaip-bff
+    url: http://host.docker.internal:8100
+    routes:
+      - name: dramaip-api
+        paths:
+          - /
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          # dev: allow any origin. In prod, restrict to the web origin(s), e.g.
+          #   origins: [https://app.dramaip.com]
+          origins: ["*"]
+          methods: [GET, POST, OPTIONS]
+          headers: [Authorization, Content-Type]
+          exposed_headers: [Content-Type]
+          credentials: false
+          max_age: 3600
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      # Edge JWT verification — DISABLED until auth-service can issue real tokens.
+      # Enable on protected routes (e.g. /me/*) once JWT_ACCESS_SECRET is wired
+      # and a Kong consumer/credential exists. Enabling now would 401 the demo.
+      # - name: jwt
+      #   config:
+      #     key_claim_name: iss
+      #     secret_is_base64: false

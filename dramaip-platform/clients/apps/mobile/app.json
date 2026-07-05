@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "DramaIP",
+    "slug": "dramaip-mobile",
+    "scheme": "dramaip",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"]
+  }
+}

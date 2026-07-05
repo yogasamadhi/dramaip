@@ -1,0 +1,10 @@
+server:
+  http:
+    addr: 0.0.0.0:8104
+  grpc:
+    addr: 0.0.0.0:9104
+data:
+  postgres:
+    dsn: postgres://dramaip:dramaip@localhost:5432/dramaip?sslmode=disable&search_path=quota
+  redis:
+    addr: localhost:6379

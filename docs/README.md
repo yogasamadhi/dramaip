@@ -1,28 +1,26 @@
-# 文档目录
+# 通用文档目录
 
-项目文档按用途分组保存：
+这里保存跨 `dramaip-desktop` 和未来 `dramaip-platform` 复用的产品、路线和流程文档。
 
-## 产品资料
+## 产品与路线
 
-- [项目介绍](../README.md)
+- [技术架构](./技术架构.md)
 - [产品简报](./product/PROJECT_BRIEF.md)
 - [路线图](./product/ROADMAP.md)
-- [用户手册](./product/USER_GUIDE.md)
-- [故障排查](./product/TROUBLESHOOTING.md)
+- [移动灵感记录与桌面导入设计](./product/MOBILE_INSPIRATION_IMPORT.md)
+- [云同步、资源市场与知识库路线设计](./product/ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)
 
-## 开发资料
-
-- [开发文档](./engineering/DEVELOPMENT.md)
-- [贡献指南](./engineering/CONTRIBUTING.md)
-- [Prompt 工程指南](./engineering/PROMPT_GUIDE.md)
-- [AI 视频生成链路指南](./engineering/AI_VIDEO_GUIDE.md)
-
-## 发布资料
-
-- [发布打包](./release/RELEASE.md)
-- [Release Candidate 草稿](./release/RELEASE_CANDIDATE.md)
-
-## 流程规则
+## 流程记录
 
 - [Loop Engineering Rules](./process/LOOPRULE.md)
 - [Production Optimization Loop Map](./process/LOOPMAP.md)
+- [Production Optimization Loop Map 2](./process/LOOPMAP2.md)
+
+## 项目文档
+
+- [桌面端项目](../dramaip-desktop/README.md)
+- [桌面端文档目录](../dramaip-desktop/docs/README.md)
+- [平台端项目](../dramaip-platform/README.md)
+- [平台端私有文档目录](../dramaip-platform/docs/README.md)
+- [平台端项目](../dramaip-platform/README.md)
+- [平台端文档目录](../dramaip-platform/docs/README.md)

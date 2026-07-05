@@ -1,0 +1,13 @@
+server:
+  http:
+    addr: 0.0.0.0:8105
+  grpc:
+    addr: 0.0.0.0:9105
+data:
+  redis:
+    addr: localhost:6379
+quota:
+  grpc_addr: localhost:9104
+llm:
+  default_provider: openai-compatible
+  timeout: 90s

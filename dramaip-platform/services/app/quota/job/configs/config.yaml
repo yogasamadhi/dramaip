@@ -1,0 +1,8 @@
+data:
+  postgres:
+    dsn: postgres://dramaip:dramaip@localhost:5432/dramaip?sslmode=disable&search_path=quota
+  rabbitmq:
+    url: amqp://guest:guest@localhost:5672/
+jobs:
+  period_account_cron: "0 */10 * * * *"
+  usage_aggregate_interval: 1m

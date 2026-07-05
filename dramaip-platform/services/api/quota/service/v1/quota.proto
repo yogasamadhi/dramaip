@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package dramaip.quota.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/quota/service/v1;quotav1";
+
+service QuotaService {
+  rpc GetTokenBalance(GetTokenBalanceRequest) returns (TokenBalance);
+  rpc CreatePeriodAccount(CreatePeriodAccountRequest) returns (TokenAccount);
+  rpc ReserveTokens(ReserveTokensRequest) returns (TokenReservation);
+  rpc SettleTokens(SettleTokensRequest) returns (TokenUsage);
+}
+
+message GetTokenBalanceRequest {
+  string user_id = 1;
+}
+
+message TokenBalance {
+  string plan = 1;
+  int64 quota_tokens = 2;
+  int64 used_tokens = 3;
+  int64 remaining_tokens = 4;
+  string period_start = 5;
+  string period_end = 6;
+}
+
+message CreatePeriodAccountRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+  int64 quota_tokens = 3;
+  string period_start = 4;
+  string period_end = 5;
+}
+
+message TokenAccount {
+  string id = 1;
+  string user_id = 2;
+  string subscription_id = 3;
+  int64 quota_tokens = 4;
+  int64 used_tokens = 5;
+}
+
+message ReserveTokensRequest {
+  string user_id = 1;
+  string request_id = 2;
+  int64 reserved_tokens = 3;
+}
+
+message TokenReservation {
+  string id = 1;
+  string token_account_id = 2;
+  int64 reserved_tokens = 3;
+  string status = 4;
+}
+
+message SettleTokensRequest {
+  string reservation_id = 1;
+  string request_id = 2;
+  string model = 3;
+  int64 prompt_tokens = 4;
+  int64 completion_tokens = 5;
+}
+
+message TokenUsage {
+  string id = 1;
+  int64 total_tokens = 2;
+}

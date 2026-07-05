@@ -1,0 +1,5 @@
+# Platform Docs
+
+This folder is for private implementation notes that should not be shared with the open-source desktop project.
+
+Shared product and architecture docs live in `../docs` at the parent workspace level.
