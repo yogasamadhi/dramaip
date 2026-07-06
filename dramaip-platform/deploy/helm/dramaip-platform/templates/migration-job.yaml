@@ -1,0 +1,40 @@
+{{- if .Values.migrations.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-migrate
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  {{- if .Values.migrations.useHelmHook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-5"
+{{- end }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "dramaip-platform.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      {{- if .Values.migrations.serviceAccountName }}
+      serviceAccountName: {{ .Values.migrations.serviceAccountName }}
+      {{- else if .Values.migrations.useHelmHook }}
+      serviceAccountName: default
+      {{- else }}
+      serviceAccountName: {{ include "dramaip-platform.serviceAccountName" . }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.images.migration.repository }}:{{ .Values.images.migration.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "dramaip-platform.fullname" . }}-config
+            - secretRef:
+                name: {{ include "dramaip-platform.secretName" . }}
+	{{- end }}

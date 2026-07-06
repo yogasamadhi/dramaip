@@ -14,6 +14,9 @@ export default function HomePage() {
           <Link href="/login" className="text-sm text-slate-700">
             Login
           </Link>
+          <Link href="/chat" className="text-sm text-slate-700">
+            Chat
+          </Link>
         </div>
       </nav>
 
@@ -35,6 +38,9 @@ export default function HomePage() {
             </Link>
             <Link href="/pricing">
               <Button variant="secondary">View pricing</Button>
+            </Link>
+            <Link href="/chat">
+              <Button variant="secondary">Try chat</Button>
             </Link>
           </div>
         </div>

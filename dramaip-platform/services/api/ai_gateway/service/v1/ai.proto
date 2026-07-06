@@ -14,6 +14,7 @@ message ChatRequest {
   string model = 3;
   repeated ChatMessage messages = 4;
   int64 max_tokens = 5;
+  string provider = 6;
 }
 
 message ChatMessage {
@@ -24,4 +25,10 @@ message ChatMessage {
 message ChatReply {
   string content = 1;
   int64 total_tokens = 2;
+  string provider = 3;
+  string model = 4;
+  int64 prompt_tokens = 5;
+  int64 completion_tokens = 6;
+  string reservation_id = 7;
+  int64 remaining_tokens = 8;
 }

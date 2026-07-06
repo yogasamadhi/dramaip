@@ -1,0 +1,69 @@
+replicaCount: 1
+
+image:
+  repository: dramaip-bff
+  tag: dev
+  pullPolicy: IfNotPresent
+
+images:
+  bff:
+    repository: dramaip-bff
+    tag: dev
+  auth:
+    repository: dramaip-auth
+    tag: dev
+  user:
+    repository: dramaip-user
+    tag: dev
+  billing:
+    repository: dramaip-billing
+    tag: dev
+  quota:
+    repository: dramaip-quota
+    tag: dev
+  aiGateway:
+    repository: dramaip-ai-gateway
+    tag: dev
+  billingJob:
+    repository: dramaip-billing-job
+    tag: dev
+  quotaJob:
+    repository: dramaip-quota-job
+    tag: dev
+  migration:
+    repository: dramaip-migrate
+    tag: dev
+
+config:
+  env: dev
+  logLevel: debug
+  autoMigrate: "true"
+  postgres:
+    host: postgres
+    sslmode: disable
+  redis:
+    addr: redis:6379
+  rabbitmq:
+    host: rabbitmq
+    port: "5672"
+    vhost: /
+  otel:
+    endpoint: http://otel-collector:4318
+
+devInfra:
+  enabled: true
+  persistence:
+    enabled: true
+    hostPathBase: ""
+
+migrations:
+  enabled: false
+
+secret:
+  postgresUser: dramaip
+  postgresPassword: dramaip
+  redisPassword: dramaip
+  rabbitmqUser: dramaip
+  rabbitmqPassword: dramaip
+  jwtAccessSecret: dramaip-dev-access-secret-change-me
+  jwtRefreshSecret: dramaip-dev-refresh-secret-change-me

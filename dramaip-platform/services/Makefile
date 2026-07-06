@@ -1,4 +1,5 @@
-.PHONY: test proto tidy kong-up kong-down kong-logs
+.PHONY: test proto tidy kong-up kong-down kong-logs \
+        run-bff run-auth run-user run-billing run-quota run-ai-gateway run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
 COMPOSE ?= ../deploy/docker-drama/docker-compose.yaml
@@ -6,8 +7,36 @@ COMPOSE ?= ../deploy/docker-drama/docker-compose.yaml
 test:
 	GOCACHE=$(GOCACHE) go test ./...
 
+# 单服务宿主机热重载调试用：默认连 localhost 上的 postgres/redis/rabbitmq 和
+# 各下游 gRPC 端口（9101-9105）。完整容器栈请用 `make mvp-up`（根目录 Makefile）
+# 或 `python3 run-platform.py`。
+
 run-bff:
 	GOCACHE=$(GOCACHE) go run ./app/bff/interface/cmd/server
+
+run-auth:
+	GOCACHE=$(GOCACHE) go run ./app/auth/service/cmd/server
+
+run-user:
+	GOCACHE=$(GOCACHE) go run ./app/user/service/cmd/server
+
+run-billing:
+	GOCACHE=$(GOCACHE) go run ./app/billing/service/cmd/server
+
+run-quota:
+	GOCACHE=$(GOCACHE) go run ./app/quota/service/cmd/server
+
+run-ai-gateway:
+	GOCACHE=$(GOCACHE) go run ./app/ai_gateway/service/cmd/server
+
+run-billing-job:
+	GOCACHE=$(GOCACHE) go run ./app/billing/job/cmd/server
+
+run-quota-job:
+	GOCACHE=$(GOCACHE) go run ./app/quota/job/cmd/server
+
+run-migrate:
+	GOCACHE=$(GOCACHE) go run ./app/migration/job/cmd/server
 
 # Kong is the sole external entry (:8000). BFF binds loopback; Kong proxies to it.
 kong-up:
@@ -23,4 +52,8 @@ tidy:
 	go mod tidy
 
 proto:
-	@echo "TODO: add buf/protoc generation for services/api"
+	@if ! command -v buf >/dev/null 2>&1; then \
+		echo "buf is required. Install with: brew install bufbuild/buf/buf"; \
+		exit 1; \
+	fi
+	buf generate

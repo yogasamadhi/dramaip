@@ -1,0 +1,210 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/dramaip/dramaip-bff
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+images:
+  bff:
+    repository: ghcr.io/dramaip/dramaip-bff
+    tag: "0.1.0"
+  auth:
+    repository: ghcr.io/dramaip/dramaip-auth
+    tag: "0.1.0"
+  user:
+    repository: ghcr.io/dramaip/dramaip-user
+    tag: "0.1.0"
+  billing:
+    repository: ghcr.io/dramaip/dramaip-billing
+    tag: "0.1.0"
+  quota:
+    repository: ghcr.io/dramaip/dramaip-quota
+    tag: "0.1.0"
+  aiGateway:
+    repository: ghcr.io/dramaip/dramaip-ai-gateway
+    tag: "0.1.0"
+  billingJob:
+    repository: ghcr.io/dramaip/dramaip-billing-job
+    tag: "0.1.0"
+  quotaJob:
+    repository: ghcr.io/dramaip/dramaip-quota-job
+    tag: "0.1.0"
+  migration:
+    repository: ghcr.io/dramaip/dramaip-migrate
+    tag: "0.1.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+rolloutToken: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 8100
+  targetPort: 8100
+
+ingress:
+  enabled: false
+  className: kong
+  annotations: {}
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+kong:
+  plugins:
+    enabled: true
+    cors:
+      enabled: true
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - OPTIONS
+      headers:
+        - Authorization
+        - Content-Type
+      exposedHeaders:
+        - Content-Type
+      credentials: false
+      maxAge: 3600
+    rateLimiting:
+      enabled: true
+      minute: 120
+      policy: local
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+config:
+  env: prod
+  logLevel: info
+  timezone: Asia/Shanghai
+  bffHttpAddr: :8100
+  authHttpAddr: :8101
+  authGrpcAddr: :9101
+  userHttpAddr: :8102
+  userGrpcAddr: :9102
+  billingHttpAddr: :8103
+  billingGrpcAddr: :9103
+  quotaHttpAddr: :8104
+  quotaGrpcAddr: :9104
+  aiGatewayHttpAddr: :8105
+  aiGatewayGrpcAddr: :9105
+  billingJobHttpAddr: :8106
+  quotaJobHttpAddr: :8107
+  autoMigrate: "false"
+  migrationsDir: /app/migrations
+  postgres:
+    host: postgres
+    port: "5432"
+    database: dramaip
+    sslmode: require
+  redis:
+    addr: redis:6379
+    db: "0"
+  rabbitmq:
+    host: rabbitmq
+    port: "5672"
+    vhost: /
+    eventsQueue: dramaip.mvp.events
+  jwt:
+    issuer: dramaip
+    accessTtlSeconds: "900"
+    refreshTtlSeconds: "2592000"
+  otel:
+    endpoint: http://otel-collector:4318
+    serviceName: dramaip-bff
+  downstream:
+    authGrpcEndpoint: dramaip-platform-auth:9101
+    userGrpcEndpoint: dramaip-platform-user:9102
+    billingGrpcEndpoint: dramaip-platform-billing:9103
+    quotaGrpcEndpoint: dramaip-platform-quota:9104
+    aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
+  ai:
+    providers: openai-compatible
+    defaultProvider: openai-compatible
+    providerBaseUrl: https://api.openai.com/v1
+    defaultModel: gpt-4o-mini
+    timeoutSeconds: "90"
+
+devInfra:
+  enabled: false
+  persistence:
+    enabled: false
+    hostPathBase: ""
+  postgres:
+    image: postgres:18-alpine
+    storage: 1Gi
+  redis:
+    image: redis:8-alpine
+  rabbitmq:
+    image: rabbitmq:4.3-management-alpine
+  otel:
+    image: otel/opentelemetry-collector-contrib:0.155.0
+
+secret:
+  existingSecret: ""
+  postgresUser: dramaip
+  postgresPassword: change-me
+  redisPassword: change-me
+  rabbitmqUser: dramaip
+  rabbitmqPassword: change-me
+  jwtAccessSecret: change-me-access-secret
+  jwtRefreshSecret: change-me-refresh-secret
+  aiProviderApiKey: sk-replace-me
+
+migrations:
+  enabled: true
+  useHelmHook: true
+  serviceAccountName: ""
+  backoffLimit: 2
+
+prometheus:
+  annotations:
+    enabled: true
+
+pdb:
+  enabled: false
+  minAvailable: 1

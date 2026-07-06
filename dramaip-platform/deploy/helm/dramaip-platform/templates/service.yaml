@@ -1,0 +1,40 @@
+{{- $services := list
+  (dict "component" "bff" "http" 8100 "grpc" 0)
+  (dict "component" "auth" "http" 8101 "grpc" 9101)
+  (dict "component" "user" "http" 8102 "grpc" 9102)
+  (dict "component" "billing" "http" 8103 "grpc" 9103)
+  (dict "component" "quota" "http" 8104 "grpc" 9104)
+  (dict "component" "ai-gateway" "http" 8105 "grpc" 9105)
+-}}
+{{- range $index, $service := $services }}
+{{- $component := index $service "component" }}
+{{- $http := index $service "http" }}
+{{- $grpc := index $service "grpc" }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dramaip-platform.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "dramaip-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  type: {{ $.Values.service.type }}
+  ports:
+    - port: {{ $http }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    {{- if $grpc }}
+    - port: {{ $grpc }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "dramaip-platform.name" $ }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $component }}
+{{- end }}

@@ -2,16 +2,18 @@
 """
 Start dramaip-platform services and web app in development mode.
 
+All 8 Go microservices (bff/auth/user/billing/quota/ai-gateway/billing-job/
+quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
+as containers via docker compose; this launcher only brings the stack up and
+optionally starts the local Next.js web dev server.
+
 Usage:
   python3 run-platform.py
   python3 run-platform.py --install
   python3 run-platform.py --no-install
-  python3 run-platform.py --services-only
-  python3 run-platform.py --web-only
-  python3 run-platform.py --bff-addr :8101
-  python3 run-platform.py --web-port 3001
+  python3 run-platform.py --web-only        # assume the stack is already up
+  python3 run-platform.py --no-stack        # do not manage the compose stack
   python3 run-platform.py --no-kill-ports
-  python3 run-platform.py --no-kong        # skip Kong; web hits BFF directly (same host only)
 """
 
 from __future__ import annotations
@@ -20,7 +22,6 @@ import argparse
 import os
 import shutil
 import signal
-import socket
 import subprocess
 import sys
 import time
@@ -42,11 +43,13 @@ CLIENT_MODULE_CHECKS = (
 CURRENT_PID = os.getpid()
 _SHUTDOWN_SIGNAL: int | None = None
 
-# Kong is the sole external entry; the BFF binds loopback and Kong proxies to it.
-# The launcher ensures the Kong container is up and points the web client at it.
+# All 8 Go services + Kong + dev infra live in docker-compose.yaml. This launcher
+# brings the stack up (Kong is the sole external entry, proxy port 8000 → bff:8100)
+# and optionally starts the local Next.js web dev server.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 KONG_PROXY_PORT = 8000
-KONG_HEALTH_TIMEOUT_S = 30.0
+KONG_HEALTH_TIMEOUT_S = 60.0   # full stack (build + 8 services + infra) takes longer than Kong alone
+WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
 
 _COLOR = sys.stdout.isatty()
 
@@ -122,14 +125,6 @@ def check_layout() -> None:
     ok("platform layout found")
 
 
-def check_go() -> None:
-    version = command_output(["go", "version"], SERVICES_DIR)
-    if not version:
-        err("Go is not available. Install Go first.")
-        sys.exit(1)
-    ok(version)
-
-
 def check_node() -> None:
     version = command_output(["node", "--version"], CLIENTS_DIR)
     if not version:
@@ -200,21 +195,22 @@ def client_modules_resolve() -> bool:
     return True
 
 
-def service_command() -> list[str]:
-    if shutil.which("make"):
-        return ["make", "run-bff"]
-    warn("make was not found; using go run directly.")
-    return ["go", "run", "./app/bff/interface/cmd/server"]
+def ensure_stack_running() -> None:
+    """Bring up the full docker compose stack (8 Go services + Kong + dev infra).
 
-
-def ensure_kong_running() -> None:
+    Kong depends on `bff`, which (transitively) depends on postgres/redis/etc.,
+    so `up kong` pulls the whole stack. We `--build` so Go code changes are
+    picked up on each launch.
+    """
     if not shutil.which("docker"):
-        err("Docker is required to run Kong (the external entry). Pass --no-kong to bypass.")
+        err("Docker is required to run the platform stack. Pass --no-stack to bypass.")
         sys.exit(1)
-    info(f"Starting Kong: docker compose up -d kong (proxy :{KONG_PROXY_PORT})")
-    up = subprocess.run(["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "kong"])
+    info(f"Starting platform stack: docker compose up -d --build kong (proxy :{KONG_PROXY_PORT})")
+    up = subprocess.run(
+        ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "--build", "kong"]
+    )
     if up.returncode != 0:
-        err("Kong failed to start. Free ports 8000/8001 or pass --no-kong to bypass.")
+        err("Stack failed to start. Free ports 8000/8001 or pass --no-stack to bypass.")
         sys.exit(1)
     deadline = time.monotonic() + KONG_HEALTH_TIMEOUT_S
     while time.monotonic() < deadline:
@@ -224,22 +220,10 @@ def ensure_kong_running() -> None:
             text=True,
         )
         if "healthy" in ps.stdout:
-            ok("Kong is healthy")
+            ok("Kong is healthy (full stack up)")
             return
         time.sleep(1)
-    warn(f"Kong did not report healthy within {KONG_HEALTH_TIMEOUT_S:.0f}s; continuing anyway.")
-
-
-def port_from_addr(addr: str) -> int:
-    if addr.startswith("http://") or addr.startswith("https://"):
-        addr = addr.rsplit("/", 1)[-1]
-    if addr.startswith(":"):
-        return int(addr[1:])
-    if addr.startswith("[::]:"):
-        return int(addr.rsplit(":", 1)[1])
-    if ":" in addr:
-        return int(addr.rsplit(":", 1)[1])
-    raise RuntimeError(f"Cannot parse port from address: {addr}")
+    warn(f"Kong did not report healthy within {KONG_HEALTH_TIMEOUT_S:.0f}s; continuing anyway. Check `docker compose -f {COMPOSE_FILE} ps`.")
 
 
 def listening_pids(port: int) -> list[int]:
@@ -364,25 +348,6 @@ def release_port(port: int, label: str, kill_ports: bool) -> None:
     kill_pids(pids, f"{label} port {port}")
 
 
-def is_port_free(port: int) -> bool:
-    checks = (("127.0.0.1", port), ("::1", port))
-    for address in checks:
-        try:
-            with socket.create_connection(address, timeout=0.15):
-                return False
-        except OSError:
-            continue
-    return True
-
-
-def choose_web_port(preferred_port: int) -> int:
-    for port in range(preferred_port, 65536):
-        if is_port_free(port):
-            return port
-        warn(f"Web port {port} is in use; trying {port + 1}.")
-    raise RuntimeError(f"No available web port found from {preferred_port} to 65535.")
-
-
 def start_process(name: str, cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
     info(f"Starting {name}: {' '.join(cmd)}")
     try:
@@ -427,18 +392,6 @@ def stop_process(process: subprocess.Popen, name: str) -> None:
         process.wait()
 
 
-def public_url_for_bff_addr(addr: str) -> str:
-    if addr.startswith(":"):
-        return f"http://localhost{addr}"
-    if addr.startswith("0.0.0.0:"):
-        return f"http://localhost:{addr.split(':', 1)[1]}"
-    if addr.startswith("[::]:"):
-        return f"http://localhost:{addr.rsplit(':', 1)[1]}"
-    if addr.startswith("http://") or addr.startswith("https://"):
-        return addr
-    return f"http://{addr}"
-
-
 def watch(processes: list[tuple[str, subprocess.Popen]], urls: list[tuple[str, str]]) -> int:
     ok("platform dev processes started")
     print("")
@@ -465,26 +418,21 @@ def watch(processes: list[tuple[str, subprocess.Popen]], urls: list[tuple[str, s
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start dramaip-platform dev services and web.")
+    parser = argparse.ArgumentParser(description="Start dramaip-platform compose stack and web dev server.")
     parser.add_argument("--install", action="store_true", help="Force pnpm install before starting web.")
     parser.add_argument("--no-install", action="store_true", help="Skip pnpm install even if node_modules is missing.")
-    parser.add_argument("--services-only", action="store_true", help="Start only the BFF service.")
-    parser.add_argument("--web-only", action="store_true", help="Start only the web app.")
-    parser.add_argument("--bff-addr", default="127.0.0.1:8100", help="BFF listen address, default: 127.0.0.1:8100 (loopback).")
-    parser.add_argument("--no-kong", action="store_true", help="Do not start/manage Kong; web reaches the BFF directly (same host only).")
-    parser.add_argument("--web-port", type=int, default=3000, help="Preferred web dev port, default: 3000.")
-    parser.add_argument("--no-kill-ports", action="store_true", help="Do not stop processes occupying BFF/web ports.")
+    parser.add_argument("--web-only", action="store_true", help="Only start the web app (assume the compose stack is already up).")
+    parser.add_argument("--no-stack", action="store_true", help="Do not bring up the docker compose stack.")
+    parser.add_argument("--no-kill-ports", action="store_true", help="Do not stop processes occupying the web port.")
     parser.add_argument(
         "--api-base-url",
         default=None,
-        help="NEXT_PUBLIC_API_BASE_URL for the web app.",
+        help="NEXT_PUBLIC_API_BASE_URL for the web app. Defaults to the Kong proxy at http://localhost:8000.",
     )
     args = parser.parse_args()
 
     if args.install and args.no_install:
         parser.error("--install and --no-install cannot be used together")
-    if args.services_only and args.web_only:
-        parser.error("--services-only and --web-only cannot be used together")
 
     return args
 
@@ -498,46 +446,36 @@ def main() -> int:
     urls: list[tuple[str, str]] = []
     env = os.environ.copy()
     kill_ports = not args.no_kill_ports
-    kong_enabled = not args.no_kong
+    stack_enabled = not args.no_stack
 
-    if kong_enabled:
-        api_base_url = args.api_base_url or f"http://localhost:{KONG_PROXY_PORT}"
-    else:
-        warn("--no-kong: web will reach the BFF directly (same host only; not externally reachable).")
-        api_base_url = args.api_base_url or public_url_for_bff_addr(args.bff_addr)
+    api_base_url = args.api_base_url or f"http://localhost:{KONG_PROXY_PORT}"
 
     try:
-        if not args.web_only:
-            check_go()
-            if kong_enabled:
-                ensure_kong_running()
-            release_port(port_from_addr(args.bff_addr), "BFF", kill_ports)
-            service_env = env.copy()
-            service_env["BFF_HTTP_ADDR"] = args.bff_addr
-            service_env.setdefault("GOCACHE", "/tmp/dramaip-go-build")
-            service_process = start_process("services:bff", service_command(), SERVICES_DIR, service_env)
-            processes.append(("services:bff", service_process))
-            ensure_process_started(service_process, "services:bff")
+        if not args.web_only and stack_enabled:
+            ensure_stack_running()
+            urls.append(("Services", api_base_url))
+        elif args.web_only:
+            warn("--web-only: assuming the compose stack is already up.")
+            urls.append(("Services", api_base_url))
+        elif not stack_enabled:
+            warn("--no-stack: not bringing up docker compose; web will use the existing backend at " + api_base_url)
             urls.append(("Services", api_base_url))
 
-        if not args.services_only:
-            check_node()
-            pnpm = resolve_pnpm()
-            install_mode = "force" if args.install else "skip" if args.no_install else "auto"
-            ensure_client_deps(pnpm, install_mode)
+        check_node()
+        pnpm = resolve_pnpm()
+        install_mode = "force" if args.install else "skip" if args.no_install else "auto"
+        ensure_client_deps(pnpm, install_mode)
 
-            release_port(args.web_port, "Web", kill_ports)
-            web_port = choose_web_port(args.web_port)
-            web_env = env.copy()
-            web_env["NEXT_PUBLIC_API_BASE_URL"] = api_base_url
-            # next dev 认 PORT 环境变量；不要再加 `-- --port`，pnpm 透传时插的 `--`
-            # 会让 next 把 `--port` 当成项目目录而报 "no such directory"。
-            web_env["PORT"] = str(web_port)
-            web_cmd = pnpm + ["--filter", "@dramaip/web", "dev"]
-            web_process = start_process("clients:web", web_cmd, CLIENTS_DIR, web_env)
-            processes.append(("clients:web", web_process))
-            ensure_process_started(web_process, "clients:web")
-            urls.append(("Web", f"http://localhost:{web_port}"))
+        release_port(WEB_PORT, "Web", kill_ports)
+        web_env = env.copy()
+        web_env["NEXT_PUBLIC_API_BASE_URL"] = api_base_url
+        # web dev 端口固定在 package.json 的 `next dev -p 3009`；不要再设 PORT
+        # 环境变量，否则会与 -p 冲突。
+        web_cmd = pnpm + ["--filter", "@dramaip/web", "dev"]
+        web_process = start_process("clients:web", web_cmd, CLIENTS_DIR, web_env)
+        processes.append(("clients:web", web_process))
+        ensure_process_started(web_process, "clients:web")
+        urls.append(("Web", f"http://localhost:{WEB_PORT}"))
     except RuntimeError as exc:
         err(str(exc))
         for name, process in reversed(processes):

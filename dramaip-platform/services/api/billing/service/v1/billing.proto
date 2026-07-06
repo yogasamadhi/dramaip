@@ -20,6 +20,9 @@ message Plan {
   int64 monthly_token_quota = 4;
   string price = 5;
   string currency = 6;
+  int64 price_cny = 7;
+  string model_level = 8;
+  int64 max_rpm = 9;
 }
 
 message ListPlansReply {
@@ -35,6 +38,9 @@ message CreateCheckoutRequest {
 message CreateCheckoutReply {
   string order_id = 1;
   string payment_url = 2;
+  string plan_id = 3;
+  string provider = 4;
+  string status = 5;
 }
 
 message GetSubscriptionRequest {
@@ -53,4 +59,5 @@ message Subscription {
   string status = 4;
   string current_period_start = 5;
   string current_period_end = 6;
+  string plan_code = 7;
 }

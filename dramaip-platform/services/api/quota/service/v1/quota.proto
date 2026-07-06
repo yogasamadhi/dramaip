@@ -9,6 +9,7 @@ service QuotaService {
   rpc CreatePeriodAccount(CreatePeriodAccountRequest) returns (TokenAccount);
   rpc ReserveTokens(ReserveTokensRequest) returns (TokenReservation);
   rpc SettleTokens(SettleTokensRequest) returns (TokenUsage);
+  rpc CancelReservation(CancelReservationRequest) returns (TokenReservation);
 }
 
 message GetTokenBalanceRequest {
@@ -51,6 +52,9 @@ message TokenReservation {
   string token_account_id = 2;
   int64 reserved_tokens = 3;
   string status = 4;
+  string subscription_id = 5;
+  int64 current_used = 6;
+  int64 current_quota = 7;
 }
 
 message SettleTokensRequest {
@@ -59,6 +63,10 @@ message SettleTokensRequest {
   string model = 3;
   int64 prompt_tokens = 4;
   int64 completion_tokens = 5;
+}
+
+message CancelReservationRequest {
+  string reservation_id = 1;
 }
 
 message TokenUsage {

@@ -9,6 +9,7 @@ service AuthService {
   rpc Login(LoginRequest) returns (AuthReply);
   rpc Refresh(RefreshRequest) returns (AuthReply);
   rpc Logout(LogoutRequest) returns (LogoutReply);
+  rpc ValidateAccessToken(ValidateAccessTokenRequest) returns (AuthReply);
 }
 
 message RegisterRequest {
@@ -29,10 +30,18 @@ message LogoutRequest {
   string refresh_token = 1;
 }
 
+message ValidateAccessTokenRequest {
+  string access_token = 1;
+}
+
 message AuthReply {
   string access_token = 1;
   string refresh_token = 2;
   int64 expires_in = 3;
+  string token_type = 4;
+  string user_id = 5;
+  string email = 6;
+  string name = 7;
 }
 
 message LogoutReply {

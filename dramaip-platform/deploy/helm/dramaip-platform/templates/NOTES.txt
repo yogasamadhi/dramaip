@@ -1,0 +1,12 @@
+DramaIP platform BFF has been rendered.
+
+Service:
+  {{ include "dramaip-platform.fullname" . }}-bff:{{ .Values.service.port }}
+
+Health:
+  /healthz
+
+Metrics:
+  /metrics
+
+Ingress is {{ ternary "enabled" "disabled" .Values.ingress.enabled }}.

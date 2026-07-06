@@ -10,7 +10,7 @@ _format_version: "3.0"
 
 services:
   - name: dramaip-bff
-    url: http://host.docker.internal:8100
+    url: http://bff:8100
     routes:
       - name: dramaip-api
         paths:
@@ -38,3 +38,6 @@ services:
       #   config:
       #     key_claim_name: iss
       #     secret_is_base64: false
+
+plugins:
+  - name: prometheus

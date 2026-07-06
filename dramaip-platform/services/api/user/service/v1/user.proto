@@ -5,10 +5,10 @@ package dramaip.user.service.v1;
 option go_package = "github.com/dramaip/dramaip-platform/services/api/user/service/v1;userv1";
 
 service UserService {
-  rpc GetMe(GetMeRequest) returns (UserProfile);
+  rpc GetProfile(GetProfileRequest) returns (UserProfile);
 }
 
-message GetMeRequest {
+message GetProfileRequest {
   string user_id = 1;
 }
 
@@ -17,4 +17,8 @@ message UserProfile {
   string email = 2;
   string phone = 3;
   string status = 4;
+  string display_name = 5;
+  string avatar_url = 6;
+  string locale = 7;
+  string timezone = 8;
 }

@@ -9,9 +9,9 @@ export function ServiceStatus() {
     queryFn: () => apiClient.getHealth(),
   })
 
-  const dashboard = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => apiClient.getDashboard(),
+  const plans = useQuery({
+    queryKey: ['plans'],
+    queryFn: () => apiClient.getPlans(),
   })
 
   return (
@@ -32,31 +32,31 @@ export function ServiceStatus() {
 
       {health.error ? (
         <p className="mt-4 text-sm leading-6 text-rose-600">
-          Cannot reach the service. Start it with `make run-bff` from `services/`.
+          Cannot reach the service through Kong.
         </p>
       ) : null}
 
-      {dashboard.data ? (
+      {health.data ? (
         <div className="mt-5 grid gap-3 text-sm text-slate-700">
           <div className="flex justify-between gap-4">
             <span>Service</span>
             <span className="font-medium">{health.data?.service}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>Account</span>
-            <span className="font-medium">{dashboard.data.email}</span>
+            <span>Version</span>
+            <span className="font-medium">{health.data.version}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>Plan</span>
-            <span className="font-medium uppercase">{dashboard.data.plan}</span>
+            <span>Plans</span>
+            <span className="font-medium">{plans.data?.plans.length ?? '-'}</span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>Remaining tokens</span>
-            <span className="font-medium">{dashboard.data.remaining_tokens.toLocaleString()}</span>
+            <span>Gateway</span>
+            <span className="font-medium">Kong</span>
           </div>
         </div>
       ) : (
-        <p className="mt-5 text-sm text-slate-500">Dashboard data will appear after the BFF responds.</p>
+        <p className="mt-5 text-sm text-slate-500">Service data will appear after the gateway responds.</p>
       )}
     </section>
   )

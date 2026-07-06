@@ -1,0 +1,33 @@
+{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.cors.enabled -}}
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-cors
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: cors
+config:
+  origins:
+    {{- toYaml .Values.kong.plugins.cors.origins | nindent 4 }}
+  methods:
+    {{- toYaml .Values.kong.plugins.cors.methods | nindent 4 }}
+  headers:
+    {{- toYaml .Values.kong.plugins.cors.headers | nindent 4 }}
+  exposed_headers:
+    {{- toYaml .Values.kong.plugins.cors.exposedHeaders | nindent 4 }}
+  credentials: {{ .Values.kong.plugins.cors.credentials }}
+  max_age: {{ .Values.kong.plugins.cors.maxAge }}
+---
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.rateLimiting.enabled -}}
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-rate-limiting
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: rate-limiting
+config:
+  minute: {{ .Values.kong.plugins.rateLimiting.minute }}
+  policy: {{ .Values.kong.plugins.rateLimiting.policy | quote }}
+{{- end }}

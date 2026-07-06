@@ -1,0 +1,313 @@
+{{- if .Values.devInfra.enabled -}}
+{{- $persistenceEnabled := .Values.devInfra.persistence.enabled -}}
+{{- $hostPathBase := .Values.devInfra.persistence.hostPathBase -}}
+{{- if and $persistenceEnabled (not $hostPathBase) -}}
+{{- fail "devInfra.persistence.hostPathBase is required when devInfra.persistence.enabled=true" -}}
+{{- end -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-postgres
+spec:
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dev-postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-postgres
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dev-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: dev-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.devInfra.postgres.image | quote }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" . }}
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "dramaip-platform.fullname" . }}-config
+                  key: POSTGRES_DB
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - dramaip
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: data
+          {{- if $persistenceEnabled }}
+          hostPath:
+            path: {{ printf "%s/postgres" $hostPathBase | quote }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.devInfra.postgres.storage | quote }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-redis
+spec:
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dev-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-redis
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dev-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: dev-redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.devInfra.redis.image | quote }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            {{- if $persistenceEnabled }}
+            - --appendonly
+            - "yes"
+            - --dir
+            - /data
+            {{- end }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" . }}
+                  key: REDIS_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          {{- if $persistenceEnabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if $persistenceEnabled }}
+      volumes:
+        - name: data
+          hostPath:
+            path: {{ printf "%s/redis" $hostPathBase | quote }}
+            type: DirectoryOrCreate
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-rabbitmq
+spec:
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+    - name: management
+      port: 15672
+      targetPort: management
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dev-rabbitmq
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-rabbitmq
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dev-rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: dev-rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.devInfra.rabbitmq.image | quote }}
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" . }}
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" . }}
+                  key: RABBITMQ_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: management
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          {{- if $persistenceEnabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+          {{- end }}
+      {{- if $persistenceEnabled }}
+      volumes:
+        - name: data
+          hostPath:
+            path: {{ printf "%s/rabbitmq" $hostPathBase | quote }}
+            type: DirectoryOrCreate
+      {{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-otel-config
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-otel
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+    exporters:
+      debug: {}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [debug]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-otel
+spec:
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dev-otel
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-otel
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dev-otel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dev-otel
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: dev-otel
+    spec:
+      containers:
+        - name: otel
+          image: {{ .Values.devInfra.otel.image | quote }}
+          args:
+            - --config=/etc/otelcol/config.yaml
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+          readinessProbe:
+            tcpSocket:
+              port: otlp-http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "dramaip-platform.fullname" . }}-otel-config
+{{- end }}

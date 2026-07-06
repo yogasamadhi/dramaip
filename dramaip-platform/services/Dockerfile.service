@@ -1,0 +1,25 @@
+FROM golang:1.24-alpine AS build
+
+ARG TARGET=./app/bff/interface/cmd/server
+ARG OUTPUT=dramaip-service
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+ARG BUILD_CACHE_BUST=dev
+RUN echo "${BUILD_CACHE_BUST}" > /tmp/dramaip-build-cache-bust
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/${OUTPUT} ${TARGET}
+
+FROM alpine:3.20
+
+ARG OUTPUT=dramaip-service
+
+WORKDIR /app
+COPY --from=build /out/${OUTPUT} /app/dramaip-service
+COPY migrations /app/migrations
+
+EXPOSE 8100 8101 8102 8103 8104 8105 8106 8107 9101 9102 9103 9104 9105
+CMD ["/app/dramaip-service"]
