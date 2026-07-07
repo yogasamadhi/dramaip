@@ -1,19 +1,24 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
+COMPOSE_ENV ?= services/.env
 
-.PHONY: mvp-up mvp-down mvp-logs mvp-smoke test
+.PHONY: platform-up platform-down platform-logs platform-e2e web-route-smoke test
 
-mvp-up:
-	docker compose -f $(COMPOSE) up -d --build
+platform-up:
+	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
 
-mvp-down:
-	docker compose -f $(COMPOSE) down
+platform-down:
+	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) down
 
-mvp-logs:
-	docker compose -f $(COMPOSE) logs -f bff auth user billing quota ai-gateway billing-job quota-job kong postgres redis rabbitmq
+platform-logs:
+	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) logs -f bff auth user billing quota ai-gateway billing-job quota-job kong postgres redis rabbitmq
 
-mvp-smoke:
-	curl -fsS http://localhost:8000/healthz
+platform-e2e:
+	node scripts/platform-e2e.mjs
+
+web-route-smoke:
+	node scripts/web-route-smoke.mjs
 
 test:
 	$(MAKE) -C services test
 	cd clients && pnpm typecheck
+	$(MAKE) web-route-smoke

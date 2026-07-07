@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
 )
 
 type RabbitConfig struct {
@@ -26,7 +27,7 @@ type RabbitPublisher struct {
 func RabbitConfigFromEnv() RabbitConfig {
 	return RabbitConfig{
 		URL:      rabbitURLFromEnv(),
-		Queue:    Env("RABBITMQ_EVENTS_QUEUE", "dramaip.mvp.events"),
+		Queue:    Env("RABBITMQ_EVENTS_QUEUE", "dramaip.platform.events"),
 		Exchange: Env("RABBITMQ_EXCHANGE", ""),
 	}
 }
@@ -86,10 +87,16 @@ func (p *RabbitPublisher) Publish(ctx context.Context, eventType string, payload
 	if err != nil {
 		return err
 	}
+	headers := amqp.Table{}
+	otel.GetTextMapPropagator().Inject(ctx, amqpHeaderCarrier(headers))
+	if traceID := TraceID(ctx); traceID != "" {
+		headers["trace_id"] = traceID
+	}
 	return p.ch.PublishWithContext(ctx, p.config.Exchange, p.config.Queue, false, false, amqp.Publishing{
 		ContentType:  "application/json",
 		Type:         eventType,
 		DeliveryMode: amqp.Persistent,
+		Headers:      headers,
 		Body:         raw,
 	})
 }
@@ -108,4 +115,33 @@ func (p *RabbitPublisher) Close() error {
 		}
 	}
 	return err
+}
+
+type amqpHeaderCarrier amqp.Table
+
+func (c amqpHeaderCarrier) Get(key string) string {
+	value, ok := amqp.Table(c)[key]
+	if !ok {
+		return ""
+	}
+	switch v := value.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func (c amqpHeaderCarrier) Set(key string, value string) {
+	amqp.Table(c)[key] = value
+}
+
+func (c amqpHeaderCarrier) Keys() []string {
+	keys := make([]string, 0, len(c))
+	for key := range c {
+		keys = append(keys, key)
+	}
+	return keys
 }

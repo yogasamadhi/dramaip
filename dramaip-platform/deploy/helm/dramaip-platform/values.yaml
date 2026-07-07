@@ -148,7 +148,7 @@ config:
     host: rabbitmq
     port: "5672"
     vhost: /
-    eventsQueue: dramaip.mvp.events
+    eventsQueue: dramaip.platform.events
   jwt:
     issuer: dramaip
     accessTtlSeconds: "900"

@@ -7,7 +7,11 @@ option go_package = "github.com/dramaip/dramaip-platform/services/api/billing/se
 service BillingService {
   rpc ListPlans(ListPlansRequest) returns (ListPlansReply);
   rpc CreateCheckout(CreateCheckoutRequest) returns (CreateCheckoutReply);
+  rpc ConfirmSandboxPayment(ConfirmSandboxPaymentRequest) returns (ConfirmSandboxPaymentReply);
+  rpc ConfirmSimulatedPayment(ConfirmSimulatedPaymentRequest) returns (ConfirmSimulatedPaymentReply);
   rpc GetSubscription(GetSubscriptionRequest) returns (Subscription);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersReply);
+  rpc GetOrder(GetOrderRequest) returns (Order);
   rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription);
 }
 
@@ -43,13 +47,60 @@ message CreateCheckoutReply {
   string status = 5;
 }
 
+message ConfirmSandboxPaymentRequest {
+  string user_id = 1;
+  string checkout_id = 2;
+}
+
+message ConfirmSandboxPaymentReply {
+  string order_id = 1;
+  string status = 2;
+  Subscription subscription = 3;
+  TokenBalance token_balance = 4;
+}
+
+message ConfirmSimulatedPaymentRequest {
+  string user_id = 1;
+  string checkout_id = 2;
+}
+
+message ConfirmSimulatedPaymentReply {
+  string order_id = 1;
+  string status = 2;
+  Subscription subscription = 3;
+  TokenBalance token_balance = 4;
+}
+
+message TokenBalance {
+  string plan = 1;
+  int64 quota_tokens = 2;
+  int64 used_tokens = 3;
+  int64 remaining_tokens = 4;
+  string period_start = 5;
+  string period_end = 6;
+}
+
 message GetSubscriptionRequest {
   string user_id = 1;
+}
+
+message ListOrdersRequest {
+  string user_id = 1;
+}
+
+message ListOrdersReply {
+  repeated Order orders = 1;
+}
+
+message GetOrderRequest {
+  string user_id = 1;
+  string order_id = 2;
 }
 
 message CancelSubscriptionRequest {
   string user_id = 1;
   string subscription_id = 2;
+  bool immediate = 3;
 }
 
 message Subscription {
@@ -60,4 +111,21 @@ message Subscription {
   string current_period_start = 5;
   string current_period_end = 6;
   string plan_code = 7;
+  bool cancel_at_period_end = 8;
+  string canceled_at = 9;
+}
+
+message Order {
+  string id = 1;
+  string user_id = 2;
+  string plan_id = 3;
+  string plan_code = 4;
+  string provider = 5;
+  string status = 6;
+  string amount = 7;
+  string currency = 8;
+  string payment_url = 9;
+  string created_at = 10;
+  string paid_at = 11;
+  string subscription_id = 12;
 }

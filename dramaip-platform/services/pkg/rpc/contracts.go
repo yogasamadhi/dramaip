@@ -84,6 +84,18 @@ type CreateCheckoutReply struct {
 	Event      map[string]any `json:"event"`
 }
 
+type ConfirmSandboxPaymentRequest struct {
+	UserID     string `json:"user_id"`
+	CheckoutID string `json:"checkout_id"`
+}
+
+type ConfirmSandboxPaymentReply struct {
+	OrderID      string       `json:"order_id"`
+	Status       string       `json:"status"`
+	Subscription Subscription `json:"subscription"`
+	TokenBalance TokenBalance `json:"token_balance"`
+}
+
 type GetSubscriptionRequest struct {
 	UserID string `json:"user_id"`
 }
@@ -183,6 +195,7 @@ type UserServiceServer interface {
 type BillingServiceServer interface {
 	ListPlans(context.Context, *ListPlansRequest) (*ListPlansReply, error)
 	CreateCheckout(context.Context, *CreateCheckoutRequest) (*CreateCheckoutReply, error)
+	ConfirmSandboxPayment(context.Context, *ConfirmSandboxPaymentRequest) (*ConfirmSandboxPaymentReply, error)
 	GetSubscription(context.Context, *GetSubscriptionRequest) (*Subscription, error)
 }
 

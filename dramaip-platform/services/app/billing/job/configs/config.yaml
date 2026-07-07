@@ -1,3 +1,6 @@
+server:
+  http:
+    addr: 0.0.0.0:8106
 data:
   postgres:
     dsn: postgres://dramaip:dramaip@localhost:5432/dramaip?sslmode=disable&search_path=billing
@@ -5,4 +8,5 @@ data:
     url: amqp://guest:guest@localhost:5672/
 jobs:
   renewal_check_cron: "0 */10 * * * *"
-  outbox_relay_interval: 5s
+  outbox_relay_interval: 1s
+  outbox_batch_size: 100

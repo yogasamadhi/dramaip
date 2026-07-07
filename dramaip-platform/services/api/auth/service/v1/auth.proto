@@ -15,6 +15,7 @@ service AuthService {
 message RegisterRequest {
   string email = 1;
   string password = 2;
+  string display_name = 3;
 }
 
 message LoginRequest {
@@ -28,6 +29,7 @@ message RefreshRequest {
 
 message LogoutRequest {
   string refresh_token = 1;
+  string access_token = 2;
 }
 
 message ValidateAccessTokenRequest {

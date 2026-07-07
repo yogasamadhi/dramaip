@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,9 +12,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"gorm.io/gorm"
 )
 
@@ -37,36 +35,11 @@ func RunMigrations(db *gorm.DB, root string) error {
 	if err != nil {
 		return err
 	}
-	sourceURL, err := migrationSourceURL(root)
-	if err != nil {
-		return err
-	}
-
-	conn, err := sqlDB.Conn(context.Background())
-	if err != nil {
-		return err
-	}
-	driver, err := postgres.WithConnection(context.Background(), conn, &postgres.Config{})
-	if err != nil {
-		_ = conn.Close()
-		return err
-	}
-	runner, err := migrate.NewWithDatabaseInstance(sourceURL, "postgres", driver)
-	if err != nil {
-		_ = driver.Close()
-		return err
-	}
-	defer runner.Close()
-
-	if err := runner.Up(); err != nil && err != migrate.ErrNoChange {
-		return err
-	}
-	return nil
+	return runMigrationFiles(context.Background(), sqlDB, files)
 }
 
 func scanMigrationFiles(root string) ([]migrationFile, error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
+	if _, err := os.Stat(root); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
@@ -74,34 +47,76 @@ func scanMigrationFiles(root string) ([]migrationFile, error) {
 	}
 
 	seen := map[uint]string{}
-	files := make([]migrationFile, 0, len(entries))
-	for _, entry := range entries {
+	files := []migrationFile{}
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		if entry.IsDir() {
-			continue
+			return nil
 		}
 		name := entry.Name()
 		if !strings.HasSuffix(name, ".up.sql") {
-			continue
+			return nil
 		}
 		match := migrationFilePattern.FindStringSubmatch(name)
 		if match == nil {
-			return nil, fmt.Errorf("invalid migration filename %q: expected {version}_{name}.up.sql", name)
+			return fmt.Errorf("invalid migration filename %q: expected {version}_{name}.up.sql", name)
 		}
 		version64, err := strconv.ParseUint(match[1], 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid migration version in %q: %w", name, err)
+			return fmt.Errorf("invalid migration version in %q: %w", name, err)
 		}
 		version := uint(version64)
 		if previous, ok := seen[version]; ok {
-			return nil, fmt.Errorf("duplicate migration version %d: %s and %s", version, previous, name)
+			return fmt.Errorf("duplicate migration version %d: %s and %s", version, previous, path)
 		}
-		seen[version] = name
-		files = append(files, migrationFile{Version: version, Path: filepath.Join(root, name)})
+		seen[version] = path
+		files = append(files, migrationFile{Version: version, Path: path})
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Version < files[j].Version
 	})
 	return files, nil
+}
+
+func runMigrationFiles(ctx context.Context, db *sql.DB, files []migrationFile) error {
+	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version BIGINT PRIMARY KEY, dirty BOOLEAN NOT NULL DEFAULT false)`); err != nil {
+		return err
+	}
+	for _, file := range files {
+		var applied bool
+		if err := db.QueryRowContext(ctx, `SELECT true FROM schema_migrations WHERE version = $1 AND dirty = false`, file.Version).Scan(&applied); err != nil && err != sql.ErrNoRows {
+			return err
+		}
+		if applied {
+			continue
+		}
+		raw, err := os.ReadFile(file.Path)
+		if err != nil {
+			return err
+		}
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, string(raw)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("apply migration %s: %w", file.Path, err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, dirty) VALUES ($1, false) ON CONFLICT (version) DO UPDATE SET dirty = false`, file.Version); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrationSourceURL(root string) (string, error) {

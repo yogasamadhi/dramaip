@@ -10,4 +10,9 @@ quota:
   grpc_addr: localhost:9104
 llm:
   default_provider: openai-compatible
+  providers: openai-compatible
+  base_url: https://api.openai.com/v1
+  api_key: ""
+  default_model: gpt-4o-mini
   timeout: 90s
+  test_provider_enabled: true

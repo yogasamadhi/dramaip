@@ -3,16 +3,23 @@ package main
 import (
 	"log"
 
-	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+	kratos "github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v2/transport"
+
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 )
 
 func main() {
-	db, err := platform.OpenPostgres()
+	app, cleanup, err := wireApp()
 	if err != nil {
-		log.Fatalf("connect postgres: %v", err)
+		log.Fatalf("init migration job: %v", err)
 	}
-	if err := platform.RunMigrations(db, platform.Env("MIGRATIONS_DIR", "./migrations")); err != nil {
-		log.Fatalf("run migrations: %v", err)
+	defer cleanup()
+	if err := app.Run(); err != nil {
+		log.Fatalf("migration job stopped: %v", err)
 	}
-	log.Printf("migrations applied")
+}
+
+func newApp(job transport.Server) *kratos.App {
+	return kratosx.NewApp("migration-job", job)
 }

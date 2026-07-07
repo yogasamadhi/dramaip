@@ -25,12 +25,15 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PLATFORM_DIR = SCRIPT_DIR / "dramaip-platform"
 SERVICES_DIR = PLATFORM_DIR / "services"
+SERVICES_ENV_FILE = SERVICES_DIR / ".env"
 CLIENTS_DIR = PLATFORM_DIR / "clients"
 CLIENT_INSTALL_MARKER = CLIENTS_DIR / "node_modules" / ".modules.yaml"
 NODE_MIN_MAJOR = 20
@@ -48,8 +51,10 @@ _SHUTDOWN_SIGNAL: int | None = None
 # and optionally starts the local Next.js web dev server.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 KONG_PROXY_PORT = 8000
-KONG_HEALTH_TIMEOUT_S = 60.0   # full stack (build + 8 services + infra) takes longer than Kong alone
+KONG_HEALTH_TIMEOUT_S = 90.0   # full stack (build + 8 services + infra) takes longer than Kong alone
 WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
+DEV_ACCOUNT_EMAIL = "creator@example.com"
+DEV_ACCOUNT_PASSWORD = "password123"
 
 _COLOR = sys.stdout.isatty()
 
@@ -104,6 +109,14 @@ def command_output(cmd: list[str], cwd: Path) -> str | None:
     return result.stdout.strip()
 
 
+def command_ok(cmd: list[str], cwd: Path) -> bool:
+    try:
+        result = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
+    except FileNotFoundError:
+        return False
+    return result.returncode == 0
+
+
 def run_foreground(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
     try:
         subprocess.run(cmd, cwd=str(cwd), env=env, check=True)
@@ -115,6 +128,14 @@ def run_foreground(cmd: list[str], cwd: Path, env: dict[str, str] | None = None)
         sys.exit(exc.returncode)
 
 
+def compose_cmd(*args: str) -> list[str]:
+    cmd = ["docker", "compose"]
+    if SERVICES_ENV_FILE.exists():
+        cmd.extend(["--env-file", str(SERVICES_ENV_FILE)])
+    cmd.extend(["-f", str(COMPOSE_FILE), *args])
+    return cmd
+
+
 def check_layout() -> None:
     missing = [path for path in (PLATFORM_DIR, SERVICES_DIR, CLIENTS_DIR) if not path.exists()]
     if missing:
@@ -123,6 +144,10 @@ def check_layout() -> None:
             err(f"  {path}")
         sys.exit(1)
     ok("platform layout found")
+    if SERVICES_ENV_FILE.exists():
+        ok(f"services env loaded by compose: {SERVICES_ENV_FILE}")
+    else:
+        warn(f"services env file not found: {SERVICES_ENV_FILE}; compose will use defaults and shell environment")
 
 
 def check_node() -> None:
@@ -141,6 +166,22 @@ def check_node() -> None:
         err(f"Node.js version is too old: {version}. Need >= v{NODE_MIN_MAJOR}.")
         sys.exit(1)
     ok(f"node {version}")
+
+
+def check_docker() -> None:
+    docker_version = command_output(["docker", "--version"], SCRIPT_DIR)
+    if not docker_version:
+        err("Docker is required to run the platform stack. Pass --no-stack to bypass.")
+        sys.exit(1)
+    compose_version = command_output(["docker", "compose", "version"], SCRIPT_DIR)
+    if not compose_version:
+        err("Docker Compose v2 is required. Install Docker Desktop or the docker compose plugin.")
+        sys.exit(1)
+    if not command_ok(["docker", "info"], SCRIPT_DIR):
+        err("Docker is installed but the daemon is not reachable. Start Docker Desktop first.")
+        sys.exit(1)
+    ok(docker_version)
+    ok(compose_version)
 
 
 def resolve_pnpm() -> list[str]:
@@ -202,28 +243,60 @@ def ensure_stack_running() -> None:
     so `up kong` pulls the whole stack. We `--build` so Go code changes are
     picked up on each launch.
     """
-    if not shutil.which("docker"):
-        err("Docker is required to run the platform stack. Pass --no-stack to bypass.")
-        sys.exit(1)
+    check_docker()
     info(f"Starting platform stack: docker compose up -d --build kong (proxy :{KONG_PROXY_PORT})")
     up = subprocess.run(
-        ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "--build", "kong"]
+        compose_cmd("up", "-d", "--build", "kong")
     )
     if up.returncode != 0:
         err("Stack failed to start. Free ports 8000/8001 or pass --no-stack to bypass.")
         sys.exit(1)
+    health_url = f"http://localhost:{KONG_PROXY_PORT}/healthz"
+    info(f"Waiting for Kong/BFF health: {health_url}")
     deadline = time.monotonic() + KONG_HEALTH_TIMEOUT_S
+    last_error = ""
     while time.monotonic() < deadline:
-        ps = subprocess.run(
-            ["docker", "compose", "-f", str(COMPOSE_FILE), "ps", "kong"],
-            capture_output=True,
-            text=True,
-        )
-        if "healthy" in ps.stdout:
-            ok("Kong is healthy (full stack up)")
+        healthy, detail = http_ok(health_url, timeout=3.0)
+        if healthy:
+            ok("Kong -> BFF health is ready")
+            print_compose_status()
             return
-        time.sleep(1)
-    warn(f"Kong did not report healthy within {KONG_HEALTH_TIMEOUT_S:.0f}s; continuing anyway. Check `docker compose -f {COMPOSE_FILE} ps`.")
+        last_error = detail
+        time.sleep(2)
+    warn(f"Kong/BFF health did not become ready within {KONG_HEALTH_TIMEOUT_S:.0f}s: {last_error}")
+    print_compose_status()
+    warn(f"Continuing so you can inspect logs. Try `{' '.join(compose_cmd('logs', '-f', 'bff', 'kong'))}`.")
+
+
+def http_ok(url: str, timeout: float) -> tuple[bool, str]:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            body = response.read(512).decode("utf-8", errors="replace")
+            if 200 <= response.status < 300:
+                return True, body
+            return False, f"HTTP {response.status}: {body}"
+    except urllib.error.HTTPError as exc:
+        try:
+            body = exc.read(512).decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        return False, f"HTTP {exc.code}: {body}"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def print_compose_status() -> None:
+    result = subprocess.run(
+        compose_cmd("ps"),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        warn("Could not read docker compose service status.")
+        return
+    print("")
+    print(result.stdout.rstrip())
+    print("")
 
 
 def listening_pids(port: int) -> list[int]:
@@ -398,6 +471,12 @@ def watch(processes: list[tuple[str, subprocess.Popen]], urls: list[tuple[str, s
     for label, url in urls:
         print(f"{label}: {url}")
     print("")
+    print(f"Dev account: {DEV_ACCOUNT_EMAIL} / {DEV_ACCOUNT_PASSWORD}")
+    print("API entry: Kong :8000 -> BFF; clients should not call internal services directly.")
+    print("AI provider: test works in dev; real OpenAI-compatible keys are injected via AI_PROVIDER_API_KEY / AI_PROVIDER_BASE_URL.")
+    print("End-to-end check: cd dramaip-platform && make platform-e2e")
+    print("Stop stack: cd dramaip-platform && make platform-down")
+    print("")
     print("Press Ctrl+C to stop all processes.")
 
     try:
@@ -469,6 +548,7 @@ def main() -> int:
         release_port(WEB_PORT, "Web", kill_ports)
         web_env = env.copy()
         web_env["NEXT_PUBLIC_API_BASE_URL"] = api_base_url
+        web_env.setdefault("NEXT_PUBLIC_PAYMENT_MODE", "simulated")
         # web dev 端口固定在 package.json 的 `next dev -p 3009`；不要再设 PORT
         # 环境变量，否则会与 -p 冲突。
         web_cmd = pnpm + ["--filter", "@dramaip/web", "dev"]

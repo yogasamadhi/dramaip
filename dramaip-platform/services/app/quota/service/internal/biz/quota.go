@@ -1,0 +1,73 @@
+package biz
+
+import (
+	"context"
+
+	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/data"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type QuotaUsecase struct{ repo *data.QuotaRepo }
+
+func NewQuotaUsecase(repo *data.QuotaRepo) *QuotaUsecase { return &QuotaUsecase{repo: repo} }
+
+func (u *QuotaUsecase) Checks() map[string]func(context.Context) error { return u.repo.Checks() }
+
+func (u *QuotaUsecase) GetTokenBalance(ctx context.Context, userID string) (data.TokenBalance, error) {
+	return u.repo.GetTokenBalance(ctx, userID)
+}
+
+func (u *QuotaUsecase) CreatePeriodAccount(ctx context.Context, userID string, subscriptionID string, planCode string, quotaTokens int64, periodStart string, periodEnd string) (data.TokenAccount, error) {
+	if userID == "" || subscriptionID == "" {
+		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing user or subscription id")
+	}
+	if planCode == "" {
+		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing plan code")
+	}
+	if quotaTokens <= 0 {
+		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "quota tokens must be positive")
+	}
+	if periodStart == "" || periodEnd == "" {
+		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing quota period")
+	}
+	return u.repo.CreatePeriodAccount(ctx, data.CreatePeriodAccountInput{
+		UserID: userID, SubscriptionID: subscriptionID, PlanCode: planCode, QuotaTokens: quotaTokens,
+		PeriodStart: periodStart, PeriodEnd: periodEnd,
+	})
+}
+
+func (u *QuotaUsecase) ReserveTokens(ctx context.Context, userID string, requestID string, reservedTokens int64) (data.TokenReservation, error) {
+	if userID == "" || requestID == "" {
+		return data.TokenReservation{}, status.Error(codes.InvalidArgument, "missing user or request id")
+	}
+	if reservedTokens <= 0 {
+		reservedTokens = 1
+	}
+	return u.repo.ReserveTokens(ctx, userID, requestID, reservedTokens)
+}
+
+func (u *QuotaUsecase) SettleTokens(ctx context.Context, reservationID string, requestID string, model string, promptTokens int64, completionTokens int64) (data.TokenUsage, error) {
+	if reservationID == "" || requestID == "" {
+		return data.TokenUsage{}, status.Error(codes.InvalidArgument, "missing reservation or request id")
+	}
+	return u.repo.SettleTokens(ctx, reservationID, requestID, model, promptTokens, completionTokens)
+}
+
+func (u *QuotaUsecase) CancelReservation(ctx context.Context, reservationID string) (data.TokenReservation, error) {
+	return u.repo.CancelReservation(ctx, reservationID)
+}
+
+func (u *QuotaUsecase) ListTokenUsage(ctx context.Context, userID string, limit int32) ([]data.TokenUsage, error) {
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing user id")
+	}
+	return u.repo.ListTokenUsage(ctx, userID, limit)
+}
+
+func (u *QuotaUsecase) GetUsageTrend(ctx context.Context, userID string, days int32) ([]data.UsageTrendPoint, error) {
+	if userID == "" {
+		return nil, status.Error(codes.InvalidArgument, "missing user id")
+	}
+	return u.repo.GetUsageTrend(ctx, userID, days)
+}

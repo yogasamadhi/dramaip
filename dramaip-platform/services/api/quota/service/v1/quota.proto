@@ -10,6 +10,8 @@ service QuotaService {
   rpc ReserveTokens(ReserveTokensRequest) returns (TokenReservation);
   rpc SettleTokens(SettleTokensRequest) returns (TokenUsage);
   rpc CancelReservation(CancelReservationRequest) returns (TokenReservation);
+  rpc ListTokenUsage(ListTokenUsageRequest) returns (ListTokenUsageReply);
+  rpc GetUsageTrend(GetUsageTrendRequest) returns (GetUsageTrendReply);
 }
 
 message GetTokenBalanceRequest {
@@ -31,6 +33,7 @@ message CreatePeriodAccountRequest {
   int64 quota_tokens = 3;
   string period_start = 4;
   string period_end = 5;
+  string plan_code = 6;
 }
 
 message TokenAccount {
@@ -55,6 +58,7 @@ message TokenReservation {
   string subscription_id = 5;
   int64 current_used = 6;
   int64 current_quota = 7;
+  string expires_at = 8;
 }
 
 message SettleTokensRequest {
@@ -72,4 +76,33 @@ message CancelReservationRequest {
 message TokenUsage {
   string id = 1;
   int64 total_tokens = 2;
+  string request_id = 3;
+  string model = 4;
+  int64 prompt_tokens = 5;
+  int64 completion_tokens = 6;
+  string status = 7;
+  string created_at = 8;
+}
+
+message ListTokenUsageRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message ListTokenUsageReply {
+  repeated TokenUsage usage = 1;
+}
+
+message GetUsageTrendRequest {
+  string user_id = 1;
+  int32 days = 2;
+}
+
+message UsageTrendPoint {
+  string date = 1;
+  int64 total_tokens = 2;
+}
+
+message GetUsageTrendReply {
+  repeated UsageTrendPoint points = 1;
 }

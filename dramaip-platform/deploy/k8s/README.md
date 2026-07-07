@@ -1,7 +1,7 @@
 # Kubernetes
 
 This directory tracks the Kubernetes rollout plan. The first deployable unit is
-the BFF MVP:
+the BFF platform flow:
 
 ```txt
 Internet

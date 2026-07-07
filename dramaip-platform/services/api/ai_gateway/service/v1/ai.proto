@@ -31,4 +31,6 @@ message ChatReply {
   int64 completion_tokens = 6;
   string reservation_id = 7;
   int64 remaining_tokens = 8;
+  string request_id = 9;
+  string status = 10;
 }

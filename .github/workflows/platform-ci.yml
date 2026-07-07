@@ -1,0 +1,81 @@
+name: dramaip-platform-ci
+
+on:
+  push:
+    paths:
+      - 'dramaip-platform/**'
+      - 'run-platform.py'
+      - '.github/workflows/platform-ci.yml'
+  pull_request:
+    paths:
+      - 'dramaip-platform/**'
+      - 'run-platform.py'
+      - '.github/workflows/platform-ci.yml'
+  workflow_dispatch:
+    inputs:
+      run_platform_e2e:
+        description: 'Build and run the Docker platform end-to-end check'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  services:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dramaip-platform/services
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dramaip-platform/services/go.mod
+          cache-dependency-path: dramaip-platform/services/go.sum
+      - name: Test services
+        run: GOCACHE=/tmp/dramaip-go-build go test ./...
+
+  clients:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dramaip-platform/clients
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: dramaip-platform/clients/pnpm-lock.yaml
+      - name: Install clients
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck clients
+        run: pnpm typecheck
+
+  platform-e2e:
+    if: github.event_name == 'workflow_dispatch' && inputs.run_platform_e2e == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build and start platform stack
+        working-directory: dramaip-platform
+        run: make platform-up
+      - name: Run platform end-to-end check
+        working-directory: dramaip-platform
+        run: make platform-e2e
+      - name: Dump logs on failure
+        if: failure()
+        working-directory: dramaip-platform
+        run: docker compose -f deploy/docker-drama/docker-compose.yaml logs --tail=200
+      - name: Stop platform stack
+        if: always()
+        working-directory: dramaip-platform
+        run: make platform-down

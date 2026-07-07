@@ -5,6 +5,8 @@ Closed-source platform workspace for DramaIP web, mobile, and cloud services.
 See the shared architecture document:
 
 - [../docs/技术架构.md](../docs/技术架构.md)
+- [Local development guide](docs/LOCAL_DEVELOPMENT.md)
+- [Platform baseline](docs/PLATFORM_BASELINE.md)
 
 ## Workspace
 
@@ -41,17 +43,20 @@ pnpm dev:mobile
 
 cd ../services
 GOCACHE=/tmp/dramaip-go-build go test ./...
-make run-bff
 ```
 
-The clients workspace is managed from `clients/`. The Go services are initialized as a single-module Kratos monorepo under `services/`. Service implementation will be added incrementally behind the existing proto and directory boundaries.
+The clients workspace is managed from `clients/`. The Go services are a
+single-module Kratos monorepo under `services/`; runnable apps use
+`cmd/server` plus `internal/server`, `internal/service`, `internal/biz`, and
+`internal/data`. Generated Go gRPC stubs under `services/api/**` are the
+service-to-service contract.
 
-## Docker MVP
+## Docker Platform
 
-The runnable MVP uses the Docker stack instead of in-memory fake data:
+The runnable platform uses the Docker stack instead of in-memory fake data:
 
 ```bash
-make mvp-up
+make platform-up
 ```
 
 Start the Web app in another terminal:
@@ -65,10 +70,10 @@ The Web app defaults to `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (Kong)
 and displays BFF health plus plan data on the home page. Verify the proxy with:
 
 ```bash
-make mvp-smoke
+make platform-e2e
 ```
 
-The MVP path is:
+The platform path is:
 
 1. Website home page calls Kong -> BFF health, including Postgres/Redis/RabbitMQ checks.
 2. Pricing loads plans from PostgreSQL via `GET /plans`.
@@ -80,6 +85,10 @@ The MVP path is:
    event over AMQP.
 6. Prometheus scrapes BFF/Kong/RabbitMQ/Collector metrics; BFF container logs
    are collected by Fluent Bit into OpenSearch.
+7. Simulated payment confirmation turns a pending checkout into an active
+   subscription and token account in dev/test environments.
+8. AI chat through provider `test` exercises the same quota reservation and
+   settlement path without a real upstream API key.
 
 Open `http://localhost:3009`, then use the seeded development account:
 
@@ -94,6 +103,9 @@ Implementation notes:
   HTTP calls.
 - The BFF container is not exposed directly; clients enter through Kong on
   `http://localhost:8000`.
-
-creator@example.com
-password123
+- Server-side AI provider keys stay inside `ai-gateway`; clients use the
+  BFF/SDK Cloud AI Gateway contract and never call billing/quota directly.
+- `POST /billing/payments/simulated/confirm` is dev/test only and verifies the
+  checkout -> subscription -> token-account state machine before real payment
+  webhooks are added. `POST /billing/sandbox/confirm-payment` remains as a
+  deprecated compatibility endpoint.

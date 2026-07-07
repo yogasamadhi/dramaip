@@ -25,6 +25,28 @@ func TestScanMigrationFilesSorted(t *testing.T) {
 	}
 }
 
+func TestScanMigrationFilesNestedDomains(t *testing.T) {
+	dir := t.TempDir()
+	writeMigration(t, filepath.Join(dir, "billing"), "003_billing_init.up.sql")
+	writeMigration(t, filepath.Join(dir, "auth"), "001_auth_init.up.sql")
+	writeMigration(t, filepath.Join(dir, "quota"), "004_quota_init.up.sql")
+	writeMigration(t, filepath.Join(dir, "user"), "002_user_init.up.sql")
+
+	files, err := scanMigrationFiles(dir)
+	if err != nil {
+		t.Fatalf("scanMigrationFiles() error = %v", err)
+	}
+	if len(files) != 4 {
+		t.Fatalf("scanMigrationFiles() len = %d", len(files))
+	}
+	for i, file := range files {
+		want := uint(i + 1)
+		if file.Version != want {
+			t.Fatalf("files[%d].Version = %d, want %d", i, file.Version, want)
+		}
+	}
+}
+
 func TestScanMigrationFilesDuplicateVersion(t *testing.T) {
 	dir := t.TempDir()
 	writeMigration(t, dir, "001_first.up.sql")
@@ -97,6 +119,9 @@ func TestRunMigrationsIntegration(t *testing.T) {
 
 func writeMigration(t *testing.T, dir string, name string) {
 	t.Helper()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir migration dir: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(dir, name), []byte("SELECT 1;"), 0o600); err != nil {
 		t.Fatalf("write migration: %v", err)
 	}

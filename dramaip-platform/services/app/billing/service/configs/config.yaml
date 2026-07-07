@@ -11,7 +11,11 @@ data:
   rabbitmq:
     url: amqp://guest:guest@localhost:5672/
 payment:
+  simulated_enabled: true
   wechat_pay:
     enabled: false
   alipay:
     enabled: false
+quota:
+  grpc_addr: localhost:9104
+  dial_timeout: 10s

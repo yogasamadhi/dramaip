@@ -74,6 +74,7 @@ func RegisterUserServiceServer(s grpc.ServiceRegistrar, srv UserServiceServer) {
 type BillingServiceClient interface {
 	ListPlans(context.Context, *ListPlansRequest, ...grpc.CallOption) (*ListPlansReply, error)
 	CreateCheckout(context.Context, *CreateCheckoutRequest, ...grpc.CallOption) (*CreateCheckoutReply, error)
+	ConfirmSandboxPayment(context.Context, *ConfirmSandboxPaymentRequest, ...grpc.CallOption) (*ConfirmSandboxPaymentReply, error)
 	GetSubscription(context.Context, *GetSubscriptionRequest, ...grpc.CallOption) (*Subscription, error)
 }
 type billingClient struct{ cc grpc.ClientConnInterface }
@@ -91,6 +92,11 @@ func (c *billingClient) CreateCheckout(ctx context.Context, in *CreateCheckoutRe
 	err := c.cc.Invoke(ctx, "/dramaip.billing.service.v1.BillingService/CreateCheckout", in, out, opts...)
 	return out, err
 }
+func (c *billingClient) ConfirmSandboxPayment(ctx context.Context, in *ConfirmSandboxPaymentRequest, opts ...grpc.CallOption) (*ConfirmSandboxPaymentReply, error) {
+	out := new(ConfirmSandboxPaymentReply)
+	err := c.cc.Invoke(ctx, "/dramaip.billing.service.v1.BillingService/ConfirmSandboxPayment", in, out, opts...)
+	return out, err
+}
 func (c *billingClient) GetSubscription(ctx context.Context, in *GetSubscriptionRequest, opts ...grpc.CallOption) (*Subscription, error) {
 	out := new(Subscription)
 	err := c.cc.Invoke(ctx, "/dramaip.billing.service.v1.BillingService/GetSubscription", in, out, opts...)
@@ -104,6 +110,9 @@ func RegisterBillingServiceServer(s grpc.ServiceRegistrar, srv BillingServiceSer
 			{MethodName: "ListPlans", Handler: unary(func(ctx context.Context, req *ListPlansRequest) (any, error) { return srv.ListPlans(ctx, req) })},
 			{MethodName: "CreateCheckout", Handler: unary(func(ctx context.Context, req *CreateCheckoutRequest) (any, error) {
 				return srv.CreateCheckout(ctx, req)
+			})},
+			{MethodName: "ConfirmSandboxPayment", Handler: unary(func(ctx context.Context, req *ConfirmSandboxPaymentRequest) (any, error) {
+				return srv.ConfirmSandboxPayment(ctx, req)
 			})},
 			{MethodName: "GetSubscription", Handler: unary(func(ctx context.Context, req *GetSubscriptionRequest) (any, error) {
 				return srv.GetSubscription(ctx, req)

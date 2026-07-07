@@ -2,12 +2,12 @@ import axios, { type AxiosInstance } from 'axios'
 import { z } from 'zod'
 
 export const TokenBalanceSchema = z.object({
-  plan: z.string(),
-  quota_tokens: z.number(),
-  used_tokens: z.number(),
-  remaining_tokens: z.number(),
-  period_start: z.string(),
-  period_end: z.string(),
+  plan: z.string().default(''),
+  quota_tokens: z.number().default(0),
+  used_tokens: z.number().default(0),
+  remaining_tokens: z.number().default(0),
+  period_start: z.string().default(''),
+  period_end: z.string().default(''),
 })
 
 export type TokenBalance = z.infer<typeof TokenBalanceSchema>
@@ -20,6 +20,19 @@ export const UserSchema = z.object({
 
 export type User = z.infer<typeof UserSchema>
 
+export const ProfileSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  status: z.string(),
+  display_name: z.string(),
+  avatar_url: z.string(),
+  locale: z.string(),
+  timezone: z.string(),
+})
+
+export type Profile = z.infer<typeof ProfileSchema>
+
 export const LoginResponseSchema = z.object({
   access_token: z.string(),
   refresh_token: z.string(),
@@ -29,6 +42,10 @@ export const LoginResponseSchema = z.object({
 })
 
 export type LoginResponse = z.infer<typeof LoginResponseSchema>
+
+export const RegisterResponseSchema = LoginResponseSchema
+
+export type RegisterResponse = LoginResponse
 
 export const HealthSchema = z.object({
   ok: z.boolean(),
@@ -78,6 +95,123 @@ export const CheckoutResponseSchema = z.object({
 
 export type CheckoutResponse = z.infer<typeof CheckoutResponseSchema>
 
+export const SubscriptionSchema = z.object({
+  id: z.string().default(''),
+  user_id: z.string().default(''),
+  plan_id: z.string().default(''),
+  plan_code: z.string().default(''),
+  status: z.string().default(''),
+  current_period_start: z.string().default(''),
+  current_period_end: z.string().default(''),
+  cancel_at_period_end: z.boolean().optional(),
+  canceled_at: z.string().optional(),
+})
+
+export type Subscription = z.infer<typeof SubscriptionSchema>
+
+export const PaymentConfirmationResponseSchema = z.object({
+  order_id: z.string(),
+  status: z.string(),
+  subscription: SubscriptionSchema,
+  token_balance: TokenBalanceSchema,
+})
+
+export type PaymentConfirmationResponse = z.infer<typeof PaymentConfirmationResponseSchema>
+export type SandboxPaymentResponse = PaymentConfirmationResponse
+
+export const OrderSchema = z.object({
+  id: z.string().default(''),
+  user_id: z.string().default(''),
+  plan_id: z.string().default(''),
+  plan_code: z.string().default(''),
+  provider: z.string().default(''),
+  amount: z.string().default('0'),
+  currency: z.string().default(''),
+  status: z.string().default(''),
+  payment_url: z.string().default(''),
+  created_at: z.string().default(''),
+  paid_at: z.string().optional(),
+  subscription_id: z.string().optional(),
+})
+
+export type Order = z.infer<typeof OrderSchema>
+
+export const OrdersResponseSchema = z.object({
+  orders: z.array(OrderSchema),
+})
+
+export type OrdersResponse = z.infer<typeof OrdersResponseSchema>
+
+export const TokenUsageSchema = z.object({
+  id: z.string().default(''),
+  reservation_id: z.string().default(''),
+  request_id: z.string().default(''),
+  model: z.string().default(''),
+  prompt_tokens: z.number().default(0),
+  completion_tokens: z.number().default(0),
+  total_tokens: z.number().default(0),
+  status: z.string().default(''),
+  created_at: z.string().default(''),
+})
+
+export type TokenUsage = z.infer<typeof TokenUsageSchema>
+
+export const TokenUsageResponseSchema = z.object({
+  usage: z.array(TokenUsageSchema),
+})
+
+export type TokenUsageResponse = z.infer<typeof TokenUsageResponseSchema>
+
+export const UsageTrendPointSchema = z.object({
+  date: z.string(),
+  total_tokens: z.number(),
+})
+
+export type UsageTrendPoint = z.infer<typeof UsageTrendPointSchema>
+
+export const UsageTrendResponseSchema = z.object({
+  points: z.array(UsageTrendPointSchema),
+})
+
+export type UsageTrendResponse = z.infer<typeof UsageTrendResponseSchema>
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  title: z.string(),
+  body: z.string(),
+  source_event_id: z.string().default(''),
+  read_at: z.string().default(''),
+  created_at: z.string().default(''),
+})
+
+export type Notification = z.infer<typeof NotificationSchema>
+
+export const NotificationsResponseSchema = z.object({
+  notifications: z.array(NotificationSchema),
+  unread_count: z.number().default(0),
+})
+
+export type NotificationsResponse = z.infer<typeof NotificationsResponseSchema>
+
+export const AccountReportSchema = z.object({
+  generated_at: z.string(),
+  subscription: SubscriptionSchema.nullish(),
+  token_balance: TokenBalanceSchema.nullish(),
+  order_summary: z.object({ paid: z.number(), pending: z.number(), total: z.number() }),
+  usage_summary: z.object({ total_tokens: z.number(), requests: z.number() }),
+  usage_trend: z.array(UsageTrendPointSchema),
+  notification_summary: z.object({ unread: z.number(), total: z.number() }),
+})
+
+export type AccountReport = z.infer<typeof AccountReportSchema>
+
+export const LogoutResponseSchema = z.object({
+  ok: z.boolean(),
+})
+
+export type LogoutResponse = z.infer<typeof LogoutResponseSchema>
+
 export const ChatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
   content: z.string(),
@@ -86,6 +220,7 @@ export const ChatMessageSchema = z.object({
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
 
 export const ChatResponseSchema = z.object({
+  request_id: z.string(),
   content: z.string(),
   provider: z.string(),
   model: z.string(),
@@ -94,6 +229,7 @@ export const ChatResponseSchema = z.object({
   total_tokens: z.number(),
   reservation_id: z.string(),
   remaining_tokens: z.number(),
+  status: z.string().optional(),
 })
 
 export type ChatResponse = z.infer<typeof ChatResponseSchema>
@@ -105,13 +241,29 @@ export interface ApiClientOptions {
 
 export interface DramaIpApiClient {
   http: AxiosInstance
+  register(input: { email: string; password: string; display_name?: string }): Promise<RegisterResponse>
   login(input: { email: string; password: string }): Promise<LoginResponse>
   getHealth(): Promise<Health>
   getPlans(): Promise<PlansResponse>
+  getProfile(): Promise<Profile>
+  updateProfile(input: { display_name: string; phone?: string; avatar_url?: string; locale?: string; timezone?: string }): Promise<Profile>
   getDashboard(): Promise<Dashboard>
   getTokenBalance(): Promise<TokenBalance>
+  getSubscription(): Promise<Subscription>
+  getOrders(): Promise<OrdersResponse>
+  getOrder(orderID: string): Promise<Order>
+  getTokenUsage(input?: { limit?: number }): Promise<TokenUsageResponse>
+  getUsageTrend(input?: { days?: number }): Promise<UsageTrendResponse>
+  getNotifications(): Promise<NotificationsResponse>
+  markNotificationRead(notificationID: string): Promise<Notification>
+  getAccountReport(): Promise<AccountReport>
   createCheckout(input: { plan_id: string; channel?: string }): Promise<CheckoutResponse>
-  chat(input: { provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
+  confirmSimulatedPayment(input: { checkout_id: string }): Promise<PaymentConfirmationResponse>
+  confirmSandboxPayment(input: { checkout_id: string }): Promise<SandboxPaymentResponse>
+  cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>
+  refresh(input: { refresh_token: string }): Promise<LoginResponse>
+  logout(input?: { refresh_token?: string }): Promise<LogoutResponse>
+  chat(input: { request_id?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
@@ -125,32 +277,95 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
 
   return {
     http,
+    async register(input) {
+      const res = await http.post('/v1/auth/register', input)
+      return RegisterResponseSchema.parse(res.data)
+    },
     async login(input) {
-      const res = await http.post('/auth/login', input)
+      const res = await http.post('/v1/auth/login', input)
       return LoginResponseSchema.parse(res.data)
     },
     async getHealth() {
-      const res = await http.get('/healthz')
+      const res = await http.get('/v1/healthz')
       return HealthSchema.parse(res.data)
     },
     async getPlans() {
-      const res = await http.get('/plans')
+      const res = await http.get('/v1/plans')
       return PlansResponseSchema.parse(res.data)
     },
+    async getProfile() {
+      const res = await http.get('/v1/me/profile')
+      return ProfileSchema.parse(res.data)
+    },
+    async updateProfile(input) {
+      const res = await http.patch('/v1/me/profile', input)
+      return ProfileSchema.parse(res.data)
+    },
     async getDashboard() {
-      const res = await http.get('/me/dashboard')
+      const res = await http.get('/v1/me/dashboard')
       return DashboardSchema.parse(res.data)
     },
     async getTokenBalance() {
-      const res = await http.get('/me/token-balance')
+      const res = await http.get('/v1/me/token-balance')
       return TokenBalanceSchema.parse(res.data)
     },
+    async getSubscription() {
+      const res = await http.get('/v1/me/subscription')
+      return SubscriptionSchema.parse(res.data)
+    },
+    async getOrders() {
+      const res = await http.get('/v1/me/orders')
+      return OrdersResponseSchema.parse(res.data)
+    },
+    async getOrder(orderID) {
+      const res = await http.get(`/v1/me/orders/${encodeURIComponent(orderID)}`)
+      return OrderSchema.parse(res.data)
+    },
+    async getTokenUsage(input = {}) {
+      const res = await http.get('/v1/me/token-usage', { params: input })
+      return TokenUsageResponseSchema.parse(res.data)
+    },
+    async getUsageTrend(input = {}) {
+      const res = await http.get('/v1/me/usage-trend', { params: input })
+      return UsageTrendResponseSchema.parse(res.data)
+    },
+    async getNotifications() {
+      const res = await http.get('/v1/me/notifications')
+      return NotificationsResponseSchema.parse(res.data)
+    },
+    async markNotificationRead(notificationID) {
+      const res = await http.post(`/v1/me/notifications/${encodeURIComponent(notificationID)}/read`)
+      return NotificationSchema.parse(res.data)
+    },
+    async getAccountReport() {
+      const res = await http.get('/v1/me/account-report')
+      return AccountReportSchema.parse(res.data)
+    },
     async createCheckout(input) {
-      const res = await http.post('/billing/checkout', input)
+      const res = await http.post('/v1/billing/checkout', input)
       return CheckoutResponseSchema.parse(res.data)
     },
+    async confirmSimulatedPayment(input) {
+      const res = await http.post('/v1/billing/payments/simulated/confirm', input)
+      return PaymentConfirmationResponseSchema.parse(res.data)
+    },
+    async confirmSandboxPayment(input) {
+      return this.confirmSimulatedPayment(input)
+    },
+    async cancelSubscription(input = {}) {
+      const res = await http.post('/v1/subscription/cancel', input)
+      return SubscriptionSchema.parse(res.data)
+    },
+    async refresh(input) {
+      const res = await http.post('/v1/auth/refresh', input)
+      return LoginResponseSchema.parse(res.data)
+    },
+    async logout(input = {}) {
+      const res = await http.post('/v1/auth/logout', input)
+      return LogoutResponseSchema.parse(res.data)
+    },
     async chat(input) {
-      const res = await http.post('/ai/chat', input)
+      const res = await http.post('/v1/ai/chat', input)
       return ChatResponseSchema.parse(res.data)
     },
   }

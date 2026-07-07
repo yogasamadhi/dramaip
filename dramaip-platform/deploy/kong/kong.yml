@@ -12,9 +12,35 @@ services:
   - name: dramaip-bff
     url: http://bff:8100
     routes:
+      - name: dramaip-protected-api
+        paths:
+          - /v1/me
+          - /v1/billing
+          - /v1/subscription
+          - /v1/ai
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              secret_is_base64: false
+              claims_to_verify:
+                - exp
+          - name: cors
+            config:
+              origins: ["*"]
+              methods: [GET, POST, PATCH, OPTIONS]
+              headers: [Authorization, Content-Type, X-Request-Id, traceparent, tracestate]
+              exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
+              credentials: false
+              max_age: 3600
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
       - name: dramaip-api
         paths:
-          - /
+          - /v1/
         strip_path: false
     plugins:
       - name: cors
@@ -22,22 +48,22 @@ services:
           # dev: allow any origin. In prod, restrict to the web origin(s), e.g.
           #   origins: [https://app.dramaip.com]
           origins: ["*"]
-          methods: [GET, POST, OPTIONS]
-          headers: [Authorization, Content-Type]
-          exposed_headers: [Content-Type]
+          methods: [GET, POST, PATCH, OPTIONS]
+          headers: [Authorization, Content-Type, X-Request-Id, traceparent, tracestate]
+          exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
           credentials: false
           max_age: 3600
       - name: rate-limiting
         config:
           minute: 120
           policy: local
-      # Edge JWT verification — DISABLED until auth-service can issue real tokens.
-      # Enable on protected routes (e.g. /me/*) once JWT_ACCESS_SECRET is wired
-      # and a Kong consumer/credential exists. Enabling now would 401 the demo.
-      # - name: jwt
-      #   config:
-      #     key_claim_name: iss
-      #     secret_is_base64: false
+
+consumers:
+  - username: dramaip-auth
+    jwt_secrets:
+      - key: dramaip
+        algorithm: HS256
+        secret: dramaip-dev-access-secret-change-me
 
 plugins:
   - name: prometheus

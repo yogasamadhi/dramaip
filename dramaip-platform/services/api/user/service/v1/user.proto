@@ -6,6 +6,8 @@ option go_package = "github.com/dramaip/dramaip-platform/services/api/user/servi
 
 service UserService {
   rpc GetProfile(GetProfileRequest) returns (UserProfile);
+  rpc EnsureProfile(EnsureProfileRequest) returns (UserProfile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UserProfile);
 }
 
 message GetProfileRequest {
@@ -21,4 +23,21 @@ message UserProfile {
   string avatar_url = 6;
   string locale = 7;
   string timezone = 8;
+}
+
+message EnsureProfileRequest {
+  string user_id = 1;
+  string email = 2;
+  string phone = 3;
+  string display_name = 4;
+  string status = 5;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  string phone = 2;
+  string display_name = 3;
+  string avatar_url = 4;
+  string locale = 5;
+  string timezone = 6;
 }
