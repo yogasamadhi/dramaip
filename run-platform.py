@@ -251,7 +251,7 @@ def ensure_stack_running() -> None:
     if up.returncode != 0:
         err("Stack failed to start. Free ports 8000/8001 or pass --no-stack to bypass.")
         sys.exit(1)
-    health_url = f"http://localhost:{KONG_PROXY_PORT}/healthz"
+    health_url = f"http://localhost:{KONG_PROXY_PORT}/v1/healthz"
     info(f"Waiting for Kong/BFF health: {health_url}")
     deadline = time.monotonic() + KONG_HEALTH_TIMEOUT_S
     last_error = ""
