@@ -25,8 +25,15 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *billingbiz.BillingUsecase) *khttp.Se
 	if err != nil {
 		panic(fmt.Sprintf("billing wechat pay webhook: %v", err))
 	}
+	alipayWebhook, err := newAlipayWebhook(cfg.Payment.Alipay, uc)
+	if err != nil {
+		panic(fmt.Sprintf("billing alipay webhook: %v", err))
+	}
 	server.HandleFunc("/v1/webhooks/wechat-pay", func(w http.ResponseWriter, r *http.Request) {
 		wechatWebhook.Handle(w, r)
+	})
+	server.HandleFunc("/v1/webhooks/alipay", func(w http.ResponseWriter, r *http.Request) {
+		alipayWebhook.Handle(w, r)
 	})
 	return server
 }

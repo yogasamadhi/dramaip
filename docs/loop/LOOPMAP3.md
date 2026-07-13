@@ -225,7 +225,7 @@ make platform-down
 | LM3-15 | P0 | Billing/Quota | done | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | done | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
 | LM3-17 | P1 | 支付 | done | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
-| LM3-18 | P1 | 支付 | todo | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
+| LM3-18 | P1 | 支付 | doing | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | todo | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
 | LM3-21 | P1 | Observability | todo | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
@@ -435,6 +435,7 @@ make platform-down
 ### LM3-18：支付宝沙箱
 
 - **目标**：通过独立 webhook ingress 完成支付宝下单、验签、幂等和服务端确认。
+- **当前状态（2026-07-13）**：进行中。渠道默认关闭；实现和自动化测试不使用真实支付宝沙箱密钥、付款或公网回调。
 - **主要范围**：billing provider adapter、webhook ingress、Kong route、原始 body、沙箱配置。
 - **不在范围**：微信支付、生产商户切换。
 - **内部 checklist**：创建支付订单；验证支付宝签名和通知参数；保存 provider event inbox；主动查询确认；接入 Saga；补沙箱 E2E 和运行手册。

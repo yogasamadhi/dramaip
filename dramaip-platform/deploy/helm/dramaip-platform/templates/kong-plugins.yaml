@@ -54,3 +54,26 @@ plugin: request-size-limiting
 config:
   allowed_payload_size: 1
 {{- end }}
+{{- if and .Values.ingress.enabled .Values.payment.alipay.enabled .Values.kong.plugins.enabled }}
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-alipay-webhook-rate-limiting
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: rate-limiting
+config:
+  minute: {{ .Values.payment.alipay.webhookRateLimitPerMinute }}
+  policy: local
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-alipay-webhook-size-limit
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: request-size-limiting
+config:
+  allowed_payload_size: 1
+{{- end }}

@@ -60,6 +60,13 @@ data:
   WECHAT_PAY_API_BASE_URL: {{ .Values.payment.wechat.apiBaseURL | quote }}
   WECHAT_PAY_PRIVATE_KEY_PATH: {{ if .Values.payment.wechat.enabled }}"/var/run/dramaip/wechat/apiclient-key.pem"{{ else }}""{{ end }}
   WECHAT_PAY_PLATFORM_CERT_PATH: {{ if .Values.payment.wechat.enabled }}"/var/run/dramaip/wechat/platform-cert.pem"{{ else }}""{{ end }}
+  ALIPAY_ENABLED: {{ .Values.payment.alipay.enabled | quote }}
+  ALIPAY_APP_ID: {{ .Values.payment.alipay.appID | quote }}
+  ALIPAY_SELLER_ID: {{ .Values.payment.alipay.sellerID | quote }}
+  ALIPAY_NOTIFY_URL: {{ .Values.payment.alipay.notifyURL | quote }}
+  ALIPAY_GATEWAY: {{ .Values.payment.alipay.gateway | quote }}
+  ALIPAY_PRIVATE_KEY_PATH: {{ if .Values.payment.alipay.enabled }}"/var/run/dramaip/alipay/app-private-key.pem"{{ else }}""{{ end }}
+  ALIPAY_PUBLIC_KEY_PATH: {{ if .Values.payment.alipay.enabled }}"/var/run/dramaip/alipay/alipay-public-key.pem"{{ else }}""{{ end }}
   JWT_ISSUER: {{ .Values.config.jwt.issuer | quote }}
   JWT_AUDIENCE: {{ .Values.config.jwt.audience | quote }}
   JWT_ACTIVE_KID: {{ .Values.config.jwt.activeKeyID | quote }}
