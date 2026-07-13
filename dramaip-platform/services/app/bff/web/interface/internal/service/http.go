@@ -114,7 +114,7 @@ func (s *HTTPService) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	session, err := s.uc.Login(r.Context(), req.Email, req.Password)
+	session, err := s.uc.Login(r.Context(), req.Email, req.Password, deviceID(r))
 	if err != nil {
 		writeGRPCError(w, err, "login_unavailable")
 		return
@@ -137,7 +137,7 @@ func (s *HTTPService) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	session, err := s.uc.Register(r.Context(), req.Email, req.Password, req.DisplayName)
+	session, err := s.uc.Register(r.Context(), req.Email, req.Password, req.DisplayName, deviceID(r))
 	if err != nil {
 		writeGRPCError(w, err, "register_unavailable")
 		return
@@ -179,7 +179,7 @@ func (s *HTTPService) handleLogout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	reply, err := s.uc.Logout(r.Context(), req.RefreshToken, bearerToken(r.Header.Get("Authorization")))
+	reply, err := s.uc.Logout(r.Context(), req.RefreshToken, bearerToken(r.Header.Get("Authorization")), deviceID(r))
 	if err != nil {
 		writeGRPCError(w, err, "logout_unavailable")
 		return
@@ -566,6 +566,10 @@ func bearerToken(authorization string) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
+}
+
+func deviceID(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get("X-Device-Id"))
 }
 
 func (s *HTTPService) metricsMiddleware(next http.Handler) http.Handler {

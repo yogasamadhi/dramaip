@@ -151,6 +151,8 @@ config:
     eventsQueue: dramaip.platform.events
   jwt:
     issuer: dramaip
+    audience: dramaip-api
+    activeKeyID: ""
     accessTtlSeconds: "900"
     refreshTtlSeconds: "2592000"
   otel:
@@ -191,9 +193,15 @@ secret:
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
-  jwtAccessSecret: change-me-access-secret
-  jwtRefreshSecret: change-me-refresh-secret
   aiProviderApiKey: sk-replace-me
+
+# Production must set this to a Secret containing private.pem and jwks.json.
+# The private key is mounted only into auth-service; the JWKS contains public
+# keys for the current and retained rotation window.
+authJWT:
+  keysetSecret: ""
+  privateKeyFile: private.pem
+  jwksFile: jwks.json
 
 migrations:
   enabled: true

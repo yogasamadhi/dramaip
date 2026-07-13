@@ -237,6 +237,7 @@ export type ChatResponse = z.infer<typeof ChatResponseSchema>
 export interface ApiClientOptions {
   baseURL: string
   getAccessToken?: () => string | undefined | Promise<string | undefined>
+  getDeviceID?: () => string | undefined | Promise<string | undefined>
 }
 
 export interface DramaIpApiClient {
@@ -272,6 +273,8 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
   http.interceptors.request.use(async (config) => {
     const token = await options.getAccessToken?.()
     if (token) config.headers.Authorization = `Bearer ${token}`
+    const deviceID = await options.getDeviceID?.()
+    if (deviceID) config.headers['X-Device-Id'] = deviceID
     return config
   })
 

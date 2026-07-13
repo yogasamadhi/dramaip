@@ -1,6 +1,8 @@
 package server
 
 import (
+	"net/http"
+
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	authbiz "github.com/dramaip/dramaip-platform/services/app/auth/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/auth/service/internal/conf"
@@ -26,5 +28,15 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *authbiz.AuthUsecase) *khttp.Server {
 		khttp.Middleware(recovery.Recovery(), kratosx.TraceMiddleware("auth-service")),
 	)
 	kratosx.RegisterHealth(server, "auth-service", uc.Checks())
+	server.HandleFunc("/.well-known/jwks.json", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Cache-Control", "public, max-age=300")
+		w.Header().Set("Content-Type", "application/jwk-set+json")
+		_, _ = w.Write(uc.JWKS())
+	})
 	return server
 }

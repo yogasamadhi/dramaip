@@ -34,6 +34,10 @@ data:
   RABBITMQ_VHOST: {{ .Values.config.rabbitmq.vhost | quote }}
   RABBITMQ_EVENTS_QUEUE: {{ .Values.config.rabbitmq.eventsQueue | quote }}
   JWT_ISSUER: {{ .Values.config.jwt.issuer | quote }}
+  JWT_AUDIENCE: {{ .Values.config.jwt.audience | quote }}
+  JWT_ACTIVE_KID: {{ .Values.config.jwt.activeKeyID | quote }}
+  JWT_PRIVATE_KEY_FILE: {{ if .Values.authJWT.keysetSecret }}{{ printf "/var/run/dramaip/auth-jwt/%s" .Values.authJWT.privateKeyFile | quote }}{{ else }}""{{ end }}
+  JWT_JWKS_FILE: {{ if .Values.authJWT.keysetSecret }}{{ printf "/var/run/dramaip/auth-jwt/%s" .Values.authJWT.jwksFile | quote }}{{ else }}""{{ end }}
   JWT_ACCESS_TTL: {{ .Values.config.jwt.accessTtlSeconds | quote }}
   JWT_REFRESH_TTL: {{ .Values.config.jwt.refreshTtlSeconds | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otel.endpoint | quote }}

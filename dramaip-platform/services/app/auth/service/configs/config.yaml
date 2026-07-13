@@ -10,5 +10,6 @@ data:
     addr: localhost:6379
 jwt:
   issuer: dramaip-auth
+  audience: dramaip-api
   access_token_ttl: 15m
   refresh_token_ttl: 720h

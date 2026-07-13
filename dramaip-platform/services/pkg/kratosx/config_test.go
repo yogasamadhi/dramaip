@@ -16,7 +16,7 @@ func TestParseDotEnvLine(t *testing.T) {
 	}{
 		{name: "plain", line: "POSTGRES_HOST=localhost", key: "POSTGRES_HOST", value: "localhost", ok: true},
 		{name: "export", line: "export REDIS_DB=0", key: "REDIS_DB", value: "0", ok: true},
-		{name: "quoted", line: `JWT_ACCESS_SECRET="abc#123"`, key: "JWT_ACCESS_SECRET", value: "abc#123", ok: true},
+		{name: "quoted", line: `SAMPLE_SECRET="abc#123"`, key: "SAMPLE_SECRET", value: "abc#123", ok: true},
 		{name: "comment", line: "AI_PROVIDER_API_KEY=sk-test # local", key: "AI_PROVIDER_API_KEY", value: "sk-test", ok: true},
 		{name: "blank", line: "  ", ok: false},
 		{name: "invalid", line: "1BAD=value", ok: false},
