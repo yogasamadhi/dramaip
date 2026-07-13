@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 
+	"github.com/dramaip/dramaip-platform/services/app/quota/internal/ledger"
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -67,6 +68,15 @@ type TokenUsage struct {
 	TotalTokens      int64
 	Status           string
 	CreatedAt        string
+}
+
+type SettleTokensInput struct {
+	ReservationID    string
+	RequestID        string
+	Model            string
+	PromptTokens     int64
+	CompletionTokens int64
+	UsageKnown       bool
 }
 
 type UsageTrendPoint struct {
@@ -146,20 +156,16 @@ func (r *QuotaRepo) GetTokenBalance(ctx context.Context, userID string) (TokenBa
 func (r *QuotaRepo) ReserveTokens(ctx context.Context, userID string, requestID string, reservedTokens int64) (TokenReservation, error) {
 	var out TokenReservation
 	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing TokenReservation
-		if err := tx.Raw(`
-			SELECT r.id::text AS id, r.token_account_id::text AS token_account_id, r.reserved_tokens, r.status,
-			       a.subscription_id::text AS subscription_id, a.used_tokens AS current_used, a.quota_tokens AS current_quota
-			FROM quota.token_reservations r
-			JOIN quota.token_accounts a ON a.id = r.token_account_id
-			WHERE r.request_id = ? AND r.user_id = ?::uuid
-			LIMIT 1
-			FOR UPDATE OF r
-		`, requestID, userID).Scan(&existing).Error; err != nil {
+		existing, err := loadReservationByRequest(ctx, tx, requestID)
+		if err != nil {
 			return err
 		}
 		if existing.ID != "" {
-			return status.Error(codes.AlreadyExists, "request id already has a reservation")
+			if existing.UserID != userID {
+				return status.Error(codes.AlreadyExists, "request id already belongs to another user")
+			}
+			out = existing.TokenReservation
+			return nil
 		}
 		var account struct {
 			ID             string
@@ -180,47 +186,58 @@ func (r *QuotaRepo) ReserveTokens(ctx context.Context, userID string, requestID 
 		if account.ID == "" {
 			return status.Error(codes.NotFound, "token account not found")
 		}
-		if account.QuotaTokens-account.UsedTokens < reservedTokens {
+		existing, err = loadReservationByRequest(ctx, tx, requestID)
+		if err != nil {
+			return err
+		}
+		if existing.ID != "" {
+			if existing.UserID != userID {
+				return status.Error(codes.AlreadyExists, "request id already belongs to another user")
+			}
+			out = existing.TokenReservation
+			return nil
+		}
+		var charged struct {
+			UsedTokens  int64
+			QuotaTokens int64
+		}
+		if err := tx.Raw(`
+			UPDATE quota.token_accounts
+			SET used_tokens = used_tokens + ?, updated_at = now()
+			WHERE id = ?::uuid AND used_tokens + ? <= quota_tokens
+			RETURNING used_tokens, quota_tokens
+		`, reservedTokens, account.ID, reservedTokens).Scan(&charged).Error; err != nil {
+			return err
+		}
+		if charged.QuotaTokens == 0 {
 			return status.Error(codes.ResourceExhausted, "insufficient quota")
 		}
 		reservationID := platform.NewUUID()
-		if err := tx.Exec(`
+		var inserted struct{ ExpiresAt string }
+		if err := tx.Raw(`
 			INSERT INTO quota.token_reservations (id, user_id, token_account_id, request_id, reserved_tokens, status, expires_at)
 			VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, 'reserved', now() + interval '10 minutes')
-		`, reservationID, userID, account.ID, requestID, reservedTokens).Error; err != nil {
+			RETURNING expires_at::text AS expires_at
+		`, reservationID, userID, account.ID, requestID, reservedTokens).Scan(&inserted).Error; err != nil {
 			return err
 		}
-		if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = used_tokens + ?, updated_at = now() WHERE id = ?::uuid`, reservedTokens, account.ID).Error; err != nil {
-			return err
-		}
-		out = TokenReservation{ID: reservationID, TokenAccountID: account.ID, SubscriptionID: account.SubscriptionID, ReservedTokens: reservedTokens, Status: "reserved", CurrentUsed: account.UsedTokens + reservedTokens, CurrentQuota: account.QuotaTokens}
+		out = TokenReservation{ID: reservationID, TokenAccountID: account.ID, SubscriptionID: account.SubscriptionID, ReservedTokens: reservedTokens, Status: "reserved", CurrentUsed: charged.UsedTokens, CurrentQuota: charged.QuotaTokens, ExpiresAt: inserted.ExpiresAt}
 		return nil
 	})
 	return out, err
 }
 
-func (r *QuotaRepo) SettleTokens(ctx context.Context, reservationID string, requestID string, model string, promptTokens int64, completionTokens int64) (TokenUsage, error) {
-	total := promptTokens + completionTokens
-	if total <= 0 {
-		total = 1
+func (r *QuotaRepo) SettleTokens(ctx context.Context, input SettleTokensInput) (TokenUsage, error) {
+	if input.UsageKnown && (input.PromptTokens < 0 || input.CompletionTokens < 0) {
+		return TokenUsage{}, status.Error(codes.InvalidArgument, "usage tokens cannot be negative")
 	}
 	var out TokenUsage
 	overQuota := false
 	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing TokenUsage
-		if err := tx.Raw(`
-			SELECT id::text AS id, request_id, model, prompt_tokens, completion_tokens, total_tokens, status, created_at::text AS created_at
-			FROM quota.token_usage_logs WHERE request_id = ? LIMIT 1
-		`, requestID).Scan(&existing).Error; err != nil {
-			return err
-		}
-		if existing.ID != "" {
-			out = existing
-			return nil
-		}
 		var res struct {
 			ID             string
 			UserID         string
+			RequestID      string
 			TokenAccountID string
 			SubscriptionID string
 			ReservedTokens int64
@@ -228,20 +245,50 @@ func (r *QuotaRepo) SettleTokens(ctx context.Context, reservationID string, requ
 		}
 		if err := tx.Raw(`
 			SELECT r.id::text AS id, r.user_id::text AS user_id, r.token_account_id::text AS token_account_id,
-			       a.subscription_id::text AS subscription_id, r.reserved_tokens, r.status
+			       r.request_id, a.subscription_id::text AS subscription_id, r.reserved_tokens, r.status
 			FROM quota.token_reservations r
 			JOIN quota.token_accounts a ON a.id = r.token_account_id
 			WHERE r.id = ?::uuid
 			FOR UPDATE
-		`, reservationID).Scan(&res).Error; err != nil {
+		`, input.ReservationID).Scan(&res).Error; err != nil {
 			return err
 		}
 		if res.ID == "" {
 			return status.Error(codes.NotFound, "reservation not found")
 		}
-		if res.Status != "reserved" {
+		if res.RequestID != input.RequestID {
+			return status.Error(codes.FailedPrecondition, "reservation request id does not match")
+		}
+		var existing TokenUsage
+		if err := tx.Raw(`
+			SELECT id::text AS id, request_id, model, prompt_tokens, completion_tokens, total_tokens, status, created_at::text AS created_at
+			FROM quota.token_usage_logs WHERE request_id = ? LIMIT 1
+		`, input.RequestID).Scan(&existing).Error; err != nil {
+			return err
+		}
+		if existing.ID != "" {
+			out = existing
+			return nil
+		}
+		if res.Status != "reserved" && res.Status != "settlement_pending" {
 			return status.Errorf(codes.FailedPrecondition, "reservation status %s cannot be settled", res.Status)
 		}
+		if !input.UsageKnown {
+			if err := tx.Exec(`
+				UPDATE quota.token_reservations
+				SET status = 'settlement_pending',
+				    settlement_deadline = now() + interval '30 minutes',
+				    settlement_attempts = settlement_attempts + 1,
+				    settlement_error = 'provider usage unavailable',
+				    updated_at = now()
+				WHERE id = ?::uuid
+			`, res.ID).Error; err != nil {
+				return err
+			}
+			out = TokenUsage{RequestID: input.RequestID, Model: input.Model, TotalTokens: res.ReservedTokens, Status: "settlement_pending"}
+			return nil
+		}
+		total := input.PromptTokens + input.CompletionTokens
 		usageStatus := "settled"
 		if delta := total - res.ReservedTokens; delta < 0 {
 			if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = used_tokens + ?, updated_at = now() WHERE id = ?::uuid`, delta, res.TokenAccountID).Error; err != nil {
@@ -261,17 +308,21 @@ func (r *QuotaRepo) SettleTokens(ctx context.Context, reservationID string, requ
 				usageStatus = "over_quota_settled"
 			}
 		}
-		if err := tx.Exec(`UPDATE quota.token_reservations SET actual_tokens = ?, status = ?, updated_at = now() WHERE id = ?::uuid`, total, usageStatus, res.ID).Error; err != nil {
+		if err := tx.Exec(`
+			UPDATE quota.token_reservations
+			SET actual_tokens = ?, status = ?, settlement_deadline = NULL, settlement_error = NULL, updated_at = now()
+			WHERE id = ?::uuid
+		`, total, usageStatus, res.ID).Error; err != nil {
 			return err
 		}
 		usageID := platform.NewUUID()
 		if err := tx.Exec(`
 			INSERT INTO quota.token_usage_logs (id, user_id, subscription_id, token_account_id, request_id, model, prompt_tokens, completion_tokens, total_tokens, status)
 			VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?)
-		`, usageID, res.UserID, res.SubscriptionID, res.TokenAccountID, requestID, model, promptTokens, completionTokens, total, usageStatus).Error; err != nil {
+		`, usageID, res.UserID, res.SubscriptionID, res.TokenAccountID, input.RequestID, input.Model, input.PromptTokens, input.CompletionTokens, total, usageStatus).Error; err != nil {
 			return err
 		}
-		out = TokenUsage{ID: usageID, RequestID: requestID, Model: model, PromptTokens: promptTokens, CompletionTokens: completionTokens, TotalTokens: total, Status: usageStatus}
+		out = TokenUsage{ID: usageID, RequestID: input.RequestID, Model: input.Model, PromptTokens: input.PromptTokens, CompletionTokens: input.CompletionTokens, TotalTokens: total, Status: usageStatus}
 		return nil
 	})
 	if err != nil {
@@ -298,9 +349,12 @@ func (r *QuotaRepo) CancelReservation(ctx context.Context, reservationID string)
 		if res.ID == "" {
 			return status.Error(codes.NotFound, "reservation not found")
 		}
+		if res.Status == "settlement_pending" {
+			return status.Error(codes.FailedPrecondition, "settlement-pending reservation cannot be cancelled")
+		}
 		statusValue := res.Status
 		if res.Status == "reserved" {
-			if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = used_tokens - ?, updated_at = now() WHERE id = ?::uuid`, res.ReservedTokens, res.TokenAccountID).Error; err != nil {
+			if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = GREATEST(used_tokens - ?, 0), updated_at = now() WHERE id = ?::uuid`, res.ReservedTokens, res.TokenAccountID).Error; err != nil {
 				return err
 			}
 			if err := tx.Exec(`UPDATE quota.token_reservations SET status = 'cancelled', updated_at = now() WHERE id = ?::uuid`, res.ID).Error; err != nil {
@@ -346,27 +400,33 @@ func (r *QuotaRepo) GetUsageTrend(ctx context.Context, userID string, days int32
 
 func (r *QuotaRepo) ReclaimExpiredReservations(ctx context.Context) error {
 	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var rows []struct {
-			ID             string
-			TokenAccountID string
-			ReservedTokens int64
-		}
-		if err := tx.Raw(`
-			SELECT id::text AS id, token_account_id::text AS token_account_id, reserved_tokens
-			FROM quota.token_reservations
-			WHERE status = 'reserved' AND expires_at < now()
-			FOR UPDATE
-		`).Scan(&rows).Error; err != nil {
-			return err
-		}
-		for _, row := range rows {
-			if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = used_tokens - ?, updated_at = now() WHERE id = ?::uuid`, row.ReservedTokens, row.TokenAccountID).Error; err != nil {
-				return err
-			}
-			if err := tx.Exec(`UPDATE quota.token_reservations SET status = 'expired', updated_at = now() WHERE id = ?::uuid`, row.ID).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return ledger.ReclaimExpiredReservations(ctx, tx)
 	})
+}
+
+func (r *QuotaRepo) FinalizePendingSettlements(ctx context.Context) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return ledger.FinalizePendingSettlements(ctx, tx)
+	})
+}
+
+type reservationRecord struct {
+	UserID string
+	TokenReservation
+}
+
+func loadReservationByRequest(ctx context.Context, tx *gorm.DB, requestID string) (reservationRecord, error) {
+	var row reservationRecord
+	err := tx.WithContext(ctx).Raw(`
+		SELECT r.id::text AS id, r.user_id::text AS user_id, r.token_account_id::text AS token_account_id,
+		       r.reserved_tokens, r.status, a.subscription_id::text AS subscription_id,
+		       a.used_tokens AS current_used, a.quota_tokens AS current_quota,
+		       COALESCE(r.expires_at::text, '') AS expires_at
+		FROM quota.token_reservations r
+		JOIN quota.token_accounts a ON a.id = r.token_account_id
+		WHERE r.request_id = ?
+		LIMIT 1
+		FOR UPDATE OF r
+	`, requestID).Scan(&row).Error
+	return row, err
 }

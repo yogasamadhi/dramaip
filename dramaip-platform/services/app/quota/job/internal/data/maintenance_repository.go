@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 
+	"github.com/dramaip/dramaip-platform/services/app/quota/internal/ledger"
 	"github.com/dramaip/dramaip-platform/services/app/quota/job/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"gorm.io/gorm"
@@ -28,26 +29,11 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 
 func (d *Data) Maintain(ctx context.Context) error {
 	return d.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var reservations []struct {
-			ID             string
-			TokenAccountID string
-			ReservedTokens int64
-		}
-		if err := tx.Raw(`
-			SELECT id::text AS id, token_account_id::text AS token_account_id, reserved_tokens
-			FROM quota.token_reservations
-			WHERE status = 'reserved' AND expires_at < now()
-			FOR UPDATE
-		`).Scan(&reservations).Error; err != nil {
+		if err := ledger.ReclaimExpiredReservations(ctx, tx); err != nil {
 			return err
 		}
-		for _, reservation := range reservations {
-			if err := tx.Exec(`UPDATE quota.token_accounts SET used_tokens = used_tokens - ?, updated_at = now() WHERE id = ?::uuid`, reservation.ReservedTokens, reservation.TokenAccountID).Error; err != nil {
-				return err
-			}
-			if err := tx.Exec(`UPDATE quota.token_reservations SET status = 'expired', updated_at = now() WHERE id = ?::uuid`, reservation.ID).Error; err != nil {
-				return err
-			}
+		if err := ledger.FinalizePendingSettlements(ctx, tx); err != nil {
+			return err
 		}
 		return tx.Exec(`
 			INSERT INTO quota.token_accounts (

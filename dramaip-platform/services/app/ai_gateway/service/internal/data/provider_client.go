@@ -37,6 +37,7 @@ type ProviderReply struct {
 	PromptTokens     int64
 	CompletionTokens int64
 	TotalTokens      int64
+	UsageKnown       bool
 }
 
 type AuditRecord struct {
@@ -178,7 +179,7 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 		content := "DramaIP test AI reply: " + lastUserMessage(messages)
 		promptTokens := estimateMessageTokens(messages)
 		completionTokens := int64(len(content)/4 + 1)
-		return ProviderReply{Content: content, PromptTokens: promptTokens, CompletionTokens: completionTokens, TotalTokens: promptTokens + completionTokens}, nil
+		return ProviderReply{Content: content, PromptTokens: promptTokens, CompletionTokens: completionTokens, TotalTokens: promptTokens + completionTokens, UsageKnown: true}, nil
 	}
 	if p.APIKey == "" || strings.Contains(p.APIKey, "replace-me") {
 		return ProviderReply{}, status.Errorf(codes.FailedPrecondition, "provider %s api key is not configured", p.Name)
@@ -230,7 +231,11 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	if total == 0 {
 		total = out.Usage.PromptTokens + out.Usage.CompletionTokens
 	}
-	return ProviderReply{Content: out.Choices[0].Message.Content, PromptTokens: out.Usage.PromptTokens, CompletionTokens: out.Usage.CompletionTokens, TotalTokens: total}, nil
+	return ProviderReply{
+		Content: out.Choices[0].Message.Content, PromptTokens: out.Usage.PromptTokens,
+		CompletionTokens: out.Usage.CompletionTokens, TotalTokens: total,
+		UsageKnown: out.Usage.TotalTokens > 0 || out.Usage.PromptTokens > 0 || out.Usage.CompletionTokens > 0,
+	}, nil
 }
 
 func loadProviders(cfg *conf.Bootstrap) map[string]Provider {
