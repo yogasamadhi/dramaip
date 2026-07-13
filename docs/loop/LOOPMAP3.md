@@ -85,7 +85,7 @@
 - 平台客户端没有稳定的自动化测试基线；Go 领域层测试覆盖不足。
 - 尚未在本地图创建时重跑桌面 Electron E2E、跨平台 package smoke、平台完整 Compose E2E、Kubernetes 部署或恢复演练。
 - LM3-00 负责将当前活动文档链接从 `docs/process` 收口到 `docs/loop`；历史完成记录中的旧路径字符串保留为审计事实。
-- [差异演进.md](../差异演进.md) 的 D-001（Web BFF 路径迁移）、D-003（事件契约）和 D-004（`/v1` 测试契约）已完成并保留记录；其余 D 项仍待后续 loop 闭环。
+- [差异演进.md](../差异演进.md) 的 D-001～D-011 均已有对应 loop 完成记录；后续 loop 只能在既有分端、事件、最小权限与 read-model 边界上增量演进，不能回退为跨 schema JOIN 或通用 BFF。
 
 ### 1.4 差异映射
 
@@ -238,7 +238,7 @@ make platform-down
 | LM3-28 | P2 | Mobile | done | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
 | LM3-29 | P2 | Mobile | done | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | done | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
-| LM3-31 | P2 | Admin/Web | todo | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
+| LM3-31 | P2 | Admin/Web | done | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
 | LM3-32 | P1 | Platform/SRE | todo | 建立生产部署、密钥和发布流水线 | Docker、K8s、Helm、Kong、CI/CD | G1～G5 |
 | LM3-33 | P0 | DBA/SRE | todo | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
 | LM3-34 | P0 | Release | todo | 通过核心平台生产就绪 Gate | 全端 E2E、压测、故障/恢复演练 | LM3-20～LM3-33 |
@@ -1271,4 +1271,20 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-30-admin-rbac` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
 Notes: LM3-31 remains responsible for the independent Admin frontend, reporting/read-model and cross-domain operational queries. The user explicitly skips real payment; no payment action is part of this loop.
+```
+
+```text
+Loop: LM3-31
+Target branch: main
+Loop branch: loop/lm3-31-admin-reporting
+Commit(s): 2ec0d65 loop(LM3-31): add admin reporting read model; this completion record is committed separately before merge.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf format --diff --exit-code`, `buf generate`, `buf lint`, full `GOCACHE=/tmp/dramaip-go-lm3-31 go test ./...`, and `GOCACHE=/tmp/dramaip-go-lm3-31-race go test -race ./app/admin/interface/... ./app/reporting/... ./pkg/platform` passed. The Admin BFF in-process HTTP E2E covers a separately signed Admin session, reporting overview query, one-time `reporting.exception.resolve` confirmation, and a projection-only close. The read-model test covers public envelope storage-once and source-event rebuild. Platform clients `pnpm lint`, `pnpm typecheck`, Admin `pnpm test`, and Admin `pnpm build` passed. Docker Compose static configuration, Helm lint, development render with an explicit temporary persistence host path, production render, observability config smoke, Prometheus/Kong YAML parsing and `git diff --check` passed.
+Runtime limitation: No healthy live Compose/staging stack was available, and the pre-existing user-owned Compose stack was not started, stopped, rebuilt or deleted. The BFF and reporting tests are in-process/fake-backed; production must additionally use an offline-created minimum-role test administrator to smoke independent Admin JWT/JWKS, mTLS to reporting, RabbitMQ consumption and read-model rebuild on a healthy isolated environment. The current public event projection covers checkout, payment success, subscription activation and token usage; it deliberately does not pretend to be a refund, webhook, outbox or provider-cost ledger.
+Diff review: Reviewed the staged 61-file functional diff, generated reporting protobuf, Admin permission/confirmation path, reporting role migration, atomic source-event/projection code, Vite application, Compose/Helm/observability wiring and documentation. It introduces no real password, token, API key, private key, certificate, payment material, provider credential, user content, database, cache, container image or build artifact. Admin access tokens stay in page memory; the reporting role has only the reporting schema; marking an exception resolved never alters a financial or domain record.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-31-admin-reporting` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
+Notes: The user explicitly instructed that real payment is skipped. LM3-32 remains responsible for the production deployment/key/release gate; future reporting facts require a versioned public event or controlled domain API and must not be implemented by cross-schema JOIN.
 ```
