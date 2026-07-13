@@ -95,7 +95,7 @@
 | D-002 BFF 直连 notification schema | LM3-08（done）、LM3-10 | BFF 只调用 notification API，DB role 强制边界 |
 | D-003 缺少事件契约 | LM3-04 | 事件 schema 版本化并由 CI 校验 |
 | D-004 BFF 测试使用无版本路径 | LM3-01 | API、SDK、测试统一 `/v1/...` |
-| D-005 套餐快照不完整 | LM3-11 | 订单、订阅、周期账户可重建历史权益 |
+| D-005 套餐快照不完整 | LM3-11（done） | 订单、订阅、周期账户可重建历史权益 |
 | D-006 Provider 成本快照不完整 | LM3-14 | request 级成本可追踪、可对账 |
 | D-007 DB role 未隔离 | LM3-10 | 服务只能访问自己 schema |
 | D-008 生产仍使用 HS256 | LM3-05（done） | RS256 + JWKS + key rotation |
@@ -218,7 +218,7 @@ make platform-down
 | LM3-08 | P0 | Notification | done | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
 | LM3-09 | P1 | Notification | done | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |
 | LM3-10 | P0 | 数据平台 | done | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、手工权限 Gate | LM3-08 |
-| LM3-11 | P0 | Billing | todo | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
+| LM3-11 | P0 | Billing | done | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
 | LM3-12 | P0 | Quota | todo | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
 | LM3-13 | P0 | AI Gateway | todo | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
 | LM3-14 | P0 | AI FinOps | todo | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
@@ -950,4 +950,19 @@ Push: Core merge and this completion metadata are pending final push to `origin/
 Loop branch cleanup: Pending final metadata push; delete `loop/lm3-10-db-roles` immediately afterward.
 Current branch/worktree: main; only this completion metadata and the D-007 status update are uncommitted.
 Notes: The repository owner explicitly chose normal Gitee use, so LM3-10 supplies a versioned, manually executable role-matrix gate instead of enabling a hosted pipeline. Runtime roles are PostgreSQL cluster-level identities; the test documentation requires an isolated or explicitly role-rotation-safe test instance. Migration rollback never elevates runtime roles or distributes the DDL password.
+```
+
+```text
+Loop: LM3-11
+Target branch: main
+Loop branch: loop/lm3-11-plan-snapshots
+Commit(s): 84e9034 loop(LM3-11): snapshot purchased plan entitlements
+Merge commit: 66b4359 merge: LM3-11 plan entitlement snapshots
+Verification: In a fresh isolated PostgreSQL 18 container, `make plan-snapshot-integration` passed before and after the core merge. It replays migrations 001–018, inserts legacy order/subscription/quota-account data, applies migration 019, verifies all three historical snapshots, then changes the current basic plan after checkout and verifies the new order, subscription and quota account retain their original entitlement. `GOCACHE=/tmp/dramaip-go-build go test ./...`, `GOCACHE=/tmp/dramaip-go-build go test -race ./app/billing/... ./app/quota/...`, the post-merge billing/quota regression, and `make event-contracts` passed. Static boundary review found no `billing.plans` reference in quota code; billing reads it only for current catalogue/checkout capture and the integration test.
+Diff review: Reviewed the complete 14-file core diff and ran `git diff --check` before the functional commit and for `origin/main...HEAD` after the no-ff merge. The diff contains generated protobuf from the checked-in proto source, no real environment file, password, certificate, private key, cache, image or unrelated artifact. Migration 019 is additive and preserves old rows; its compatibility triggers label mixed-version fallback rather than reconstructing later from mutable plans.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed main aligned before the no-ff merge.
+Push: Core merge and this completion metadata are pending final ordinary `git push origin main`.
+Loop branch cleanup: Pending final metadata push; delete `loop/lm3-11-plan-snapshots` immediately afterward.
+Current branch/worktree: main; only this completion metadata and the D-005 status update are uncommitted.
+Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. The controlled PostgreSQL container was bound only to localhost and removed after each test. LM3-11 deliberately does not implement real payment channels or Provider cost ledger work.
 ```
