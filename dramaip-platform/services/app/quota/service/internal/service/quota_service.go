@@ -7,6 +7,8 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type QuotaService struct {
@@ -69,8 +71,14 @@ func (s *QuotaService) ReserveTokens(ctx context.Context, req *quotav1.ReserveTo
 	}
 	res, err := s.uc.ReserveTokens(ctx, req.UserId, req.RequestId, req.ReservedTokens)
 	if err != nil {
+		outcome := "error"
+		if status.Code(err) == codes.ResourceExhausted {
+			outcome = "rejected"
+		}
+		platform.RecordQuotaReservation(outcome)
 		return nil, err
 	}
+	platform.RecordQuotaReservation("succeeded")
 	return reservationReply(res), nil
 }
 

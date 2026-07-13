@@ -59,6 +59,16 @@ func (d *Data) Relay(ctx context.Context, batch int, lease time.Duration, retry 
 	return outbox.Relay(ctx, d.DB, d.Publisher, d.workerID, batch, lease, retry)
 }
 
+func (d *Data) PendingOutbox(ctx context.Context) (int64, error) {
+	var pending int64
+	err := d.DB.WithContext(ctx).Raw(`
+		SELECT COUNT(*)
+		FROM billing.outbox_events
+		WHERE published_at IS NULL
+	`).Scan(&pending).Error
+	return pending, err
+}
+
 func (d *Data) RetryQuotaProvisioning(ctx context.Context, batch int) error {
 	var rows []struct {
 		ID                 string

@@ -83,6 +83,7 @@ func TraceMiddleware(service string) middleware.Middleware {
 			reply, err := handler(ctx, req)
 			if err != nil {
 				span.RecordError(err)
+				platform.ReportError(ctx, operation, err)
 			}
 			fields := map[string]any{
 				"route":       operation,
@@ -96,6 +97,15 @@ func TraceMiddleware(service string) middleware.Middleware {
 				fields["user_id"] = userID
 			}
 			platform.StructuredLog(ctx, service, logLevel(err), "request_completed", fields)
+			transportKind := "internal"
+			if tr, ok := transport.FromServerContext(ctx); ok {
+				transportKind = tr.Kind().String()
+			}
+			outcome := "success"
+			if err != nil {
+				outcome = "error"
+			}
+			platform.ObserveRequest(transportKind, operation, outcome, time.Since(started))
 			return reply, err
 		}
 	}
@@ -156,6 +166,6 @@ func RegisterHealth(server *khttp.Server, service string, checks map[string]func
 	})
 	server.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		_, _ = fmt.Fprintf(w, "# HELP dramaip_service_up Service health gauge.\n# TYPE dramaip_service_up gauge\ndramaip_service_up{service=%q} 1\n", service)
+		platform.WritePrometheus(w, service)
 	})
 }

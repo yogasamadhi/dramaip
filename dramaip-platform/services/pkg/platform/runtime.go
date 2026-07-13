@@ -64,9 +64,17 @@ func OpenPostgres() (*gorm.DB, error) {
 func CheckPostgres(ctx context.Context, db *gorm.DB) error {
 	sqlDB, err := db.DB()
 	if err != nil {
+		SetGauge("dramaip_dependency_up", 0, map[string]string{"dependency": "postgres"})
 		return err
 	}
-	return sqlDB.PingContext(ctx)
+	err = sqlDB.PingContext(ctx)
+	ObserveDBStats(sqlDB.Stats())
+	up := 1.0
+	if err != nil {
+		up = 0
+	}
+	SetGauge("dramaip_dependency_up", up, map[string]string{"dependency": "postgres"})
+	return err
 }
 
 func NewUUID() string {
@@ -107,7 +115,7 @@ func HealthServer(addr string, service string, checks map[string]func(context.Co
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-		_, _ = fmt.Fprintf(w, "# HELP dramaip_service_up Service health gauge.\n# TYPE dramaip_service_up gauge\ndramaip_service_up{service=%q} 1\n", service)
+		WritePrometheus(w, service)
 	})
 	return &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 }

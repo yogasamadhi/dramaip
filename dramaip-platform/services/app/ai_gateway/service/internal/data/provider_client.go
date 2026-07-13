@@ -294,7 +294,15 @@ func (d *Data) auditCacheKey(userID string, idempotencyKey string) string {
 	return "ai:audit:" + hex.EncodeToString(sum[:])
 }
 
-func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64) (ProviderReply, error) {
+func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64) (reply ProviderReply, err error) {
+	started := time.Now()
+	defer func() {
+		outcome := "succeeded"
+		if err != nil {
+			outcome = "failed"
+		}
+		platform.ObserveProvider(p.Name, outcome, time.Since(started))
+	}()
 	if d.ProviderCaller != nil {
 		return d.ProviderCaller(ctx, p, model, messages, maxTokens)
 	}

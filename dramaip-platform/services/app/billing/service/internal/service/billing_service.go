@@ -41,8 +41,10 @@ func (s *BillingService) CreateCheckout(ctx context.Context, req *billingv1.Crea
 	}
 	result, err := s.uc.CreateCheckout(ctx, req.UserId, req.PlanId, req.Provider)
 	if err != nil {
+		platform.RecordBusinessEvent("payment_checkout", "failed")
 		return nil, err
 	}
+	platform.RecordBusinessEvent("payment_checkout", "succeeded")
 	return &billingv1.CreateCheckoutReply{
 		OrderId: result.OrderID, PlanId: result.PlanID, Provider: result.Provider,
 		Status: result.Status, PaymentUrl: result.PaymentURL,
@@ -55,8 +57,10 @@ func (s *BillingService) ConfirmSandboxPayment(ctx context.Context, req *billing
 	}
 	result, err := s.uc.ConfirmSandboxPayment(ctx, req.UserId, req.CheckoutId)
 	if err != nil {
+		platform.RecordBusinessEvent("payment_confirmation", "failed")
 		return nil, err
 	}
+	platform.RecordBusinessEvent("payment_confirmation", "succeeded")
 	return &billingv1.ConfirmSandboxPaymentReply{
 		OrderId: result.OrderID, Status: result.Status,
 		Subscription: subscriptionReply(result.Subscription),
@@ -70,8 +74,10 @@ func (s *BillingService) ConfirmSimulatedPayment(ctx context.Context, req *billi
 	}
 	result, err := s.uc.ConfirmSimulatedPayment(ctx, req.UserId, req.CheckoutId)
 	if err != nil {
+		platform.RecordBusinessEvent("payment_confirmation", "failed")
 		return nil, err
 	}
+	platform.RecordBusinessEvent("payment_confirmation", "succeeded")
 	return &billingv1.ConfirmSimulatedPaymentReply{
 		OrderId: result.OrderID, Status: result.Status,
 		Subscription: subscriptionReply(result.Subscription),

@@ -183,6 +183,7 @@ func (d *Data) ReserveCostBudget(ctx context.Context, input CostGuardInput) erro
 				return err
 			}
 			committed = true
+			platform.RecordCostAlert("user_cost_limit_rejected")
 			return status.Error(codes.ResourceExhausted, "ai user cost limit exceeded")
 		}
 	}
@@ -199,6 +200,7 @@ func (d *Data) ReserveCostBudget(ctx context.Context, input CostGuardInput) erro
 				return err
 			}
 			committed = true
+			platform.RecordCostAlert("ip_cost_limit_rejected")
 			return status.Error(codes.ResourceExhausted, "ai ip cost limit exceeded")
 		}
 	}
@@ -278,6 +280,7 @@ func (d *Data) RecordProviderCost(ctx context.Context, input ProviderCostInput) 
 		_ = tx.Rollback()
 		return err
 	}
+	alerted := false
 	if !isDisabledLimit(input.AlertThresholdCNY) {
 		var alert bool
 		if err := tx.Raw(`SELECT ?::numeric >= ?::numeric`, input.Quote.CostCNYAmount, input.AlertThresholdCNY).Scan(&alert).Error; err != nil {
@@ -289,13 +292,20 @@ func (d *Data) RecordProviderCost(ctx context.Context, input ProviderCostInput) 
 				_ = tx.Rollback()
 				return err
 			}
+			alerted = true
 		}
 	}
 	if err := tx.Exec(`UPDATE ai_gateway.cost_limit_reservations SET released_at = now() WHERE audit_id = ?::uuid AND released_at IS NULL`, input.AuditID).Error; err != nil {
 		_ = tx.Rollback()
 		return err
 	}
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	if alerted {
+		platform.RecordCostAlert("high_request_cost")
+	}
+	return nil
 }
 
 func (d *Data) writeCostAlert(tx *gorm.DB, auditID, userID, clientIP, eventType, observed, threshold, scope string) error {

@@ -116,6 +116,7 @@ func (s *HTTPService) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	platform.WritePrometheus(w, "web-bff-interface")
 	_, _ = w.Write([]byte("# HELP dramaip_bff_http_requests_total Total HTTP requests handled by the BFF.\n# TYPE dramaip_bff_http_requests_total counter\n"))
 	_, _ = w.Write([]byte("dramaip_bff_http_requests_total " + formatUint(atomic.LoadUint64(&s.requestsTotal)) + "\n"))
 	_, _ = w.Write([]byte("dramaip_bff_logins_total " + formatUint(atomic.LoadUint64(&s.loginsTotal)) + "\n"))
@@ -839,12 +840,14 @@ func newCSRFToken() (string, error) {
 
 func (s *HTTPService) metricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
 		atomic.AddUint64(&s.requestsTotal, 1)
 		rec := &traceResponseWriter{ResponseWriter: w, statusCode: http.StatusOK, traceID: platform.TraceID(r.Context())}
 		next.ServeHTTP(rec, r)
 		if rec.statusCode >= 400 {
 			atomic.AddUint64(&s.errorsTotal, 1)
 		}
+		platform.ObserveHTTP(r.Method, r.URL.Path, rec.statusCode, time.Since(started))
 	})
 }
 
