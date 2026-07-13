@@ -53,6 +53,28 @@ The end-to-end check enters through Kong and verifies:
 9. AI chat with provider `test` succeeds and consumes quota
 10. refresh and logout
 
+## Observability Smoke
+
+After the Compose stack is healthy, run:
+
+```bash
+cd dramaip-platform
+make observability-smoke
+```
+
+The smoke sends a fixed W3C `traceparent` and request ID through
+`Kong -> Web BFF -> billing`, then requires the same trace ID in the API
+response, a multi-service Jaeger trace, and a structured OpenSearch log.
+It does not send payment credentials, AI prompts, cookies, or real payments.
+
+The bundled OpenSearch/Fluent Bit/Dashboards stack is local-development-only:
+the unsecured endpoints bind to loopback and must never be exposed or reused
+for production. A production log backend must enable TLS and certificate
+verification, authentication, least-privilege writer/search roles, tenant/index
+isolation, lifecycle/retention, audit logging, backups, and secret injection
+outside Git. `plugins.security.disabled=true` and the Dashboards security-plugin
+override are prohibited in production deployment values.
+
 ## AI Provider Configuration
 
 The default real provider is OpenAI-compatible and is configured only on the
@@ -97,6 +119,7 @@ compatibility endpoint and delegates to the simulated provider path.
 cd dramaip-platform
 make platform-up
 make platform-e2e
+make observability-smoke
 make platform-logs
 make platform-down
 

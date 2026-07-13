@@ -10,6 +10,7 @@ import (
 
 	envelopev1 "github.com/dramaip/dramaip-platform/services/events/envelope/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"gorm.io/gorm"
 )
 
@@ -57,7 +58,8 @@ func Relay(ctx context.Context, db *gorm.DB, publisher Publisher, workerID strin
 			envelope.TraceId = row.TraceID
 		}
 		if err == nil {
-			err = publisher.Publish(ctx, envelope)
+			eventCtx := platform.ContextWithTraceID(ctx, envelope.GetTraceId())
+			err = publisher.Publish(eventCtx, envelope)
 		}
 		if err != nil {
 			if releaseErr := release(ctx, db, row.ID, workerID, err.Error(), retryDelay); releaseErr != nil {

@@ -6,6 +6,8 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // RabbitConsumerConfig creates a dedicated durable subscription. Routing keys
@@ -130,34 +132,77 @@ func (c *RabbitConsumer) Consume(ctx context.Context, handler RabbitDeliveryHand
 			if !ok {
 				return fmt.Errorf("rabbitmq delivery stream closed")
 			}
-			deliveryCtx := otel.GetTextMapPropagator().Extract(ctx, amqpHeaderCarrier(delivery.Headers))
-			if err := handler(deliveryCtx, delivery); err == nil {
-				if err := delivery.Ack(false); err != nil {
-					return err
-				}
-			} else if retryCount(delivery.Headers) >= c.config.MaxRetries {
-				StructuredLog(deliveryCtx, c.config.ConsumerTag, "error", "event_dead_lettered", map[string]any{"routing_key": delivery.RoutingKey, "error": err.Error()})
-				if rejectErr := delivery.Reject(false); rejectErr != nil {
-					return rejectErr
-				}
-			} else if retryErr := c.retry(deliveryCtx, delivery); retryErr != nil {
-				StructuredLog(deliveryCtx, c.config.ConsumerTag, "error", "event_retry_publish_failed", map[string]any{"routing_key": delivery.RoutingKey, "error": retryErr.Error()})
-				if nackErr := delivery.Nack(false, true); nackErr != nil {
-					return nackErr
-				}
-			} else if ackErr := delivery.Ack(false); ackErr != nil {
-				return ackErr
+			if err := c.handleDelivery(ctx, delivery, handler); err != nil {
+				return err
 			}
 		}
 	}
 }
 
+func (c *RabbitConsumer) handleDelivery(ctx context.Context, delivery amqp.Delivery, handler RabbitDeliveryHandler) error {
+	deliveryCtx := otel.GetTextMapPropagator().Extract(ctx, amqpHeaderCarrier(delivery.Headers))
+	deliveryCtx = ContextWithTraceID(deliveryCtx, headerString(delivery.Headers, "trace_id"))
+	deliveryCtx, span := Tracer("messaging").Start(deliveryCtx, "rabbitmq.consume "+delivery.RoutingKey,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination.name", c.config.Queue),
+			attribute.String("messaging.operation", "process"),
+			attribute.String("messaging.rabbitmq.routing_key", delivery.RoutingKey),
+			attribute.String("messaging.message.id", delivery.MessageId),
+		),
+	)
+	defer span.End()
+
+	if err := handler(deliveryCtx, delivery); err == nil {
+		if err := delivery.Ack(false); err != nil {
+			span.RecordError(err)
+			return err
+		}
+		return nil
+	} else if retryCount(delivery.Headers) >= c.config.MaxRetries {
+		span.RecordError(err)
+		StructuredLog(deliveryCtx, c.config.ConsumerTag, "error", "event_dead_lettered", map[string]any{"routing_key": delivery.RoutingKey, "error": err})
+		if rejectErr := delivery.Reject(false); rejectErr != nil {
+			span.RecordError(rejectErr)
+			return rejectErr
+		}
+		return nil
+	} else if retryErr := c.retry(deliveryCtx, delivery); retryErr != nil {
+		span.RecordError(err)
+		span.RecordError(retryErr)
+		StructuredLog(deliveryCtx, c.config.ConsumerTag, "error", "event_retry_publish_failed", map[string]any{"routing_key": delivery.RoutingKey, "error": retryErr})
+		if nackErr := delivery.Nack(false, true); nackErr != nil {
+			span.RecordError(nackErr)
+			return nackErr
+		}
+		return nil
+	} else if ackErr := delivery.Ack(false); ackErr != nil {
+		span.RecordError(ackErr)
+		return ackErr
+	}
+	return nil
+}
+
 func (c *RabbitConsumer) retry(ctx context.Context, delivery amqp.Delivery) error {
+	ctx, span := Tracer("messaging").Start(ctx, "rabbitmq.retry "+delivery.RoutingKey,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination.name", c.config.Rabbit.Exchange),
+			attribute.String("messaging.operation", "publish"),
+		),
+	)
+	defer span.End()
 	headers := amqp.Table{}
 	for key, value := range delivery.Headers {
 		headers[key] = value
 	}
 	headers["x-retry-count"] = retryCount(delivery.Headers) + 1
+	otel.GetTextMapPropagator().Inject(ctx, amqpHeaderCarrier(headers))
+	if traceID := TraceID(ctx); traceID != "" {
+		headers["trace_id"] = traceID
+	}
 	if err := c.ch.PublishWithContext(ctx, c.config.Rabbit.Exchange, delivery.RoutingKey, false, false, amqp.Publishing{
 		Headers:         headers,
 		ContentType:     delivery.ContentType,
@@ -174,17 +219,26 @@ func (c *RabbitConsumer) retry(ctx context.Context, delivery amqp.Delivery) erro
 		AppId:           delivery.AppId,
 		Body:            delivery.Body,
 	}); err != nil {
+		span.RecordError(err)
 		return err
 	}
 	select {
 	case confirmation, ok := <-c.confirms:
 		if !ok || !confirmation.Ack {
-			return fmt.Errorf("rabbitmq retry publish was not confirmed")
+			err := fmt.Errorf("rabbitmq retry publish was not confirmed")
+			span.RecordError(err)
+			return err
 		}
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		err := ctx.Err()
+		span.RecordError(err)
+		return err
 	}
+}
+
+func headerString(headers amqp.Table, key string) string {
+	return amqpHeaderCarrier(headers).Get(key)
 }
 
 func retryCount(headers amqp.Table) int {

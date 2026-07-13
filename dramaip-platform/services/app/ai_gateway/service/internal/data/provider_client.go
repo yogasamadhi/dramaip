@@ -324,13 +324,13 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	res, err := d.HTTP.Do(req)
 	if err != nil {
 		platform.StructuredLog(ctx, "ai-gateway-service", "error", "provider_request_failed", map[string]any{"provider": p.Name, "model": model, "error": err.Error()})
-		return ProviderReply{}, status.Error(codes.Unavailable, err.Error())
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider request failed")
 	}
 	defer res.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
 	if res.StatusCode >= 300 {
-		platform.StructuredLog(ctx, "ai-gateway-service", "error", "provider_status_failed", map[string]any{"provider": p.Name, "model": model, "status": res.StatusCode, "error": string(data)})
-		return ProviderReply{}, status.Errorf(codes.Unavailable, "provider status %d: %s", res.StatusCode, string(data))
+		platform.StructuredLog(ctx, "ai-gateway-service", "error", "provider_status_failed", map[string]any{"provider": p.Name, "model": model, "status": res.StatusCode, "response_bytes": len(data)})
+		return ProviderReply{}, status.Errorf(codes.Unavailable, "provider status %d", res.StatusCode)
 	}
 	var out struct {
 		Choices []struct {

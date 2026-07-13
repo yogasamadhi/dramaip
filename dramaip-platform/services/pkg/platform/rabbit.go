@@ -12,6 +12,8 @@ import (
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type RabbitConfig struct {
@@ -114,20 +116,37 @@ func (p *RabbitPublisher) Health(context.Context) error {
 func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.EventEnvelope) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if envelope == nil {
+		return fmt.Errorf("rabbitmq event envelope is required")
+	}
+	ctx = ContextWithTraceID(ctx, envelope.GetTraceId())
+	ctx, span := Tracer("messaging").Start(ctx, "rabbitmq.publish "+envelope.GetEventType(),
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String("messaging.system", "rabbitmq"),
+			attribute.String("messaging.destination.name", p.config.Exchange),
+			attribute.String("messaging.operation", "publish"),
+			attribute.String("messaging.message.id", envelope.GetEventId()),
+			attribute.String("messaging.message.type", envelope.GetEventType()),
+		),
+	)
+	defer span.End()
 	if err := p.Health(ctx); err != nil {
+		span.RecordError(err)
 		return err
+	}
+	if traceID := TraceID(ctx); traceID != "" && envelope.GetTraceId() == "" {
+		envelope.TraceId = traceID
 	}
 	raw, err := events.MarshalEnvelope(envelope)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	headers := amqp.Table{}
 	otel.GetTextMapPropagator().Inject(ctx, amqpHeaderCarrier(headers))
 	if traceID := TraceID(ctx); traceID != "" {
 		headers["trace_id"] = traceID
-	}
-	if envelope.GetTraceId() != "" {
-		headers["trace_id"] = envelope.GetTraceId()
 	}
 	headers["event_id"] = envelope.GetEventId()
 	headers["schema_version"] = envelope.GetSchemaVersion()
@@ -142,6 +161,7 @@ func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.Even
 		Headers:      headers,
 		Body:         raw,
 	}); err != nil {
+		span.RecordError(err)
 		return err
 	}
 	// A broker confirm means durable acceptance; mandatory publishing additionally
@@ -149,26 +169,38 @@ func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.Even
 	select {
 	case returned, ok := <-p.returns:
 		if !ok {
-			return fmt.Errorf("rabbitmq return channel closed")
+			err := fmt.Errorf("rabbitmq return channel closed")
+			span.RecordError(err)
+			return err
 		}
-		return fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+		err := fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+		span.RecordError(err)
+		return err
 	case confirmation, ok := <-p.confirms:
 		if !ok || !confirmation.Ack {
-			return fmt.Errorf("rabbitmq publish was not confirmed")
+			err := fmt.Errorf("rabbitmq publish was not confirmed")
+			span.RecordError(err)
+			return err
 		}
 		// RabbitMQ sends Basic.Return before the corresponding confirm. The
 		// non-blocking check also covers returns already queued with that ack.
 		select {
 		case returned, ok := <-p.returns:
 			if !ok {
-				return fmt.Errorf("rabbitmq return channel closed")
+				err := fmt.Errorf("rabbitmq return channel closed")
+				span.RecordError(err)
+				return err
 			}
-			return fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+			err := fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+			span.RecordError(err)
+			return err
 		default:
 			return nil
 		}
 	case <-ctx.Done():
-		return ctx.Err()
+		err := ctx.Err()
+		span.RecordError(err)
+		return err
 	}
 }
 

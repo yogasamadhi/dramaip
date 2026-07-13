@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/dramaip/dramaip-platform/services/app/quota/job/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/quota/job/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type MaintenanceService struct {
@@ -27,11 +27,14 @@ func (s *MaintenanceService) Run(ctx context.Context) error {
 	ticker := time.NewTicker(s.interval)
 	defer ticker.Stop()
 	for {
-		if err := s.uc.Maintain(ctx); err != nil {
-			log.Printf("quota maintenance failed: %v", err)
+		cycleCtx, span := platform.Tracer("quota-job").Start(ctx, "quota.period_account.maintenance")
+		if err := s.uc.Maintain(cycleCtx); err != nil {
+			span.RecordError(err)
+			platform.StructuredLog(cycleCtx, "quota-job", "error", "quota_maintenance_failed", map[string]any{"error": err})
 		} else {
-			log.Printf("quota-job heartbeat: period account maintenance not due")
+			platform.StructuredLog(cycleCtx, "quota-job", "info", "quota_maintenance_completed", nil)
 		}
+		span.End()
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

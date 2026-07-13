@@ -228,7 +228,7 @@ make platform-down
 | LM3-18 | P1 | 支付 | done | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | done | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | done | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
-| LM3-21 | P1 | Observability | todo | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
+| LM3-21 | P1 | Observability | done | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
 | LM3-22 | P1 | SRE/FinOps | todo | 建立指标、看板、告警和错误聚合 | Prometheus、Grafana、Sentry | LM3-14、LM3-21 |
 | LM3-23 | P1 | 平台可靠性 | todo | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
 | LM3-24 | P1 | Web 产品 | todo | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
@@ -474,6 +474,7 @@ make platform-down
 - **验收**：支付 Saga 和 AI 预扣/Provider/结算各能形成单条完整 trace；日志按 service+trace_id 可检索且无凭据/正文。
 - **验证**：Compose trace smoke；日志字段断言；敏感信息 grep/自动测试；Jaeger/OpenSearch 人工检查。
 - **风险/回滚边界**：共享 middleware 与数据泄露风险；回滚采集时保留应用功能，禁止用关闭脱敏换取可观测性。
+- **完成边界（2026-07-13）**：应用侧 HTTP/gRPC/MQ/Provider trace、JSON 安全日志、loopback 开发观测栈和自动化 smoke 均已交付，完整 Go/race 回归通过。既有用户 Compose 栈的 `localhost:8000` 拒绝连接，故健康栈的 Jaeger/OpenSearch runtime 验证尚未取得；它仍是支付或部署发布前的阻断项，不据此宣称生产就绪。详见 [LM3-21 记录](./LM3-21-全链路Trace与安全日志.md)。
 
 ### LM3-22：指标、看板、告警与错误聚合
 
@@ -1108,4 +1109,19 @@ Push: Ordinary `git push origin main`; no Gitee hosted pipeline.
 Loop branch cleanup: Delete `loop/lm3-20-ledger-safety-gate` after push.
 Current branch/worktree: Gate record committed after validation.
 Notes: Real payment sandbox was explicitly waived by the owner. Compose E2E was not run because the pre-existing user Compose stack has no healthy PostgreSQL service; it was not stopped or rebuilt. Both remain real-payment/deployment blockers, documented in the Gate record.
+```
+
+```text
+Loop: LM3-21
+Target branch: main
+Loop branch: loop/lm3-21-trace-security-logs
+Commit(s): This functional observability commit.
+Merge commit: The required no-ff merge follows after synchronization with origin/main.
+Verification: Full `go test ./...` and `go test -race ./...` passed using the established isolated cache. `make event-contracts`, Docker Compose config, Helm lint, Helm development render with hostPath persistence disabled, and `node --check scripts/observability-smoke.mjs` passed. New tests cover HTTP/Kratos, gRPC, payment outbox/MQ continuation, AI Provider HTTP spans, and nested structured-log redaction.
+Diff review: Shared tracing/logging, payment outbox propagation, job logging, local observability binding, smoke script and documentation only. `git diff --check` passed; no credential, payment material, environment file, cache, image, prompt or generated artifact is included.
+Remote sync: main was synchronized with origin before this branch was created and is synchronized again before merge.
+Push: Ordinary `git push origin main`; no Gitee hosted pipeline.
+Loop branch cleanup: Delete `loop/lm3-21-trace-security-logs` after push.
+Current branch/worktree: Functional changes and completion record are committed after validation.
+Notes: `make observability-smoke` was attempted read-only but `localhost:8000` refused the connection because the pre-existing user Compose stack is unhealthy; no user container was stopped or rebuilt. Healthy-stack Jaeger/OpenSearch smoke and manual inspection remain deployment/real-payment blockers, not evidence claimed by this record.
 ```
