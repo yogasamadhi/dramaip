@@ -71,6 +71,28 @@ func TestBFFHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestChatUsesIdempotencyHeader(t *testing.T) {
+	ai := &captureAI{}
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: ai, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+	req := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(`{"request_id":"trace-42","messages":[{"role":"user","content":"hi"}]}`))
+	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Idempotency-Key", "header-key-42")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if ai.request == nil || ai.request.RequestId != "trace-42" || ai.request.IdempotencyKey != "header-key-42" {
+		t.Fatalf("forwarded chat request = %#v", ai.request)
+	}
+	if got := rec.Header().Get("Idempotency-Key"); got != "header-key-42" {
+		t.Fatalf("response Idempotency-Key = %q", got)
+	}
+}
+
 func TestPaymentConfirmationDefersNotificationToEventConsumer(t *testing.T) {
 	notification := &fakeNotification{rows: map[string]*notificationv1.Notification{}}
 	uc := biz.NewBFFUsecase(&data.Data{
@@ -394,6 +416,15 @@ type fakeAI struct{}
 
 func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error) {
 	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100}, nil
+}
+
+type captureAI struct {
+	request *aiv1.ChatRequest
+}
+
+func (f *captureAI) Chat(_ context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
+	f.request = req
+	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100, RequestId: req.RequestId, Status: "succeeded"}, nil
 }
 
 type fakeNotification struct {

@@ -26,7 +26,7 @@ func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*ai
 		messages = append(messages, biz.ChatMessage{Role: message.Role, Content: message.Content})
 	}
 	reply, err := s.uc.Chat(ctx, biz.ChatInput{
-		UserID: req.UserId, RequestID: req.RequestId, Provider: req.Provider,
+		UserID: req.UserId, RequestID: req.RequestId, IdempotencyKey: req.IdempotencyKey, Provider: req.Provider,
 		Model: req.Model, Messages: messages, MaxTokens: req.MaxTokens,
 	})
 	if err != nil {

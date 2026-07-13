@@ -27,6 +27,7 @@ export default function ChatPage() {
     mutationFn: () =>
       apiClient.chat({
         request_id: requestID,
+        idempotency_key: requestID,
         provider,
         model: model || undefined,
         max_tokens: 512,
@@ -97,7 +98,7 @@ export default function ChatPage() {
                 />
               </label>
               <label className="grid gap-2 text-sm md:col-span-2">
-                请求编号
+                幂等键（请求编号）
                 <div className="flex gap-2">
                   <input
                     className="h-10 flex-1 rounded-md border border-slate-300 px-3"

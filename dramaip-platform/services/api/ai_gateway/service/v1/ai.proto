@@ -15,6 +15,9 @@ message ChatRequest {
   repeated ChatMessage messages = 4;
   int64 max_tokens = 5;
   string provider = 6;
+  // Idempotency-Key supplied by the client. request_id remains a request
+  // correlation value for backwards compatibility.
+  string idempotency_key = 7;
 }
 
 message ChatMessage {

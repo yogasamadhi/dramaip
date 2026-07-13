@@ -263,7 +263,7 @@ export interface DramaIpApiClient {
   cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>
   refresh(): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
-  chat(input: { request_id?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
+  chat(input: { request_id?: string; idempotency_key?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
@@ -373,7 +373,11 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       return LogoutResponseSchema.parse(res.data)
     },
     async chat(input) {
-      const res = await http.post('/v1/ai/chat', input)
+      const { idempotency_key, ...body } = input
+      const idempotencyKey = idempotency_key ?? input.request_id
+      const res = await http.post('/v1/ai/chat', body, {
+        headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+      })
       return ChatResponseSchema.parse(res.data)
     },
   }

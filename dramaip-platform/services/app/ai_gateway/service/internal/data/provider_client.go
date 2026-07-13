@@ -3,9 +3,13 @@ package data
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -44,6 +48,7 @@ type AuditRecord struct {
 	ID               string
 	UserID           string
 	RequestID        string
+	IdempotencyKey   string
 	RequestHash      string
 	Provider         string
 	Model            string
@@ -59,11 +64,13 @@ type AuditRecord struct {
 
 type Data struct {
 	DB              *gorm.DB
+	Redis           *platform.Redis
 	Quota           quotav1.QuotaServiceClient
 	QuotaConnClose  func() error
 	Providers       map[string]Provider
 	DefaultProvider string
 	HTTP            *http.Client
+	ProviderCaller  func(context.Context, Provider, string, []ChatMessage, int64) (ProviderReply, error)
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -77,15 +84,20 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	redis := platform.NewRedis(auditRedisConfig())
 	data := &Data{
 		DB:              db,
+		Redis:           redis,
 		Quota:           quotav1.NewQuotaServiceClient(conn),
 		QuotaConnClose:  conn.Close,
 		Providers:       loadProviders(cfg),
 		DefaultProvider: cfg.AI.DefaultProvider,
 		HTTP:            &http.Client{Timeout: kratosx.Duration(cfg.AI.Timeout, 90*time.Second), Transport: otelhttp.NewTransport(http.DefaultTransport)},
 	}
-	return data, func() { _ = conn.Close() }, nil
+	return data, func() {
+		_ = conn.Close()
+		_ = redis.Close()
+	}, nil
 }
 
 func (d *Data) Checks() map[string]func(context.Context) error {
@@ -99,29 +111,49 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 	}
 }
 
-func (d *Data) GetAudit(ctx context.Context, userID string, requestID string) (AuditRecord, bool, error) {
+func (d *Data) GetAudit(ctx context.Context, userID string, idempotencyKey string) (AuditRecord, bool, error) {
 	var row AuditRecord
 	err := d.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, user_id::text AS user_id, request_id, request_hash, provider, model,
+		SELECT id::text AS id, user_id::text AS user_id, request_id, idempotency_key, request_hash, provider, model,
 		       COALESCE(reservation_id::text, '') AS reservation_id,
 		       COALESCE(response_payload->>'content', '') AS content,
 		       prompt_tokens, completion_tokens, total_tokens, remaining_tokens, status, COALESCE(error, '') AS error
 		FROM ai_gateway.request_audits
-		WHERE user_id = ?::uuid AND request_id = ?
+		WHERE user_id = ?::uuid AND idempotency_key = ?
 		LIMIT 1
-	`, userID, requestID).Scan(&row).Error
+	`, userID, idempotencyKey).Scan(&row).Error
 	if err != nil {
 		return AuditRecord{}, false, err
 	}
 	return row, row.ID != "", nil
 }
 
-func (d *Data) CreateAudit(ctx context.Context, input AuditRecord) (string, error) {
+// ClaimAudit atomically creates an in-progress audit or returns the record
+// already claimed by a concurrent/retried request. PostgreSQL is the source of
+// truth; Redis never participates in this decision.
+func (d *Data) ClaimAudit(ctx context.Context, input AuditRecord) (AuditRecord, bool, error) {
 	id := platform.NewUUID()
-	return id, d.DB.WithContext(ctx).Exec(`
-		INSERT INTO ai_gateway.request_audits (id, user_id, request_id, request_hash, provider, model, status)
-		VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, 'in_progress')
-	`, id, input.UserID, input.RequestID, input.RequestHash, input.Provider, input.Model).Error
+	result := d.DB.WithContext(ctx).Exec(`
+		INSERT INTO ai_gateway.request_audits (id, user_id, request_id, idempotency_key, request_hash, provider, model, status)
+		VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, 'in_progress')
+		ON CONFLICT (user_id, idempotency_key) DO NOTHING
+	`, id, input.UserID, input.RequestID, input.IdempotencyKey, input.RequestHash, input.Provider, input.Model)
+	if result.Error != nil {
+		return AuditRecord{}, false, result.Error
+	}
+	if result.RowsAffected == 1 {
+		input.ID = id
+		input.Status = "in_progress"
+		return input, true, nil
+	}
+	existing, ok, err := d.GetAudit(ctx, input.UserID, input.IdempotencyKey)
+	if err != nil {
+		return AuditRecord{}, false, err
+	}
+	if !ok {
+		return AuditRecord{}, false, fmt.Errorf("request audit conflict without persisted record")
+	}
+	return existing, false, nil
 }
 
 func (d *Data) CompleteAudit(ctx context.Context, id string, input AuditRecord) error {
@@ -143,11 +175,21 @@ func (d *Data) FailAudit(ctx context.Context, id string, reason string) error {
 	if id == "" {
 		return nil
 	}
+	reason = compactAuditError(reason)
 	return d.DB.WithContext(ctx).Exec(`
 		UPDATE ai_gateway.request_audits
 		SET status = 'failed', error = ?, finished_at = now(), updated_at = now()
 		WHERE id = ?::uuid
 	`, reason, id).Error
+}
+
+func compactAuditError(reason string) string {
+	const maxAuditErrorLength = 512
+	reason = strings.TrimSpace(reason)
+	if len(reason) <= maxAuditErrorLength {
+		return reason
+	}
+	return reason[:maxAuditErrorLength] + "…"
 }
 
 func (d *Data) CheckRateLimits(ctx context.Context, userID string, rpmLimit int, dailyTokenLimit int) error {
@@ -158,7 +200,9 @@ func (d *Data) CheckRateLimits(ctx context.Context, userID string, rpmLimit int,
 	`, userID).Scan(&recentRequests).Error; err != nil {
 		return err
 	}
-	if rpmLimit > 0 && recentRequests >= int64(rpmLimit) {
+	// ClaimAudit has already recorded the current request. Reject only when
+	// there were at least rpmLimit older requests before that claim.
+	if rpmLimit > 0 && recentRequests > int64(rpmLimit) {
 		return status.Error(codes.ResourceExhausted, "ai request rate limit exceeded")
 	}
 	var todayTokens int64
@@ -174,7 +218,86 @@ func (d *Data) CheckRateLimits(ctx context.Context, userID string, rpmLimit int,
 	return nil
 }
 
+type auditCacheEntry struct {
+	RequestHash      string `json:"request_hash"`
+	RequestID        string `json:"request_id"`
+	Provider         string `json:"provider"`
+	Model            string `json:"model"`
+	ReservationID    string `json:"reservation_id"`
+	Content          string `json:"content"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	RemainingTokens  int64  `json:"remaining_tokens"`
+	Status           string `json:"status"`
+}
+
+const auditCacheTimeout = 200 * time.Millisecond
+
+func auditRedisConfig() platform.RedisConfig {
+	cfg := platform.RedisConfigFromEnv()
+	cfg.DialTimeout = auditCacheTimeout
+	cfg.ReadTimeout = auditCacheTimeout
+	cfg.WriteTimeout = auditCacheTimeout
+	// The cache is never authoritative, so it must not spend the request
+	// budget retrying an unavailable Redis server.
+	cfg.MaxRetries = -1
+	return cfg
+}
+
+// GetCachedAudit is deliberately best effort. A cache outage or malformed
+// value falls through to PostgreSQL, which remains authoritative.
+func (d *Data) GetCachedAudit(ctx context.Context, userID string, idempotencyKey string) (AuditRecord, bool) {
+	if d.Redis == nil {
+		return AuditRecord{}, false
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, auditCacheTimeout)
+	defer cancel()
+	raw, err := d.Redis.Command(cacheCtx, "GET", d.auditCacheKey(userID, idempotencyKey))
+	if err != nil {
+		return AuditRecord{}, false
+	}
+	var cached auditCacheEntry
+	if err := json.Unmarshal([]byte(raw), &cached); err != nil || cached.Status != "succeeded" {
+		return AuditRecord{}, false
+	}
+	return AuditRecord{
+		RequestHash: cached.RequestHash, RequestID: cached.RequestID, Provider: cached.Provider, Model: cached.Model,
+		ReservationID: cached.ReservationID, Content: cached.Content, PromptTokens: cached.PromptTokens,
+		CompletionTokens: cached.CompletionTokens, TotalTokens: cached.TotalTokens,
+		RemainingTokens: cached.RemainingTokens, Status: cached.Status,
+	}, true
+}
+
+// CacheAudit stores only the response summary needed to replay a completed
+// call. It never stores input messages, prompts, keys, or provider raw output.
+func (d *Data) CacheAudit(ctx context.Context, userID string, idempotencyKey string, audit AuditRecord) {
+	if d.Redis == nil || audit.Status != "succeeded" {
+		return
+	}
+	raw, err := json.Marshal(auditCacheEntry{
+		RequestHash: audit.RequestHash, RequestID: audit.RequestID, Provider: audit.Provider, Model: audit.Model,
+		ReservationID: audit.ReservationID, Content: audit.Content, PromptTokens: audit.PromptTokens,
+		CompletionTokens: audit.CompletionTokens, TotalTokens: audit.TotalTokens,
+		RemainingTokens: audit.RemainingTokens, Status: audit.Status,
+	})
+	if err != nil {
+		return
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, auditCacheTimeout)
+	defer cancel()
+	_, _ = d.Redis.Command(cacheCtx, "SETEX", d.auditCacheKey(userID, idempotencyKey), strconv.Itoa(600), string(raw))
+}
+
+func (d *Data) auditCacheKey(userID string, idempotencyKey string) string {
+	sum := sha256.Sum256([]byte(userID + "\x00" + idempotencyKey))
+	return "ai:audit:" + hex.EncodeToString(sum[:])
+}
+
 func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64) (ProviderReply, error) {
+	if d.ProviderCaller != nil {
+		return d.ProviderCaller(ctx, p, model, messages, maxTokens)
+	}
 	if p.Name == "test" || p.Name == "test-openai-compatible" {
 		content := "DramaIP test AI reply: " + lastUserMessage(messages)
 		promptTokens := estimateMessageTokens(messages)
