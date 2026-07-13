@@ -1,11 +1,13 @@
 package server
 
 import (
+	"fmt"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	quotabiz "github.com/dramaip/dramaip-platform/services/app/quota/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/conf"
 	quotasvc "github.com/dramaip/dramaip-platform/services/app/quota/service/internal/service"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
@@ -21,10 +23,16 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *quotabiz.QuotaUsecase) *khttp.Server
 }
 
 func NewGRPCServer(cfg *conf.Bootstrap, svc *quotasvc.QuotaService) *kgrpc.Server {
-	server := kgrpc.NewServer(
+	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), kratosx.TraceMiddleware("quota-service")),
-	)
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "billing-service", "ai-gateway-service", "billing-job"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("quota-service")),
+	}
+	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
+		panic(fmt.Sprintf("quota gRPC mTLS: %v", err))
+	} else if tlsConfig != nil {
+		options = append(options, kgrpc.TLSConfig(tlsConfig))
+	}
+	server := kgrpc.NewServer(options...)
 	quotav1.RegisterQuotaServiceServer(server.Server, svc)
 	return server
 }

@@ -72,7 +72,7 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	conn, err := platform.DialGRPC(ctx, cfg.Quota.GRPCEndpoint)
+	conn, err := platform.DialGRPC(ctx, cfg.Quota.GRPCEndpoint, cfg.MTLS)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -91,7 +91,8 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 	return map[string]func(context.Context) error{
 		"postgres": func(ctx context.Context) error { return platform.CheckPostgres(ctx, d.DB) },
 		"quota": func(ctx context.Context) error {
-			_, err := d.Quota.GetTokenBalance(ctx, &quotav1.GetTokenBalanceRequest{UserId: "00000000-0000-4000-8000-000000000001"})
+			const healthUserID = "00000000-0000-4000-8000-000000000001"
+			_, err := d.Quota.GetTokenBalance(platform.WithUserIdentity(ctx, healthUserID), &quotav1.GetTokenBalanceRequest{UserId: healthUserID})
 			return err
 		},
 	}

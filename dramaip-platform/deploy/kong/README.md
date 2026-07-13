@@ -21,6 +21,11 @@ The production renderer configures Kong JWT extraction from the
 CORS preflight. The BFF still verifies issuer, audience, and Redis session
 state after Kong's signature/expiry checks.
 
+Kong also removes every externally supplied `X-User-*` identity header before
+proxying. The Web BFF derives user context from the verified session and
+propagates it only on authenticated internal gRPC calls; downstream services do
+not treat browser headers as an identity source.
+
 Before a production rollout, mount the auth-service **public** JWKS file (the
 same file configured as `JWT_JWKS_FILE`) on the release host, then render a
 Kong declaration containing the active and retained RS256 public keys:

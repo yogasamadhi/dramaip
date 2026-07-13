@@ -76,11 +76,34 @@ spec:
                 name: {{ include "dramaip-platform.fullname" $ }}-config
             - secretRef:
                 name: {{ include "dramaip-platform.secretName" $ }}
-          {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
+          {{- if $.Values.internalMTLS.enabled }}
+          env:
+            - name: GRPC_MTLS_CERT_FILE
+              value: /var/run/dramaip/mtls/tls.crt
+            - name: GRPC_MTLS_KEY_FILE
+              value: /var/run/dramaip/mtls/tls.key
+          {{- end }}
+          {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) }}
           volumeMounts:
+            {{- if $.Values.internalMTLS.enabled }}
+            - name: internal-mtls
+              mountPath: /var/run/dramaip/mtls/ca.crt
+              subPath: {{ $.Values.internalMTLS.caKey | quote }}
+              readOnly: true
+            - name: internal-mtls
+              mountPath: /var/run/dramaip/mtls/tls.crt
+              subPath: {{ index $.Values.internalMTLS.certKeys $key | quote }}
+              readOnly: true
+            - name: internal-mtls
+              mountPath: /var/run/dramaip/mtls/tls.key
+              subPath: {{ index $.Values.internalMTLS.keyKeys $key | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
             - name: auth-jwt-keyset
               mountPath: /var/run/dramaip/auth-jwt
               readOnly: true
+            {{- end }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -107,10 +130,17 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
-      {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
+      {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) }}
       volumes:
+        {{- if $.Values.internalMTLS.enabled }}
+        - name: internal-mtls
+          secret:
+            secretName: {{ required "internalMTLS.existingSecret is required when mTLS is enabled" $.Values.internalMTLS.existingSecret }}
+        {{- end }}
+        {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
         - name: auth-jwt-keyset
           secret:
             secretName: {{ $.Values.authJWT.keysetSecret }}
+        {{- end }}
       {{- end }}
 {{- end }}

@@ -38,7 +38,7 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	}
 	dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	quotaConn, err := platform.DialGRPC(dialCtx, cfg.Quota.GRPCEndpoint)
+	quotaConn, err := platform.DialGRPC(dialCtx, cfg.Quota.GRPCEndpoint, cfg.MTLS)
 	if err != nil {
 		publisher.Close()
 		return nil, nil, err

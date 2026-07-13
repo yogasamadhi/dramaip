@@ -50,6 +50,9 @@ config:
   otel:
     endpoint: http://otel-collector:4318
 
+internalMTLS:
+  enabled: false
+
 devInfra:
   enabled: true
   persistence:

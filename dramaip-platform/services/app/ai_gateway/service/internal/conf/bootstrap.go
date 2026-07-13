@@ -1,12 +1,16 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+)
 
 type Bootstrap struct {
-	Env    string       `yaml:"env"`
-	Server ServerConfig `yaml:"server"`
-	Quota  QuotaConfig  `yaml:"quota"`
-	AI     AIConfig     `yaml:"llm"`
+	Env    string              `yaml:"env"`
+	Server ServerConfig        `yaml:"server"`
+	Quota  QuotaConfig         `yaml:"quota"`
+	AI     AIConfig            `yaml:"llm"`
+	MTLS   platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
@@ -69,5 +73,10 @@ func Load() (*Bootstrap, error) {
 	cfg.AI.TestProviderEnabled = kratosx.EnvBool("AI_TEST_PROVIDER_ENABLED", cfg.Env == "dev" || cfg.Env == "test")
 	cfg.AI.UserRPMLimit = kratosx.EnvInt("AI_USER_RPM_LIMIT", cfg.AI.UserRPMLimit)
 	cfg.AI.UserDailyTokenLimit = kratosx.EnvInt("AI_USER_DAILY_TOKEN_LIMIT", cfg.AI.UserDailyTokenLimit)
+	mtls, err := platform.LoadMTLSConfig(cfg.Env)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

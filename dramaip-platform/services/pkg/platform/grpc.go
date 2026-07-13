@@ -6,7 +6,9 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 func ServeGRPC(addr string, register func(*grpc.Server)) error {
@@ -20,11 +22,26 @@ func ServeGRPC(addr string, register func(*grpc.Server)) error {
 	return server.Serve(listener)
 }
 
-func DialGRPC(ctx context.Context, target string) (*grpc.ClientConn, error) {
+func DialGRPC(ctx context.Context, target string, mtls MTLSConfig) (*grpc.ClientConn, error) {
+	transportCredentials := credentials.TransportCredentials(insecure.NewCredentials())
+	if mtls.Enabled {
+		tlsConfig, err := mtls.ClientTLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		transportCredentials = credentials.NewTLS(tlsConfig)
+	}
 	return grpc.DialContext(
 		ctx,
 		target,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithUnaryInterceptor(UnaryClientTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-client"))),
+		grpc.WithTransportCredentials(transportCredentials),
+		grpc.WithChainUnaryInterceptor(UnaryClientTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-client")), unaryClientUserIdentityInterceptor),
 	)
+}
+
+func unaryClientUserIdentityInterceptor(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	if userID := UserIdentity(ctx); userID != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, userIdentityMetadataKey, userID)
+	}
+	return invoker(ctx, method, req, reply, cc, opts...)
 }

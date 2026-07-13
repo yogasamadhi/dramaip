@@ -5,6 +5,7 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/ai_gateway/service/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type AiGatewayService struct {
@@ -17,6 +18,9 @@ func NewAiGatewayService(uc *biz.AiGatewayUsecase) *AiGatewayService {
 }
 
 func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*aiv1.ChatReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	messages := make([]biz.ChatMessage, 0, len(req.Messages))
 	for _, message := range req.Messages {
 		messages = append(messages, biz.ChatMessage{Role: message.Role, Content: message.Content})

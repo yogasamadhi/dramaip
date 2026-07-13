@@ -137,6 +137,17 @@ helm upgrade --install dramaip-platform ../helm/dramaip-platform \
   --set ingress.annotations.'konghq\.com/plugins'=shared-cors,shared-rate-limit
 ```
 
+## Internal gRPC mTLS
+
+Production chart values enable mTLS by default. Before installation, create the
+operator-managed Secret named by `internalMTLS.existingSecret` (default
+`dramaip-internal-mtls`) with `ca.crt` plus one `*.crt` / `*.key` pair for every
+workload key in `internalMTLS.certKeys` and `internalMTLS.keyKeys`. Certificate
+CNs must be `web-bff`, `auth`, `user`, `billing-service`, `quota-service`,
+`ai-gateway-service`, `billing-job`, and `quota-job` as applicable; the current
+gRPC allowlists accept only the callers required by each service. Do not reuse a
+single client certificate for all workloads.
+
 ## Secrets
 
 For production, prefer a pre-created secret instead of putting secret values in

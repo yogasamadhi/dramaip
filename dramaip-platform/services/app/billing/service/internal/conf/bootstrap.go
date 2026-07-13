@@ -1,12 +1,16 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+)
 
 type Bootstrap struct {
-	Env     string        `yaml:"env"`
-	Server  ServerConfig  `yaml:"server"`
-	Payment PaymentConfig `yaml:"payment"`
-	Quota   QuotaConfig   `yaml:"quota"`
+	Env     string              `yaml:"env"`
+	Server  ServerConfig        `yaml:"server"`
+	Payment PaymentConfig       `yaml:"payment"`
+	Quota   QuotaConfig         `yaml:"quota"`
+	MTLS    platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
@@ -49,5 +53,10 @@ func Load() (*Bootstrap, error) {
 	if cfg.Env != "dev" && cfg.Env != "test" {
 		cfg.Payment.SimulatedEnabled = false
 	}
+	mtls, err := platform.LoadMTLSConfig(cfg.Env)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

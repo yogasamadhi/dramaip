@@ -6,6 +6,7 @@ import (
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type QuotaService struct {
@@ -16,6 +17,9 @@ type QuotaService struct {
 func NewQuotaService(uc *biz.QuotaUsecase) *QuotaService { return &QuotaService{uc: uc} }
 
 func (s *QuotaService) GetTokenBalance(ctx context.Context, req *quotav1.GetTokenBalanceRequest) (*quotav1.TokenBalance, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	balance, err := s.uc.GetTokenBalance(ctx, req.UserId)
 	if err != nil {
 		return nil, err
@@ -35,6 +39,9 @@ func (s *QuotaService) CreatePeriodAccount(ctx context.Context, req *quotav1.Cre
 }
 
 func (s *QuotaService) ReserveTokens(ctx context.Context, req *quotav1.ReserveTokensRequest) (*quotav1.TokenReservation, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	res, err := s.uc.ReserveTokens(ctx, req.UserId, req.RequestId, req.ReservedTokens)
 	if err != nil {
 		return nil, err
@@ -62,6 +69,9 @@ func (s *QuotaService) CancelReservation(ctx context.Context, req *quotav1.Cance
 }
 
 func (s *QuotaService) ListTokenUsage(ctx context.Context, req *quotav1.ListTokenUsageRequest) (*quotav1.ListTokenUsageReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	rows, err := s.uc.ListTokenUsage(ctx, req.UserId, req.Limit)
 	if err != nil {
 		return nil, err
@@ -74,6 +84,9 @@ func (s *QuotaService) ListTokenUsage(ctx context.Context, req *quotav1.ListToke
 }
 
 func (s *QuotaService) GetUsageTrend(ctx context.Context, req *quotav1.GetUsageTrendRequest) (*quotav1.GetUsageTrendReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	rows, err := s.uc.GetUsageTrend(ctx, req.UserId, req.Days)
 	if err != nil {
 		return nil, err

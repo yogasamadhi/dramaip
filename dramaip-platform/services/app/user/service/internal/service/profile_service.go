@@ -5,6 +5,7 @@ import (
 
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/user/service/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type UserService struct {
@@ -17,6 +18,9 @@ func NewUserService(uc *biz.UserUsecase) *UserService {
 }
 
 func (s *UserService) GetProfile(ctx context.Context, req *userv1.GetProfileRequest) (*userv1.UserProfile, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	profile, err := s.uc.GetProfile(ctx, req.UserId)
 	if err != nil {
 		return nil, err
@@ -35,6 +39,9 @@ func (s *UserService) EnsureProfile(ctx context.Context, req *userv1.EnsureProfi
 }
 
 func (s *UserService) UpdateProfile(ctx context.Context, req *userv1.UpdateProfileRequest) (*userv1.UserProfile, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	profile, err := s.uc.UpdateProfile(ctx, biz.Profile{
 		ID: req.UserId, Phone: req.Phone, DisplayName: req.DisplayName,
 		AvatarURL: req.AvatarUrl, Locale: req.Locale, Timezone: req.Timezone,
