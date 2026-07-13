@@ -1,9 +1,15 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cpu, DatabaseBackup, FileJson, Settings, TimerReset, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronRight, Cloud, Cpu, DatabaseBackup, FileJson, Settings, TimerReset, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 const SETTINGS_ITEMS = [
+  {
+    title: '云端账号与套餐',
+    description: '使用系统浏览器登录并查看云端套餐与余额',
+    path: '/settings/cloud-account',
+    icon: Cloud,
+  },
   {
     title: '模型设置',
     description: '配置 API、默认模型与任务模型绑定',

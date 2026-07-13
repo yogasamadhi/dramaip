@@ -19,7 +19,7 @@ import (
 func NewGRPCServer(cfg *conf.Bootstrap, svc *authsvc.AuthService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("auth-service")),
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "desktop-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("auth-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
 		panic(fmt.Sprintf("auth gRPC mTLS: %v", err))

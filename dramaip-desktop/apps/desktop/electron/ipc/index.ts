@@ -17,6 +17,7 @@ import { registerLogIpc } from './log.ipc'
 import { registerDiagnosticIpc } from './diagnostic.ipc'
 import { registerSearchIpc } from './search.ipc'
 import { registerAssetIpc } from './asset.ipc'
+import { registerCloudAuthIpc } from './cloud-auth.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -27,7 +28,8 @@ export function registerAllIpc(): void {
   registerLogIpc()
   registerDiagnosticIpc()
   registerSearchIpc()
-  registerAssetIpc()
+	registerAssetIpc()
+	registerCloudAuthIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

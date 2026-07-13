@@ -25,7 +25,7 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *quotabiz.QuotaUsecase) *khttp.Server
 func NewGRPCServer(cfg *conf.Bootstrap, svc *quotasvc.QuotaService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "billing-service", "ai-gateway-service", "billing-job"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("quota-service")),
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "desktop-bff", "billing-service", "ai-gateway-service", "billing-job"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("quota-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
 		panic(fmt.Sprintf("quota gRPC mTLS: %v", err))

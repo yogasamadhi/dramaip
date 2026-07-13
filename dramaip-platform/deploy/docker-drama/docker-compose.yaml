@@ -1,4 +1,4 @@
-# 全栈本地开发编排：基础设施 + 10 个 Go 微服务 + Kong + 可观测性。
+# 全栈本地开发编排：基础设施 + 11 个 Go 微服务 + Kong + 可观测性。
 #
 # 10 个 Go 服务统一用 services/Dockerfile.service + build.args.TARGET 构建，
 # 与 K8s chart（deploy/helm/dramaip-platform/templates/deployment.yaml）同源。
@@ -426,6 +426,31 @@ services:
       NOTIFICATION_GRPC_ENDPOINT: notification:9106
       OTEL_SERVICE_NAME: dramaip-web-bff
 
+  # Desktop BFF is a separate public adapter. It owns only desktop token
+  # exchange/session/context routes; browser cookies stay in web-bff.
+  desktop-bff:
+    <<: *app-common
+    container_name: drama-desktop-bff
+    image: dramaip-desktop-bff
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/bff/desktop/interface/cmd/server
+        OUTPUT: dramaip-desktop-bff
+    environment:
+      <<: *app-env
+      POSTGRES_HOST: ""
+      POSTGRES_PORT: ""
+      POSTGRES_USER: ""
+      POSTGRES_PASSWORD: ""
+      POSTGRES_DB: ""
+      DESKTOP_BFF_HTTP_ADDR: ":8110"
+      AUTH_GRPC_ENDPOINT: auth:9101
+      BILLING_GRPC_ENDPOINT: billing:9103
+      QUOTA_GRPC_ENDPOINT: quota:9104
+      OTEL_SERVICE_NAME: dramaip-desktop-bff
+
   # Application external entry — the ONLY API service clients may reach from outside.
   # (postgres/redis/rabbitmq/prometheus/grafana/jaeger below are dev-time
   # infra ports; in prod (k8s) everything collapses to exposing Kong alone.)
@@ -448,6 +473,7 @@ services:
     depends_on:
       - auth
       - web-bff
+      - desktop-bff
 
   # ─────────────────── 可观测性 ───────────────────
   # 三大支柱（10 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，

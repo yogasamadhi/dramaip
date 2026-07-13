@@ -5,6 +5,7 @@ import (
 
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/auth/service/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type AuthService struct {
@@ -81,6 +82,28 @@ func (s *AuthService) ResetPassword(ctx context.Context, req *authv1.ResetPasswo
 		return nil, err
 	}
 	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+
+func (s *AuthService) CreateDesktopAuthorizationCode(ctx context.Context, req *authv1.CreateDesktopAuthorizationCodeRequest) (*authv1.CreateDesktopAuthorizationCodeReply, error) {
+	if err := platform.RequireInternalPeer(ctx, "web-bff"); err != nil {
+		return nil, err
+	}
+	code, expiresIn, err := s.uc.CreateDesktopAuthorizationCode(ctx, req.UserId, req.CodeChallenge, req.RedirectUri, req.DeviceId)
+	if err != nil {
+		return nil, err
+	}
+	return &authv1.CreateDesktopAuthorizationCodeReply{AuthorizationCode: code, ExpiresIn: expiresIn}, nil
+}
+
+func (s *AuthService) ExchangeDesktopAuthorizationCode(ctx context.Context, req *authv1.ExchangeDesktopAuthorizationCodeRequest) (*authv1.AuthReply, error) {
+	if err := platform.RequireInternalPeer(ctx, "desktop-bff"); err != nil {
+		return nil, err
+	}
+	session, err := s.uc.ExchangeDesktopAuthorizationCode(ctx, req.AuthorizationCode, req.CodeVerifier, req.RedirectUri, req.DeviceId)
+	if err != nil {
+		return nil, err
+	}
+	return sessionReply(session), nil
 }
 
 func sessionReply(session biz.Session) *authv1.AuthReply {

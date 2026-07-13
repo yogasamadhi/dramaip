@@ -295,3 +295,9 @@ func (u *BFFUsecase) Authenticate(ctx context.Context, authorization string) (*a
 	}
 	return u.data.Auth.ValidateAccessToken(ctx, &authv1.ValidateAccessTokenRequest{AccessToken: token})
 }
+
+func (u *BFFUsecase) CreateDesktopAuthorizationCode(ctx context.Context, userID, codeChallenge, redirectURI, deviceID string) (*authv1.CreateDesktopAuthorizationCodeReply, error) {
+	return u.data.Auth.CreateDesktopAuthorizationCode(ctx, &authv1.CreateDesktopAuthorizationCodeRequest{
+		UserId: userID, CodeChallenge: codeChallenge, RedirectUri: redirectURI, DeviceId: deviceID,
+	})
+}

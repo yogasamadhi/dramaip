@@ -31,6 +31,12 @@ const api = {
   security: {
     getSecretStorageStatus: () => invoke('security:getSecretStorageStatus'),
   },
+  cloudAuth: {
+    status: () => invoke('cloudAuth:status'),
+    login: () => invoke('cloudAuth:login'),
+    logout: () => invoke('cloudAuth:logout'),
+    context: () => invoke('cloudAuth:context'),
+  },
   dataBackup: {
     list: () => invoke('dataBackup:list'),
     create: () => invoke('dataBackup:create'),

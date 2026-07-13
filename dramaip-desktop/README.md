@@ -82,7 +82,7 @@ pnpm test:db
 ## 数据存储
 
 所有数据保存在本地 SQLite，数据库文件位于系统 `userData` 目录下 `studio.db`。
-API Key 仅本地保存于 `model_configs` 表。
+模型与视频 Provider 的 API Key 不进入 SQLite 明文，SQLite 只保存系统 Keychain 引用。
 
 **数据安全（v1.0）：**
 - **版本化迁移**：`schema_migrations` 表记录迁移版本，应用升级时自动补齐、数据零丢失。
@@ -91,6 +91,21 @@ API Key 仅本地保存于 `model_configs` 表。
 - **项目包导入导出**：工作台「导出 → 完整项目包（.sdnspkg）」导出项目全部关联数据；首页「导入项目包」可还原为新项目（id 重映射、外键保留）。
 - **项目包 v6**：包含创意诊断报告、反套路方案、修稿任务、内容版本、质量闸门、观众模拟、曲线报告、工作流记录、项目 Skills、项目 Agent 方案、灵感台收藏、本地样本库、视频前置资产和可选资产清单。
 - **密钥保护**：模型与视频 Provider 的 API Key 仅在主进程解密使用，返回界面时显示为掩码。
+
+## 云端账号（可选）
+
+云端账号默认关闭，不影响离线项目或用户自带 API Key。开发时可显式启用：
+
+```bash
+DESKTOP_CLOUD_LOGIN_ENABLED=true \
+DESKTOP_CLOUD_WEB_ORIGIN=http://127.0.0.1:3009 \
+DESKTOP_CLOUD_BFF_ORIGIN=http://127.0.0.1:8000 \
+pnpm dev
+```
+
+登录使用系统浏览器、一次性 code + PKCE 和 `127.0.0.1` 临时回调；refresh token 保存在系统
+Keychain，access token 仅存在 Electron main process 内存。生产环境两个 Cloud Origin 必须使用
+HTTPS。详见 [LM3-26 登录边界](../docs/loop/LM3-26-Desktop-BFF-PKCE.md)。
 
 ## 文档
 

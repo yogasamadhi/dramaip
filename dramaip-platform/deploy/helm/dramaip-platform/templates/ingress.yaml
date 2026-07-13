@@ -36,6 +36,13 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
+          - path: /v1/desktop
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dramaip-platform.fullname" $ }}-desktop-bff
+                port:
+                  number: 8110
           {{- $paths := default (list (dict "path" "/" "pathType" "Prefix")) .paths }}
           {{- range $paths }}
           - path: {{ .path }}

@@ -9,6 +9,9 @@ images:
   webBff:
     repository: dramaip-web-bff
     tag: dev
+  desktopBff:
+    repository: dramaip-desktop-bff
+    tag: dev
   auth:
     repository: dramaip-auth
     tag: dev

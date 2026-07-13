@@ -8,6 +8,7 @@ import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
 import { runDesktopE2eSmoke } from './e2e-smoke'
 import { canOpenExternalUrl, createContentSecurityPolicy } from './security-policy'
+import { initializeCloudAuth } from './cloud-auth'
 
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
@@ -213,6 +214,7 @@ app.whenReady().then(async () => {
     return
   }
   await safeInitDatabase()
+  await initializeCloudAuth()
   registerAllIpc()
   createWindow()
 

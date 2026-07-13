@@ -41,7 +41,7 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *billingbiz.BillingUsecase) *khttp.Se
 func NewGRPCServer(cfg *conf.Bootstrap, svc *billingsvc.BillingService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("billing-service")),
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "desktop-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("billing-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
 		panic(fmt.Sprintf("billing gRPC mTLS: %v", err))

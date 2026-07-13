@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -203,6 +204,39 @@ func TestProtectedRoutesRequireToken(t *testing.T) {
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil || got.Error.TraceID == "" {
 		t.Fatalf("error trace id = %+v err=%v body=%s", got, err, rec.Body.String())
+	}
+}
+
+func TestDesktopAuthorizationCallbackContainsOnlyOneTimeCodeAndState(t *testing.T) {
+	router := newTestHTTPService().Router()
+	session := loginForSession(t, router)
+	request := httptest.NewRequest(http.MethodGet, "/v1/auth/desktop/authorize?code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&redirect_uri=http%3A%2F%2F127.0.0.1%3A43123%2Fcallback&state=desktop-state-0123456789&device_id=desktop-12345678", nil)
+	request.AddCookie(session.accessCookie)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("desktop authorization status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	callback, err := url.Parse(recorder.Header().Get("Location"))
+	if err != nil || callback.Scheme != "http" || callback.Hostname() != "127.0.0.1" || callback.Path != "/callback" {
+		t.Fatalf("callback = %q err=%v", recorder.Header().Get("Location"), err)
+	}
+	query := callback.Query()
+	if query.Get("code") == "" || query.Get("state") != "desktop-state-0123456789" || query.Get("access_token") != "" || query.Get("refresh_token") != "" {
+		t.Fatalf("unsafe callback query = %s", callback.RawQuery)
+	}
+	if recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("callback missing no-store policy")
+	}
+}
+
+func TestDesktopAuthorizationRejectsUntrustedCallback(t *testing.T) {
+	router := newTestHTTPService().Router()
+	request := httptest.NewRequest(http.MethodGet, "/v1/auth/desktop/authorize?code_challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&redirect_uri=https%3A%2F%2Fevil.example%2Fcallback&state=desktop-state-0123456789&device_id=desktop-12345678", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "invalid_desktop_authorization_request") {
+		t.Fatalf("untrusted callback response = %d: %s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -446,6 +480,15 @@ func (fakeAuth) RequestPasswordReset(context.Context, *authv1.RequestPasswordRes
 }
 func (fakeAuth) ResetPassword(context.Context, *authv1.ResetPasswordRequest, ...grpc.CallOption) (*authv1.EmailActionReply, error) {
 	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+func (fakeAuth) CreateDesktopAuthorizationCode(_ context.Context, req *authv1.CreateDesktopAuthorizationCodeRequest, _ ...grpc.CallOption) (*authv1.CreateDesktopAuthorizationCodeReply, error) {
+	if req.UserId != "u1" || req.RedirectUri == "" || req.CodeChallenge == "" || req.DeviceId == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid desktop authorization request")
+	}
+	return &authv1.CreateDesktopAuthorizationCodeReply{AuthorizationCode: "desktop-authorization-code", ExpiresIn: 60}, nil
+}
+func (fakeAuth) ExchangeDesktopAuthorizationCode(context.Context, *authv1.ExchangeDesktopAuthorizationCodeRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
+	return nil, status.Error(codes.Unimplemented, "desktop exchange")
 }
 
 type fakeUser struct{}
