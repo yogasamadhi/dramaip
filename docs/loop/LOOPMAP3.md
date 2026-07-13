@@ -206,7 +206,7 @@ make platform-down
 
 | Loop | P | Owner | 状态 | 单一目标 | 主要范围 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- |
-| LM3-00 | P0 | 工程负责人 | todo | 固化基线并收口文档入口 | 根文档、`docs/loop`、验证记录 | 无 |
+| LM3-00 | P0 | 工程负责人 | done | 固化基线并收口文档入口 | 根文档、`docs/loop`、验证记录 | 无 |
 | LM3-01 | P0 | API/平台 | todo | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
 | LM3-02 | P0 | 平台架构 | todo | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
 | LM3-03 | P0 | DevEx/CI | todo | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
@@ -757,7 +757,7 @@ Mobile/Admin 不阻塞 Web + Desktop 的首个付费内测，但任何端上线�
 
 ## 10. 完成记录区
 
-本节只追加，不覆盖历史。所有规划 loop 当前均为 `todo`，尚无 LOOPMAP3 完成记录。
+本节只追加，不覆盖历史。除已完成的 loop 外，其余规划 loop 保持 `todo`，不得因计划存在而提前标记完成。
 
 完成后使用以下模板：
 
@@ -774,4 +774,19 @@ Push:
 Loop branch cleanup:
 Current branch/worktree:
 Notes:
+```
+
+```text
+Loop: LM3-00
+Target branch: main
+Loop branch: loop/lm3-00-doc-baseline
+Commit(s): 59b3900 loop(LM3-00): establish documentation baseline; this completion-record update is the loop's final metadata commit.
+Merge commit: 7b83af6 merge: LM3-00 documentation baseline; the metadata commit is merged immediately after this record is committed.
+Verification: Before merge, `git diff --check main...HEAD` passed. After merge, `git diff --check origin/main...HEAD` passed; a Node relative-link resolver checked 24 Markdown files; an active-link scan found no Markdown link targeting `docs/process`, `./process`, or `../process`.
+Diff review: Reviewed the staged name/status list, root README, document indexes, ROADMAP link, difference-document date note, LOOPMAP3, and the moved LOOP documents. The `docs/process` references that remain are explicitly documented historical execution records, not active Markdown links. No credentials, local environment files, caches, or build artifacts were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` reported main aligned before the loop branch was created; the target branch was fetched and confirmed aligned again before merge.
+Push: Core documentation merge 7b83af6 was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-00 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-00-doc-baseline` immediately afterward.
+Current branch/worktree: loop/lm3-00-doc-baseline; clean before this metadata update.
+Notes: LM3-00 moved active process documentation into `docs/loop`, added the root project entry point, repaired active links, retained historical audit paths without rewriting history, and refreshed the difference-document audit date. No product code or deployment configuration changed.
 ```
