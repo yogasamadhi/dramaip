@@ -233,7 +233,7 @@ make platform-down
 | LM3-23 | P1 | 平台可靠性 | done | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
 | LM3-24 | P1 | Web 产品 | done | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
 | LM3-25 | P0 | Desktop 安全 | done | 将桌面本地凭据迁移到系统 Keychain | Electron secrets、模型/视频配置、迁移 | LM3-03 |
-| LM3-26 | P0 | Desktop/Auth | doing | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
+| LM3-26 | P0 | Desktop/Auth | done | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
 | LM3-27 | P0 | Desktop/AI | todo | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
 | LM3-28 | P2 | Mobile | todo | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
 | LM3-29 | P2 | Mobile | todo | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
@@ -1191,4 +1191,20 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no Gitee
 Loop branch cleanup: Delete `loop/lm3-25-desktop-keychain` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
 Notes: The user explicitly instructed that real payment is skipped; LM3-25 performs no payment action and does not change payment channel readiness. The recovery and platform support boundaries are documented in `docs/loop/LM3-25-桌面凭据迁移.md`.
+```
+
+```text
+Loop: LM3-26
+Target branch: main
+Loop branch: loop/lm3-26-desktop-pkce
+Commit(s): 929f2b7 loop(LM3-26): add desktop PKCE cloud login; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf lint` and full `GOCACHE=/tmp/dramaip-go-race-lm3-20 go test ./...` passed. Auth tests cover PKCE S256 input/loopback URI validation; the optional PostgreSQL integration test covers challenge mismatch, one successful consume, replay rejection and consumption audit when `POSTGRES_AUTH_TEST_DSN` is provided. Web BFF tests confirm callback only contains a one-time code/state and reject non-loopback redirects. Desktop BFF tests cover exchange, refresh boundary, current-user subscription/balance identity propagation and bad payloads. `pnpm format:check`, `pnpm typecheck`, and `pnpm test:unit` (118 tests) passed; built Electron `pnpm test:e2e:skip-build` passed and includes the cloud-auth renderer-boundary assertion. Web client typecheck passed. Docker Compose config, Helm lint, and dev/production Helm render passed without starting containers.
+Runtime limitation: A live authorization exchange through Kong is not claimed. The pre-existing user-owned Compose stack does not serve `localhost:8000` and was not stopped, deleted, rebuilt, or otherwise changed. Run the documented desktop browser login, Auth migration and Desktop BFF exchange against a restored healthy stack before production deployment; this loop adds the required conditional PostgreSQL integration coverage and deterministic Electron/main-process alternatives. No actual AI Provider or payment flow was called.
+Diff review: Reviewed the cumulative 57-file functional diff and ran staged/working-tree `git diff --check`. It adds a separate Desktop BFF contract/app, 60-second hashed one-time code migration, per-RPC mTLS authorization, strict `127.0.0.1` callback validation, system-browser PKCE/Keychain main-process flow, zero-argument IPC boundary, Web session bridge, Kong/Compose/Helm wiring, tests and runbooks. It contains no real password, authorization code, token, API key, certificate, payment material, cache or build artifact. Long-lived credentials are excluded from callback URLs, SQLite, renderer state, logs and diagnostics.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted pipeline or real payment is used.
+Loop branch cleanup: Delete `loop/lm3-26-desktop-pkce` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
+Notes: Cloud login is feature-disabled by default, so rollback leaves local-first creation and BYOK intact. Production operators must provision the dedicated `desktop-bff` mTLS certificate Common Name and HTTPS Cloud origins as documented in `docs/loop/LM3-26-Desktop-BFF-PKCE.md`.
 ```
