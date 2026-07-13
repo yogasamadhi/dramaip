@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/data"
+	"github.com/dramaip/dramaip-platform/services/app/notification/internal/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"

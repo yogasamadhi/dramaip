@@ -27,9 +27,11 @@ type RabbitPublisher struct {
 
 func RabbitConfigFromEnv() RabbitConfig {
 	return RabbitConfig{
-		URL:      rabbitURLFromEnv(),
-		Queue:    Env("RABBITMQ_EVENTS_QUEUE", "dramaip.platform.events"),
-		Exchange: Env("RABBITMQ_EXCHANGE", ""),
+		URL:   rabbitURLFromEnv(),
+		Queue: Env("RABBITMQ_EVENTS_QUEUE", "dramaip.platform.events"),
+		// A topic exchange gives every domain its own durable queue instead of
+		// making unrelated consumers compete for one shared queue.
+		Exchange: Env("RABBITMQ_EXCHANGE", "dramaip.platform.events"),
 	}
 }
 
@@ -65,12 +67,23 @@ func NewRabbitPublisher(config RabbitConfig) (*RabbitPublisher, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	if _, err := ch.QueueDeclare(config.Queue, true, false, false, false, nil); err != nil {
+	if err := declarePublisherTopology(ch, config); err != nil {
 		_ = ch.Close()
 		_ = conn.Close()
 		return nil, err
 	}
 	return &RabbitPublisher{config: config, conn: conn, ch: ch}, nil
+}
+
+func declarePublisherTopology(ch *amqp.Channel, config RabbitConfig) error {
+	if config.Queue == "" {
+		return fmt.Errorf("rabbitmq event queue is required")
+	}
+	if config.Exchange == "" {
+		_, err := ch.QueueDeclare(config.Queue, true, false, false, false, nil)
+		return err
+	}
+	return ch.ExchangeDeclare(config.Exchange, "topic", true, false, false, false, nil)
 }
 
 func (p *RabbitPublisher) Health(context.Context) error {
@@ -103,7 +116,11 @@ func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.Even
 	}
 	headers["event_id"] = envelope.GetEventId()
 	headers["schema_version"] = envelope.GetSchemaVersion()
-	return p.ch.PublishWithContext(ctx, p.config.Exchange, p.config.Queue, false, false, amqp.Publishing{
+	routingKey := p.config.Queue
+	if p.config.Exchange != "" {
+		routingKey = envelope.GetEventType()
+	}
+	return p.ch.PublishWithContext(ctx, p.config.Exchange, routingKey, false, false, amqp.Publishing{
 		ContentType:  "application/protobuf+json",
 		Type:         envelope.GetEventType(),
 		DeliveryMode: amqp.Persistent,

@@ -1,5 +1,5 @@
 .PHONY: test proto event-contracts tidy kong-up kong-down kong-logs \
-        run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-billing-job run-quota-job run-migrate
+        run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
 COMPOSE ?= ../deploy/docker-drama/docker-compose.yaml
@@ -32,6 +32,9 @@ run-ai-gateway:
 
 run-notification:
 	GOCACHE=$(GOCACHE) go run ./app/notification/service/cmd/server
+
+run-notification-job:
+	GOCACHE=$(GOCACHE) go run ./app/notification/job/cmd/server
 
 run-billing-job:
 	GOCACHE=$(GOCACHE) go run ./app/billing/job/cmd/server

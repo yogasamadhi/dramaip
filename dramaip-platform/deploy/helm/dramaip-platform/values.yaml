@@ -27,6 +27,9 @@ images:
   notification:
     repository: ghcr.io/dramaip/dramaip-notification
     tag: "0.1.0"
+  notificationJob:
+    repository: ghcr.io/dramaip/dramaip-notification-job
+    tag: "0.1.0"
   billingJob:
     repository: ghcr.io/dramaip/dramaip-billing-job
     tag: "0.1.0"
@@ -150,6 +153,7 @@ config:
   aiGatewayGrpcAddr: :9105
   notificationHttpAddr: :8108
   notificationGrpcAddr: :9106
+  notificationJobHttpAddr: :8109
   billingJobHttpAddr: :8106
   quotaJobHttpAddr: :8107
   autoMigrate: "false"
@@ -166,7 +170,16 @@ config:
     host: rabbitmq
     port: "5672"
     vhost: /
+    exchange: dramaip.platform.events
     eventsQueue: dramaip.platform.events
+  notificationConsumer:
+    eventsQueue: dramaip.notification.events
+    deadLetterExchange: dramaip.platform.events.dlx
+    deadLetterQueue: dramaip.notification.events.dlq
+    prefetch: "1"
+    maxRetries: "3"
+    inboxLease: 1m
+    channels: in_app
   jwt:
     issuer: dramaip
     audience: dramaip-api
@@ -237,6 +250,7 @@ internalMTLS:
     quota: quota.crt
     aiGateway: ai-gateway.crt
     notification: notification-service.crt
+    notificationJob: notification-job.crt
     billingJob: billing-job.crt
     quotaJob: quota-job.crt
   keyKeys:
@@ -247,6 +261,7 @@ internalMTLS:
     quota: quota.key
     aiGateway: ai-gateway.key
     notification: notification-service.key
+    notificationJob: notification-job.key
     billingJob: billing-job.key
     quotaJob: quota-job.key
 

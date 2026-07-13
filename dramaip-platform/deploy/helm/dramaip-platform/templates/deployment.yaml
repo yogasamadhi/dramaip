@@ -6,6 +6,7 @@
   (dict "key" "quota" "component" "quota" "http" 8104 "grpc" 9104)
   (dict "key" "aiGateway" "component" "ai-gateway" "http" 8105 "grpc" 9105)
   (dict "key" "notification" "component" "notification" "http" 8108 "grpc" 9106)
+  (dict "key" "notificationJob" "component" "notification-job" "http" 8109 "grpc" 0)
   (dict "key" "billingJob" "component" "billing-job" "http" 8106 "grpc" 0)
   (dict "key" "quotaJob" "component" "quota-job" "http" 8107 "grpc" 0)
 -}}

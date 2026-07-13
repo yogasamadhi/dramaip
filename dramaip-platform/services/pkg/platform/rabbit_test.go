@@ -8,6 +8,7 @@ import (
 
 	notificationeventsv1 "github.com/dramaip/dramaip-platform/services/events/notification/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func TestRabbitConfigFromEnvUsesURL(t *testing.T) {
@@ -34,6 +35,32 @@ func TestRabbitConfigFromEnvBuildsURL(t *testing.T) {
 	config := RabbitConfigFromEnv()
 	if config.URL != "amqp://user:pass@rabbitmq:5673/drama" {
 		t.Fatalf("URL = %q", config.URL)
+	}
+}
+
+func TestRabbitConfigFromEnvDefaultsToTopicExchange(t *testing.T) {
+	t.Setenv("RABBITMQ_EXCHANGE", "")
+	config := RabbitConfigFromEnv()
+	if config.Exchange != "dramaip.platform.events" {
+		t.Fatalf("Exchange = %q", config.Exchange)
+	}
+}
+
+func TestRabbitRetryCount(t *testing.T) {
+	for name, test := range map[string]struct {
+		headers map[string]any
+		want    int
+	}{
+		"missing": {want: 0},
+		"int32":   {headers: map[string]any{"x-retry-count": int32(2)}, want: 2},
+		"invalid": {headers: map[string]any{"x-retry-count": "2"}, want: 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			headers := amqp.Table(test.headers)
+			if got := retryCount(headers); got != test.want {
+				t.Fatalf("retryCount() = %d, want %d", got, test.want)
+			}
+		})
 	}
 }
 

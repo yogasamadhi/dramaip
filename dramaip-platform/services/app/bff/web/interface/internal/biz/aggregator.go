@@ -184,11 +184,10 @@ func (u *BFFUsecase) SimulatedConfirmPayment(ctx context.Context, userID string,
 	if checkoutID == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing_checkout_id")
 	}
-	reply, err := u.data.Billing.ConfirmSimulatedPayment(ctx, &billingv1.ConfirmSimulatedPaymentRequest{UserId: userID, CheckoutId: checkoutID})
-	if err == nil {
-		u.CreateNotification(ctx, userID, "payment_succeeded", "支付已确认", "你的订阅已激活，模型额度已经到账。", "payment:"+reply.OrderId)
-	}
-	return reply, err
+	// payment.succeeded.v1 is written to the billing outbox in the same
+	// transaction. notification-job is the sole path that turns it into a
+	// payment notification, so a BFF retry cannot double-write the user inbox.
+	return u.data.Billing.ConfirmSimulatedPayment(ctx, &billingv1.ConfirmSimulatedPaymentRequest{UserId: userID, CheckoutId: checkoutID})
 }
 
 func (u *BFFUsecase) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (*billingv1.Subscription, error) {

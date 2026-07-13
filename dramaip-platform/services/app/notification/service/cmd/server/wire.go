@@ -6,9 +6,9 @@ import (
 	kratos "github.com/go-kratos/kratos/v2"
 	"github.com/google/wire"
 
+	"github.com/dramaip/dramaip-platform/services/app/notification/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/conf"
-	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/service"
 )

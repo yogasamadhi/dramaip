@@ -16,9 +16,10 @@ The Helm chart lives in `../helm/dramaip-platform`.
 ## Current Scope
 
 The chart deploys the current Web BFF, synchronous auth/user/billing/quota/
-ai-gateway/notification services, and the billing/quota maintenance jobs. The
-notification event consumer and channel delivery worker remain a separate
-LM3-09 delivery and are not part of this release.
+ai-gateway/notification services, plus the notification event consumer and the
+billing/quota maintenance jobs. `notification-job` has its own durable RabbitMQ
+queue, Inbox lease, retry limit, and dead-letter queue; it owns only
+user-facing notification effects.
 
 Included:
 
@@ -47,6 +48,7 @@ for svc in \
   "quota ./app/quota/service/cmd/server" \
   "ai_gateway ./app/ai_gateway/service/cmd/server" \
   "notification ./app/notification/service/cmd/server" \
+  "notification_job ./app/notification/job/cmd/server" \
   "billing_job ./app/billing/job/cmd/server" \
   "quota_job ./app/quota/job/cmd/server"; do
   set -- $svc; name=$1; target=$2
@@ -58,7 +60,7 @@ done
 ```
 
 (Or use `python3 run-platform-k8s.py` from the repo root, which builds and
-loads all 9 images into a local kind/minikube cluster automatically.)
+loads all 10 images into a local kind/minikube cluster automatically.)
 
 For a local cluster such as kind or minikube, load the image into the cluster
 and override the repository/tag with `values-dev.yaml`.
@@ -145,7 +147,7 @@ operator-managed Secret named by `internalMTLS.existingSecret` (default
 `dramaip-internal-mtls`) with `ca.crt` plus one `*.crt` / `*.key` pair for every
 workload key in `internalMTLS.certKeys` and `internalMTLS.keyKeys`. Certificate
 CNs must be `web-bff`, `auth`, `user`, `billing-service`, `quota-service`,
-`ai-gateway-service`, `notification-service`, `billing-job`, and `quota-job` as applicable; the current
+`ai-gateway-service`, `notification-service`, `notification-job`, `billing-job`, and `quota-job` as applicable; the current
 gRPC allowlists accept only the callers required by each service. Do not reuse a
 single client certificate for all workloads.
 
