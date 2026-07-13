@@ -21,6 +21,13 @@ The production renderer configures Kong JWT extraction from the
 CORS preflight. The BFF still verifies issuer, audience, and Redis session
 state after Kong's signature/expiry checks.
 
+`/v1/admin/...` is deliberately not part of that C-end credential set. The
+Admin BFF verifies its own `ADMIN_JWT_ISSUER` / `ADMIN_JWT_AUDIENCE`, short
+server-side admin session and independently mounted RSA key set. Production
+operators must mount the matching public/admin JWKS in Kong before adding an
+edge JWT plugin for this route; never point the Admin route at the Web JWT
+credentials or accept the Web Cookie as a fallback.
+
 Kong also removes every externally supplied `X-User-*` identity header before
 proxying. The Web BFF derives user context from the verified session and
 propagates it only on authenticated internal gRPC calls; downstream services do

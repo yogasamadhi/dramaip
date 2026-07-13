@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package dramaip.admin.interface.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/admin/interface/v1;v1";
+
+// AdminInterface defines the versioned administrator boundary.  The current
+// HTTP adapter is deliberately small; this contract reserves the independent
+// principal, permission and audit vocabulary for future Admin UI clients.
+service AdminInterfaceService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc GetCurrentAdmin(GetCurrentAdminRequest) returns (GetCurrentAdminResponse);
+  rpc CreateConfirmation(CreateConfirmationRequest) returns (CreateConfirmationResponse);
+  rpc SuspendPrincipal(SuspendPrincipalRequest) returns (SuspendPrincipalResponse);
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+message LoginResponse {
+  string access_token = 1;
+  int64 expires_in = 2;
+  AdminPrincipal principal = 3;
+}
+message GetCurrentAdminRequest {
+  string access_token = 1;
+}
+message GetCurrentAdminResponse {
+  AdminPrincipal principal = 1;
+}
+message AdminPrincipal {
+  string id = 1;
+  string email = 2;
+  string status = 3;
+  repeated string roles = 4;
+  repeated string permissions = 5;
+}
+message CreateConfirmationRequest {
+  string access_token = 1;
+  string action = 2;
+  string target_id = 3;
+  string reason = 4;
+}
+message Confirmation {
+  string id = 1;
+  string action = 2;
+  string target_id = 3;
+  string expires_at = 4;
+}
+message CreateConfirmationResponse {
+  Confirmation confirmation = 1;
+}
+message SuspendPrincipalRequest {
+  string access_token = 1;
+  string target_id = 2;
+  string confirmation_id = 3;
+}
+message SuspendPrincipalResponse {
+  AdminPrincipal principal = 1;
+}
+message ListAuditLogsRequest {
+  string access_token = 1;
+  int32 limit = 2;
+}
+message AuditLog {
+  string id = 1;
+  string actor_id = 2;
+  string action = 3;
+  string resource_type = 4;
+  string resource_id = 5;
+  string reason = 6;
+  string before_state_json = 7;
+  string after_state_json = 8;
+  string trace_id = 9;
+  string created_at = 10;
+}
+message ListAuditLogsResponse {
+  repeated AuditLog entries = 1;
+}
