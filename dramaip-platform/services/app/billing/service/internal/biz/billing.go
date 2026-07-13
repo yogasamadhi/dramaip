@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/data"
 	"google.golang.org/grpc/codes"
@@ -27,6 +28,15 @@ type BillingRepository interface {
 	ListOrders(context.Context, string) ([]data.OrderRow, error)
 	GetOrder(context.Context, string, string) (data.OrderRow, error)
 	CancelSubscription(context.Context, string, string, bool) (data.SubscriptionRow, error)
+	ResumeSubscription(context.Context, string, string, string) (data.SubscriptionRow, error)
+	ChangeSubscriptionPlan(context.Context, string, string, string, string) (data.PlanChangeResult, error)
+	ApplyQuotaAdjustment(context.Context, data.PlanChangeResult) error
+	FinalizePlanChange(context.Context, string) (data.SubscriptionRow, error)
+	MarkPlanChangeRetry(context.Context, string, string) error
+	RequestRefund(context.Context, string, string, string, string) (data.RefundRow, error)
+	PrepareRefundQuota(context.Context, data.RefundRow, string) (*quotav1.RefundPreparation, error)
+	FinalizeRefund(context.Context, string, *quotav1.RefundPreparation) (data.RefundRow, error)
+	MarkRefundRetry(context.Context, string, string) error
 }
 
 func NewBillingUsecase(repo BillingRepository, cfg *conf.Bootstrap) *BillingUsecase {
@@ -90,6 +100,9 @@ func (u *BillingUsecase) GetOrder(ctx context.Context, userID string, orderID st
 }
 
 func (u *BillingUsecase) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (data.SubscriptionRow, error) {
+	if immediate {
+		return data.SubscriptionRow{}, status.Error(codes.FailedPrecondition, "immediate cancellation requires the refund workflow")
+	}
 	if subscriptionID == "" {
 		sub, err := u.repo.GetSubscription(ctx, userID)
 		if err != nil {
@@ -98,6 +111,44 @@ func (u *BillingUsecase) CancelSubscription(ctx context.Context, userID string, 
 		subscriptionID = sub.ID
 	}
 	return u.repo.CancelSubscription(ctx, userID, subscriptionID, immediate)
+}
+
+func (u *BillingUsecase) ResumeSubscription(ctx context.Context, userID string, subscriptionID string, idempotencyKey string) (data.SubscriptionRow, error) {
+	if subscriptionID == "" {
+		return data.SubscriptionRow{}, status.Error(codes.InvalidArgument, "subscription id is required")
+	}
+	return u.repo.ResumeSubscription(ctx, userID, subscriptionID, idempotencyKey)
+}
+
+func (u *BillingUsecase) ChangeSubscriptionPlan(ctx context.Context, userID string, subscriptionID string, planID string, idempotencyKey string) (data.SubscriptionRow, error) {
+	change, err := u.repo.ChangeSubscriptionPlan(ctx, userID, subscriptionID, planID, idempotencyKey)
+	if err != nil {
+		return data.SubscriptionRow{}, err
+	}
+	if change.Kind != "upgrade" || change.Status != "quota_pending" {
+		return change.Subscription, nil
+	}
+	if err := u.repo.ApplyQuotaAdjustment(ctx, change); err != nil {
+		_ = u.repo.MarkPlanChangeRetry(ctx, change.ChangeID, err.Error())
+		return data.SubscriptionRow{}, err
+	}
+	return u.repo.FinalizePlanChange(ctx, change.ChangeID)
+}
+
+func (u *BillingUsecase) RequestRefund(ctx context.Context, userID string, subscriptionID string, reason string, idempotencyKey string) (data.RefundRow, error) {
+	refund, err := u.repo.RequestRefund(ctx, userID, subscriptionID, reason, idempotencyKey)
+	if err != nil {
+		return data.RefundRow{}, err
+	}
+	if refund.Status != "quota_pending" {
+		return refund, nil
+	}
+	prep, err := u.repo.PrepareRefundQuota(ctx, refund, userID)
+	if err != nil {
+		_ = u.repo.MarkRefundRetry(ctx, refund.ID, err.Error())
+		return data.RefundRow{}, err
+	}
+	return u.repo.FinalizeRefund(ctx, refund.ID, prep)
 }
 
 func PriceCNY(price float64) int64 {

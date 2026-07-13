@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/data"
 	"google.golang.org/grpc/codes"
@@ -49,14 +50,93 @@ func TestConfirmSimulatedPaymentTracksQuotaActivationFailures(t *testing.T) {
 	})
 }
 
+func TestSubscriptionLifecycleRetriesOnlyIdempotentQuotaEffects(t *testing.T) {
+	baseSub := data.SubscriptionRow{ID: "subscription-1", UserID: "user-1", PlanCode: "basic", Status: "active"}
+	t.Run("upgrade applies one ledger adjustment before billing finalization", func(t *testing.T) {
+		repo := &fakeBillingRepo{
+			planChange: data.PlanChangeResult{Subscription: baseSub, ChangeID: "change-1", Kind: "upgrade", Status: "quota_pending", DeltaTokens: 1_500_000},
+			finalPlan:  data.SubscriptionRow{ID: baseSub.ID, UserID: baseSub.UserID, PlanCode: "pro", Status: "active"},
+		}
+		uc := NewBillingUsecase(repo, &conf.Bootstrap{})
+		sub, err := uc.ChangeSubscriptionPlan(context.Background(), "user-1", "subscription-1", "pro", "upgrade-key")
+		if err != nil {
+			t.Fatalf("ChangeSubscriptionPlan: %v", err)
+		}
+		if repo.adjusted != 1 || repo.finalized != 1 || sub.PlanCode != "pro" {
+			t.Fatalf("upgrade calls adjusted=%d finalized=%d sub=%#v", repo.adjusted, repo.finalized, sub)
+		}
+	})
+	t.Run("quota failure leaves the same change compensable", func(t *testing.T) {
+		repo := &fakeBillingRepo{
+			planChange: data.PlanChangeResult{Subscription: baseSub, ChangeID: "change-1", Kind: "upgrade", Status: "quota_pending", DeltaTokens: 1},
+			adjustErr:  status.Error(codes.Unavailable, "quota unavailable"),
+		}
+		uc := NewBillingUsecase(repo, &conf.Bootstrap{})
+		if _, err := uc.ChangeSubscriptionPlan(context.Background(), "user-1", "subscription-1", "pro", "upgrade-key"); status.Code(err) != codes.Unavailable {
+			t.Fatalf("ChangeSubscriptionPlan error = %v, want Unavailable", err)
+		}
+		if repo.adjusted != 1 || repo.finalized != 0 || len(repo.planRetries) != 1 {
+			t.Fatalf("failed upgrade calls adjusted=%d finalized=%d retries=%v", repo.adjusted, repo.finalized, repo.planRetries)
+		}
+	})
+	t.Run("scheduled downgrade does not rewrite the current quota account", func(t *testing.T) {
+		repo := &fakeBillingRepo{planChange: data.PlanChangeResult{Subscription: baseSub, ChangeID: "change-2", Kind: "downgrade", Status: "scheduled"}}
+		uc := NewBillingUsecase(repo, &conf.Bootstrap{})
+		if _, err := uc.ChangeSubscriptionPlan(context.Background(), "user-1", "subscription-1", "free", "downgrade-key"); err != nil {
+			t.Fatalf("ChangeSubscriptionPlan: %v", err)
+		}
+		if repo.adjusted != 0 || repo.finalized != 0 {
+			t.Fatalf("downgrade unexpectedly adjusted=%d finalized=%d", repo.adjusted, repo.finalized)
+		}
+	})
+	t.Run("unused simulated quota can be held and refunded exactly once", func(t *testing.T) {
+		repo := &fakeBillingRepo{
+			refund:      data.RefundRow{ID: "refund-1", SubscriptionID: "subscription-1", Status: "quota_pending", Reason: "user_requested"},
+			refundPrep:  &quotav1.RefundPreparation{RefundId: "refund-1", Status: "held"},
+			finalRefund: data.RefundRow{ID: "refund-1", Status: "refunded", QuotaHoldStatus: "held"},
+		}
+		uc := NewBillingUsecase(repo, &conf.Bootstrap{})
+		refund, err := uc.RequestRefund(context.Background(), "user-1", "subscription-1", "user_requested", "refund-key")
+		if err != nil {
+			t.Fatalf("RequestRefund: %v", err)
+		}
+		if repo.refundPrepared != 1 || repo.refundFinalized != 1 || refund.Status != "refunded" {
+			t.Fatalf("refund calls prepared=%d finalized=%d refund=%#v", repo.refundPrepared, repo.refundFinalized, refund)
+		}
+	})
+	t.Run("manual review never invents a provider refund", func(t *testing.T) {
+		repo := &fakeBillingRepo{refund: data.RefundRow{ID: "refund-2", SubscriptionID: "subscription-1", Status: "manual_review", UsedTokens: 12}}
+		uc := NewBillingUsecase(repo, &conf.Bootstrap{})
+		refund, err := uc.RequestRefund(context.Background(), "user-1", "subscription-1", "user_requested", "refund-key")
+		if err != nil {
+			t.Fatalf("RequestRefund: %v", err)
+		}
+		if repo.refundPrepared != 0 || repo.refundFinalized != 0 || refund.Status != "manual_review" {
+			t.Fatalf("manual refund calls prepared=%d finalized=%d refund=%#v", repo.refundPrepared, repo.refundFinalized, refund)
+		}
+	})
+}
+
 type fakeBillingRepo struct {
 	BillingRepository
-	result      data.SimulatedPaymentResult
-	balance     data.TokenBalanceRow
-	createErr   error
-	activateErr error
-	activated   int
-	failed      []string
+	result          data.SimulatedPaymentResult
+	balance         data.TokenBalanceRow
+	createErr       error
+	activateErr     error
+	activated       int
+	failed          []string
+	planChange      data.PlanChangeResult
+	adjustErr       error
+	adjusted        int
+	finalPlan       data.SubscriptionRow
+	finalized       int
+	planRetries     []string
+	refund          data.RefundRow
+	refundPrep      *quotav1.RefundPreparation
+	refundErr       error
+	finalRefund     data.RefundRow
+	refundPrepared  int
+	refundFinalized int
 }
 
 func (r *fakeBillingRepo) ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error) {
@@ -76,3 +156,38 @@ func (r *fakeBillingRepo) MarkSubscriptionActivationFailed(_ context.Context, su
 	r.failed = append(r.failed, subscriptionID)
 	return nil
 }
+
+func (r *fakeBillingRepo) ChangeSubscriptionPlan(context.Context, string, string, string, string) (data.PlanChangeResult, error) {
+	return r.planChange, nil
+}
+
+func (r *fakeBillingRepo) ApplyQuotaAdjustment(context.Context, data.PlanChangeResult) error {
+	r.adjusted++
+	return r.adjustErr
+}
+
+func (r *fakeBillingRepo) FinalizePlanChange(context.Context, string) (data.SubscriptionRow, error) {
+	r.finalized++
+	return r.finalPlan, nil
+}
+
+func (r *fakeBillingRepo) MarkPlanChangeRetry(_ context.Context, changeID string, _ string) error {
+	r.planRetries = append(r.planRetries, changeID)
+	return nil
+}
+
+func (r *fakeBillingRepo) RequestRefund(context.Context, string, string, string, string) (data.RefundRow, error) {
+	return r.refund, nil
+}
+
+func (r *fakeBillingRepo) PrepareRefundQuota(context.Context, data.RefundRow, string) (*quotav1.RefundPreparation, error) {
+	r.refundPrepared++
+	return r.refundPrep, r.refundErr
+}
+
+func (r *fakeBillingRepo) FinalizeRefund(context.Context, string, *quotav1.RefundPreparation) (data.RefundRow, error) {
+	r.refundFinalized++
+	return r.finalRefund, nil
+}
+
+func (r *fakeBillingRepo) MarkRefundRetry(context.Context, string, string) error { return nil }

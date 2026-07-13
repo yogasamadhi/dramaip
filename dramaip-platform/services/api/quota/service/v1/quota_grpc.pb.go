@@ -24,6 +24,8 @@ const (
 	QuotaService_ReserveTokens_FullMethodName       = "/dramaip.quota.service.v1.QuotaService/ReserveTokens"
 	QuotaService_SettleTokens_FullMethodName        = "/dramaip.quota.service.v1.QuotaService/SettleTokens"
 	QuotaService_CancelReservation_FullMethodName   = "/dramaip.quota.service.v1.QuotaService/CancelReservation"
+	QuotaService_AdjustPeriodQuota_FullMethodName   = "/dramaip.quota.service.v1.QuotaService/AdjustPeriodQuota"
+	QuotaService_PrepareRefund_FullMethodName       = "/dramaip.quota.service.v1.QuotaService/PrepareRefund"
 	QuotaService_ListTokenUsage_FullMethodName      = "/dramaip.quota.service.v1.QuotaService/ListTokenUsage"
 	QuotaService_GetUsageTrend_FullMethodName       = "/dramaip.quota.service.v1.QuotaService/GetUsageTrend"
 )
@@ -37,6 +39,12 @@ type QuotaServiceClient interface {
 	ReserveTokens(ctx context.Context, in *ReserveTokensRequest, opts ...grpc.CallOption) (*TokenReservation, error)
 	SettleTokens(ctx context.Context, in *SettleTokensRequest, opts ...grpc.CallOption) (*TokenUsage, error)
 	CancelReservation(ctx context.Context, in *CancelReservationRequest, opts ...grpc.CallOption) (*TokenReservation, error)
+	// Applies a billing-owned, idempotent entitlement increase to the current
+	// account. The adjustment_id is the cross-service natural key.
+	AdjustPeriodQuota(ctx context.Context, in *AdjustPeriodQuotaRequest, opts ...grpc.CallOption) (*QuotaAdjustment, error)
+	// A refund may only freeze unused, reservation-free quota automatically.
+	// Used or in-flight quota is returned as manual_review for an operator.
+	PrepareRefund(ctx context.Context, in *PrepareRefundRequest, opts ...grpc.CallOption) (*RefundPreparation, error)
 	ListTokenUsage(ctx context.Context, in *ListTokenUsageRequest, opts ...grpc.CallOption) (*ListTokenUsageReply, error)
 	GetUsageTrend(ctx context.Context, in *GetUsageTrendRequest, opts ...grpc.CallOption) (*GetUsageTrendReply, error)
 }
@@ -99,6 +107,26 @@ func (c *quotaServiceClient) CancelReservation(ctx context.Context, in *CancelRe
 	return out, nil
 }
 
+func (c *quotaServiceClient) AdjustPeriodQuota(ctx context.Context, in *AdjustPeriodQuotaRequest, opts ...grpc.CallOption) (*QuotaAdjustment, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuotaAdjustment)
+	err := c.cc.Invoke(ctx, QuotaService_AdjustPeriodQuota_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quotaServiceClient) PrepareRefund(ctx context.Context, in *PrepareRefundRequest, opts ...grpc.CallOption) (*RefundPreparation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefundPreparation)
+	err := c.cc.Invoke(ctx, QuotaService_PrepareRefund_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *quotaServiceClient) ListTokenUsage(ctx context.Context, in *ListTokenUsageRequest, opts ...grpc.CallOption) (*ListTokenUsageReply, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListTokenUsageReply)
@@ -128,6 +156,12 @@ type QuotaServiceServer interface {
 	ReserveTokens(context.Context, *ReserveTokensRequest) (*TokenReservation, error)
 	SettleTokens(context.Context, *SettleTokensRequest) (*TokenUsage, error)
 	CancelReservation(context.Context, *CancelReservationRequest) (*TokenReservation, error)
+	// Applies a billing-owned, idempotent entitlement increase to the current
+	// account. The adjustment_id is the cross-service natural key.
+	AdjustPeriodQuota(context.Context, *AdjustPeriodQuotaRequest) (*QuotaAdjustment, error)
+	// A refund may only freeze unused, reservation-free quota automatically.
+	// Used or in-flight quota is returned as manual_review for an operator.
+	PrepareRefund(context.Context, *PrepareRefundRequest) (*RefundPreparation, error)
 	ListTokenUsage(context.Context, *ListTokenUsageRequest) (*ListTokenUsageReply, error)
 	GetUsageTrend(context.Context, *GetUsageTrendRequest) (*GetUsageTrendReply, error)
 	mustEmbedUnimplementedQuotaServiceServer()
@@ -154,6 +188,12 @@ func (UnimplementedQuotaServiceServer) SettleTokens(context.Context, *SettleToke
 }
 func (UnimplementedQuotaServiceServer) CancelReservation(context.Context, *CancelReservationRequest) (*TokenReservation, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelReservation not implemented")
+}
+func (UnimplementedQuotaServiceServer) AdjustPeriodQuota(context.Context, *AdjustPeriodQuotaRequest) (*QuotaAdjustment, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdjustPeriodQuota not implemented")
+}
+func (UnimplementedQuotaServiceServer) PrepareRefund(context.Context, *PrepareRefundRequest) (*RefundPreparation, error) {
+	return nil, status.Error(codes.Unimplemented, "method PrepareRefund not implemented")
 }
 func (UnimplementedQuotaServiceServer) ListTokenUsage(context.Context, *ListTokenUsageRequest) (*ListTokenUsageReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTokenUsage not implemented")
@@ -272,6 +312,42 @@ func _QuotaService_CancelReservation_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuotaService_AdjustPeriodQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdjustPeriodQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuotaServiceServer).AdjustPeriodQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuotaService_AdjustPeriodQuota_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuotaServiceServer).AdjustPeriodQuota(ctx, req.(*AdjustPeriodQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuotaService_PrepareRefund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareRefundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuotaServiceServer).PrepareRefund(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuotaService_PrepareRefund_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuotaServiceServer).PrepareRefund(ctx, req.(*PrepareRefundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _QuotaService_ListTokenUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListTokenUsageRequest)
 	if err := dec(in); err != nil {
@@ -334,6 +410,14 @@ var QuotaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelReservation",
 			Handler:    _QuotaService_CancelReservation_Handler,
+		},
+		{
+			MethodName: "AdjustPeriodQuota",
+			Handler:    _QuotaService_AdjustPeriodQuota_Handler,
+		},
+		{
+			MethodName: "PrepareRefund",
+			Handler:    _QuotaService_PrepareRefund_Handler,
 		},
 		{
 			MethodName: "ListTokenUsage",

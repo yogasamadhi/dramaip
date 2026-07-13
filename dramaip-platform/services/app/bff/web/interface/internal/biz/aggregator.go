@@ -198,6 +198,24 @@ func (u *BFFUsecase) CancelSubscription(ctx context.Context, userID string, subs
 	return reply, err
 }
 
+func (u *BFFUsecase) ResumeSubscription(ctx context.Context, userID, subscriptionID, idempotencyKey string) (*billingv1.Subscription, error) {
+	return u.data.Billing.ResumeSubscription(ctx, &billingv1.ResumeSubscriptionRequest{
+		UserId: userID, SubscriptionId: subscriptionID, IdempotencyKey: idempotencyKey,
+	})
+}
+
+func (u *BFFUsecase) ChangeSubscriptionPlan(ctx context.Context, userID, subscriptionID, planID, idempotencyKey string) (*billingv1.Subscription, error) {
+	return u.data.Billing.ChangeSubscriptionPlan(ctx, &billingv1.ChangeSubscriptionPlanRequest{
+		UserId: userID, SubscriptionId: subscriptionID, PlanId: planID, IdempotencyKey: idempotencyKey,
+	})
+}
+
+func (u *BFFUsecase) RequestRefund(ctx context.Context, userID, subscriptionID, reason, idempotencyKey string) (*billingv1.Refund, error) {
+	return u.data.Billing.RequestRefund(ctx, &billingv1.RequestRefundRequest{
+		UserId: userID, SubscriptionId: subscriptionID, Reason: reason, IdempotencyKey: idempotencyKey,
+	})
+}
+
 func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64) (*aiv1.ChatReply, error) {
 	return u.data.AI.Chat(ctx, &aiv1.ChatRequest{
 		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, ClientIp: clientIP, Provider: provider,

@@ -541,6 +541,310 @@ func (x *TokenReservation) GetExpiresAt() string {
 	return ""
 }
 
+type AdjustPeriodQuotaRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AdjustmentId   string                 `protobuf:"bytes,1,opt,name=adjustment_id,json=adjustmentId,proto3" json:"adjustment_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SubscriptionId string                 `protobuf:"bytes,3,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	DeltaTokens    int64                  `protobuf:"varint,4,opt,name=delta_tokens,json=deltaTokens,proto3" json:"delta_tokens,omitempty"`
+	Reason         string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AdjustPeriodQuotaRequest) Reset() {
+	*x = AdjustPeriodQuotaRequest{}
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdjustPeriodQuotaRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdjustPeriodQuotaRequest) ProtoMessage() {}
+
+func (x *AdjustPeriodQuotaRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdjustPeriodQuotaRequest.ProtoReflect.Descriptor instead.
+func (*AdjustPeriodQuotaRequest) Descriptor() ([]byte, []int) {
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AdjustPeriodQuotaRequest) GetAdjustmentId() string {
+	if x != nil {
+		return x.AdjustmentId
+	}
+	return ""
+}
+
+func (x *AdjustPeriodQuotaRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *AdjustPeriodQuotaRequest) GetSubscriptionId() string {
+	if x != nil {
+		return x.SubscriptionId
+	}
+	return ""
+}
+
+func (x *AdjustPeriodQuotaRequest) GetDeltaTokens() int64 {
+	if x != nil {
+		return x.DeltaTokens
+	}
+	return 0
+}
+
+func (x *AdjustPeriodQuotaRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type QuotaAdjustment struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AdjustmentId   string                 `protobuf:"bytes,1,opt,name=adjustment_id,json=adjustmentId,proto3" json:"adjustment_id,omitempty"`
+	TokenAccountId string                 `protobuf:"bytes,2,opt,name=token_account_id,json=tokenAccountId,proto3" json:"token_account_id,omitempty"`
+	DeltaTokens    int64                  `protobuf:"varint,3,opt,name=delta_tokens,json=deltaTokens,proto3" json:"delta_tokens,omitempty"`
+	QuotaBefore    int64                  `protobuf:"varint,4,opt,name=quota_before,json=quotaBefore,proto3" json:"quota_before,omitempty"`
+	QuotaAfter     int64                  `protobuf:"varint,5,opt,name=quota_after,json=quotaAfter,proto3" json:"quota_after,omitempty"`
+	Status         string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *QuotaAdjustment) Reset() {
+	*x = QuotaAdjustment{}
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuotaAdjustment) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuotaAdjustment) ProtoMessage() {}
+
+func (x *QuotaAdjustment) ProtoReflect() protoreflect.Message {
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuotaAdjustment.ProtoReflect.Descriptor instead.
+func (*QuotaAdjustment) Descriptor() ([]byte, []int) {
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *QuotaAdjustment) GetAdjustmentId() string {
+	if x != nil {
+		return x.AdjustmentId
+	}
+	return ""
+}
+
+func (x *QuotaAdjustment) GetTokenAccountId() string {
+	if x != nil {
+		return x.TokenAccountId
+	}
+	return ""
+}
+
+func (x *QuotaAdjustment) GetDeltaTokens() int64 {
+	if x != nil {
+		return x.DeltaTokens
+	}
+	return 0
+}
+
+func (x *QuotaAdjustment) GetQuotaBefore() int64 {
+	if x != nil {
+		return x.QuotaBefore
+	}
+	return 0
+}
+
+func (x *QuotaAdjustment) GetQuotaAfter() int64 {
+	if x != nil {
+		return x.QuotaAfter
+	}
+	return 0
+}
+
+func (x *QuotaAdjustment) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+type PrepareRefundRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RefundId       string                 `protobuf:"bytes,1,opt,name=refund_id,json=refundId,proto3" json:"refund_id,omitempty"`
+	UserId         string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SubscriptionId string                 `protobuf:"bytes,3,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *PrepareRefundRequest) Reset() {
+	*x = PrepareRefundRequest{}
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareRefundRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareRefundRequest) ProtoMessage() {}
+
+func (x *PrepareRefundRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareRefundRequest.ProtoReflect.Descriptor instead.
+func (*PrepareRefundRequest) Descriptor() ([]byte, []int) {
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PrepareRefundRequest) GetRefundId() string {
+	if x != nil {
+		return x.RefundId
+	}
+	return ""
+}
+
+func (x *PrepareRefundRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *PrepareRefundRequest) GetSubscriptionId() string {
+	if x != nil {
+		return x.SubscriptionId
+	}
+	return ""
+}
+
+func (x *PrepareRefundRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RefundPreparation struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RefundId       string                 `protobuf:"bytes,1,opt,name=refund_id,json=refundId,proto3" json:"refund_id,omitempty"`
+	TokenAccountId string                 `protobuf:"bytes,2,opt,name=token_account_id,json=tokenAccountId,proto3" json:"token_account_id,omitempty"`
+	Status         string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	UsedTokens     int64                  `protobuf:"varint,4,opt,name=used_tokens,json=usedTokens,proto3" json:"used_tokens,omitempty"`
+	Reason         string                 `protobuf:"bytes,5,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RefundPreparation) Reset() {
+	*x = RefundPreparation{}
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefundPreparation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefundPreparation) ProtoMessage() {}
+
+func (x *RefundPreparation) ProtoReflect() protoreflect.Message {
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefundPreparation.ProtoReflect.Descriptor instead.
+func (*RefundPreparation) Descriptor() ([]byte, []int) {
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RefundPreparation) GetRefundId() string {
+	if x != nil {
+		return x.RefundId
+	}
+	return ""
+}
+
+func (x *RefundPreparation) GetTokenAccountId() string {
+	if x != nil {
+		return x.TokenAccountId
+	}
+	return ""
+}
+
+func (x *RefundPreparation) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *RefundPreparation) GetUsedTokens() int64 {
+	if x != nil {
+		return x.UsedTokens
+	}
+	return 0
+}
+
+func (x *RefundPreparation) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 type SettleTokensRequest struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ReservationId    string                 `protobuf:"bytes,1,opt,name=reservation_id,json=reservationId,proto3" json:"reservation_id,omitempty"`
@@ -557,7 +861,7 @@ type SettleTokensRequest struct {
 
 func (x *SettleTokensRequest) Reset() {
 	*x = SettleTokensRequest{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[6]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +873,7 @@ func (x *SettleTokensRequest) String() string {
 func (*SettleTokensRequest) ProtoMessage() {}
 
 func (x *SettleTokensRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[6]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +886,7 @@ func (x *SettleTokensRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettleTokensRequest.ProtoReflect.Descriptor instead.
 func (*SettleTokensRequest) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{6}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SettleTokensRequest) GetReservationId() string {
@@ -636,7 +940,7 @@ type CancelReservationRequest struct {
 
 func (x *CancelReservationRequest) Reset() {
 	*x = CancelReservationRequest{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[7]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -648,7 +952,7 @@ func (x *CancelReservationRequest) String() string {
 func (*CancelReservationRequest) ProtoMessage() {}
 
 func (x *CancelReservationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[7]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -661,7 +965,7 @@ func (x *CancelReservationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelReservationRequest.ProtoReflect.Descriptor instead.
 func (*CancelReservationRequest) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{7}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CancelReservationRequest) GetReservationId() string {
@@ -687,7 +991,7 @@ type TokenUsage struct {
 
 func (x *TokenUsage) Reset() {
 	*x = TokenUsage{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[8]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -699,7 +1003,7 @@ func (x *TokenUsage) String() string {
 func (*TokenUsage) ProtoMessage() {}
 
 func (x *TokenUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[8]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -712,7 +1016,7 @@ func (x *TokenUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenUsage.ProtoReflect.Descriptor instead.
 func (*TokenUsage) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{8}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TokenUsage) GetId() string {
@@ -781,7 +1085,7 @@ type ListTokenUsageRequest struct {
 
 func (x *ListTokenUsageRequest) Reset() {
 	*x = ListTokenUsageRequest{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[9]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -793,7 +1097,7 @@ func (x *ListTokenUsageRequest) String() string {
 func (*ListTokenUsageRequest) ProtoMessage() {}
 
 func (x *ListTokenUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[9]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -806,7 +1110,7 @@ func (x *ListTokenUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTokenUsageRequest.ProtoReflect.Descriptor instead.
 func (*ListTokenUsageRequest) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{9}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListTokenUsageRequest) GetUserId() string {
@@ -832,7 +1136,7 @@ type ListTokenUsageReply struct {
 
 func (x *ListTokenUsageReply) Reset() {
 	*x = ListTokenUsageReply{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[10]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -844,7 +1148,7 @@ func (x *ListTokenUsageReply) String() string {
 func (*ListTokenUsageReply) ProtoMessage() {}
 
 func (x *ListTokenUsageReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[10]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -857,7 +1161,7 @@ func (x *ListTokenUsageReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTokenUsageReply.ProtoReflect.Descriptor instead.
 func (*ListTokenUsageReply) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{10}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListTokenUsageReply) GetUsage() []*TokenUsage {
@@ -877,7 +1181,7 @@ type GetUsageTrendRequest struct {
 
 func (x *GetUsageTrendRequest) Reset() {
 	*x = GetUsageTrendRequest{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[11]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -889,7 +1193,7 @@ func (x *GetUsageTrendRequest) String() string {
 func (*GetUsageTrendRequest) ProtoMessage() {}
 
 func (x *GetUsageTrendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[11]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -902,7 +1206,7 @@ func (x *GetUsageTrendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageTrendRequest.ProtoReflect.Descriptor instead.
 func (*GetUsageTrendRequest) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{11}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetUsageTrendRequest) GetUserId() string {
@@ -929,7 +1233,7 @@ type UsageTrendPoint struct {
 
 func (x *UsageTrendPoint) Reset() {
 	*x = UsageTrendPoint{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[12]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -941,7 +1245,7 @@ func (x *UsageTrendPoint) String() string {
 func (*UsageTrendPoint) ProtoMessage() {}
 
 func (x *UsageTrendPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[12]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -954,7 +1258,7 @@ func (x *UsageTrendPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageTrendPoint.ProtoReflect.Descriptor instead.
 func (*UsageTrendPoint) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{12}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UsageTrendPoint) GetDate() string {
@@ -980,7 +1284,7 @@ type GetUsageTrendReply struct {
 
 func (x *GetUsageTrendReply) Reset() {
 	*x = GetUsageTrendReply{}
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[13]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -992,7 +1296,7 @@ func (x *GetUsageTrendReply) String() string {
 func (*GetUsageTrendReply) ProtoMessage() {}
 
 func (x *GetUsageTrendReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_quota_service_v1_quota_proto_msgTypes[13]
+	mi := &file_api_quota_service_v1_quota_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1005,7 +1309,7 @@ func (x *GetUsageTrendReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageTrendReply.ProtoReflect.Descriptor instead.
 func (*GetUsageTrendReply) Descriptor() ([]byte, []int) {
-	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{13}
+	return file_api_quota_service_v1_quota_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetUsageTrendReply) GetPoints() []*UsageTrendPoint {
@@ -1072,7 +1376,33 @@ const file_api_quota_service_v1_quota_proto_rawDesc = "" +
 	"\fcurrent_used\x18\x06 \x01(\x03R\vcurrentUsed\x12#\n" +
 	"\rcurrent_quota\x18\a \x01(\x03R\fcurrentQuota\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\b \x01(\tR\texpiresAt\"\xe4\x01\n" +
+	"expires_at\x18\b \x01(\tR\texpiresAt\"\xbc\x01\n" +
+	"\x18AdjustPeriodQuotaRequest\x12#\n" +
+	"\radjustment_id\x18\x01 \x01(\tR\fadjustmentId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12'\n" +
+	"\x0fsubscription_id\x18\x03 \x01(\tR\x0esubscriptionId\x12!\n" +
+	"\fdelta_tokens\x18\x04 \x01(\x03R\vdeltaTokens\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"\xdf\x01\n" +
+	"\x0fQuotaAdjustment\x12#\n" +
+	"\radjustment_id\x18\x01 \x01(\tR\fadjustmentId\x12(\n" +
+	"\x10token_account_id\x18\x02 \x01(\tR\x0etokenAccountId\x12!\n" +
+	"\fdelta_tokens\x18\x03 \x01(\x03R\vdeltaTokens\x12!\n" +
+	"\fquota_before\x18\x04 \x01(\x03R\vquotaBefore\x12\x1f\n" +
+	"\vquota_after\x18\x05 \x01(\x03R\n" +
+	"quotaAfter\x12\x16\n" +
+	"\x06status\x18\x06 \x01(\tR\x06status\"\x8d\x01\n" +
+	"\x14PrepareRefundRequest\x12\x1b\n" +
+	"\trefund_id\x18\x01 \x01(\tR\brefundId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12'\n" +
+	"\x0fsubscription_id\x18\x03 \x01(\tR\x0esubscriptionId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"\xab\x01\n" +
+	"\x11RefundPreparation\x12\x1b\n" +
+	"\trefund_id\x18\x01 \x01(\tR\brefundId\x12(\n" +
+	"\x10token_account_id\x18\x02 \x01(\tR\x0etokenAccountId\x12\x16\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12\x1f\n" +
+	"\vused_tokens\x18\x04 \x01(\x03R\n" +
+	"usedTokens\x12\x16\n" +
+	"\x06reason\x18\x05 \x01(\tR\x06reason\"\xe4\x01\n" +
 	"\x13SettleTokensRequest\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\x12\x1d\n" +
 	"\n" +
@@ -1108,13 +1438,15 @@ const file_api_quota_service_v1_quota_proto_rawDesc = "" +
 	"\x04date\x18\x01 \x01(\tR\x04date\x12!\n" +
 	"\ftotal_tokens\x18\x02 \x01(\x03R\vtotalTokens\"W\n" +
 	"\x12GetUsageTrendReply\x12A\n" +
-	"\x06points\x18\x01 \x03(\v2).dramaip.quota.service.v1.UsageTrendPointR\x06points2\x98\x06\n" +
+	"\x06points\x18\x01 \x03(\v2).dramaip.quota.service.v1.UsageTrendPointR\x06points2\xfa\a\n" +
 	"\fQuotaService\x12k\n" +
 	"\x0fGetTokenBalance\x120.dramaip.quota.service.v1.GetTokenBalanceRequest\x1a&.dramaip.quota.service.v1.TokenBalance\x12s\n" +
 	"\x13CreatePeriodAccount\x124.dramaip.quota.service.v1.CreatePeriodAccountRequest\x1a&.dramaip.quota.service.v1.TokenAccount\x12k\n" +
 	"\rReserveTokens\x12..dramaip.quota.service.v1.ReserveTokensRequest\x1a*.dramaip.quota.service.v1.TokenReservation\x12c\n" +
 	"\fSettleTokens\x12-.dramaip.quota.service.v1.SettleTokensRequest\x1a$.dramaip.quota.service.v1.TokenUsage\x12s\n" +
-	"\x11CancelReservation\x122.dramaip.quota.service.v1.CancelReservationRequest\x1a*.dramaip.quota.service.v1.TokenReservation\x12p\n" +
+	"\x11CancelReservation\x122.dramaip.quota.service.v1.CancelReservationRequest\x1a*.dramaip.quota.service.v1.TokenReservation\x12r\n" +
+	"\x11AdjustPeriodQuota\x122.dramaip.quota.service.v1.AdjustPeriodQuotaRequest\x1a).dramaip.quota.service.v1.QuotaAdjustment\x12l\n" +
+	"\rPrepareRefund\x12..dramaip.quota.service.v1.PrepareRefundRequest\x1a+.dramaip.quota.service.v1.RefundPreparation\x12p\n" +
 	"\x0eListTokenUsage\x12/.dramaip.quota.service.v1.ListTokenUsageRequest\x1a-.dramaip.quota.service.v1.ListTokenUsageReply\x12m\n" +
 	"\rGetUsageTrend\x12..dramaip.quota.service.v1.GetUsageTrendRequest\x1a,.dramaip.quota.service.v1.GetUsageTrendReplyBKZIgithub.com/dramaip/dramaip-platform/services/api/quota/service/v1;quotav1b\x06proto3"
 
@@ -1130,7 +1462,7 @@ func file_api_quota_service_v1_quota_proto_rawDescGZIP() []byte {
 	return file_api_quota_service_v1_quota_proto_rawDescData
 }
 
-var file_api_quota_service_v1_quota_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_api_quota_service_v1_quota_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_api_quota_service_v1_quota_proto_goTypes = []any{
 	(*GetTokenBalanceRequest)(nil),     // 0: dramaip.quota.service.v1.GetTokenBalanceRequest
 	(*TokenBalance)(nil),               // 1: dramaip.quota.service.v1.TokenBalance
@@ -1138,34 +1470,42 @@ var file_api_quota_service_v1_quota_proto_goTypes = []any{
 	(*TokenAccount)(nil),               // 3: dramaip.quota.service.v1.TokenAccount
 	(*ReserveTokensRequest)(nil),       // 4: dramaip.quota.service.v1.ReserveTokensRequest
 	(*TokenReservation)(nil),           // 5: dramaip.quota.service.v1.TokenReservation
-	(*SettleTokensRequest)(nil),        // 6: dramaip.quota.service.v1.SettleTokensRequest
-	(*CancelReservationRequest)(nil),   // 7: dramaip.quota.service.v1.CancelReservationRequest
-	(*TokenUsage)(nil),                 // 8: dramaip.quota.service.v1.TokenUsage
-	(*ListTokenUsageRequest)(nil),      // 9: dramaip.quota.service.v1.ListTokenUsageRequest
-	(*ListTokenUsageReply)(nil),        // 10: dramaip.quota.service.v1.ListTokenUsageReply
-	(*GetUsageTrendRequest)(nil),       // 11: dramaip.quota.service.v1.GetUsageTrendRequest
-	(*UsageTrendPoint)(nil),            // 12: dramaip.quota.service.v1.UsageTrendPoint
-	(*GetUsageTrendReply)(nil),         // 13: dramaip.quota.service.v1.GetUsageTrendReply
+	(*AdjustPeriodQuotaRequest)(nil),   // 6: dramaip.quota.service.v1.AdjustPeriodQuotaRequest
+	(*QuotaAdjustment)(nil),            // 7: dramaip.quota.service.v1.QuotaAdjustment
+	(*PrepareRefundRequest)(nil),       // 8: dramaip.quota.service.v1.PrepareRefundRequest
+	(*RefundPreparation)(nil),          // 9: dramaip.quota.service.v1.RefundPreparation
+	(*SettleTokensRequest)(nil),        // 10: dramaip.quota.service.v1.SettleTokensRequest
+	(*CancelReservationRequest)(nil),   // 11: dramaip.quota.service.v1.CancelReservationRequest
+	(*TokenUsage)(nil),                 // 12: dramaip.quota.service.v1.TokenUsage
+	(*ListTokenUsageRequest)(nil),      // 13: dramaip.quota.service.v1.ListTokenUsageRequest
+	(*ListTokenUsageReply)(nil),        // 14: dramaip.quota.service.v1.ListTokenUsageReply
+	(*GetUsageTrendRequest)(nil),       // 15: dramaip.quota.service.v1.GetUsageTrendRequest
+	(*UsageTrendPoint)(nil),            // 16: dramaip.quota.service.v1.UsageTrendPoint
+	(*GetUsageTrendReply)(nil),         // 17: dramaip.quota.service.v1.GetUsageTrendReply
 }
 var file_api_quota_service_v1_quota_proto_depIdxs = []int32{
-	8,  // 0: dramaip.quota.service.v1.ListTokenUsageReply.usage:type_name -> dramaip.quota.service.v1.TokenUsage
-	12, // 1: dramaip.quota.service.v1.GetUsageTrendReply.points:type_name -> dramaip.quota.service.v1.UsageTrendPoint
+	12, // 0: dramaip.quota.service.v1.ListTokenUsageReply.usage:type_name -> dramaip.quota.service.v1.TokenUsage
+	16, // 1: dramaip.quota.service.v1.GetUsageTrendReply.points:type_name -> dramaip.quota.service.v1.UsageTrendPoint
 	0,  // 2: dramaip.quota.service.v1.QuotaService.GetTokenBalance:input_type -> dramaip.quota.service.v1.GetTokenBalanceRequest
 	2,  // 3: dramaip.quota.service.v1.QuotaService.CreatePeriodAccount:input_type -> dramaip.quota.service.v1.CreatePeriodAccountRequest
 	4,  // 4: dramaip.quota.service.v1.QuotaService.ReserveTokens:input_type -> dramaip.quota.service.v1.ReserveTokensRequest
-	6,  // 5: dramaip.quota.service.v1.QuotaService.SettleTokens:input_type -> dramaip.quota.service.v1.SettleTokensRequest
-	7,  // 6: dramaip.quota.service.v1.QuotaService.CancelReservation:input_type -> dramaip.quota.service.v1.CancelReservationRequest
-	9,  // 7: dramaip.quota.service.v1.QuotaService.ListTokenUsage:input_type -> dramaip.quota.service.v1.ListTokenUsageRequest
-	11, // 8: dramaip.quota.service.v1.QuotaService.GetUsageTrend:input_type -> dramaip.quota.service.v1.GetUsageTrendRequest
-	1,  // 9: dramaip.quota.service.v1.QuotaService.GetTokenBalance:output_type -> dramaip.quota.service.v1.TokenBalance
-	3,  // 10: dramaip.quota.service.v1.QuotaService.CreatePeriodAccount:output_type -> dramaip.quota.service.v1.TokenAccount
-	5,  // 11: dramaip.quota.service.v1.QuotaService.ReserveTokens:output_type -> dramaip.quota.service.v1.TokenReservation
-	8,  // 12: dramaip.quota.service.v1.QuotaService.SettleTokens:output_type -> dramaip.quota.service.v1.TokenUsage
-	5,  // 13: dramaip.quota.service.v1.QuotaService.CancelReservation:output_type -> dramaip.quota.service.v1.TokenReservation
-	10, // 14: dramaip.quota.service.v1.QuotaService.ListTokenUsage:output_type -> dramaip.quota.service.v1.ListTokenUsageReply
-	13, // 15: dramaip.quota.service.v1.QuotaService.GetUsageTrend:output_type -> dramaip.quota.service.v1.GetUsageTrendReply
-	9,  // [9:16] is the sub-list for method output_type
-	2,  // [2:9] is the sub-list for method input_type
+	10, // 5: dramaip.quota.service.v1.QuotaService.SettleTokens:input_type -> dramaip.quota.service.v1.SettleTokensRequest
+	11, // 6: dramaip.quota.service.v1.QuotaService.CancelReservation:input_type -> dramaip.quota.service.v1.CancelReservationRequest
+	6,  // 7: dramaip.quota.service.v1.QuotaService.AdjustPeriodQuota:input_type -> dramaip.quota.service.v1.AdjustPeriodQuotaRequest
+	8,  // 8: dramaip.quota.service.v1.QuotaService.PrepareRefund:input_type -> dramaip.quota.service.v1.PrepareRefundRequest
+	13, // 9: dramaip.quota.service.v1.QuotaService.ListTokenUsage:input_type -> dramaip.quota.service.v1.ListTokenUsageRequest
+	15, // 10: dramaip.quota.service.v1.QuotaService.GetUsageTrend:input_type -> dramaip.quota.service.v1.GetUsageTrendRequest
+	1,  // 11: dramaip.quota.service.v1.QuotaService.GetTokenBalance:output_type -> dramaip.quota.service.v1.TokenBalance
+	3,  // 12: dramaip.quota.service.v1.QuotaService.CreatePeriodAccount:output_type -> dramaip.quota.service.v1.TokenAccount
+	5,  // 13: dramaip.quota.service.v1.QuotaService.ReserveTokens:output_type -> dramaip.quota.service.v1.TokenReservation
+	12, // 14: dramaip.quota.service.v1.QuotaService.SettleTokens:output_type -> dramaip.quota.service.v1.TokenUsage
+	5,  // 15: dramaip.quota.service.v1.QuotaService.CancelReservation:output_type -> dramaip.quota.service.v1.TokenReservation
+	7,  // 16: dramaip.quota.service.v1.QuotaService.AdjustPeriodQuota:output_type -> dramaip.quota.service.v1.QuotaAdjustment
+	9,  // 17: dramaip.quota.service.v1.QuotaService.PrepareRefund:output_type -> dramaip.quota.service.v1.RefundPreparation
+	14, // 18: dramaip.quota.service.v1.QuotaService.ListTokenUsage:output_type -> dramaip.quota.service.v1.ListTokenUsageReply
+	17, // 19: dramaip.quota.service.v1.QuotaService.GetUsageTrend:output_type -> dramaip.quota.service.v1.GetUsageTrendReply
+	11, // [11:20] is the sub-list for method output_type
+	2,  // [2:11] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -1182,7 +1522,7 @@ func file_api_quota_service_v1_quota_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_quota_service_v1_quota_proto_rawDesc), len(file_api_quota_service_v1_quota_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

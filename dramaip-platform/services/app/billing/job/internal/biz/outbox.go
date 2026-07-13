@@ -39,3 +39,7 @@ func (u *OutboxUsecase) Relay(ctx context.Context) error {
 func (u *OutboxUsecase) RetryQuotaProvisioning(ctx context.Context) error {
 	return u.data.RetryQuotaProvisioning(ctx, u.batch)
 }
+
+func (u *OutboxUsecase) ProcessSubscriptionLifecycle(ctx context.Context) error {
+	return u.data.ProcessSubscriptionLifecycle(ctx, u.batch)
+}

@@ -33,6 +33,9 @@ func (s *OutboxService) Run(ctx context.Context) error {
 		if err := s.uc.RetryQuotaProvisioning(ctx); err != nil {
 			log.Printf("quota provisioning retry failed: %v", err)
 		}
+		if err := s.uc.ProcessSubscriptionLifecycle(ctx); err != nil {
+			log.Printf("subscription lifecycle processing failed: %v", err)
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

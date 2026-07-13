@@ -13,6 +13,9 @@ service BillingService {
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersReply);
   rpc GetOrder(GetOrderRequest) returns (Order);
   rpc CancelSubscription(CancelSubscriptionRequest) returns (Subscription);
+  rpc ResumeSubscription(ResumeSubscriptionRequest) returns (Subscription);
+  rpc ChangeSubscriptionPlan(ChangeSubscriptionPlanRequest) returns (Subscription);
+  rpc RequestRefund(RequestRefundRequest) returns (Refund);
 }
 
 message ListPlansRequest {}
@@ -103,6 +106,26 @@ message CancelSubscriptionRequest {
   bool immediate = 3;
 }
 
+message ResumeSubscriptionRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+  string idempotency_key = 3;
+}
+
+message ChangeSubscriptionPlanRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+  string plan_id = 3;
+  string idempotency_key = 4;
+}
+
+message RequestRefundRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+  string reason = 3;
+  string idempotency_key = 4;
+}
+
 message Subscription {
   string id = 1;
   string user_id = 2;
@@ -113,6 +136,21 @@ message Subscription {
   string plan_code = 7;
   bool cancel_at_period_end = 8;
   string canceled_at = 9;
+  string scheduled_plan_code = 10;
+  string scheduled_change_at = 11;
+  string lifecycle_error = 12;
+}
+
+message Refund {
+  string id = 1;
+  string subscription_id = 2;
+  string status = 3;
+  string reason = 4;
+  int64 used_tokens = 5;
+  string quota_hold_status = 6;
+  string failure_reason = 7;
+  string created_at = 8;
+  string resolved_at = 9;
 }
 
 message Order {

@@ -27,6 +27,9 @@ const (
 	BillingService_ListOrders_FullMethodName              = "/dramaip.billing.service.v1.BillingService/ListOrders"
 	BillingService_GetOrder_FullMethodName                = "/dramaip.billing.service.v1.BillingService/GetOrder"
 	BillingService_CancelSubscription_FullMethodName      = "/dramaip.billing.service.v1.BillingService/CancelSubscription"
+	BillingService_ResumeSubscription_FullMethodName      = "/dramaip.billing.service.v1.BillingService/ResumeSubscription"
+	BillingService_ChangeSubscriptionPlan_FullMethodName  = "/dramaip.billing.service.v1.BillingService/ChangeSubscriptionPlan"
+	BillingService_RequestRefund_FullMethodName           = "/dramaip.billing.service.v1.BillingService/RequestRefund"
 )
 
 // BillingServiceClient is the client API for BillingService service.
@@ -41,6 +44,9 @@ type BillingServiceClient interface {
 	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersReply, error)
 	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*Order, error)
 	CancelSubscription(ctx context.Context, in *CancelSubscriptionRequest, opts ...grpc.CallOption) (*Subscription, error)
+	ResumeSubscription(ctx context.Context, in *ResumeSubscriptionRequest, opts ...grpc.CallOption) (*Subscription, error)
+	ChangeSubscriptionPlan(ctx context.Context, in *ChangeSubscriptionPlanRequest, opts ...grpc.CallOption) (*Subscription, error)
+	RequestRefund(ctx context.Context, in *RequestRefundRequest, opts ...grpc.CallOption) (*Refund, error)
 }
 
 type billingServiceClient struct {
@@ -131,6 +137,36 @@ func (c *billingServiceClient) CancelSubscription(ctx context.Context, in *Cance
 	return out, nil
 }
 
+func (c *billingServiceClient) ResumeSubscription(ctx context.Context, in *ResumeSubscriptionRequest, opts ...grpc.CallOption) (*Subscription, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Subscription)
+	err := c.cc.Invoke(ctx, BillingService_ResumeSubscription_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) ChangeSubscriptionPlan(ctx context.Context, in *ChangeSubscriptionPlanRequest, opts ...grpc.CallOption) (*Subscription, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Subscription)
+	err := c.cc.Invoke(ctx, BillingService_ChangeSubscriptionPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *billingServiceClient) RequestRefund(ctx context.Context, in *RequestRefundRequest, opts ...grpc.CallOption) (*Refund, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Refund)
+	err := c.cc.Invoke(ctx, BillingService_RequestRefund_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BillingServiceServer is the server API for BillingService service.
 // All implementations must embed UnimplementedBillingServiceServer
 // for forward compatibility.
@@ -143,6 +179,9 @@ type BillingServiceServer interface {
 	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersReply, error)
 	GetOrder(context.Context, *GetOrderRequest) (*Order, error)
 	CancelSubscription(context.Context, *CancelSubscriptionRequest) (*Subscription, error)
+	ResumeSubscription(context.Context, *ResumeSubscriptionRequest) (*Subscription, error)
+	ChangeSubscriptionPlan(context.Context, *ChangeSubscriptionPlanRequest) (*Subscription, error)
+	RequestRefund(context.Context, *RequestRefundRequest) (*Refund, error)
 	mustEmbedUnimplementedBillingServiceServer()
 }
 
@@ -176,6 +215,15 @@ func (UnimplementedBillingServiceServer) GetOrder(context.Context, *GetOrderRequ
 }
 func (UnimplementedBillingServiceServer) CancelSubscription(context.Context, *CancelSubscriptionRequest) (*Subscription, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelSubscription not implemented")
+}
+func (UnimplementedBillingServiceServer) ResumeSubscription(context.Context, *ResumeSubscriptionRequest) (*Subscription, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResumeSubscription not implemented")
+}
+func (UnimplementedBillingServiceServer) ChangeSubscriptionPlan(context.Context, *ChangeSubscriptionPlanRequest) (*Subscription, error) {
+	return nil, status.Error(codes.Unimplemented, "method ChangeSubscriptionPlan not implemented")
+}
+func (UnimplementedBillingServiceServer) RequestRefund(context.Context, *RequestRefundRequest) (*Refund, error) {
+	return nil, status.Error(codes.Unimplemented, "method RequestRefund not implemented")
 }
 func (UnimplementedBillingServiceServer) mustEmbedUnimplementedBillingServiceServer() {}
 func (UnimplementedBillingServiceServer) testEmbeddedByValue()                        {}
@@ -342,6 +390,60 @@ func _BillingService_CancelSubscription_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BillingService_ResumeSubscription_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResumeSubscriptionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ResumeSubscription(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ResumeSubscription_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ResumeSubscription(ctx, req.(*ResumeSubscriptionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_ChangeSubscriptionPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChangeSubscriptionPlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).ChangeSubscriptionPlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_ChangeSubscriptionPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).ChangeSubscriptionPlan(ctx, req.(*ChangeSubscriptionPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BillingService_RequestRefund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RequestRefundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BillingServiceServer).RequestRefund(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BillingService_RequestRefund_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BillingServiceServer).RequestRefund(ctx, req.(*RequestRefundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BillingService_ServiceDesc is the grpc.ServiceDesc for BillingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -380,6 +482,18 @@ var BillingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelSubscription",
 			Handler:    _BillingService_CancelSubscription_Handler,
+		},
+		{
+			MethodName: "ResumeSubscription",
+			Handler:    _BillingService_ResumeSubscription_Handler,
+		},
+		{
+			MethodName: "ChangeSubscriptionPlan",
+			Handler:    _BillingService_ChangeSubscriptionPlan_Handler,
+		},
+		{
+			MethodName: "RequestRefund",
+			Handler:    _BillingService_RequestRefund_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

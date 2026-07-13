@@ -101,9 +101,26 @@ export const SubscriptionSchema = z.object({
   current_period_end: z.string().default(''),
   cancel_at_period_end: z.boolean().optional(),
   canceled_at: z.string().optional(),
+  scheduled_plan_code: z.string().optional(),
+  scheduled_change_at: z.string().optional(),
+  lifecycle_error: z.string().optional(),
 })
 
 export type Subscription = z.infer<typeof SubscriptionSchema>
+
+export const RefundSchema = z.object({
+  id: z.string().default(''),
+  subscription_id: z.string().default(''),
+  status: z.string().default(''),
+  reason: z.string().default(''),
+  used_tokens: z.number().default(0),
+  quota_hold_status: z.string().default(''),
+  failure_reason: z.string().default(''),
+  created_at: z.string().default(''),
+  resolved_at: z.string().default(''),
+})
+
+export type Refund = z.infer<typeof RefundSchema>
 
 export const PaymentConfirmationResponseSchema = z.object({
   order_id: z.string(),
@@ -261,6 +278,9 @@ export interface DramaIpApiClient {
   confirmSimulatedPayment(input: { checkout_id: string }): Promise<PaymentConfirmationResponse>
   confirmSandboxPayment(input: { checkout_id: string }): Promise<SandboxPaymentResponse>
   cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>
+  resumeSubscription(input?: { subscription_id?: string; idempotency_key?: string }): Promise<Subscription>
+  changeSubscriptionPlan(input: { subscription_id?: string; plan_id: string; idempotency_key?: string }): Promise<Subscription>
+  requestRefund(input?: { subscription_id?: string; reason?: string; idempotency_key?: string }): Promise<Refund>
   refresh(): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
   chat(input: { request_id?: string; idempotency_key?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
@@ -363,6 +383,18 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     async cancelSubscription(input = {}) {
       const res = await http.post('/v1/subscription/cancel', input)
       return SubscriptionSchema.parse(res.data)
+    },
+    async resumeSubscription(input = {}) {
+      const res = await http.post('/v1/subscription/resume', input)
+      return SubscriptionSchema.parse(res.data)
+    },
+    async changeSubscriptionPlan(input) {
+      const res = await http.post('/v1/subscription/change-plan', input)
+      return SubscriptionSchema.parse(res.data)
+    },
+    async requestRefund(input = {}) {
+      const res = await http.post('/v1/subscription/refund', input)
+      return RefundSchema.parse(res.data)
     },
     async refresh() {
       const res = await http.post('/v1/auth/refresh')

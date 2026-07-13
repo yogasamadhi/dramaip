@@ -72,6 +72,23 @@ func (u *QuotaUsecase) CancelReservation(ctx context.Context, reservationID stri
 	return u.repo.CancelReservation(ctx, reservationID)
 }
 
+func (u *QuotaUsecase) AdjustPeriodQuota(ctx context.Context, adjustmentID, userID, subscriptionID string, deltaTokens int64, reason string) (data.QuotaAdjustment, error) {
+	if adjustmentID == "" || userID == "" || subscriptionID == "" || reason == "" {
+		return data.QuotaAdjustment{}, status.Error(codes.InvalidArgument, "missing quota adjustment identity")
+	}
+	if deltaTokens <= 0 {
+		return data.QuotaAdjustment{}, status.Error(codes.InvalidArgument, "quota adjustment must increase entitlement")
+	}
+	return u.repo.AdjustPeriodQuota(ctx, adjustmentID, userID, subscriptionID, deltaTokens, reason)
+}
+
+func (u *QuotaUsecase) PrepareRefund(ctx context.Context, refundID, userID, subscriptionID, reason string) (data.RefundPreparation, error) {
+	if refundID == "" || userID == "" || subscriptionID == "" || reason == "" {
+		return data.RefundPreparation{}, status.Error(codes.InvalidArgument, "missing refund identity")
+	}
+	return u.repo.PrepareRefund(ctx, refundID, userID, subscriptionID, reason)
+}
+
 func (u *QuotaUsecase) ListTokenUsage(ctx context.Context, userID string, limit int32) ([]data.TokenUsage, error) {
 	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing user id")

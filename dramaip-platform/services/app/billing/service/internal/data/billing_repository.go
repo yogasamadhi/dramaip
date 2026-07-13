@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -40,17 +41,17 @@ type PlanRow struct {
 // created. It is copied to the subscription and every quota period account so
 // historical rights never need to be reconstructed from billing.plans.
 type PlanSnapshot struct {
-	Code              string
-	Name              string
-	BillingPeriod     string
-	Price             string
-	Currency          string
-	MonthlyTokenQuota int64
-	MaxRPM            int64
-	MaxContextTokens  int64
-	ModelLevel        string
-	Source            string
-	At                string
+	Code              string `json:"code"`
+	Name              string `json:"name"`
+	BillingPeriod     string `json:"billing_period"`
+	Price             string `json:"price"`
+	Currency          string `json:"currency"`
+	MonthlyTokenQuota int64  `json:"monthly_token_quota"`
+	MaxRPM            int64  `json:"max_rpm"`
+	MaxContextTokens  int64  `json:"max_context_tokens"`
+	ModelLevel        string `json:"model_level"`
+	Source            string `json:"source"`
+	At                string `json:"at"`
 }
 
 type SubscriptionRow struct {
@@ -58,11 +59,15 @@ type SubscriptionRow struct {
 	UserID             string
 	PlanID             string
 	PlanCode           string
+	Provider           string
 	Status             string
 	CurrentPeriodStart string
 	CurrentPeriodEnd   string
 	CancelAtPeriodEnd  bool
 	CanceledAt         string
+	ScheduledPlanCode  string
+	ScheduledChangeAt  string
+	LifecycleError     string
 	PlanName           string
 	BillingPeriod      string
 	PlanPrice          string
@@ -222,6 +227,10 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 			sub.current_period_end::text AS current_period_end,
 			sub.cancel_at_period_end,
 			COALESCE(sub.canceled_at::text, '') AS canceled_at
+			, COALESCE(sub.scheduled_plan_snapshot ->> 'code', '') AS scheduled_plan_code
+			, COALESCE(sub.scheduled_change_at::text, '') AS scheduled_change_at
+			, COALESCE(sub.lifecycle_error, '') AS lifecycle_error
+			, sub.provider
 		FROM billing.subscriptions sub
 		WHERE sub.user_id = ?::uuid AND sub.status = 'active'
 		ORDER BY sub.created_at DESC
@@ -400,6 +409,14 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 			order.MaxRPM, order.MaxContextTokens, order.ModelLevel, order.PlanSnapshotSource, order.PlanSnapshotAt).Error; err != nil {
 			return err
 		}
+		if err := insertSubscriptionPeriod(tx, subscriptionID, userID, order.ID, order.PlanID, PlanSnapshot{
+			Code: order.PlanCode, Name: order.PlanName, BillingPeriod: order.BillingPeriod,
+			Price: order.PlanPrice, Currency: order.Currency, MonthlyTokenQuota: order.QuotaTokens,
+			MaxRPM: order.MaxRPM, MaxContextTokens: order.MaxContextTokens, ModelLevel: order.ModelLevel,
+			Source: order.PlanSnapshotSource, At: order.PlanSnapshotAt,
+		}, now, periodEnd, "quota_pending", "initial_payment"); err != nil {
+			return err
+		}
 		if err := tx.Exec(`UPDATE billing.orders SET status = 'paid', paid_at = now(), updated_at = now(), subscription_id = ?::uuid WHERE id = ?::uuid`, subscriptionID, order.ID).Error; err != nil {
 			return err
 		}
@@ -489,23 +506,52 @@ func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID strin
 }
 
 func (r *BillingRepo) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (SubscriptionRow, error) {
-	if err := r.data.DB.WithContext(ctx).Exec(`
-		UPDATE billing.subscriptions
-		SET cancel_at_period_end = ?,
-		    canceled_at = now(),
-		    status = CASE WHEN ? THEN 'canceled' ELSE status END,
-		    updated_at = now()
-		WHERE id = ?::uuid AND user_id = ?::uuid AND status IN ('active', 'quota_pending', 'activation_failed')
-	`, !immediate, immediate, subscriptionID, userID).Error; err != nil {
-		return SubscriptionRow{}, err
-	}
-	return loadSubscriptionByID(ctx, r.data.DB, subscriptionID)
+	var out SubscriptionRow
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscription(ctx, tx, userID, subscriptionID); err != nil {
+			return err
+		}
+		sub, err := loadSubscriptionByID(ctx, tx, subscriptionID)
+		if err != nil {
+			return err
+		}
+		if sub.Status != "active" && sub.Status != "quota_pending" && sub.Status != "activation_failed" {
+			return status.Errorf(codes.FailedPrecondition, "subscription status %s cannot be canceled", sub.Status)
+		}
+		if err := tx.Exec(`
+			UPDATE billing.subscriptions
+			SET cancel_at_period_end = ?,
+			    canceled_at = CASE WHEN ? THEN now() ELSE NULL END,
+			    status = CASE WHEN ? THEN 'canceled' ELSE status END,
+			    updated_at = now()
+			WHERE id = ?::uuid
+		`, !immediate, immediate, immediate, sub.ID).Error; err != nil {
+			return err
+		}
+		changeState := "scheduled"
+		if immediate {
+			changeState = "applied"
+			if err := tx.Exec(`
+				UPDATE billing.subscription_periods
+				SET status = 'canceled', ended_at = now(), updated_at = now()
+				WHERE subscription_id = ?::uuid AND period_start = ?::timestamptz
+			`, sub.ID, sub.CurrentPeriodStart).Error; err != nil {
+				return err
+			}
+		}
+		if err := insertLifecycleChange(tx, sub.ID, userID, "cancel", changeState, fmt.Sprintf("cancel:%t:%s", immediate, sub.CurrentPeriodStart), time.Now().UTC(), map[string]bool{"immediate": immediate}); err != nil {
+			return err
+		}
+		out, err = loadSubscriptionByID(ctx, tx, sub.ID)
+		return err
+	})
+	return out, err
 }
 
 func loadSubscription(ctx context.Context, tx *gorm.DB, userID string) (SubscriptionRow, error) {
 	var sub SubscriptionRow
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id,
+		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id, sub.provider,
 		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
 		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
 		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
@@ -526,12 +572,15 @@ func loadSubscription(ctx context.Context, tx *gorm.DB, userID string) (Subscrip
 func loadSubscriptionByID(ctx context.Context, tx *gorm.DB, subscriptionID string) (SubscriptionRow, error) {
 	var sub SubscriptionRow
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id,
+		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id, sub.provider,
 		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
 		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
 		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
 		       sub.status, sub.current_period_start::text AS current_period_start, sub.current_period_end::text AS current_period_end,
-		       sub.cancel_at_period_end, COALESCE(sub.canceled_at::text, '') AS canceled_at
+		       sub.cancel_at_period_end, COALESCE(sub.canceled_at::text, '') AS canceled_at,
+		       COALESCE(sub.scheduled_plan_snapshot ->> 'code', '') AS scheduled_plan_code,
+		       COALESCE(sub.scheduled_change_at::text, '') AS scheduled_change_at,
+		       COALESCE(sub.lifecycle_error, '') AS lifecycle_error
 		FROM billing.subscriptions sub
 		WHERE sub.id = ?::uuid
 		LIMIT 1

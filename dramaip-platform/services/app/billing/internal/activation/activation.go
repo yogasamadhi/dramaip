@@ -68,6 +68,13 @@ func ActivateSubscription(ctx context.Context, db *gorm.DB, subscriptionID strin
 			return err
 		}
 		if err := tx.Exec(`
+			UPDATE billing.subscription_periods
+			SET status = 'active', activated_at = COALESCE(activated_at, now()), updated_at = now()
+			WHERE subscription_id = ?::uuid AND period_start = ?::timestamptz
+		`, sub.ID, sub.PeriodStart).Error; err != nil {
+			return fmt.Errorf("mark subscription period active: %w", err)
+		}
+		if err := tx.Exec(`
 			INSERT INTO billing.outbox_events (
 				id, aggregate_type, aggregate_id, event_type, version, trace_id, occurred_at, payload
 			) VALUES (?::uuid, 'billing.subscription', ?::uuid, 'subscription.activated.v1', 1, ?, ?, ?::jsonb)

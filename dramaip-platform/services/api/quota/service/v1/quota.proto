@@ -10,6 +10,12 @@ service QuotaService {
   rpc ReserveTokens(ReserveTokensRequest) returns (TokenReservation);
   rpc SettleTokens(SettleTokensRequest) returns (TokenUsage);
   rpc CancelReservation(CancelReservationRequest) returns (TokenReservation);
+  // Applies a billing-owned, idempotent entitlement increase to the current
+  // account. The adjustment_id is the cross-service natural key.
+  rpc AdjustPeriodQuota(AdjustPeriodQuotaRequest) returns (QuotaAdjustment);
+  // A refund may only freeze unused, reservation-free quota automatically.
+  // Used or in-flight quota is returned as manual_review for an operator.
+  rpc PrepareRefund(PrepareRefundRequest) returns (RefundPreparation);
   rpc ListTokenUsage(ListTokenUsageRequest) returns (ListTokenUsageReply);
   rpc GetUsageTrend(GetUsageTrendRequest) returns (GetUsageTrendReply);
 }
@@ -68,6 +74,38 @@ message TokenReservation {
   int64 current_used = 6;
   int64 current_quota = 7;
   string expires_at = 8;
+}
+
+message AdjustPeriodQuotaRequest {
+  string adjustment_id = 1;
+  string user_id = 2;
+  string subscription_id = 3;
+  int64 delta_tokens = 4;
+  string reason = 5;
+}
+
+message QuotaAdjustment {
+  string adjustment_id = 1;
+  string token_account_id = 2;
+  int64 delta_tokens = 3;
+  int64 quota_before = 4;
+  int64 quota_after = 5;
+  string status = 6;
+}
+
+message PrepareRefundRequest {
+  string refund_id = 1;
+  string user_id = 2;
+  string subscription_id = 3;
+  string reason = 4;
+}
+
+message RefundPreparation {
+  string refund_id = 1;
+  string token_account_id = 2;
+  string status = 3;
+  int64 used_tokens = 4;
+  string reason = 5;
 }
 
 message SettleTokensRequest {

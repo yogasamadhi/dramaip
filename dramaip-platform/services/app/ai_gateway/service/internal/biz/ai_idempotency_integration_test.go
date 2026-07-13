@@ -243,6 +243,14 @@ func (q *countingQuota) CancelReservation(context.Context, *quotav1.CancelReserv
 	return &quotav1.TokenReservation{}, nil
 }
 
+func (q *countingQuota) AdjustPeriodQuota(context.Context, *quotav1.AdjustPeriodQuotaRequest, ...grpc.CallOption) (*quotav1.QuotaAdjustment, error) {
+	return nil, status.Error(codes.Unimplemented, "not used")
+}
+
+func (q *countingQuota) PrepareRefund(context.Context, *quotav1.PrepareRefundRequest, ...grpc.CallOption) (*quotav1.RefundPreparation, error) {
+	return nil, status.Error(codes.Unimplemented, "not used")
+}
+
 func (q *countingQuota) ListTokenUsage(context.Context, *quotav1.ListTokenUsageRequest, ...grpc.CallOption) (*quotav1.ListTokenUsageReply, error) {
 	return &quotav1.ListTokenUsageReply{}, nil
 }
