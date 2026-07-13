@@ -24,7 +24,11 @@ func wireApp() (*kratos.App, func(), error) {
 		return nil, nil, err
 	}
 	authRepo := data.NewAuthRepo(dataData)
-	authUsecase := biz.NewAuthUsecase(authRepo, bootstrap)
+	authUsecase, err := biz.NewAuthUsecase(authRepo, bootstrap)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
 	authService := service.NewAuthService(authUsecase)
 	httpServer := server.NewHTTPServer(bootstrap, authUsecase)
 	grpcServer := server.NewGRPCServer(bootstrap, authService)

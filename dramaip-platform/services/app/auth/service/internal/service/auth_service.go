@@ -17,7 +17,7 @@ func NewAuthService(uc *biz.AuthUsecase) *AuthService {
 }
 
 func (s *AuthService) Register(ctx context.Context, req *authv1.RegisterRequest) (*authv1.AuthReply, error) {
-	session, err := s.uc.Register(ctx, req.Email, req.Password, req.DisplayName)
+	session, err := s.uc.Register(ctx, req.Email, req.Password, req.DisplayName, req.DeviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (s *AuthService) Register(ctx context.Context, req *authv1.RegisterRequest)
 }
 
 func (s *AuthService) Login(ctx context.Context, req *authv1.LoginRequest) (*authv1.AuthReply, error) {
-	session, err := s.uc.Login(ctx, req.Email, req.Password)
+	session, err := s.uc.Login(ctx, req.Email, req.Password, req.DeviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (s *AuthService) Refresh(ctx context.Context, req *authv1.RefreshRequest) (
 }
 
 func (s *AuthService) Logout(ctx context.Context, req *authv1.LogoutRequest) (*authv1.LogoutReply, error) {
-	if err := s.uc.Logout(ctx, req.RefreshToken, req.AccessToken); err != nil {
+	if err := s.uc.Logout(ctx, req.RefreshToken, req.AccessToken, req.DeviceId); err != nil {
 		return nil, err
 	}
 	return &authv1.LogoutReply{Ok: true}, nil

@@ -5,10 +5,24 @@ _format_version: "3.0"
 # host.docker.internal. Internal services (auth/user/billing/quota/ai-gateway)
 # are NOT exposed here — clients must never reach them directly.
 #
-# Cross-cutting concerns live ONLY at Kong: TLS, CORS, rate limiting, and (once
-# auth-service issues real JWTs) edge JWT verification. See docs/技术架构.md §9.
+# Cross-cutting concerns live ONLY at Kong: TLS, CORS, rate limiting, and edge
+# JWT verification. The checked-in file is the development template. Production
+# must be rendered with the auth-service public JWKS by
+# `go run ./cmd/kong-jwt-config`; it never contains a private key. See
+# deploy/kong/README.md and docs/技术架构.md §9.
 
 services:
+  # Public verification-key discovery only. auth-service does not expose its
+  # private key and all token issuance remains behind the Web BFF.
+  - name: dramaip-auth-jwks
+    url: http://auth:8101
+    routes:
+      - name: dramaip-auth-jwks
+        paths:
+          - /.well-known/jwks.json
+        methods: [GET]
+        strip_path: false
+
   - name: dramaip-web-bff
     url: http://web-bff:8100
     routes:
@@ -20,17 +34,12 @@ services:
           - /v1/ai
         strip_path: false
         plugins:
-          - name: jwt
-            config:
-              key_claim_name: iss
-              secret_is_base64: false
-              claims_to_verify:
-                - exp
+          # JWT_PLUGIN
           - name: cors
             config:
               origins: ["*"]
               methods: [GET, POST, PATCH, OPTIONS]
-              headers: [Authorization, Content-Type, X-Request-Id, traceparent, tracestate]
+              headers: [Authorization, Content-Type, X-Device-Id, X-Request-Id, traceparent, tracestate]
               exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
               credentials: false
               max_age: 3600
@@ -49,7 +58,7 @@ services:
           #   origins: [https://app.dramaip.com]
           origins: ["*"]
           methods: [GET, POST, PATCH, OPTIONS]
-          headers: [Authorization, Content-Type, X-Request-Id, traceparent, tracestate]
+          headers: [Authorization, Content-Type, X-Device-Id, X-Request-Id, traceparent, tracestate]
           exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
           credentials: false
           max_age: 3600
@@ -58,12 +67,7 @@ services:
           minute: 120
           policy: local
 
-consumers:
-  - username: dramaip-auth
-    jwt_secrets:
-      - key: dramaip
-        algorithm: HS256
-        secret: dramaip-dev-access-secret-change-me
+# JWT_CREDENTIALS
 
 plugins:
   - name: prometheus

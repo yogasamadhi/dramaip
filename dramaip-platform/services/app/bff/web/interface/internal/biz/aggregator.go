@@ -27,12 +27,12 @@ func (u *BFFUsecase) Checks() map[string]func(context.Context) error {
 	return u.data.Checks()
 }
 
-func (u *BFFUsecase) Login(ctx context.Context, email string, password string) (*authv1.AuthReply, error) {
-	return u.data.Auth.Login(ctx, &authv1.LoginRequest{Email: email, Password: password})
+func (u *BFFUsecase) Login(ctx context.Context, email string, password string, deviceID string) (*authv1.AuthReply, error) {
+	return u.data.Auth.Login(ctx, &authv1.LoginRequest{Email: email, Password: password, DeviceId: deviceID})
 }
 
-func (u *BFFUsecase) Register(ctx context.Context, email string, password string, displayName string) (*authv1.AuthReply, error) {
-	session, err := u.data.Auth.Register(ctx, &authv1.RegisterRequest{Email: email, Password: password, DisplayName: displayName})
+func (u *BFFUsecase) Register(ctx context.Context, email string, password string, displayName string, deviceID string) (*authv1.AuthReply, error) {
+	session, err := u.data.Auth.Register(ctx, &authv1.RegisterRequest{Email: email, Password: password, DisplayName: displayName, DeviceId: deviceID})
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +52,8 @@ func (u *BFFUsecase) Refresh(ctx context.Context, refreshToken string) (*authv1.
 	return u.data.Auth.Refresh(ctx, &authv1.RefreshRequest{RefreshToken: refreshToken})
 }
 
-func (u *BFFUsecase) Logout(ctx context.Context, refreshToken string, accessToken string) (*authv1.LogoutReply, error) {
-	return u.data.Auth.Logout(ctx, &authv1.LogoutRequest{RefreshToken: refreshToken, AccessToken: accessToken})
+func (u *BFFUsecase) Logout(ctx context.Context, refreshToken string, accessToken string, deviceID string) (*authv1.LogoutReply, error) {
+	return u.data.Auth.Logout(ctx, &authv1.LogoutRequest{RefreshToken: refreshToken, AccessToken: accessToken, DeviceId: deviceID})
 }
 
 func (u *BFFUsecase) Plans(ctx context.Context) (*billingv1.ListPlansReply, error) {

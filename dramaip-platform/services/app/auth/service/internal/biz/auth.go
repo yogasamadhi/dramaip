@@ -13,7 +13,6 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/auth/service/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +21,8 @@ import (
 type AuthUsecase struct {
 	repo       *data.AuthRepo
 	issuer     string
-	accessKey  string
+	audience   string
+	keys       *signingKeySet
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 }
@@ -42,21 +42,26 @@ type AuthIdentity struct {
 	Email  string
 }
 
-func NewAuthUsecase(repo *data.AuthRepo, cfg *conf.Bootstrap) *AuthUsecase {
+func NewAuthUsecase(repo *data.AuthRepo, cfg *conf.Bootstrap) (*AuthUsecase, error) {
+	keys, err := loadSigningKeySet(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &AuthUsecase{
 		repo:       repo,
 		issuer:     cfg.JWT.Issuer,
-		accessKey:  cfg.JWT.AccessSecret,
+		audience:   cfg.JWT.Audience,
+		keys:       keys,
 		accessTTL:  kratosx.Duration(cfg.JWT.AccessTokenTTL, 15*time.Minute),
 		refreshTTL: kratosx.Duration(cfg.JWT.RefreshTokenTTL, 720*time.Hour),
-	}
+	}, nil
 }
 
 func (u *AuthUsecase) Checks() map[string]func(context.Context) error {
 	return u.repo.Checks()
 }
 
-func (u *AuthUsecase) Register(ctx context.Context, email string, password string, displayName string) (Session, error) {
+func (u *AuthUsecase) Register(ctx context.Context, email string, password string, displayName string, deviceID string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") || len(password) < 8 {
 		return Session{}, status.Error(codes.InvalidArgument, "invalid registration")
@@ -75,10 +80,10 @@ func (u *AuthUsecase) Register(ctx context.Context, email string, password strin
 	if displayName != "" {
 		user.Name = displayName
 	}
-	return u.issueSession(ctx, user)
+	return u.issueSession(ctx, user, deviceID)
 }
 
-func (u *AuthUsecase) Login(ctx context.Context, email string, password string) (Session, error) {
+func (u *AuthUsecase) Login(ctx context.Context, email string, password string, deviceID string) (Session, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	if !strings.Contains(email, "@") || len(password) < 8 {
 		return Session{}, status.Error(codes.InvalidArgument, "invalid credentials")
@@ -94,22 +99,44 @@ func (u *AuthUsecase) Login(ctx context.Context, email string, password string) 
 		return Session{}, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 	_ = u.repo.ClearLoginFailures(ctx, email)
-	return u.issueSession(ctx, user)
+	return u.issueSession(ctx, user, deviceID)
 }
 
 func (u *AuthUsecase) Refresh(ctx context.Context, refreshToken string) (Session, error) {
 	hash := tokenHash(refreshToken)
-	user, err := u.repo.FindUserByRefreshToken(ctx, hash)
+	nextRefreshToken := randomToken()
+	now := time.Now().UTC()
+	user, err := u.repo.RotateRefreshToken(ctx, hash, data.RefreshTokenInput{
+		ID:        platform.NewUUID(),
+		TokenHash: tokenHash(nextRefreshToken),
+		ExpiresAt: now.Add(u.refreshTTL),
+	})
 	if err != nil {
 		return Session{}, status.Error(codes.Unauthenticated, "invalid refresh token")
 	}
-	if err := u.repo.RevokeRefreshToken(ctx, hash); err != nil {
+	accessToken, err := u.keys.sign(user.ID, user.Email, u.issuer, u.audience, now, u.accessTTL)
+	if err != nil {
 		return Session{}, err
 	}
-	return u.issueSession(ctx, user)
+	if err := u.repo.SetSession(ctx, accessToken, strconv.FormatInt(int64(u.accessTTL.Seconds()), 10), user.ID); err != nil {
+		return Session{}, err
+	}
+	return Session{
+		AccessToken: accessToken, RefreshToken: nextRefreshToken, TokenType: "Bearer",
+		ExpiresIn: int64(u.accessTTL.Seconds()), UserID: user.ID, Email: user.Email, Name: user.Name,
+	}, nil
 }
 
-func (u *AuthUsecase) Logout(ctx context.Context, refreshToken string, accessToken string) error {
+func (u *AuthUsecase) Logout(ctx context.Context, refreshToken string, accessToken string, deviceID string) error {
+	if deviceID != "" && accessToken != "" {
+		identity, err := u.ValidateAccessToken(ctx, accessToken)
+		if err != nil {
+			return err
+		}
+		if err := u.repo.RevokeRefreshTokensByDevice(ctx, identity.UserID, deviceID); err != nil {
+			return err
+		}
+	}
 	if refreshToken == "" {
 		return u.repo.DeleteSession(ctx, accessToken)
 	}
@@ -120,20 +147,11 @@ func (u *AuthUsecase) Logout(ctx context.Context, refreshToken string, accessTok
 }
 
 func (u *AuthUsecase) ValidateAccessToken(ctx context.Context, accessToken string) (AuthIdentity, error) {
-	token, err := jwt.Parse(accessToken, func(token *jwt.Token) (any, error) {
-		if token.Method != jwt.SigningMethodHS256 {
-			return nil, status.Error(codes.Unauthenticated, "invalid token")
-		}
-		return []byte(u.accessKey), nil
-	}, jwt.WithIssuer(u.issuer))
-	if err != nil || !token.Valid {
+	claims, err := u.keys.verify(accessToken, u.issuer, u.audience)
+	if err != nil {
 		return AuthIdentity{}, status.Error(codes.Unauthenticated, "invalid token")
 	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return AuthIdentity{}, status.Error(codes.Unauthenticated, "invalid token")
-	}
-	userID, _ := claims.GetSubject()
+	userID := claims.Subject
 	if userID == "" {
 		return AuthIdentity{}, status.Error(codes.Unauthenticated, "invalid token")
 	}
@@ -141,20 +159,25 @@ func (u *AuthUsecase) ValidateAccessToken(ctx context.Context, accessToken strin
 	if err != nil || cached != userID {
 		return AuthIdentity{}, status.Error(codes.Unauthenticated, "session expired")
 	}
-	email, _ := claims["email"].(string)
-	return AuthIdentity{UserID: userID, Email: email}, nil
+	return AuthIdentity{UserID: userID, Email: claims.Email}, nil
 }
 
-func (u *AuthUsecase) issueSession(ctx context.Context, user data.UserRow) (Session, error) {
-	now := time.Now()
-	expires := now.Add(u.accessTTL)
-	claims := jwt.MapClaims{"iss": u.issuer, "sub": user.ID, "email": user.Email, "exp": expires.Unix(), "iat": now.Unix()}
-	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(u.accessKey))
+func (u *AuthUsecase) issueSession(ctx context.Context, user data.UserRow, deviceID string) (Session, error) {
+	now := time.Now().UTC()
+	accessToken, err := u.keys.sign(user.ID, user.Email, u.issuer, u.audience, now, u.accessTTL)
 	if err != nil {
 		return Session{}, err
 	}
 	refreshToken := randomToken()
-	if err := u.repo.InsertRefreshToken(ctx, platform.NewUUID(), user.ID, tokenHash(refreshToken), now.Add(u.refreshTTL)); err != nil {
+	refreshTokenID := platform.NewUUID()
+	if err := u.repo.InsertRefreshToken(ctx, data.RefreshTokenInput{
+		ID:        refreshTokenID,
+		UserID:    user.ID,
+		TokenHash: tokenHash(refreshToken),
+		ExpiresAt: now.Add(u.refreshTTL),
+		FamilyID:  refreshTokenID,
+		DeviceID:  strings.TrimSpace(deviceID),
+	}); err != nil {
 		return Session{}, err
 	}
 	if err := u.repo.SetSession(ctx, accessToken, strconv.FormatInt(int64(u.accessTTL.Seconds()), 10), user.ID); err != nil {
@@ -164,6 +187,12 @@ func (u *AuthUsecase) issueSession(ctx context.Context, user data.UserRow) (Sess
 		AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer",
 		ExpiresIn: int64(u.accessTTL.Seconds()), UserID: user.ID, Email: user.Email, Name: user.Name,
 	}, nil
+}
+
+// JWKS returns the current active and retained verification public keys. The
+// active signing private key is never included.
+func (u *AuthUsecase) JWKS() []byte {
+	return u.keys.JWKS()
 }
 
 func randomToken() string {

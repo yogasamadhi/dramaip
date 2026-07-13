@@ -76,6 +76,12 @@ spec:
                 name: {{ include "dramaip-platform.fullname" $ }}-config
             - secretRef:
                 name: {{ include "dramaip-platform.secretName" $ }}
+          {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
+          volumeMounts:
+            - name: auth-jwt-keyset
+              mountPath: /var/run/dramaip/auth-jwt
+              readOnly: true
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz
@@ -101,4 +107,10 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
+      {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
+      volumes:
+        - name: auth-jwt-keyset
+          secret:
+            secretName: {{ $.Values.authJWT.keysetSecret }}
+      {{- end }}
 {{- end }}

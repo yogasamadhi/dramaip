@@ -2,6 +2,7 @@ import { createApiClient } from '@dramaip/sdk'
 
 export const ACCESS_TOKEN_STORAGE_KEY = 'dramaip.access_token'
 export const REFRESH_TOKEN_STORAGE_KEY = 'dramaip.refresh_token'
+export const DEVICE_ID_STORAGE_KEY = 'dramaip.device_id'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
 export const apiClient = createApiClient({
@@ -10,7 +11,19 @@ export const apiClient = createApiClient({
     if (typeof window === 'undefined') return undefined
     return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
   },
+  getDeviceID,
 })
+
+export function getDeviceID() {
+  if (typeof window === 'undefined') return undefined
+  const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)
+  if (existing) return existing
+  const generated = typeof window.crypto?.randomUUID === 'function'
+    ? window.crypto.randomUUID()
+    : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, generated)
+  return generated
+}
 
 export function saveSession(session: { access_token: string; refresh_token: string }) {
   window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, session.access_token)

@@ -65,5 +65,3 @@ secret:
   redisPassword: dramaip
   rabbitmqUser: dramaip
   rabbitmqPassword: dramaip
-  jwtAccessSecret: dramaip-dev-access-secret-change-me
-  jwtRefreshSecret: dramaip-dev-refresh-secret-change-me

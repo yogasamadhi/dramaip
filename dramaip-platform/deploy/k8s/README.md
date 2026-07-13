@@ -142,13 +142,24 @@ kubectl create secret generic dramaip-platform-secret \
   --from-literal=POSTGRES_PASSWORD='replace-me' \
   --from-literal=REDIS_PASSWORD='replace-me' \
   --from-literal=RABBITMQ_USER=dramaip \
-  --from-literal=RABBITMQ_PASSWORD='replace-me' \
-  --from-literal=JWT_ACCESS_SECRET='replace-me' \
-  --from-literal=JWT_REFRESH_SECRET='replace-me'
+  --from-literal=RABBITMQ_PASSWORD='replace-me'
 ```
 
 For stronger production hygiene, wire this secret through External Secrets,
 Vault, or the cloud provider's secret manager.
+
+Create a separate keyset Secret for auth-service. It is mounted into only that
+pod; `private.pem` must never be put in an environment variable or Git. Set
+`config.jwt.activeKeyID` and `authJWT.keysetSecret` in the Helm values, then
+render the Kong declaration from the public `jwks.json` as documented in
+[`../kong/README.md`](../kong/README.md).
+
+```bash
+kubectl create secret generic dramaip-auth-jwt-keyset \
+  --namespace dramaip \
+  --from-file=private.pem=/secure/auth/private.pem \
+  --from-file=jwks.json=/secure/auth/jwks.json
+```
 
 ## Migrations
 
