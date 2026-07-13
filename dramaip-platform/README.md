@@ -76,8 +76,8 @@ make platform-e2e
 The platform path is:
 
 1. Website home page calls Kong -> BFF health, including Postgres/Redis/RabbitMQ checks.
-2. Pricing loads plans from PostgreSQL via `GET /plans`.
-3. Login calls `POST /auth/login`, verifies the bcrypt password hash in
+2. Pricing loads plans from PostgreSQL via `GET /v1/plans`.
+3. Login calls `POST /v1/auth/login`, verifies the bcrypt password hash in
    PostgreSQL, issues JWT access/refresh tokens, stores the access session in
    Redis, and stores the refresh-token hash in PostgreSQL.
 4. Account reads subscription and token balance from PostgreSQL.
@@ -105,7 +105,7 @@ Implementation notes:
   `http://localhost:8000`.
 - Server-side AI provider keys stay inside `ai-gateway`; clients use the
   BFF/SDK Cloud AI Gateway contract and never call billing/quota directly.
-- `POST /billing/payments/simulated/confirm` is dev/test only and verifies the
+- `POST /v1/billing/payments/simulated/confirm` is dev/test only and verifies the
   checkout -> subscription -> token-account state machine before real payment
-  webhooks are added. `POST /billing/sandbox/confirm-payment` remains as a
+  webhooks are added. `POST /v1/billing/sandbox/confirm-payment` remains as a
   deprecated compatibility endpoint.
