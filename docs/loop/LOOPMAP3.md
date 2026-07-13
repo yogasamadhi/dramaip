@@ -211,7 +211,7 @@ make platform-down
 | LM3-01 | P0 | API/平台 | done | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
 | LM3-02 | P0 | 平台架构 | done | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
 | LM3-03 | P0 | DevEx/CI | done | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
-| LM3-04 | P0 | 契约治理 | todo | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
+| LM3-04 | P0 | 契约治理 | done | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
 | LM3-05 | P0 | Auth/安全 | todo | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
 | LM3-06 | P0 | Web/Auth | todo | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
 | LM3-07 | P0 | 平台安全 | todo | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
@@ -838,4 +838,20 @@ Push: Pending final metadata merge and push to `origin/main`.
 Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-03-root-ci` immediately afterward.
 Current branch/worktree: main; clean before this metadata update.
 Notes: This loop completes the requested normal Gitee merge workflow and leaves hosted-pipeline activation as an explicit owner decision, not an unstated prerequisite for future implementation work.
+```
+
+```text
+Loop: LM3-04
+Target branch: main
+Loop branch: loop/lm3-04-event-contracts
+Commit(s): cbc5c60 loop(LM3-04): establish versioned event contracts; this completion-record update is the loop's final metadata commit.
+Merge commit: 525fc6f merge: LM3-04 event contract compatibility gate; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `make event-contracts` passed in `dramaip-platform/services`, running `buf format --diff --exit-code`, `buf lint`, `buf breaking` against `origin/main`, `buf generate`, and generated-output consistency checks. `GOCACHE=/tmp/dramaip-go-build go test ./...` passed, including event-example parsing, compatible unknown-field handling, route/payload validation, and repository migration-version uniqueness. The root platform workflow YAML parsed and `actionlint` passed. A temporary local PostgreSQL database applied billing migrations 003, 007, 011 and 015 around representative pending legacy checkout/payment rows; migration 015 converted both rows into valid envelope shapes, and the temporary database and PostgreSQL container were removed/stopped afterward.
+Hosted pipeline: The root workflow now defines the same event-contract gate, but the repository owner explicitly selected ordinary Gitee use. No Gitee Go run or remote automatic merge gate is claimed.
+Diff review: Reviewed the event schemas, generated Go output, examples, typed envelope validation, RabbitMQ publisher/relay changes, pending-outbox migration, lint exceptions limited to pre-existing synchronous APIs, workflow setup, and documentation. No credentials, `.env` files, container data, caches, or unrelated artifacts were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target branch was aligned immediately before the no-ff merge.
+Push: Pending final metadata merge and push to `origin/main`.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-04-event-contracts` immediately afterward.
+Current branch/worktree: main; clean before this metadata update.
+Notes: subscription, quota, and notification event contracts plus compatible consumer parsing are delivered here; their future domain-specific producer/consumer business behavior remains in the owning loops (notably LM3-08, LM3-09, LM3-12, and LM3-15).
 ```
