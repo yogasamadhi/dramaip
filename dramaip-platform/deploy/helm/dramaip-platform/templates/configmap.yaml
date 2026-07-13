@@ -50,6 +50,15 @@ data:
   NOTIFICATION_CHANNELS: {{ .Values.config.notificationConsumer.channels | quote }}
   OUTBOX_LEASE: {{ .Values.config.billingJob.outboxLease | quote }}
   OUTBOX_RETRY_DELAY: {{ .Values.config.billingJob.outboxRetryDelay | quote }}
+  BILLING_SIMULATED_ENABLED: {{ .Values.payment.simulatedEnabled | quote }}
+  WECHAT_PAY_ENABLED: {{ .Values.payment.wechat.enabled | quote }}
+  WECHAT_PAY_APP_ID: {{ .Values.payment.wechat.appID | quote }}
+  WECHAT_PAY_MCH_ID: {{ .Values.payment.wechat.mchID | quote }}
+  WECHAT_PAY_CERT_SERIAL: {{ .Values.payment.wechat.merchantCertificateSerial | quote }}
+  WECHAT_PAY_NOTIFY_URL: {{ .Values.payment.wechat.notifyURL | quote }}
+  WECHAT_PAY_API_BASE_URL: {{ .Values.payment.wechat.apiBaseURL | quote }}
+  WECHAT_PAY_PRIVATE_KEY_PATH: {{ if .Values.payment.wechat.enabled }}"/var/run/dramaip/wechat/apiclient-key.pem"{{ else }}""{{ end }}
+  WECHAT_PAY_PLATFORM_CERT_PATH: {{ if .Values.payment.wechat.enabled }}"/var/run/dramaip/wechat/platform-cert.pem"{{ else }}""{{ end }}
   JWT_ISSUER: {{ .Values.config.jwt.issuer | quote }}
   JWT_AUDIENCE: {{ .Values.config.jwt.audience | quote }}
   JWT_ACTIVE_KID: {{ .Values.config.jwt.activeKeyID | quote }}

@@ -82,6 +82,24 @@ ingress:
           pathType: Prefix
   tls: []
 
+# WeChat Pay is off unless an operator supplies the dedicated credentials
+# Secret. The Secret must contain api-v3-key, apiclient-key.pem and
+# platform-cert.pem; it is mounted only in billing-service.
+payment:
+  simulatedEnabled: "false"
+  wechat:
+    enabled: false
+    appID: ""
+    mchID: ""
+    merchantCertificateSerial: ""
+    notifyURL: ""
+    apiBaseURL: https://api.mch.weixin.qq.com
+    credentialsSecret: ""
+    apiV3KeyKey: api-v3-key
+    merchantPrivateKeyKey: apiclient-key.pem
+    platformCertificateKey: platform-cert.pem
+    webhookRateLimitPerMinute: 600
+
 kong:
   plugins:
     enabled: true
