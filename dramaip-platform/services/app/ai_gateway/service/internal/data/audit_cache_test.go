@@ -45,3 +45,37 @@ func TestCompactAuditError(t *testing.T) {
 		t.Fatalf("compactAuditError length/suffix = %d/%q", len(got), got[len(got)-3:])
 	}
 }
+
+func TestProviderPricingUsesModelSnapshotAndExchangeRate(t *testing.T) {
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_INPUT_PRICE_PER_MILLION", "0.40")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_OUTPUT_PRICE_PER_MILLION", "0.80")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_CURRENCY", "USD")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_EXCHANGE_RATE_TO_CNY", "7")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_INPUT_PRICE_PER_MILLION", "0.15")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_OUTPUT_PRICE_PER_MILLION", "0.60")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_CURRENCY", "USD")
+	t.Setenv("AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_EXCHANGE_RATE_TO_CNY", "7.2")
+	d := &Data{}
+	pricing, err := d.PricingFor(Provider{Name: "openai-compatible"}, "gpt-4o-mini")
+	if err != nil {
+		t.Fatalf("PricingFor: %v", err)
+	}
+	quote, err := pricing.Quote(1_000_000, 2_000_000)
+	if err != nil {
+		t.Fatalf("Quote: %v", err)
+	}
+	if quote.CostAmount != "1.350000000000" || quote.CostCNYAmount != "9.720000000000" || quote.PricingSource != "env:input=AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_INPUT_PRICE_PER_MILLION;output=AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_OUTPUT_PRICE_PER_MILLION;currency=AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_CURRENCY;exchange=AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_EXCHANGE_RATE_TO_CNY" {
+		t.Fatalf("quote = %#v", quote)
+	}
+	fallback, err := d.PricingFor(Provider{Name: "openai-compatible"}, "gpt-4.1-mini")
+	if err != nil {
+		t.Fatalf("fallback PricingFor: %v", err)
+	}
+	fallbackQuote, err := fallback.Quote(1_000_000, 1_000_000)
+	if err != nil {
+		t.Fatalf("fallback Quote: %v", err)
+	}
+	if fallbackQuote.CostAmount != "1.200000000000" || fallbackQuote.CostCNYAmount != "8.400000000000" || fallbackQuote.PricingSource != "env:input=AI_PROVIDER_OPENAI_COMPATIBLE_INPUT_PRICE_PER_MILLION;output=AI_PROVIDER_OPENAI_COMPATIBLE_OUTPUT_PRICE_PER_MILLION;currency=AI_PROVIDER_OPENAI_COMPATIBLE_CURRENCY;exchange=AI_PROVIDER_OPENAI_COMPATIBLE_EXCHANGE_RATE_TO_CNY" {
+		t.Fatalf("fallback quote = %#v", fallbackQuote)
+	}
+}

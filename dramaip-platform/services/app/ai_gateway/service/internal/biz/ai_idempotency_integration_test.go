@@ -131,6 +131,45 @@ func TestAIRequestIdempotencyIntegration(t *testing.T) {
 	if strings.Contains(persisted.Payload, "unique input that must not be persisted") {
 		t.Fatalf("audit response payload leaked prompt: %s", persisted.Payload)
 	}
+	var cost struct {
+		RequestID     string
+		ReservationID string
+		Currency      string
+		CostStatus    string
+		CostCNY       string
+	}
+	if err := db.Raw(`
+		SELECT request_id, COALESCE(reservation_id::text, '') AS reservation_id, currency, cost_status, cost_cny_amount::text AS cost_cny
+		FROM ai_gateway.provider_cost_logs
+		WHERE user_id = ?::uuid AND request_id = ?
+	`, userID, input.RequestID).Scan(&cost).Error; err != nil {
+		t.Fatalf("read provider cost log: %v", err)
+	}
+	if cost.RequestID != input.RequestID || cost.ReservationID == "" || cost.Currency != "CNY" || cost.CostStatus != "actual" || cost.CostCNY == "" {
+		t.Fatalf("provider cost log = %#v", cost)
+	}
+
+	// A sub-cent window limit is rejected before either quota or Provider work,
+	// and leaves an append-only alert for later observability processing.
+	t.Setenv("AI_USER_COST_LIMIT_CNY", "0.000001")
+	limited := NewAiGatewayUsecase(gatewayData)
+	beforeLimited := atomic.LoadInt64(&providerCalls)
+	limitedInput := input
+	limitedInput.RequestID = "trace-cost-limit"
+	limitedInput.IdempotencyKey = "retry-key-cost-limit"
+	if _, err := limited.Chat(context.Background(), limitedInput); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cost-limited request error = %v, want ResourceExhausted", err)
+	}
+	if after := atomic.LoadInt64(&providerCalls); after != beforeLimited {
+		t.Fatalf("cost-limited request called provider %d additional times", after-beforeLimited)
+	}
+	var alerts int64
+	if err := db.Raw(`SELECT count(*) FROM ai_gateway.provider_cost_alerts WHERE user_id = ?::uuid AND event_type = 'user_cost_limit_rejected'`, userID).Scan(&alerts).Error; err != nil {
+		t.Fatalf("read cost-limit alert: %v", err)
+	}
+	if alerts != 1 {
+		t.Fatalf("cost-limit alerts = %d, want 1", alerts)
+	}
 
 	// Once the audit database is unavailable, ClaimAudit fails before quota or
 	// Provider work. This is intentionally a conservative reject.

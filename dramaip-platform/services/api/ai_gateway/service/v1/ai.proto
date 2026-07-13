@@ -18,6 +18,8 @@ message ChatRequest {
   // Idempotency-Key supplied by the client. request_id remains a request
   // correlation value for backwards compatibility.
   string idempotency_key = 7;
+  // Trusted Web BFF network observation for cost guardrails; never used as identity.
+  string client_ip = 8;
 }
 
 message ChatMessage {

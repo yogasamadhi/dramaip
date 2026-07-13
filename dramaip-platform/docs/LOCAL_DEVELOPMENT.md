@@ -64,7 +64,15 @@ AI_PROVIDERS=openai-compatible
 AI_PROVIDER_BASE_URL=https://api.openai.com/v1
 AI_PROVIDER_API_KEY=sk-replace-me
 AI_DEFAULT_MODEL=gpt-4o-mini
+AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_INPUT_PRICE_PER_MILLION=...
+AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_OUTPUT_PRICE_PER_MILLION=...
+AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_CURRENCY=USD
+AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_EXCHANGE_RATE_TO_CNY=...
 ```
+
+真实 Provider 必须同时有输入/输出单价和 CNY 汇率；缺失时网关会在调用上游前拒绝请求，
+不会用零成本放行。用户/IP 短窗口成本上限与套餐复算方法见
+[AI 套餐与成本校准基线](product/AI套餐成本校准.md)。
 
 For local and CI end-to-end checks, provider `test` is enabled automatically when
 `ENV=dev` or `ENV=test`. It returns a deterministic response and uses the same

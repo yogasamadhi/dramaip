@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -594,7 +595,7 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		requestID = idempotencyKey
 	}
 	w.Header().Set("Idempotency-Key", idempotencyKey)
-	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, req.Provider, req.Model, messages, req.MaxTokens)
+	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens)
 	if err != nil {
 		writeGRPCError(w, err, "chat_unavailable")
 		return
@@ -620,6 +621,26 @@ func bearerToken(authorization string) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
+}
+
+// clientIP uses the right-most valid X-Forwarded-For entry appended by Kong.
+// The Web BFF is loopback/internal-only in deployment, so this is a cost
+// guardrail key rather than a client-supplied authorization claim.
+func clientIP(r *http.Request) string {
+	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if ip := net.ParseIP(strings.TrimSpace(parts[i])); ip != nil {
+			return ip.String()
+		}
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil && net.ParseIP(host) != nil {
+		return host
+	}
+	if ip := net.ParseIP(strings.TrimSpace(r.RemoteAddr)); ip != nil {
+		return ip.String()
+	}
+	return ""
 }
 
 func accessToken(r *http.Request) string {

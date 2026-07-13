@@ -32,8 +32,10 @@ type ChatRequest struct {
 	// Idempotency-Key supplied by the client. request_id remains a request
 	// correlation value for backwards compatibility.
 	IdempotencyKey string `protobuf:"bytes,7,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Trusted Web BFF network observation for cost guardrails; never used as identity.
+	ClientIp      string `protobuf:"bytes,8,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ChatRequest) Reset() {
@@ -111,6 +113,13 @@ func (x *ChatRequest) GetProvider() string {
 func (x *ChatRequest) GetIdempotencyKey() string {
 	if x != nil {
 		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *ChatRequest) GetClientIp() string {
+	if x != nil {
+		return x.ClientIp
 	}
 	return ""
 }
@@ -287,7 +296,7 @@ var File_api_ai_gateway_service_v1_ai_proto protoreflect.FileDescriptor
 
 const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\n" +
-	"\"api/ai_gateway/service/v1/ai.proto\x12\x1ddramaip.ai_gateway.service.v1\"\x87\x02\n" +
+	"\"api/ai_gateway/service/v1/ai.proto\x12\x1ddramaip.ai_gateway.service.v1\"\xa4\x02\n" +
 	"\vChatRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
@@ -297,7 +306,8 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\n" +
 	"max_tokens\x18\x05 \x01(\x03R\tmaxTokens\x12\x1a\n" +
 	"\bprovider\x18\x06 \x01(\tR\bprovider\x12'\n" +
-	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\";\n" +
+	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\x12\x1b\n" +
+	"\tclient_ip\x18\b \x01(\tR\bclientIp\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\xd5\x02\n" +

@@ -99,6 +99,7 @@ kong:
       headers:
         - Authorization
         - Content-Type
+        - Idempotency-Key
         - X-CSRF-Token
         - X-Device-Id
         - X-Request-Id
@@ -106,6 +107,7 @@ kong:
         - tracestate
       exposedHeaders:
         - Content-Type
+        - Idempotency-Key
       credentials: true
       maxAge: 3600
     rateLimiting:
@@ -202,6 +204,18 @@ config:
     providerBaseUrl: https://api.openai.com/v1
     defaultModel: gpt-4o-mini
     timeoutSeconds: "90"
+    # Values are intentionally blank until FinOps supplies a reviewed price
+    # snapshot and CNY exchange rate. ai-gateway fails closed without them.
+    openaiCompatibleGpt4oMini:
+      inputPricePerMillion: ""
+      outputPricePerMillion: ""
+      currency: USD
+      exchangeRateToCny: ""
+    costGuard:
+      window: 5m
+      userLimitCny: "5"
+      ipLimitCny: "20"
+      requestAlertCny: "1"
 
 devInfra:
   enabled: false

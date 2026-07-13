@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"strings"
+	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/ai_gateway/service/internal/data"
@@ -21,6 +22,7 @@ type ChatInput struct {
 	UserID         string
 	RequestID      string
 	IdempotencyKey string
+	ClientIP       string
 	Provider       string
 	Model          string
 	Messages       []ChatMessage
@@ -44,6 +46,10 @@ type AiGatewayUsecase struct {
 	data            *data.Data
 	userRPMLimit    int
 	dailyTokenLimit int
+	costWindow      time.Duration
+	userCostLimit   string
+	ipCostLimit     string
+	costAlertLimit  string
 }
 
 func NewAiGatewayUsecase(data *data.Data) *AiGatewayUsecase {
@@ -51,6 +57,10 @@ func NewAiGatewayUsecase(data *data.Data) *AiGatewayUsecase {
 		data:            data,
 		userRPMLimit:    kratosx.EnvInt("AI_USER_RPM_LIMIT", 60),
 		dailyTokenLimit: kratosx.EnvInt("AI_USER_DAILY_TOKEN_LIMIT", 2000000),
+		costWindow:      kratosx.Duration(kratosx.Env("AI_COST_WINDOW", "5m"), 5*time.Minute),
+		userCostLimit:   kratosx.Env("AI_USER_COST_LIMIT_CNY", "5"),
+		ipCostLimit:     kratosx.Env("AI_IP_COST_LIMIT_CNY", "20"),
+		costAlertLimit:  kratosx.Env("AI_REQUEST_COST_ALERT_CNY", "1"),
 	}
 }
 
@@ -116,11 +126,38 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
+	if err := u.data.ValidateProvider(provider); err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
+	}
+	pricing, err := u.data.PricingFor(provider, model)
+	if err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
+	}
+	estimatedPrompt := estimateReservedTokens(input.Messages, 0)
+	estimatedCompletion := input.MaxTokens
+	if estimatedCompletion <= 0 {
+		estimatedCompletion = estimatedPrompt
+	}
+	estimatedQuote, err := pricing.Quote(estimatedPrompt, estimatedCompletion)
+	if err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
+	}
+	if err := u.data.ReserveCostBudget(ctx, data.CostGuardInput{
+		AuditID: audit.ID, UserID: input.UserID, ClientIP: input.ClientIP, EstimatedCostCNY: estimatedQuote.CostCNYAmount,
+		Window: u.costWindow, UserLimitCNY: u.userCostLimit, IPLimitCNY: u.ipCostLimit,
+	}); err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
+	}
 	estimatedTokens := estimateReservedTokens(input.Messages, input.MaxTokens)
 	reservation, err := u.data.Quota.ReserveTokens(ctx, &quotav1.ReserveTokensRequest{
 		UserId: input.UserID, RequestId: input.RequestID, ReservedTokens: estimatedTokens,
 	})
 	if err != nil {
+		_ = u.data.ReleaseCostBudget(ctx, audit.ID)
 		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
@@ -142,6 +179,24 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		}
 	} else if usageKnown && reply.TotalTokens == 0 {
 		reply.TotalTokens = reply.PromptTokens + reply.CompletionTokens
+	}
+	costStatus := "actual"
+	if !usageKnown {
+		costStatus = "estimated"
+	}
+	actualQuote, err := pricing.Quote(reply.PromptTokens, reply.CompletionTokens)
+	if err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
+	}
+	if err := u.data.RecordProviderCost(ctx, data.ProviderCostInput{
+		AuditID: audit.ID, UserID: input.UserID, RequestID: input.RequestID, ReservationID: reservation.Id,
+		Provider: provider.Name, Model: model, UsageKnown: usageKnown, CostStatus: costStatus, Quote: actualQuote,
+		AlertThresholdCNY: u.costAlertLimit, ClientIP: input.ClientIP,
+	}); err != nil {
+		_, _ = u.data.Quota.SettleTokens(ctx, &quotav1.SettleTokensRequest{ReservationId: reservation.Id, RequestId: input.RequestID, Model: model, UsageKnown: false})
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		return ChatResult{}, err
 	}
 	_, err = u.data.Quota.SettleTokens(ctx, &quotav1.SettleTokensRequest{
 		ReservationId:    reservation.Id,

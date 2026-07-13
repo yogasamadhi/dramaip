@@ -68,3 +68,11 @@ data:
   AI_PROVIDER_BASE_URL: {{ .Values.config.ai.providerBaseUrl | quote }}
   AI_DEFAULT_MODEL: {{ .Values.config.ai.defaultModel | quote }}
   AI_PROVIDER_TIMEOUT_SECONDS: {{ .Values.config.ai.timeoutSeconds | quote }}
+  AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_INPUT_PRICE_PER_MILLION: {{ .Values.config.ai.openaiCompatibleGpt4oMini.inputPricePerMillion | quote }}
+  AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_OUTPUT_PRICE_PER_MILLION: {{ .Values.config.ai.openaiCompatibleGpt4oMini.outputPricePerMillion | quote }}
+  AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_CURRENCY: {{ .Values.config.ai.openaiCompatibleGpt4oMini.currency | quote }}
+  AI_PROVIDER_OPENAI_COMPATIBLE_GPT_4O_MINI_EXCHANGE_RATE_TO_CNY: {{ .Values.config.ai.openaiCompatibleGpt4oMini.exchangeRateToCny | quote }}
+  AI_COST_WINDOW: {{ .Values.config.ai.costGuard.window | quote }}
+  AI_USER_COST_LIMIT_CNY: {{ .Values.config.ai.costGuard.userLimitCny | quote }}
+  AI_IP_COST_LIMIT_CNY: {{ .Values.config.ai.costGuard.ipLimitCny | quote }}
+  AI_REQUEST_COST_ALERT_CNY: {{ .Values.config.ai.costGuard.requestAlertCny | quote }}
