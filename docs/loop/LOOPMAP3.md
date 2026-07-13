@@ -208,7 +208,7 @@ make platform-down
 | --- | --- | --- | --- | --- | --- | --- |
 | LM3-00 | P0 | 工程负责人 | done | 固化基线并收口文档入口 | 根文档、`docs/loop`、验证记录 | 无 |
 | LM3-01 | P0 | API/平台 | done | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
-| LM3-02 | P0 | 平台架构 | todo | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
+| LM3-02 | P0 | 平台架构 | done | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
 | LM3-03 | P0 | DevEx/CI | todo | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
 | LM3-04 | P0 | 契约治理 | todo | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
 | LM3-05 | P0 | Auth/安全 | todo | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
@@ -805,4 +805,20 @@ Push: Core merge bfff443 was pushed successfully to `origin/main`; this metadata
 Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-01-v1-contract` immediately afterward.
 Current branch/worktree: loop/lm3-01-v1-contract; clean before this metadata update.
 Notes: `/billing` remains only as a Web UI route, not an external API path. The Compose build stall is an operational limitation, not evidence that an unversioned route remains exposed.
+```
+
+```text
+Loop: LM3-02
+Target branch: main
+Loop branch: loop/lm3-02-web-bff-path
+Commit(s): 31f5bba loop(LM3-02): migrate shared BFF to Web path; this completion-record update is the loop's final metadata commit.
+Merge commit: e243acc merge: LM3-02 Web BFF path migration; the metadata commit is merged immediately after this record is committed.
+Verification: Before merge, `buf generate`, `GOCACHE=/tmp/dramaip-go-build go test ./...`, `pnpm typecheck` in `dramaip-platform/clients`, `make web-route-smoke`, `docker compose --env-file services/.env -f deploy/docker-drama/docker-compose.yaml config --quiet`, Helm lint/template with `devInfra.persistence.enabled=false`, Python launcher compilation, and `git diff --check` all passed. `docker compose ... build web-bff` completed and produced the `dramaip-web-bff` image. After merge, the Go suite, client typecheck, route smoke, Compose config, Helm lint/template, launcher compilation, diff check, and old-path scan passed again.
+Contract lint: `buf lint` remains red because the repository-wide package-directory and RPC naming baseline fails in multiple existing services; the migrated Web BFF now has only the shared package-directory finding. This is explicitly owned by LM3-04, which will establish the contract gate and compatible baseline rather than suppressing it here.
+Diff review: Reviewed the staged 40-file migration. API/app paths, generated Go package, build target, service labels, Docker Compose, Kong, Prometheus, Helm, Kubernetes launcher, display labels, and docs now consistently use `web-bff`. The old generic BFF paths and identifiers have no active references; remaining historical paths are only prior loop records. Removed the unrelated auth fallback variable rather than carrying a renamed BFF-specific migration toggle. No credentials, local `.env`, caches, or unrelated generated files were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target branch was aligned before the no-ff merge.
+Push: Core merge e243acc was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-02 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-02-web-bff-path` immediately afterward.
+Current branch/worktree: loop/lm3-02-web-bff-path; clean before this metadata update.
+Notes: `docs/差异演进.md` now records D-001 as complete for the Web phase and preserves D-004's completed `/v1` test status. The next Desktop/Mobile/Admin loops must create their own mirrored BFF paths and must not reintroduce a generic BFF.
 ```
