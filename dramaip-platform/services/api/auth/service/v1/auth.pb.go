@@ -687,6 +687,194 @@ func (x *EmailActionReply) GetAccepted() bool {
 	return false
 }
 
+type CreateDesktopAuthorizationCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	CodeChallenge string                 `protobuf:"bytes,2,opt,name=code_challenge,json=codeChallenge,proto3" json:"code_challenge,omitempty"`
+	RedirectUri   string                 `protobuf:"bytes,3,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
+	DeviceId      string                 `protobuf:"bytes,4,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) Reset() {
+	*x = CreateDesktopAuthorizationCodeRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateDesktopAuthorizationCodeRequest) ProtoMessage() {}
+
+func (x *CreateDesktopAuthorizationCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateDesktopAuthorizationCodeRequest.ProtoReflect.Descriptor instead.
+func (*CreateDesktopAuthorizationCodeRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) GetCodeChallenge() string {
+	if x != nil {
+		return x.CodeChallenge
+	}
+	return ""
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) GetRedirectUri() string {
+	if x != nil {
+		return x.RedirectUri
+	}
+	return ""
+}
+
+func (x *CreateDesktopAuthorizationCodeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
+type CreateDesktopAuthorizationCodeReply struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AuthorizationCode string                 `protobuf:"bytes,1,opt,name=authorization_code,json=authorizationCode,proto3" json:"authorization_code,omitempty"`
+	ExpiresIn         int64                  `protobuf:"varint,2,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *CreateDesktopAuthorizationCodeReply) Reset() {
+	*x = CreateDesktopAuthorizationCodeReply{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateDesktopAuthorizationCodeReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateDesktopAuthorizationCodeReply) ProtoMessage() {}
+
+func (x *CreateDesktopAuthorizationCodeReply) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateDesktopAuthorizationCodeReply.ProtoReflect.Descriptor instead.
+func (*CreateDesktopAuthorizationCodeReply) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CreateDesktopAuthorizationCodeReply) GetAuthorizationCode() string {
+	if x != nil {
+		return x.AuthorizationCode
+	}
+	return ""
+}
+
+func (x *CreateDesktopAuthorizationCodeReply) GetExpiresIn() int64 {
+	if x != nil {
+		return x.ExpiresIn
+	}
+	return 0
+}
+
+type ExchangeDesktopAuthorizationCodeRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AuthorizationCode string                 `protobuf:"bytes,1,opt,name=authorization_code,json=authorizationCode,proto3" json:"authorization_code,omitempty"`
+	CodeVerifier      string                 `protobuf:"bytes,2,opt,name=code_verifier,json=codeVerifier,proto3" json:"code_verifier,omitempty"`
+	RedirectUri       string                 `protobuf:"bytes,3,opt,name=redirect_uri,json=redirectUri,proto3" json:"redirect_uri,omitempty"`
+	DeviceId          string                 `protobuf:"bytes,4,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) Reset() {
+	*x = ExchangeDesktopAuthorizationCodeRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExchangeDesktopAuthorizationCodeRequest) ProtoMessage() {}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExchangeDesktopAuthorizationCodeRequest.ProtoReflect.Descriptor instead.
+func (*ExchangeDesktopAuthorizationCodeRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) GetAuthorizationCode() string {
+	if x != nil {
+		return x.AuthorizationCode
+	}
+	return ""
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) GetCodeVerifier() string {
+	if x != nil {
+		return x.CodeVerifier
+	}
+	return ""
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) GetRedirectUri() string {
+	if x != nil {
+		return x.RedirectUri
+	}
+	return ""
+}
+
+func (x *ExchangeDesktopAuthorizationCodeRequest) GetDeviceId() string {
+	if x != nil {
+		return x.DeviceId
+	}
+	return ""
+}
+
 var File_api_auth_service_v1_auth_proto protoreflect.FileDescriptor
 
 const file_api_auth_service_v1_auth_proto_rawDesc = "" +
@@ -734,7 +922,21 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\".\n" +
 	"\x10EmailActionReply\x12\x1a\n" +
-	"\baccepted\x18\x01 \x01(\bR\baccepted2\xa7\a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted\"\xa7\x01\n" +
+	"%CreateDesktopAuthorizationCodeRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12%\n" +
+	"\x0ecode_challenge\x18\x02 \x01(\tR\rcodeChallenge\x12!\n" +
+	"\fredirect_uri\x18\x03 \x01(\tR\vredirectUri\x12\x1b\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId\"s\n" +
+	"#CreateDesktopAuthorizationCodeReply\x12-\n" +
+	"\x12authorization_code\x18\x01 \x01(\tR\x11authorizationCode\x12\x1d\n" +
+	"\n" +
+	"expires_in\x18\x02 \x01(\x03R\texpiresIn\"\xbd\x01\n" +
+	"'ExchangeDesktopAuthorizationCodeRequest\x12-\n" +
+	"\x12authorization_code\x18\x01 \x01(\tR\x11authorizationCode\x12#\n" +
+	"\rcode_verifier\x18\x02 \x01(\tR\fcodeVerifier\x12!\n" +
+	"\fredirect_uri\x18\x03 \x01(\tR\vredirectUri\x12\x1b\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId2\xd3\t\n" +
 	"\vAuthService\x12X\n" +
 	"\bRegister\x12(.dramaip.auth.service.v1.RegisterRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12R\n" +
 	"\x05Login\x12%.dramaip.auth.service.v1.LoginRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12V\n" +
@@ -744,7 +946,9 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"\x18RequestEmailVerification\x128.dramaip.auth.service.v1.RequestEmailVerificationRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12e\n" +
 	"\vVerifyEmail\x12+.dramaip.auth.service.v1.VerifyEmailRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12w\n" +
 	"\x14RequestPasswordReset\x124.dramaip.auth.service.v1.RequestPasswordResetRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12i\n" +
-	"\rResetPassword\x12-.dramaip.auth.service.v1.ResetPasswordRequest\x1a).dramaip.auth.service.v1.EmailActionReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
+	"\rResetPassword\x12-.dramaip.auth.service.v1.ResetPasswordRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12\x9e\x01\n" +
+	"\x1eCreateDesktopAuthorizationCode\x12>.dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest\x1a<.dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply\x12\x88\x01\n" +
+	" ExchangeDesktopAuthorizationCode\x12@.dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest\x1a\".dramaip.auth.service.v1.AuthReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
 
 var (
 	file_api_auth_service_v1_auth_proto_rawDescOnce sync.Once
@@ -758,20 +962,23 @@ func file_api_auth_service_v1_auth_proto_rawDescGZIP() []byte {
 	return file_api_auth_service_v1_auth_proto_rawDescData
 }
 
-var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_api_auth_service_v1_auth_proto_goTypes = []any{
-	(*RegisterRequest)(nil),                 // 0: dramaip.auth.service.v1.RegisterRequest
-	(*LoginRequest)(nil),                    // 1: dramaip.auth.service.v1.LoginRequest
-	(*RefreshRequest)(nil),                  // 2: dramaip.auth.service.v1.RefreshRequest
-	(*LogoutRequest)(nil),                   // 3: dramaip.auth.service.v1.LogoutRequest
-	(*ValidateAccessTokenRequest)(nil),      // 4: dramaip.auth.service.v1.ValidateAccessTokenRequest
-	(*AuthReply)(nil),                       // 5: dramaip.auth.service.v1.AuthReply
-	(*LogoutReply)(nil),                     // 6: dramaip.auth.service.v1.LogoutReply
-	(*RequestEmailVerificationRequest)(nil), // 7: dramaip.auth.service.v1.RequestEmailVerificationRequest
-	(*VerifyEmailRequest)(nil),              // 8: dramaip.auth.service.v1.VerifyEmailRequest
-	(*RequestPasswordResetRequest)(nil),     // 9: dramaip.auth.service.v1.RequestPasswordResetRequest
-	(*ResetPasswordRequest)(nil),            // 10: dramaip.auth.service.v1.ResetPasswordRequest
-	(*EmailActionReply)(nil),                // 11: dramaip.auth.service.v1.EmailActionReply
+	(*RegisterRequest)(nil),                         // 0: dramaip.auth.service.v1.RegisterRequest
+	(*LoginRequest)(nil),                            // 1: dramaip.auth.service.v1.LoginRequest
+	(*RefreshRequest)(nil),                          // 2: dramaip.auth.service.v1.RefreshRequest
+	(*LogoutRequest)(nil),                           // 3: dramaip.auth.service.v1.LogoutRequest
+	(*ValidateAccessTokenRequest)(nil),              // 4: dramaip.auth.service.v1.ValidateAccessTokenRequest
+	(*AuthReply)(nil),                               // 5: dramaip.auth.service.v1.AuthReply
+	(*LogoutReply)(nil),                             // 6: dramaip.auth.service.v1.LogoutReply
+	(*RequestEmailVerificationRequest)(nil),         // 7: dramaip.auth.service.v1.RequestEmailVerificationRequest
+	(*VerifyEmailRequest)(nil),                      // 8: dramaip.auth.service.v1.VerifyEmailRequest
+	(*RequestPasswordResetRequest)(nil),             // 9: dramaip.auth.service.v1.RequestPasswordResetRequest
+	(*ResetPasswordRequest)(nil),                    // 10: dramaip.auth.service.v1.ResetPasswordRequest
+	(*EmailActionReply)(nil),                        // 11: dramaip.auth.service.v1.EmailActionReply
+	(*CreateDesktopAuthorizationCodeRequest)(nil),   // 12: dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest
+	(*CreateDesktopAuthorizationCodeReply)(nil),     // 13: dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply
+	(*ExchangeDesktopAuthorizationCodeRequest)(nil), // 14: dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest
 }
 var file_api_auth_service_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: dramaip.auth.service.v1.AuthService.Register:input_type -> dramaip.auth.service.v1.RegisterRequest
@@ -783,17 +990,21 @@ var file_api_auth_service_v1_auth_proto_depIdxs = []int32{
 	8,  // 6: dramaip.auth.service.v1.AuthService.VerifyEmail:input_type -> dramaip.auth.service.v1.VerifyEmailRequest
 	9,  // 7: dramaip.auth.service.v1.AuthService.RequestPasswordReset:input_type -> dramaip.auth.service.v1.RequestPasswordResetRequest
 	10, // 8: dramaip.auth.service.v1.AuthService.ResetPassword:input_type -> dramaip.auth.service.v1.ResetPasswordRequest
-	5,  // 9: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
-	5,  // 10: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
-	5,  // 11: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
-	6,  // 12: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
-	5,  // 13: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
-	11, // 14: dramaip.auth.service.v1.AuthService.RequestEmailVerification:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 15: dramaip.auth.service.v1.AuthService.VerifyEmail:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 16: dramaip.auth.service.v1.AuthService.RequestPasswordReset:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 17: dramaip.auth.service.v1.AuthService.ResetPassword:output_type -> dramaip.auth.service.v1.EmailActionReply
-	9,  // [9:18] is the sub-list for method output_type
-	0,  // [0:9] is the sub-list for method input_type
+	12, // 9: dramaip.auth.service.v1.AuthService.CreateDesktopAuthorizationCode:input_type -> dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest
+	14, // 10: dramaip.auth.service.v1.AuthService.ExchangeDesktopAuthorizationCode:input_type -> dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest
+	5,  // 11: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 12: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 13: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
+	6,  // 14: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
+	5,  // 15: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
+	11, // 16: dramaip.auth.service.v1.AuthService.RequestEmailVerification:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 17: dramaip.auth.service.v1.AuthService.VerifyEmail:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 18: dramaip.auth.service.v1.AuthService.RequestPasswordReset:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 19: dramaip.auth.service.v1.AuthService.ResetPassword:output_type -> dramaip.auth.service.v1.EmailActionReply
+	13, // 20: dramaip.auth.service.v1.AuthService.CreateDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply
+	5,  // 21: dramaip.auth.service.v1.AuthService.ExchangeDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.AuthReply
+	11, // [11:22] is the sub-list for method output_type
+	0,  // [0:11] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -810,7 +1021,7 @@ func file_api_auth_service_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_auth_service_v1_auth_proto_rawDesc), len(file_api_auth_service_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

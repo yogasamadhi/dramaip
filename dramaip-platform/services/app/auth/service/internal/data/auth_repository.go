@@ -12,9 +12,10 @@ import (
 )
 
 var (
-	ErrRefreshTokenNotFound = errors.New("refresh token not found")
-	ErrRefreshTokenReuse    = errors.New("refresh token reuse detected")
-	ErrEmailActionNotFound  = errors.New("email action not found")
+	ErrRefreshTokenNotFound             = errors.New("refresh token not found")
+	ErrRefreshTokenReuse                = errors.New("refresh token reuse detected")
+	ErrEmailActionNotFound              = errors.New("email action not found")
+	ErrDesktopAuthorizationCodeNotFound = errors.New("desktop authorization code not found")
 )
 
 type Data struct {
@@ -38,6 +39,16 @@ type RefreshTokenInput struct {
 	FamilyID  string
 	ParentID  string
 	DeviceID  string
+}
+
+type DesktopAuthorizationCodeInput struct {
+	ID            string
+	UserID        string
+	CodeHash      string
+	CodeChallenge string
+	RedirectURI   string
+	DeviceID      string
+	ExpiresAt     time.Time
 }
 
 type refreshTokenRecord struct {
@@ -127,6 +138,68 @@ func (r *AuthRepo) InsertUser(ctx context.Context, id string, email string, pass
 		return UserRow{}, err
 	}
 	return r.FindUserByEmail(ctx, email)
+}
+
+// CreateDesktopAuthorizationCode invalidates outstanding codes for the same
+// desktop device. This keeps the active code set small without storing raw
+// authorization codes or PKCE verifier material.
+func (r *AuthRepo) CreateDesktopAuthorizationCode(ctx context.Context, input DesktopAuthorizationCodeInput) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`
+			UPDATE auth.desktop_authorization_codes
+			SET consumed_at = now(), consumed_reason = 'superseded'
+			WHERE user_id = ?::uuid AND device_id = ? AND consumed_at IS NULL AND expires_at > now()
+		`, input.UserID, input.DeviceID).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`
+			INSERT INTO auth.desktop_authorization_codes
+			  (id, user_id, code_hash, code_challenge, redirect_uri, device_id, expires_at)
+			VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?)
+		`, input.ID, input.UserID, input.CodeHash, input.CodeChallenge, input.RedirectURI, input.DeviceID, input.ExpiresAt).Error
+	})
+}
+
+// ConsumeDesktopAuthorizationCode locks the row and marks it consumed only
+// when all bindings match. It is the replay/audit boundary for desktop login.
+func (r *AuthRepo) ConsumeDesktopAuthorizationCode(ctx context.Context, codeHash, codeChallenge, redirectURI, deviceID string) (UserRow, error) {
+	var user UserRow
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record struct {
+			ID            string
+			UserID        string
+			Email         string
+			PasswordHash  string
+			EmailVerified bool
+		}
+		if err := tx.Raw(`
+			SELECT c.id::text AS id, c.user_id::text AS user_id, u.email, u.password_hash,
+			       (u.email_verified_at IS NOT NULL) AS email_verified
+			FROM auth.desktop_authorization_codes c
+			JOIN auth.users u ON u.id = c.user_id
+			WHERE c.code_hash = ? AND c.code_challenge = ? AND c.redirect_uri = ? AND c.device_id = ?
+			  AND c.consumed_at IS NULL AND c.expires_at > now() AND u.status = 'active'
+			LIMIT 1 FOR UPDATE OF c
+		`, codeHash, codeChallenge, redirectURI, deviceID).Scan(&record).Error; err != nil {
+			return err
+		}
+		if record.ID == "" {
+			return ErrDesktopAuthorizationCodeNotFound
+		}
+		if err := tx.Exec(`
+			UPDATE auth.desktop_authorization_codes
+			SET consumed_at = now(), consumed_reason = 'exchanged'
+			WHERE id = ?::uuid AND consumed_at IS NULL
+		`, record.ID).Error; err != nil {
+			return err
+		}
+		user = UserRow{ID: record.UserID, Email: record.Email, Name: record.Email, PasswordHash: record.PasswordHash, EmailVerified: record.EmailVerified}
+		return nil
+	})
+	if err != nil {
+		return UserRow{}, err
+	}
+	return user, nil
 }
 
 func (r *AuthRepo) CreateEmailAction(ctx context.Context, userID string, purpose string, hash string, expiresAt time.Time) error {

@@ -114,6 +114,21 @@ services:
           minute: 120
           policy: local
 
+  # Desktop traffic never shares Web BFF cookies or login endpoints. Electron
+  # calls these routes from its main process after a PKCE browser hand-off.
+  - name: dramaip-desktop-bff
+    url: http://desktop-bff:8110
+    routes:
+      - name: dramaip-desktop-api
+        paths:
+          - /v1/desktop
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+
 # JWT_CREDENTIALS
 
 plugins:

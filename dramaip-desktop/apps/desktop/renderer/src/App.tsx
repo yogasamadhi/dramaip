@@ -35,6 +35,9 @@ const CaseStudyPage = lazy(() => import('@/pages/CaseStudyPage').then((m) => ({ 
 const AiDiagnosticsPage = lazy(() =>
   import('@/pages/AiDiagnosticsPage').then((m) => ({ default: m.AiDiagnosticsPage })),
 )
+const CloudAccountSettingsPage = lazy(() =>
+  import('@/pages/CloudAccountSettingsPage').then((m) => ({ default: m.CloudAccountSettingsPage })),
+)
 
 export default function App() {
   return (
@@ -60,6 +63,7 @@ export default function App() {
           <Route path="/settings/agents" element={<AgentSettingsPage />} />
           <Route path="/settings/usage" element={<UsageStatsPage />} />
           <Route path="/settings/diagnostics" element={<AiDiagnosticsPage />} />
+          <Route path="/settings/cloud-account" element={<CloudAccountSettingsPage />} />
           <Route path="/templates" element={<TemplatePage />} />
           <Route path="/genres" element={<GenrePresetPage />} />
           <Route path="/case-studies" element={<CaseStudyPage />} />

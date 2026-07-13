@@ -104,11 +104,57 @@ func TestRotateRefreshTokenDetectsReuseAndDeviceRevocation(t *testing.T) {
 	}
 }
 
+func TestDesktopAuthorizationCodeIsBoundAndSingleUse(t *testing.T) {
+	dsn := os.Getenv("POSTGRES_AUTH_TEST_DSN")
+	if dsn == "" {
+		t.Skip("POSTGRES_AUTH_TEST_DSN not set")
+	}
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	if err := resetAuthSchema(db); err != nil {
+		t.Fatalf("prepare auth schema: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Exec("DROP SCHEMA IF EXISTS auth CASCADE").Error })
+
+	ctx := context.Background()
+	repo := NewAuthRepo(&Data{DB: db})
+	userID := "00000000-0000-0000-0000-000000000021"
+	if err := db.Exec(`INSERT INTO auth.users (id, email, password_hash) VALUES (?::uuid, ?, ?)`, userID, "desktop@example.test", "hash").Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	input := DesktopAuthorizationCodeInput{
+		ID: "00000000-0000-0000-0000-000000000022", UserID: userID, CodeHash: "one-time-code-hash",
+		CodeChallenge: "challenge-a", RedirectURI: "http://127.0.0.1:43123/callback", DeviceID: "desktop-device-a", ExpiresAt: time.Now().UTC().Add(time.Minute),
+	}
+	if err := repo.CreateDesktopAuthorizationCode(ctx, input); err != nil {
+		t.Fatalf("create desktop authorization code: %v", err)
+	}
+	if _, err := repo.ConsumeDesktopAuthorizationCode(ctx, input.CodeHash, "challenge-b", input.RedirectURI, input.DeviceID); !errors.Is(err, ErrDesktopAuthorizationCodeNotFound) {
+		t.Fatalf("wrong verifier challenge error = %v", err)
+	}
+	user, err := repo.ConsumeDesktopAuthorizationCode(ctx, input.CodeHash, input.CodeChallenge, input.RedirectURI, input.DeviceID)
+	if err != nil || user.ID != userID {
+		t.Fatalf("consume desktop authorization code = %#v, %v", user, err)
+	}
+	if _, err := repo.ConsumeDesktopAuthorizationCode(ctx, input.CodeHash, input.CodeChallenge, input.RedirectURI, input.DeviceID); !errors.Is(err, ErrDesktopAuthorizationCodeNotFound) {
+		t.Fatalf("replay error = %v", err)
+	}
+	var consumedReason string
+	if err := db.Raw(`SELECT consumed_reason FROM auth.desktop_authorization_codes WHERE id = ?::uuid`, input.ID).Row().Scan(&consumedReason); err != nil {
+		t.Fatalf("read consumption audit: %v", err)
+	}
+	if consumedReason != "exchanged" {
+		t.Fatalf("consumed reason = %q", consumedReason)
+	}
+}
+
 func resetAuthSchema(db *gorm.DB) error {
 	if err := db.Exec("DROP SCHEMA IF EXISTS auth CASCADE").Error; err != nil {
 		return err
 	}
-	for _, name := range []string{"001_auth_init.up.sql", "016_auth_jwks_refresh_rotation.up.sql"} {
+	for _, name := range []string{"001_auth_init.up.sql", "016_auth_jwks_refresh_rotation.up.sql", "029_auth_desktop_authorization_codes.up.sql"} {
 		raw, err := os.ReadFile(filepath.Join(authMigrationsDir(), name))
 		if err != nil {
 			return err

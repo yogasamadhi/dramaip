@@ -51,6 +51,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
     `(${rendererSmokeMain.toString()})()`,
     true,
   ) as RendererSmokeResult
+  const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const p0Steps = runP0ProductionPathSmoke(renderer.projectId)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -58,7 +59,29 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, ...p0Steps, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0Steps, projectPackageStep],
+  }
+}
+
+async function verifyCloudAuthRendererBoundary(win: BrowserWindow): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const status = await win.webContents.executeJavaScript(`window.api.cloudAuth.status()`, true) as Record<string, unknown>
+    const keys = Object.keys(status)
+    if (!keys.includes('enabled') || !keys.includes('configured') || !keys.includes('signedIn')) {
+      throw new Error('renderer 未获得受限云端状态契约')
+    }
+    if (keys.some((key) => /token|verifier|code|secret/i.test(key))) {
+      throw new Error('renderer 云端状态泄露了敏感字段')
+    }
+    return { name: 'cloud-auth-renderer-boundary', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'cloud-auth-renderer-boundary',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 

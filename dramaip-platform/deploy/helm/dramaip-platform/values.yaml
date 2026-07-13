@@ -9,6 +9,9 @@ images:
   webBff:
     repository: ghcr.io/dramaip/dramaip-web-bff
     tag: "0.1.0"
+  desktopBff:
+    repository: ghcr.io/dramaip/dramaip-desktop-bff
+    tag: "0.1.0"
   auth:
     repository: ghcr.io/dramaip/dramaip-auth
     tag: "0.1.0"
@@ -166,6 +169,7 @@ config:
   logLevel: info
   timezone: Asia/Shanghai
   webBffHttpAddr: :8100
+  desktopBffHttpAddr: :8110
   webSession:
     refreshCookieTtl: 720h
     # Empty preserves a host-only Cookie for same-origin Web/API deployment.
@@ -308,6 +312,7 @@ internalMTLS:
   caKey: ca.crt
   certKeys:
     webBff: web-bff.crt
+    desktopBff: desktop-bff.crt
     auth: auth.crt
     user: user.crt
     billing: billing.crt
@@ -319,6 +324,7 @@ internalMTLS:
     quotaJob: quota-job.crt
   keyKeys:
     webBff: web-bff.key
+    desktopBff: desktop-bff.key
     auth: auth.key
     user: user.key
     billing: billing.key

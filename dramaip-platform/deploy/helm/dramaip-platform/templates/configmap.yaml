@@ -9,6 +9,7 @@ data:
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}
   TIMEZONE: {{ .Values.config.timezone | quote }}
   WEB_BFF_HTTP_ADDR: {{ .Values.config.webBffHttpAddr | quote }}
+  DESKTOP_BFF_HTTP_ADDR: {{ .Values.config.desktopBffHttpAddr | quote }}
   WEB_REFRESH_COOKIE_TTL: {{ .Values.config.webSession.refreshCookieTtl | quote }}
   WEB_COOKIE_DOMAIN: {{ .Values.config.webSession.cookieDomain | quote }}
   GRPC_MTLS_ENABLED: {{ .Values.internalMTLS.enabled | quote }}

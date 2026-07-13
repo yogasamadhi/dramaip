@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -63,6 +64,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/v1/auth/logout", s.handleLogout)
 	mux.HandleFunc("/v1/auth/session", s.handleSession)
+	mux.HandleFunc("/v1/auth/desktop/authorize", s.handleDesktopAuthorize)
 	mux.HandleFunc("/v1/auth/email-verification/request", s.handleRequestEmailVerification)
 	mux.HandleFunc("/v1/auth/email-verification/confirm", s.handleVerifyEmail)
 	mux.HandleFunc("/v1/auth/password-reset/request", s.handleRequestPasswordReset)
@@ -228,6 +230,40 @@ func (s *HTTPService) handleSession(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"id": auth.UserId, "email": auth.Email, "name": auth.Name}})
+}
+
+// handleDesktopAuthorize is deliberately a browser-session-only bridge. It
+// returns a one-time code to the local callback, never a refresh/access token.
+func (s *HTTPService) handleDesktopAuthorize(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	codeChallenge := strings.TrimSpace(r.URL.Query().Get("code_challenge"))
+	redirectURI := strings.TrimSpace(r.URL.Query().Get("redirect_uri"))
+	state := strings.TrimSpace(r.URL.Query().Get("state"))
+	deviceID := strings.TrimSpace(r.URL.Query().Get("device_id"))
+	if !validDesktopAuthorizeInput(codeChallenge, redirectURI, state, deviceID) {
+		writeError(w, http.StatusBadRequest, "invalid_desktop_authorization_request")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	reply, err := s.uc.CreateDesktopAuthorizationCode(r.Context(), auth.UserId, codeChallenge, redirectURI, deviceID)
+	if err != nil {
+		writeGRPCError(w, err, "desktop_authorization_unavailable")
+		return
+	}
+	callback, _ := url.Parse(redirectURI) // validated above
+	values := callback.Query()
+	values.Set("code", reply.AuthorizationCode)
+	values.Set("state", state)
+	callback.RawQuery = values.Encode()
+	w.Header().Set("Cache-Control", "no-store")
+	http.Redirect(w, r, callback.String(), http.StatusFound)
 }
 
 func (s *HTTPService) handleRequestEmailVerification(w http.ResponseWriter, r *http.Request) {
@@ -852,6 +888,34 @@ func cookieValue(r *http.Request, name string) string {
 
 func deviceID(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("X-Device-Id"))
+}
+
+func validDesktopAuthorizeInput(challenge, redirectURI, state, deviceID string) bool {
+	if len(challenge) != 43 || len(state) < 16 || len(state) > 256 || len(deviceID) < 8 || len(deviceID) > 128 {
+		return false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(challenge)
+	if err != nil || len(decoded) != 32 {
+		return false
+	}
+	for _, value := range state {
+		if !(value >= 'A' && value <= 'Z') && !(value >= 'a' && value <= 'z') && !(value >= '0' && value <= '9') && !strings.ContainsRune("-._~", value) {
+			return false
+		}
+	}
+	for _, value := range deviceID {
+		if !(value >= 'A' && value <= 'Z') && !(value >= 'a' && value <= 'z') && !(value >= '0' && value <= '9') && !strings.ContainsRune("-._:", value) {
+			return false
+		}
+	}
+	callback, err := url.Parse(redirectURI)
+	if err != nil || callback.Scheme != "http" || callback.Hostname() != "127.0.0.1" || callback.Port() == "" || callback.Path != "/callback" {
+		return false
+	}
+	if callback.User != nil || callback.RawQuery != "" || callback.Fragment != "" {
+		return false
+	}
+	return true
 }
 
 func (s *HTTPService) csrfMiddleware(next http.Handler) http.Handler {

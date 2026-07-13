@@ -1,0 +1,24 @@
+package main
+
+import (
+	"log"
+
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	kratos "github.com/go-kratos/kratos/v2"
+	khttp "github.com/go-kratos/kratos/v2/transport/http"
+)
+
+func main() {
+	app, cleanup, err := wireApp()
+	if err != nil {
+		log.Fatalf("init desktop bff interface: %v", err)
+	}
+	defer cleanup()
+	if err := app.Run(); err != nil {
+		log.Fatalf("desktop bff interface stopped: %v", err)
+	}
+}
+
+func newApp(httpServer *khttp.Server) *kratos.App {
+	return kratosx.NewApp("desktop-bff-interface", httpServer)
+}

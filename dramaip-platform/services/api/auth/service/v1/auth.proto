@@ -14,6 +14,12 @@ service AuthService {
   rpc VerifyEmail(VerifyEmailRequest) returns (EmailActionReply);
   rpc RequestPasswordReset(RequestPasswordResetRequest) returns (EmailActionReply);
   rpc ResetPassword(ResetPasswordRequest) returns (EmailActionReply);
+  // Web BFF creates a short-lived code only after it has authenticated the
+  // browser session. The raw code is returned once and is never persisted.
+  rpc CreateDesktopAuthorizationCode(CreateDesktopAuthorizationCodeRequest) returns (CreateDesktopAuthorizationCodeReply);
+  // Desktop BFF exchanges the code after the Electron main process has
+  // verified its local callback state and supplies the original PKCE verifier.
+  rpc ExchangeDesktopAuthorizationCode(ExchangeDesktopAuthorizationCodeRequest) returns (AuthReply);
 }
 
 message RegisterRequest {
@@ -81,4 +87,23 @@ message ResetPasswordRequest {
 
 message EmailActionReply {
   bool accepted = 1;
+}
+
+message CreateDesktopAuthorizationCodeRequest {
+  string user_id = 1;
+  string code_challenge = 2;
+  string redirect_uri = 3;
+  string device_id = 4;
+}
+
+message CreateDesktopAuthorizationCodeReply {
+  string authorization_code = 1;
+  int64 expires_in = 2;
+}
+
+message ExchangeDesktopAuthorizationCodeRequest {
+  string authorization_code = 1;
+  string code_verifier = 2;
+  string redirect_uri = 3;
+  string device_id = 4;
 }

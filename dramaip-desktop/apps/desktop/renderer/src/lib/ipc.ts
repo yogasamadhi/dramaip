@@ -260,6 +260,28 @@ export interface SecretStorageStatus {
   unavailableReason?: string
 }
 
+export interface CloudAuthUser {
+  id: string
+  email: string
+  name: string
+  emailVerified?: boolean
+}
+
+export interface CloudAuthStatus {
+  enabled: boolean
+  configured: boolean
+  signedIn: boolean
+  expiresAt?: string
+  user?: CloudAuthUser
+  error?: string
+}
+
+export interface CloudContext {
+  user: CloudAuthUser
+  subscription: { id: string; plan: string; status: string }
+  tokenBalance: { plan: string; quotaTokens: number; usedTokens: number; remainingTokens: number }
+}
+
 export interface SecretStateCounts {
   total: number
   empty: number
@@ -376,6 +398,12 @@ export interface StudioApi {
   }
   security: {
     getSecretStorageStatus(): Promise<SecretStorageStatus>
+  }
+  cloudAuth: {
+    status(): Promise<CloudAuthStatus>
+    login(): Promise<CloudAuthStatus>
+    logout(): Promise<CloudAuthStatus>
+    context(): Promise<CloudContext>
   }
   dataBackup: {
     list(): Promise<DatabaseBackupInfo[]>

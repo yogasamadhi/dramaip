@@ -540,6 +540,12 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'asset:listBySource': [projectAssetSourceKind, id],
   'asset:delete': [id],
   'security:getSecretStorageStatus': [],
+  // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
+  // The Electron main process owns the PKCE session and Keychain boundary.
+  'cloudAuth:status': [],
+  'cloudAuth:login': [],
+  'cloudAuth:logout': [],
+  'cloudAuth:context': [],
   'dataBackup:list': [],
   'dataBackup:create': [],
   'dataBackup:restore': [id],

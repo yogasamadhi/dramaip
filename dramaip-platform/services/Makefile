@@ -1,5 +1,5 @@
 .PHONY: test db-role-matrix plan-snapshot-integration billing-saga-integration billing-lifecycle-integration billing-wechat-webhook-integration billing-alipay-webhook-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
-        run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
+        run-web-bff run-desktop-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
 COMPOSE ?= ../deploy/docker-drama/docker-compose.yaml
@@ -59,6 +59,9 @@ quota-state-machine-integration:
 
 run-web-bff:
 	GOCACHE=$(GOCACHE) go run ./app/bff/web/interface/cmd/server
+
+run-desktop-bff:
+	GOCACHE=$(GOCACHE) go run ./app/bff/desktop/interface/cmd/server
 
 run-auth:
 	GOCACHE=$(GOCACHE) go run ./app/auth/service/cmd/server
