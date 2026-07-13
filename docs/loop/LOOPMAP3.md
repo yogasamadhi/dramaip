@@ -920,3 +920,19 @@ Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-08-
 Current branch/worktree: loop/lm3-08-notification-service; clean before this metadata update.
 Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. LM3-09 owns the event inbox, RabbitMQ consumer, retry/dead-letter behavior, and delivery channels; this loop deliberately provides only the synchronous notification boundary.
 ```
+
+```text
+Loop: LM3-09
+Target branch: main
+Loop branch: loop/lm3-09-notification-job
+Commit(s): ceb35f6 loop(LM3-09): add notification event consumer; this completion-record update is the loop's final metadata commit.
+Merge commit: e169dac merge: LM3-09 notification event consumer; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `NOTIFICATION_RABBITMQ_INTEGRATION=1 GOCACHE=/tmp/dramaip-go-build go test ./...` and `make event-contracts` passed in `dramaip-platform/services`. Notification tests cover inbox duplicate suppression, a failing channel retry without a duplicate notification, payment/subscription/quota event mapping, dedicated RabbitMQ topic delivery, bounded retry, and dead-letter arrival. `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed in `dramaip-platform/clients`; `node --check scripts/platform-e2e.mjs` passed. YAML parsing, Docker Compose config, Helm lint/template (production and development values), rendered notification-job workload inspection, Python launcher compilation, and the BFF no-cross-schema scan passed. The migration job applied migration 017 to the configured local PostgreSQL instance; a source-run notification-job returned healthy Postgres/RabbitMQ health checks. `make platform-e2e` passed against the existing local platform stack and the E2E script now waits for an asynchronous `payment_succeeded` notification.
+Compose limitation: `COMPOSE_PARALLEL_LIMIT=1 docker compose --env-file services/.env -f deploy/docker-drama/docker-compose.yaml build notification-job` reached Docker's final `go build` layer but produced no image or completion line. Therefore the existing-stack E2E is not claimed as an execution of the newly built notification-job/BFF images; source-level worker health and opt-in RabbitMQ integration tests are the direct evidence. The prior `make web-route-smoke` baseline remains stale after the Cookie migration and was not used as LM3-09 evidence.
+Diff review: Reviewed the full 40-file cumulative diff and ran `git diff --check` before and after the core merge. The change moves the notification repository to the shared notification-domain boundary, adds only migration 017, preserves BFF table isolation, removes the synchronous payment notification double-write, and contains no real environment file, credential, certificate, private key, image, cache, or unrelated artifact.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target was aligned before branch creation and immediately before the no-ff core merge.
+Push: Core merge e169dac was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-09 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-09-notification-job` immediately afterward.
+Current branch/worktree: main; clean before this metadata update.
+Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Delivery is at-least-once with an idempotent notification effect, not a message-level exactly-once claim. Current enabled channel is `in_app`; email/SMS require an explicit adapter in a later loop. Billing, quota, reporting, and other non-notification side effects remain outside notification-job.
+```
