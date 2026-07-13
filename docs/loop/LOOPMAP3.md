@@ -1046,3 +1046,18 @@ Loop branch cleanup: Completed after the core merge push.
 Current branch/worktree: main; completion metadata is the only pending change.
 Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. Simulated payment is the only transport that reaches automatic refund finalization; real provider webhook verification remains LM3-17/LM3-18. LM3-19 owns cross-ledger reconciliation and LM3-22 owns operational alerts.
 ```
+
+```text
+Loop: LM3-17
+Target branch: main
+Loop branch: loop/lm3-17-sandbox-preflight
+Commit(s): e0cf07d loop(LM3-17): add wechat pay webhook; 0b072f9 loop(LM3-17): validate platform certificate serial; e35c643 docs(loop): waive LM3-17 sandbox payment rehearsal; this completion-record commit.
+Merge commit(s): 4f11dcb merge: LM3-17 wechat payment sandbox webhook; 9154fce merge: LM3-17 platform certificate serial validation; the required closing no-ff merge of this record follows.
+Verification: The core implementation passed `GOCACHE=/tmp/dramaip-go-build go test ./app/billing/...`, targeted billing race tests, `make billing-wechat-webhook-integration` against a fresh isolated PostgreSQL instance, event-contract/client checks, and Helm/Compose rendering; it covers signature/decryption validation, forged/replayed/mismatched callback handling, active-query confirmation, one-time Saga activation, and webhook audit persistence. For the owner-authorized waiver change, `git diff --check` and the documentation/configuration cross-reference review passed. No real merchant credential, payment or callback was used.
+Diff review: Reviewed all LM3-17 core diffs and this documentation-only final diff. No real environment file, APIv3 key, certificate, private key, payment payload, cache, image, or unrelated artifact is included. The provider remains disabled by default and can be rolled back by disabling the feature flag and webhook route while retaining audit records.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before this closing branch; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-17-sandbox-preflight` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean closing loop branch before its no-ff merge.
+Notes: On 2026-07-13 the repository owner explicitly directed that the official sandbox payment-to-callback rehearsal be skipped. LM3-17 is therefore complete only at the delivered software scope; it is not evidence of real WeChat channel activation, real payment, public callback reachability, or production readiness. Any future environment that enables WeChat payment must perform the documented official sandbox E2E first.
+```
