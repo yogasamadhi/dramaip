@@ -1143,3 +1143,19 @@ Loop branch cleanup: Delete `loop/lm3-22-metrics-alerting` after the closing mer
 Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
 Notes: The repository owner explicitly instructed that real payment is skipped. Error aggregation is the documented Sentry-equivalent bounded metrics plus secure logs/traces; a future external Sentry integration must retain the same redaction rules and must not put trace IDs or error text in Prometheus labels.
 ```
+
+```text
+Loop: LM3-23
+Target branch: main
+Loop branch: loop/lm3-23-resilience (deleted after the closing merge push)
+Commit(s): 18fae1c loop(LM3-23): add resilience controls; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: Full `GOCACHE=/tmp/dramaip-go-race-lm3-20 go test ./...` and `go test -race ./...` passed. Targeted resilience tests cover default/maximum deadlines, query retry versus `ReserveTokens` single invocation, open/half-open circuit recovery, Provider timeout, Provider/model bulkhead isolation, BFF `Retry-After`, read-only plans fallback, and bounded outbox backoff. `make event-contracts`, Docker Compose config, observability configuration smoke, Helm lint, and production/development Helm renders passed.
+Compose chaos limitation: Not claimed. The existing user-owned Compose stack still does not serve `localhost:8000`; it was not stopped, deleted, or rebuilt. Live quota outage, Provider timeout, RabbitMQ outage, Prometheus recovery and Grafana verification must be performed on a restored healthy stack using `docs/loop/LM3-23-弹性与降级.md` before deployment or real-payment readiness is claimed.
+Diff review: Reviewed all 20 functional files and ran staged `git diff --check`. The implementation adds shared gRPC timeouts/retry/circuit boundaries, model-keyed Provider bulkheads/circuits, strictly read-only plans fallback, safe BFF retry hints, durable outbox backoff, job operation deadlines, targeted tests and runbook. It does not include credentials, payment data, prompt/body content, cache artifacts, generated output, or a retry path that replays quota, billing, payment or other command RPCs.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before this loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no Gitee hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-23-resilience` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
+Notes: The owner explicitly skips real payment. Resilience configuration can be tuned, but it must not be configured to skip quota pre-reservation, trust client identity, mark unconfirmed outbox events as published, or retry command RPCs outside their existing idempotency/Saga protocols.
+```
