@@ -121,6 +121,7 @@ services:
       POSTGRES_QUOTA_PASSWORD: ${POSTGRES_QUOTA_PASSWORD:-dramaip}
       POSTGRES_AI_GATEWAY_PASSWORD: ${POSTGRES_AI_GATEWAY_PASSWORD:-dramaip}
       POSTGRES_NOTIFICATION_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
+      POSTGRES_INSPIRATION_PASSWORD: ${POSTGRES_INSPIRATION_PASSWORD:-dramaip}
     depends_on:
       postgres:
         condition: service_healthy
@@ -298,6 +299,26 @@ services:
       NOTIFICATION_GRPC_ADDR: ":9106"
       OTEL_SERVICE_NAME: dramaip-notification
 
+  # The handoff service owns only short mobile drafts and adoption audit rows;
+  # it is deliberately not a general project-sync or document merge service.
+  inspiration:
+    <<: *app-common
+    container_name: drama-inspiration
+    image: dramaip-inspiration
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/inspiration/service/cmd/server
+        OUTPUT: dramaip-inspiration
+    environment:
+      <<: *app-env
+      POSTGRES_USER: dramaip_inspiration
+      POSTGRES_PASSWORD: ${POSTGRES_INSPIRATION_PASSWORD:-dramaip}
+      INSPIRATION_HTTP_ADDR: ":8111"
+      INSPIRATION_GRPC_ADDR: ":9107"
+      OTEL_SERVICE_NAME: dramaip-inspiration
+
   notification-job:
     <<: *app-common
     container_name: drama-notification-job
@@ -450,6 +471,7 @@ services:
       BILLING_GRPC_ENDPOINT: billing:9103
       QUOTA_GRPC_ENDPOINT: quota:9104
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
+      INSPIRATION_GRPC_ENDPOINT: inspiration:9107
       OTEL_SERVICE_NAME: dramaip-desktop-bff
 
   # Mobile BFF is an independent token/session adapter. It has no database,
@@ -475,6 +497,8 @@ services:
       AUTH_GRPC_ENDPOINT: auth:9101
       BILLING_GRPC_ENDPOINT: billing:9103
       QUOTA_GRPC_ENDPOINT: quota:9104
+      AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
+      INSPIRATION_GRPC_ENDPOINT: inspiration:9107
       OTEL_SERVICE_NAME: dramaip-mobile-bff
 
   # Application external entry — the ONLY API service clients may reach from outside.

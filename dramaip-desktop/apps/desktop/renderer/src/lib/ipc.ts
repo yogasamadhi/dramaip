@@ -288,6 +288,18 @@ export interface CloudAIModel {
   isDefault: boolean
 }
 
+export interface CloudMobileDraft {
+  id: string
+  clientId: string
+  kind: 'inspiration' | 'character' | 'project'
+  captureMode: 'text' | 'voice'
+  title: string
+  content: string
+  aiExpansion: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SecretStateCounts {
   total: number
   empty: number
@@ -414,6 +426,10 @@ export interface StudioApi {
   cloudAI: {
     models(): Promise<CloudAIModel[]>
     onBalance(onBalance: (balance: { remainingTokens: number }) => void): () => void
+  }
+  cloudHandoff: {
+    list(): Promise<CloudMobileDraft[]>
+    adopt(input: { projectId: string; draftId: string }): Promise<{ draft: CloudMobileDraft; imported: number; skipped: number }>
   }
   dataBackup: {
     list(): Promise<DatabaseBackupInfo[]>

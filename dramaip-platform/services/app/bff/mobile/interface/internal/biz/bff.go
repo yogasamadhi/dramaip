@@ -3,9 +3,12 @@ package biz
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
 
+	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/mobile/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -46,6 +49,83 @@ func (u *BFFUsecase) Brief(ctx context.Context, accessToken string) (*authv1.Aut
 		return nil, nil, nil, err
 	}
 	return identity, subscription, balance, nil
+}
+
+func (u *BFFUsecase) UpsertDraft(ctx context.Context, accessToken, clientID, kind, captureMode, title, content, aiExpansion string) (*inspirationv1.MobileDraft, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Inspiration.UpsertMobileDraft(ctx, &inspirationv1.UpsertMobileDraftRequest{
+		UserId: identity.UserId, ClientId: strings.TrimSpace(clientID), Kind: strings.TrimSpace(kind), CaptureMode: strings.TrimSpace(captureMode),
+		Title: strings.TrimSpace(title), Content: strings.TrimSpace(content), AiExpansion: strings.TrimSpace(aiExpansion),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if reply.Draft == nil {
+		return nil, status.Error(codes.Unavailable, "mobile_draft_reply_invalid")
+	}
+	return reply.Draft, nil
+}
+
+func (u *BFFUsecase) ListDrafts(ctx context.Context, accessToken string, limit int32) ([]*inspirationv1.MobileDraft, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Inspiration.ListMobileDrafts(ctx, &inspirationv1.ListMobileDraftsRequest{UserId: identity.UserId, Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	return reply.Drafts, nil
+}
+
+// Expand uses the existing gateway, which keeps quota, idempotency and the
+// Provider boundary centralized. Only the user-selected short text is sent;
+// project databases, file paths, audio and device metadata never leave mobile.
+func (u *BFFUsecase) Expand(ctx context.Context, accessToken, idempotencyKey, kind, content string) (*aiv1.ChatReply, error) {
+	idempotencyKey, kind, content = strings.TrimSpace(idempotencyKey), strings.TrimSpace(kind), strings.TrimSpace(content)
+	if len(idempotencyKey) < 8 || len(idempotencyKey) > 128 || !validDraftKind(kind) || content == "" || utf8.RuneCountInString(content) > 1_500 {
+		return nil, status.Error(codes.InvalidArgument, "invalid_mobile_expansion")
+	}
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	models, err := u.data.AI.ListModels(ctx, &aiv1.ListModelsRequest{UserId: identity.UserId})
+	if err != nil {
+		return nil, err
+	}
+	model := selectDefaultModel(models.Models)
+	if model == nil {
+		return nil, status.Error(codes.Unavailable, "mobile_ai_model_unavailable")
+	}
+	return u.data.AI.Chat(ctx, &aiv1.ChatRequest{
+		UserId: identity.UserId, RequestId: idempotencyKey, IdempotencyKey: idempotencyKey, Provider: model.Provider, Model: model.Model, MaxTokens: 400,
+		Messages: []*aiv1.ChatMessage{
+			{Role: "system", Content: "将一条移动端轻量草稿扩写为简洁故事梗概，不添加未提供的个人信息。"},
+			{Role: "user", Content: "草稿类型：" + kind + "\n内容：" + content},
+		},
+	})
+}
+
+func validDraftKind(value string) bool {
+	return value == "inspiration" || value == "character" || value == "project"
+}
+
+func selectDefaultModel(models []*aiv1.CloudModel) *aiv1.CloudModel {
+	for _, model := range models {
+		if model != nil && model.IsDefault && model.Provider != "" && model.Model != "" {
+			return model
+		}
+	}
+	for _, model := range models {
+		if model != nil && model.Provider != "" && model.Model != "" {
+			return model
+		}
+	}
+	return nil
 }
 
 func (u *BFFUsecase) authenticate(ctx context.Context, accessToken string) (*authv1.AuthReply, context.Context, error) {

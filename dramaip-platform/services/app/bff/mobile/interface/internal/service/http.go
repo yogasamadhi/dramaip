@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/mobile/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -31,6 +32,8 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/mobile/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/v1/mobile/auth/logout", s.handleLogout)
 	mux.HandleFunc("/v1/mobile/me/brief", s.handleBrief)
+	mux.HandleFunc("/v1/mobile/drafts", s.handleDrafts)
+	mux.HandleFunc("/v1/mobile/ai/expand", s.handleExpand)
 	return platform.TraceMiddleware("mobile-bff-interface", s.metricsMiddleware(mux))
 }
 
@@ -145,8 +148,100 @@ func (s *HTTPService) handleBrief(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *HTTPService) handleDrafts(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		var req struct {
+			ClientID    string `json:"client_id"`
+			Kind        string `json:"kind"`
+			CaptureMode string `json:"capture_mode"`
+			Title       string `json:"title"`
+			Content     string `json:"content"`
+			AIExpansion string `json:"ai_expansion"`
+		}
+		if !decodeJSONLimit(w, r, &req, 8<<10) {
+			return
+		}
+		draft, err := s.uc.UpsertDraft(r.Context(), r.Header.Get("Authorization"), req.ClientID, req.Kind, req.CaptureMode, req.Title, req.Content, req.AIExpansion)
+		if err != nil {
+			s.writeGRPCError(w, err, "mobile_draft_unavailable")
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"draft": draftJSON(draft)})
+	case http.MethodGet:
+		limit := int32(50)
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			parsed, err := strconv.ParseInt(raw, 10, 32)
+			if err != nil || parsed < 1 || parsed > 100 {
+				writeError(w, http.StatusBadRequest, "invalid_limit")
+				return
+			}
+			limit = int32(parsed)
+		}
+		drafts, err := s.uc.ListDrafts(r.Context(), r.Header.Get("Authorization"), limit)
+		if err != nil {
+			s.writeGRPCError(w, err, "mobile_draft_list_unavailable")
+			return
+		}
+		items := make([]map[string]string, 0, len(drafts))
+		for _, draft := range drafts {
+			items = append(items, draftJSON(draft))
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]any{"drafts": items})
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	}
+}
+
+func (s *HTTPService) handleExpand(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		IdempotencyKey string `json:"idempotency_key"`
+		Kind           string `json:"kind"`
+		Content        string `json:"content"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.Expand(r.Context(), r.Header.Get("Authorization"), req.IdempotencyKey, req.Kind, req.Content)
+	if err != nil {
+		s.writeGRPCError(w, err, "mobile_expansion_unavailable")
+		return
+	}
+	if reply == nil || strings.TrimSpace(reply.Content) == "" {
+		writeError(w, http.StatusServiceUnavailable, "mobile_expansion_invalid")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Idempotency-Key", req.IdempotencyKey)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"expansion": reply.Content, "provider": reply.Provider, "model": reply.Model,
+		"remaining_tokens": reply.RemainingTokens,
+	})
+}
+
+func draftJSON(draft *inspirationv1.MobileDraft) map[string]string {
+	if draft == nil {
+		return map[string]string{}
+	}
+	return map[string]string{
+		"id": draft.Id, "client_id": draft.ClientId, "kind": draft.Kind, "capture_mode": draft.CaptureMode,
+		"title": draft.Title, "content": draft.Content, "ai_expansion": draft.AiExpansion,
+		"created_at": draft.CreatedAt, "updated_at": draft.UpdatedAt,
+	}
+}
+
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
+	return decodeJSONLimit(w, r, destination, 16<<10)
+}
+
+func decodeJSONLimit(w http.ResponseWriter, r *http.Request, destination any, maximumBytes int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maximumBytes)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {

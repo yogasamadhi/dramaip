@@ -33,6 +33,9 @@ images:
   notification:
     repository: ghcr.io/dramaip/dramaip-notification
     tag: "0.1.0"
+  inspiration:
+    repository: ghcr.io/dramaip/dramaip-inspiration
+    tag: "0.1.0"
   notificationJob:
     repository: ghcr.io/dramaip/dramaip-notification-job
     tag: "0.1.0"
@@ -191,6 +194,8 @@ config:
   aiGatewayGrpcAddr: :9105
   notificationHttpAddr: :8108
   notificationGrpcAddr: :9106
+  inspirationHttpAddr: :8111
+  inspirationGrpcAddr: :9107
   notificationJobHttpAddr: :8109
   billingJobHttpAddr: :8106
   quotaJobHttpAddr: :8107
@@ -246,6 +251,7 @@ config:
     quotaGrpcEndpoint: dramaip-platform-quota:9104
     aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
     notificationGrpcEndpoint: dramaip-platform-notification:9106
+    inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
   ai:
     providers: openai-compatible
     defaultProvider: openai-compatible
@@ -292,6 +298,7 @@ secret:
   postgresQuotaPassword: change-me
   postgresAIGatewayPassword: change-me
   postgresNotificationPassword: change-me
+  postgresInspirationPassword: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -324,6 +331,7 @@ internalMTLS:
     quota: quota.crt
     aiGateway: ai-gateway.crt
     notification: notification-service.crt
+    inspiration: inspiration-service.crt
     notificationJob: notification-job.crt
     billingJob: billing-job.crt
     quotaJob: quota-job.crt
@@ -337,6 +345,7 @@ internalMTLS:
     quota: quota.key
     aiGateway: ai-gateway.key
     notification: notification-service.key
+    inspiration: inspiration-service.key
     notificationJob: notification-job.key
     billingJob: billing-job.key
     quotaJob: quota-job.key
@@ -345,7 +354,7 @@ migrations:
   enabled: true
   useHelmHook: true
   # Requires the migration identity to have CREATEROLE. Set false only after
-  # the six runtime roles have been pre-provisioned by the database operator.
+  # the seven runtime roles have been pre-provisioned by the database operator.
   bootstrapRuntimeRoles: true
   serviceAccountName: ""
   backoffLimit: 2

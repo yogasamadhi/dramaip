@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
+	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/mobile/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/mobile/interface/internal/data"
@@ -75,8 +77,44 @@ func TestMobileMetricsAreAvailableWithoutSession(t *testing.T) {
 	}
 }
 
+func TestMobileDraftQueueIsAuthenticatedAndIdempotent(t *testing.T) {
+	router := newTestHTTPService().Router()
+	create := httptest.NewRequest(http.MethodPost, "/v1/mobile/drafts", bytes.NewBufferString(`{"client_id":"mobile-draft-0001","kind":"inspiration","capture_mode":"voice","title":"雨夜反转","content":"雨夜里主角发现旧手机。","ai_expansion":""}`))
+	create.Header.Set("Authorization", "Bearer mobile-access")
+	createRecorder := httptest.NewRecorder()
+	router.ServeHTTP(createRecorder, create)
+	if createRecorder.Code != http.StatusOK || !bytes.Contains(createRecorder.Body.Bytes(), []byte(`"client_id":"mobile-draft-0001"`)) {
+		t.Fatalf("create draft = %d: %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	list := httptest.NewRequest(http.MethodGet, "/v1/mobile/drafts?limit=10", nil)
+	list.Header.Set("Authorization", "Bearer mobile-access")
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, list)
+	if listRecorder.Code != http.StatusOK || !bytes.Contains(listRecorder.Body.Bytes(), []byte(`"drafts"`)) {
+		t.Fatalf("list drafts = %d: %s", listRecorder.Code, listRecorder.Body.String())
+	}
+	unauthorized := httptest.NewRequest(http.MethodPost, "/v1/mobile/drafts", bytes.NewBufferString(`{}`))
+	unauthorizedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(unauthorizedRecorder, unauthorized)
+	if unauthorizedRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("invalid anonymous draft = %d: %s", unauthorizedRecorder.Code, unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestMobileExpansionUsesBoundedAuthenticatedGatewayRequest(t *testing.T) {
+	router := newTestHTTPService().Router()
+	request := httptest.NewRequest(http.MethodPost, "/v1/mobile/ai/expand", bytes.NewBufferString(`{"idempotency_key":"mobile-expand-0001","kind":"inspiration","content":"雨夜里主角发现旧手机。"}`))
+	request.Header.Set("Authorization", "Bearer mobile-access")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte(`"expansion":"一个短梗概"`)) {
+		t.Fatalf("mobile expansion = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if recorder.Header().Get("Idempotency-Key") != "mobile-expand-0001" { t.Fatalf("missing expansion idempotency header") }
+}
+
 func newTestHTTPService() *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}}))
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Inspiration: fakeInspiration{}}))
 }
 
 type fakeAuth struct{}
@@ -126,4 +164,36 @@ func (fakeQuota) GetTokenBalance(ctx context.Context, req *quotav1.GetTokenBalan
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
 	return &quotav1.TokenBalance{Plan: "pro", QuotaTokens: 2_000_000, UsedTokens: 380_000, RemainingTokens: 1_620_000}, nil
+}
+
+type fakeInspiration struct{}
+
+func (fakeInspiration) UpsertMobileDraft(ctx context.Context, req *inspirationv1.UpsertMobileDraftRequest, _ ...grpc.CallOption) (*inspirationv1.UpsertMobileDraftResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.ClientId != "mobile-draft-0001" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &inspirationv1.UpsertMobileDraftResponse{Draft: fakeDraft()}, nil
+}
+
+func (fakeInspiration) ListMobileDrafts(ctx context.Context, req *inspirationv1.ListMobileDraftsRequest, _ ...grpc.CallOption) (*inspirationv1.ListMobileDraftsResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &inspirationv1.ListMobileDraftsResponse{Drafts: []*inspirationv1.MobileDraft{fakeDraft()}}, nil
+}
+
+func fakeDraft() *inspirationv1.MobileDraft {
+	return &inspirationv1.MobileDraft{Id: "draft-1", ClientId: "mobile-draft-0001", Kind: "inspiration", CaptureMode: "voice", Title: "雨夜反转", Content: "雨夜里主角发现旧手机。"}
+}
+
+type fakeAI struct{}
+
+func (fakeAI) ListModels(ctx context.Context, req *aiv1.ListModelsRequest, _ ...grpc.CallOption) (*aiv1.ListModelsReply, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	return &aiv1.ListModelsReply{Models: []*aiv1.CloudModel{{Provider: "test", Model: "test-mobile", IsDefault: true}}}, nil
+}
+
+func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.IdempotencyKey != "mobile-expand-0001" || len(req.Messages) != 2 || req.MaxTokens != 400 { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	return &aiv1.ChatReply{Content: "一个短梗概", Provider: "test", Model: "test-mobile", RemainingTokens: 1_619_900}, nil
 }

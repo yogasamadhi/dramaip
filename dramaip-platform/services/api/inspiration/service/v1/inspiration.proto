@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package dramaip.inspiration.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1;inspirationv1";
+
+// InspirationService owns only the small, explicitly handed-off mobile draft
+// queue. It is not the future general project-sync service.
+service InspirationService {
+  rpc UpsertMobileDraft(UpsertMobileDraftRequest) returns (UpsertMobileDraftResponse);
+  rpc ListMobileDrafts(ListMobileDraftsRequest) returns (ListMobileDraftsResponse);
+  rpc RecordMobileDraftAdoption(RecordMobileDraftAdoptionRequest) returns (RecordMobileDraftAdoptionResponse);
+}
+
+message MobileDraft {
+  string id = 1;
+  string client_id = 2;
+  string kind = 3;
+  string capture_mode = 4;
+  string title = 5;
+  string content = 6;
+  string ai_expansion = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message UpsertMobileDraftRequest {
+  string user_id = 1;
+  string client_id = 2;
+  string kind = 3;
+  string capture_mode = 4;
+  string title = 5;
+  string content = 6;
+  string ai_expansion = 7;
+}
+
+message UpsertMobileDraftResponse {
+  MobileDraft draft = 1;
+}
+
+message ListMobileDraftsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message ListMobileDraftsResponse {
+  repeated MobileDraft drafts = 1;
+}
+
+message RecordMobileDraftAdoptionRequest {
+  string user_id = 1;
+  string draft_id = 2;
+  string idempotency_key = 3;
+}
+
+message RecordMobileDraftAdoptionResponse {
+  MobileDraft draft = 1;
+}

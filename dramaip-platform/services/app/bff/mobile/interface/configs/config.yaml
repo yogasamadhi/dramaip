@@ -5,3 +5,5 @@ downstream:
   auth_grpc_addr: localhost:9101
   billing_grpc_addr: localhost:9103
   quota_grpc_addr: localhost:9104
+  ai_gateway_grpc_addr: localhost:9105
+  inspiration_grpc_addr: localhost:9107

@@ -56,12 +56,21 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	path := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "migrations", "platform", "018_database_role_isolation.up.sql"))
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read role migration: %v", err)
+	migrationsRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "migrations"))
+	paths := []string{
+		filepath.Join(migrationsRoot, "platform", "018_database_role_isolation.up.sql"),
+		filepath.Join(migrationsRoot, "inspiration", "030_inspiration_mobile_handoff.up.sql"),
 	}
-	sql := string(raw)
+	var builder strings.Builder
+	for _, path := range paths {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read role migration %s: %v", path, err)
+		}
+		builder.Write(raw)
+		builder.WriteByte('\n')
+	}
+	sql := builder.String()
 	for _, role := range DatabaseRoles {
 		for _, statement := range []string{
 			"GRANT USAGE ON SCHEMA " + role.Schema + " TO " + role.Name,
@@ -73,7 +82,7 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification") {
+	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA inspiration FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration") {
 		t.Fatal("role migration does not revoke every domain schema before grants")
 	}
 }
