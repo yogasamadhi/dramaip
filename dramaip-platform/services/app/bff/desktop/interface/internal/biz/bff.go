@@ -7,6 +7,7 @@ import (
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -87,6 +88,36 @@ func (u *BFFUsecase) ChatCloudAI(ctx context.Context, accessToken, requestID, id
 		UserId: identity.UserId, RequestId: strings.TrimSpace(requestID), IdempotencyKey: strings.TrimSpace(idempotencyKey), ClientIp: strings.TrimSpace(clientIP),
 		Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model), Messages: messages, MaxTokens: maxTokens,
 	})
+}
+
+func (u *BFFUsecase) ListMobileHandoff(ctx context.Context, accessToken string, limit int32) ([]*inspirationv1.MobileDraft, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Inspiration.ListMobileDrafts(ctx, &inspirationv1.ListMobileDraftsRequest{UserId: identity.UserId, Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+	return reply.Drafts, nil
+}
+
+func (u *BFFUsecase) AdoptMobileHandoff(ctx context.Context, accessToken, draftID, idempotencyKey string) (*inspirationv1.MobileDraft, error) {
+	if strings.TrimSpace(draftID) == "" || len(strings.TrimSpace(idempotencyKey)) < 8 || len(strings.TrimSpace(idempotencyKey)) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "invalid_mobile_handoff_adoption")
+	}
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Inspiration.RecordMobileDraftAdoption(ctx, &inspirationv1.RecordMobileDraftAdoptionRequest{UserId: identity.UserId, DraftId: strings.TrimSpace(draftID), IdempotencyKey: strings.TrimSpace(idempotencyKey)})
+	if err != nil {
+		return nil, err
+	}
+	if reply.Draft == nil {
+		return nil, status.Error(codes.Unavailable, "mobile_handoff_reply_invalid")
+	}
+	return reply.Draft, nil
 }
 
 func (u *BFFUsecase) authenticate(ctx context.Context, accessToken string) (*authv1.AuthReply, context.Context, error) {

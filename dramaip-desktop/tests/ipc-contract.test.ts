@@ -23,6 +23,11 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('projectAgentScheme:list', ['project-1']), ['project-1'])
   assert.deepEqual(validateIpcArgs('projectAgentScheme:getActive', ['project-1']), ['project-1'])
   assert.deepEqual(validateIpcArgs('inspirationFavorite:list', ['project-1']), ['project-1'])
+  assert.deepEqual(validateIpcArgs('cloudHandoff:list', []), [])
+  assert.deepEqual(
+    validateIpcArgs('cloudHandoff:adopt', [{ projectId: 'project-1', draftId: '89e7c48a-d2c1-4c22-b831-8013746d1d52' }]),
+    [{ projectId: 'project-1', draftId: '89e7c48a-d2c1-4c22-b831-8013746d1d52' }],
+  )
   assert.deepEqual(
     validateIpcArgs('projectSkill:create', [
       {

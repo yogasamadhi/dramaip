@@ -101,7 +101,7 @@
 | D-008 生产仍使用 HS256 | LM3-05（done） | RS256 + JWKS + key rotation |
 | D-009 Web token 存 localStorage | LM3-06（done） | HttpOnly Cookie + CSRF，长期 token 不进 localStorage |
 | D-010 notification 无独立 service/job | LM3-08（service done）、LM3-09 | notification 同步和异步边界完整 |
-| D-011 缺少独立管理后台 | LM3-29、LM3-30 | Admin 独立认证、BFF、RBAC、审计和 UI |
+| D-011 缺少独立管理后台 | LM3-30、LM3-31 | Admin 独立认证、BFF、RBAC、审计和 UI |
 
 ## 2. 兼容、安全、数据与产品约束
 
@@ -236,7 +236,7 @@ make platform-down
 | LM3-26 | P0 | Desktop/Auth | done | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
 | LM3-27 | P0 | Desktop/AI | done | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
 | LM3-28 | P2 | Mobile | done | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
-| LM3-29 | P2 | Mobile | todo | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
+| LM3-29 | P2 | Mobile | done | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | todo | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | todo | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
 | LM3-32 | P1 | Platform/SRE | todo | 建立生产部署、密钥和发布流水线 | Docker、K8s、Helm、Kong、CI/CD | G1～G5 |

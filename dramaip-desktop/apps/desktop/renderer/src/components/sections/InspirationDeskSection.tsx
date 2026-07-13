@@ -11,7 +11,7 @@ import {
   type Project,
   type TextDiffPreviewPayload,
 } from '@sdns/core'
-import { ipc, type AiTaskInput } from '@/lib/ipc'
+import { ipc, type AiTaskInput, type CloudMobileDraft } from '@/lib/ipc'
 import {
   appendInspirationCardNote,
   buildInspirationCards,
@@ -73,6 +73,9 @@ export function InspirationDeskSection({
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [importingMobile, setImportingMobile] = useState(false)
+  const [cloudDrafts, setCloudDrafts] = useState<CloudMobileDraft[]>([])
+  const [loadingCloudDrafts, setLoadingCloudDrafts] = useState(false)
+  const [adoptingCloudDraftID, setAdoptingCloudDraftID] = useState<string>()
   const [schemeForm, setSchemeForm] = useState<InspirationSchemeForm>({
     genre: project.shortDramaType ?? '',
     targetAudience: project.targetAudience ?? '',
@@ -216,6 +219,35 @@ export function InspirationDeskSection({
       toast.error('移动灵感导入失败：' + (error instanceof Error ? error.message : String(error)), { id: toastId })
     } finally {
       setImportingMobile(false)
+    }
+  }
+
+  async function loadCloudMobileDrafts() {
+    setLoadingCloudDrafts(true)
+    try {
+      const drafts = await ipc.cloudHandoff.list()
+      setCloudDrafts(drafts)
+      if (!drafts.length) toast.message('云端暂没有待采用的移动草稿')
+    } catch (error) {
+      toast.error('读取云端移动草稿失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setLoadingCloudDrafts(false)
+    }
+  }
+
+  async function adoptCloudMobileDraft(draft: CloudMobileDraft) {
+    setAdoptingCloudDraftID(draft.id)
+    try {
+      const result = await ipc.cloudHandoff.adopt({ projectId: project.id, draftId: draft.id })
+      await refreshFavorites()
+      setSourceKind('mobile_import')
+      setFavoriteOnly(false)
+      setCloudDrafts((items) => items.filter((item) => item.id !== draft.id))
+      toast.success(`已采用「${result.draft.title}」到本项目灵感台`)
+    } catch (error) {
+      toast.error('采用移动草稿失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setAdoptingCloudDraftID(undefined)
     }
   }
 
@@ -443,6 +475,10 @@ export function InspirationDeskSection({
             {importingMobile ? <Loader2 className="animate-spin" /> : <FileInput />}
             导入
           </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => void loadCloudMobileDrafts()} disabled={loadingCloudDrafts}>
+            {loadingCloudDrafts ? <Loader2 className="animate-spin" /> : <SendToBack />}
+            云端草稿
+          </Button>
           <Select value={kind} onValueChange={(value) => setKind(value as KindFilter)}>
             <SelectTrigger className="w-36">
               <SelectValue />
@@ -513,6 +549,27 @@ export function InspirationDeskSection({
           ))}
         </div>
       </div>
+
+      {cloudDrafts.length > 0 && (
+        <div className="border-b bg-muted/30 p-4">
+          <div className="mb-2 text-sm font-medium">移动端待采用草稿</div>
+          <div className="grid gap-2 lg:grid-cols-2">
+            {cloudDrafts.map((draft) => (
+              <div key={draft.id} className="rounded-md border bg-background p-3">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate font-medium">{draft.title}</div>
+                  <Badge variant="outline">{draft.kind === 'character' ? '人物' : draft.kind === 'project' ? '项目' : '灵感'}</Badge>
+                </div>
+                <div className="mt-1 line-clamp-3 text-sm text-muted-foreground">{draft.content}</div>
+                <Button className="mt-2" type="button" size="sm" onClick={() => void adoptCloudMobileDraft(draft)} disabled={adoptingCloudDraftID === draft.id}>
+                  {adoptingCloudDraftID === draft.id ? <Loader2 className="animate-spin" /> : <BookmarkCheck />}
+                  采用到灵感台
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ScrollArea className="flex-1">
         {schemes.length > 0 && (

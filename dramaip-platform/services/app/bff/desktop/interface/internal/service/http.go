@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"unicode/utf8"
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -35,6 +37,8 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/desktop/ai/models", s.handleCloudModels)
 	mux.HandleFunc("/v1/desktop/ai/preflight", s.handleCloudPreflight)
 	mux.HandleFunc("/v1/desktop/ai/chat", s.handleCloudChat)
+	mux.HandleFunc("/v1/desktop/mobile-handoff", s.handleMobileHandoff)
+	mux.HandleFunc("/v1/desktop/mobile-handoff/adopt", s.handleAdoptMobileHandoff)
 	return platform.TraceMiddleware("desktop-bff-interface", s.metricsMiddleware(mux))
 }
 
@@ -216,6 +220,65 @@ func (s *HTTPService) handleCloudChat(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Idempotency-Key", req.IdempotencyKey)
 	writeJSON(w, http.StatusOK, chatResponse(reply))
+}
+
+func (s *HTTPService) handleMobileHandoff(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	limit := int32(50)
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || parsed < 1 || parsed > 100 {
+			writeError(w, http.StatusBadRequest, "invalid_limit")
+			return
+		}
+		limit = int32(parsed)
+	}
+	drafts, err := s.uc.ListMobileHandoff(r.Context(), r.Header.Get("Authorization"), limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_mobile_handoff_unavailable")
+		return
+	}
+	items := make([]map[string]string, 0, len(drafts))
+	for _, draft := range drafts {
+		items = append(items, mobileDraftJSON(draft))
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"drafts": items})
+}
+
+func (s *HTTPService) handleAdoptMobileHandoff(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		DraftID        string `json:"draft_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	draft, err := s.uc.AdoptMobileHandoff(r.Context(), r.Header.Get("Authorization"), req.DraftID, req.IdempotencyKey)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_mobile_handoff_adoption_unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Idempotency-Key", req.IdempotencyKey)
+	writeJSON(w, http.StatusOK, map[string]any{"draft": mobileDraftJSON(draft)})
+}
+
+func mobileDraftJSON(draft *inspirationv1.MobileDraft) map[string]string {
+	if draft == nil {
+		return map[string]string{}
+	}
+	return map[string]string{
+		"id": draft.Id, "client_id": draft.ClientId, "kind": draft.Kind, "capture_mode": draft.CaptureMode, "title": draft.Title,
+		"content": draft.Content, "ai_expansion": draft.AiExpansion, "created_at": draft.CreatedAt, "updated_at": draft.UpdatedAt,
+	}
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {

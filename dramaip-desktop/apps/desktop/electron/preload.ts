@@ -45,6 +45,10 @@ const api = {
       return () => ipcRenderer.removeListener('cloudAI:balance', listener)
     },
   },
+  cloudHandoff: {
+    list: () => invoke('cloudHandoff:list'),
+    adopt: (input: { projectId: string; draftId: string }) => invoke('cloudHandoff:adopt', input),
+  },
   dataBackup: {
     list: () => invoke('dataBackup:list'),
     create: () => invoke('dataBackup:create'),

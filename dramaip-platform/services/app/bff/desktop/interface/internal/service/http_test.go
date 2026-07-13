@@ -11,6 +11,7 @@ import (
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
@@ -126,8 +127,27 @@ func TestDesktopCloudAIMapsGatewayFailuresWithoutRetry(t *testing.T) {
 	}
 }
 
+func TestDesktopMobileHandoffRequiresIdentityAndRecordsExplicitAdoption(t *testing.T) {
+	router := newTestHTTPService().Router()
+	list := httptest.NewRequest(http.MethodGet, "/v1/desktop/mobile-handoff?limit=10", nil)
+	list.Header.Set("Authorization", "Bearer desktop-access")
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, list)
+	if listRecorder.Code != http.StatusOK || !bytes.Contains(listRecorder.Body.Bytes(), []byte(`"title":"雨夜反转"`)) {
+		t.Fatalf("handoff list = %d: %s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	adopt := httptest.NewRequest(http.MethodPost, "/v1/desktop/mobile-handoff/adopt", bytes.NewBufferString(`{"draft_id":"draft-1","idempotency_key":"desktop-adopt-0001"}`))
+	adopt.Header.Set("Authorization", "Bearer desktop-access")
+	adoptRecorder := httptest.NewRecorder()
+	router.ServeHTTP(adoptRecorder, adopt)
+	if adoptRecorder.Code != http.StatusOK || !bytes.Contains(adoptRecorder.Body.Bytes(), []byte(`"capture_mode":"voice"`)) {
+		t.Fatalf("handoff adoption = %d: %s", adoptRecorder.Code, adoptRecorder.Body.String())
+	}
+}
+
 func newTestHTTPService() *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}}))
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Inspiration: fakeInspiration{}}))
 }
 
 type fakeAuth struct{}
@@ -206,4 +226,20 @@ func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOpt
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
 	return &aiv1.ChatReply{Content: "cloud result", Provider: "test", Model: "test-dramaip-chat", RequestId: req.RequestId, TotalTokens: 12, RemainingTokens: 1_619_988, Status: "succeeded"}, nil
+}
+
+type fakeInspiration struct{}
+
+func (fakeInspiration) ListMobileDrafts(ctx context.Context, req *inspirationv1.ListMobileDraftsRequest, _ ...grpc.CallOption) (*inspirationv1.ListMobileDraftsResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	return &inspirationv1.ListMobileDraftsResponse{Drafts: []*inspirationv1.MobileDraft{fakeMobileDraft()}}, nil
+}
+
+func (fakeInspiration) RecordMobileDraftAdoption(ctx context.Context, req *inspirationv1.RecordMobileDraftAdoptionRequest, _ ...grpc.CallOption) (*inspirationv1.RecordMobileDraftAdoptionResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.DraftId != "draft-1" || req.IdempotencyKey != "desktop-adopt-0001" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	return &inspirationv1.RecordMobileDraftAdoptionResponse{Draft: fakeMobileDraft()}, nil
+}
+
+func fakeMobileDraft() *inspirationv1.MobileDraft {
+	return &inspirationv1.MobileDraft{Id: "draft-1", ClientId: "mobile-draft-0001", Kind: "inspiration", CaptureMode: "voice", Title: "雨夜反转", Content: "雨夜里主角发现旧手机。"}
 }

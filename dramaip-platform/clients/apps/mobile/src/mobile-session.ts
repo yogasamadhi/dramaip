@@ -90,6 +90,16 @@ export function activeSession(): MobileSession | undefined {
   return currentSession
 }
 
+// Domain modules may make authenticated BFF requests without learning the
+// access token. This keeps the token's lifetime and storage boundary inside
+// this module even as Mobile gains small creative workflows.
+export async function authorizedMobileRequest(path: string, init: RequestInit): Promise<unknown> {
+  return requestJSON(path, {
+    ...init,
+    headers: { Authorization: `Bearer ${requireAccessToken()}`, ...(init.headers ?? {}) },
+  })
+}
+
 async function requestSession(path: string, body: Record<string, string>): Promise<SessionReply> {
   const response = await requestJSON(path, { method: 'POST', body: JSON.stringify(body) })
   const payload = record(response)

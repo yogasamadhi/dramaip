@@ -18,6 +18,7 @@ import { registerDiagnosticIpc } from './diagnostic.ipc'
 import { registerSearchIpc } from './search.ipc'
 import { registerAssetIpc } from './asset.ipc'
 import { registerCloudAuthIpc } from './cloud-auth.ipc'
+import { registerCloudHandoffIpc } from './cloud-handoff.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -30,6 +31,7 @@ export function registerAllIpc(): void {
   registerSearchIpc()
 	registerAssetIpc()
 	registerCloudAuthIpc()
+	registerCloudHandoffIpc()
   registerProjectIpc()
   registerModelIpc()
   registerAiIpc()

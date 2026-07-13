@@ -549,6 +549,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   // Cloud model discovery is renderer-safe; all token-bearing AI calls remain
   // inside Electron main and are never exposed as an IPC operation.
   'cloudAI:models': [],
+  // Explicit handoff only: Electron main owns the cloud session and writes a
+  // local inspiration favorite after a user picks a draft/project.
+  'cloudHandoff:list': [],
+  'cloudHandoff:adopt': [z.object({ projectId: id, draftId: id })],
   'dataBackup:list': [],
   'dataBackup:create': [],
   'dataBackup:restore': [id],

@@ -4,8 +4,10 @@ import (
 	"context"
 	"time"
 
+	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/mobile/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
@@ -30,11 +32,23 @@ type QuotaClient interface {
 	GetTokenBalance(context.Context, *quotav1.GetTokenBalanceRequest, ...grpc.CallOption) (*quotav1.TokenBalance, error)
 }
 
+type AIClient interface {
+	ListModels(context.Context, *aiv1.ListModelsRequest, ...grpc.CallOption) (*aiv1.ListModelsReply, error)
+	Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error)
+}
+
+type InspirationClient interface {
+	UpsertMobileDraft(context.Context, *inspirationv1.UpsertMobileDraftRequest, ...grpc.CallOption) (*inspirationv1.UpsertMobileDraftResponse, error)
+	ListMobileDrafts(context.Context, *inspirationv1.ListMobileDraftsRequest, ...grpc.CallOption) (*inspirationv1.ListMobileDraftsResponse, error)
+}
+
 type Data struct {
-	Auth    AuthClient
-	Billing BillingClient
-	Quota   QuotaClient
-	conns   []*grpc.ClientConn
+	Auth        AuthClient
+	Billing     BillingClient
+	Quota       QuotaClient
+	AI          AIClient
+	Inspiration InspirationClient
+	conns       []*grpc.ClientConn
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -55,9 +69,25 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = billingConn.Close()
 		return nil, nil, err
 	}
+	aiConn, err := platform.DialGRPC(ctx, cfg.Downstream.AIGatewayEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		return nil, nil, err
+	}
+	inspirationConn, err := platform.DialGRPC(ctx, cfg.Downstream.InspirationEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		_ = aiConn.Close()
+		return nil, nil, err
+	}
 	d := &Data{
 		Auth: authv1.NewAuthServiceClient(authConn), Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn),
-		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn},
+		AI: aiv1.NewAiGatewayServiceClient(aiConn), Inspiration: inspirationv1.NewInspirationServiceClient(inspirationConn),
+		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn, aiConn, inspirationConn},
 	}
 	return d, d.Close, nil
 }
