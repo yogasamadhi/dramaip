@@ -1,46 +1,19 @@
 {{- if .Values.pdb.enabled -}}
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-web-bff
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: web-bff
-spec:
-  minAvailable: {{ .Values.pdb.minAvailable }}
-  selector:
-    matchLabels:
-      {{- include "dramaip-platform.selectorLabels" . | nindent 6 }}
-{{- end }}
-{{- if .Values.pdb.enabled -}}
+{{- $components := list "web-bff" "desktop-bff" "mobile-bff" "admin-bff" -}}
+{{- range $component := $components }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-desktop-bff
+  name: {{ include "dramaip-platform.fullname" $ }}-{{ $component }}
   labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: desktop-bff
+    {{- include "dramaip-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
 spec:
-  minAvailable: {{ .Values.pdb.minAvailable }}
+  minAvailable: {{ $.Values.pdb.minAvailable }}
   selector:
     matchLabels:
-      {{- include "dramaip-platform.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: desktop-bff
+      {{- include "dramaip-platform.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
 {{- end }}
-{{- if .Values.pdb.enabled -}}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-mobile-bff
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mobile-bff
-spec:
-  minAvailable: {{ .Values.pdb.minAvailable }}
-  selector:
-    matchLabels:
-      {{- include "dramaip-platform.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: mobile-bff
 {{- end }}

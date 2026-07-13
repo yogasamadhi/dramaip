@@ -1,0 +1,88 @@
+# Staging deliberately has no inline credentials. The release operator must
+# create the required named Secrets from the approved secret manager before Helm is
+# allowed to install this values file.
+replicaCount: 1
+
+imagePullSecrets:
+  - name: dramaip-staging-registry
+
+images:
+  webBff: { repository: registry.example.invalid/dramaip/web-bff, tag: candidate }
+  desktopBff: { repository: registry.example.invalid/dramaip/desktop-bff, tag: candidate }
+  mobileBff: { repository: registry.example.invalid/dramaip/mobile-bff, tag: candidate }
+  adminBff: { repository: registry.example.invalid/dramaip/admin-bff, tag: candidate }
+  auth: { repository: registry.example.invalid/dramaip/auth, tag: candidate }
+  user: { repository: registry.example.invalid/dramaip/user, tag: candidate }
+  billing: { repository: registry.example.invalid/dramaip/billing, tag: candidate }
+  quota: { repository: registry.example.invalid/dramaip/quota, tag: candidate }
+  aiGateway: { repository: registry.example.invalid/dramaip/ai-gateway, tag: candidate }
+  notification: { repository: registry.example.invalid/dramaip/notification, tag: candidate }
+  inspiration: { repository: registry.example.invalid/dramaip/inspiration, tag: candidate }
+  reporting: { repository: registry.example.invalid/dramaip/reporting, tag: candidate }
+  notificationJob: { repository: registry.example.invalid/dramaip/notification-job, tag: candidate }
+  reportingJob: { repository: registry.example.invalid/dramaip/reporting-job, tag: candidate }
+  billingJob: { repository: registry.example.invalid/dramaip/billing-job, tag: candidate }
+  quotaJob: { repository: registry.example.invalid/dramaip/quota-job, tag: candidate }
+  migration: { repository: registry.example.invalid/dramaip/migrate, tag: candidate }
+
+config:
+  env: staging
+  logLevel: info
+  postgres:
+    host: postgres.staging.internal
+    sslmode: require
+  redis:
+    addr: redis.staging.internal:6379
+  rabbitmq:
+    host: rabbitmq.staging.internal
+    port: "5671"
+    vhost: /dramaip
+  otel:
+    endpoint: https://otel-collector.staging.internal:4318
+
+secret:
+  existingSecret: dramaip-staging-runtime
+
+authJWT:
+  keysetSecret: dramaip-staging-auth-jwt
+
+adminJWT:
+  keysetSecret: dramaip-staging-admin-jwt
+
+internalMTLS:
+  enabled: true
+  existingSecret: dramaip-staging-internal-mtls
+
+ingress:
+  enabled: true
+  className: kong
+  hosts:
+    - host: api.staging.example.invalid
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: dramaip-staging-ingress-tls
+      hosts:
+        - api.staging.example.invalid
+
+kong:
+  plugins:
+    cors:
+      origins:
+        - https://app.staging.example.invalid
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+migrations:
+  enabled: true
+  useHelmHook: true
+  bootstrapRuntimeRoles: false

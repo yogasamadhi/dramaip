@@ -239,7 +239,7 @@ make platform-down
 | LM3-29 | P2 | Mobile | done | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | done | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | done | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
-| LM3-32 | P1 | Platform/SRE | todo | 建立生产部署、密钥和发布流水线 | Docker、K8s、Helm、Kong、CI/CD | G1～G5 |
+| LM3-32 | P1 | Platform/SRE | partial | 建立生产部署、密钥和受控发布 | Docker、K8s、Helm、Kong、Secret Manager、运维发布脚本、HPA | G1～G5 |
 | LM3-33 | P0 | DBA/SRE | todo | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
 | LM3-34 | P0 | Release | todo | 通过核心平台生产就绪 Gate | 全端 E2E、压测、故障/恢复演练 | LM3-20～LM3-33 |
 | LM3-35 | P2 | Sync | todo | 交付本地优先云同步与冲突处理 | sync service、Desktop/Mobile、审计 | LM3-27、LM3-29、LM3-34 |
@@ -579,14 +579,14 @@ make platform-down
 - **验证**：Admin lint/type/build/test；read-model 重建测试；Admin BFF E2E；RBAC/审计人工 smoke。
 - **风险/回滚边界**：运营高权限和投影一致性；读模型可重建，管理写操作可独立禁用。
 
-### LM3-32：生产部署、密钥与发布流水线
+### LM3-32：生产部署、密钥与受控发布
 
-- **目标**：用同源镜像、受控密钥和自动流水线部署可灰度、可回滚的平台。
-- **主要范围**：Dockerfile、K8s、Helm、Kong、External Secrets/Vault/KMS、CI/CD、HPA。
+- **目标**：用同源镜像、受控密钥和经批准运维人员执行的发布入口部署可渐进、可回滚的平台；不使用 Gitee/GitHub 托管流水线。
+- **主要范围**：Dockerfile、K8s、Helm、Kong、External Secrets/Vault/KMS 对接边界、运维发布/回滚脚本、HPA。
 - **不在范围**：数据库灾备演练结果。
-- **内部 checklist**：统一 TARGET 构建；dev/staging/prod values；probe/resources/HPA；内部 mTLS；生产 secret 注入；TLS/Kong 限流；镜像扫描、推送、灰度和回滚。
-- **验收**：staging 可从空集群自动部署；镜像和 Git 不含密钥；服务健康、限流、mTLS 和回滚可验证。
-- **验证**：容器构建；Helm lint/template；staging deploy smoke；secret/image layer 扫描；canary/rollback 演练。
+- **内部 checklist**：统一 TARGET 构建；dev/staging/prod values；probe/resources/HPA；内部 mTLS；生产 secret 注入；TLS/Kong 限流；镜像扫描、显式推送、渐进发布和回滚。
+- **验收**：经批准的运维人员可从空 staging 集群部署；镜像和 Git 不含密钥；服务健康、限流、mTLS 和回滚可验证。
+- **验证**：本地容器构建；Helm lint/template；staging deploy smoke；secret/image layer 扫描；平台支持的渐进发布/rollback 演练。
 - **风险/回滚边界**：生产发布；数据库 migration 与应用发布分离，使用向后兼容迁移和显式回滚计划。
 
 ### LM3-33：PostgreSQL 灾备与恢复
