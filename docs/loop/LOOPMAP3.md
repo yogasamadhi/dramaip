@@ -219,7 +219,7 @@ make platform-down
 | LM3-09 | P1 | Notification | done | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |
 | LM3-10 | P0 | 数据平台 | done | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、手工权限 Gate | LM3-08 |
 | LM3-11 | P0 | Billing | done | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
-| LM3-12 | P0 | Quota | todo | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
+| LM3-12 | P0 | Quota | done | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
 | LM3-13 | P0 | AI Gateway | todo | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
 | LM3-14 | P0 | AI FinOps | todo | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
 | LM3-15 | P0 | Billing/Quota | todo | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
@@ -965,4 +965,19 @@ Push: Core merge and this completion metadata are pending final ordinary `git pu
 Loop branch cleanup: Pending final metadata push; delete `loop/lm3-11-plan-snapshots` immediately afterward.
 Current branch/worktree: main; only this completion metadata and the D-005 status update are uncommitted.
 Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. The controlled PostgreSQL container was bound only to localhost and removed after each test. LM3-11 deliberately does not implement real payment channels or Provider cost ledger work.
+```
+
+```text
+Loop: LM3-12
+Target branch: main
+Loop branch: loop/lm3-12-quota-settlement
+Commit(s): 0a47081 loop(LM3-12): harden quota reservation settlement
+Merge commit: be7e1a0 merge: LM3-12 quota reservation settlement
+Verification: `make quota-state-machine-integration` passed before and after the core merge against fresh isolated PostgreSQL 18 containers. It applies every migration including 020 and verifies 10 concurrent 20-token reservations on a 100-token account allow exactly five, duplicate request IDs return the original reservation without changing balance, exact and repeated settlement are idempotent, actual overage records `over_quota_settled` without releasing its reservation, unknown usage remains charged through expiry, a precise retry settles it, a deadline produces `settled_estimate`, a pending reservation rejects cancellation, normal expired leases release quota, and repeated period-account provisioning preserves the original snapshot. The same database state-machine test passed with `-race`; `GOCACHE=/tmp/dramaip-go-build go test -race ./...` and `make event-contracts` passed. After the merge, quota/AI Gateway regression tests and `make event-contracts` passed again.
+Diff review: Reviewed the complete 13-file core diff and ran `git diff --check` before the functional commit and for `origin/main...HEAD` after the no-ff merge. The diff contains generated protobuf from the checked-in source, no real environment file, password, certificate, private key, cache, image or unrelated artifact. Migration 020 is additive; no settled usage or reservation history is deleted. Both quota service and quota job call the same native-SQL maintenance functions, preventing expiry/finalization state-machine drift.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed main aligned before the no-ff merge.
+Push: Core merge and this completion metadata are pending final ordinary `git push origin main`.
+Loop branch cleanup: Pending final metadata push; delete `loop/lm3-12-quota-settlement` immediately afterward.
+Current branch/worktree: main; only this completion metadata update is uncommitted.
+Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. `usage_known=false` is intentionally conservative for old clients: it never converts unknown Provider usage into a one-token charge or an automatic refund. Provider-call idempotency and durable request-audit reconciliation remain LM3-13 work; Provider cost accounting remains LM3-14 work.
 ```
