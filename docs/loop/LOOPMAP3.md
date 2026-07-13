@@ -1240,3 +1240,19 @@ Loop branch cleanup: Delete `loop/lm3-28-mobile-auth-brief` after the closing me
 Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
 Notes: Refresh tokens remain in iOS Keychain/Android Keystore through Expo SecureStore; access tokens are never persisted. Offline restore retains the refresh credential for retry, while a confirmed 401 clears it and returns the user to login. Mobile authoring, cross-device sync, and desktop handoff remain LM3-29 scope.
 ```
+
+```text
+Loop: LM3-29
+Target branch: main
+Loop branch: loop/lm3-29-mobile-inspiration-handoff
+Commit(s): a8cad4d loop(LM3-29): add mobile inspiration handoff; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf lint` and full `GOCACHE=/tmp/dramaip-go-lm3-29 go test ./...` passed. Mobile/Desktop BFF HTTP tests cover authenticated identity propagation, idempotent draft creation/listing, bounded AI expansion, desktop list/adoption and no-bearer rejection. The inspiration domain validates kinds, sizes, adoption idempotency and the seven-role database matrix. Platform-client `pnpm lint`, `pnpm typecheck`, and secure-storage/draft-queue smoke passed; Expo public config plus iOS/Android exports passed. Desktop `pnpm test` (typecheck, unit and DB migration smoke) and format check passed, including the new exact IPC contract. Docker Compose configuration, Helm lint (development persistence disabled for rendering), development/production Helm renders, `make observability-config-smoke`, and `git diff --check` passed.
+Runtime limitation: A live Mobile-to-Desktop handoff through Kong is not claimed. The pre-existing user-owned Compose stack does not serve `localhost:8000` and was not started, stopped, rebuilt or deleted. The documented device flow—create an offline text/dictation draft, replay it, read it in Desktop and explicitly adopt it—must run on a restored healthy staging environment before production enablement. No real payment, payment provider or AI Provider request was initiated.
+Diff review: Reviewed all 56 functional files, generated protobuf output and the cumulative staged diff. The change adds a dedicated inspiration service/schema/role, constrained mTLS BFF routes, a local non-secret mobile queue, short-text gateway expansion, explicit desktop adoption audit and local candidate cards, deployment/observability wiring, tests and runbook. It contains no real password, token, API key, private key, payment material, provider credential, original audio, cache, database or build artifact. Access/refresh credentials stay outside the draft store; desktop adoption never overwrites body text.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-29-mobile-inspiration-handoff` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
+Notes: This is intentionally a small, explicit handoff protocol. LM3-35 remains responsible for generic local-first project synchronization, automated conflict resolution and any document merge semantics. The user explicitly skips real payment.
+```
