@@ -1208,3 +1208,19 @@ Loop branch cleanup: Delete `loop/lm3-26-desktop-pkce` after the closing merge p
 Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
 Notes: Cloud login is feature-disabled by default, so rollback leaves local-first creation and BYOK intact. Production operators must provision the dedicated `desktop-bff` mTLS certificate Common Name and HTTPS Cloud origins as documented in `docs/loop/LM3-26-Desktop-BFF-PKCE.md`.
 ```
+
+```text
+Loop: LM3-27
+Target branch: main
+Loop branch: loop/lm3-27-desktop-cloud-ai
+Commit(s): f4ba574 loop(LM3-27): add desktop cloud AI vertical slice; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf lint`, targeted Desktop BFF/AI Gateway Go tests, and full `GOCACHE=/tmp/dramaip-go-lm3-27 go test ./...` passed. Desktop `pnpm format:check`, `pnpm typecheck`, `pnpm test` (120 unit tests plus database smoke), `pnpm build`, and `pnpm test:e2e:skip-build` passed; the Electron smoke includes the renderer Cloud-AI boundary check. Platform Web/Mobile client typecheck, Docker Compose config, Helm lint, and dev (persistence disabled)/production Helm renders passed. Tests cover content-free preflight, identity propagation, bounded context, provider timeout/unavailable mapping, model routing, and non-secret route/config validation.
+Runtime limitation: Live Kong/Desktop BFF/Provider E2E is not claimed. The pre-existing user-owned Compose stack does not provide a healthy `localhost:8000` endpoint and was not started, stopped, rebuilt, or deleted. No real Provider request, payment, or payment-provider action was initiated; the existing test/sandbox AI path is the only exercised call path. A healthy staging or Compose environment with controlled Provider credentials/pricing must run the documented live smoke before production enablement.
+Diff review: Reviewed the cumulative functional diff (including generated protobuf output and all untracked additions) and ran staged/working-tree `git diff --check`. The change adds non-secret model discovery, count-only preflight, bounded chat/idempotency, Desktop BFF-to-AI-Gateway mTLS wiring, main-process Cloud Provider routing, minimal renderer state, user-visible model/balance controls, tests, and runbook/documentation. It contains no access/refresh token, API key, password, payment material, provider credential, prompt fixture, cache, database, or build artifact.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-27-desktop-cloud-ai` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
+Notes: Cloud login remains feature-disabled by default. A rollback disables Cloud access while preserving local-first editing and BYOK configurations; the Cloud virtual model stores only `cloud://<provider>` and no platform API Key.
+```
