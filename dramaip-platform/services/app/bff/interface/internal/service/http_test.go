@@ -25,41 +25,41 @@ func TestBFFHTTPFlow(t *testing.T) {
 	router := newTestHTTPService().Router()
 	token := loginForToken(t, router)
 
-	getJSON(t, router, http.MethodGet, "/plans", "", http.StatusOK, func(got map[string]any) {
+	getJSON(t, router, http.MethodGet, "/v1/plans", "", http.StatusOK, func(got map[string]any) {
 		if len(got["plans"].([]any)) != 2 {
 			t.Fatalf("plans = %+v", got)
 		}
 	})
-	getJSON(t, router, http.MethodGet, "/me/dashboard", token, http.StatusOK, func(got map[string]any) {
+	getJSON(t, router, http.MethodGet, "/v1/me/dashboard", token, http.StatusOK, func(got map[string]any) {
 		if got["email"] != "creator@example.com" || got["plan"] != "pro" {
 			t.Fatalf("dashboard = %+v", got)
 		}
 	})
-	getJSON(t, router, http.MethodGet, "/me/profile", token, http.StatusOK, func(got map[string]any) {
+	getJSON(t, router, http.MethodGet, "/v1/me/profile", token, http.StatusOK, func(got map[string]any) {
 		if got["display_name"] != "Development Creator" {
 			t.Fatalf("profile = %+v", got)
 		}
 	})
-	patchJSON(t, router, "/me/profile", token, `{"display_name":"Updated Creator","locale":"zh-CN","timezone":"Asia/Shanghai"}`, http.StatusOK)
-	postJSON(t, router, "/billing/checkout", token, `{"plan_id":"pro","channel":"alipay"}`, http.StatusOK)
-	postJSON(t, router, "/billing/sandbox/confirm-payment", token, `{"checkout_id":"order"}`, http.StatusOK)
-	postJSON(t, router, "/ai/chat", token, `{"request_id":"req_1","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`, http.StatusOK)
-	getJSON(t, router, http.MethodGet, "/me/notifications", token, http.StatusOK, func(got map[string]any) {
+	patchJSON(t, router, "/v1/me/profile", token, `{"display_name":"Updated Creator","locale":"zh-CN","timezone":"Asia/Shanghai"}`, http.StatusOK)
+	postJSON(t, router, "/v1/billing/checkout", token, `{"plan_id":"pro","channel":"alipay"}`, http.StatusOK)
+	postJSON(t, router, "/v1/billing/sandbox/confirm-payment", token, `{"checkout_id":"order"}`, http.StatusOK)
+	postJSON(t, router, "/v1/ai/chat", token, `{"request_id":"req_1","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`, http.StatusOK)
+	getJSON(t, router, http.MethodGet, "/v1/me/notifications", token, http.StatusOK, func(got map[string]any) {
 		if _, ok := got["notifications"].([]any); !ok {
 			t.Fatalf("notifications = %+v", got)
 		}
 	})
-	getJSON(t, router, http.MethodGet, "/me/account-report", token, http.StatusOK, func(got map[string]any) {
+	getJSON(t, router, http.MethodGet, "/v1/me/account-report", token, http.StatusOK, func(got map[string]any) {
 		if got["order_summary"] == nil || got["usage_summary"] == nil {
 			t.Fatalf("account report = %+v", got)
 		}
 	})
-	postJSON(t, router, "/auth/logout", token, `{"refresh_token":"refresh"}`, http.StatusOK)
-	postJSON(t, router, "/auth/refresh", "", `{"refresh_token":"refresh"}`, http.StatusOK)
+	postJSON(t, router, "/v1/auth/logout", token, `{"refresh_token":"refresh"}`, http.StatusOK)
+	postJSON(t, router, "/v1/auth/refresh", "", `{"refresh_token":"refresh"}`, http.StatusOK)
 }
 
 func TestProtectedRoutesRequireToken(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/me/dashboard", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/me/dashboard", nil)
 	rec := httptest.NewRecorder()
 	newTestHTTPService().Router().ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
@@ -79,11 +79,33 @@ func TestProtectedRoutesRequireToken(t *testing.T) {
 }
 
 func TestMetricsEndpoint(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/metrics", nil)
 	rec := httptest.NewRecorder()
 	newTestHTTPService().Router().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "dramaip_bff_http_requests_total") {
 		t.Fatalf("metrics response = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestUnversionedBusinessRoutesAreNotExposed(t *testing.T) {
+	router := newTestHTTPService().Router()
+	for _, route := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/plans"},
+		{method: http.MethodGet, path: "/me/dashboard"},
+		{method: http.MethodPost, path: "/auth/login"},
+		{method: http.MethodPost, path: "/billing/checkout"},
+		{method: http.MethodPost, path: "/ai/chat"},
+		{method: http.MethodGet, path: "/metrics"},
+	} {
+		req := httptest.NewRequest(route.method, route.path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s %s status = %d, want 404", route.method, route.path, rec.Code)
+		}
 	}
 }
 
@@ -96,7 +118,7 @@ func newTestHTTPService() *HTTPService {
 
 func loginForToken(t *testing.T, router http.Handler) string {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"creator@example.com","password":"password123"}`))
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewBufferString(`{"email":"creator@example.com","password":"password123"}`))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

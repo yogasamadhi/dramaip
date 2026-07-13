@@ -41,7 +41,7 @@ make platform-e2e
 
 The end-to-end check enters through Kong and verifies:
 
-1. `/healthz`
+1. `/v1/healthz`
 2. register a fresh test account, or log in with the configured e2e account
 3. plan catalog
 4. protected dashboard and token balance
@@ -73,12 +73,12 @@ must never receive upstream model API keys or call billing/quota directly.
 
 ## Simulated Payment
 
-`POST /billing/payments/simulated/confirm` is available only when `ENV=dev` or
+`POST /v1/billing/payments/simulated/confirm` is available only when `ENV=dev` or
 `ENV=test`. It confirms a pending checkout through the simulated payment
 provider, creates an active subscription, and creates the current token account.
 Production environments must use verified payment webhooks instead.
 
-`POST /billing/sandbox/confirm-payment` is kept only as a deprecated
+`POST /v1/billing/sandbox/confirm-payment` is kept only as a deprecated
 compatibility endpoint and delegates to the simulated provider path.
 
 ## Useful Commands

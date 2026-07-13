@@ -49,22 +49,22 @@ network and is reached by Kong through `http://bff:8100`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/healthz` | Gateway/BFF/dependency health check |
-| `GET` | `/metrics` | Prometheus metrics |
-| `POST` | `/auth/login` | Login, returns access/refresh tokens |
-| `POST` | `/auth/refresh` | Rotate access credentials with a refresh token |
-| `POST` | `/auth/logout` | Revoke a refresh token |
-| `GET` | `/plans` | PostgreSQL-backed subscription plan catalog |
-| `POST` | `/billing/checkout` | Create order/outbox record and publish RabbitMQ event |
-| `POST` | `/billing/payments/simulated/confirm` | Dev/test-only simulated payment confirmation |
-| `POST` | `/billing/sandbox/confirm-payment` | Deprecated compatibility confirmation endpoint |
-| `GET` | `/me/subscription` | Current subscription state |
-| `GET` | `/me/orders` | Current user's order list |
-| `GET` | `/me/token-usage` | Token usage details |
-| `GET` | `/me/usage-trend` | Token usage trend |
-| `GET` | `/me/dashboard` | Profile and subscription state |
-| `GET` | `/me/token-balance` | Monthly token quota state |
-| `POST` | `/ai/chat` | Cloud AI gateway chat with quota reservation/settlement |
+| `GET` | `/v1/healthz` | Gateway/BFF/dependency health check |
+| `GET` | `/v1/metrics` | Prometheus metrics |
+| `POST` | `/v1/auth/login` | Login, returns access/refresh tokens |
+| `POST` | `/v1/auth/refresh` | Rotate access credentials with a refresh token |
+| `POST` | `/v1/auth/logout` | Revoke a refresh token |
+| `GET` | `/v1/plans` | PostgreSQL-backed subscription plan catalog |
+| `POST` | `/v1/billing/checkout` | Create order/outbox record and publish RabbitMQ event |
+| `POST` | `/v1/billing/payments/simulated/confirm` | Dev/test-only simulated payment confirmation |
+| `POST` | `/v1/billing/sandbox/confirm-payment` | Deprecated compatibility confirmation endpoint |
+| `GET` | `/v1/me/subscription` | Current subscription state |
+| `GET` | `/v1/me/orders` | Current user's order list |
+| `GET` | `/v1/me/token-usage` | Token usage details |
+| `GET` | `/v1/me/usage-trend` | Token usage trend |
+| `GET` | `/v1/me/dashboard` | Profile and subscription state |
+| `GET` | `/v1/me/token-balance` | Monthly token quota state |
+| `POST` | `/v1/ai/chat` | Cloud AI gateway chat with quota reservation/settlement |
 
 ## Web Routes
 
