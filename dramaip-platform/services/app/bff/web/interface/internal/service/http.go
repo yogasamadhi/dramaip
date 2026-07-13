@@ -1055,6 +1055,12 @@ func writeGRPCError(w http.ResponseWriter, err error, fallback string) {
 			code = http.StatusConflict
 		case codes.PermissionDenied:
 			code = http.StatusForbidden
+		case codes.Unavailable:
+			code = http.StatusServiceUnavailable
+			w.Header().Set("Retry-After", "2")
+		case codes.DeadlineExceeded:
+			code = http.StatusGatewayTimeout
+			w.Header().Set("Retry-After", "1")
 		}
 		writeJSON(w, code, map[string]any{"error": map[string]string{"code": st.Message(), "message": st.Message(), "trace_id": traceIDFromWriter(w)}})
 		return

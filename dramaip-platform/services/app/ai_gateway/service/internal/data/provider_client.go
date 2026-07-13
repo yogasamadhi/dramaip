@@ -6,11 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -63,14 +65,18 @@ type AuditRecord struct {
 }
 
 type Data struct {
-	DB              *gorm.DB
-	Redis           *platform.Redis
-	Quota           quotav1.QuotaServiceClient
-	QuotaConnClose  func() error
-	Providers       map[string]Provider
-	DefaultProvider string
-	HTTP            *http.Client
-	ProviderCaller  func(context.Context, Provider, string, []ChatMessage, int64) (ProviderReply, error)
+	DB               *gorm.DB
+	Redis            *platform.Redis
+	Quota            quotav1.QuotaServiceClient
+	QuotaConnClose   func() error
+	Providers        map[string]Provider
+	DefaultProvider  string
+	HTTP             *http.Client
+	ProviderCaller   func(context.Context, Provider, string, []ChatMessage, int64) (ProviderReply, error)
+	providerOnce     sync.Once
+	providerTimeout  time.Duration
+	providerBulkhead *platform.KeyedBulkhead
+	providerCircuits *platform.CircuitBreakerPool
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -86,13 +92,19 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	}
 	redis := platform.NewRedis(auditRedisConfig())
 	data := &Data{
-		DB:              db,
-		Redis:           redis,
-		Quota:           quotav1.NewQuotaServiceClient(conn),
-		QuotaConnClose:  conn.Close,
-		Providers:       loadProviders(cfg),
-		DefaultProvider: cfg.AI.DefaultProvider,
-		HTTP:            &http.Client{Timeout: kratosx.Duration(cfg.AI.Timeout, 90*time.Second), Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		DB:               db,
+		Redis:            redis,
+		Quota:            quotav1.NewQuotaServiceClient(conn),
+		QuotaConnClose:   conn.Close,
+		Providers:        loadProviders(cfg),
+		DefaultProvider:  cfg.AI.DefaultProvider,
+		HTTP:             &http.Client{Timeout: kratosx.Duration(cfg.AI.Timeout, 90*time.Second), Transport: otelhttp.NewTransport(http.DefaultTransport)},
+		providerTimeout:  kratosx.Duration(cfg.AI.Timeout, 90*time.Second),
+		providerBulkhead: platform.NewKeyedBulkhead(cfg.AI.ProviderMaxConcurrency),
+		providerCircuits: platform.NewCircuitBreakerPool(platform.CircuitBreakerConfig{
+			FailureThreshold: cfg.AI.ProviderCircuitFailures,
+			ResetTimeout:     kratosx.Duration(cfg.AI.ProviderCircuitReset, 15*time.Second),
+		}),
 	}
 	return data, func() {
 		_ = conn.Close()
@@ -303,6 +315,42 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 		}
 		platform.ObserveProvider(p.Name, outcome, time.Since(started))
 	}()
+	bulkhead, circuits, timeout := d.providerResilience()
+	callCtx, cancel := platform.WithDefaultDeadline(ctx, timeout)
+	defer cancel()
+	resilienceKey := p.Name + "\x00" + model
+	release, acquireErr := bulkhead.Acquire(callCtx, resilienceKey)
+	if acquireErr != nil {
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider is busy; retry later")
+	}
+	defer release()
+	if err := circuits.Allow(resilienceKey); err != nil {
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider circuit is open")
+	}
+	reply, err = d.callProvider(callCtx, p, model, messages, maxTokens)
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(callCtx.Err(), context.DeadlineExceeded) {
+		err = status.Error(codes.DeadlineExceeded, "provider request timed out")
+	}
+	circuits.Record(resilienceKey, err)
+	return reply, err
+}
+
+func (d *Data) providerResilience() (*platform.KeyedBulkhead, *platform.CircuitBreakerPool, time.Duration) {
+	d.providerOnce.Do(func() {
+		if d.providerTimeout <= 0 {
+			d.providerTimeout = 90 * time.Second
+		}
+		if d.providerBulkhead == nil {
+			d.providerBulkhead = platform.NewKeyedBulkhead(kratosx.EnvInt("AI_PROVIDER_MAX_CONCURRENCY", 8))
+		}
+		if d.providerCircuits == nil {
+			d.providerCircuits = platform.NewCircuitBreakerPool(platform.CircuitBreakerConfig{})
+		}
+	})
+	return d.providerBulkhead, d.providerCircuits, d.providerTimeout
+}
+
+func (d *Data) callProvider(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64) (ProviderReply, error) {
 	if d.ProviderCaller != nil {
 		return d.ProviderCaller(ctx, p, model, messages, maxTokens)
 	}
@@ -332,6 +380,9 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	res, err := d.HTTP.Do(req)
 	if err != nil {
 		platform.StructuredLog(ctx, "ai-gateway-service", "error", "provider_request_failed", map[string]any{"provider": p.Name, "model": model, "error": err.Error()})
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return ProviderReply{}, status.Error(codes.DeadlineExceeded, "provider request timed out")
+		}
 		return ProviderReply{}, status.Error(codes.Unavailable, "provider request failed")
 	}
 	defer res.Body.Close()

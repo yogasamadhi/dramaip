@@ -164,6 +164,11 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	reply, err := u.data.CallProvider(ctx, provider, model, input.Messages, input.MaxTokens)
 	if err != nil {
 		_, _ = u.data.Quota.CancelReservation(ctx, &quotav1.CancelReservationRequest{ReservationId: reservation.Id})
+		// A timed-out/failed Provider must not retain either the user quota
+		// reservation or the short-window cost guard. Both operations are
+		// idempotent, preserving an auditable failed attempt without blocking a
+		// later, newly keyed request.
+		_ = u.data.ReleaseCostBudget(ctx, audit.ID)
 		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}

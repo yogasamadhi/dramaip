@@ -26,6 +26,7 @@ type JobConfig struct {
 	OutboxBatchSize         int    `yaml:"outbox_batch_size"`
 	OutboxLease             string `yaml:"outbox_lease"`
 	OutboxRetryDelay        string `yaml:"outbox_retry_delay"`
+	OperationTimeout        string `yaml:"operation_timeout"`
 	ReconciliationEnabled   bool   `yaml:"reconciliation_enabled"`
 	ReconciliationInterval  string `yaml:"reconciliation_interval"`
 	ReconciliationBatchSize int    `yaml:"reconciliation_batch_size"`
@@ -39,7 +40,7 @@ func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Environment: "dev",
 		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
-		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s", ReconciliationEnabled: true, ReconciliationInterval: "1h", ReconciliationBatchSize: 100},
+		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s", OperationTimeout: "30s", ReconciliationEnabled: true, ReconciliationInterval: "1h", ReconciliationBatchSize: 100},
 		Quota:       QuotaConfig{GRPCEndpoint: "localhost:9104"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -50,6 +51,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Job.OutboxBatchSize = kratosx.EnvInt("OUTBOX_BATCH_SIZE", cfg.Job.OutboxBatchSize)
 	cfg.Job.OutboxLease = kratosx.Env("OUTBOX_LEASE", cfg.Job.OutboxLease)
 	cfg.Job.OutboxRetryDelay = kratosx.Env("OUTBOX_RETRY_DELAY", cfg.Job.OutboxRetryDelay)
+	cfg.Job.OperationTimeout = kratosx.Env("BILLING_JOB_OPERATION_TIMEOUT", cfg.Job.OperationTimeout)
 	cfg.Job.ReconciliationEnabled = kratosx.EnvBool("BILLING_RECONCILIATION_ENABLED", cfg.Job.ReconciliationEnabled)
 	cfg.Job.ReconciliationInterval = kratosx.Env("BILLING_RECONCILIATION_INTERVAL", cfg.Job.ReconciliationInterval)
 	cfg.Job.ReconciliationBatchSize = kratosx.EnvInt("BILLING_RECONCILIATION_BATCH_SIZE", cfg.Job.ReconciliationBatchSize)

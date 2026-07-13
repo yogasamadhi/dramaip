@@ -15,7 +15,10 @@ func ServeGRPC(addr string, register func(*grpc.Server)) error {
 	if err != nil {
 		return err
 	}
-	server := grpc.NewServer(grpc.UnaryInterceptor(UnaryServerTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-grpc"))))
+	server := grpc.NewServer(grpc.ChainUnaryInterceptor(
+		UnaryServerTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-grpc")),
+		UnaryServerDeadlineInterceptor(),
+	))
 	register(server)
 	StructuredLog(context.Background(), Env("OTEL_SERVICE_NAME", "dramaip-grpc"), "info", "grpc_listening", map[string]any{"address": addr})
 	return server.Serve(listener)
@@ -33,8 +36,13 @@ func DialGRPC(ctx context.Context, target string, mtls MTLSConfig) (*grpc.Client
 	return grpc.DialContext(
 		ctx,
 		target,
+		grpc.WithBlock(),
 		grpc.WithTransportCredentials(transportCredentials),
-		grpc.WithChainUnaryInterceptor(UnaryClientTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-client")), unaryClientUserIdentityInterceptor),
+		grpc.WithChainUnaryInterceptor(
+			UnaryClientTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-client")),
+			unaryClientUserIdentityInterceptor,
+			UnaryClientResilienceInterceptor(target),
+		),
 	)
 }
 

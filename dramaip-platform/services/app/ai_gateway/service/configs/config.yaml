@@ -15,4 +15,7 @@ llm:
   api_key: ""
   default_model: gpt-4o-mini
   timeout: 90s
+  provider_max_concurrency: 8
+  provider_circuit_failures: 3
+  provider_circuit_reset: 15s
   test_provider_enabled: true

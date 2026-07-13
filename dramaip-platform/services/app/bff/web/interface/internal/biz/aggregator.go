@@ -3,6 +3,7 @@ package biz
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
@@ -11,13 +12,23 @@ import (
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type BFFUsecase struct {
-	data *data.Data
+	data       *data.Data
+	plansCache planCache
 }
+
+type planCache struct {
+	mu      sync.RWMutex
+	reply   *billingv1.ListPlansReply
+	expires time.Time
+}
+
+const plansCacheTTL = 5 * time.Minute
 
 func NewBFFUsecase(data *data.Data) *BFFUsecase {
 	return &BFFUsecase{data: data}
@@ -57,7 +68,42 @@ func (u *BFFUsecase) Logout(ctx context.Context, refreshToken string, accessToke
 }
 
 func (u *BFFUsecase) Plans(ctx context.Context) (*billingv1.ListPlansReply, error) {
-	return u.data.Billing.ListPlans(ctx, &billingv1.ListPlansRequest{})
+	reply, err := u.data.Billing.ListPlans(ctx, &billingv1.ListPlansRequest{})
+	if err == nil {
+		u.plansCache.store(reply)
+		return reply, nil
+	}
+	if !platform.IsTransientError(err) {
+		return nil, err
+	}
+	if cached, ok := u.plansCache.load(); ok {
+		platform.StructuredLog(ctx, "web-bff-interface", "warning", "plans_served_from_readonly_cache", map[string]any{"error": err})
+		return cached, nil
+	}
+	return nil, err
+}
+
+func (c *planCache) store(reply *billingv1.ListPlansReply) {
+	if reply == nil {
+		return
+	}
+	copy := *reply
+	copy.Plans = append([]*billingv1.Plan(nil), reply.Plans...)
+	c.mu.Lock()
+	c.reply = &copy
+	c.expires = time.Now().Add(plansCacheTTL)
+	c.mu.Unlock()
+}
+
+func (c *planCache) load() (*billingv1.ListPlansReply, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.reply == nil || time.Now().After(c.expires) {
+		return nil, false
+	}
+	copy := *c.reply
+	copy.Plans = append([]*billingv1.Plan(nil), c.reply.Plans...)
+	return &copy, true
 }
 
 func (u *BFFUsecase) Dashboard(ctx context.Context, userID string) (*userv1.UserProfile, *billingv1.Subscription, *quotav1.TokenBalance, error) {
