@@ -51,9 +51,10 @@ network and is reached by Kong through `http://web-bff:8100`.
 | --- | --- | --- |
 | `GET` | `/v1/healthz` | Gateway/BFF/dependency health check |
 | `GET` | `/v1/metrics` | Prometheus metrics |
-| `POST` | `/v1/auth/login` | Login, returns access/refresh tokens |
-| `POST` | `/v1/auth/refresh` | Rotate access credentials with a refresh token |
-| `POST` | `/v1/auth/logout` | Revoke a refresh token |
+| `POST` | `/v1/auth/login` | Login and set HttpOnly access/refresh Cookie sessions; JSON returns only the user |
+| `GET` | `/v1/auth/session` | Validate the current Web access Cookie session |
+| `POST` | `/v1/auth/refresh` | Rotate Cookie credentials using the HttpOnly refresh Cookie and CSRF header |
+| `POST` | `/v1/auth/logout` | Revoke the refresh session and clear Web Cookie sessions |
 | `GET` | `/v1/plans` | PostgreSQL-backed subscription plan catalog |
 | `POST` | `/v1/billing/checkout` | Create order/outbox record and publish RabbitMQ event |
 | `POST` | `/v1/billing/payments/simulated/confirm` | Dev/test-only simulated payment confirmation |
@@ -98,9 +99,9 @@ End-to-end check:
 make platform-e2e
 ```
 
-The end-to-end check enters through Kong and verifies login, plans, account
-data, checkout, simulated payment confirmation, AI no-key error handling, test
-provider quota settlement, refresh, and logout.
+The end-to-end check enters through Kong and verifies Cookie login, CSRF-protected
+state changes, plans, account data, checkout, simulated payment confirmation,
+AI no-key error handling, test-provider quota settlement, refresh, and logout.
 
 ## Next Replacement Points
 

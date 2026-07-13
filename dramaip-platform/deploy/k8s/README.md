@@ -116,8 +116,15 @@ helm upgrade --install dramaip-platform ../helm/dramaip-platform \
   --set ingress.className=kong \
   --set ingress.hosts[0].host=api.example.com \
   --set kong.plugins.cors.origins[0]=https://app.example.com \
+  --set config.webSession.cookieDomain=example.com \
   --set kong.plugins.rateLimiting.minute=120
 ```
+
+Prefer one public origin for Web and API, in which case leave
+`config.webSession.cookieDomain` empty and keep host-only Cookies. The example
+above uses split, controlled subdomains; its common Cookie domain is valid only
+when every sibling subdomain covered by `example.com` is trusted. Never use a
+wildcard CORS origin with the chart's credentialed Cookie session.
 
 If Kong plugins are managed centrally by the platform team, disable chart-owned
 plugins and attach platform-managed plugins through annotations:

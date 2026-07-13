@@ -7,3 +7,8 @@ downstream:
   billing_grpc_addr: localhost:9103
   quota_grpc_addr: localhost:9104
   ai_gateway_grpc_addr: localhost:9105
+session:
+  refresh_cookie_ttl: 720h
+  # Keep empty for same-origin or localhost host-only Cookies. A split Web/API
+  # deployment may set a controlled common parent domain (for example example.com).
+  cookie_domain: ""

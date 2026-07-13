@@ -6,6 +6,21 @@ need a long-lived signing key or a static Kong credential.
 The template also exposes the public `GET /.well-known/jwks.json` endpoint;
 it never routes token issuance directly to auth-service.
 
+The checked-in CORS entries are intentionally development-only origins and
+allow credentials for the Web BFF's HttpOnly cookie session. Before production
+deployment, replace them with the exact HTTPS web origin(s); never combine
+`credentials: true` with a wildcard origin.
+
+Prefer serving the Web app and Kong API from one public origin so Cookies remain
+host-only. If controlled subdomains are required, configure `WEB_COOKIE_DOMAIN`
+to their common parent domain; do not use it when any sibling subdomain is
+untrusted, because browsers will then send the Cookie to that sibling.
+
+The production renderer configures Kong JWT extraction from the
+`dramaip_web_access` HttpOnly Cookie and bypasses JWT verification only for
+CORS preflight. The BFF still verifies issuer, audience, and Redis session
+state after Kong's signature/expiry checks.
+
 Before a production rollout, mount the auth-service **public** JWKS file (the
 same file configured as `JWT_JWKS_FILE`) on the release host, then render a
 Kong declaration containing the active and retained RS256 public keys:

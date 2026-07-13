@@ -24,7 +24,7 @@ func wireApp() (*kratos.App, func(), error) {
 		return nil, nil, err
 	}
 	bffUsecase := biz.NewBFFUsecase(dataData)
-	httpService := service.NewHTTPService(bffUsecase)
+	httpService := service.NewHTTPService(bffUsecase, bootstrap)
 	httpServer := server.NewHTTPServer(bootstrap, httpService)
 	app := newApp(httpServer)
 	return app, func() {

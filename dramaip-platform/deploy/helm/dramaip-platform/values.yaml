@@ -82,17 +82,25 @@ kong:
     cors:
       enabled: true
       origins:
-        - "*"
+        # Required override for the deployed Web origin. Never combine wildcard
+        # origin with credentials.
+        - https://app.example.com
       methods:
         - GET
         - POST
+        - PATCH
         - OPTIONS
       headers:
         - Authorization
         - Content-Type
+        - X-CSRF-Token
+        - X-Device-Id
+        - X-Request-Id
+        - traceparent
+        - tracestate
       exposedHeaders:
         - Content-Type
-      credentials: false
+      credentials: true
       maxAge: 3600
     rateLimiting:
       enabled: true
@@ -122,6 +130,11 @@ config:
   logLevel: info
   timezone: Asia/Shanghai
   webBffHttpAddr: :8100
+  webSession:
+    refreshCookieTtl: 720h
+    # Empty preserves a host-only Cookie for same-origin Web/API deployment.
+    # With separate controlled subdomains, set their common parent domain.
+    cookieDomain: ""
   authHttpAddr: :8101
   authGrpcAddr: :9101
   userHttpAddr: :8102

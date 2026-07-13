@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,7 +19,9 @@ import (
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +29,9 @@ import (
 
 type HTTPService struct {
 	uc             *biz.BFFUsecase
+	cookieSecure   bool
+	cookieDomain   string
+	refreshTTL     time.Duration
 	requestsTotal  uint64
 	loginsTotal    uint64
 	checkoutsTotal uint64
@@ -31,8 +39,18 @@ type HTTPService struct {
 	errorsTotal    uint64
 }
 
-func NewHTTPService(uc *biz.BFFUsecase) *HTTPService {
-	return &HTTPService{uc: uc}
+const (
+	webAccessCookie  = "dramaip_web_access"
+	webRefreshCookie = "dramaip_web_refresh"
+	webCSRFCookie    = "dramaip_web_csrf"
+	csrfHeader       = "X-CSRF-Token"
+)
+
+func NewHTTPService(uc *biz.BFFUsecase, cfg *conf.Bootstrap) *HTTPService {
+	return &HTTPService{
+		uc: uc, cookieSecure: cfg.CookiesSecure(), cookieDomain: strings.TrimSpace(cfg.Session.CookieDomain),
+		refreshTTL: kratosx.Duration(cfg.Session.RefreshCookieTTL, 720*time.Hour),
+	}
 }
 
 func (s *HTTPService) Router() http.Handler {
@@ -43,6 +61,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/auth/login", s.handleLogin)
 	mux.HandleFunc("/v1/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/v1/auth/logout", s.handleLogout)
+	mux.HandleFunc("/v1/auth/session", s.handleSession)
 	mux.HandleFunc("/v1/plans", s.handlePlans)
 	mux.HandleFunc("/v1/me/profile", s.handleProfile)
 	mux.HandleFunc("/v1/me/dashboard", s.handleDashboard)
@@ -60,7 +79,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/billing/payments/simulated/confirm", s.handleSimulatedConfirmPayment)
 	mux.HandleFunc("/v1/subscription/cancel", s.handleCancelSubscription)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
-	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(mux))
+	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(s.csrfMiddleware(mux)))
 }
 
 func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +139,11 @@ func (s *HTTPService) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	atomic.AddUint64(&s.loginsTotal, 1)
-	writeJSON(w, http.StatusOK, loginResponse(session))
+	if err := s.setSessionCookies(w, session); err != nil {
+		writeError(w, http.StatusInternalServerError, "session_cookie_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, webSessionResponse(session))
 }
 
 func (s *HTTPService) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +165,11 @@ func (s *HTTPService) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeGRPCError(w, err, "register_unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, loginResponse(session))
+	if err := s.setSessionCookies(w, session); err != nil {
+		writeError(w, http.StatusInternalServerError, "session_cookie_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, webSessionResponse(session))
 }
 
 func (s *HTTPService) handleRefresh(w http.ResponseWriter, r *http.Request) {
@@ -150,19 +177,21 @@ func (s *HTTPService) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
 	}
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+	refreshToken := cookieValue(r, webRefreshCookie)
+	if refreshToken == "" {
+		writeError(w, http.StatusUnauthorized, "missing_refresh_cookie")
 		return
 	}
-	session, err := s.uc.Refresh(r.Context(), req.RefreshToken)
+	session, err := s.uc.Refresh(r.Context(), refreshToken)
 	if err != nil {
 		writeGRPCError(w, err, "refresh_unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, loginResponse(session))
+	if err := s.setSessionCookies(w, session); err != nil {
+		writeError(w, http.StatusInternalServerError, "session_cookie_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, webSessionResponse(session))
 }
 
 func (s *HTTPService) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -170,21 +199,26 @@ func (s *HTTPService) handleLogout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
 	}
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
-			writeError(w, http.StatusBadRequest, "invalid_json")
-			return
-		}
-	}
-	reply, err := s.uc.Logout(r.Context(), req.RefreshToken, bearerToken(r.Header.Get("Authorization")), deviceID(r))
+	reply, err := s.uc.Logout(r.Context(), cookieValue(r, webRefreshCookie), accessToken(r), deviceID(r))
 	if err != nil {
 		writeGRPCError(w, err, "logout_unavailable")
 		return
 	}
+	s.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": reply.Ok})
+}
+
+func (s *HTTPService) handleSession(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"id": auth.UserId, "email": auth.Email, "name": auth.Name}})
 }
 
 func (s *HTTPService) handlePlans(w http.ResponseWriter, r *http.Request) {
@@ -553,7 +587,7 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *HTTPService) authenticate(w http.ResponseWriter, r *http.Request) (*authv1.AuthReply, bool) {
-	auth, err := s.uc.Authenticate(r.Context(), r.Header.Get("Authorization"))
+	auth, err := s.uc.Authenticate(r.Context(), accessToken(r))
 	if err != nil {
 		writeGRPCError(w, err, "invalid_token")
 		return nil, false
@@ -568,8 +602,107 @@ func bearerToken(authorization string) string {
 	return strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer "))
 }
 
+func accessToken(r *http.Request) string {
+	if token := bearerToken(r.Header.Get("Authorization")); token != "" {
+		return "Bearer " + token
+	}
+	if token := cookieValue(r, webAccessCookie); token != "" {
+		return "Bearer " + token
+	}
+	return ""
+}
+
+func cookieValue(r *http.Request, name string) string {
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
 func deviceID(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("X-Device-Id"))
+}
+
+func (s *HTTPService) csrfMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !unsafeMethod(r.Method) || !browserSessionRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		csrfCookie := cookieValue(r, webCSRFCookie)
+		csrfHeaderValue := r.Header.Get(csrfHeader)
+		if csrfCookie == "" || csrfHeaderValue == "" || subtle.ConstantTimeCompare([]byte(csrfCookie), []byte(csrfHeaderValue)) != 1 {
+			writeError(w, http.StatusForbidden, "csrf_rejected")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func unsafeMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+		return false
+	default:
+		return true
+	}
+}
+
+func browserSessionRequest(r *http.Request) bool {
+	return bearerToken(r.Header.Get("Authorization")) == "" && (cookieValue(r, webAccessCookie) != "" || cookieValue(r, webRefreshCookie) != "")
+}
+
+func (s *HTTPService) setSessionCookies(w http.ResponseWriter, session *authv1.AuthReply) error {
+	csrfToken, err := newCSRFToken()
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	accessTTL := time.Duration(session.ExpiresIn) * time.Second
+	if accessTTL <= 0 {
+		accessTTL = 15 * time.Minute
+	}
+	refreshTTL := s.refreshTTL
+	if refreshTTL <= 0 {
+		refreshTTL = 720 * time.Hour
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	http.SetCookie(w, s.sessionCookie(webAccessCookie, session.AccessToken, "/v1", accessTTL, true, now))
+	http.SetCookie(w, s.sessionCookie(webRefreshCookie, session.RefreshToken, "/v1/auth", refreshTTL, true, now))
+	http.SetCookie(w, s.sessionCookie(webCSRFCookie, csrfToken, "/", refreshTTL, false, now))
+	return nil
+}
+
+func (s *HTTPService) clearSessionCookies(w http.ResponseWriter) {
+	expired := time.Unix(1, 0).UTC()
+	w.Header().Set("Cache-Control", "no-store")
+	for _, item := range []struct {
+		name     string
+		path     string
+		httpOnly bool
+	}{
+		{name: webAccessCookie, path: "/v1", httpOnly: true},
+		{name: webRefreshCookie, path: "/v1/auth", httpOnly: true},
+		{name: webCSRFCookie, path: "/", httpOnly: false},
+	} {
+		http.SetCookie(w, &http.Cookie{Name: item.name, Value: "", Path: item.path, Domain: s.cookieDomain, MaxAge: -1, Expires: expired, HttpOnly: item.httpOnly, Secure: s.cookieSecure, SameSite: http.SameSiteLaxMode})
+	}
+}
+
+func (s *HTTPService) sessionCookie(name string, value string, path string, ttl time.Duration, httpOnly bool, now time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name: name, Value: value, Path: path, Domain: s.cookieDomain, MaxAge: int(ttl.Seconds()), Expires: now.Add(ttl),
+		HttpOnly: httpOnly, Secure: s.cookieSecure, SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func newCSRFToken() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
 func (s *HTTPService) metricsMiddleware(next http.Handler) http.Handler {
@@ -605,10 +738,9 @@ func traceIDFromWriter(w http.ResponseWriter) string {
 	return ""
 }
 
-func loginResponse(session *authv1.AuthReply) map[string]any {
+func webSessionResponse(session *authv1.AuthReply) map[string]any {
 	return map[string]any{
-		"access_token": session.AccessToken, "refresh_token": session.RefreshToken, "token_type": session.TokenType,
-		"expires_in": session.ExpiresIn, "user": map[string]any{"id": session.UserId, "email": session.Email, "name": session.Name},
+		"user": map[string]any{"id": session.UserId, "email": session.Email, "name": session.Name},
 	}
 }
 

@@ -31,6 +31,8 @@ x-app-common: &app-common
     # single-service fallback and is disabled in the full stack.
     AUTO_MIGRATE: "false"
     MIGRATIONS_DIR: /app/migrations
+    WEB_REFRESH_COOKIE_TTL: ${WEB_REFRESH_COOKIE_TTL:-720h}
+    WEB_COOKIE_DOMAIN: ${WEB_COOKIE_DOMAIN:-}
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
 
 services:

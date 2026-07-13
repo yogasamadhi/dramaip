@@ -37,11 +37,11 @@ services:
           # JWT_PLUGIN
           - name: cors
             config:
-              origins: ["*"]
+              origins: ["http://localhost:3009", "http://127.0.0.1:3009"]
               methods: [GET, POST, PATCH, OPTIONS]
-              headers: [Authorization, Content-Type, X-Device-Id, X-Request-Id, traceparent, tracestate]
+              headers: [Authorization, Content-Type, X-CSRF-Token, X-Device-Id, X-Request-Id, traceparent, tracestate]
               exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
-              credentials: false
+              credentials: true
               max_age: 3600
           - name: rate-limiting
             config:
@@ -54,13 +54,13 @@ services:
     plugins:
       - name: cors
         config:
-          # dev: allow any origin. In prod, restrict to the web origin(s), e.g.
-          #   origins: [https://app.dramaip.com]
-          origins: ["*"]
+          # Development origins only. Production declarations must replace
+          # these with the exact web origin(s), e.g. https://app.dramaip.com.
+          origins: ["http://localhost:3009", "http://127.0.0.1:3009"]
           methods: [GET, POST, PATCH, OPTIONS]
-          headers: [Authorization, Content-Type, X-Device-Id, X-Request-Id, traceparent, tracestate]
+          headers: [Authorization, Content-Type, X-CSRF-Token, X-Device-Id, X-Request-Id, traceparent, tracestate]
           exposed_headers: [Content-Type, X-Trace-Id, X-Request-Id]
-          credentials: false
+          credentials: true
           max_age: 3600
       - name: rate-limiting
         config:

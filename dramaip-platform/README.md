@@ -78,8 +78,9 @@ The platform path is:
 1. Website home page calls Kong -> BFF health, including Postgres/Redis/RabbitMQ checks.
 2. Pricing loads plans from PostgreSQL via `GET /v1/plans`.
 3. Login calls `POST /v1/auth/login`, verifies the bcrypt password hash in
-   PostgreSQL, issues JWT access/refresh tokens, stores the access session in
-   Redis, and stores the refresh-token hash in PostgreSQL.
+   PostgreSQL, sets HttpOnly access/refresh Cookie sessions (production also
+   requires Secure), stores the access session in Redis, and stores the
+   refresh-token hash in PostgreSQL. Tokens are never returned to Web JavaScript.
 4. Account reads subscription and token balance from PostgreSQL.
 5. Checkout writes a PostgreSQL order/outbox event and publishes a RabbitMQ
    event over AMQP.

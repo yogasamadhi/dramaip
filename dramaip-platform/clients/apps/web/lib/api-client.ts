@@ -1,17 +1,29 @@
 import { createApiClient } from '@dramaip/sdk'
+import type { AxiosRequestConfig } from 'axios'
 
-export const ACCESS_TOKEN_STORAGE_KEY = 'dramaip.access_token'
-export const REFRESH_TOKEN_STORAGE_KEY = 'dramaip.refresh_token'
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    __dramaipRetry?: boolean
+    __dramaipSkipRefresh?: boolean
+  }
+}
+
 export const DEVICE_ID_STORAGE_KEY = 'dramaip.device_id'
+const CSRF_COOKIE_NAME = 'dramaip_web_csrf'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
+
+if (typeof window !== 'undefined') {
+  // Cookie migration intentionally invalidates legacy JavaScript-readable
+  // credentials instead of attempting an unsafe token handoff.
+  window.localStorage.removeItem('dramaip.access_token')
+  window.localStorage.removeItem('dramaip.refresh_token')
+}
 
 export const apiClient = createApiClient({
   baseURL: API_BASE_URL,
-  getAccessToken: () => {
-    if (typeof window === 'undefined') return undefined
-    return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
-  },
+  withCredentials: true,
   getDeviceID,
+  getCSRFToken,
 })
 
 export function getDeviceID() {
@@ -25,24 +37,39 @@ export function getDeviceID() {
   return generated
 }
 
-export function saveSession(session: { access_token: string; refresh_token: string }) {
-  window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, session.access_token)
-  window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, session.refresh_token)
+export function getCSRFToken() {
+  if (typeof document === 'undefined') return undefined
+  const prefix = `${CSRF_COOKIE_NAME}=`
+  const value = document.cookie.split('; ').find((item) => item.startsWith(prefix))?.slice(prefix.length)
+  return value ? decodeURIComponent(value) : undefined
 }
 
-export function getAccessToken() {
-  if (typeof window === 'undefined') return undefined
-  return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) ?? undefined
+let refreshInFlight: Promise<void> | undefined
+
+async function sessionCookieIsValid() {
+  try {
+    await apiClient.http.get('/v1/auth/session', { __dramaipSkipRefresh: true })
+    return true
+  } catch {
+    return false
+  }
 }
 
-export function clearSession() {
-  window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY)
-  window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY)
-}
-
-export function getRefreshToken() {
-  if (typeof window === 'undefined') return undefined
-  return window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) ?? undefined
+async function refreshWebSession() {
+  if (refreshInFlight) return refreshInFlight
+  const rotateIfNeeded = async () => {
+    if (await sessionCookieIsValid()) return
+    await apiClient.refresh()
+  }
+  const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
+  refreshInFlight = lockManager
+    ? lockManager.request('dramaip-web-refresh', rotateIfNeeded)
+    : rotateIfNeeded()
+  try {
+    await refreshInFlight
+  } finally {
+    refreshInFlight = undefined
+  }
 }
 
 apiClient.http.interceptors.response.use(
@@ -55,26 +82,23 @@ apiClient.http.interceptors.response.use(
       response?.status !== 401 ||
       !config ||
       config.__dramaipRetry ||
+      config.__dramaipSkipRefresh ||
       String(config.url ?? '').includes('/auth/refresh')
     ) {
       throw error
     }
 
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) {
-      clearSession()
+    // A Web session always includes the readable half of the double-submit
+    // token. Without it there is no safe way to rotate a Cookie session.
+    if (!getCSRFToken()) {
       throw error
     }
 
     try {
       config.__dramaipRetry = true
-      const session = await apiClient.refresh({ refresh_token: refreshToken })
-      saveSession(session)
-      config.headers = config.headers ?? {}
-      config.headers.Authorization = `Bearer ${session.access_token}`
+      await refreshWebSession()
       return apiClient.http.request(config)
     } catch (refreshError) {
-      clearSession()
       throw refreshError
     }
   },

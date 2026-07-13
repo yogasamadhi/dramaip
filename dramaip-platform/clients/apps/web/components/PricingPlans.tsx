@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { parseApiError } from '../lib/api-error'
-import { apiClient, getAccessToken } from '../lib/api-client'
+import { apiClient } from '../lib/api-client'
 import { planCodeLabel } from '../lib/display'
 import { isSimulatedPaymentEnabled } from '../lib/runtime'
 import { loginPath } from '../lib/routes'
@@ -15,14 +15,20 @@ export function PricingPlans() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [mounted, setMounted] = useState(false)
-  const hasToken = mounted && Boolean(getAccessToken())
+  const session = useQuery({
+    queryKey: ['session'],
+    queryFn: () => apiClient.getSession(),
+    enabled: mounted,
+    retry: false,
+  })
+  const hasSession = session.isSuccess
   const simulatedPayment = isSimulatedPaymentEnabled()
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans() })
   const subscription = useQuery({
     queryKey: ['subscription'],
     queryFn: () => apiClient.getSubscription(),
     retry: false,
-    enabled: hasToken,
+    enabled: hasSession,
   })
 
   const checkout = useMutation({
@@ -67,7 +73,7 @@ export function PricingPlans() {
             <Button
               className="mt-5 w-full"
               onClick={() => {
-                if (!hasToken) {
+                if (!hasSession) {
                   router.push(loginPath('/pricing'))
                   return
                 }
