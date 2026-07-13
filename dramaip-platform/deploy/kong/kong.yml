@@ -9,8 +9,8 @@ _format_version: "3.0"
 # auth-service issues real JWTs) edge JWT verification. See docs/技术架构.md §9.
 
 services:
-  - name: dramaip-bff
-    url: http://bff:8100
+  - name: dramaip-web-bff
+    url: http://web-bff:8100
     routes:
       - name: dramaip-protected-api
         paths:

@@ -39,12 +39,12 @@ func Load() (*Bootstrap, error) {
 	if err := kratosx.LoadYAML("", cfg); err != nil {
 		return nil, err
 	}
-	cfg.Server.HTTP.Addr = kratosx.Env("BFF_HTTP_ADDR", cfg.Server.HTTP.Addr)
+	cfg.Server.HTTP.Addr = kratosx.Env("WEB_BFF_HTTP_ADDR", cfg.Server.HTTP.Addr)
 	cfg.Downstream.AuthEndpoint = kratosx.Env("AUTH_GRPC_ENDPOINT", cfg.Downstream.AuthEndpoint)
 	cfg.Downstream.UserEndpoint = kratosx.Env("USER_GRPC_ENDPOINT", cfg.Downstream.UserEndpoint)
 	cfg.Downstream.BillingEndpoint = kratosx.Env("BILLING_GRPC_ENDPOINT", cfg.Downstream.BillingEndpoint)
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
-	cfg.Downstream.DialTimeout = kratosx.Env("BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
+	cfg.Downstream.DialTimeout = kratosx.Env("WEB_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	return cfg, nil
 }

@@ -28,7 +28,7 @@ Browser / Next.js Web
 ```
 
 Kong is the only external API entry. The BFF is private inside the Docker
-network and is reached by Kong through `http://bff:8100`.
+network and is reached by Kong through `http://web-bff:8100`.
 
 ## Docker Stack
 

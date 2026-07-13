@@ -1,5 +1,5 @@
 .PHONY: test proto tidy kong-up kong-down kong-logs \
-        run-bff run-auth run-user run-billing run-quota run-ai-gateway run-billing-job run-quota-job run-migrate
+        run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
 COMPOSE ?= ../deploy/docker-drama/docker-compose.yaml
@@ -12,8 +12,8 @@ test:
 # 各下游 gRPC 端口（9101-9105）。完整容器栈请用 `make platform-up`（根目录 Makefile）
 # 或 `python3 run-platform.py`。
 
-run-bff:
-	GOCACHE=$(GOCACHE) go run ./app/bff/interface/cmd/server
+run-web-bff:
+	GOCACHE=$(GOCACHE) go run ./app/bff/web/interface/cmd/server
 
 run-auth:
 	GOCACHE=$(GOCACHE) go run ./app/auth/service/cmd/server

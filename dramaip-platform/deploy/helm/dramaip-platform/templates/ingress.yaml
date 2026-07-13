@@ -10,10 +10,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-bff
+  name: {{ include "dramaip-platform.fullname" . }}-web-bff
   labels:
     {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: bff
+    app.kubernetes.io/component: web-bff
   {{- if or $annotations $pluginNames }}
   annotations:
     {{- if $pluginNames }}
@@ -42,7 +42,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "dramaip-platform.fullname" $ }}-bff
+                name: {{ include "dramaip-platform.fullname" $ }}-web-bff
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

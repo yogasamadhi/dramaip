@@ -1,5 +1,5 @@
 {{- $workloads := list
-  (dict "key" "bff" "component" "bff" "http" 8100 "grpc" 0)
+  (dict "key" "webBff" "component" "web-bff" "http" 8100 "grpc" 0)
   (dict "key" "auth" "component" "auth" "http" 8101 "grpc" 9101)
   (dict "key" "user" "component" "user" "http" 8102 "grpc" 9102)
   (dict "key" "billing" "component" "billing" "http" 8103 "grpc" 9103)

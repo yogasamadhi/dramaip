@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: api/bff/interface/v1/bff.proto
+// source: api/bff/web/interface/v1/bff.proto
 
-package bffv1
+package webbffv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -30,7 +30,7 @@ type GetDashboardRequest struct {
 
 func (x *GetDashboardRequest) Reset() {
 	*x = GetDashboardRequest{}
-	mi := &file_api_bff_interface_v1_bff_proto_msgTypes[0]
+	mi := &file_api_bff_web_interface_v1_bff_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42,7 +42,7 @@ func (x *GetDashboardRequest) String() string {
 func (*GetDashboardRequest) ProtoMessage() {}
 
 func (x *GetDashboardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_bff_interface_v1_bff_proto_msgTypes[0]
+	mi := &file_api_bff_web_interface_v1_bff_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55,7 +55,7 @@ func (x *GetDashboardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDashboardRequest.ProtoReflect.Descriptor instead.
 func (*GetDashboardRequest) Descriptor() ([]byte, []int) {
-	return file_api_bff_interface_v1_bff_proto_rawDescGZIP(), []int{0}
+	return file_api_bff_web_interface_v1_bff_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *GetDashboardRequest) GetUserId() string {
@@ -65,7 +65,7 @@ func (x *GetDashboardRequest) GetUserId() string {
 	return ""
 }
 
-type Dashboard struct {
+type GetDashboardResponse struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	UserId             string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Email              string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
@@ -77,21 +77,21 @@ type Dashboard struct {
 	sizeCache          protoimpl.SizeCache
 }
 
-func (x *Dashboard) Reset() {
-	*x = Dashboard{}
-	mi := &file_api_bff_interface_v1_bff_proto_msgTypes[1]
+func (x *GetDashboardResponse) Reset() {
+	*x = GetDashboardResponse{}
+	mi := &file_api_bff_web_interface_v1_bff_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Dashboard) String() string {
+func (x *GetDashboardResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Dashboard) ProtoMessage() {}
+func (*GetDashboardResponse) ProtoMessage() {}
 
-func (x *Dashboard) ProtoReflect() protoreflect.Message {
-	mi := &file_api_bff_interface_v1_bff_proto_msgTypes[1]
+func (x *GetDashboardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_bff_web_interface_v1_bff_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,91 +102,91 @@ func (x *Dashboard) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Dashboard.ProtoReflect.Descriptor instead.
-func (*Dashboard) Descriptor() ([]byte, []int) {
-	return file_api_bff_interface_v1_bff_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use GetDashboardResponse.ProtoReflect.Descriptor instead.
+func (*GetDashboardResponse) Descriptor() ([]byte, []int) {
+	return file_api_bff_web_interface_v1_bff_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Dashboard) GetUserId() string {
+func (x *GetDashboardResponse) GetUserId() string {
 	if x != nil {
 		return x.UserId
 	}
 	return ""
 }
 
-func (x *Dashboard) GetEmail() string {
+func (x *GetDashboardResponse) GetEmail() string {
 	if x != nil {
 		return x.Email
 	}
 	return ""
 }
 
-func (x *Dashboard) GetSubscriptionStatus() string {
+func (x *GetDashboardResponse) GetSubscriptionStatus() string {
 	if x != nil {
 		return x.SubscriptionStatus
 	}
 	return ""
 }
 
-func (x *Dashboard) GetQuotaTokens() int64 {
+func (x *GetDashboardResponse) GetQuotaTokens() int64 {
 	if x != nil {
 		return x.QuotaTokens
 	}
 	return 0
 }
 
-func (x *Dashboard) GetUsedTokens() int64 {
+func (x *GetDashboardResponse) GetUsedTokens() int64 {
 	if x != nil {
 		return x.UsedTokens
 	}
 	return 0
 }
 
-func (x *Dashboard) GetRemainingTokens() int64 {
+func (x *GetDashboardResponse) GetRemainingTokens() int64 {
 	if x != nil {
 		return x.RemainingTokens
 	}
 	return 0
 }
 
-var File_api_bff_interface_v1_bff_proto protoreflect.FileDescriptor
+var File_api_bff_web_interface_v1_bff_proto protoreflect.FileDescriptor
 
-const file_api_bff_interface_v1_bff_proto_rawDesc = "" +
+const file_api_bff_web_interface_v1_bff_proto_rawDesc = "" +
 	"\n" +
-	"\x1eapi/bff/interface/v1/bff.proto\x12\x18dramaip.bff.interface.v1\".\n" +
+	"\"api/bff/web/interface/v1/bff.proto\x12\x1cdramaip.bff.web.interface.v1\".\n" +
 	"\x13GetDashboardRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xda\x01\n" +
-	"\tDashboard\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xe5\x01\n" +
+	"\x14GetDashboardResponse\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12/\n" +
 	"\x13subscription_status\x18\x03 \x01(\tR\x12subscriptionStatus\x12!\n" +
 	"\fquota_tokens\x18\x04 \x01(\x03R\vquotaTokens\x12\x1f\n" +
 	"\vused_tokens\x18\x05 \x01(\x03R\n" +
 	"usedTokens\x12)\n" +
-	"\x10remaining_tokens\x18\x06 \x01(\x03R\x0fremainingTokens2r\n" +
-	"\fBffInterface\x12b\n" +
-	"\fGetDashboard\x12-.dramaip.bff.interface.v1.GetDashboardRequest\x1a#.dramaip.bff.interface.v1.DashboardBIZGgithub.com/dramaip/dramaip-platform/services/api/bff/interface/v1;bffv1b\x06proto3"
+	"\x10remaining_tokens\x18\x06 \x01(\x03R\x0fremainingTokens2\x8f\x01\n" +
+	"\x16WebBffInterfaceService\x12u\n" +
+	"\fGetDashboard\x121.dramaip.bff.web.interface.v1.GetDashboardRequest\x1a2.dramaip.bff.web.interface.v1.GetDashboardResponseBPZNgithub.com/dramaip/dramaip-platform/services/api/bff/web/interface/v1;webbffv1b\x06proto3"
 
 var (
-	file_api_bff_interface_v1_bff_proto_rawDescOnce sync.Once
-	file_api_bff_interface_v1_bff_proto_rawDescData []byte
+	file_api_bff_web_interface_v1_bff_proto_rawDescOnce sync.Once
+	file_api_bff_web_interface_v1_bff_proto_rawDescData []byte
 )
 
-func file_api_bff_interface_v1_bff_proto_rawDescGZIP() []byte {
-	file_api_bff_interface_v1_bff_proto_rawDescOnce.Do(func() {
-		file_api_bff_interface_v1_bff_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_bff_interface_v1_bff_proto_rawDesc), len(file_api_bff_interface_v1_bff_proto_rawDesc)))
+func file_api_bff_web_interface_v1_bff_proto_rawDescGZIP() []byte {
+	file_api_bff_web_interface_v1_bff_proto_rawDescOnce.Do(func() {
+		file_api_bff_web_interface_v1_bff_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_bff_web_interface_v1_bff_proto_rawDesc), len(file_api_bff_web_interface_v1_bff_proto_rawDesc)))
 	})
-	return file_api_bff_interface_v1_bff_proto_rawDescData
+	return file_api_bff_web_interface_v1_bff_proto_rawDescData
 }
 
-var file_api_bff_interface_v1_bff_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_api_bff_interface_v1_bff_proto_goTypes = []any{
-	(*GetDashboardRequest)(nil), // 0: dramaip.bff.interface.v1.GetDashboardRequest
-	(*Dashboard)(nil),           // 1: dramaip.bff.interface.v1.Dashboard
+var file_api_bff_web_interface_v1_bff_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_api_bff_web_interface_v1_bff_proto_goTypes = []any{
+	(*GetDashboardRequest)(nil),  // 0: dramaip.bff.web.interface.v1.GetDashboardRequest
+	(*GetDashboardResponse)(nil), // 1: dramaip.bff.web.interface.v1.GetDashboardResponse
 }
-var file_api_bff_interface_v1_bff_proto_depIdxs = []int32{
-	0, // 0: dramaip.bff.interface.v1.BffInterface.GetDashboard:input_type -> dramaip.bff.interface.v1.GetDashboardRequest
-	1, // 1: dramaip.bff.interface.v1.BffInterface.GetDashboard:output_type -> dramaip.bff.interface.v1.Dashboard
+var file_api_bff_web_interface_v1_bff_proto_depIdxs = []int32{
+	0, // 0: dramaip.bff.web.interface.v1.WebBffInterfaceService.GetDashboard:input_type -> dramaip.bff.web.interface.v1.GetDashboardRequest
+	1, // 1: dramaip.bff.web.interface.v1.WebBffInterfaceService.GetDashboard:output_type -> dramaip.bff.web.interface.v1.GetDashboardResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -194,26 +194,26 @@ var file_api_bff_interface_v1_bff_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_api_bff_interface_v1_bff_proto_init() }
-func file_api_bff_interface_v1_bff_proto_init() {
-	if File_api_bff_interface_v1_bff_proto != nil {
+func init() { file_api_bff_web_interface_v1_bff_proto_init() }
+func file_api_bff_web_interface_v1_bff_proto_init() {
+	if File_api_bff_web_interface_v1_bff_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_bff_interface_v1_bff_proto_rawDesc), len(file_api_bff_interface_v1_bff_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_bff_web_interface_v1_bff_proto_rawDesc), len(file_api_bff_web_interface_v1_bff_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_api_bff_interface_v1_bff_proto_goTypes,
-		DependencyIndexes: file_api_bff_interface_v1_bff_proto_depIdxs,
-		MessageInfos:      file_api_bff_interface_v1_bff_proto_msgTypes,
+		GoTypes:           file_api_bff_web_interface_v1_bff_proto_goTypes,
+		DependencyIndexes: file_api_bff_web_interface_v1_bff_proto_depIdxs,
+		MessageInfos:      file_api_bff_web_interface_v1_bff_proto_msgTypes,
 	}.Build()
-	File_api_bff_interface_v1_bff_proto = out.File
-	file_api_bff_interface_v1_bff_proto_goTypes = nil
-	file_api_bff_interface_v1_bff_proto_depIdxs = nil
+	File_api_bff_web_interface_v1_bff_proto = out.File
+	file_api_bff_web_interface_v1_bff_proto_goTypes = nil
+	file_api_bff_web_interface_v1_bff_proto_depIdxs = nil
 }

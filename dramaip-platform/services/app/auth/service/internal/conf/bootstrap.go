@@ -51,7 +51,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Server.HTTP.Addr = kratosx.Env("AUTH_HTTP_ADDR", cfg.Server.HTTP.Addr)
 	cfg.Server.GRPC.Addr = kratosx.Env("AUTH_GRPC_ADDR", cfg.Server.GRPC.Addr)
 	cfg.Data.MigrationsDir = kratosx.Env("MIGRATIONS_DIR", cfg.Data.MigrationsDir)
-	cfg.AutoMigrate = kratosx.EnvBool("AUTO_MIGRATE", kratosx.EnvBool("BFF_AUTO_MIGRATE", cfg.AutoMigrate))
+	cfg.AutoMigrate = kratosx.EnvBool("AUTO_MIGRATE", cfg.AutoMigrate)
 	cfg.JWT.Issuer = kratosx.Env("JWT_ISSUER", cfg.JWT.Issuer)
 	cfg.JWT.AccessSecret = kratosx.Env("JWT_ACCESS_SECRET", cfg.JWT.AccessSecret)
 	cfg.JWT.AccessTokenTTL = kratosx.Env("JWT_ACCESS_TTL", cfg.JWT.AccessTokenTTL)

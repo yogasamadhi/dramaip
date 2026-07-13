@@ -15,8 +15,8 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
-	"github.com/dramaip/dramaip-platform/services/app/bff/interface/internal/biz"
-	"github.com/dramaip/dramaip-platform/services/app/bff/interface/internal/data"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -60,7 +60,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/billing/payments/simulated/confirm", s.handleSimulatedConfirmPayment)
 	mux.HandleFunc("/v1/subscription/cancel", s.handleCancelSubscription)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
-	return platform.TraceMiddleware("bff-interface", s.metricsMiddleware(mux))
+	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(mux))
 }
 
 func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +84,7 @@ func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		statusCode = http.StatusServiceUnavailable
 	}
-	writeJSON(w, statusCode, map[string]any{"ok": ok, "service": "bff-interface", "version": "0.4.0", "dependencies": deps})
+	writeJSON(w, statusCode, map[string]any{"ok": ok, "service": "web-bff-interface", "version": "0.4.0", "dependencies": deps})
 }
 
 func (s *HTTPService) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -746,7 +746,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(value); err != nil {
-		platform.StructuredLog(context.Background(), "bff-interface", "error", "write_json_failed", map[string]any{"error": err.Error()})
+		platform.StructuredLog(context.Background(), "web-bff-interface", "error", "write_json_failed", map[string]any{"error": err.Error()})
 	}
 }
 

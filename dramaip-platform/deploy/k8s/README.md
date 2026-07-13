@@ -6,8 +6,8 @@ the BFF platform flow:
 ```txt
 Internet
   -> Kong Ingress Controller
-  -> dramaip-bff Service
-  -> dramaip-bff Deployment
+  -> dramaip-web-bff Service
+  -> dramaip-web-bff Deployment
   -> PostgreSQL / Redis / RabbitMQ / OpenTelemetry Collector
 ```
 
@@ -40,7 +40,7 @@ built from the same `Dockerfile.service` with a different `TARGET` build arg:
 ```bash
 cd dramaip-platform/services
 for svc in \
-  "bff ./app/bff/interface/cmd/server" \
+  "web-bff ./app/bff/web/interface/cmd/server" \
   "auth ./app/auth/service/cmd/server" \
   "user ./app/user/service/cmd/server" \
   "billing ./app/billing/service/cmd/server" \
@@ -83,7 +83,7 @@ Install with production values:
 ```bash
 helm upgrade --install dramaip-platform ../helm/dramaip-platform \
   --namespace dramaip \
-  --set image.repository=ghcr.io/dramaip/dramaip-bff \
+  --set image.repository=ghcr.io/dramaip/dramaip-web-bff \
   --set image.tag=0.1.0 \
   --set secret.existingSecret=dramaip-platform-secret \
   --set config.postgres.host=postgres.example.internal \

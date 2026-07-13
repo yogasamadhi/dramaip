@@ -23,7 +23,7 @@ Examples:
   python3 run-platform-k8s.py --skip-kong --no-ingress
   python3 run-platform-k8s.py --dry-run
   python3 run-platform-k8s.py --no-web
-  python3 run-platform-k8s.py --image-repo ghcr.io/dramaip/dramaip-bff --image-tag 0.1.0 --no-build
+  python3 run-platform-k8s.py --image-repo ghcr.io/dramaip/dramaip-web-bff --image-tag 0.1.0 --no-build
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ DEFAULT_KONG_CONTROLLER_IMAGE = "kong/kubernetes-ingress-controller:3.5"
 DEFAULT_TIMEOUT = "10m"
 
 SERVICE_IMAGES = (
-    ("bff", "dramaip-bff", "./app/bff/interface/cmd/server"),
+    ("webBff", "dramaip-web-bff", "./app/bff/web/interface/cmd/server"),
     ("auth", "dramaip-auth", "./app/auth/service/cmd/server"),
     ("user", "dramaip-user", "./app/user/service/cmd/server"),
     ("billing", "dramaip-billing", "./app/billing/service/cmd/server"),
@@ -724,7 +724,7 @@ def prepare_local_cluster(args: argparse.Namespace) -> None:
 
 
 def service_image_repo(args: argparse.Namespace, key: str, default_repo: str) -> str:
-    if key == "bff":
+    if key == "webBff":
         return args.image_repo
     return f"{args.image_prefix}-{default_repo.removeprefix('dramaip-')}"
 
@@ -1151,7 +1151,7 @@ def install_platform(args: argparse.Namespace) -> None:
 def wait_for_bff(args: argparse.Namespace) -> None:
     if args.dry_run or args.no_wait:
         return
-    for component in ("auth", "user", "billing", "quota", "ai-gateway", "bff", "billing-job", "quota-job"):
+    for component in ("auth", "user", "billing", "quota", "ai-gateway", "web-bff", "billing-job", "quota-job"):
         info(f"Waiting for {component} rollout")
         run(
             kubectl_base(args)
@@ -1303,7 +1303,7 @@ def parse_args() -> argparse.Namespace:
         help="Install minikube with Homebrew when --start-minikube is used.",
     )
 
-    parser.add_argument("--image-repo", default="dramaip-bff")
+    parser.add_argument("--image-repo", default="dramaip-web-bff")
     parser.add_argument("--image-prefix", default="dramaip", help="Prefix for non-BFF service images, default: dramaip.")
     parser.add_argument("--image-tag", default="dev")
     parser.add_argument(

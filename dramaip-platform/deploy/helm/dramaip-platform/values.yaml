@@ -1,13 +1,13 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/dramaip/dramaip-bff
+  repository: ghcr.io/dramaip/dramaip-web-bff
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
 images:
-  bff:
-    repository: ghcr.io/dramaip/dramaip-bff
+  webBff:
+    repository: ghcr.io/dramaip/dramaip-web-bff
     tag: "0.1.0"
   auth:
     repository: ghcr.io/dramaip/dramaip-auth
@@ -121,7 +121,7 @@ config:
   env: prod
   logLevel: info
   timezone: Asia/Shanghai
-  bffHttpAddr: :8100
+  webBffHttpAddr: :8100
   authHttpAddr: :8101
   authGrpcAddr: :9101
   userHttpAddr: :8102
@@ -155,7 +155,7 @@ config:
     refreshTtlSeconds: "2592000"
   otel:
     endpoint: http://otel-collector:4318
-    serviceName: dramaip-bff
+    serviceName: dramaip-web-bff
   downstream:
     authGrpcEndpoint: dramaip-platform-auth:9101
     userGrpcEndpoint: dramaip-platform-user:9102

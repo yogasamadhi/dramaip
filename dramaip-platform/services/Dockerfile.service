@@ -1,6 +1,6 @@
 FROM golang:1.24-alpine AS build
 
-ARG TARGET=./app/bff/interface/cmd/server
+ARG TARGET=./app/bff/web/interface/cmd/server
 ARG OUTPUT=dramaip-service
 
 WORKDIR /src
