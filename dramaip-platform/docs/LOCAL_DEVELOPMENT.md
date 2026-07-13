@@ -105,6 +105,9 @@ GOCACHE=/tmp/dramaip-go-build go test ./...
 # 需要一个全新隔离 PostgreSQL；验证支付确认、额度激活与 outbox 重放。
 POSTGRES_BILLING_SAGA_TEST_DSN='postgres://ddl_user:password@localhost:5432/dramaip_billing_saga?sslmode=disable' \
   make billing-saga-integration
+# 需要另一个全新隔离 PostgreSQL；验证 billing-job 的到期取消与模拟订阅续期事务。
+POSTGRES_BILLING_LIFECYCLE_TEST_DSN='postgres://ddl_user:password@localhost:5432/dramaip_billing_lifecycle?sslmode=disable' \
+  make billing-lifecycle-integration
 
 cd ../clients
 pnpm typecheck

@@ -252,6 +252,60 @@ func TestQuotaStateMachineIntegration(t *testing.T) {
 			t.Fatalf("period account replay = %#v, want original %#v", second, first)
 		}
 	})
+
+	t.Run("upgrade ledger and refund hold have explicit idempotent outcomes", func(t *testing.T) {
+		upgradeUserID := platform.NewUUID()
+		upgradeAccountID := seedQuotaAccount(t, db, upgradeUserID, 100)
+		var upgradeSubscriptionID string
+		if err := db.WithContext(ctx).Raw(`SELECT subscription_id::text FROM quota.token_accounts WHERE id = ?::uuid`, upgradeAccountID).Scan(&upgradeSubscriptionID).Error; err != nil {
+			t.Fatalf("load upgrade subscription: %v", err)
+		}
+		first, err := repo.AdjustPeriodQuota(ctx, "upgrade-adjustment-1", upgradeUserID, upgradeSubscriptionID, 50, "subscription upgrade")
+		if err != nil || first.QuotaBefore != 100 || first.QuotaAfter != 150 || first.DeltaTokens != 50 {
+			t.Fatalf("first adjustment = %#v, %v", first, err)
+		}
+		replayed, err := repo.AdjustPeriodQuota(ctx, "upgrade-adjustment-1", upgradeUserID, upgradeSubscriptionID, 1, "replay")
+		if err != nil || replayed.QuotaAfter != 150 || replayed.DeltaTokens != 50 {
+			t.Fatalf("replayed adjustment = %#v, %v", replayed, err)
+		}
+		assertQuotaCount(t, db, `SELECT count(*) FROM quota.quota_adjustments WHERE adjustment_id = 'upgrade-adjustment-1'`, 1)
+
+		refundUserID := platform.NewUUID()
+		refundAccountID := seedQuotaAccount(t, db, refundUserID, 100)
+		var refundSubscriptionID string
+		if err := db.WithContext(ctx).Raw(`SELECT subscription_id::text FROM quota.token_accounts WHERE id = ?::uuid`, refundAccountID).Scan(&refundSubscriptionID).Error; err != nil {
+			t.Fatalf("load refund subscription: %v", err)
+		}
+		held, err := repo.PrepareRefund(ctx, "refund-hold-1", refundUserID, refundSubscriptionID, "user_requested")
+		if err != nil || held.Status != "held" || held.UsedTokens != 0 {
+			t.Fatalf("prepare unused refund = %#v, %v", held, err)
+		}
+		heldAgain, err := repo.PrepareRefund(ctx, "refund-hold-1", refundUserID, refundSubscriptionID, "retry")
+		if err != nil || heldAgain.Status != "held" || heldAgain.TokenAccountID != held.TokenAccountID {
+			t.Fatalf("replayed refund hold = %#v, %v", heldAgain, err)
+		}
+		var accountStatus string
+		if err := db.WithContext(ctx).Raw(`SELECT status FROM quota.token_accounts WHERE id = ?::uuid`, refundAccountID).Scan(&accountStatus).Error; err != nil {
+			t.Fatalf("load refund hold account: %v", err)
+		}
+		if accountStatus != "refund_hold" {
+			t.Fatalf("refund hold account status = %q", accountStatus)
+		}
+
+		usedUserID := platform.NewUUID()
+		usedAccountID := seedQuotaAccount(t, db, usedUserID, 100)
+		var usedSubscriptionID string
+		if err := db.WithContext(ctx).Raw(`SELECT subscription_id::text FROM quota.token_accounts WHERE id = ?::uuid`, usedAccountID).Scan(&usedSubscriptionID).Error; err != nil {
+			t.Fatalf("load used subscription: %v", err)
+		}
+		if _, err := repo.ReserveTokens(ctx, usedUserID, "refund-used-reservation", 10); err != nil {
+			t.Fatalf("reserve used quota: %v", err)
+		}
+		manual, err := repo.PrepareRefund(ctx, "refund-manual-1", usedUserID, usedSubscriptionID, "user_requested")
+		if err != nil || manual.Status != "manual_review" || manual.UsedTokens != 10 {
+			t.Fatalf("prepare used refund = %#v, %v", manual, err)
+		}
+	})
 }
 
 func requireFreshQuotaStateDatabase(t *testing.T, db *gorm.DB) {
@@ -312,6 +366,17 @@ func quotaUsedTokens(t *testing.T, db *gorm.DB, userID string) int64 {
 		t.Fatalf("load used tokens: %v", err)
 	}
 	return used
+}
+
+func assertQuotaCount(t *testing.T, db *gorm.DB, query string, want int64) {
+	t.Helper()
+	var got int64
+	if err := db.WithContext(context.Background()).Raw(query).Scan(&got).Error; err != nil {
+		t.Fatalf("count query: %v", err)
+	}
+	if got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
 }
 
 func reservationStatus(t *testing.T, db *gorm.DB, reservationID string) string {

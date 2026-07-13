@@ -77,6 +77,29 @@ func (s *QuotaService) CancelReservation(ctx context.Context, req *quotav1.Cance
 	return reservationReply(res), nil
 }
 
+func (s *QuotaService) AdjustPeriodQuota(ctx context.Context, req *quotav1.AdjustPeriodQuotaRequest) (*quotav1.QuotaAdjustment, error) {
+	adjustment, err := s.uc.AdjustPeriodQuota(ctx, req.AdjustmentId, req.UserId, req.SubscriptionId, req.DeltaTokens, req.Reason)
+	if err != nil {
+		return nil, err
+	}
+	return &quotav1.QuotaAdjustment{
+		AdjustmentId: adjustment.AdjustmentID, TokenAccountId: adjustment.TokenAccountID,
+		DeltaTokens: adjustment.DeltaTokens, QuotaBefore: adjustment.QuotaBefore,
+		QuotaAfter: adjustment.QuotaAfter, Status: adjustment.Status,
+	}, nil
+}
+
+func (s *QuotaService) PrepareRefund(ctx context.Context, req *quotav1.PrepareRefundRequest) (*quotav1.RefundPreparation, error) {
+	prep, err := s.uc.PrepareRefund(ctx, req.RefundId, req.UserId, req.SubscriptionId, req.Reason)
+	if err != nil {
+		return nil, err
+	}
+	return &quotav1.RefundPreparation{
+		RefundId: prep.RefundID, TokenAccountId: prep.TokenAccountID, Status: prep.Status,
+		UsedTokens: prep.UsedTokens, Reason: prep.Reason,
+	}, nil
+}
+
 func (s *QuotaService) ListTokenUsage(ctx context.Context, req *quotav1.ListTokenUsageRequest) (*quotav1.ListTokenUsageReply, error) {
 	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
 		return nil, err

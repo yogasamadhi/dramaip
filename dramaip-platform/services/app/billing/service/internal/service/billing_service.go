@@ -127,11 +127,54 @@ func (s *BillingService) CancelSubscription(ctx context.Context, req *billingv1.
 	return subscriptionReply(sub), nil
 }
 
+func (s *BillingService) ResumeSubscription(ctx context.Context, req *billingv1.ResumeSubscriptionRequest) (*billingv1.Subscription, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	sub, err := s.uc.ResumeSubscription(ctx, req.UserId, req.SubscriptionId, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionReply(sub), nil
+}
+
+func (s *BillingService) ChangeSubscriptionPlan(ctx context.Context, req *billingv1.ChangeSubscriptionPlanRequest) (*billingv1.Subscription, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	sub, err := s.uc.ChangeSubscriptionPlan(ctx, req.UserId, req.SubscriptionId, req.PlanId, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionReply(sub), nil
+}
+
+func (s *BillingService) RequestRefund(ctx context.Context, req *billingv1.RequestRefundRequest) (*billingv1.Refund, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	refund, err := s.uc.RequestRefund(ctx, req.UserId, req.SubscriptionId, req.Reason, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return refundReply(refund), nil
+}
+
 func subscriptionReply(sub data.SubscriptionRow) *billingv1.Subscription {
 	return &billingv1.Subscription{
 		Id: sub.ID, UserId: sub.UserID, PlanId: sub.PlanID, PlanCode: sub.PlanCode, Status: sub.Status,
 		CurrentPeriodStart: sub.CurrentPeriodStart, CurrentPeriodEnd: sub.CurrentPeriodEnd,
 		CancelAtPeriodEnd: sub.CancelAtPeriodEnd, CanceledAt: sub.CanceledAt,
+		ScheduledPlanCode: sub.ScheduledPlanCode, ScheduledChangeAt: sub.ScheduledChangeAt,
+		LifecycleError: sub.LifecycleError,
+	}
+}
+
+func refundReply(refund data.RefundRow) *billingv1.Refund {
+	return &billingv1.Refund{
+		Id: refund.ID, SubscriptionId: refund.SubscriptionID, Status: refund.Status, Reason: refund.Reason,
+		UsedTokens: refund.UsedTokens, QuotaHoldStatus: refund.QuotaHoldStatus,
+		FailureReason: refund.FailureReason, CreatedAt: refund.CreatedAt, ResolvedAt: refund.ResolvedAt,
 	}
 }
 

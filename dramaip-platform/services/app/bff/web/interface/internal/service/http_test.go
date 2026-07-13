@@ -388,6 +388,15 @@ func (fakeBilling) GetOrder(context.Context, *billingv1.GetOrderRequest, ...grpc
 func (fakeBilling) CancelSubscription(context.Context, *billingv1.CancelSubscriptionRequest, ...grpc.CallOption) (*billingv1.Subscription, error) {
 	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "pro", Status: "active", CancelAtPeriodEnd: true}, nil
 }
+func (fakeBilling) ResumeSubscription(context.Context, *billingv1.ResumeSubscriptionRequest, ...grpc.CallOption) (*billingv1.Subscription, error) {
+	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "pro", Status: "active"}, nil
+}
+func (fakeBilling) ChangeSubscriptionPlan(_ context.Context, req *billingv1.ChangeSubscriptionPlanRequest, _ ...grpc.CallOption) (*billingv1.Subscription, error) {
+	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: req.PlanId, Status: "active"}, nil
+}
+func (fakeBilling) RequestRefund(context.Context, *billingv1.RequestRefundRequest, ...grpc.CallOption) (*billingv1.Refund, error) {
+	return &billingv1.Refund{Id: "refund", SubscriptionId: "sub", Status: "manual_review"}, nil
+}
 
 type fakeQuota struct{}
 
@@ -405,6 +414,12 @@ func (fakeQuota) SettleTokens(context.Context, *quotav1.SettleTokensRequest, ...
 }
 func (fakeQuota) CancelReservation(context.Context, *quotav1.CancelReservationRequest, ...grpc.CallOption) (*quotav1.TokenReservation, error) {
 	return nil, nil
+}
+func (fakeQuota) AdjustPeriodQuota(context.Context, *quotav1.AdjustPeriodQuotaRequest, ...grpc.CallOption) (*quotav1.QuotaAdjustment, error) {
+	return &quotav1.QuotaAdjustment{Status: "applied"}, nil
+}
+func (fakeQuota) PrepareRefund(context.Context, *quotav1.PrepareRefundRequest, ...grpc.CallOption) (*quotav1.RefundPreparation, error) {
+	return &quotav1.RefundPreparation{Status: "manual_review"}, nil
 }
 func (fakeQuota) ListTokenUsage(context.Context, *quotav1.ListTokenUsageRequest, ...grpc.CallOption) (*quotav1.ListTokenUsageReply, error) {
 	return &quotav1.ListTokenUsageReply{Usage: []*quotav1.TokenUsage{{Id: "usage", RequestId: "req", TotalTokens: 2, Status: "settled"}}}, nil

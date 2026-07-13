@@ -253,6 +253,57 @@ func TestCheckoutSnapshotSurvivesPlanChangeIntegration(t *testing.T) {
 	}
 	assertCount(t, db, "subscription activation outbox rows", `SELECT count(*) FROM billing.outbox_events WHERE aggregate_type = 'billing.subscription' AND aggregate_id = ?::uuid AND event_type = 'subscription.activated.v1'`, result.Subscription.ID, 1)
 
+	// A cancellation only disables the next renewal and can be resumed before
+	// the boundary. An upgrade is first recorded as a pending change; this test
+	// simulates the already-idempotent quota effect by finalizing it, then proves
+	// the original period snapshot remains untouched. A downgrade is scheduled
+	// for the following period instead of rewriting current entitlement.
+	resumed, err := repo.ResumeSubscription(ctx, userID, result.Subscription.ID, "resume-current-period")
+	if err != nil {
+		t.Fatalf("resume scheduled cancellation: %v", err)
+	}
+	if resumed.CancelAtPeriodEnd {
+		t.Fatal("resumed subscription remains scheduled for cancellation")
+	}
+	upgrade, err := repo.ChangeSubscriptionPlan(ctx, userID, result.Subscription.ID, "pro", "upgrade-current-period")
+	if err != nil {
+		t.Fatalf("record upgrade: %v", err)
+	}
+	if upgrade.Kind != "upgrade" || upgrade.Status != "quota_pending" || upgrade.DeltaTokens <= 0 {
+		t.Fatalf("upgrade = %#v", upgrade)
+	}
+	upgraded, err := repo.FinalizePlanChange(ctx, upgrade.ChangeID)
+	if err != nil {
+		t.Fatalf("finalize upgrade after quota adjustment: %v", err)
+	}
+	if upgraded.PlanCode != "pro" {
+		t.Fatalf("upgraded plan = %q, want pro", upgraded.PlanCode)
+	}
+	var originalPeriodCode string
+	if err := db.WithContext(ctx).Raw(`
+		SELECT plan_code FROM billing.subscription_periods
+		WHERE subscription_id = ?::uuid AND period_start = ?::timestamptz
+	`, result.Subscription.ID, result.Subscription.CurrentPeriodStart).Scan(&originalPeriodCode).Error; err != nil {
+		t.Fatalf("load original subscription period: %v", err)
+	}
+	if originalPeriodCode != purchased.Code {
+		t.Fatalf("current period plan snapshot = %q, want original %q", originalPeriodCode, purchased.Code)
+	}
+	downgrade, err := repo.ChangeSubscriptionPlan(ctx, userID, result.Subscription.ID, "free", "downgrade-next-period")
+	if err != nil {
+		t.Fatalf("schedule downgrade: %v", err)
+	}
+	if downgrade.Kind != "downgrade" || downgrade.Status != "scheduled" || downgrade.Subscription.ScheduledPlanCode != "free" {
+		t.Fatalf("downgrade = %#v", downgrade)
+	}
+	replayedDowngrade, err := repo.ChangeSubscriptionPlan(ctx, userID, result.Subscription.ID, "free", "downgrade-next-period")
+	if err != nil {
+		t.Fatalf("repeat scheduled downgrade: %v", err)
+	}
+	if replayedDowngrade.Status != "scheduled" || replayedDowngrade.ChangeID != downgrade.ChangeID {
+		t.Fatalf("replayed downgrade = %#v, want stable change %#v", replayedDowngrade, downgrade)
+	}
+
 	// A publisher-confirm loss can leave an event delivered but unmarked. The
 	// relay retains the same event IDs, releases leases, and a restarted worker
 	// retries them. An expired lease represents a process crash after claiming.

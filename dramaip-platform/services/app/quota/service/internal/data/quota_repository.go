@@ -30,6 +30,28 @@ type TokenAccount struct {
 	UsedTokens     int64
 }
 
+// QuotaAdjustment is the durable effect of a billing subscription upgrade.
+// adjustment_id is supplied by billing and makes a retry safe across services.
+type QuotaAdjustment struct {
+	AdjustmentID   string
+	TokenAccountID string
+	DeltaTokens    int64
+	QuotaBefore    int64
+	QuotaAfter     int64
+	Status         string
+}
+
+// RefundPreparation describes the explicit quota rule used before a refund:
+// only an unused account without in-flight reservations can be held
+// automatically. Everything else remains visible for manual review.
+type RefundPreparation struct {
+	RefundID       string
+	TokenAccountID string
+	Status         string
+	UsedTokens     int64
+	Reason         string
+}
+
 type CreatePeriodAccountInput struct {
 	UserID             string
 	SubscriptionID     string
@@ -134,6 +156,155 @@ func (r *QuotaRepo) CreatePeriodAccount(ctx context.Context, input CreatePeriodA
 		return TokenAccount{}, status.Error(codes.NotFound, "token account not found")
 	}
 	return out, nil
+}
+
+func (r *QuotaRepo) AdjustPeriodQuota(ctx context.Context, adjustmentID, userID, subscriptionID string, deltaTokens int64, reason string) (QuotaAdjustment, error) {
+	var out QuotaAdjustment
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing struct {
+			AdjustmentID   string
+			TokenAccountID string
+			DeltaTokens    int64
+			QuotaBefore    int64
+			QuotaAfter     int64
+		}
+		if err := tx.Raw(`
+			SELECT adjustment_id, COALESCE(token_account_id::text, '') AS token_account_id,
+			       delta_tokens, COALESCE(quota_before, 0) AS quota_before, COALESCE(quota_after, 0) AS quota_after
+			FROM quota.quota_adjustments
+			WHERE adjustment_id = ?
+			FOR UPDATE
+		`, adjustmentID).Scan(&existing).Error; err != nil {
+			return err
+		}
+		if existing.AdjustmentID != "" {
+			out = QuotaAdjustment{AdjustmentID: existing.AdjustmentID, TokenAccountID: existing.TokenAccountID, DeltaTokens: existing.DeltaTokens, QuotaBefore: existing.QuotaBefore, QuotaAfter: existing.QuotaAfter, Status: "applied"}
+			return nil
+		}
+		var account struct {
+			ID          string
+			QuotaTokens int64
+		}
+		if err := tx.Raw(`
+			SELECT id::text AS id, quota_tokens
+			FROM quota.token_accounts
+			WHERE user_id = ?::uuid AND subscription_id = ?::uuid
+			  AND status = 'active' AND period_start <= now() AND period_end > now()
+			ORDER BY period_start DESC
+			LIMIT 1
+			FOR UPDATE
+		`, userID, subscriptionID).Scan(&account).Error; err != nil {
+			return err
+		}
+		if account.ID == "" {
+			return status.Error(codes.NotFound, "active token account not found")
+		}
+		after := account.QuotaTokens + deltaTokens
+		if after < account.QuotaTokens {
+			return status.Error(codes.FailedPrecondition, "quota adjustment cannot reduce current entitlement")
+		}
+		if err := tx.Exec(`
+			UPDATE quota.token_accounts
+			SET quota_tokens = ?, updated_at = now()
+			WHERE id = ?::uuid
+		`, after, account.ID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+			INSERT INTO quota.quota_adjustments (
+				id, adjustment_id, user_id, subscription_id, token_account_id, kind, reason,
+				delta_tokens, quota_before, quota_after
+			) VALUES (?::uuid, ?, ?::uuid, ?::uuid, ?::uuid, 'upgrade', ?, ?, ?, ?)
+		`, platform.NewUUID(), adjustmentID, userID, subscriptionID, account.ID, reason, deltaTokens, account.QuotaTokens, after).Error; err != nil {
+			return err
+		}
+		out = QuotaAdjustment{AdjustmentID: adjustmentID, TokenAccountID: account.ID, DeltaTokens: deltaTokens, QuotaBefore: account.QuotaTokens, QuotaAfter: after, Status: "applied"}
+		return nil
+	})
+	return out, err
+}
+
+func (r *QuotaRepo) PrepareRefund(ctx context.Context, refundID, userID, subscriptionID, reason string) (RefundPreparation, error) {
+	var out RefundPreparation
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing struct {
+			RefundID       string
+			TokenAccountID string
+			Status         string
+			UsedTokens     int64
+			Reason         string
+		}
+		if err := tx.Raw(`
+			SELECT refund_id, COALESCE(token_account_id::text, '') AS token_account_id,
+			       status, used_tokens, reason
+			FROM quota.refund_holds
+			WHERE refund_id = ?
+			FOR UPDATE
+		`, refundID).Scan(&existing).Error; err != nil {
+			return err
+		}
+		if existing.RefundID != "" {
+			out = RefundPreparation{RefundID: existing.RefundID, TokenAccountID: existing.TokenAccountID, Status: existing.Status, UsedTokens: existing.UsedTokens, Reason: existing.Reason}
+			return nil
+		}
+		var account struct {
+			ID          string
+			UsedTokens  int64
+			QuotaTokens int64
+		}
+		if err := tx.Raw(`
+			SELECT id::text AS id, used_tokens, quota_tokens
+			FROM quota.token_accounts
+			WHERE user_id = ?::uuid AND subscription_id = ?::uuid
+			  AND status = 'active' AND period_start <= now() AND period_end > now()
+			ORDER BY period_start DESC
+			LIMIT 1
+			FOR UPDATE
+		`, userID, subscriptionID).Scan(&account).Error; err != nil {
+			return err
+		}
+		if account.ID == "" {
+			out = RefundPreparation{RefundID: refundID, Status: "manual_review", Reason: "no active token account"}
+			return insertRefundHold(tx, userID, subscriptionID, out)
+		}
+		var inFlight int64
+		if err := tx.Raw(`
+			SELECT count(*)
+			FROM quota.token_reservations
+			WHERE token_account_id = ?::uuid AND status IN ('reserved', 'settlement_pending')
+		`, account.ID).Scan(&inFlight).Error; err != nil {
+			return err
+		}
+		out = RefundPreparation{RefundID: refundID, TokenAccountID: account.ID, UsedTokens: account.UsedTokens}
+		if account.UsedTokens > 0 || inFlight > 0 {
+			out.Status = "manual_review"
+			out.Reason = "quota has settled or in-flight usage"
+			return insertRefundHold(tx, userID, subscriptionID, out)
+		}
+		if err := tx.Exec(`UPDATE quota.token_accounts SET status = 'refund_hold', updated_at = now() WHERE id = ?::uuid`, account.ID).Error; err != nil {
+			return err
+		}
+		out.Status = "held"
+		out.Reason = reason
+		if err := insertRefundHold(tx, userID, subscriptionID, out); err != nil {
+			return err
+		}
+		return tx.Exec(`
+			INSERT INTO quota.quota_adjustments (
+				id, adjustment_id, user_id, subscription_id, token_account_id, kind, reason,
+				delta_tokens, quota_before, quota_after
+			) VALUES (?::uuid, ?, ?::uuid, ?::uuid, ?::uuid, 'refund_hold', ?, 0, ?, ?)
+			ON CONFLICT (adjustment_id) DO NOTHING
+		`, platform.NewUUID(), "refund-hold:"+refundID, userID, subscriptionID, account.ID, reason, account.QuotaTokens, account.QuotaTokens).Error
+	})
+	return out, err
+}
+
+func insertRefundHold(tx *gorm.DB, userID, subscriptionID string, prep RefundPreparation) error {
+	return tx.Exec(`
+		INSERT INTO quota.refund_holds (refund_id, user_id, subscription_id, token_account_id, status, used_tokens, reason)
+		VALUES (?, ?::uuid, ?::uuid, NULLIF(?, '')::uuid, ?, ?, ?)
+	`, prep.RefundID, userID, subscriptionID, prep.TokenAccountID, prep.Status, prep.UsedTokens, prep.Reason).Error
 }
 
 func (r *QuotaRepo) GetTokenBalance(ctx context.Context, userID string) (TokenBalance, error) {

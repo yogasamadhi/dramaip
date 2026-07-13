@@ -79,6 +79,9 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/billing/sandbox/confirm-payment", s.handleSandboxConfirmPayment)
 	mux.HandleFunc("/v1/billing/payments/simulated/confirm", s.handleSimulatedConfirmPayment)
 	mux.HandleFunc("/v1/subscription/cancel", s.handleCancelSubscription)
+	mux.HandleFunc("/v1/subscription/resume", s.handleResumeSubscription)
+	mux.HandleFunc("/v1/subscription/change-plan", s.handleChangeSubscriptionPlan)
+	mux.HandleFunc("/v1/subscription/refund", s.handleRequestRefund)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
 	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(s.csrfMiddleware(mux)))
 }
@@ -551,6 +554,94 @@ func (s *HTTPService) handleCancelSubscription(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, subscriptionResponse(sub))
 }
 
+func (s *HTTPService) handleResumeSubscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		SubscriptionID string `json:"subscription_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeError(w, http.StatusBadRequest, "invalid_json")
+			return
+		}
+	}
+	if req.IdempotencyKey == "" {
+		req.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	}
+	sub, err := s.uc.ResumeSubscription(r.Context(), auth.UserId, req.SubscriptionID, req.IdempotencyKey)
+	if err != nil {
+		writeGRPCError(w, err, "resume_subscription_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionResponse(sub))
+}
+
+func (s *HTTPService) handleChangeSubscriptionPlan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		SubscriptionID string `json:"subscription_id"`
+		PlanID         string `json:"plan_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if req.IdempotencyKey == "" {
+		req.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	}
+	sub, err := s.uc.ChangeSubscriptionPlan(r.Context(), auth.UserId, req.SubscriptionID, req.PlanID, req.IdempotencyKey)
+	if err != nil {
+		writeGRPCError(w, err, "change_subscription_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionResponse(sub))
+}
+
+func (s *HTTPService) handleRequestRefund(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		SubscriptionID string `json:"subscription_id"`
+		Reason         string `json:"reason"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if req.IdempotencyKey == "" {
+		req.IdempotencyKey = r.Header.Get("Idempotency-Key")
+	}
+	refund, err := s.uc.RequestRefund(r.Context(), auth.UserId, req.SubscriptionID, req.Reason, req.IdempotencyKey)
+	if err != nil {
+		writeGRPCError(w, err, "refund_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, refundResponse(refund))
+}
+
 func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -829,6 +920,20 @@ func subscriptionResponse(sub *billingv1.Subscription) map[string]any {
 		"id": sub.Id, "user_id": sub.UserId, "plan_id": sub.PlanId, "plan_code": sub.PlanCode,
 		"status": sub.Status, "current_period_start": sub.CurrentPeriodStart, "current_period_end": sub.CurrentPeriodEnd,
 		"cancel_at_period_end": sub.CancelAtPeriodEnd, "canceled_at": sub.CanceledAt,
+		"scheduled_plan_code": sub.ScheduledPlanCode, "scheduled_change_at": sub.ScheduledChangeAt,
+		"lifecycle_error": sub.LifecycleError,
+	}
+}
+
+func refundResponse(refund *billingv1.Refund) map[string]any {
+	if refund == nil {
+		refund = &billingv1.Refund{}
+	}
+	return map[string]any{
+		"id": refund.Id, "subscription_id": refund.SubscriptionId, "status": refund.Status,
+		"reason": refund.Reason, "used_tokens": refund.UsedTokens,
+		"quota_hold_status": refund.QuotaHoldStatus, "failure_reason": refund.FailureReason,
+		"created_at": refund.CreatedAt, "resolved_at": refund.ResolvedAt,
 	}
 }
 
