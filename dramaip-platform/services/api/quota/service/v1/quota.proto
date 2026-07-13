@@ -76,6 +76,9 @@ message SettleTokensRequest {
   string model = 3;
   int64 prompt_tokens = 4;
   int64 completion_tokens = 5;
+  // False means the provider completed but did not return trustworthy usage.
+  // The quota service must retain the reservation until its safe fallback.
+  bool usage_known = 6;
 }
 
 message CancelReservationRequest {

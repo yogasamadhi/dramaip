@@ -56,7 +56,10 @@ func (s *QuotaService) ReserveTokens(ctx context.Context, req *quotav1.ReserveTo
 }
 
 func (s *QuotaService) SettleTokens(ctx context.Context, req *quotav1.SettleTokensRequest) (*quotav1.TokenUsage, error) {
-	usage, err := s.uc.SettleTokens(ctx, req.ReservationId, req.RequestId, req.Model, req.PromptTokens, req.CompletionTokens)
+	usage, err := s.uc.SettleTokens(ctx, data.SettleTokensInput{
+		ReservationID: req.ReservationId, RequestID: req.RequestId, Model: req.Model,
+		PromptTokens: req.PromptTokens, CompletionTokens: req.CompletionTokens, UsageKnown: req.UsageKnown,
+	})
 	if err != nil {
 		if usage.ID == "" {
 			return nil, err

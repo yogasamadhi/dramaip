@@ -116,15 +116,18 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		_ = u.data.FailAudit(ctx, auditID, err.Error())
 		return ChatResult{}, err
 	}
-	if reply.TotalTokens == 0 {
+	usageKnown := reply.UsageKnown
+	if !usageKnown && reply.TotalTokens == 0 {
 		reply.TotalTokens = estimatedTokens
 	}
-	if reply.PromptTokens == 0 && reply.CompletionTokens == 0 {
+	if !usageKnown && reply.PromptTokens == 0 && reply.CompletionTokens == 0 {
 		reply.PromptTokens = estimateReservedTokens(input.Messages, 0)
 		reply.CompletionTokens = reply.TotalTokens - reply.PromptTokens
 		if reply.CompletionTokens < 0 {
 			reply.CompletionTokens = 0
 		}
+	} else if usageKnown && reply.TotalTokens == 0 {
+		reply.TotalTokens = reply.PromptTokens + reply.CompletionTokens
 	}
 	_, err = u.data.Quota.SettleTokens(ctx, &quotav1.SettleTokensRequest{
 		ReservationId:    reservation.Id,
@@ -132,6 +135,7 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		Model:            model,
 		PromptTokens:     reply.PromptTokens,
 		CompletionTokens: reply.CompletionTokens,
+		UsageKnown:       usageKnown,
 	})
 	if err != nil {
 		_ = u.data.FailAudit(ctx, auditID, err.Error())

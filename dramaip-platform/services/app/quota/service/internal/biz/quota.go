@@ -61,11 +61,11 @@ func (u *QuotaUsecase) ReserveTokens(ctx context.Context, userID string, request
 	return u.repo.ReserveTokens(ctx, userID, requestID, reservedTokens)
 }
 
-func (u *QuotaUsecase) SettleTokens(ctx context.Context, reservationID string, requestID string, model string, promptTokens int64, completionTokens int64) (data.TokenUsage, error) {
-	if reservationID == "" || requestID == "" {
+func (u *QuotaUsecase) SettleTokens(ctx context.Context, input data.SettleTokensInput) (data.TokenUsage, error) {
+	if input.ReservationID == "" || input.RequestID == "" {
 		return data.TokenUsage{}, status.Error(codes.InvalidArgument, "missing reservation or request id")
 	}
-	return u.repo.SettleTokens(ctx, reservationID, requestID, model, promptTokens, completionTokens)
+	return u.repo.SettleTokens(ctx, input)
 }
 
 func (u *QuotaUsecase) CancelReservation(ctx context.Context, reservationID string) (data.TokenReservation, error) {

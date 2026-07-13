@@ -1,4 +1,4 @@
-.PHONY: test db-role-matrix plan-snapshot-integration proto event-contracts tidy kong-up kong-down kong-logs \
+.PHONY: test db-role-matrix plan-snapshot-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
         run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
@@ -18,6 +18,11 @@ db-role-matrix:
 # paid subscription still has the old snapshot.
 plan-snapshot-integration:
 	GOCACHE=$(GOCACHE) go test ./app/billing/service/internal/data -run '^TestCheckoutSnapshotSurvivesPlanChangeIntegration$$' -count=1
+
+# Requires a fresh isolated PostgreSQL instance with a DDL login that has
+# CREATEROLE. Exercises quota reservation concurrency and recovery states.
+quota-state-machine-integration:
+	GOCACHE=$(GOCACHE) go test ./app/quota/service/internal/data -run '^TestQuotaStateMachineIntegration$$' -count=1
 
 # 单服务宿主机热重载调试用：默认连 localhost 上的 postgres/redis/rabbitmq 和
 # 各下游 gRPC 端口（9101-9106）。完整容器栈请用 `make platform-up`（根目录 Makefile）

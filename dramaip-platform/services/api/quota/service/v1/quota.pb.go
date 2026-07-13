@@ -548,8 +548,11 @@ type SettleTokensRequest struct {
 	Model            string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
 	PromptTokens     int64                  `protobuf:"varint,4,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
 	CompletionTokens int64                  `protobuf:"varint,5,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// False means the provider completed but did not return trustworthy usage.
+	// The quota service must retain the reservation until its safe fallback.
+	UsageKnown    bool `protobuf:"varint,6,opt,name=usage_known,json=usageKnown,proto3" json:"usage_known,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SettleTokensRequest) Reset() {
@@ -615,6 +618,13 @@ func (x *SettleTokensRequest) GetCompletionTokens() int64 {
 		return x.CompletionTokens
 	}
 	return 0
+}
+
+func (x *SettleTokensRequest) GetUsageKnown() bool {
+	if x != nil {
+		return x.UsageKnown
+	}
+	return false
 }
 
 type CancelReservationRequest struct {
@@ -1062,14 +1072,16 @@ const file_api_quota_service_v1_quota_proto_rawDesc = "" +
 	"\fcurrent_used\x18\x06 \x01(\x03R\vcurrentUsed\x12#\n" +
 	"\rcurrent_quota\x18\a \x01(\x03R\fcurrentQuota\x12\x1d\n" +
 	"\n" +
-	"expires_at\x18\b \x01(\tR\texpiresAt\"\xc3\x01\n" +
+	"expires_at\x18\b \x01(\tR\texpiresAt\"\xe4\x01\n" +
 	"\x13SettleTokensRequest\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x02 \x01(\tR\trequestId\x12\x14\n" +
 	"\x05model\x18\x03 \x01(\tR\x05model\x12#\n" +
 	"\rprompt_tokens\x18\x04 \x01(\x03R\fpromptTokens\x12+\n" +
-	"\x11completion_tokens\x18\x05 \x01(\x03R\x10completionTokens\"A\n" +
+	"\x11completion_tokens\x18\x05 \x01(\x03R\x10completionTokens\x12\x1f\n" +
+	"\vusage_known\x18\x06 \x01(\bR\n" +
+	"usageKnown\"A\n" +
 	"\x18CancelReservationRequest\x12%\n" +
 	"\x0ereservation_id\x18\x01 \x01(\tR\rreservationId\"\xfd\x01\n" +
 	"\n" +
