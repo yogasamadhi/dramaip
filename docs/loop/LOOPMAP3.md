@@ -227,7 +227,7 @@ make platform-down
 | LM3-17 | P1 | 支付 | done | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-18 | P1 | 支付 | done | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | done | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
-| LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
+| LM3-20 | P0 | 架构验证 | done | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
 | LM3-21 | P1 | Observability | todo | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
 | LM3-22 | P1 | SRE/FinOps | todo | 建立指标、看板、告警和错误聚合 | Prometheus、Grafana、Sentry | LM3-14、LM3-21 |
 | LM3-23 | P1 | 平台可靠性 | todo | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
@@ -463,6 +463,7 @@ make platform-down
 - **验收**：所有关键失败模式都有自动测试或可复现演练；Gate 失败会阻止真实支付和 Cloud AI 发布。
 - **验证**：`go test -race ./...`；领域集成测试；`make platform-e2e`；支付沙箱 E2E；并发额度压测报告。
 - **风险/回滚边界**：验证 Gate；不为通过测试修改生产规则，失败时回到对应能力 loop 修复。
+- **完成边界（2026-07-13）**：全量 race 与全套隔离领域集成 Gate 已通过；真实付款按所有者授权跳过，且 Compose E2E 因既有用户栈缺失 PostgreSQL 未运行，二者继续作为真实支付/部署发布阻断项，不据此宣称生产就绪。详见 [LM3-20 Gate 记录](./LM3-20-账本与支付安全Gate.md)。
 
 ### LM3-21：全链路 Trace 与安全日志
 
@@ -1092,4 +1093,19 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-19-reconciliation` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: This completion record is committed on the loop branch after functional validation.
 Notes: On 2026-07-13 the repository owner explicitly directed that real payment be skipped before continuing. This loop therefore delivers local-ledger reconciliation and controlled, audited operator workflows only; it is not proof of downloaded WeChat/Alipay settlement files, real refunds, real payment, public callback reachability, or production readiness. Future merchant-enabled environments must add official provider bill adapters and run their documented sandbox E2E before treating reconciliation as external-channel settlement evidence.
+```
+
+```text
+Loop: LM3-20
+Target branch: main
+Loop branch: loop/lm3-20-ledger-safety-gate
+Commit(s): This Gate record commit.
+Merge commit: The required no-ff merge follows after synchronization with origin/main.
+Verification: Full `go test -race ./...` passed. Fresh isolated PostgreSQL 16 databases ran billing Saga, lifecycle, WeChat webhook, Alipay webhook, quota state-machine and reconciliation integrations through migration 027; `make event-contracts`, Compose config and Helm lint/template passed.
+Diff review: Documentation/Gate-only diff; `git diff --check` passed. No production rule, credential, payment record or generated artifact is added.
+Remote sync: main was synchronized with origin before this branch was created and is synchronized again before merge.
+Push: Ordinary `git push origin main`; no Gitee hosted pipeline.
+Loop branch cleanup: Delete `loop/lm3-20-ledger-safety-gate` after push.
+Current branch/worktree: Gate record committed after validation.
+Notes: Real payment sandbox was explicitly waived by the owner. Compose E2E was not run because the pre-existing user Compose stack has no healthy PostgreSQL service; it was not stopped or rebuilt. Both remain real-payment/deployment blockers, documented in the Gate record.
 ```
