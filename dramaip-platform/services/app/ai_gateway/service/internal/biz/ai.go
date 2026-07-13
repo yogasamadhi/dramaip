@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/ai_gateway/service/internal/data"
@@ -17,12 +18,13 @@ import (
 type ChatMessage = data.ChatMessage
 
 type ChatInput struct {
-	UserID    string
-	RequestID string
-	Provider  string
-	Model     string
-	Messages  []ChatMessage
-	MaxTokens int64
+	UserID         string
+	RequestID      string
+	IdempotencyKey string
+	Provider       string
+	Model          string
+	Messages       []ChatMessage
+	MaxTokens      int64
 }
 
 type ChatResult struct {
@@ -63,8 +65,16 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	if len(input.Messages) == 0 {
 		return ChatResult{}, status.Error(codes.InvalidArgument, "messages are required")
 	}
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.IdempotencyKey == "" {
+		input.IdempotencyKey = input.RequestID
+	}
+	if input.IdempotencyKey == "" {
+		input.IdempotencyKey = platform.NewUUID()
+	}
 	if input.RequestID == "" {
-		input.RequestID = platform.NewUUID()
+		input.RequestID = input.IdempotencyKey
 	}
 	provider, ok := u.provider(input.Provider)
 	if !ok {
@@ -78,28 +88,32 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	if err != nil {
 		return ChatResult{}, err
 	}
-	if existing, ok, err := u.data.GetAudit(ctx, input.UserID, input.RequestID); err != nil {
-		return ChatResult{}, err
-	} else if ok {
-		if existing.RequestHash != requestHash {
-			return ChatResult{}, status.Error(codes.AlreadyExists, "request id already used with different payload")
-		}
-		if existing.Status == "succeeded" {
-			return ChatResult{
-				Content: existing.Content, Provider: existing.Provider, Model: existing.Model,
-				PromptTokens: existing.PromptTokens, CompletionTokens: existing.CompletionTokens, TotalTokens: existing.TotalTokens,
-				ReservationID: existing.ReservationID, RemainingTokens: existing.RemainingTokens, RequestID: input.RequestID, Status: existing.Status,
-			}, nil
-		}
-		return ChatResult{}, status.Errorf(codes.FailedPrecondition, "request status %s", existing.Status)
-	}
-	if err := u.data.CheckRateLimits(ctx, input.UserID, u.userRPMLimit, u.dailyTokenLimit); err != nil {
-		return ChatResult{}, err
-	}
-	auditID, err := u.data.CreateAudit(ctx, data.AuditRecord{
-		UserID: input.UserID, RequestID: input.RequestID, RequestHash: requestHash, Provider: provider.Name, Model: model,
+	cached, cachedOK := u.data.GetCachedAudit(ctx, input.UserID, input.IdempotencyKey)
+	audit, created, err := u.data.ClaimAudit(ctx, data.AuditRecord{
+		UserID: input.UserID, RequestID: input.RequestID, IdempotencyKey: input.IdempotencyKey,
+		RequestHash: requestHash, Provider: provider.Name, Model: model,
 	})
 	if err != nil {
+		// Do not call quota or the Provider until durable idempotency is claimed.
+		return ChatResult{}, err
+	}
+	if !created {
+		if audit.RequestHash != requestHash {
+			return ChatResult{}, status.Error(codes.AlreadyExists, "request id already used with different payload")
+		}
+		if audit.Status == "succeeded" {
+			if cachedOK && cached.RequestHash == requestHash {
+				return chatResultFromAudit(cached), nil
+			}
+			return chatResultFromAudit(audit), nil
+		}
+		if audit.Status == "in_progress" {
+			return ChatResult{}, status.Error(codes.Aborted, "request is still in progress")
+		}
+		return ChatResult{}, status.Errorf(codes.FailedPrecondition, "request status %s", audit.Status)
+	}
+	if err := u.data.CheckRateLimits(ctx, input.UserID, u.userRPMLimit, u.dailyTokenLimit); err != nil {
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
 	estimatedTokens := estimateReservedTokens(input.Messages, input.MaxTokens)
@@ -107,13 +121,13 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		UserId: input.UserID, RequestId: input.RequestID, ReservedTokens: estimatedTokens,
 	})
 	if err != nil {
-		_ = u.data.FailAudit(ctx, auditID, err.Error())
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
 	reply, err := u.data.CallProvider(ctx, provider, model, input.Messages, input.MaxTokens)
 	if err != nil {
 		_, _ = u.data.Quota.CancelReservation(ctx, &quotav1.CancelReservationRequest{ReservationId: reservation.Id})
-		_ = u.data.FailAudit(ctx, auditID, err.Error())
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
 	usageKnown := reply.UsageKnown
@@ -138,25 +152,33 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		UsageKnown:       usageKnown,
 	})
 	if err != nil {
-		_ = u.data.FailAudit(ctx, auditID, err.Error())
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
 	balance, err := u.data.Quota.GetTokenBalance(ctx, &quotav1.GetTokenBalanceRequest{UserId: input.UserID})
 	if err != nil {
-		_ = u.data.FailAudit(ctx, auditID, err.Error())
+		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
-	if err := u.data.CompleteAudit(ctx, auditID, data.AuditRecord{
+	completedAudit := data.AuditRecord{
+		RequestHash: requestHash, RequestID: input.RequestID, Provider: provider.Name, Model: model, Status: "succeeded",
 		ReservationID: reservation.Id, Content: reply.Content, PromptTokens: reply.PromptTokens,
 		CompletionTokens: reply.CompletionTokens, TotalTokens: reply.TotalTokens, RemainingTokens: balance.RemainingTokens,
-	}); err != nil {
+	}
+	if err := u.data.CompleteAudit(ctx, audit.ID, completedAudit); err != nil {
 		return ChatResult{}, err
 	}
+	u.data.CacheAudit(ctx, input.UserID, input.IdempotencyKey, completedAudit)
+	return chatResultFromAudit(completedAudit), nil
+}
+
+func chatResultFromAudit(audit data.AuditRecord) ChatResult {
 	return ChatResult{
-		Content: reply.Content, Provider: provider.Name, Model: model,
-		PromptTokens: reply.PromptTokens, CompletionTokens: reply.CompletionTokens, TotalTokens: reply.TotalTokens,
-		ReservationID: reservation.Id, RemainingTokens: balance.RemainingTokens, RequestID: input.RequestID, Status: "succeeded",
-	}, nil
+		Content: audit.Content, Provider: audit.Provider, Model: audit.Model,
+		PromptTokens: audit.PromptTokens, CompletionTokens: audit.CompletionTokens, TotalTokens: audit.TotalTokens,
+		ReservationID: audit.ReservationID, RemainingTokens: audit.RemainingTokens,
+		RequestID: audit.RequestID, Status: audit.Status,
+	}
 }
 
 func (u *AiGatewayUsecase) provider(name string) (data.Provider, bool) {

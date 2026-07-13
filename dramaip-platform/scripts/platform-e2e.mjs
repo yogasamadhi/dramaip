@@ -37,7 +37,7 @@ function isUnsafeMethod(method) {
   return !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(method)
 }
 
-async function request(method, path, { body, expect = 200, requireTrace = true } = {}) {
+async function request(method, path, { body, headers = {}, expect = 200, requireTrace = true } = {}) {
   const csrfToken = cookieJar.get(csrfCookieName)?.value
   const cookies = cookieHeader(path)
   const res = await fetch(new URL(path, baseURL), {
@@ -46,6 +46,7 @@ async function request(method, path, { body, expect = 200, requireTrace = true }
       ...(cookies ? { Cookie: cookies } : {}),
       ...(isUnsafeMethod(method) && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -159,13 +160,17 @@ const noKey = await request('POST', '/v1/ai/chat', {
 assert(String(noKey.error?.message ?? noKey.error ?? '').includes('api key'), 'no-key AI error was not explicit')
 
 const balanceBeforeTestProvider = await request('GET', '/v1/me/token-balance')
+const aiRequestID = `e2e-test-provider-${Date.now()}`
+const aiIdempotencyKey = `e2e-idempotency-${Date.now()}`
+const aiRequest = {
+  request_id: aiRequestID,
+  provider: 'test',
+  messages: [{ role: 'user', content: 'Generate an end-to-end premise.' }],
+  max_tokens: 32,
+}
 const testProviderReply = await request('POST', '/v1/ai/chat', {
-  body: {
-    request_id: `e2e-test-provider-${Date.now()}`,
-    provider: 'test',
-    messages: [{ role: 'user', content: 'Generate an end-to-end premise.' }],
-    max_tokens: 32,
-  },
+  body: aiRequest,
+  headers: { 'Idempotency-Key': aiIdempotencyKey },
 })
 assert(testProviderReply.content && testProviderReply.reservation_id, 'test AI response missing content or reservation')
 const balanceAfterTestProvider = await request('GET', '/v1/me/token-balance')
@@ -173,6 +178,24 @@ assert(
   balanceAfterTestProvider.remaining_tokens < balanceBeforeTestProvider.remaining_tokens,
   'test AI provider did not consume quota',
 )
+const replayedTestProviderReply = await request('POST', '/v1/ai/chat', {
+  body: aiRequest,
+  headers: { 'Idempotency-Key': aiIdempotencyKey },
+})
+assert(
+  replayedTestProviderReply.reservation_id === testProviderReply.reservation_id,
+  'idempotent AI replay created a different reservation',
+)
+const balanceAfterReplay = await request('GET', '/v1/me/token-balance')
+assert(
+  balanceAfterReplay.remaining_tokens === balanceAfterTestProvider.remaining_tokens,
+  'idempotent AI replay consumed quota again',
+)
+await request('POST', '/v1/ai/chat', {
+  expect: 409,
+  body: { ...aiRequest, messages: [{ role: 'user', content: 'Different payload must conflict.' }] },
+  headers: { 'Idempotency-Key': aiIdempotencyKey },
+})
 
 const usage = await request('GET', '/v1/me/token-usage')
 assert(Array.isArray(usage.usage) && usage.usage.length > 0, 'token usage list is empty')

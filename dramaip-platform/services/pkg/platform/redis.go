@@ -3,14 +3,19 @@ package platform
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisConfig struct {
-	Addr     string
-	Password string
-	DB       int
+	Addr         string
+	Password     string
+	DB           int
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	MaxRetries   int
 }
 
 type Redis struct {
@@ -27,9 +32,13 @@ func RedisConfigFromEnv() RedisConfig {
 
 func NewRedis(config RedisConfig) *Redis {
 	return &Redis{client: redis.NewClient(&redis.Options{
-		Addr:     config.Addr,
-		Password: config.Password,
-		DB:       config.DB,
+		Addr:         config.Addr,
+		Password:     config.Password,
+		DB:           config.DB,
+		DialTimeout:  config.DialTimeout,
+		ReadTimeout:  config.ReadTimeout,
+		WriteTimeout: config.WriteTimeout,
+		MaxRetries:   config.MaxRetries,
 	})}
 }
 

@@ -83,3 +83,7 @@ proto:
 
 event-contracts:
 	bash scripts/check-event-contracts.sh
+
+ai-idempotency-integration:
+	@test -n "$(POSTGRES_AI_IDEMPOTENCY_TEST_DSN)" || (echo "POSTGRES_AI_IDEMPOTENCY_TEST_DSN is required"; exit 1)
+	POSTGRES_AI_IDEMPOTENCY_TEST_DSN="$(POSTGRES_AI_IDEMPOTENCY_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/ai_gateway/service/internal/biz -run '^TestAIRequestIdempotencyIntegration$$' -count=1

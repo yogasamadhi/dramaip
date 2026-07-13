@@ -560,10 +560,11 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RequestID string `json:"request_id"`
-		Provider  string `json:"provider"`
-		Model     string `json:"model"`
-		Messages  []struct {
+		RequestID      string `json:"request_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+		Provider       string `json:"provider"`
+		Model          string `json:"model"`
+		Messages       []struct {
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"messages"`
@@ -577,7 +578,23 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 	for _, message := range req.Messages {
 		messages = append(messages, &aiv1.ChatMessage{Role: message.Role, Content: message.Content})
 	}
-	reply, err := s.uc.Chat(r.Context(), auth.UserId, req.RequestID, req.Provider, req.Model, messages, req.MaxTokens)
+	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if idempotencyKey == "" {
+		idempotencyKey = strings.TrimSpace(req.IdempotencyKey)
+	}
+	if idempotencyKey == "" {
+		// request_id is kept as a legacy idempotency key for older SDKs.
+		idempotencyKey = strings.TrimSpace(req.RequestID)
+	}
+	if idempotencyKey == "" {
+		idempotencyKey = platform.NewUUID()
+	}
+	requestID := strings.TrimSpace(req.RequestID)
+	if requestID == "" {
+		requestID = idempotencyKey
+	}
+	w.Header().Set("Idempotency-Key", idempotencyKey)
+	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, req.Provider, req.Model, messages, req.MaxTokens)
 	if err != nil {
 		writeGRPCError(w, err, "chat_unavailable")
 		return
@@ -905,7 +922,7 @@ func writeGRPCError(w http.ResponseWriter, err error, fallback string) {
 			code = http.StatusNotFound
 		case codes.ResourceExhausted:
 			code = http.StatusPaymentRequired
-		case codes.AlreadyExists, codes.FailedPrecondition:
+		case codes.AlreadyExists, codes.FailedPrecondition, codes.Aborted:
 			code = http.StatusConflict
 		case codes.PermissionDenied:
 			code = http.StatusForbidden

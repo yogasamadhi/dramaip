@@ -22,15 +22,18 @@ const (
 )
 
 type ChatRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	Model         string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
-	Messages      []*ChatMessage         `protobuf:"bytes,4,rep,name=messages,proto3" json:"messages,omitempty"`
-	MaxTokens     int64                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
-	Provider      string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	UserId    string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	RequestId string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Model     string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	Messages  []*ChatMessage         `protobuf:"bytes,4,rep,name=messages,proto3" json:"messages,omitempty"`
+	MaxTokens int64                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	Provider  string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
+	// Idempotency-Key supplied by the client. request_id remains a request
+	// correlation value for backwards compatibility.
+	IdempotencyKey string `protobuf:"bytes,7,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ChatRequest) Reset() {
@@ -101,6 +104,13 @@ func (x *ChatRequest) GetMaxTokens() int64 {
 func (x *ChatRequest) GetProvider() string {
 	if x != nil {
 		return x.Provider
+	}
+	return ""
+}
+
+func (x *ChatRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
 	}
 	return ""
 }
@@ -277,7 +287,7 @@ var File_api_ai_gateway_service_v1_ai_proto protoreflect.FileDescriptor
 
 const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\n" +
-	"\"api/ai_gateway/service/v1/ai.proto\x12\x1ddramaip.ai_gateway.service.v1\"\xde\x01\n" +
+	"\"api/ai_gateway/service/v1/ai.proto\x12\x1ddramaip.ai_gateway.service.v1\"\x87\x02\n" +
 	"\vChatRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
@@ -286,7 +296,8 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\bmessages\x18\x04 \x03(\v2*.dramaip.ai_gateway.service.v1.ChatMessageR\bmessages\x12\x1d\n" +
 	"\n" +
 	"max_tokens\x18\x05 \x01(\x03R\tmaxTokens\x12\x1a\n" +
-	"\bprovider\x18\x06 \x01(\tR\bprovider\";\n" +
+	"\bprovider\x18\x06 \x01(\tR\bprovider\x12'\n" +
+	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\xd5\x02\n" +
