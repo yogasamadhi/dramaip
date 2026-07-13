@@ -96,7 +96,7 @@
 | D-003 缺少事件契约 | LM3-04 | 事件 schema 版本化并由 CI 校验 |
 | D-004 BFF 测试使用无版本路径 | LM3-01 | API、SDK、测试统一 `/v1/...` |
 | D-005 套餐快照不完整 | LM3-11（done） | 订单、订阅、周期账户可重建历史权益 |
-| D-006 Provider 成本快照不完整 | LM3-14 | request 级成本可追踪、可对账 |
+| D-006 Provider 成本快照不完整 | LM3-14（done） | request 级成本可追踪、可对账 |
 | D-007 DB role 未隔离 | LM3-10 | 服务只能访问自己 schema |
 | D-008 生产仍使用 HS256 | LM3-05（done） | RS256 + JWKS + key rotation |
 | D-009 Web token 存 localStorage | LM3-06（done） | HttpOnly Cookie + CSRF，长期 token 不进 localStorage |
@@ -221,7 +221,7 @@ make platform-down
 | LM3-11 | P0 | Billing | done | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
 | LM3-12 | P0 | Quota | done | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
 | LM3-13 | P0 | AI Gateway | done | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
-| LM3-14 | P0 | AI FinOps | todo | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
+| LM3-14 | P0 | AI FinOps | done | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
 | LM3-15 | P0 | Billing/Quota | todo | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | todo | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
 | LM3-17 | P1 | 支付 | todo | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
@@ -996,4 +996,20 @@ Push: Core merge and this completion metadata are pending final ordinary `git pu
 Loop branch cleanup: Pending final metadata push; delete `loop/lm3-13-ai-request-idempotency` immediately afterward.
 Current branch/worktree: main; only this completion metadata update is uncommitted.
 Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. Migration 021 preserves old `request_id` callers during the rolling window through its compatibility trigger; it does not delete historical audit records. Provider cost accounting remains LM3-14 work.
+```
+
+```text
+Loop: LM3-14
+Target branch: main
+Loop branch: loop/lm3-14-provider-cost-ledger (deleted after the core merge push)
+Commit(s): 7da2199 loop(LM3-14): add provider cost ledger
+Merge commit: b7a2cdd merge: LM3-14 provider cost ledger
+Verification: A fresh localhost-only PostgreSQL 18 container ran `make ai-idempotency-integration` with every migration through 022. It verifies durable replay does not call Provider/Quota twice, the immutable Provider cost row links the request and quota reservation, Redis failure still falls back to PostgreSQL, a sub-cent user window cap rejects before the Provider call, and `user_cost_limit_rejected` is appended. Data tests cover model-specific USD price/CNY exchange snapshots and a different-model provider-level fallback. Before and after the no-ff merge, `GOCACHE=/tmp/dramaip-go-build go test -race ./...`, `make event-contracts`, `pnpm typecheck`, `pnpm build:web`, and `node --check scripts/platform-e2e.mjs` passed. Docker Compose config, Helm lint, production/development Helm rendering (with the required development host-path override), and rendered Kong CORS `Idempotency-Key` assertions passed.
+Compose E2E: Not claimed. The pre-existing local Compose stack was left broken after a Docker Desktop restart because services could not resolve its absent `postgres` service; this loop did not stop or delete user-owned containers. The isolated database integration, direct BFF test, deployment renders, and E2E script syntax are the substitute evidence. Restore a healthy stack and run `make platform-e2e` before using it as deployment evidence.
+Diff review: Reviewed the complete 20-file functional diff before commit and `origin/main...HEAD` after merge with `git diff --check`. Migration 022 is append-only for cost log/guard/alert data; generated protobuf is derived from checked-in source; no real environment file, credential, provider key, container data, cache, image, or unrelated artifact is included. Cost configuration fails closed for non-test Providers, and the quota ledger remains the sole authority for user quota deduction.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed main aligned before branch creation and immediately before the no-ff merge.
+Push: Core merge b7a2cdd was pushed successfully to ordinary `origin/main`; this completion metadata is the final LM3-14 push.
+Loop branch cleanup: Completed after the core merge push.
+Current branch/worktree: main; completion metadata and D-006 status update are committed and awaiting the final normal push.
+Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. Test Provider pricing is an explicitly marked fixture only; production must supply reviewed provider/model prices and CNY exchange rates through operator-managed configuration. LM3-22 owns metrics/dashboard/notification integration for the append-only alert source.
 ```
