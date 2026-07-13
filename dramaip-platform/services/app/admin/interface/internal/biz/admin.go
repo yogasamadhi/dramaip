@@ -38,6 +38,7 @@ type AdminRepository interface {
 	SessionActive(context.Context, string, string) (bool, error)
 	CreateConfirmation(context.Context, data.ConfirmationInput) (data.Confirmation, error)
 	SuspendWithConfirmation(context.Context, string, string, string, string) (data.Principal, error)
+	ConsumeReportingExceptionConfirmation(context.Context, string, string, string, string) (string, error)
 	ListAuditLogs(context.Context, int) ([]data.AuditLog, error)
 }
 
@@ -113,11 +114,12 @@ func (u *AdminUsecase) Authenticate(ctx context.Context, rawToken string) (Princ
 }
 
 func (u *AdminUsecase) CreateConfirmation(ctx context.Context, actor Principal, action, targetID, reason string) (Confirmation, error) {
-	if !actor.Allows("principal.write") {
+	action, targetID, reason = strings.TrimSpace(action), strings.TrimSpace(targetID), strings.TrimSpace(reason)
+	allowed := (action == "principal.suspend" && actor.Allows("principal.write")) || (action == "reporting.exception.resolve" && actor.Allows("reporting.write"))
+	if !allowed {
 		return Confirmation{}, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
-	action, targetID, reason = strings.TrimSpace(action), strings.TrimSpace(targetID), strings.TrimSpace(reason)
-	if action != "principal.suspend" || len(targetID) < 8 || len(targetID) > 64 || len(reason) < 4 || len(reason) > 300 {
+	if len(targetID) < 8 || len(targetID) > 64 || len(reason) < 4 || len(reason) > 300 {
 		return Confirmation{}, status.Error(codes.InvalidArgument, "invalid_admin_confirmation")
 	}
 	confirmation, err := u.repo.CreateConfirmation(ctx, data.ConfirmationInput{ID: platform.NewUUID(), ActorID: actor.ID, Action: action, TargetID: targetID, Reason: reason, TraceID: traceOrRequestID(ctx), ExpiresAt: time.Now().UTC().Add(confirmationTTL)})
@@ -125,6 +127,24 @@ func (u *AdminUsecase) CreateConfirmation(ctx context.Context, actor Principal, 
 		return Confirmation{}, err
 	}
 	return Confirmation{ID: confirmation.ID, Action: confirmation.Action, TargetID: confirmation.TargetID, ExpiresAt: confirmation.ExpiresAt}, nil
+}
+
+// ConsumeReportingExceptionConfirmation records a durable audit request
+// before the BFF calls reporting. If the downstream service is unavailable,
+// the consumed confirmation and request audit explain why an operator must
+// start a new confirmation instead of silently repeating a privileged action.
+func (u *AdminUsecase) ConsumeReportingExceptionConfirmation(ctx context.Context, actor Principal, exceptionID, confirmationID string) (string, error) {
+	if !actor.Allows("reporting.write") {
+		return "", status.Error(codes.PermissionDenied, "admin_permission_denied")
+	}
+	reason, err := u.repo.ConsumeReportingExceptionConfirmation(ctx, actor.ID, strings.TrimSpace(exceptionID), strings.TrimSpace(confirmationID), traceOrRequestID(ctx))
+	if errors.Is(err, data.ErrConfirmationInvalid) {
+		return "", status.Error(codes.FailedPrecondition, "admin_confirmation_invalid")
+	}
+	if err != nil {
+		return "", err
+	}
+	return reason, nil
 }
 
 func (u *AdminUsecase) SuspendPrincipal(ctx context.Context, actor Principal, targetID, confirmationID string) (Principal, error) {
@@ -182,6 +202,7 @@ func permissionsFor(roles []string) []string {
 		case "security_admin":
 			set["audit.read"] = struct{}{}
 			set["principal.write"] = struct{}{}
+			set["reporting.write"] = struct{}{}
 		}
 	}
 	out := make([]string, 0, len(set))

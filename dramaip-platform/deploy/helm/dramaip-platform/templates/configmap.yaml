@@ -30,7 +30,10 @@ data:
   NOTIFICATION_GRPC_ADDR: {{ .Values.config.notificationGrpcAddr | quote }}
   INSPIRATION_HTTP_ADDR: {{ .Values.config.inspirationHttpAddr | quote }}
   INSPIRATION_GRPC_ADDR: {{ .Values.config.inspirationGrpcAddr | quote }}
+  REPORTING_HTTP_ADDR: {{ .Values.config.reportingHttpAddr | quote }}
+  REPORTING_GRPC_ADDR: {{ .Values.config.reportingGrpcAddr | quote }}
   NOTIFICATION_JOB_HTTP_ADDR: {{ .Values.config.notificationJobHttpAddr | quote }}
+  REPORTING_JOB_HTTP_ADDR: {{ .Values.config.reportingJobHttpAddr | quote }}
   BILLING_JOB_HTTP_ADDR: {{ .Values.config.billingJobHttpAddr | quote }}
   QUOTA_JOB_HTTP_ADDR: {{ .Values.config.quotaJobHttpAddr | quote }}
   AUTO_MIGRATE: {{ .Values.config.autoMigrate | quote }}
@@ -53,6 +56,12 @@ data:
   NOTIFICATION_EVENT_MAX_RETRIES: {{ .Values.config.notificationConsumer.maxRetries | quote }}
   NOTIFICATION_INBOX_LEASE: {{ .Values.config.notificationConsumer.inboxLease | quote }}
   NOTIFICATION_CHANNELS: {{ .Values.config.notificationConsumer.channels | quote }}
+  REPORTING_EVENTS_QUEUE: {{ .Values.config.reportingConsumer.eventsQueue | quote }}
+  REPORTING_DLQ_EXCHANGE: {{ .Values.config.reportingConsumer.deadLetterExchange | quote }}
+  REPORTING_DLQ_QUEUE: {{ .Values.config.reportingConsumer.deadLetterQueue | quote }}
+  REPORTING_EVENT_PREFETCH: {{ .Values.config.reportingConsumer.prefetch | quote }}
+  REPORTING_EVENT_MAX_RETRIES: {{ .Values.config.reportingConsumer.maxRetries | quote }}
+  REPORTING_REBUILD_ON_START: {{ .Values.config.reportingConsumer.rebuildOnStart | quote }}
   OUTBOX_LEASE: {{ .Values.config.billingJob.outboxLease | quote }}
   OUTBOX_RETRY_DELAY: {{ .Values.config.billingJob.outboxRetryDelay | quote }}
   BILLING_RECONCILIATION_ENABLED: {{ .Values.config.billingJob.reconciliationEnabled | quote }}
@@ -100,6 +109,7 @@ data:
   AI_GATEWAY_GRPC_ENDPOINT: {{ .Values.config.downstream.aiGatewayGrpcEndpoint | quote }}
   NOTIFICATION_GRPC_ENDPOINT: {{ .Values.config.downstream.notificationGrpcEndpoint | quote }}
   INSPIRATION_GRPC_ENDPOINT: {{ .Values.config.downstream.inspirationGrpcEndpoint | quote }}
+  REPORTING_GRPC_ENDPOINT: {{ .Values.config.downstream.reportingGrpcEndpoint | quote }}
   AI_PROVIDERS: {{ .Values.config.ai.providers | quote }}
   AI_PROVIDER_DEFAULT: {{ .Values.config.ai.defaultProvider | quote }}
   AI_PROVIDER_BASE_URL: {{ .Values.config.ai.providerBaseUrl | quote }}

@@ -6,6 +6,8 @@
   "scripts": {
     "dev:web": "pnpm --filter @dramaip/web dev",
     "build:web": "pnpm --filter @dramaip/web build",
+    "dev:admin": "pnpm --filter @dramaip/admin dev",
+    "build:admin": "pnpm --filter @dramaip/admin build",
     "dev:mobile": "pnpm --filter @dramaip/mobile start",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"

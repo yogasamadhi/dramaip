@@ -15,10 +15,13 @@ import (
 
 type HTTPService struct {
 	uc                         *biz.AdminUsecase
+	reporting                  *biz.ReportingUsecase
 	requestsTotal, errorsTotal uint64
 }
 
-func NewHTTPService(uc *biz.AdminUsecase) *HTTPService { return &HTTPService{uc: uc} }
+func NewHTTPService(uc *biz.AdminUsecase, reporting *biz.ReportingUsecase) *HTTPService {
+	return &HTTPService{uc: uc, reporting: reporting}
+}
 
 func (s *HTTPService) Router() http.Handler {
 	mux := http.NewServeMux()
@@ -30,6 +33,12 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/admin/confirmations", s.handleConfirmation)
 	mux.HandleFunc("/v1/admin/principals/suspend", s.handleSuspend)
 	mux.HandleFunc("/v1/admin/audit", s.handleAudit)
+	mux.HandleFunc("/v1/admin/reporting/overview", s.handleReportingOverview)
+	mux.HandleFunc("/v1/admin/reporting/users", s.handleReportingUsers)
+	mux.HandleFunc("/v1/admin/reporting/orders", s.handleReportingOrders)
+	mux.HandleFunc("/v1/admin/reporting/subscriptions", s.handleReportingSubscriptions)
+	mux.HandleFunc("/v1/admin/reporting/exceptions", s.handleReportingExceptions)
+	mux.HandleFunc("/v1/admin/reporting/exceptions/resolve", s.handleResolveReportingException)
 	return platform.TraceMiddleware("admin-bff-interface", s.metricsMiddleware(mux))
 }
 
@@ -139,14 +148,9 @@ func (s *HTTPService) handleAudit(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit := 50
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 || parsed > 100 {
-			writeError(w, http.StatusBadRequest, "invalid_limit")
-			return
-		}
-		limit = parsed
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
 	}
 	entries, err := s.uc.ListAudit(r.Context(), actor, limit)
 	if err != nil {
@@ -158,6 +162,167 @@ func (s *HTTPService) handleAudit(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{"id": entry.ID, "actor_id": entry.ActorID, "action": entry.Action, "resource_type": entry.ResourceType, "resource_id": entry.ResourceID, "reason": entry.Reason, "before_state": entry.BeforeState, "after_state": entry.AfterState, "trace_id": entry.TraceID, "created_at": entry.CreatedAt})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"entries": items})
+}
+func (s *HTTPService) handleReportingOverview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	response, err := s.reporting.Overview(r.Context(), actor)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func (s *HTTPService) handleReportingUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	response, err := s.reporting.Users(r.Context(), actor, limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func (s *HTTPService) handleReportingOrders(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	response, err := s.reporting.Orders(r.Context(), actor, limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func (s *HTTPService) handleReportingSubscriptions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	response, err := s.reporting.Subscriptions(r.Context(), actor, limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func (s *HTTPService) handleReportingExceptions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	includeResolved := r.URL.Query().Get("include_resolved") == "true"
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	response, err := s.reporting.Exceptions(r.Context(), actor, limit, includeResolved)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func (s *HTTPService) handleResolveReportingException(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		ExceptionID    string `json:"exception_id"`
+		ConfirmationID string `json:"confirmation_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if s.reporting == nil {
+		writeError(w, http.StatusServiceUnavailable, "reporting_unavailable")
+		return
+	}
+	reason, err := s.uc.ConsumeReportingExceptionConfirmation(r.Context(), actor, req.ExceptionID, req.ConfirmationID)
+	if err != nil {
+		s.writeGRPCError(w, err, "admin_confirmation_unavailable")
+		return
+	}
+	response, err := s.reporting.ResolveException(r.Context(), actor, req.ExceptionID, reason)
+	if err != nil {
+		s.writeGRPCError(w, err, "reporting_exception_resolution_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+func parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 100 {
+			writeError(w, http.StatusBadRequest, "invalid_limit")
+			return 0, false
+		}
+		limit = parsed
+	}
+	return limit, true
 }
 func (s *HTTPService) authenticate(w http.ResponseWriter, r *http.Request) (biz.Principal, bool) {
 	raw := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))

@@ -10,6 +10,7 @@
   (dict "component" "ai-gateway" "http" 8105 "grpc" 9105)
   (dict "component" "notification" "http" 8108 "grpc" 9106)
   (dict "component" "inspiration" "http" 8111 "grpc" 9107)
+  (dict "component" "reporting" "http" 8112 "grpc" 9108)
 -}}
 {{- range $index, $service := $services }}
 {{- $component := index $service "component" }}

@@ -39,8 +39,14 @@ images:
   inspiration:
     repository: dramaip-inspiration
     tag: dev
+  reporting:
+    repository: dramaip-reporting
+    tag: dev
   notificationJob:
     repository: dramaip-notification-job
+    tag: dev
+  reportingJob:
+    repository: dramaip-reporting-job
     tag: dev
   billingJob:
     repository: dramaip-billing-job
@@ -91,6 +97,7 @@ secret:
   postgresNotificationPassword: dramaip
   postgresInspirationPassword: dramaip
   postgresAdminPassword: dramaip
+  postgresReportingPassword: dramaip
   redisPassword: dramaip
   rabbitmqUser: dramaip
   rabbitmqPassword: dramaip

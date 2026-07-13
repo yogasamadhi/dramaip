@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/data"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
 )
 
 func TestAdminHTTPRejectsCustomerTokenAndEnforcesConfirmation(t *testing.T) {
@@ -35,6 +37,13 @@ func TestAdminHTTPRejectsCustomerTokenAndEnforcesConfirmation(t *testing.T) {
 		AccessToken string `json:"access_token"`
 	}
 	_ = json.Unmarshal(loginRecorder.Body.Bytes(), &session)
+	overview := httptest.NewRequest(http.MethodGet, "/v1/admin/reporting/overview", nil)
+	overview.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	overviewRecorder := httptest.NewRecorder()
+	router.ServeHTTP(overviewRecorder, overview)
+	if overviewRecorder.Code != http.StatusOK || !bytes.Contains(overviewRecorder.Body.Bytes(), []byte(`"user_count":3`)) {
+		t.Fatalf("overview = %d: %s", overviewRecorder.Code, overviewRecorder.Body.String())
+	}
 	confirmation := httptest.NewRequest(http.MethodPost, "/v1/admin/confirmations", bytes.NewBufferString(`{"action":"principal.suspend","target_id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","reason":"approved offboarding"}`))
 	confirmation.Header.Set("Authorization", "Bearer "+session.AccessToken)
 	confirmationRecorder := httptest.NewRecorder()
@@ -64,6 +73,38 @@ func TestAdminHTTPRejectsCustomerTokenAndEnforcesConfirmation(t *testing.T) {
 	}
 }
 
+func TestAdminHTTPResolvesOnlyAReportingProjectionWithConfirmation(t *testing.T) {
+	router := newTestHTTPService(t).Router()
+	login := httptest.NewRequest(http.MethodPost, "/v1/admin/auth/login", bytes.NewBufferString(`{"email":"security@example.com","password":"correct-password"}`))
+	loginRecorder := httptest.NewRecorder()
+	router.ServeHTTP(loginRecorder, login)
+	var session struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.Unmarshal(loginRecorder.Body.Bytes(), &session)
+	const exceptionID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+	confirmation := httptest.NewRequest(http.MethodPost, "/v1/admin/confirmations", bytes.NewBufferString(`{"action":"reporting.exception.resolve","target_id":"`+exceptionID+`","reason":"source event replayed"}`))
+	confirmation.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	confirmationRecorder := httptest.NewRecorder()
+	router.ServeHTTP(confirmationRecorder, confirmation)
+	if confirmationRecorder.Code != http.StatusCreated {
+		t.Fatalf("confirmation = %d: %s", confirmationRecorder.Code, confirmationRecorder.Body.String())
+	}
+	var reply struct {
+		Confirmation struct {
+			ID string `json:"id"`
+		} `json:"confirmation"`
+	}
+	_ = json.Unmarshal(confirmationRecorder.Body.Bytes(), &reply)
+	resolve := httptest.NewRequest(http.MethodPost, "/v1/admin/reporting/exceptions/resolve", bytes.NewBufferString(`{"exception_id":"`+exceptionID+`","confirmation_id":"`+reply.Confirmation.ID+`"}`))
+	resolve.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	resolveRecorder := httptest.NewRecorder()
+	router.ServeHTTP(resolveRecorder, resolve)
+	if resolveRecorder.Code != http.StatusOK || !bytes.Contains(resolveRecorder.Body.Bytes(), []byte(`"status":"resolved"`)) {
+		t.Fatalf("resolve = %d: %s", resolveRecorder.Code, resolveRecorder.Body.String())
+	}
+}
+
 func newTestHTTPService(t *testing.T) *HTTPService {
 	t.Helper()
 	hash, err := bcrypt.GenerateFromPassword([]byte("correct-password"), bcrypt.MinCost)
@@ -75,7 +116,7 @@ func newTestHTTPService(t *testing.T) *HTTPService {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewHTTPService(uc)
+	return NewHTTPService(uc, biz.NewReportingUsecase(&httpFakeReporting{}))
 }
 
 type httpFakeRepo struct {
@@ -118,6 +159,34 @@ func (r *httpFakeRepo) SuspendWithConfirmation(_ context.Context, actor, targetI
 	r.audits = append(r.audits, data.AuditLog{Action: "admin.confirmation.consumed"}, data.AuditLog{Action: "admin.principal.suspended"})
 	return target, nil
 }
+func (r *httpFakeRepo) ConsumeReportingExceptionConfirmation(_ context.Context, actor, targetID, confirmationID, _ string) (string, error) {
+	input, ok := r.confirmations[confirmationID]
+	if !ok || input.ActorID != actor || input.TargetID != targetID || input.Action != "reporting.exception.resolve" {
+		return "", data.ErrConfirmationInvalid
+	}
+	return input.Reason, nil
+}
 func (r *httpFakeRepo) ListAuditLogs(context.Context, int) ([]data.AuditLog, error) {
 	return r.audits, nil
+}
+
+type httpFakeReporting struct{}
+
+func (*httpFakeReporting) GetOverview(context.Context, *reportingv1.GetOverviewRequest, ...grpc.CallOption) (*reportingv1.GetOverviewResponse, error) {
+	return &reportingv1.GetOverviewResponse{UserCount: 3}, nil
+}
+func (*httpFakeReporting) ListUsers(context.Context, *reportingv1.ListUsersRequest, ...grpc.CallOption) (*reportingv1.ListUsersResponse, error) {
+	return &reportingv1.ListUsersResponse{}, nil
+}
+func (*httpFakeReporting) ListOrders(context.Context, *reportingv1.ListOrdersRequest, ...grpc.CallOption) (*reportingv1.ListOrdersResponse, error) {
+	return &reportingv1.ListOrdersResponse{}, nil
+}
+func (*httpFakeReporting) ListSubscriptions(context.Context, *reportingv1.ListSubscriptionsRequest, ...grpc.CallOption) (*reportingv1.ListSubscriptionsResponse, error) {
+	return &reportingv1.ListSubscriptionsResponse{}, nil
+}
+func (*httpFakeReporting) ListExceptions(context.Context, *reportingv1.ListExceptionsRequest, ...grpc.CallOption) (*reportingv1.ListExceptionsResponse, error) {
+	return &reportingv1.ListExceptionsResponse{}, nil
+}
+func (*httpFakeReporting) ResolveException(_ context.Context, req *reportingv1.ResolveExceptionRequest, _ ...grpc.CallOption) (*reportingv1.ResolveExceptionResponse, error) {
+	return &reportingv1.ResolveExceptionResponse{Exception: &reportingv1.ProjectionException{Id: req.GetExceptionId(), Status: "resolved"}}, nil
 }

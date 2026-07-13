@@ -171,6 +171,13 @@ func (r *fakeRepo) SuspendWithConfirmation(_ context.Context, actorID, targetID,
 	r.principals[targetID] = target
 	return target, nil
 }
+func (r *fakeRepo) ConsumeReportingExceptionConfirmation(_ context.Context, actorID, targetID, confirmationID, _ string) (string, error) {
+	input, ok := r.confirmations[confirmationID]
+	if !ok || input.ActorID != actorID || input.TargetID != targetID || input.Action != "reporting.exception.resolve" || input.ExpiresAt.Before(time.Now()) {
+		return "", data.ErrConfirmationInvalid
+	}
+	return input.Reason, nil
+}
 func (r *fakeRepo) ListAuditLogs(context.Context, int) ([]data.AuditLog, error) {
 	return append([]data.AuditLog(nil), r.audits...), nil
 }

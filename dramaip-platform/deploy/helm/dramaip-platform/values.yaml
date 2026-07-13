@@ -39,8 +39,14 @@ images:
   inspiration:
     repository: ghcr.io/dramaip/dramaip-inspiration
     tag: "0.1.0"
+  reporting:
+    repository: ghcr.io/dramaip/dramaip-reporting
+    tag: "0.1.0"
   notificationJob:
     repository: ghcr.io/dramaip/dramaip-notification-job
+    tag: "0.1.0"
+  reportingJob:
+    repository: ghcr.io/dramaip/dramaip-reporting-job
     tag: "0.1.0"
   billingJob:
     repository: ghcr.io/dramaip/dramaip-billing-job
@@ -200,7 +206,10 @@ config:
   notificationGrpcAddr: :9106
   inspirationHttpAddr: :8111
   inspirationGrpcAddr: :9107
+  reportingHttpAddr: :8112
+  reportingGrpcAddr: :9108
   notificationJobHttpAddr: :8109
+  reportingJobHttpAddr: :8113
   billingJobHttpAddr: :8106
   quotaJobHttpAddr: :8107
   autoMigrate: "false"
@@ -227,6 +236,13 @@ config:
     maxRetries: "3"
     inboxLease: 1m
     channels: in_app
+  reportingConsumer:
+    eventsQueue: dramaip.reporting.events
+    deadLetterExchange: dramaip.platform.events.dlx
+    deadLetterQueue: dramaip.reporting.events.dlq
+    prefetch: "10"
+    maxRetries: "3"
+    rebuildOnStart: "false"
   billingJob:
     outboxLease: 30s
     outboxRetryDelay: 5s
@@ -261,6 +277,7 @@ config:
     aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
     notificationGrpcEndpoint: dramaip-platform-notification:9106
     inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
+    reportingGrpcEndpoint: dramaip-platform-reporting:9108
   ai:
     providers: openai-compatible
     defaultProvider: openai-compatible
@@ -309,6 +326,7 @@ secret:
   postgresNotificationPassword: change-me
   postgresInspirationPassword: change-me
   postgresAdminPassword: change-me
+  postgresReportingPassword: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -350,7 +368,9 @@ internalMTLS:
     aiGateway: ai-gateway.crt
     notification: notification-service.crt
     inspiration: inspiration-service.crt
+    reporting: reporting-service.crt
     notificationJob: notification-job.crt
+    reportingJob: reporting-job.crt
     billingJob: billing-job.crt
     quotaJob: quota-job.crt
   keyKeys:
@@ -365,7 +385,9 @@ internalMTLS:
     aiGateway: ai-gateway.key
     notification: notification-service.key
     inspiration: inspiration-service.key
+    reporting: reporting-service.key
     notificationJob: notification-job.key
+    reportingJob: reporting-job.key
     billingJob: billing-job.key
     quotaJob: quota-job.key
 
