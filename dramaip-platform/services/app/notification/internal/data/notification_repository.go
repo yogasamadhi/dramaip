@@ -26,7 +26,7 @@ type NotificationRow struct {
 }
 
 func NewData() (*Data, func(), error) {
-	db, err := platform.OpenPostgres()
+	db, err := platform.OpenDomainPostgres(context.Background(), "notification")
 	if err != nil {
 		return nil, nil, err
 	}

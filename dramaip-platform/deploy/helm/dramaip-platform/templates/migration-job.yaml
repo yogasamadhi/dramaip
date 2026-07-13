@@ -37,4 +37,7 @@ spec:
                 name: {{ include "dramaip-platform.fullname" . }}-config
             - secretRef:
                 name: {{ include "dramaip-platform.secretName" . }}
+          env:
+            - name: DB_ROLE_BOOTSTRAP
+              value: {{ .Values.migrations.bootstrapRuntimeRoles | quote }}
 	{{- end }}

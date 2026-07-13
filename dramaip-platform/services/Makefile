@@ -1,4 +1,4 @@
-.PHONY: test proto event-contracts tidy kong-up kong-down kong-logs \
+.PHONY: test db-role-matrix proto event-contracts tidy kong-up kong-down kong-logs \
         run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
@@ -7,6 +7,11 @@ COMPOSE_ENV ?= .env
 
 test:
 	GOCACHE=$(GOCACHE) go test ./...
+
+# Requires a disposable PostgreSQL database and a DDL account with CREATEROLE.
+# See docs/loop/LM3-10-数据库角色验证.md for setup and rollback commands.
+db-role-matrix:
+	GOCACHE=$(GOCACHE) go test ./pkg/platform -run '^TestDatabaseRoleMatrixIntegration$$' -count=1
 
 # 单服务宿主机热重载调试用：默认连 localhost 上的 postgres/redis/rabbitmq 和
 # 各下游 gRPC 端口（9101-9106）。完整容器栈请用 `make platform-up`（根目录 Makefile）

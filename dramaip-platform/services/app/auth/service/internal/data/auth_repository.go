@@ -52,14 +52,12 @@ type refreshTokenRecord struct {
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
-	db, err := platform.OpenPostgres()
+	if cfg.AutoMigrate {
+		return nil, nil, errors.New("AUTO_MIGRATE is not supported; run the migration job with the DDL role")
+	}
+	db, err := platform.OpenDomainPostgres(context.Background(), "auth")
 	if err != nil {
 		return nil, nil, err
-	}
-	if cfg.AutoMigrate {
-		if err := platform.RunMigrations(db, cfg.Data.MigrationsDir); err != nil {
-			return nil, nil, err
-		}
 	}
 	redis := platform.NewRedis(platform.RedisConfigFromEnv())
 	return &Data{DB: db, Redis: redis}, func() { _ = redis.Close() }, nil

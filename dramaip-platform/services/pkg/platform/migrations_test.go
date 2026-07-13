@@ -114,6 +114,7 @@ func TestRunMigrationsIntegration(t *testing.T) {
 		t.Skip("POSTGRES_TEST_DSN not set")
 	}
 	t.Setenv("POSTGRES_DSN", dsn)
+	t.Setenv("DB_ROLE_BOOTSTRAP", "false")
 	dir := t.TempDir()
 	writeMigration(t, dir, "100001_platform_test.up.sql")
 
