@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { apiClient, clearSession, getAccessToken, getRefreshToken } from '../lib/api-client'
+import { apiClient } from '../lib/api-client'
 import { displayNameLabel } from '../lib/display'
 import { Button } from './ui/Button'
 
@@ -13,17 +13,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [mounted, setMounted] = useState(false)
-  const hasToken = mounted && Boolean(getAccessToken())
+  const session = useQuery({
+    queryKey: ['session'],
+    queryFn: () => apiClient.getSession(),
+    enabled: mounted,
+    retry: false,
+  })
+  const hasSession = session.isSuccess
   const profile = useQuery({
     queryKey: ['profile'],
     queryFn: () => apiClient.getProfile(),
-    enabled: hasToken,
+    enabled: hasSession,
     retry: false,
   })
   const logout = useMutation({
-    mutationFn: () => apiClient.logout({ refresh_token: getRefreshToken() }),
+    mutationFn: () => apiClient.logout(),
     onSettled: () => {
-      clearSession()
       queryClient.clear()
       router.replace('/login')
     },
@@ -50,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavLink href="/account" current={pathname.startsWith('/account')}>
               账号中心
             </NavLink>
-            {hasToken ? (
+            {hasSession ? (
               <>
                 <span className="hidden max-w-40 truncate text-slate-500 sm:inline">
                   {displayNameLabel(profile.data?.display_name)}

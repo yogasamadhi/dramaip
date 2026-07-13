@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { getAccessToken } from '../lib/api-client'
+import { apiClient } from '../lib/api-client'
 import { loginPath } from '../lib/routes'
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -15,11 +15,17 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }, [pathname])
 
   useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace(loginPath(currentPath))
-      return
+    let active = true
+    apiClient.getSession()
+      .then(() => {
+        if (active) setChecked(true)
+      })
+      .catch(() => {
+        if (active) router.replace(loginPath(currentPath))
+      })
+    return () => {
+      active = false
     }
-    setChecked(true)
   }, [currentPath, router])
 
   if (!checked) {

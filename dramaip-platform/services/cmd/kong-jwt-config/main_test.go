@@ -30,7 +30,7 @@ func TestRenderKongConfigUsesEveryRS256VerificationKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("renderKongConfig: %v", err)
 	}
-	for _, expected := range []string{"key_claim_name: kid", "- key: 2026-06", "- key: 2026-07", "algorithm: RS256", "BEGIN PUBLIC KEY"} {
+	for _, expected := range []string{"key_claim_name: kid", "cookie_names:", "- dramaip_web_access", "run_on_preflight: false", "- key: 2026-06", "- key: 2026-07", "algorithm: RS256", "BEGIN PUBLIC KEY"} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("rendered config missing %q:\n%s", expected, rendered)
 		}

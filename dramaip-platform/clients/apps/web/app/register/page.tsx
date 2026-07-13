@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '../../components/ui/Button'
 import { parseApiError } from '../../lib/api-error'
-import { apiClient, getAccessToken, saveSession } from '../../lib/api-client'
+import { apiClient } from '../../lib/api-client'
 import { safeNextPath } from '../../lib/routes'
 
 const RegisterSchema = z.object({
@@ -30,16 +30,13 @@ export default function RegisterPage() {
   })
 
   useEffect(() => {
-    if (getAccessToken()) {
-      router.replace(currentNextPath())
-    }
+    apiClient.getSession().then(() => router.replace(currentNextPath())).catch(() => undefined)
   }, [router])
 
   async function handleRegister(input: RegisterInput) {
     try {
       setSubmitError(null)
-      const session = await apiClient.register(input)
-      saveSession(session)
+      await apiClient.register(input)
       queryClient.clear()
       router.replace(currentNextPath())
     } catch (error) {

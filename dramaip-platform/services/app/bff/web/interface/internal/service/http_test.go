@@ -15,6 +15,7 @@ import (
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,7 +24,8 @@ import (
 
 func TestBFFHTTPFlow(t *testing.T) {
 	router := newTestHTTPService().Router()
-	token := loginForToken(t, router)
+	session := loginForSession(t, router)
+	token := session.accessToken
 
 	getJSON(t, router, http.MethodGet, "/v1/plans", "", http.StatusOK, func(got map[string]any) {
 		if len(got["plans"].([]any)) != 2 {
@@ -54,8 +56,95 @@ func TestBFFHTTPFlow(t *testing.T) {
 			t.Fatalf("account report = %+v", got)
 		}
 	})
-	postJSON(t, router, "/v1/auth/logout", token, `{"refresh_token":"refresh"}`, http.StatusOK)
-	postJSON(t, router, "/v1/auth/refresh", "", `{"refresh_token":"refresh"}`, http.StatusOK)
+	postJSON(t, router, "/v1/auth/logout", token, `{}`, http.StatusOK)
+	refresh := httptest.NewRequest(http.MethodPost, "/v1/auth/refresh", nil)
+	refresh.AddCookie(session.refreshCookie)
+	refresh.AddCookie(session.csrfCookie)
+	refresh.Header.Set(csrfHeader, session.csrfCookie.Value)
+	refreshRecorder := httptest.NewRecorder()
+	router.ServeHTTP(refreshRecorder, refresh)
+	if refreshRecorder.Code != http.StatusOK {
+		t.Fatalf("refresh status = %d: %s", refreshRecorder.Code, refreshRecorder.Body.String())
+	}
+}
+
+func TestCookieSessionAndCSRF(t *testing.T) {
+	router := newTestHTTPService().Router()
+	session := loginForSession(t, router)
+	if !session.accessCookie.HttpOnly || !session.refreshCookie.HttpOnly || session.csrfCookie.HttpOnly {
+		t.Fatalf("cookie HttpOnly attributes access=%t refresh=%t csrf=%t", session.accessCookie.HttpOnly, session.refreshCookie.HttpOnly, session.csrfCookie.HttpOnly)
+	}
+	if session.accessCookie.SameSite != http.SameSiteLaxMode || session.refreshCookie.Path != "/v1/auth" || session.accessCookie.Secure {
+		t.Fatalf("cookie policy access=%+v refresh=%+v", session.accessCookie, session.refreshCookie)
+	}
+	legacyRefresh := httptest.NewRequest(http.MethodPost, "/v1/auth/refresh", bytes.NewBufferString(`{"refresh_token":"legacy-browser-token"}`))
+	legacyRecorder := httptest.NewRecorder()
+	router.ServeHTTP(legacyRecorder, legacyRefresh)
+	if legacyRecorder.Code != http.StatusUnauthorized || !strings.Contains(legacyRecorder.Body.String(), "missing_refresh_cookie") {
+		t.Fatalf("legacy refresh body status = %d: %s", legacyRecorder.Code, legacyRecorder.Body.String())
+	}
+
+	profile := httptest.NewRequest(http.MethodGet, "/v1/me/profile", nil)
+	profile.AddCookie(session.accessCookie)
+	profileRecorder := httptest.NewRecorder()
+	router.ServeHTTP(profileRecorder, profile)
+	if profileRecorder.Code != http.StatusOK {
+		t.Fatalf("cookie profile status = %d: %s", profileRecorder.Code, profileRecorder.Body.String())
+	}
+
+	blocked := httptest.NewRequest(http.MethodPost, "/v1/billing/checkout", bytes.NewBufferString(`{"plan_id":"pro"}`))
+	blocked.AddCookie(session.accessCookie)
+	blockedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(blockedRecorder, blocked)
+	if blockedRecorder.Code != http.StatusForbidden || !strings.Contains(blockedRecorder.Body.String(), "csrf_rejected") {
+		t.Fatalf("missing CSRF status = %d: %s", blockedRecorder.Code, blockedRecorder.Body.String())
+	}
+
+	allowed := httptest.NewRequest(http.MethodPost, "/v1/billing/checkout", bytes.NewBufferString(`{"plan_id":"pro"}`))
+	allowed.AddCookie(session.accessCookie)
+	allowed.AddCookie(session.csrfCookie)
+	allowed.Header.Set(csrfHeader, session.csrfCookie.Value)
+	allowedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(allowedRecorder, allowed)
+	if allowedRecorder.Code != http.StatusOK {
+		t.Fatalf("CSRF checkout status = %d: %s", allowedRecorder.Code, allowedRecorder.Body.String())
+	}
+
+	logout := httptest.NewRequest(http.MethodPost, "/v1/auth/logout", nil)
+	logout.AddCookie(session.accessCookie)
+	logout.AddCookie(session.refreshCookie)
+	logout.AddCookie(session.csrfCookie)
+	logout.Header.Set(csrfHeader, session.csrfCookie.Value)
+	logoutRecorder := httptest.NewRecorder()
+	router.ServeHTTP(logoutRecorder, logout)
+	if logoutRecorder.Code != http.StatusOK {
+		t.Fatalf("cookie logout status = %d: %s", logoutRecorder.Code, logoutRecorder.Body.String())
+	}
+	for _, cookie := range logoutRecorder.Result().Cookies() {
+		if cookie.Name == webAccessCookie || cookie.Name == webRefreshCookie || cookie.Name == webCSRFCookie {
+			if cookie.MaxAge >= 0 {
+				t.Fatalf("logout did not clear %s: %+v", cookie.Name, cookie)
+			}
+		}
+	}
+}
+
+func TestProductionCookieSessionIsSecure(t *testing.T) {
+	service := newTestHTTPServiceWithConfig(&conf.Bootstrap{Environment: "prod", Session: conf.SessionConfig{RefreshCookieTTL: "720h"}})
+	session := loginForSession(t, service.Router())
+	if !session.accessCookie.Secure || !session.refreshCookie.Secure || !session.csrfCookie.Secure {
+		t.Fatalf("production cookies must be Secure: access=%t refresh=%t csrf=%t", session.accessCookie.Secure, session.refreshCookie.Secure, session.csrfCookie.Secure)
+	}
+}
+
+func TestCookieSessionUsesConfiguredControlledDomain(t *testing.T) {
+	service := newTestHTTPServiceWithConfig(&conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h", CookieDomain: "example.test"}})
+	session := loginForSession(t, service.Router())
+	for _, cookie := range []*http.Cookie{session.accessCookie, session.refreshCookie, session.csrfCookie} {
+		if cookie.Domain != "example.test" {
+			t.Fatalf("cookie domain = %q, want controlled domain", cookie.Domain)
+		}
+	}
 }
 
 func TestProtectedRoutesRequireToken(t *testing.T) {
@@ -110,13 +199,24 @@ func TestUnversionedBusinessRoutesAreNotExposed(t *testing.T) {
 }
 
 func newTestHTTPService() *HTTPService {
+	return newTestHTTPServiceWithConfig(&conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}})
+}
+
+func newTestHTTPServiceWithConfig(cfg *conf.Bootstrap) *HTTPService {
 	uc := biz.NewBFFUsecase(&data.Data{
 		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{},
 	})
-	return NewHTTPService(uc)
+	return NewHTTPService(uc, cfg)
 }
 
-func loginForToken(t *testing.T, router http.Handler) string {
+type testSession struct {
+	accessToken   string
+	accessCookie  *http.Cookie
+	refreshCookie *http.Cookie
+	csrfCookie    *http.Cookie
+}
+
+func loginForSession(t *testing.T, router http.Handler) testSession {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewBufferString(`{"email":"creator@example.com","password":"password123"}`))
 	rec := httptest.NewRecorder()
@@ -124,13 +224,20 @@ func loginForToken(t *testing.T, router http.Handler) string {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("login status = %d: %s", rec.Code, rec.Body.String())
 	}
-	var got struct {
-		AccessToken string `json:"access_token"`
+	if strings.Contains(rec.Body.String(), "access_token") || strings.Contains(rec.Body.String(), "refresh_token") {
+		t.Fatalf("login leaked token response: %s", rec.Body.String())
 	}
-	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil || got.AccessToken == "" {
-		t.Fatalf("login response = %+v err=%v", got, err)
+	cookies := map[string]*http.Cookie{}
+	for _, cookie := range rec.Result().Cookies() {
+		cookies[cookie.Name] = cookie
 	}
-	return got.AccessToken
+	access := cookies[webAccessCookie]
+	refresh := cookies[webRefreshCookie]
+	csrf := cookies[webCSRFCookie]
+	if access == nil || refresh == nil || csrf == nil || access.Value == "" || refresh.Value == "" || csrf.Value == "" {
+		t.Fatalf("login cookies = %+v", cookies)
+	}
+	return testSession{accessToken: access.Value, accessCookie: access, refreshCookie: refresh, csrfCookie: csrf}
 }
 
 func getJSON(t *testing.T, router http.Handler, method, path, token string, want int, assert func(map[string]any)) {

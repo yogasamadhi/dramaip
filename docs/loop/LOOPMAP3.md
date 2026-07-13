@@ -99,7 +99,7 @@
 | D-006 Provider 成本快照不完整 | LM3-14 | request 级成本可追踪、可对账 |
 | D-007 DB role 未隔离 | LM3-10 | 服务只能访问自己 schema |
 | D-008 生产仍使用 HS256 | LM3-05（done） | RS256 + JWKS + key rotation |
-| D-009 Web token 存 localStorage | LM3-06 | HttpOnly Cookie + CSRF，长期 token 不进 localStorage |
+| D-009 Web token 存 localStorage | LM3-06（done） | HttpOnly Cookie + CSRF，长期 token 不进 localStorage |
 | D-010 notification 无独立 service/job | LM3-08、LM3-09 | notification 同步和异步边界完整 |
 | D-011 缺少独立管理后台 | LM3-29、LM3-30 | Admin 独立认证、BFF、RBAC、审计和 UI |
 
@@ -213,7 +213,7 @@ make platform-down
 | LM3-03 | P0 | DevEx/CI | done | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
 | LM3-04 | P0 | 契约治理 | done | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
 | LM3-05 | P0 | Auth/安全 | done | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
-| LM3-06 | P0 | Web/Auth | todo | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
+| LM3-06 | P0 | Web/Auth | done | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
 | LM3-07 | P0 | 平台安全 | todo | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
 | LM3-08 | P0 | Notification | todo | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
 | LM3-09 | P1 | Notification | todo | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |

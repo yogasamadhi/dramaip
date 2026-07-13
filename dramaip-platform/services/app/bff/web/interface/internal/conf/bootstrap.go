@@ -1,10 +1,16 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"strings"
+
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+)
 
 type Bootstrap struct {
-	Server     ServerConfig     `yaml:"server"`
-	Downstream DownstreamConfig `yaml:"downstream"`
+	Server      ServerConfig     `yaml:"server"`
+	Downstream  DownstreamConfig `yaml:"downstream"`
+	Environment string           `yaml:"environment"`
+	Session     SessionConfig    `yaml:"session"`
 }
 
 type ServerConfig struct {
@@ -24,6 +30,11 @@ type DownstreamConfig struct {
 	DialTimeout       string `yaml:"dial_timeout"`
 }
 
+type SessionConfig struct {
+	RefreshCookieTTL string `yaml:"refresh_cookie_ttl"`
+	CookieDomain     string `yaml:"cookie_domain"`
+}
+
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8100"}},
@@ -35,11 +46,16 @@ func Load() (*Bootstrap, error) {
 			AIGatewayEndpoint: "localhost:9105",
 			DialTimeout:       "15s",
 		},
+		Environment: "development",
+		Session:     SessionConfig{RefreshCookieTTL: "720h"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
 		return nil, err
 	}
 	cfg.Server.HTTP.Addr = kratosx.Env("WEB_BFF_HTTP_ADDR", cfg.Server.HTTP.Addr)
+	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
+	cfg.Session.RefreshCookieTTL = kratosx.Env("WEB_REFRESH_COOKIE_TTL", cfg.Session.RefreshCookieTTL)
+	cfg.Session.CookieDomain = kratosx.Env("WEB_COOKIE_DOMAIN", cfg.Session.CookieDomain)
 	cfg.Downstream.AuthEndpoint = kratosx.Env("AUTH_GRPC_ENDPOINT", cfg.Downstream.AuthEndpoint)
 	cfg.Downstream.UserEndpoint = kratosx.Env("USER_GRPC_ENDPOINT", cfg.Downstream.UserEndpoint)
 	cfg.Downstream.BillingEndpoint = kratosx.Env("BILLING_GRPC_ENDPOINT", cfg.Downstream.BillingEndpoint)
@@ -47,4 +63,13 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("WEB_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	return cfg, nil
+}
+
+func (c *Bootstrap) CookiesSecure() bool {
+	switch strings.ToLower(strings.TrimSpace(c.Environment)) {
+	case "prod", "production":
+		return true
+	default:
+		return false
+	}
 }

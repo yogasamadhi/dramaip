@@ -111,7 +111,8 @@ Runnable services under `services/app/` follow the Kratos layout:
 
 - `provider openai-compatible api key is not configured`: expected when no real
   `AI_PROVIDER_API_KEY` is configured. Use provider `test` for local end-to-end checks.
-- `missing_bearer_token` or `invalid_token`: log in again; the web app refreshes
-  access tokens when a refresh token is still valid.
+- `missing_refresh_cookie`, `invalid_token`, or `csrf_rejected`: log in again;
+  the Web app keeps its access/refresh credentials in HttpOnly Cookies and
+  automatically sends the matching CSRF header for Cookie session writes.
 - Kong health timeout: inspect `docker compose -f deploy/docker-drama/docker-compose.yaml ps`
   and `make platform-logs`.

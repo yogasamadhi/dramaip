@@ -34,10 +34,6 @@ export const ProfileSchema = z.object({
 export type Profile = z.infer<typeof ProfileSchema>
 
 export const LoginResponseSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string(),
-  token_type: z.string(),
-  expires_in: z.number(),
   user: UserSchema,
 })
 
@@ -238,12 +234,15 @@ export interface ApiClientOptions {
   baseURL: string
   getAccessToken?: () => string | undefined | Promise<string | undefined>
   getDeviceID?: () => string | undefined | Promise<string | undefined>
+  getCSRFToken?: () => string | undefined | Promise<string | undefined>
+  withCredentials?: boolean
 }
 
 export interface DramaIpApiClient {
   http: AxiosInstance
   register(input: { email: string; password: string; display_name?: string }): Promise<RegisterResponse>
   login(input: { email: string; password: string }): Promise<LoginResponse>
+  getSession(): Promise<LoginResponse>
   getHealth(): Promise<Health>
   getPlans(): Promise<PlansResponse>
   getProfile(): Promise<Profile>
@@ -262,19 +261,21 @@ export interface DramaIpApiClient {
   confirmSimulatedPayment(input: { checkout_id: string }): Promise<PaymentConfirmationResponse>
   confirmSandboxPayment(input: { checkout_id: string }): Promise<SandboxPaymentResponse>
   cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>
-  refresh(input: { refresh_token: string }): Promise<LoginResponse>
-  logout(input?: { refresh_token?: string }): Promise<LogoutResponse>
+  refresh(): Promise<LoginResponse>
+  logout(): Promise<LogoutResponse>
   chat(input: { request_id?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
-  const http = axios.create({ baseURL: options.baseURL })
+  const http = axios.create({ baseURL: options.baseURL, withCredentials: options.withCredentials ?? false })
 
   http.interceptors.request.use(async (config) => {
     const token = await options.getAccessToken?.()
     if (token) config.headers.Authorization = `Bearer ${token}`
     const deviceID = await options.getDeviceID?.()
     if (deviceID) config.headers['X-Device-Id'] = deviceID
+    const csrfToken = await options.getCSRFToken?.()
+    if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken
     return config
   })
 
@@ -286,6 +287,10 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     },
     async login(input) {
       const res = await http.post('/v1/auth/login', input)
+      return LoginResponseSchema.parse(res.data)
+    },
+    async getSession() {
+      const res = await http.get('/v1/auth/session')
       return LoginResponseSchema.parse(res.data)
     },
     async getHealth() {
@@ -359,12 +364,12 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       const res = await http.post('/v1/subscription/cancel', input)
       return SubscriptionSchema.parse(res.data)
     },
-    async refresh(input) {
-      const res = await http.post('/v1/auth/refresh', input)
+    async refresh() {
+      const res = await http.post('/v1/auth/refresh')
       return LoginResponseSchema.parse(res.data)
     },
-    async logout(input = {}) {
-      const res = await http.post('/v1/auth/logout', input)
+    async logout() {
+      const res = await http.post('/v1/auth/logout')
       return LogoutResponseSchema.parse(res.data)
     },
     async chat(input) {

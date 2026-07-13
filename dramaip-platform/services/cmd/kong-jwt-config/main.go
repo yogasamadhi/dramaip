@@ -160,6 +160,9 @@ func kongJWTPlugin() string {
 	return `          - name: jwt
             config:
               key_claim_name: kid
+              cookie_names:
+                - dramaip_web_access
+              run_on_preflight: false
               claims_to_verify:
                 - exp
                 - nbf`

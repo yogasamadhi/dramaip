@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '../../components/ui/Button'
 import { parseApiError } from '../../lib/api-error'
-import { apiClient, getAccessToken, saveSession } from '../../lib/api-client'
+import { apiClient } from '../../lib/api-client'
 import { safeNextPath } from '../../lib/routes'
 
 const LoginSchema = z.object({
@@ -29,16 +29,13 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    if (getAccessToken()) {
-      router.replace(currentNextPath())
-    }
+    apiClient.getSession().then(() => router.replace(currentNextPath())).catch(() => undefined)
   }, [router])
 
   async function handleLogin(input: LoginInput) {
     try {
       setSubmitError(null)
-      const session = await apiClient.login(input)
-      saveSession(session)
+      await apiClient.login(input)
       queryClient.clear()
       router.replace(currentNextPath())
     } catch (error) {
