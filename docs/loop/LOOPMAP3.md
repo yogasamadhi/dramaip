@@ -871,3 +871,19 @@ Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-05-
 Current branch/worktree: loop/lm3-05-jwks-auth; clean before this metadata update.
 Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Production release still requires an operator to supply the approved RSA private key/JWKS keyset and render/reload Kong according to `deploy/kong/README.md`.
 ```
+
+```text
+Loop: LM3-06
+Target branch: main
+Loop branch: loop/lm3-06-web-cookie-csrf
+Commit(s): f0b826f loop(LM3-06): secure web cookie sessions; this completion-record update is the loop's final metadata commit.
+Merge commit: bebd93c merge: LM3-06 Web Cookie sessions; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `GOCACHE=/tmp/dramaip-go-build go test ./...` and `make event-contracts` passed in `dramaip-platform/services`; the BFF suite covers token-free JSON responses, HttpOnly/SameSite/Secure/domain Cookie policy, Cookie refresh/logout clearing, and CSRF rejection. `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed in `dramaip-platform/clients`; the platform E2E script now maintains a Cookie jar and sends the CSRF header. Compose configuration, Kong-template YAML parsing, Helm lint/template, and `cmd/kong-jwt-config` tests passed. The renderer configures the production JWT plugin to inspect `dramaip_web_access` and bypass only CORS preflight.
+Compose E2E: attempted `COMPOSE_PARALLEL_LIMIT=1 make platform-up`. Docker reached all nine Go image compilation layers, then made no further progress or output for two consecutive 30-second windows; it was interrupted and followed by `make platform-down`, which removed the remaining PostgreSQL container and network. No completed browser/Compose smoke is claimed; the direct BFF Cookie/CSRF tests, client production build, E2E script syntax check, and deployment render checks are the recorded evidence.
+Diff review: Reviewed the Web session migration, SDK contract, BFF Cookie/CSRF middleware and tests, production Kong Cookie extraction, credentialed exact-origin CORS, same-origin/controlled-subdomain deployment guardrails, E2E Cookie jar, and architecture/baseline/difference documentation. Legacy JavaScript-readable tokens are only removed once for invalidation; no credential handoff, private key, actual environment file, cache, or unrelated artifact was included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target was aligned immediately before the no-ff merge.
+Push: Core merge bebd93c was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-06 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-06-web-cookie-csrf` immediately afterward.
+Current branch/worktree: loop/lm3-06-web-cookie-csrf; clean before this metadata update.
+Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Production Web/API deployment must use one public origin or an explicitly configured common Cookie domain covering only controlled sibling subdomains.
+```
