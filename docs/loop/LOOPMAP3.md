@@ -222,7 +222,7 @@ make platform-down
 | LM3-12 | P0 | Quota | done | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
 | LM3-13 | P0 | AI Gateway | done | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
 | LM3-14 | P0 | AI FinOps | done | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
-| LM3-15 | P0 | Billing/Quota | todo | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
+| LM3-15 | P0 | Billing/Quota | done | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | todo | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
 | LM3-17 | P1 | 支付 | todo | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-18 | P1 | 支付 | todo | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
@@ -1012,4 +1012,20 @@ Push: Core merge b7a2cdd was pushed successfully to ordinary `origin/main`; this
 Loop branch cleanup: Completed after the core merge push.
 Current branch/worktree: main; completion metadata and D-006 status update are committed and awaiting the final normal push.
 Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. Test Provider pricing is an explicitly marked fixture only; production must supply reviewed provider/model prices and CNY exchange rates through operator-managed configuration. LM3-22 owns metrics/dashboard/notification integration for the append-only alert source.
+```
+
+```text
+Loop: LM3-15
+Target branch: main
+Loop branch: loop/lm3-15-payment-activation-saga (deleted after the core merge push)
+Commit(s): ba84fc3 loop(LM3-15): complete payment activation saga
+Merge commit: 95e3dcc merge: LM3-15 payment activation saga
+Verification: A fresh localhost-only PostgreSQL 18 container ran `make billing-saga-integration` with every migration through 023. It verifies repeated payment confirmation does not create a second payment or payment-success outbox row; a scheduled cancellation preserves `quota_pending`; quota unavailability or a local activation error records an activation failure; a successful, repeated activation produces one active subscription and one `subscription.activated.v1` outbox row. Its relay test models broker acceptance followed by missing publisher confirmation, records the unchanged event ID, expires the first worker lease, and proves a later worker retries and eventually marks all rows published. Before and after the no-ff merge, `GOCACHE=/tmp/dramaip-go-build go test -race ./...` and `make event-contracts` passed. `go generate ./app/billing/job/cmd/server`, `pnpm typecheck`, `pnpm build:web`, Helm lint/development render, and Docker Compose config rendering passed.
+Compose/RabbitMQ limitation: Not claimed. The pre-existing local Compose stack remains unhealthy after its Docker Desktop restart because workloads cannot resolve the absent `postgres` service; this loop did not stop or delete user-owned containers. Live RabbitMQ publisher-confirm and full Compose E2E were therefore not run. The isolated PostgreSQL Saga test, fake publisher confirmation-loss/lease-retry test, normal platform-package regression, and deployment render checks are the substitute evidence. Restore a healthy stack and run `make platform-e2e` plus a live RabbitMQ confirm/return test before treating this as deployment evidence.
+Diff review: Reviewed the complete 22-file functional diff and ran `git diff --check` before commit and again after the merge. Migration 023 is additive: it adds a leased, retryable outbox claim and a unique subscription-activation event constraint. Activation state and the activation outbox row are written in one billing transaction; the relay marks an event published only after broker confirmation. No real environment file, credential, payment material, private key, cache, image, or unrelated artifact is included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed main aligned before branch creation and immediately before the no-ff merge.
+Push: Core merge 95e3dcc was pushed successfully to ordinary `origin/main`; this completion metadata is committed and awaiting the final normal push.
+Loop branch cleanup: Completed after the core merge push.
+Current branch/worktree: main; completion metadata is the only pending change.
+Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. The payment transport remains simulated by design; WeChat/Alipay webhook verification belongs to LM3-17/LM3-18, subscription lifecycle and refunds to LM3-16, and operational alert wiring to LM3-22.
 ```
