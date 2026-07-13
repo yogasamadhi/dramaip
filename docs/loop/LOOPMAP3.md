@@ -230,7 +230,7 @@ make platform-down
 | LM3-20 | P0 | 架构验证 | done | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
 | LM3-21 | P1 | Observability | done | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
 | LM3-22 | P1 | SRE/FinOps | done | 建立指标、看板、告警和错误聚合 | Prometheus、Grafana、Sentry/同类 | LM3-14、LM3-21 |
-| LM3-23 | P1 | 平台可靠性 | todo | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
+| LM3-23 | P1 | 平台可靠性 | done | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
 | LM3-24 | P1 | Web 产品 | todo | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
 | LM3-25 | P0 | Desktop 安全 | todo | 将桌面本地凭据迁移到系统 Keychain | Electron secrets、模型/视频配置、迁移 | LM3-03 |
 | LM3-26 | P0 | Desktop/Auth | todo | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
@@ -496,6 +496,7 @@ make platform-down
 - **验收**：quota 不可达时 AI 被拒绝；auth 不可达不绕过验证；MQ 不可达不丢 outbox；慢 Provider 不拖垮其他模型。
 - **验证**：故障注入集成测试；超时/熔断/半开测试；连接池并发测试；Compose chaos smoke。
 - **风险/回滚边界**：共享调用链；各策略可配置关闭，但不得配置为绕过安全和额度检查。
+- **完成边界（2026-07-13）**：已在所有应用 gRPC client/server 统一施加 deadline、只对查询 RPC 实施最多三次的退避重试、按下游或 Provider/model 独立熔断；AI Provider 有独立超时和并发舱壁，billing outbox 使用持久化有界指数退避，Web BFF 仅对套餐列表提供短期只读快照。自动化故障测试覆盖 query/command 重试边界、熔断半开、慢 Provider、模型隔离、`Retry-After`、套餐快照和 outbox 退避；完整 Go/race、事件契约、Compose/Helm 渲染已通过。既有用户 Compose 栈不可用，故未宣称 runtime chaos smoke；恢复健康栈后须执行 [LM3-23 运行手册](./LM3-23-弹性与降级.md) 中的 quota/Provider/RabbitMQ 演练，作为部署或真实付款前阻断项。
 
 ### LM3-24：Web 账号与付费体验
 

@@ -38,6 +38,11 @@ x-app-common: &app-common
     GRPC_MTLS_KEY_FILE: ${GRPC_MTLS_KEY_FILE:-}
     GRPC_MTLS_CA_FILE: ${GRPC_MTLS_CA_FILE:-}
     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+    # Every internal RPC gets a finite client/server deadline. AI chat receives
+    # a separate budget so it can contain the Provider timeout without making
+    # ordinary auth/quota/billing calls wait for it.
+    GRPC_REQUEST_TIMEOUT: ${GRPC_REQUEST_TIMEOUT:-10s}
+    AI_RPC_TIMEOUT: ${AI_RPC_TIMEOUT:-95s}
 
 services:
   postgres:
@@ -253,6 +258,9 @@ services:
       QUOTA_GRPC_ENDPOINT: quota:9104
       AI_PROVIDER_DEFAULT: ${AI_PROVIDER_DEFAULT:-openai-compatible}
       AI_PROVIDER_TIMEOUT_SECONDS: ${AI_PROVIDER_TIMEOUT_SECONDS:-90}
+      AI_PROVIDER_MAX_CONCURRENCY: ${AI_PROVIDER_MAX_CONCURRENCY:-8}
+      AI_PROVIDER_CIRCUIT_FAILURES: ${AI_PROVIDER_CIRCUIT_FAILURES:-3}
+      AI_PROVIDER_CIRCUIT_RESET: ${AI_PROVIDER_CIRCUIT_RESET:-15s}
       AI_PROVIDER_API_KEY: ${AI_PROVIDER_API_KEY:-}
       AI_PROVIDER_BASE_URL: ${AI_PROVIDER_BASE_URL:-https://api.openai.com/v1}
       AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-gpt-4o-mini}

@@ -215,6 +215,44 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 }
 
+func TestTransientGRPCErrorsSetRetryAfter(t *testing.T) {
+	for name, test := range map[string]struct {
+		err        error
+		statusCode int
+		retryAfter string
+	}{
+		"unavailable": {err: status.Error(codes.Unavailable, "downstream unavailable"), statusCode: http.StatusServiceUnavailable, retryAfter: "2"},
+		"deadline":    {err: status.Error(codes.DeadlineExceeded, "downstream timed out"), statusCode: http.StatusGatewayTimeout, retryAfter: "1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			writeGRPCError(response, test.err, "fallback")
+			if response.Code != test.statusCode {
+				t.Fatalf("status = %d, want %d", response.Code, test.statusCode)
+			}
+			if got := response.Header().Get("Retry-After"); got != test.retryAfter {
+				t.Fatalf("Retry-After = %q, want %q", got, test.retryAfter)
+			}
+		})
+	}
+}
+
+func TestPlansUseReadOnlyCacheWhenBillingIsTemporarilyUnavailable(t *testing.T) {
+	billing := &flakyBilling{}
+	uc := biz.NewBFFUsecase(&data.Data{Billing: billing})
+	first, err := uc.Plans(context.Background())
+	if err != nil || len(first.Plans) == 0 {
+		t.Fatalf("initial plans = %+v, %v", first, err)
+	}
+	second, err := uc.Plans(context.Background())
+	if err != nil || len(second.Plans) != len(first.Plans) {
+		t.Fatalf("cached plans = %+v, %v", second, err)
+	}
+	if billing.calls != 2 {
+		t.Fatalf("billing calls = %d, want 2", billing.calls)
+	}
+}
+
 func TestUnversionedBusinessRoutesAreNotExposed(t *testing.T) {
 	router := newTestHTTPService().Router()
 	for _, route := range []struct {
@@ -355,6 +393,19 @@ func (fakeUser) UpdateProfile(_ context.Context, req *userv1.UpdateProfileReques
 }
 
 type fakeBilling struct{}
+
+type flakyBilling struct {
+	fakeBilling
+	calls int
+}
+
+func (b *flakyBilling) ListPlans(ctx context.Context, req *billingv1.ListPlansRequest, options ...grpc.CallOption) (*billingv1.ListPlansReply, error) {
+	b.calls++
+	if b.calls > 1 {
+		return nil, status.Error(codes.Unavailable, "billing unavailable")
+	}
+	return b.fakeBilling.ListPlans(ctx, req, options...)
+}
 
 func (fakeBilling) ListPlans(context.Context, *billingv1.ListPlansRequest, ...grpc.CallOption) (*billingv1.ListPlansReply, error) {
 	return &billingv1.ListPlansReply{Plans: []*billingv1.Plan{{Code: "free", Name: "Free", MonthlyTokenQuota: 10000}, {Code: "pro", Name: "Pro", PriceCny: 99, MonthlyTokenQuota: 2000000, ModelLevel: "standard", MaxRpm: 60}}}, nil

@@ -15,6 +15,7 @@ import (
 type OutboxService struct {
 	uc                     *biz.OutboxUsecase
 	interval               time.Duration
+	operationTimeout       time.Duration
 	reconciliationEnabled  bool
 	reconciliationInterval time.Duration
 	reconciliationRuns     uint64
@@ -23,7 +24,7 @@ type OutboxService struct {
 }
 
 func NewOutboxService(uc *biz.OutboxUsecase, cfg *conf.Bootstrap) *OutboxService {
-	return &OutboxService{uc: uc, interval: kratosx.Duration(cfg.Job.OutboxRelayInterval, time.Second), reconciliationEnabled: uc.ReconciliationEnabled(), reconciliationInterval: uc.ReconciliationInterval()}
+	return &OutboxService{uc: uc, interval: kratosx.Duration(cfg.Job.OutboxRelayInterval, time.Second), operationTimeout: kratosx.Duration(cfg.Job.OperationTimeout, 30*time.Second), reconciliationEnabled: uc.ReconciliationEnabled(), reconciliationInterval: uc.ReconciliationInterval()}
 }
 
 func (s *OutboxService) Checks() map[string]func(context.Context) error {
@@ -69,6 +70,8 @@ func (s *OutboxService) runOutboxCycle(ctx context.Context) {
 }
 
 func (s *OutboxService) runReconciliation(ctx context.Context, trigger, requestedBy string) (data.ReconciliationRun, error) {
+	ctx, cancel := platform.WithDefaultDeadline(ctx, s.operationTimeout)
+	defer cancel()
 	ctx, span := platform.Tracer("billing-job").Start(ctx, "billing.reconciliation")
 	defer span.End()
 	run, err := s.uc.Reconcile(ctx, trigger, requestedBy)
@@ -86,6 +89,8 @@ func (s *OutboxService) runReconciliation(ctx context.Context, trigger, requeste
 }
 
 func (s *OutboxService) runOperation(ctx context.Context, operation string, fn func(context.Context) error) {
+	ctx, cancel := platform.WithDefaultDeadline(ctx, s.operationTimeout)
+	defer cancel()
 	ctx, span := platform.Tracer("billing-job").Start(ctx, operation)
 	defer span.End()
 	if err := fn(ctx); err != nil {

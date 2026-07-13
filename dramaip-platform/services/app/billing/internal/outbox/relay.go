@@ -19,10 +19,11 @@ type Publisher interface {
 }
 
 type EventRow struct {
-	ID        string
-	EventType string
-	TraceID   string
-	Payload   []byte
+	ID              string
+	EventType       string
+	TraceID         string
+	Payload         []byte
+	PublishAttempts int
 }
 
 // Relay publishes each currently claimable row. It returns the first failure
@@ -62,7 +63,7 @@ func Relay(ctx context.Context, db *gorm.DB, publisher Publisher, workerID strin
 			err = publisher.Publish(eventCtx, envelope)
 		}
 		if err != nil {
-			if releaseErr := release(ctx, db, row.ID, workerID, err.Error(), retryDelay); releaseErr != nil {
+			if releaseErr := release(ctx, db, row.ID, workerID, err.Error(), retryBackoff(retryDelay, row.PublishAttempts)); releaseErr != nil {
 				err = fmt.Errorf("%w (release outbox lease: %v)", err, releaseErr)
 			}
 			if firstErr == nil {
@@ -81,7 +82,7 @@ func claim(ctx context.Context, db *gorm.DB, workerID string, batch int, lease t
 	var rows []EventRow
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Raw(`
-			SELECT id::text AS id, event_type, trace_id, payload
+			SELECT id::text AS id, event_type, trace_id, payload, publish_attempts
 			FROM billing.outbox_events
 			WHERE published_at IS NULL
 			  AND next_attempt_at <= now()
@@ -104,6 +105,26 @@ func claim(ctx context.Context, db *gorm.DB, workerID string, batch int, lease t
 		return nil
 	})
 	return rows, err
+}
+
+// retryBackoff keeps failed durable events retryable without hammering an
+// unavailable broker. The event remains authoritative in PostgreSQL; a zero
+// base retains the explicit immediate-retry behaviour used by focused tests.
+func retryBackoff(base time.Duration, attempts int) time.Duration {
+	if base <= 0 {
+		return 0
+	}
+	if attempts < 0 {
+		attempts = 0
+	}
+	if attempts > 6 {
+		attempts = 6
+	}
+	delay := base * time.Duration(1<<attempts)
+	if delay > 5*time.Minute || delay < base {
+		return 5 * time.Minute
+	}
+	return delay
 }
 
 func release(ctx context.Context, db *gorm.DB, eventID, workerID, reason string, retryDelay time.Duration) error {

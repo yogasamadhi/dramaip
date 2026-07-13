@@ -10,6 +10,7 @@ jobs:
   renewal_check_cron: "0 */10 * * * *"
   outbox_relay_interval: 1s
   outbox_batch_size: 100
+  operation_timeout: 30s
   reconciliation_enabled: true
   reconciliation_interval: 1h
   reconciliation_batch_size: 100
