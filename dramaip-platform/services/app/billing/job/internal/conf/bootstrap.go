@@ -22,10 +22,13 @@ type EndpointConfig struct {
 }
 
 type JobConfig struct {
-	OutboxRelayInterval string `yaml:"outbox_relay_interval"`
-	OutboxBatchSize     int    `yaml:"outbox_batch_size"`
-	OutboxLease         string `yaml:"outbox_lease"`
-	OutboxRetryDelay    string `yaml:"outbox_retry_delay"`
+	OutboxRelayInterval     string `yaml:"outbox_relay_interval"`
+	OutboxBatchSize         int    `yaml:"outbox_batch_size"`
+	OutboxLease             string `yaml:"outbox_lease"`
+	OutboxRetryDelay        string `yaml:"outbox_retry_delay"`
+	ReconciliationEnabled   bool   `yaml:"reconciliation_enabled"`
+	ReconciliationInterval  string `yaml:"reconciliation_interval"`
+	ReconciliationBatchSize int    `yaml:"reconciliation_batch_size"`
 }
 
 type QuotaConfig struct {
@@ -36,7 +39,7 @@ func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Environment: "dev",
 		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
-		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s"},
+		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s", ReconciliationEnabled: true, ReconciliationInterval: "1h", ReconciliationBatchSize: 100},
 		Quota:       QuotaConfig{GRPCEndpoint: "localhost:9104"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -47,6 +50,9 @@ func Load() (*Bootstrap, error) {
 	cfg.Job.OutboxBatchSize = kratosx.EnvInt("OUTBOX_BATCH_SIZE", cfg.Job.OutboxBatchSize)
 	cfg.Job.OutboxLease = kratosx.Env("OUTBOX_LEASE", cfg.Job.OutboxLease)
 	cfg.Job.OutboxRetryDelay = kratosx.Env("OUTBOX_RETRY_DELAY", cfg.Job.OutboxRetryDelay)
+	cfg.Job.ReconciliationEnabled = kratosx.EnvBool("BILLING_RECONCILIATION_ENABLED", cfg.Job.ReconciliationEnabled)
+	cfg.Job.ReconciliationInterval = kratosx.Env("BILLING_RECONCILIATION_INTERVAL", cfg.Job.ReconciliationInterval)
+	cfg.Job.ReconciliationBatchSize = kratosx.EnvInt("BILLING_RECONCILIATION_BATCH_SIZE", cfg.Job.ReconciliationBatchSize)
 	cfg.Quota.GRPCEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Quota.GRPCEndpoint)
 	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)

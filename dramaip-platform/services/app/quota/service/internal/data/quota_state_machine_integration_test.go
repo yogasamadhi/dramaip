@@ -251,6 +251,13 @@ func TestQuotaStateMachineIntegration(t *testing.T) {
 		if first.ID != second.ID || second.QuotaTokens != 200 {
 			t.Fatalf("period account replay = %#v, want original %#v", second, first)
 		}
+		account, found, err := repo.GetPeriodAccount(ctx, subscriptionID, periodStart)
+		if err != nil || !found || account.ID != first.ID || account.Status != "active" || account.PlanCode != "test" {
+			t.Fatalf("get exact period account = %#v, found=%v, err=%v", account, found, err)
+		}
+		if _, found, err := repo.GetPeriodAccount(ctx, subscriptionID, time.Now().UTC().Add(90*time.Hour).Format(time.RFC3339Nano)); err != nil || found {
+			t.Fatalf("missing exact period account found=%v, err=%v", found, err)
+		}
 	})
 
 	t.Run("upgrade ledger and refund hold have explicit idempotent outcomes", func(t *testing.T) {

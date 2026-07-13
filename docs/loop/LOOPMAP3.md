@@ -226,7 +226,7 @@ make platform-down
 | LM3-16 | P1 | Billing | done | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
 | LM3-17 | P1 | 支付 | done | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-18 | P1 | 支付 | done | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
-| LM3-19 | P0 | 财务/平台 | todo | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
+| LM3-19 | P0 | 财务/平台 | done | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
 | LM3-21 | P1 | Observability | todo | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
 | LM3-22 | P1 | SRE/FinOps | todo | 建立指标、看板、告警和错误聚合 | Prometheus、Grafana、Sentry | LM3-14、LM3-21 |
@@ -452,6 +452,7 @@ make platform-down
 - **验收**：任意异常订单可说明支付、订阅、额度各自状态和下一步；修复动作幂等且有操作者记录。
 - **验证**：缺单、重复单、金额不符、额度缺失 fixture；job 重跑测试；对账报表人工核验。
 - **风险/回滚边界**：财务修复；自动动作必须有阈值和开关，人工修正只追加审计记录。
+- **完成边界（2026-07-13）**：已交付本地支付账本、订阅快照、quota 精确周期账户与已验证 webhook/query 证据的定时对账；真实微信/支付宝商户账单拉取、真实退款与真实沙箱付款，按所有者“跳过真实付款”授权明确豁免，未被当作已验证的渠道结算或生产支付证据。详见 [LM3-19 运行手册](./LM3-19-三方对账与人工处理.md)。
 
 ### LM3-20：账本与支付安全 Gate
 
@@ -1076,4 +1077,19 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-18-alipay-sandbox-webhook` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: This completion record is committed on the clean closing loop branch before its no-ff merge.
 Notes: During LM3-17 on 2026-07-13 the repository owner explicitly directed that real payment be skipped before continuing. LM3-18 therefore completes only the delivered software scope and is not evidence of real Alipay channel activation, real payment, public callback reachability, or production readiness. Any future environment that enables Alipay must perform the documented official sandbox E2E first.
+```
+
+```text
+Loop: LM3-19
+Target branch: main
+Loop branch: loop/lm3-19-reconciliation
+Commit(s): This functional commit and the closing completion-record commit.
+Merge commit: The required no-ff merge follows after the loop branch is synchronized with origin/main.
+Verification: `GOCACHE=/tmp/dramaip-go-build go test ./...` passed. Targeted race checks passed for platform mTLS, quota service data/service, billing-job reconciliation data/server/service. `make event-contracts` passed after proto generation, including format/lint/breaking and generated-output stability checks. Fresh localhost-only PostgreSQL 16 containers ran `make billing-reconciliation-integration` and the quota state-machine integration test; they apply every migration through 027 and verify missing quota, duplicate payment, amount mismatch, immutable per-run observations, cursor pagination, rerun case idempotency, operator audit idempotency, no silent manual refund entitlement change, safe quota repair, and exact quota period lookup. Helm lint/template and Docker Compose config rendering passed.
+Diff review: Reviewed the complete functional diff and ran `git diff --check`. Migration 027 is additive: run/cursor/case/observation/action tables only. Billing retains its database-role boundary and reaches quota only through a narrow mTLS-restricted internal RPC; no cross-schema query was added. The operator HTTP API is disabled without a Secret token, has no Helm Service/Ingress, requires a constant-time Bearer comparison, and uses no-store responses. No credential, payment record, private key, local environment file, cache, image, or unrelated artifact is included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-19-reconciliation` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the loop branch after functional validation.
+Notes: On 2026-07-13 the repository owner explicitly directed that real payment be skipped before continuing. This loop therefore delivers local-ledger reconciliation and controlled, audited operator workflows only; it is not proof of downloaded WeChat/Alipay settlement files, real refunds, real payment, public callback reachability, or production readiness. Future merchant-enabled environments must add official provider bill adapters and run their documented sandbox E2E before treating reconciliation as external-channel settlement evidence.
 ```

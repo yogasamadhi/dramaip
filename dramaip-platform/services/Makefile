@@ -116,3 +116,7 @@ event-contracts:
 ai-idempotency-integration:
 	@test -n "$(POSTGRES_AI_IDEMPOTENCY_TEST_DSN)" || (echo "POSTGRES_AI_IDEMPOTENCY_TEST_DSN is required"; exit 1)
 	POSTGRES_AI_IDEMPOTENCY_TEST_DSN="$(POSTGRES_AI_IDEMPOTENCY_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/ai_gateway/service/internal/biz -run '^TestAIRequestIdempotencyIntegration$$' -count=1
+
+billing-reconciliation-integration:
+	@test -n "$(POSTGRES_BILLING_RECONCILIATION_TEST_DSN)" || (echo "POSTGRES_BILLING_RECONCILIATION_TEST_DSN is required"; exit 1)
+	POSTGRES_BILLING_RECONCILIATION_TEST_DSN="$(POSTGRES_BILLING_RECONCILIATION_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/billing/job/internal/data -run '^TestBillingReconciliationIntegration$$' -count=1

@@ -28,6 +28,10 @@ type TokenAccount struct {
 	SubscriptionID string
 	QuotaTokens    int64
 	UsedTokens     int64
+	PlanCode       string
+	Status         string
+	PeriodStart    string
+	PeriodEnd      string
 }
 
 // QuotaAdjustment is the durable effect of a billing subscription upgrade.
@@ -147,7 +151,9 @@ func (r *QuotaRepo) CreatePeriodAccount(ctx context.Context, input CreatePeriodA
 	}
 	var out TokenAccount
 	err = r.data.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, user_id::text AS user_id, subscription_id::text AS subscription_id, quota_tokens, used_tokens
+		SELECT id::text AS id, user_id::text AS user_id, subscription_id::text AS subscription_id,
+		       quota_tokens, used_tokens, plan_code, status,
+		       period_start::text AS period_start, period_end::text AS period_end
 		FROM quota.token_accounts
 		WHERE subscription_id = ?::uuid AND period_start = ?::timestamptz
 		LIMIT 1
@@ -156,6 +162,25 @@ func (r *QuotaRepo) CreatePeriodAccount(ctx context.Context, input CreatePeriodA
 		return TokenAccount{}, status.Error(codes.NotFound, "token account not found")
 	}
 	return out, nil
+}
+
+// GetPeriodAccount exposes a single natural-key lookup for billing's
+// reconciliation job. It deliberately does not allow billing to enumerate
+// quota accounts or query the quota schema itself.
+func (r *QuotaRepo) GetPeriodAccount(ctx context.Context, subscriptionID, periodStart string) (TokenAccount, bool, error) {
+	var out TokenAccount
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT id::text AS id, user_id::text AS user_id, subscription_id::text AS subscription_id,
+		       quota_tokens, used_tokens, plan_code, status,
+		       period_start::text AS period_start, period_end::text AS period_end
+		FROM quota.token_accounts
+		WHERE subscription_id = ?::uuid AND period_start = ?::timestamptz
+		LIMIT 1
+	`, subscriptionID, periodStart).Scan(&out).Error
+	if err != nil {
+		return TokenAccount{}, false, err
+	}
+	return out, out.ID != "", nil
 }
 
 func (r *QuotaRepo) AdjustPeriodQuota(ctx context.Context, adjustmentID, userID, subscriptionID string, deltaTokens int64, reason string) (QuotaAdjustment, error) {

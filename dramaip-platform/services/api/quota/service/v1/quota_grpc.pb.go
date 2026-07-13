@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	QuotaService_GetTokenBalance_FullMethodName     = "/dramaip.quota.service.v1.QuotaService/GetTokenBalance"
 	QuotaService_CreatePeriodAccount_FullMethodName = "/dramaip.quota.service.v1.QuotaService/CreatePeriodAccount"
+	QuotaService_GetPeriodAccount_FullMethodName    = "/dramaip.quota.service.v1.QuotaService/GetPeriodAccount"
 	QuotaService_ReserveTokens_FullMethodName       = "/dramaip.quota.service.v1.QuotaService/ReserveTokens"
 	QuotaService_SettleTokens_FullMethodName        = "/dramaip.quota.service.v1.QuotaService/SettleTokens"
 	QuotaService_CancelReservation_FullMethodName   = "/dramaip.quota.service.v1.QuotaService/CancelReservation"
@@ -36,6 +37,9 @@ const (
 type QuotaServiceClient interface {
 	GetTokenBalance(ctx context.Context, in *GetTokenBalanceRequest, opts ...grpc.CallOption) (*TokenBalance, error)
 	CreatePeriodAccount(ctx context.Context, in *CreatePeriodAccountRequest, opts ...grpc.CallOption) (*TokenAccount, error)
+	// Allows the billing reconciliation job to inspect one exact entitlement
+	// period without accessing the quota schema directly.
+	GetPeriodAccount(ctx context.Context, in *GetPeriodAccountRequest, opts ...grpc.CallOption) (*PeriodAccountReply, error)
 	ReserveTokens(ctx context.Context, in *ReserveTokensRequest, opts ...grpc.CallOption) (*TokenReservation, error)
 	SettleTokens(ctx context.Context, in *SettleTokensRequest, opts ...grpc.CallOption) (*TokenUsage, error)
 	CancelReservation(ctx context.Context, in *CancelReservationRequest, opts ...grpc.CallOption) (*TokenReservation, error)
@@ -71,6 +75,16 @@ func (c *quotaServiceClient) CreatePeriodAccount(ctx context.Context, in *Create
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TokenAccount)
 	err := c.cc.Invoke(ctx, QuotaService_CreatePeriodAccount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quotaServiceClient) GetPeriodAccount(ctx context.Context, in *GetPeriodAccountRequest, opts ...grpc.CallOption) (*PeriodAccountReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeriodAccountReply)
+	err := c.cc.Invoke(ctx, QuotaService_GetPeriodAccount_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +167,9 @@ func (c *quotaServiceClient) GetUsageTrend(ctx context.Context, in *GetUsageTren
 type QuotaServiceServer interface {
 	GetTokenBalance(context.Context, *GetTokenBalanceRequest) (*TokenBalance, error)
 	CreatePeriodAccount(context.Context, *CreatePeriodAccountRequest) (*TokenAccount, error)
+	// Allows the billing reconciliation job to inspect one exact entitlement
+	// period without accessing the quota schema directly.
+	GetPeriodAccount(context.Context, *GetPeriodAccountRequest) (*PeriodAccountReply, error)
 	ReserveTokens(context.Context, *ReserveTokensRequest) (*TokenReservation, error)
 	SettleTokens(context.Context, *SettleTokensRequest) (*TokenUsage, error)
 	CancelReservation(context.Context, *CancelReservationRequest) (*TokenReservation, error)
@@ -179,6 +196,9 @@ func (UnimplementedQuotaServiceServer) GetTokenBalance(context.Context, *GetToke
 }
 func (UnimplementedQuotaServiceServer) CreatePeriodAccount(context.Context, *CreatePeriodAccountRequest) (*TokenAccount, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreatePeriodAccount not implemented")
+}
+func (UnimplementedQuotaServiceServer) GetPeriodAccount(context.Context, *GetPeriodAccountRequest) (*PeriodAccountReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPeriodAccount not implemented")
 }
 func (UnimplementedQuotaServiceServer) ReserveTokens(context.Context, *ReserveTokensRequest) (*TokenReservation, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReserveTokens not implemented")
@@ -254,6 +274,24 @@ func _QuotaService_CreatePeriodAccount_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(QuotaServiceServer).CreatePeriodAccount(ctx, req.(*CreatePeriodAccountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuotaService_GetPeriodAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPeriodAccountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuotaServiceServer).GetPeriodAccount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuotaService_GetPeriodAccount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuotaServiceServer).GetPeriodAccount(ctx, req.(*GetPeriodAccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -398,6 +436,10 @@ var QuotaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreatePeriodAccount",
 			Handler:    _QuotaService_CreatePeriodAccount_Handler,
+		},
+		{
+			MethodName: "GetPeriodAccount",
+			Handler:    _QuotaService_GetPeriodAccount_Handler,
 		},
 		{
 			MethodName: "ReserveTokens",

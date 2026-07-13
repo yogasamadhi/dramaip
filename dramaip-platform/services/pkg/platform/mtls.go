@@ -144,6 +144,25 @@ func mtlsPrincipal(ctx context.Context) (string, error) {
 	return commonName, nil
 }
 
+// RequireInternalPeer narrows a sensitive RPC to the listed mTLS principals.
+// It is intentionally a no-op in development when mTLS is disabled, matching
+// GRPCPeerAuthorization; production always has the internal security marker.
+func RequireInternalPeer(ctx context.Context, allowedCallers ...string) error {
+	if secured, _ := ctx.Value(internalSecurityContextKey{}).(bool); !secured {
+		return nil
+	}
+	principal, err := mtlsPrincipal(ctx)
+	if err != nil {
+		return err
+	}
+	for _, allowed := range allowedCallers {
+		if principal == strings.TrimSpace(allowed) && principal != "" {
+			return nil
+		}
+	}
+	return status.Error(codes.PermissionDenied, "internal caller is not authorized for this operation")
+}
+
 type userIdentityContextKey struct{}
 type internalSecurityContextKey struct{}
 

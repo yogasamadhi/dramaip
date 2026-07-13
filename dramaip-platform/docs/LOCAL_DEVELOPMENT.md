@@ -108,6 +108,9 @@ POSTGRES_BILLING_SAGA_TEST_DSN='postgres://ddl_user:password@localhost:5432/dram
 # 需要另一个全新隔离 PostgreSQL；验证 billing-job 的到期取消与模拟订阅续期事务。
 POSTGRES_BILLING_LIFECYCLE_TEST_DSN='postgres://ddl_user:password@localhost:5432/dramaip_billing_lifecycle?sslmode=disable' \
   make billing-lifecycle-integration
+# 需要另一个全新隔离 PostgreSQL；验证支付账本、订阅和 quota 周期账户的差异建案、重跑幂等和人工操作审计。
+POSTGRES_BILLING_RECONCILIATION_TEST_DSN='postgres://ddl_user:password@localhost:5432/dramaip_billing_reconciliation?sslmode=disable' \
+  make billing-reconciliation-integration
 
 cd ../clients
 pnpm typecheck

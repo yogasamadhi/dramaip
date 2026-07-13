@@ -213,6 +213,9 @@ config:
   billingJob:
     outboxLease: 30s
     outboxRetryDelay: 5s
+    reconciliationEnabled: "true"
+    reconciliationInterval: 1h
+    reconciliationBatchSize: "100"
   jwt:
     issuer: dramaip
     audience: dramaip-api
@@ -279,6 +282,7 @@ secret:
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
   aiProviderApiKey: sk-replace-me
+  reconciliationOperatorToken: ""
 
 # Production must set this to a Secret containing private.pem and jwks.json.
 # The private key is mounted only into auth-service; the JWKS contains public

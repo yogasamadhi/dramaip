@@ -50,6 +50,9 @@ data:
   NOTIFICATION_CHANNELS: {{ .Values.config.notificationConsumer.channels | quote }}
   OUTBOX_LEASE: {{ .Values.config.billingJob.outboxLease | quote }}
   OUTBOX_RETRY_DELAY: {{ .Values.config.billingJob.outboxRetryDelay | quote }}
+  BILLING_RECONCILIATION_ENABLED: {{ .Values.config.billingJob.reconciliationEnabled | quote }}
+  BILLING_RECONCILIATION_INTERVAL: {{ .Values.config.billingJob.reconciliationInterval | quote }}
+  BILLING_RECONCILIATION_BATCH_SIZE: {{ .Values.config.billingJob.reconciliationBatchSize | quote }}
   BILLING_SIMULATED_ENABLED: {{ .Values.payment.simulatedEnabled | quote }}
   WECHAT_PAY_ENABLED: {{ .Values.payment.wechat.enabled | quote }}
   WECHAT_PAY_APP_ID: {{ .Values.payment.wechat.appID | quote }}

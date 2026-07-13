@@ -7,6 +7,9 @@ option go_package = "github.com/dramaip/dramaip-platform/services/api/quota/serv
 service QuotaService {
   rpc GetTokenBalance(GetTokenBalanceRequest) returns (TokenBalance);
   rpc CreatePeriodAccount(CreatePeriodAccountRequest) returns (TokenAccount);
+  // Allows the billing reconciliation job to inspect one exact entitlement
+  // period without accessing the quota schema directly.
+  rpc GetPeriodAccount(GetPeriodAccountRequest) returns (PeriodAccountReply);
   rpc ReserveTokens(ReserveTokensRequest) returns (TokenReservation);
   rpc SettleTokens(SettleTokensRequest) returns (TokenUsage);
   rpc CancelReservation(CancelReservationRequest) returns (TokenReservation);
@@ -57,6 +60,20 @@ message TokenAccount {
   string subscription_id = 3;
   int64 quota_tokens = 4;
   int64 used_tokens = 5;
+  string plan_code = 6;
+  string status = 7;
+  string period_start = 8;
+  string period_end = 9;
+}
+
+message GetPeriodAccountRequest {
+  string subscription_id = 1;
+  string period_start = 2;
+}
+
+message PeriodAccountReply {
+  bool found = 1;
+  TokenAccount account = 2;
 }
 
 message ReserveTokensRequest {
