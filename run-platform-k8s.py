@@ -76,6 +76,7 @@ SERVICE_IMAGES = (
     ("billing", "dramaip-billing", "./app/billing/service/cmd/server"),
     ("quota", "dramaip-quota", "./app/quota/service/cmd/server"),
     ("aiGateway", "dramaip-ai-gateway", "./app/ai_gateway/service/cmd/server"),
+    ("notification", "dramaip-notification", "./app/notification/service/cmd/server"),
     ("billingJob", "dramaip-billing-job", "./app/billing/job/cmd/server"),
     ("quotaJob", "dramaip-quota-job", "./app/quota/job/cmd/server"),
 )
@@ -1109,6 +1110,7 @@ def install_platform(args: argparse.Namespace) -> None:
     cmd.extend(["--set", f"config.downstream.billingGrpcEndpoint={args.release}-billing:9103"])
     cmd.extend(["--set", f"config.downstream.quotaGrpcEndpoint={args.release}-quota:9104"])
     cmd.extend(["--set", f"config.downstream.aiGatewayGrpcEndpoint={args.release}-ai-gateway:9105"])
+    cmd.extend(["--set", f"config.downstream.notificationGrpcEndpoint={args.release}-notification:9106"])
 
     if local_mode and not args.use_migration_job:
         cmd.extend(["--set", "config.autoMigrate=true"])
@@ -1151,7 +1153,7 @@ def install_platform(args: argparse.Namespace) -> None:
 def wait_for_bff(args: argparse.Namespace) -> None:
     if args.dry_run or args.no_wait:
         return
-    for component in ("auth", "user", "billing", "quota", "ai-gateway", "web-bff", "billing-job", "quota-job"):
+    for component in ("auth", "user", "billing", "quota", "ai-gateway", "notification", "web-bff", "billing-job", "quota-job"):
         info(f"Waiting for {component} rollout")
         run(
             kubectl_base(args)

@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package dramaip.notification.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/notification/service/v1;notificationv1";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkNotificationRead(MarkNotificationReadRequest) returns (MarkNotificationReadResponse);
+  // CreateNotification is the synchronous domain write used by the Web BFF.
+  // Event-driven creation and delivery remain the responsibility of LM3-09.
+  rpc CreateNotification(CreateNotificationRequest) returns (CreateNotificationResponse);
+}
+
+message Notification {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string body = 4;
+  string source_event_id = 5;
+  string read_at = 6;
+  string created_at = 7;
+}
+
+message ListNotificationsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+}
+
+message MarkNotificationReadRequest {
+  string user_id = 1;
+  string notification_id = 2;
+}
+
+message MarkNotificationReadResponse {
+  Notification notification = 1;
+}
+
+message CreateNotificationRequest {
+  string user_id = 1;
+  string type = 2;
+  string title = 3;
+  string body = 4;
+  string source_event_id = 5;
+}
+
+message CreateNotificationResponse {
+  Notification notification = 1;
+}
