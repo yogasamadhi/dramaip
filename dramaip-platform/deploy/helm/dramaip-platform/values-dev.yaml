@@ -12,6 +12,9 @@ images:
   desktopBff:
     repository: dramaip-desktop-bff
     tag: dev
+  mobileBff:
+    repository: dramaip-mobile-bff
+    tag: dev
   auth:
     repository: dramaip-auth
     tag: dev

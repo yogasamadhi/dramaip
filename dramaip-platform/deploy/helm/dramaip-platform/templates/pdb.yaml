@@ -28,3 +28,19 @@ spec:
       {{- include "dramaip-platform.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: desktop-bff
 {{- end }}
+{{- if .Values.pdb.enabled -}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-mobile-bff
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mobile-bff
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "dramaip-platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mobile-bff
+{{- end }}
