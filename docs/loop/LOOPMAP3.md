@@ -220,7 +220,7 @@ make platform-down
 | LM3-10 | P0 | 数据平台 | done | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、手工权限 Gate | LM3-08 |
 | LM3-11 | P0 | Billing | done | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
 | LM3-12 | P0 | Quota | done | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
-| LM3-13 | P0 | AI Gateway | todo | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
+| LM3-13 | P0 | AI Gateway | done | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
 | LM3-14 | P0 | AI FinOps | todo | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
 | LM3-15 | P0 | Billing/Quota | todo | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | todo | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
@@ -980,4 +980,20 @@ Push: Core merge and this completion metadata are pending final ordinary `git pu
 Loop branch cleanup: Pending final metadata push; delete `loop/lm3-12-quota-settlement` immediately afterward.
 Current branch/worktree: main; only this completion metadata update is uncommitted.
 Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. `usage_known=false` is intentionally conservative for old clients: it never converts unknown Provider usage into a one-token charge or an automatic refund. Provider-call idempotency and durable request-audit reconciliation remain LM3-13 work; Provider cost accounting remains LM3-14 work.
+```
+
+```text
+Loop: LM3-13
+Target branch: main
+Loop branch: loop/lm3-13-ai-request-idempotency
+Commit(s): 6904956 loop(LM3-13): persist AI request idempotency; this completion-record update is the loop's final metadata commit.
+Merge commit: f7a6764 merge: LM3-13 AI request idempotency
+Verification: Before merge, a fresh localhost-only PostgreSQL 18 container ran `make ai-idempotency-integration`, applying every migration including 021. It verified concurrent same-key suppression, completed replay without a second Provider/quota call, payload mismatch conflict, Redis-unavailable PostgreSQL fallback, prompt exclusion from the audit response summary, and conservative rejection before Provider invocation when PostgreSQL is closed. `GOCACHE=/tmp/dramaip-go-build go test -race ./...`, `make event-contracts`, `pnpm typecheck`, `pnpm build:web`, and `node --check scripts/platform-e2e.mjs` passed. After the no-ff merge, `GOCACHE=/tmp/dramaip-go-build go test -race ./...`, `make event-contracts`, `pnpm typecheck`, the BFF header test, and E2E script syntax check passed again.
+Compose E2E: `make platform-up` was attempted after Docker Desktop recovered, but the pre-existing local Compose state had no running `postgres` service and its restarted services could not resolve that hostname. The rebuild reached Docker's Go build layers without producing an updated runnable stack, so `make platform-e2e` is not claimed. The E2E script now contains the durable replay/no-second-quota/conflict assertions; the isolated PostgreSQL integration, direct BFF HTTP test, and static script check are the replacement evidence. Restore a healthy Compose stack and execute `make platform-e2e` before treating it as deployment evidence.
+Diff review: Reviewed the 17-file core diff and ran `git diff --check` before commit and for `origin/main...HEAD` after the merge. It contains generated protobuf only from checked-in source, a forward-only migration, test/documentation assets, and no real environment file, password, key, container data, cache, image, or unrelated artifact. Redis remains non-authoritative and its best-effort cache has short timeouts/no retry.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed main aligned before creating the loop branch and again immediately before the no-ff merge.
+Push: Core merge and this completion metadata are pending final ordinary `git push origin main`.
+Loop branch cleanup: Pending final metadata push; delete `loop/lm3-13-ai-request-idempotency` immediately afterward.
+Current branch/worktree: main; only this completion metadata update is uncommitted.
+Notes: The repository owner explicitly chose normal Gitee use; no Gitee Go pipeline or hosted merge gate is claimed. Migration 021 preserves old `request_id` callers during the rolling window through its compatibility trigger; it does not delete historical audit records. Provider cost accounting remains LM3-14 work.
 ```
