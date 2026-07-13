@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 
 	envelopev1 "github.com/dramaip/dramaip-platform/services/events/envelope/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
@@ -20,9 +21,12 @@ type RabbitConfig struct {
 }
 
 type RabbitPublisher struct {
-	config RabbitConfig
-	conn   *amqp.Connection
-	ch     *amqp.Channel
+	config   RabbitConfig
+	conn     *amqp.Connection
+	ch       *amqp.Channel
+	confirms <-chan amqp.Confirmation
+	returns  <-chan amqp.Return
+	mu       sync.Mutex
 }
 
 func RabbitConfigFromEnv() RabbitConfig {
@@ -72,7 +76,16 @@ func NewRabbitPublisher(config RabbitConfig) (*RabbitPublisher, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	return &RabbitPublisher{config: config, conn: conn, ch: ch}, nil
+	if err := ch.Confirm(false); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return nil, err
+	}
+	return &RabbitPublisher{
+		config: config, conn: conn, ch: ch,
+		confirms: ch.NotifyPublish(make(chan amqp.Confirmation, 1)),
+		returns:  ch.NotifyReturn(make(chan amqp.Return, 1)),
+	}, nil
 }
 
 func declarePublisherTopology(ch *amqp.Channel, config RabbitConfig) error {
@@ -99,6 +112,8 @@ func (p *RabbitPublisher) Health(context.Context) error {
 // Publish serializes the generated event envelope and uses its versioned event
 // type for AMQP routing. Arbitrary JSON maps are intentionally not accepted.
 func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.EventEnvelope) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := p.Health(ctx); err != nil {
 		return err
 	}
@@ -120,13 +135,41 @@ func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.Even
 	if p.config.Exchange != "" {
 		routingKey = envelope.GetEventType()
 	}
-	return p.ch.PublishWithContext(ctx, p.config.Exchange, routingKey, false, false, amqp.Publishing{
+	if err := p.ch.PublishWithContext(ctx, p.config.Exchange, routingKey, true, false, amqp.Publishing{
 		ContentType:  "application/protobuf+json",
 		Type:         envelope.GetEventType(),
 		DeliveryMode: amqp.Persistent,
 		Headers:      headers,
 		Body:         raw,
-	})
+	}); err != nil {
+		return err
+	}
+	// A broker confirm means durable acceptance; mandatory publishing additionally
+	// rejects an event with no bound consumer queue so the outbox can retry it.
+	select {
+	case returned, ok := <-p.returns:
+		if !ok {
+			return fmt.Errorf("rabbitmq return channel closed")
+		}
+		return fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+	case confirmation, ok := <-p.confirms:
+		if !ok || !confirmation.Ack {
+			return fmt.Errorf("rabbitmq publish was not confirmed")
+		}
+		// RabbitMQ sends Basic.Return before the corresponding confirm. The
+		// non-blocking check also covers returns already queued with that ack.
+		select {
+		case returned, ok := <-p.returns:
+			if !ok {
+				return fmt.Errorf("rabbitmq return channel closed")
+			}
+			return fmt.Errorf("rabbitmq event %s is unroutable: %s", envelope.GetEventId(), returned.ReplyText)
+		default:
+			return nil
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (p *RabbitPublisher) Close() error {

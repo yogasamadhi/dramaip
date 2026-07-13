@@ -48,6 +48,8 @@ data:
   NOTIFICATION_EVENT_MAX_RETRIES: {{ .Values.config.notificationConsumer.maxRetries | quote }}
   NOTIFICATION_INBOX_LEASE: {{ .Values.config.notificationConsumer.inboxLease | quote }}
   NOTIFICATION_CHANNELS: {{ .Values.config.notificationConsumer.channels | quote }}
+  OUTBOX_LEASE: {{ .Values.config.billingJob.outboxLease | quote }}
+  OUTBOX_RETRY_DELAY: {{ .Values.config.billingJob.outboxRetryDelay | quote }}
   JWT_ISSUER: {{ .Values.config.jwt.issuer | quote }}
   JWT_AUDIENCE: {{ .Values.config.jwt.audience | quote }}
   JWT_ACTIVE_KID: {{ .Values.config.jwt.activeKeyID | quote }}

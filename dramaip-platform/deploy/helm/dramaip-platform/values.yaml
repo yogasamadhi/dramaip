@@ -182,6 +182,9 @@ config:
     maxRetries: "3"
     inboxLease: 1m
     channels: in_app
+  billingJob:
+    outboxLease: 30s
+    outboxRetryDelay: 5s
   jwt:
     issuer: dramaip
     audience: dramaip-api

@@ -2,13 +2,18 @@ package data
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/activation"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/outbox"
+	envelopev1 "github.com/dramaip/dramaip-platform/services/events/envelope/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"gorm.io/gorm"
 )
@@ -209,6 +214,125 @@ func TestCheckoutSnapshotSurvivesPlanChangeIntegration(t *testing.T) {
 		       quota_tokens AS monthly_token_quota, max_rpm, max_context_tokens, model_level
 		FROM quota.token_accounts WHERE id = ?::uuid
 	`, accountID, purchased)
+
+	// Payment confirmation is idempotent at the order lock: a repeated provider
+	// callback returns the same subscription and never creates another payment
+	// or payment.succeeded event.
+	replayed, err := repo.ConfirmSimulatedPayment(ctx, userID, checkout.OrderID)
+	if err != nil {
+		t.Fatalf("replay simulated payment: %v", err)
+	}
+	if replayed.Subscription.ID != result.Subscription.ID {
+		t.Fatalf("replayed subscription = %q, want %q", replayed.Subscription.ID, result.Subscription.ID)
+	}
+	assertCount(t, db, "payment rows", `SELECT count(*) FROM billing.payments WHERE order_id = ?::uuid`, checkout.OrderID, 1)
+	assertCount(t, db, "payment success outbox rows", `SELECT count(*) FROM billing.outbox_events WHERE aggregate_id = (SELECT id FROM billing.payments WHERE order_id = ?::uuid) AND event_type = 'payment.succeeded.v1'`, checkout.OrderID, 1)
+	scheduled, err := repo.CancelSubscription(ctx, userID, result.Subscription.ID, false)
+	if err != nil {
+		t.Fatalf("schedule cancellation while quota pending: %v", err)
+	}
+	if scheduled.Status != "quota_pending" || !scheduled.CancelAtPeriodEnd {
+		t.Fatalf("scheduled pending subscription = %#v", scheduled)
+	}
+
+	// Quota is provisioned outside the payment transaction. Once it succeeds,
+	// activation and subscription.activated.v1 are one local transaction and
+	// are safe to repeat.
+	if err := activation.ActivateSubscription(ctx, db, result.Subscription.ID); err != nil {
+		t.Fatalf("activate subscription: %v", err)
+	}
+	if err := activation.ActivateSubscription(ctx, db, result.Subscription.ID); err != nil {
+		t.Fatalf("repeat activation: %v", err)
+	}
+	var activatedStatus string
+	if err := db.WithContext(ctx).Raw(`SELECT status FROM billing.subscriptions WHERE id = ?::uuid`, result.Subscription.ID).Scan(&activatedStatus).Error; err != nil {
+		t.Fatalf("load activated subscription: %v", err)
+	}
+	if activatedStatus != "active" {
+		t.Fatalf("subscription status = %q, want active", activatedStatus)
+	}
+	assertCount(t, db, "subscription activation outbox rows", `SELECT count(*) FROM billing.outbox_events WHERE aggregate_type = 'billing.subscription' AND aggregate_id = ?::uuid AND event_type = 'subscription.activated.v1'`, result.Subscription.ID, 1)
+
+	// A publisher-confirm loss can leave an event delivered but unmarked. The
+	// relay retains the same event IDs, releases leases, and a restarted worker
+	// retries them. An expired lease represents a process crash after claiming.
+	failingPublisher := &recordingPublisher{err: errors.New("publisher confirmation lost")}
+	if err := outbox.Relay(ctx, db, failingPublisher, platform.NewUUID(), 100, 30*time.Second, 0); err == nil {
+		t.Fatal("relay with lost publisher confirmation unexpectedly succeeded")
+	}
+	if len(failingPublisher.eventIDs) != 3 {
+		t.Fatalf("failed relay event count = %d, want 3", len(failingPublisher.eventIDs))
+	}
+	assertCount(t, db, "unpublished retry rows", `SELECT count(*) FROM billing.outbox_events WHERE published_at IS NULL AND publish_attempts = 1`, "", 3)
+	if err := db.WithContext(ctx).Exec(`
+		UPDATE billing.outbox_events
+		SET lease_id = ?::uuid, lease_expires_at = now() - interval '1 second'
+		WHERE aggregate_id = ?::uuid AND event_type = 'subscription.activated.v1'
+	`, platform.NewUUID(), result.Subscription.ID).Error; err != nil {
+		t.Fatalf("simulate crashed relay lease: %v", err)
+	}
+	successfulPublisher := &recordingPublisher{}
+	if err := outbox.Relay(ctx, db, successfulPublisher, platform.NewUUID(), 100, 30*time.Second, 0); err != nil {
+		t.Fatalf("restart relay: %v", err)
+	}
+	if !sameEventIDs(failingPublisher.eventIDs, successfulPublisher.eventIDs) {
+		t.Fatalf("relay retry changed event identities: first=%v retry=%v", failingPublisher.eventIDs, successfulPublisher.eventIDs)
+	}
+	assertCount(t, db, "published outbox rows", `SELECT count(*) FROM billing.outbox_events WHERE published_at IS NOT NULL`, "", 3)
+	if err := outbox.Relay(ctx, db, successfulPublisher, platform.NewUUID(), 100, 30*time.Second, 0); err != nil {
+		t.Fatalf("empty relay: %v", err)
+	}
+	if len(successfulPublisher.eventIDs) != 3 {
+		t.Fatalf("published events after empty relay = %d, want 3", len(successfulPublisher.eventIDs))
+	}
+}
+
+type recordingPublisher struct {
+	err      error
+	eventIDs []string
+}
+
+func (p *recordingPublisher) Publish(_ context.Context, envelope *envelopev1.EventEnvelope) error {
+	p.eventIDs = append(p.eventIDs, envelope.GetEventId())
+	return p.err
+}
+
+func assertCount(t *testing.T, db interface {
+	WithContext(context.Context) *gorm.DB
+}, name, query, id string, want int64) {
+	t.Helper()
+	var got int64
+	var err error
+	if id == "" {
+		err = db.WithContext(context.Background()).Raw(query).Scan(&got).Error
+	} else {
+		err = db.WithContext(context.Background()).Raw(query, id).Scan(&got).Error
+	}
+	if err != nil {
+		t.Fatalf("count %s: %v", name, err)
+	}
+	if got != want {
+		t.Fatalf("%s = %d, want %d", name, got, want)
+	}
+}
+
+func sameEventIDs(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := map[string]int{}
+	for _, id := range left {
+		seen[id]++
+	}
+	for _, id := range right {
+		seen[id]--
+	}
+	for _, count := range seen {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 type snapshotRow struct {

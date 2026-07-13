@@ -2,28 +2,22 @@ package data
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/activation"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/outbox"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/conf"
-	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 )
 
-type EventRow struct {
-	ID        string
-	EventType string
-	TraceID   string
-	Payload   []byte
-}
-
 type Data struct {
 	DB        *gorm.DB
 	Publisher *platform.RabbitPublisher
 	Quota     quotav1.QuotaServiceClient
+	workerID  string
 	conns     []*grpc.ClientConn
 }
 
@@ -43,7 +37,7 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		publisher.Close()
 		return nil, nil, err
 	}
-	data := &Data{DB: db, Publisher: publisher, Quota: quotav1.NewQuotaServiceClient(quotaConn), conns: []*grpc.ClientConn{quotaConn}}
+	data := &Data{DB: db, Publisher: publisher, Quota: quotav1.NewQuotaServiceClient(quotaConn), workerID: platform.NewUUID(), conns: []*grpc.ClientConn{quotaConn}}
 	return data, data.Close, nil
 }
 
@@ -61,54 +55,8 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 	}
 }
 
-func (d *Data) Relay(ctx context.Context, batch int) error {
-	var rows []EventRow
-	if err := d.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, event_type, trace_id, payload
-		FROM billing.outbox_events
-		WHERE published_at IS NULL
-		ORDER BY created_at ASC
-		LIMIT ?
-	`, batch).Scan(&rows).Error; err != nil {
-		return err
-	}
-	for _, row := range rows {
-		eventCtx, span := platform.Tracer("billing-job").Start(ctx, "outbox relay "+row.EventType)
-		envelope, err := events.ParseEnvelope(row.Payload)
-		if err != nil {
-			span.RecordError(err)
-			span.End()
-			return err
-		}
-		if envelope.GetEventType() != row.EventType {
-			err := fmt.Errorf("outbox event type %q does not match payload event_type %q", row.EventType, envelope.GetEventType())
-			span.RecordError(err)
-			span.End()
-			return err
-		}
-		if envelope.GetTraceId() == "" && row.TraceID != "" {
-			envelope.TraceId = row.TraceID
-		}
-		if err := d.Publisher.Publish(eventCtx, envelope); err != nil {
-			_ = d.DB.WithContext(ctx).Exec(`
-				UPDATE billing.outbox_events
-				SET publish_attempts = publish_attempts + 1, last_error = ?, occurred_at = occurred_at
-				WHERE id = ?::uuid
-			`, err.Error(), row.ID).Error
-			platform.StructuredLog(eventCtx, "billing-job", "error", "outbox_publish_failed", map[string]any{"event_id": row.ID, "event_type": row.EventType, "error": err.Error()})
-			span.RecordError(err)
-			span.End()
-			return err
-		}
-		if err := d.DB.WithContext(ctx).Exec(`UPDATE billing.outbox_events SET published_at = now() WHERE id = ?::uuid`, row.ID).Error; err != nil {
-			span.RecordError(err)
-			span.End()
-			return err
-		}
-		platform.StructuredLog(eventCtx, "billing-job", "info", "outbox_published", map[string]any{"event_id": row.ID, "event_type": row.EventType})
-		span.End()
-	}
-	return nil
+func (d *Data) Relay(ctx context.Context, batch int, lease time.Duration, retry time.Duration) error {
+	return outbox.Relay(ctx, d.DB, d.Publisher, d.workerID, batch, lease, retry)
 }
 
 func (d *Data) RetryQuotaProvisioning(ctx context.Context, batch int) error {
@@ -151,10 +99,11 @@ func (d *Data) RetryQuotaProvisioning(ctx context.Context, batch int) error {
 			Currency: row.Currency, MaxRpm: row.MaxRPM, MaxContextTokens: row.MaxContextTokens,
 			ModelLevel: row.ModelLevel, PlanSnapshotSource: row.PlanSnapshotSource, PlanSnapshotAt: row.PlanSnapshotAt,
 		}); err != nil {
-			_ = d.DB.WithContext(ctx).Exec(`UPDATE billing.subscriptions SET status = 'activation_failed', activation_error = ?, updated_at = now() WHERE id = ?::uuid`, err.Error(), row.ID).Error
+			_ = d.DB.WithContext(ctx).Exec(`UPDATE billing.subscriptions SET status = 'activation_failed', activation_error = ?, updated_at = now() WHERE id = ?::uuid AND status IN ('quota_pending', 'activation_failed')`, err.Error(), row.ID).Error
 			continue
 		}
-		if err := d.DB.WithContext(ctx).Exec(`UPDATE billing.subscriptions SET status = 'active', activation_error = NULL, quota_provisioned_at = now(), updated_at = now() WHERE id = ?::uuid`, row.ID).Error; err != nil {
+		if err := activation.ActivateSubscription(ctx, d.DB, row.ID); err != nil {
+			_ = d.DB.WithContext(ctx).Exec(`UPDATE billing.subscriptions SET status = 'activation_failed', activation_error = ?, updated_at = now() WHERE id = ?::uuid AND status IN ('quota_pending', 'activation_failed')`, err.Error(), row.ID).Error
 			return err
 		}
 	}
