@@ -43,6 +43,13 @@ spec:
                 name: {{ include "dramaip-platform.fullname" $ }}-desktop-bff
                 port:
                   number: 8110
+          - path: /v1/mobile
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dramaip-platform.fullname" $ }}-mobile-bff
+                port:
+                  number: 8120
           {{- $paths := default (list (dict "path" "/" "pathType" "Prefix")) .paths }}
           {{- range $paths }}
           - path: {{ .path }}

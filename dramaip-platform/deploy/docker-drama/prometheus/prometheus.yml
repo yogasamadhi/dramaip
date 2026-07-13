@@ -25,6 +25,11 @@ scrape_configs:
     static_configs:
       - targets: ["web-bff:8100"]
 
+  - job_name: dramaip-mobile-bff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["mobile-bff:8120"]
+
   - job_name: dramaip-services
     metrics_path: /metrics
     static_configs:

@@ -91,7 +91,7 @@
 
 | 差异 | 对应 Loop | 目标结果 |
 | --- | --- | --- |
-| D-001 通用 BFF 未分端 | LM3-02、LM3-25、LM3-27、LM3-29 | Web/Desktop/Mobile/Admin 使用独立 BFF |
+| D-001 通用 BFF 未分端 | LM3-02、LM3-25、LM3-27～LM3-30 | Web/Desktop/Mobile/Admin 使用独立 BFF |
 | D-002 BFF 直连 notification schema | LM3-08（done）、LM3-10 | BFF 只调用 notification API，DB role 强制边界 |
 | D-003 缺少事件契约 | LM3-04 | 事件 schema 版本化并由 CI 校验 |
 | D-004 BFF 测试使用无版本路径 | LM3-01 | API、SDK、测试统一 `/v1/...` |
@@ -235,7 +235,7 @@ make platform-down
 | LM3-25 | P0 | Desktop 安全 | done | 将桌面本地凭据迁移到系统 Keychain | Electron secrets、模型/视频配置、迁移 | LM3-03 |
 | LM3-26 | P0 | Desktop/Auth | done | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
 | LM3-27 | P0 | Desktop/AI | done | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
-| LM3-28 | P2 | Mobile | todo | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
+| LM3-28 | P2 | Mobile | done | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
 | LM3-29 | P2 | Mobile | todo | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | todo | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | todo | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |

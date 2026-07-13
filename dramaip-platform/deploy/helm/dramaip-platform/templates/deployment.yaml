@@ -1,6 +1,7 @@
 {{- $workloads := list
   (dict "key" "webBff" "component" "web-bff" "http" 8100 "grpc" 0)
   (dict "key" "desktopBff" "component" "desktop-bff" "http" 8110 "grpc" 0)
+  (dict "key" "mobileBff" "component" "mobile-bff" "http" 8120 "grpc" 0)
   (dict "key" "auth" "component" "auth" "http" 8101 "grpc" 9101)
   (dict "key" "user" "component" "user" "http" 8102 "grpc" 9102)
   (dict "key" "billing" "component" "billing" "http" 8103 "grpc" 9103)
@@ -89,7 +90,7 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "dramaip-platform.fullname" $ }}-config
-          {{- if or $.Values.internalMTLS.enabled $databaseRole (eq $key "webBff") (eq $key "desktopBff") }}
+          {{- if or $.Values.internalMTLS.enabled $databaseRole (eq $key "webBff") (eq $key "desktopBff") (eq $key "mobileBff") }}
           env:
             {{- if $databaseRole }}
             - name: POSTGRES_USER
@@ -145,7 +146,7 @@ spec:
                   name: {{ required "payment.wechat.credentialsSecret is required when WeChat Pay is enabled" $.Values.payment.wechat.credentialsSecret }}
                   key: {{ $.Values.payment.wechat.apiV3KeyKey }}
             {{- end }}
-            {{- if or (eq $key "webBff") (eq $key "desktopBff") }}
+            {{- if or (eq $key "webBff") (eq $key "desktopBff") (eq $key "mobileBff") }}
             # The BFF has no Secret envFrom. Blank connection metadata as an
             # additional guard against a future direct database client.
             - name: POSTGRES_HOST
@@ -162,6 +163,10 @@ spec:
             {{- if eq $key "desktopBff" }}
             - name: OTEL_SERVICE_NAME
               value: "dramaip-desktop-bff"
+            {{- end }}
+            {{- if eq $key "mobileBff" }}
+            - name: OTEL_SERVICE_NAME
+              value: "dramaip-mobile-bff"
             {{- end }}
           {{- if $.Values.internalMTLS.enabled }}
             - name: GRPC_MTLS_CERT_FILE

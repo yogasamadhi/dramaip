@@ -129,6 +129,26 @@ services:
               minute: 60
               policy: local
 
+  # Mobile never shares the browser-cookie Web BFF. Its refresh token is held
+  # in the OS secure store and its compact account view lives under /v1/mobile.
+  - name: dramaip-mobile-bff
+    url: http://mobile-bff:8120
+    routes:
+      - name: dramaip-mobile-api
+        paths:
+          - /v1/mobile
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+    plugins:
+      - name: request-transformer
+        config:
+          remove:
+            headers: [X-User-Id, X-User-Role, X-User-Email, X-User-Plan, X-Dramaip-User-Id]
+
 # JWT_CREDENTIALS
 
 plugins:
