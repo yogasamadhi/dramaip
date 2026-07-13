@@ -60,7 +60,7 @@ func TestClientSignsCreateAndQueryRequests(t *testing.T) {
 	client, err := NewClient(Config{
 		AppID: "app-1", MchID: "merchant-1", APIV3Key: "0123456789abcdef0123456789abcdef",
 		MerchantCertificateSerial: "merchant-serial", MerchantPrivateKeyPath: merchantPath,
-		PlatformCertificatePath: platformPath, APIBaseURL: server.URL,
+		PlatformCertificateSerial: "platform-serial", PlatformCertificatePath: platformPath, APIBaseURL: server.URL,
 	})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

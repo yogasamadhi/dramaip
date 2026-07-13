@@ -55,6 +55,7 @@ data:
   WECHAT_PAY_APP_ID: {{ .Values.payment.wechat.appID | quote }}
   WECHAT_PAY_MCH_ID: {{ .Values.payment.wechat.mchID | quote }}
   WECHAT_PAY_CERT_SERIAL: {{ .Values.payment.wechat.merchantCertificateSerial | quote }}
+  WECHAT_PAY_PLATFORM_CERT_SERIAL: {{ if .Values.payment.wechat.enabled }}{{ required "payment.wechat.platformCertificateSerial is required when WeChat Pay is enabled" .Values.payment.wechat.platformCertificateSerial | quote }}{{ else }}""{{ end }}
   WECHAT_PAY_NOTIFY_URL: {{ .Values.payment.wechat.notifyURL | quote }}
   WECHAT_PAY_API_BASE_URL: {{ .Values.payment.wechat.apiBaseURL | quote }}
   WECHAT_PAY_PRIVATE_KEY_PATH: {{ if .Values.payment.wechat.enabled }}"/var/run/dramaip/wechat/apiclient-key.pem"{{ else }}""{{ end }}

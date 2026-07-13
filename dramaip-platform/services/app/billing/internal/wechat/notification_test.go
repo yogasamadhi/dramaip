@@ -37,18 +37,22 @@ func TestVerifyAndDecryptNotification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign notification: %v", err)
 	}
-	if err := VerifySignature(&privateKey.PublicKey, timestamp, nonce, base64.StdEncoding.EncodeToString(signature), raw, now, DefaultReplayWindow); err != nil {
-		t.Fatalf("VerifySignature: %v", err)
+	client := &Client{platformKey: &privateKey.PublicKey, platformSerial: "platform-serial"}
+	if err := client.VerifyNotification("platform-serial", timestamp, nonce, base64.StdEncoding.EncodeToString(signature), raw, now); err != nil {
+		t.Fatalf("VerifyNotification: %v", err)
 	}
 	_, decoded, err := ParseNotification(key, raw)
 	if err != nil || decoded.OutTradeNo != transaction.OutTradeNo || decoded.TransactionID != transaction.TransactionID {
 		t.Fatalf("ParseNotification = %#v, %v", decoded, err)
 	}
-	if err := VerifySignature(&privateKey.PublicKey, timestamp, nonce, base64.StdEncoding.EncodeToString(signature), append(raw, 'x'), now, DefaultReplayWindow); err == nil {
+	if err := client.VerifyNotification("platform-serial", timestamp, nonce, base64.StdEncoding.EncodeToString(signature), append(raw, 'x'), now); err == nil {
 		t.Fatal("tampered body signature unexpectedly verified")
 	}
-	if err := VerifySignature(&privateKey.PublicKey, "1699999000", nonce, base64.StdEncoding.EncodeToString(signature), raw, now, time.Minute); err == nil {
+	if err := client.VerifyNotification("platform-serial", "1699999000", nonce, base64.StdEncoding.EncodeToString(signature), raw, now); err == nil {
 		t.Fatal("stale notification unexpectedly verified")
+	}
+	if err := client.VerifyNotification("different-serial", timestamp, nonce, base64.StdEncoding.EncodeToString(signature), raw, now); err == nil {
+		t.Fatal("wrong platform certificate serial unexpectedly verified")
 	}
 }
 
