@@ -52,12 +52,41 @@ func (s *AuthService) ValidateAccessToken(ctx context.Context, req *authv1.Valid
 	if err != nil {
 		return nil, err
 	}
-	return &authv1.AuthReply{TokenType: "Bearer", UserId: identity.UserID, Email: identity.Email}, nil
+	return &authv1.AuthReply{TokenType: "Bearer", UserId: identity.UserID, Email: identity.Email, EmailVerified: identity.EmailVerified}, nil
+}
+
+func (s *AuthService) RequestEmailVerification(ctx context.Context, req *authv1.RequestEmailVerificationRequest) (*authv1.EmailActionReply, error) {
+	if err := s.uc.RequestEmailVerification(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+
+func (s *AuthService) VerifyEmail(ctx context.Context, req *authv1.VerifyEmailRequest) (*authv1.EmailActionReply, error) {
+	if err := s.uc.VerifyEmail(ctx, req.UserId, req.Code); err != nil {
+		return nil, err
+	}
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+
+func (s *AuthService) RequestPasswordReset(ctx context.Context, req *authv1.RequestPasswordResetRequest) (*authv1.EmailActionReply, error) {
+	if err := s.uc.RequestPasswordReset(ctx, req.Email); err != nil {
+		return nil, err
+	}
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+
+func (s *AuthService) ResetPassword(ctx context.Context, req *authv1.ResetPasswordRequest) (*authv1.EmailActionReply, error) {
+	if err := s.uc.ResetPassword(ctx, req.Email, req.Code, req.Password); err != nil {
+		return nil, err
+	}
+	return &authv1.EmailActionReply{Accepted: true}, nil
 }
 
 func sessionReply(session biz.Session) *authv1.AuthReply {
 	return &authv1.AuthReply{
 		AccessToken: session.AccessToken, RefreshToken: session.RefreshToken, TokenType: session.TokenType,
 		ExpiresIn: session.ExpiresIn, UserId: session.UserID, Email: session.Email, Name: session.Name,
+		EmailVerified: session.EmailVerified,
 	}
 }

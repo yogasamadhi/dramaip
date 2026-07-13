@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type Table } from '@tanstack/react-table'
 import { z } from 'zod'
 import type { Notification, Order, TokenUsage } from '@dramaip/sdk'
-import { parseApiError } from '../lib/api-error'
+import { formatApiError } from '../lib/api-error'
 import { apiClient } from '../lib/api-client'
 import { displayNameLabel, paymentProviderLabel, planCodeLabel } from '../lib/display'
 import { Button } from './ui/Button'
@@ -29,10 +29,12 @@ type AccountTab = 'profile' | 'subscription' | 'orders' | 'usage' | 'notificatio
 export function AccountDashboard() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<AccountTab>('profile')
+  const [nextPlanID, setNextPlanID] = useState('')
   const profile = useQuery({ queryKey: ['profile'], queryFn: () => apiClient.getProfile(), retry: false })
   const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => apiClient.getDashboard(), retry: false })
   const tokenBalance = useQuery({ queryKey: ['token-balance'], queryFn: () => apiClient.getTokenBalance(), retry: false })
   const subscription = useQuery({ queryKey: ['subscription'], queryFn: () => apiClient.getSubscription(), retry: false })
+  const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans(), retry: false })
   const orders = useQuery({ queryKey: ['orders'], queryFn: () => apiClient.getOrders(), retry: false })
   const usage = useQuery({ queryKey: ['token-usage'], queryFn: () => apiClient.getTokenUsage({ limit: 50 }), retry: false })
   const usageTrend = useQuery({ queryKey: ['usage-trend'], queryFn: () => apiClient.getUsageTrend({ days: 30 }), retry: false })
@@ -71,7 +73,38 @@ export function AccountDashboard() {
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
         queryClient.invalidateQueries({ queryKey: ['token-balance'] }),
         queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+        queryClient.invalidateQueries({ queryKey: ['account-report'] }),
       ])
+    },
+  })
+
+  const resumeSubscription = useMutation({
+    mutationFn: () => apiClient.resumeSubscription({ subscription_id: activeSubscriptionID(subscription.data), idempotency_key: lifecycleKey('web-resume') }),
+    onSuccess: async () => {
+      await invalidateSubscriptionQueries(queryClient)
+    },
+  })
+
+  const changeSubscriptionPlan = useMutation({
+    mutationFn: () => apiClient.changeSubscriptionPlan({
+      subscription_id: activeSubscriptionID(subscription.data),
+      plan_id: nextPlanID,
+      idempotency_key: lifecycleKey('web-plan-change'),
+    }),
+    onSuccess: async () => {
+      setNextPlanID('')
+      await invalidateSubscriptionQueries(queryClient)
+    },
+  })
+
+  const requestRefund = useMutation({
+    mutationFn: () => apiClient.requestRefund({
+      subscription_id: activeSubscriptionID(subscription.data),
+      reason: 'web_account_request',
+      idempotency_key: lifecycleKey('web-refund'),
+    }),
+    onSuccess: async () => {
+      await invalidateSubscriptionQueries(queryClient)
     },
   })
 
@@ -137,11 +170,12 @@ export function AccountDashboard() {
 
   const firstError = profile.error || dashboard.error || tokenBalance.error
   if (firstError) {
-    return <Panel tone="danger">{parseApiError(firstError, '账号数据暂不可用。').message}</Panel>
+    return <Panel tone="danger">{formatApiError(firstError, '账号数据暂不可用。')}</Panel>
   }
 
   const balance = tokenBalance.data
   const activeSubscription = subscription.data
+  const subscriptionActionError = cancelSubscription.error || resumeSubscription.error || changeSubscriptionPlan.error || requestRefund.error
   const tabs: Array<{ id: AccountTab; label: string }> = [
     { id: 'profile', label: '资料' },
     { id: 'subscription', label: '订阅' },
@@ -194,10 +228,10 @@ export function AccountDashboard() {
               </Field>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-slate-500">{profile.data?.email}</span>
+              <div className="grid gap-1 text-sm text-slate-500"><span>{profile.data?.email}</span><Link href="/verify-email" className="font-medium text-brand-700">验证邮箱</Link></div>
               <Button type="submit" disabled={updateProfile.isPending}>{updateProfile.isPending ? '保存中...' : '保存资料'}</Button>
             </div>
-            {updateProfile.error ? <p className="text-sm text-rose-600">{parseApiError(updateProfile.error).message}</p> : null}
+            {updateProfile.error ? <p className="text-sm text-rose-600">{formatApiError(updateProfile.error, '资料保存暂不可用。')}</p> : null}
           </form>
         </Panel>
       ) : null}
@@ -213,17 +247,60 @@ export function AccountDashboard() {
           <div className="mt-5 grid gap-3 text-sm text-slate-700">
             <Row label="订阅状态" value={statusLabel(activeSubscription?.status ?? dashboard.data?.subscription_status)} />
             <Row label="周期" value={`${formatDate(activeSubscription?.current_period_start)} - ${formatDate(activeSubscription?.current_period_end)}`} />
+            {activeSubscription?.scheduled_plan_code ? <Row label="计划变更" value={`${planCodeLabel(activeSubscription.scheduled_plan_code)}（${formatDate(activeSubscription.scheduled_change_at)} 生效）`} /> : null}
             {subscriptionNotice(activeSubscription?.status, activeSubscription?.cancel_at_period_end)}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                if (window.confirm('确定在当前周期结束时取消续订吗？')) cancelSubscription.mutate(false)
-              }}
-              disabled={cancelSubscription.isPending || activeSubscription?.cancel_at_period_end}
-            >
-              {cancelSubscription.isPending ? '取消中...' : '取消续订'}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              {activeSubscription?.cancel_at_period_end ? (
+                <Button type="button" onClick={() => resumeSubscription.mutate()} disabled={resumeSubscription.isPending}>
+                  {resumeSubscription.isPending ? '恢复中...' : '恢复续订'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    if (window.confirm('确定在当前周期结束时取消续订吗？')) cancelSubscription.mutate(false)
+                  }}
+                  disabled={cancelSubscription.isPending || !activeSubscription?.id}
+                >
+                  {cancelSubscription.isPending ? '取消中...' : '取消续订'}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (window.confirm('退款申请将进入人工审核，确定继续吗？')) requestRefund.mutate()
+                }}
+                disabled={requestRefund.isPending || !activeSubscription?.id}
+              >
+                {requestRefund.isPending ? '提交中...' : '申请退款'}
+              </Button>
+            </div>
+            <div className="grid gap-3 rounded-md border border-slate-200 p-4 md:grid-cols-[1fr_auto]">
+              <label className="grid gap-1 text-sm text-slate-700">
+                升级或降级套餐
+                <select
+                  className="h-10 rounded-md border border-slate-300 bg-white px-3"
+                  value={nextPlanID || activeSubscription?.plan_code || ''}
+                  onChange={(event) => setNextPlanID(event.target.value)}
+                  disabled={plans.isLoading || !activeSubscription?.id}
+                >
+                  <option value="">请选择套餐</option>
+                  {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{planCodeLabel(plan.id)} · 每月 {plan.quota_tokens.toLocaleString()} 额度</option>)}
+                </select>
+              </label>
+              <Button
+                type="button"
+                className="self-end"
+                onClick={() => changeSubscriptionPlan.mutate()}
+                disabled={changeSubscriptionPlan.isPending || !nextPlanID || nextPlanID === activeSubscription?.plan_code || !activeSubscription?.id}
+              >
+                {changeSubscriptionPlan.isPending ? '提交中...' : '提交套餐变更'}
+              </Button>
+            </div>
+            {requestRefund.data ? <div className="rounded-md bg-amber-50 p-3 text-amber-800">退款申请已提交，状态：{statusLabel(requestRefund.data.status)}。</div> : null}
+            {subscriptionActionError ? <ErrorNotice error={subscriptionActionError} fallback="订阅操作暂不可用。" /> : null}
           </div>
         </Panel>
       ) : null}
@@ -329,6 +406,30 @@ function subscriptionNotice(status?: string, cancelAtPeriodEnd?: boolean) {
   if (status === 'quota_pending') return <div className="rounded-md bg-amber-50 p-3 text-amber-800">额度正在发放中。</div>
   if (status === 'activation_failed') return <div className="rounded-md bg-rose-50 p-3 text-rose-700">订阅激活需要处理。</div>
   return null
+}
+
+function ErrorNotice({ error, fallback }: { error: unknown; fallback: string }) {
+  return <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{formatApiError(error, fallback)}</div>
+}
+
+function lifecycleKey(prefix: string) {
+  const id = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${id}`
+}
+
+function activeSubscriptionID(subscription?: { id?: string }) {
+  return subscription?.id || undefined
+}
+
+async function invalidateSubscriptionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['subscription'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['token-balance'] }),
+    queryClient.invalidateQueries({ queryKey: ['orders'] }),
+    queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+    queryClient.invalidateQueries({ queryKey: ['account-report'] }),
+  ])
 }
 
 function statusLabel(value?: string) {

@@ -222,6 +222,12 @@ config:
     activeKeyID: ""
     accessTtlSeconds: "900"
     refreshTtlSeconds: "2592000"
+  email:
+    # Provider-owned HTTPS gateway. Public registration must not be enabled
+    # until this is configured together with the Secret token below.
+    deliveryURL: ""
+    from: ""
+    timeout: 10s
   otel:
     endpoint: http://otel-collector:4318
     serviceName: dramaip-web-bff
@@ -283,6 +289,7 @@ secret:
   rabbitmqPassword: change-me
   aiProviderApiKey: sk-replace-me
   reconciliationOperatorToken: ""
+  authEmailDeliveryToken: ""
 
 # Production must set this to a Secret containing private.pem and jwks.json.
 # The private key is mounted only into auth-service; the JWKS contains public

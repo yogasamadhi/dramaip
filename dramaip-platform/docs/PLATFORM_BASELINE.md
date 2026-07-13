@@ -56,6 +56,10 @@ network and is reached by Kong through `http://web-bff:8100`.
 | `GET` | `/v1/auth/session` | Validate the current Web access Cookie session |
 | `POST` | `/v1/auth/refresh` | Rotate Cookie credentials using the HttpOnly refresh Cookie and CSRF header |
 | `POST` | `/v1/auth/logout` | Revoke the refresh session and clear Web Cookie sessions |
+| `POST` | `/v1/auth/email-verification/request` | Send a short-lived verification code to the authenticated user's email |
+| `POST` | `/v1/auth/email-verification/confirm` | Consume a one-time verification code for the authenticated user |
+| `POST` | `/v1/auth/password-reset/request` | Request a recovery code with enumeration-safe response semantics |
+| `POST` | `/v1/auth/password-reset/confirm` | Reset password, revoke refresh tokens, and invalidate existing access sessions |
 | `GET` | `/v1/plans` | PostgreSQL-backed subscription plan catalog |
 | `POST` | `/v1/billing/checkout` | Create order/outbox record and publish RabbitMQ event |
 | `POST` | `/v1/billing/payments/simulated/confirm` | Dev/test-only simulated payment confirmation |
@@ -78,8 +82,10 @@ network and is reached by Kong through `http://web-bff:8100`.
 | `/pricing` | Plans and checkout creation |
 | `/login` | Seeded development account login |
 | `/account` | Protected account and token balance |
-| `/billing` | Billing status placeholder |
-| `/download` | Desktop download placeholder |
+| `/billing` | Orders, subscription period, usage and token balance overview |
+| `/download` | Official Gitee Release download and installation entry |
+| `/verify-email` | Authenticated email verification using an out-of-band one-time code |
+| `/forgot-password` and `/reset-password` | Enumeration-safe recovery request and password reset |
 
 ## Local Run
 
@@ -106,10 +112,23 @@ The end-to-end check enters through Kong and verifies Cookie login, CSRF-protect
 state changes, plans, account data, checkout, simulated payment confirmation,
 AI no-key error handling, test-provider quota settlement, refresh, and logout.
 
+## Email Delivery Boundary
+
+Email verification and recovery use an 8-character one-time code with a
+15-minute expiry. Only its SHA-256 hash is persisted. Configure
+`AUTH_EMAIL_DELIVERY_URL`, `AUTH_EMAIL_DELIVERY_TOKEN`, and
+`AUTH_EMAIL_FROM` with a provider-owned HTTPS delivery gateway before opening
+public registration. The gateway receives the recipient, template, subject,
+and message body in a POST request; codes are never returned through the Web
+API, written to logs, or placed in a URL.
+
+Unverified accounts may browse plans but the Web BFF rejects checkout creation
+until verification succeeds. This keeps the billing state machine independent
+of Web UI state while making registration verification a real commercial-flow
+gate.
+
 ## Next Replacement Points
 
-- Add email verification and account recovery after the registration and
-  refresh-token rotation paths are stable.
 - Replace checkout placeholder URLs with WeChat Pay / Alipay order creation.
 - Keep BFF as the HTTP aggregation layer while auth, user, billing, quota,
   ai-gateway, and notification own their data through Kratos services.

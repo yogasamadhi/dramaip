@@ -35,6 +35,11 @@ export function isUnauthorized(error: unknown) {
   return parseApiError(error).status === 401
 }
 
+export function formatApiError(error: unknown, fallback = '请求失败') {
+  const details = parseApiError(error, fallback)
+  return `${details.message}${details.trace_id ? `（追踪号：${details.trace_id}）` : ''}`
+}
+
 function localizeApiMessage(code: string, message: string, fallback: string) {
   const key = `${code} ${message}`.toLowerCase()
   if (key.includes('unauthorized') || key.includes('unauthenticated') || key.includes('invalid token')) {
@@ -43,6 +48,11 @@ function localizeApiMessage(code: string, message: string, fallback: string) {
   if (key.includes('permission') || key.includes('forbidden')) {
     return '当前账号没有权限执行此操作。'
   }
+  if (key.includes('email delivery is not configured')) return '当前环境尚未配置邮件投递服务。'
+  if (key.includes('email delivery unavailable')) return '邮件投递暂不可用，请稍后重试。'
+  if (key.includes('email delivery endpoint is invalid')) return '邮件投递服务配置无效，请联系管理员。'
+  if (key.includes('verification code')) return '验证码无效或已过期，请重新获取。'
+  if (key.includes('email_verification_required')) return '请先完成邮箱验证，再创建订单。'
   if (key.includes('invalid credentials') || key.includes('invalid email') || key.includes('password')) {
     return '邮箱或密码不正确。'
   }

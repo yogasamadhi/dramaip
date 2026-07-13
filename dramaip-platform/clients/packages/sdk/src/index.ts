@@ -43,6 +43,12 @@ export const RegisterResponseSchema = LoginResponseSchema
 
 export type RegisterResponse = LoginResponse
 
+export const EmailActionResponseSchema = z.object({
+  accepted: z.boolean(),
+})
+
+export type EmailActionResponse = z.infer<typeof EmailActionResponseSchema>
+
 export const HealthSchema = z.object({
   ok: z.boolean(),
   service: z.string(),
@@ -259,6 +265,10 @@ export interface DramaIpApiClient {
   http: AxiosInstance
   register(input: { email: string; password: string; display_name?: string }): Promise<RegisterResponse>
   login(input: { email: string; password: string }): Promise<LoginResponse>
+  requestEmailVerification(): Promise<EmailActionResponse>
+  verifyEmail(input: { code: string }): Promise<EmailActionResponse>
+  requestPasswordReset(input: { email: string }): Promise<EmailActionResponse>
+  resetPassword(input: { email: string; code: string; password: string }): Promise<EmailActionResponse>
   getSession(): Promise<LoginResponse>
   getHealth(): Promise<Health>
   getPlans(): Promise<PlansResponse>
@@ -308,6 +318,22 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     async login(input) {
       const res = await http.post('/v1/auth/login', input)
       return LoginResponseSchema.parse(res.data)
+    },
+    async requestEmailVerification() {
+      const res = await http.post('/v1/auth/email-verification/request')
+      return EmailActionResponseSchema.parse(res.data)
+    },
+    async verifyEmail(input) {
+      const res = await http.post('/v1/auth/email-verification/confirm', input)
+      return EmailActionResponseSchema.parse(res.data)
+    },
+    async requestPasswordReset(input) {
+      const res = await http.post('/v1/auth/password-reset/request', input)
+      return EmailActionResponseSchema.parse(res.data)
+    },
+    async resetPassword(input) {
+      const res = await http.post('/v1/auth/password-reset/confirm', input)
+      return EmailActionResponseSchema.parse(res.data)
     },
     async getSession() {
       const res = await http.get('/v1/auth/session')

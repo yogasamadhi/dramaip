@@ -79,6 +79,12 @@ export default function LoginPage() {
           注册
         </Link>
       </p>
+      <p className="mt-3 text-sm text-slate-600">
+        忘记密码？{' '}
+        <Link href="/forgot-password" className="font-medium text-brand-700">
+          通过邮箱重置
+        </Link>
+      </p>
     </main>
   )
 }

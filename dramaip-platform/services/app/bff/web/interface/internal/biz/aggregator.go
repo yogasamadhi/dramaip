@@ -67,6 +67,22 @@ func (u *BFFUsecase) Logout(ctx context.Context, refreshToken string, accessToke
 	return u.data.Auth.Logout(ctx, &authv1.LogoutRequest{RefreshToken: refreshToken, AccessToken: accessToken, DeviceId: deviceID})
 }
 
+func (u *BFFUsecase) RequestEmailVerification(ctx context.Context, userID string) (*authv1.EmailActionReply, error) {
+	return u.data.Auth.RequestEmailVerification(ctx, &authv1.RequestEmailVerificationRequest{UserId: userID})
+}
+
+func (u *BFFUsecase) VerifyEmail(ctx context.Context, userID string, code string) (*authv1.EmailActionReply, error) {
+	return u.data.Auth.VerifyEmail(ctx, &authv1.VerifyEmailRequest{UserId: userID, Code: code})
+}
+
+func (u *BFFUsecase) RequestPasswordReset(ctx context.Context, email string) (*authv1.EmailActionReply, error) {
+	return u.data.Auth.RequestPasswordReset(ctx, &authv1.RequestPasswordResetRequest{Email: email})
+}
+
+func (u *BFFUsecase) ResetPassword(ctx context.Context, email string, code string, password string) (*authv1.EmailActionReply, error) {
+	return u.data.Auth.ResetPassword(ctx, &authv1.ResetPasswordRequest{Email: email, Code: code, Password: password})
+}
+
 func (u *BFFUsecase) Plans(ctx context.Context) (*billingv1.ListPlansReply, error) {
 	reply, err := u.data.Billing.ListPlans(ctx, &billingv1.ListPlansRequest{})
 	if err == nil {

@@ -77,6 +77,9 @@ data:
   JWT_JWKS_FILE: {{ if .Values.authJWT.keysetSecret }}{{ printf "/var/run/dramaip/auth-jwt/%s" .Values.authJWT.jwksFile | quote }}{{ else }}""{{ end }}
   JWT_ACCESS_TTL: {{ .Values.config.jwt.accessTtlSeconds | quote }}
   JWT_REFRESH_TTL: {{ .Values.config.jwt.refreshTtlSeconds | quote }}
+  AUTH_EMAIL_DELIVERY_URL: {{ .Values.config.email.deliveryURL | quote }}
+  AUTH_EMAIL_FROM: {{ .Values.config.email.from | quote }}
+  AUTH_EMAIL_TIMEOUT: {{ .Values.config.email.timeout | quote }}
   OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otel.endpoint | quote }}
   OTEL_SERVICE_NAME: {{ .Values.config.otel.serviceName | quote }}
   AUTH_GRPC_ENDPOINT: {{ .Values.config.downstream.authGrpcEndpoint | quote }}

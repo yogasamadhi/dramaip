@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { parseApiError } from '../lib/api-error'
+import { formatApiError, parseApiError } from '../lib/api-error'
 import { apiClient } from '../lib/api-client'
 import { planCodeLabel } from '../lib/display'
 import { isSimulatedPaymentEnabled } from '../lib/runtime'
@@ -38,6 +38,20 @@ export function PricingPlans() {
     },
   })
 
+  const changePlan = useMutation({
+    mutationFn: (planID: string) => apiClient.changeSubscriptionPlan({
+      subscription_id: subscription.data?.id,
+      plan_id: planID,
+      idempotency_key: lifecycleKey('web-plan-change'),
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['subscription'] })
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-report'] })
+    },
+  })
+
   const simulatedConfirm = useMutation({
     mutationFn: (checkoutID: string) => apiClient.confirmSimulatedPayment({ checkout_id: checkoutID }),
     onSuccess: async () => {
@@ -53,12 +67,13 @@ export function PricingPlans() {
   }, [])
 
   if (plans.isLoading) return <p className="mt-8 text-sm text-slate-600">正在加载套餐...</p>
-  if (plans.error) return <p className="mt-8 text-sm text-rose-600">{parseApiError(plans.error, '无法加载套餐。').message}</p>
+  if (plans.error) return <p className="mt-8 text-sm text-rose-600">{formatApiError(plans.error, '无法加载套餐。')}</p>
 
   return (
     <div className="mt-8 grid gap-4 md:grid-cols-4">
       {plans.data?.plans.map((plan) => {
         const isCurrent = subscription.data?.plan_code === plan.id && subscription.data.status === 'active'
+        const canChangePlan = Boolean(subscription.data?.id && subscription.data.status === 'active')
         return (
           <section key={plan.id} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -77,11 +92,15 @@ export function PricingPlans() {
                   router.push(loginPath('/pricing'))
                   return
                 }
+                if (canChangePlan) {
+                  changePlan.mutate(plan.id)
+                  return
+                }
                 checkout.mutate(plan.id)
               }}
-              disabled={checkout.isPending || isCurrent}
+              disabled={checkout.isPending || changePlan.isPending || isCurrent}
             >
-              {isCurrent ? '当前套餐' : plan.price_cny === 0 ? '免费开始' : '订阅'}
+              {isCurrent ? '当前套餐' : canChangePlan ? '切换套餐' : plan.price_cny === 0 ? '免费开始' : '订阅'}
             </Button>
           </section>
         )
@@ -120,16 +139,35 @@ export function PricingPlans() {
       ) : null}
       {simulatedConfirm.error ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 md:col-span-4">
-          {parseApiError(simulatedConfirm.error, '模拟支付暂不可用。').message}
+          {formatApiError(simulatedConfirm.error, '模拟支付暂不可用。')}
         </section>
       ) : null}
       {checkout.error ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 md:col-span-4">
-          {parseApiError(checkout.error, '暂时无法创建订单。').message}
+          {formatApiError(checkout.error, '暂时无法创建订单。')}
+        </section>
+      ) : null}
+      {changePlan.error ? (
+        <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 md:col-span-4">
+          {formatError(changePlan.error, '暂时无法变更套餐。')}
+        </section>
+      ) : null}
+      {changePlan.data ? (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800 md:col-span-4">
+          已提交套餐变更为 {planCodeLabel(changePlan.data.plan_code)}。若服务端设置了周期末生效，请以账号中心显示的生效时间为准。
         </section>
       ) : null}
     </div>
   )
+}
+
+function lifecycleKey(prefix: string) {
+  const id = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${id}`
+}
+
+function formatError(error: unknown, fallback: string) {
+  return formatApiError(error, fallback)
 }
 
 function statusLabel(value?: string) {
