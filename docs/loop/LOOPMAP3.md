@@ -1126,3 +1126,19 @@ Loop branch cleanup: Delete `loop/lm3-21-trace-security-logs` after push.
 Current branch/worktree: Functional changes and completion record are committed after validation.
 Notes: `make observability-smoke` was attempted read-only but `localhost:8000` refused the connection because the pre-existing user Compose stack is unhealthy; no user container was stopped or rebuilt. Healthy-stack Jaeger/OpenSearch smoke and manual inspection remain deployment/real-payment blockers, not evidence claimed by this record.
 ```
+
+```text
+Loop: LM3-22
+Target branch: main
+Loop branch: loop/lm3-22-metrics-alerting (deleted after the closing merge push)
+Commit(s): 87c97b1 loop(LM3-22): add metrics alerts and dashboard; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `GOCACHE=/tmp/dramaip-go-race-lm3-20 go test ./...` and `go test -race ./...` passed. `make event-contracts`, `make observability-config-smoke`, `make observability-rule-test`, Docker Compose config, `promtool check rules`, Helm lint, and production/development Helm renders passed. The promtool injection fixture proves that simulated payment-confirmation failure, billing outbox backlog, Provider latency timeout signal, and Provider cost guard spike each produce the intended firing alert with the documented runbook. Metrics package tests prove UUID route normalization and that raw error details never become metric labels.
+Compose/Grafana runtime limitation: Not claimed. The existing user-owned Compose stack still refuses `localhost:8000`; it was not stopped, deleted, or rebuilt. Prometheus Targets/Alerts, Grafana provisioning UI, OpenSearch/Jaeger trace correlation, and live fault injection must be rerun against a restored healthy stack according to `docs/loop/LM3-22-指标告警与错误聚合.md` before deployment or real-payment readiness is claimed.
+Diff review: Reviewed all 26 functional files and ran staged `git diff --check`. The change adds a bounded in-process Prometheus registry, duration histograms, payment/quota/outbox/provider/cost signals, 11 rules, Grafana provisioning/dashboard, deterministic static configuration checks, and an in-image Prometheus rule test. It does not contain credentials, payment data, prompt/body content, trace IDs as labels, cache, image, generated artifact, or an automatic financial correction path.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before this loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no Gitee hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-22-metrics-alerting` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
+Notes: The repository owner explicitly instructed that real payment is skipped. Error aggregation is the documented Sentry-equivalent bounded metrics plus secure logs/traces; a future external Sentry integration must retain the same redaction rules and must not put trace IDs or error text in Prometheus labels.
+```
