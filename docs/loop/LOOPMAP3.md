@@ -902,3 +902,21 @@ Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-07-
 Current branch/worktree: loop/lm3-07-trusted-identity; clean before this metadata update.
 Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. The local Compose profile explicitly disables mTLS and is not production evidence; production deployment requires operator-managed per-workload certificates as documented in `deploy/k8s/README.md`.
 ```
+
+```text
+Loop: LM3-08
+Target branch: main
+Loop branch: loop/lm3-08-notification-service
+Commit(s): 39204bf loop(LM3-08): isolate notification service; this completion-record update is the loop's final metadata commit.
+Merge commit: ba09eea merge: LM3-08 notification service; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `GOCACHE=/tmp/dramaip-go-build go test ./...` and `make event-contracts` passed in `dramaip-platform/services`. Notification tests cover synchronous create/list/read, source-event idempotency, limit normalization, and invalid/missing records; BFF HTTP tests cover payment-created notifications, list/read endpoints, and trusted user context propagation. `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed in `dramaip-platform/clients`. Compose configuration, Kong/Prometheus YAML parsing, Helm lint, production/development Helm template parsing, and Python launcher compilation passed. The rendered chart contains notification Deployment/Service, service discovery, and only its own mTLS certificate/key mount.
+Boundary review: `rg 'notification\\.notifications|gorm\\.DB|OpenPostgres' dramaip-platform/services/app/bff` returned no matches. The BFF now only uses notification-service gRPC; notification data ownership, user-resource checks, service CN allowlisting, and existing `source_event_id` uniqueness remain in the notification domain.
+Compose E2E: attempted `COMPOSE_PARALLEL_LIMIT=1 make platform-up`; all Go images reached their final build layers but no image or container completed. A separate `docker compose ... build notification` attempt likewise stopped at its final Go build layer and produced no image. `make platform-down` left no containers. Therefore `make platform-e2e` is not claimed; direct Go/BFF tests, client build, static boundary scan, and deployment rendering are the recorded substitute evidence.
+Known baseline check: `make web-route-smoke` is currently red on unchanged `origin/main` files because it still requires the removed `getAccessToken()` in login/register pages after the Cookie-session migration. LM3-08 did not alter that script or either page, so this pre-existing assertion is not claimed as a passing check and needs a focused maintenance follow-up.
+Diff review: Reviewed the complete 34-file cumulative diff and ran `git diff --check` before and after the core merge. The change contains generated protobuf from the checked-in proto source, no real environment file, certificate, private key, cache, image, or unrelated artifact.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target was aligned before branch creation and again immediately before the no-ff core merge.
+Push: Core merge ba09eea was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-08 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-08-notification-service` immediately afterward.
+Current branch/worktree: loop/lm3-08-notification-service; clean before this metadata update.
+Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. LM3-09 owns the event inbox, RabbitMQ consumer, retry/dead-letter behavior, and delivery channels; this loop deliberately provides only the synchronous notification boundary.
+```
