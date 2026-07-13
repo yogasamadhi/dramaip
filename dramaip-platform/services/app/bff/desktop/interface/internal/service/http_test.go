@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
@@ -63,8 +64,70 @@ func TestDesktopTokenExchangeRejectsInvalidPayloadAndContextRequiresBearer(t *te
 	}
 }
 
+func TestDesktopCloudAIUsesAuthenticatedIdentityAndBoundedContext(t *testing.T) {
+	router := newTestHTTPService().Router()
+	models := httptest.NewRequest(http.MethodGet, "/v1/desktop/ai/models", nil)
+	models.Header.Set("Authorization", "Bearer desktop-access")
+	modelsRecorder := httptest.NewRecorder()
+	router.ServeHTTP(modelsRecorder, models)
+	if modelsRecorder.Code != http.StatusOK || !bytes.Contains(modelsRecorder.Body.Bytes(), []byte(`"provider":"test"`)) {
+		t.Fatalf("models = %d: %s", modelsRecorder.Code, modelsRecorder.Body.String())
+	}
+
+	preflight := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/preflight", bytes.NewBufferString(`{"provider":"test","model":"test-dramaip-chat","context_characters":42,"message_count":2,"max_tokens":32}`))
+	preflight.Header.Set("Authorization", "Bearer desktop-access")
+	preflightRecorder := httptest.NewRecorder()
+	router.ServeHTTP(preflightRecorder, preflight)
+	if preflightRecorder.Code != http.StatusOK || !bytes.Contains(preflightRecorder.Body.Bytes(), []byte(`"remaining_tokens":1620000`)) {
+		t.Fatalf("preflight = %d: %s", preflightRecorder.Code, preflightRecorder.Body.String())
+	}
+
+	chat := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(`{"request_id":"desktop-call-1","idempotency_key":"desktop-call-1","provider":"test","model":"test-dramaip-chat","max_tokens":32,"messages":[{"role":"system","content":"short instruction"},{"role":"user","content":"write one line"}]}`))
+	chat.Header.Set("Authorization", "Bearer desktop-access")
+	chat.Header.Set("X-Forwarded-For", "198.51.100.42")
+	chatRecorder := httptest.NewRecorder()
+	router.ServeHTTP(chatRecorder, chat)
+	if chatRecorder.Code != http.StatusOK || !bytes.Contains(chatRecorder.Body.Bytes(), []byte(`"content":"cloud result"`)) {
+		t.Fatalf("chat = %d: %s", chatRecorder.Code, chatRecorder.Body.String())
+	}
+	if got := chatRecorder.Header().Get("Idempotency-Key"); got != "desktop-call-1" {
+		t.Fatalf("idempotency header = %q", got)
+	}
+
+	oversized := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(`{"request_id":"desktop-call-2","idempotency_key":"desktop-call-2","provider":"test","model":"test-dramaip-chat","max_tokens":32,"messages":[{"role":"user","content":""}]}`))
+	oversized.Header.Set("Authorization", "Bearer desktop-access")
+	oversizedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(oversizedRecorder, oversized)
+	if oversizedRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("invalid cloud chat = %d: %s", oversizedRecorder.Code, oversizedRecorder.Body.String())
+	}
+}
+
+func TestDesktopCloudAIMapsGatewayFailuresWithoutRetry(t *testing.T) {
+	router := newTestHTTPService().Router()
+	for _, test := range []struct {
+		name       string
+		model      string
+		wantStatus int
+	}{
+		{name: "deadline", model: "timeout", wantStatus: http.StatusGatewayTimeout},
+		{name: "unavailable", model: "unavailable", wantStatus: http.StatusServiceUnavailable},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body := `{"request_id":"desktop-` + test.name + `","idempotency_key":"desktop-` + test.name + `","provider":"test","model":"` + test.model + `","max_tokens":32,"messages":[{"role":"user","content":"single bounded prompt"}]}`
+			request := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(body))
+			request.Header.Set("Authorization", "Bearer desktop-access")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+}
+
 func newTestHTTPService() *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}}))
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}}))
 }
 
 type fakeAuth struct{}
@@ -111,4 +174,36 @@ func (fakeQuota) GetTokenBalance(ctx context.Context, req *quotav1.GetTokenBalan
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
 	return &quotav1.TokenBalance{Plan: "pro", QuotaTokens: 2_000_000, UsedTokens: 380_000, RemainingTokens: 1_620_000}, nil
+}
+
+type fakeAI struct{}
+
+func (fakeAI) ListModels(ctx context.Context, req *aiv1.ListModelsRequest, _ ...grpc.CallOption) (*aiv1.ListModelsReply, error) {
+	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &aiv1.ListModelsReply{Models: []*aiv1.CloudModel{{Provider: "test", Model: "test-dramaip-chat", IsDefault: true}}}, nil
+}
+
+func (fakeAI) Preflight(ctx context.Context, req *aiv1.PreflightRequest, _ ...grpc.CallOption) (*aiv1.PreflightReply, error) {
+	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" || req.ContextCharacters < 1 || req.MessageCount < 1 || req.MaxTokens < 1 {
+		return nil, status.Error(codes.InvalidArgument, "invalid preflight")
+	}
+	return &aiv1.PreflightReply{Model: &aiv1.CloudModel{Provider: "test", Model: "test-dramaip-chat", IsDefault: true}, EstimatedTokens: req.ContextCharacters/4 + req.MaxTokens}, nil
+}
+
+func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
+	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	if req.Model == "timeout" {
+		return nil, status.Error(codes.DeadlineExceeded, "provider timeout")
+	}
+	if req.Model == "unavailable" {
+		return nil, status.Error(codes.Unavailable, "provider unavailable")
+	}
+	if req.IdempotencyKey != "desktop-call-1" || req.ClientIp != "198.51.100.42" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &aiv1.ChatReply{Content: "cloud result", Provider: "test", Model: "test-dramaip-chat", RequestId: req.RequestId, TotalTokens: 12, RemainingTokens: 1_619_988, Status: "succeeded"}, nil
 }

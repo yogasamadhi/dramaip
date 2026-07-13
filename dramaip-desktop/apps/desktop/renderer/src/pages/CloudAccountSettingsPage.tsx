@@ -64,6 +64,14 @@ export function CloudAccountSettingsPage() {
     }
   }
 
+  useEffect(() => {
+    return ipc.cloudAI.onBalance(() => {
+      // The settled balance is authoritative in Desktop BFF. Refresh from the
+      // server instead of trusting a renderer-supplied decrement.
+      void loadContext()
+    })
+  }, [])
+
   return (
     <div className="mx-auto min-h-screen max-w-3xl px-6 py-8">
       <header className="flex items-center gap-3 border-b pb-5">

@@ -234,7 +234,7 @@ make platform-down
 | LM3-24 | P1 | Web 产品 | done | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
 | LM3-25 | P0 | Desktop 安全 | done | 将桌面本地凭据迁移到系统 Keychain | Electron secrets、模型/视频配置、迁移 | LM3-03 |
 | LM3-26 | P0 | Desktop/Auth | done | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
-| LM3-27 | P0 | Desktop/AI | todo | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
+| LM3-27 | P0 | Desktop/AI | done | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
 | LM3-28 | P2 | Mobile | todo | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
 | LM3-29 | P2 | Mobile | todo | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | todo | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |

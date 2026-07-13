@@ -19,13 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AiGatewayService_Chat_FullMethodName = "/dramaip.ai_gateway.service.v1.AiGatewayService/Chat"
+	AiGatewayService_ListModels_FullMethodName = "/dramaip.ai_gateway.service.v1.AiGatewayService/ListModels"
+	AiGatewayService_Preflight_FullMethodName  = "/dramaip.ai_gateway.service.v1.AiGatewayService/Preflight"
+	AiGatewayService_Chat_FullMethodName       = "/dramaip.ai_gateway.service.v1.AiGatewayService/Chat"
 )
 
 // AiGatewayServiceClient is the client API for AiGatewayService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AiGatewayServiceClient interface {
+	// Lists the currently configured, billable cloud models. This is a
+	// read-only authenticated capability; it never exposes provider secrets.
+	ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsReply, error)
+	// Checks a bounded desktop context before a billable Chat request. The
+	// request intentionally contains only counts, never creative content.
+	Preflight(ctx context.Context, in *PreflightRequest, opts ...grpc.CallOption) (*PreflightReply, error)
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatReply, error)
 }
 
@@ -35,6 +43,26 @@ type aiGatewayServiceClient struct {
 
 func NewAiGatewayServiceClient(cc grpc.ClientConnInterface) AiGatewayServiceClient {
 	return &aiGatewayServiceClient{cc}
+}
+
+func (c *aiGatewayServiceClient) ListModels(ctx context.Context, in *ListModelsRequest, opts ...grpc.CallOption) (*ListModelsReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListModelsReply)
+	err := c.cc.Invoke(ctx, AiGatewayService_ListModels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiGatewayServiceClient) Preflight(ctx context.Context, in *PreflightRequest, opts ...grpc.CallOption) (*PreflightReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PreflightReply)
+	err := c.cc.Invoke(ctx, AiGatewayService_Preflight_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *aiGatewayServiceClient) Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatReply, error) {
@@ -51,6 +79,12 @@ func (c *aiGatewayServiceClient) Chat(ctx context.Context, in *ChatRequest, opts
 // All implementations must embed UnimplementedAiGatewayServiceServer
 // for forward compatibility.
 type AiGatewayServiceServer interface {
+	// Lists the currently configured, billable cloud models. This is a
+	// read-only authenticated capability; it never exposes provider secrets.
+	ListModels(context.Context, *ListModelsRequest) (*ListModelsReply, error)
+	// Checks a bounded desktop context before a billable Chat request. The
+	// request intentionally contains only counts, never creative content.
+	Preflight(context.Context, *PreflightRequest) (*PreflightReply, error)
 	Chat(context.Context, *ChatRequest) (*ChatReply, error)
 	mustEmbedUnimplementedAiGatewayServiceServer()
 }
@@ -62,6 +96,12 @@ type AiGatewayServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAiGatewayServiceServer struct{}
 
+func (UnimplementedAiGatewayServiceServer) ListModels(context.Context, *ListModelsRequest) (*ListModelsReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListModels not implemented")
+}
+func (UnimplementedAiGatewayServiceServer) Preflight(context.Context, *PreflightRequest) (*PreflightReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method Preflight not implemented")
+}
 func (UnimplementedAiGatewayServiceServer) Chat(context.Context, *ChatRequest) (*ChatReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method Chat not implemented")
 }
@@ -84,6 +124,42 @@ func RegisterAiGatewayServiceServer(s grpc.ServiceRegistrar, srv AiGatewayServic
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&AiGatewayService_ServiceDesc, srv)
+}
+
+func _AiGatewayService_ListModels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListModelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiGatewayServiceServer).ListModels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiGatewayService_ListModels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiGatewayServiceServer).ListModels(ctx, req.(*ListModelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiGatewayService_Preflight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreflightRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiGatewayServiceServer).Preflight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiGatewayService_Preflight_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiGatewayServiceServer).Preflight(ctx, req.(*PreflightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _AiGatewayService_Chat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -111,6 +187,14 @@ var AiGatewayService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "dramaip.ai_gateway.service.v1.AiGatewayService",
 	HandlerType: (*AiGatewayServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListModels",
+			Handler:    _AiGatewayService_ListModels_Handler,
+		},
+		{
+			MethodName: "Preflight",
+			Handler:    _AiGatewayService_Preflight_Handler,
+		},
 		{
 			MethodName: "Chat",
 			Handler:    _AiGatewayService_Chat_Handler,

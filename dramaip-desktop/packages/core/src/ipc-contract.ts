@@ -546,6 +546,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'cloudAuth:login': [],
   'cloudAuth:logout': [],
   'cloudAuth:context': [],
+  // Cloud model discovery is renderer-safe; all token-bearing AI calls remain
+  // inside Electron main and are never exposed as an IPC operation.
+  'cloudAI:models': [],
   'dataBackup:list': [],
   'dataBackup:create': [],
   'dataBackup:restore': [id],

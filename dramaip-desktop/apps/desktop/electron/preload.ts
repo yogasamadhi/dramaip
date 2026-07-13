@@ -37,6 +37,14 @@ const api = {
     logout: () => invoke('cloudAuth:logout'),
     context: () => invoke('cloudAuth:context'),
   },
+  cloudAI: {
+    models: () => invoke('cloudAI:models'),
+    onBalance: (onBalance: (balance: { remainingTokens: number }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, balance: { remainingTokens: number }) => onBalance(balance)
+      ipcRenderer.on('cloudAI:balance', listener)
+      return () => ipcRenderer.removeListener('cloudAI:balance', listener)
+    },
+  },
   dataBackup: {
     list: () => invoke('dataBackup:list'),
     create: () => invoke('dataBackup:create'),

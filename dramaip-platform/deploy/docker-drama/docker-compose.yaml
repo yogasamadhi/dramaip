@@ -449,6 +449,7 @@ services:
       AUTH_GRPC_ENDPOINT: auth:9101
       BILLING_GRPC_ENDPOINT: billing:9103
       QUOTA_GRPC_ENDPOINT: quota:9104
+      AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
       OTEL_SERVICE_NAME: dramaip-desktop-bff
 
   # Application external entry — the ONLY API service clients may reach from outside.

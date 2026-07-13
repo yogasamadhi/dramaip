@@ -11,6 +11,7 @@ import {
 import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
+import { cloudProviderFromModelConfig, isCloudModelConfig, preflightCloudModelConfig } from '../cloud-ai'
 import { logger } from '../logger'
 import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
 
@@ -44,12 +45,21 @@ export function registerAiIpc(): void {
       const repos = getRepos()
       const stored = config.id ? repos.modelConfig.getModelConfig(repos.db, config.id) : undefined
       const resolved = stored ?? config
-      const provider = providerFromModelConfig({ ...resolved, apiKey: decryptSecret(resolved.apiKey) })
       const startedAt = Date.now()
       const messages: ChatMessage[] = [
         { role: 'system', content: '连接测试。只回复 ok。' },
         { role: 'user', content: 'ping' },
       ]
+      if (isCloudModelConfig(resolved)) {
+        const preflight = await preflightCloudModelConfig(resolved, { messages, maxTokens: 8, temperature: 0 })
+        return {
+          ok: true,
+          latencyMs: Date.now() - startedAt,
+          sample: `云端预检通过（剩余 ${preflight.remainingTokens} tokens）`,
+          tokenUsage: preflight.estimatedTokens,
+        }
+      }
+      const provider = providerFromModelConfig({ ...resolved, apiKey: decryptSecret(resolved.apiKey) })
       const out = await provider.chat({ messages, maxTokens: 8, temperature: 0 })
       return {
         ok: true,
@@ -96,7 +106,10 @@ export async function runAiTask(
   const workflowAbort = mergeAbortSignals(runtime.signal, options.signal)
 
   try {
-    const { provider } = resolveProviderForTask(repos, input.taskType, input.templateScope, input.projectId)
+    const resolution = resolveProviderForTask(repos, input.taskType, input.templateScope, input.projectId)
+    const provider = resolution.config && isCloudModelConfig(resolution.config)
+      ? cloudProviderFromModelConfig(resolution.config)
+      : resolution.provider
     const result = await runNovelWorkflow(
       {
         repos,

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { AlertTriangle, ArrowLeft, Check, Loader2, Plug, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Cloud, Loader2, Plug, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { AiBudgetSettings, TaskModelBinding } from '@sdns/core'
 import { TASK_GROUPS } from '@sdns/core'
 import { useModelStore } from '@/stores/useModelStore'
-import { ipc } from '@/lib/ipc'
+import { type CloudAIModel, type CloudAuthStatus, type CloudContext, ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,6 +58,8 @@ const EMPTY_BUDGET: BudgetFormState = {
   currency: 'USD',
 }
 
+const CLOUD_PROVIDER_ID = 'dramaip-cloud'
+
 export function ModelSettingsPage() {
   const navigate = useNavigate()
   const { configs, defaultId, fetch, create, remove, setDefault } = useModelStore()
@@ -66,6 +68,10 @@ export function ModelSettingsPage() {
   const [budget, setBudget] = useState<BudgetFormState>(EMPTY_BUDGET)
   const [testing, setTesting] = useState<string | null>(null)
   const [secretStatus, setSecretStatus] = useState<Awaited<ReturnType<typeof ipc.security.getSecretStorageStatus>> | null>(null)
+  const [cloudStatus, setCloudStatus] = useState<CloudAuthStatus | undefined>()
+  const [cloudContext, setCloudContext] = useState<CloudContext | undefined>()
+  const [cloudModels, setCloudModels] = useState<CloudAIModel[]>([])
+  const [cloudBusy, setCloudBusy] = useState(false)
 
   async function reloadBindings() {
     setBindings(await ipc.model.listTaskBindings())
@@ -79,11 +85,33 @@ export function ModelSettingsPage() {
     setBudget(toBudgetForm(await ipc.model.getBudgetSettings()))
   }
 
+  async function reloadCloud() {
+    setCloudBusy(true)
+    try {
+      const status = await ipc.cloudAuth.status()
+      setCloudStatus(status)
+      if (!status.signedIn) {
+        setCloudContext(undefined)
+        setCloudModels([])
+        return
+      }
+      const [context, models] = await Promise.all([ipc.cloudAuth.context(), ipc.cloudAI.models()])
+      setCloudContext(context)
+      setCloudModels(models)
+    } catch (error) {
+      setCloudModels([])
+      toast.error('无法读取云端模型：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setCloudBusy(false)
+    }
+  }
+
   useEffect(() => {
     void fetch()
     void reloadBindings()
     void reloadSecretStatus()
     void reloadBudget()
+    void reloadCloud()
   }, [fetch])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -147,6 +175,27 @@ export function ModelSettingsPage() {
     toast.success('预算已保存')
   }
 
+  async function addCloudModel(model: CloudAIModel) {
+    const baseUrl = `cloud://${model.provider}`
+    const existing = configs.find((config) => config.provider === CLOUD_PROVIDER_ID && config.baseUrl === baseUrl && config.model === model.model)
+    if (existing) {
+      await setDefault(existing.id)
+      toast.success('已将 DramaIP Cloud 模型设为默认')
+      return
+    }
+    await create({
+      name: `DramaIP Cloud · ${model.model}`,
+      provider: CLOUD_PROVIDER_ID,
+      baseUrl,
+      // Cloud auth stays in Electron main/Keychain; this configuration must
+      // never carry an API Key into SQLite or renderer state.
+      apiKey: '',
+      model: model.model,
+      isDefault: configs.length === 0,
+    })
+    toast.success('已添加 DramaIP Cloud 模型，可按任务组选择')
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
@@ -197,6 +246,48 @@ export function ModelSettingsPage() {
                 <div className="md:col-span-3">
                   <Button onClick={saveBudget}>保存预算</Button>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base"><Cloud className="h-4 w-4" />DramaIP Cloud 模型</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">无需填写平台 API Key。仅当前任务所需的受限上下文会经桌面 BFF 发往 AI Gateway。</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => void reloadCloud()} disabled={cloudBusy}>
+                    {cloudBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    刷新
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {cloudStatus?.enabled === false ? (
+                  <p className="text-sm text-muted-foreground">云端功能尚未启用；本地模型与自有 API Key 不受影响。</p>
+                ) : !cloudStatus?.signedIn ? (
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    <span>请先使用系统浏览器登录云端账号，才能读取套餐模型和余额。</span>
+                    <Button size="sm" variant="outline" onClick={() => navigate('/settings/cloud')}>前往云端账号</Button>
+                  </div>
+                ) : (
+                  <>
+                    {cloudContext ? <p className="text-sm text-muted-foreground">套餐 {cloudContext.subscription.plan} · 剩余 {cloudContext.tokenBalance.remainingTokens.toLocaleString()} tokens</p> : null}
+                    {cloudModels.length === 0 ? <p className="text-sm text-muted-foreground">当前套餐没有可用的云端模型。</p> : (
+                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {cloudModels.map((model) => (
+                          <div key={`${model.provider}:${model.model}`} className="flex items-center justify-between rounded-md border p-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">{model.model}</p>
+                              <p className="text-xs text-muted-foreground">{model.provider}{model.isDefault ? ' · 推荐' : ''}</p>
+                            </div>
+                            <Button size="sm" onClick={() => void addCloudModel(model)}>使用</Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -301,8 +392,8 @@ export function ModelSettingsPage() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        <div>{c.provider} · {c.model}</div>
-                        <div className="truncate">{c.baseUrl}</div>
+                        <div>{c.provider === CLOUD_PROVIDER_ID ? 'DramaIP Cloud' : c.provider} · {c.model}</div>
+                        <div className="truncate">{c.provider === CLOUD_PROVIDER_ID ? '认证令牌仅驻留主进程；不需要 API Key' : c.baseUrl}</div>
                       </div>
                       <Separator />
                     </div>
