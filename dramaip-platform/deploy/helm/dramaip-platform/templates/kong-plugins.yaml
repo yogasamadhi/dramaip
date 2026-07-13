@@ -1,4 +1,4 @@
-{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.cors.enabled -}}
+{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.cors.enabled }}
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
@@ -17,9 +17,9 @@ config:
     {{- toYaml .Values.kong.plugins.cors.exposedHeaders | nindent 4 }}
   credentials: {{ .Values.kong.plugins.cors.credentials }}
   max_age: {{ .Values.kong.plugins.cors.maxAge }}
----
 {{- end }}
-{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.rateLimiting.enabled -}}
+{{- if and .Values.ingress.enabled .Values.kong.plugins.enabled .Values.kong.plugins.rateLimiting.enabled }}
+---
 apiVersion: configuration.konghq.com/v1
 kind: KongPlugin
 metadata:
@@ -30,4 +30,27 @@ plugin: rate-limiting
 config:
   minute: {{ .Values.kong.plugins.rateLimiting.minute }}
   policy: {{ .Values.kong.plugins.rateLimiting.policy | quote }}
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.payment.wechat.enabled .Values.kong.plugins.enabled }}
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-wechat-webhook-rate-limiting
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: rate-limiting
+config:
+  minute: {{ .Values.payment.wechat.webhookRateLimitPerMinute }}
+  policy: local
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-wechat-webhook-size-limit
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+plugin: request-size-limiting
+config:
+  allowed_payload_size: 1
 {{- end }}

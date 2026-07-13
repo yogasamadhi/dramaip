@@ -1,4 +1,4 @@
-.PHONY: test db-role-matrix plan-snapshot-integration billing-saga-integration billing-lifecycle-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
+.PHONY: test db-role-matrix plan-snapshot-integration billing-saga-integration billing-lifecycle-integration billing-wechat-webhook-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
         run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
@@ -33,6 +33,13 @@ billing-saga-integration:
 billing-lifecycle-integration:
 	@test -n "$(POSTGRES_BILLING_LIFECYCLE_TEST_DSN)" || (echo "POSTGRES_BILLING_LIFECYCLE_TEST_DSN is required"; exit 1)
 	POSTGRES_BILLING_LIFECYCLE_TEST_DSN="$(POSTGRES_BILLING_LIFECYCLE_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/billing/job/internal/data -run '^TestBillingJobLifecycleIntegration$$' -count=1
+
+# Requires a fresh isolated PostgreSQL database. Verifies the WeChat provider
+# event inbox, active query state, replay handling, and exactly-once hand-off
+# into the billing payment saga without contacting a real merchant account.
+billing-wechat-webhook-integration:
+	@test -n "$(POSTGRES_WECHAT_WEBHOOK_TEST_DSN)" || (echo "POSTGRES_WECHAT_WEBHOOK_TEST_DSN is required"; exit 1)
+	POSTGRES_WECHAT_WEBHOOK_TEST_DSN="$(POSTGRES_WECHAT_WEBHOOK_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/billing/service/internal/data -run '^TestWechatWebhookInboxIntegration$$' -count=1
 
 # Requires a fresh isolated PostgreSQL instance with a DDL login that has
 # CREATEROLE. Exercises quota reservation concurrency and recovery states.

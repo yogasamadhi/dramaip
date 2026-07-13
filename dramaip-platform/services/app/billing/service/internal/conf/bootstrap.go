@@ -23,7 +23,20 @@ type EndpointConfig struct {
 }
 
 type PaymentConfig struct {
-	SimulatedEnabled bool `yaml:"simulated_enabled"`
+	SimulatedEnabled bool            `yaml:"simulated_enabled"`
+	WechatPay        WechatPayConfig `yaml:"wechat_pay"`
+}
+
+type WechatPayConfig struct {
+	Enabled                   bool   `yaml:"enabled"`
+	AppID                     string `yaml:"app_id"`
+	MchID                     string `yaml:"mch_id"`
+	APIV3Key                  string `yaml:"-"`
+	MerchantCertificateSerial string `yaml:"merchant_certificate_serial"`
+	MerchantPrivateKeyPath    string `yaml:"merchant_private_key_path"`
+	PlatformCertificatePath   string `yaml:"platform_certificate_path"`
+	NotifyURL                 string `yaml:"notify_url"`
+	APIBaseURL                string `yaml:"api_base_url"`
 }
 
 type QuotaConfig struct {
@@ -38,7 +51,7 @@ func Load() (*Bootstrap, error) {
 			HTTP: EndpointConfig{Addr: ":8103"},
 			GRPC: EndpointConfig{Addr: ":9103"},
 		},
-		Payment: PaymentConfig{SimulatedEnabled: true},
+		Payment: PaymentConfig{SimulatedEnabled: true, WechatPay: WechatPayConfig{APIBaseURL: "https://api.mch.weixin.qq.com"}},
 		Quota:   QuotaConfig{GRPCEndpoint: "localhost:9104", DialTimeout: "10s"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -50,6 +63,15 @@ func Load() (*Bootstrap, error) {
 	cfg.Quota.GRPCEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Quota.GRPCEndpoint)
 	cfg.Quota.DialTimeout = kratosx.Env("BILLING_QUOTA_DIAL_TIMEOUT", cfg.Quota.DialTimeout)
 	cfg.Payment.SimulatedEnabled = kratosx.EnvBool("BILLING_SIMULATED_ENABLED", cfg.Payment.SimulatedEnabled)
+	cfg.Payment.WechatPay.Enabled = kratosx.EnvBool("WECHAT_PAY_ENABLED", cfg.Payment.WechatPay.Enabled)
+	cfg.Payment.WechatPay.AppID = kratosx.Env("WECHAT_PAY_APP_ID", cfg.Payment.WechatPay.AppID)
+	cfg.Payment.WechatPay.MchID = kratosx.Env("WECHAT_PAY_MCH_ID", cfg.Payment.WechatPay.MchID)
+	cfg.Payment.WechatPay.APIV3Key = kratosx.Env("WECHAT_PAY_API_V3_KEY", cfg.Payment.WechatPay.APIV3Key)
+	cfg.Payment.WechatPay.MerchantCertificateSerial = kratosx.Env("WECHAT_PAY_CERT_SERIAL", cfg.Payment.WechatPay.MerchantCertificateSerial)
+	cfg.Payment.WechatPay.MerchantPrivateKeyPath = kratosx.Env("WECHAT_PAY_PRIVATE_KEY_PATH", cfg.Payment.WechatPay.MerchantPrivateKeyPath)
+	cfg.Payment.WechatPay.PlatformCertificatePath = kratosx.Env("WECHAT_PAY_PLATFORM_CERT_PATH", cfg.Payment.WechatPay.PlatformCertificatePath)
+	cfg.Payment.WechatPay.NotifyURL = kratosx.Env("WECHAT_PAY_NOTIFY_URL", cfg.Payment.WechatPay.NotifyURL)
+	cfg.Payment.WechatPay.APIBaseURL = kratosx.Env("WECHAT_PAY_API_BASE_URL", cfg.Payment.WechatPay.APIBaseURL)
 	if cfg.Env != "dev" && cfg.Env != "test" {
 		cfg.Payment.SimulatedEnabled = false
 	}

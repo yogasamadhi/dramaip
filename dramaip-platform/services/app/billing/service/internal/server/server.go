@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"net/http"
+
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	billingbiz "github.com/dramaip/dramaip-platform/services/app/billing/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
@@ -19,6 +21,13 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *billingbiz.BillingUsecase) *khttp.Se
 		khttp.Middleware(recovery.Recovery(), kratosx.TraceMiddleware("billing-service")),
 	)
 	kratosx.RegisterHealth(server, "billing-service", uc.Checks())
+	wechatWebhook, err := newWechatWebhook(cfg.Payment.WechatPay, uc)
+	if err != nil {
+		panic(fmt.Sprintf("billing wechat pay webhook: %v", err))
+	}
+	server.HandleFunc("/v1/webhooks/wechat-pay", func(w http.ResponseWriter, r *http.Request) {
+		wechatWebhook.Handle(w, r)
+	})
 	return server
 }
 

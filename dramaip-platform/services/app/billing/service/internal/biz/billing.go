@@ -2,11 +2,16 @@ package biz
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strconv"
+	"strings"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/wechat"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,6 +19,7 @@ import (
 type BillingUsecase struct {
 	repo             BillingRepository
 	simulatedEnabled bool
+	wechatPay        conf.WechatPayConfig
 }
 
 type BillingRepository interface {
@@ -21,7 +27,12 @@ type BillingRepository interface {
 	ListPlans(context.Context) ([]data.PlanRow, error)
 	GetSubscription(context.Context, string) (data.SubscriptionRow, error)
 	CreateCheckout(context.Context, string, string, string) (data.CheckoutResult, error)
+	CreateWechatCheckout(context.Context, string, string, string, string) (data.CheckoutResult, error)
 	ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error)
+	ConfirmWechatPayment(context.Context, string, string, string, int64, string, []byte) (data.SimulatedPaymentResult, error)
+	RecordWechatWebhook(context.Context, data.WechatWebhookEvent) (data.WechatWebhookReceipt, error)
+	MarkWechatWebhookQueryFailed(context.Context, string, string) error
+	MarkWechatWebhookQueryConfirmed(context.Context, string, []byte) error
 	CreatePeriodAccount(context.Context, string, string, data.PlanSnapshot, string, string) (data.TokenBalanceRow, error)
 	ActivateSubscription(context.Context, string) error
 	MarkSubscriptionActivationFailed(context.Context, string, string) error
@@ -40,7 +51,7 @@ type BillingRepository interface {
 }
 
 func NewBillingUsecase(repo BillingRepository, cfg *conf.Bootstrap) *BillingUsecase {
-	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled}
+	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled, wechatPay: cfg.Payment.WechatPay}
 }
 
 func (u *BillingUsecase) Checks() map[string]func(context.Context) error {
@@ -59,7 +70,59 @@ func (u *BillingUsecase) CreateCheckout(ctx context.Context, userID string, plan
 	if provider == "" {
 		provider = "simulated"
 	}
+	if provider == "wechat_pay" {
+		return u.createWechatCheckout(ctx, userID, planID)
+	}
+	if provider != "simulated" {
+		return data.CheckoutResult{}, status.Errorf(codes.InvalidArgument, "unsupported payment provider %q", provider)
+	}
 	return u.repo.CreateCheckout(ctx, userID, planID, provider)
+}
+
+func (u *BillingUsecase) createWechatCheckout(ctx context.Context, userID string, planID string) (data.CheckoutResult, error) {
+	if !u.wechatPay.Enabled {
+		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "wechat pay is not enabled")
+	}
+	var plan data.PlanRow
+	plans, err := u.repo.ListPlans(ctx)
+	if err != nil {
+		return data.CheckoutResult{}, err
+	}
+	for _, candidate := range plans {
+		if candidate.Code == planID {
+			plan = candidate
+			break
+		}
+	}
+	if plan.ID == "" {
+		return data.CheckoutResult{}, status.Error(codes.NotFound, "plan not found")
+	}
+	client, err := wechat.NewClient(wechat.Config{
+		AppID: u.wechatPay.AppID, MchID: u.wechatPay.MchID, APIV3Key: u.wechatPay.APIV3Key,
+		MerchantCertificateSerial: u.wechatPay.MerchantCertificateSerial,
+		MerchantPrivateKeyPath:    u.wechatPay.MerchantPrivateKeyPath,
+		PlatformCertificatePath:   u.wechatPay.PlatformCertificatePath,
+		APIBaseURL:                u.wechatPay.APIBaseURL,
+	})
+	if err != nil {
+		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "wechat pay configuration is incomplete")
+	}
+	orderID := platform.NewUUID()
+	providerOrderID := "wx" + strings.ReplaceAll(orderID, "-", "")[:30]
+	nativeOrder, err := client.CreateNativeOrder(ctx, wechat.NativeOrderRequest{
+		OutTradeNo: providerOrderID, Description: fmt.Sprintf("DramaIP %s", plan.Name),
+		TotalCents: int64(math.Round(plan.Price * 100)), Currency: plan.Currency,
+		NotifyURL: u.wechatPay.NotifyURL,
+	})
+	if err != nil {
+		return data.CheckoutResult{}, status.Errorf(codes.Unavailable, "create wechat pay order: %v", err)
+	}
+	checkout, err := u.repo.CreateWechatCheckout(ctx, userID, planID, orderID, providerOrderID)
+	if err != nil {
+		return data.CheckoutResult{}, err
+	}
+	checkout.PaymentURL = nativeOrder.CodeURL
+	return checkout, nil
 }
 
 func (u *BillingUsecase) ConfirmSandboxPayment(ctx context.Context, userID string, checkoutID string) (data.SandboxPaymentResult, error) {
@@ -74,6 +137,35 @@ func (u *BillingUsecase) ConfirmSimulatedPayment(ctx context.Context, userID str
 	if err != nil {
 		return data.SandboxPaymentResult{}, err
 	}
+	return u.activateConfirmedPayment(ctx, result)
+}
+
+// ConfirmWechatPayment is reachable only from the payment-provider webhook
+// ingress after the V3 callback has been verified and the transaction has
+// been actively reconciled against WeChat Pay. No client-facing endpoint can
+// invoke this activation path.
+func (u *BillingUsecase) ConfirmWechatPayment(ctx context.Context, orderID, providerEventID, providerTransactionID string, totalCents int64, currency string, rawPayload []byte) (data.SimulatedPaymentResult, error) {
+	result, err := u.repo.ConfirmWechatPayment(ctx, orderID, providerEventID, providerTransactionID, totalCents, currency, rawPayload)
+	if err != nil {
+		return data.SandboxPaymentResult{}, err
+	}
+	return u.activateConfirmedPayment(ctx, result)
+}
+
+func (u *BillingUsecase) RecordWechatWebhook(ctx context.Context, event data.WechatWebhookEvent) (data.WechatWebhookReceipt, error) {
+	return u.repo.RecordWechatWebhook(ctx, event)
+}
+
+func (u *BillingUsecase) MarkWechatWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
+	return u.repo.MarkWechatWebhookQueryFailed(ctx, providerEventID, reason)
+}
+
+func (u *BillingUsecase) MarkWechatWebhookQueryConfirmed(ctx context.Context, providerEventID string, queryPayload []byte) error {
+	return u.repo.MarkWechatWebhookQueryConfirmed(ctx, providerEventID, queryPayload)
+}
+
+func (u *BillingUsecase) activateConfirmedPayment(ctx context.Context, result data.SimulatedPaymentResult) (data.SimulatedPaymentResult, error) {
+	userID := result.Subscription.UserID
 	balance, err := u.repo.CreatePeriodAccount(ctx, userID, result.Subscription.ID, result.Subscription.PlanSnapshot(), result.PeriodStart, result.PeriodEnd)
 	if err != nil {
 		_ = u.repo.MarkSubscriptionActivationFailed(ctx, result.Subscription.ID, err.Error())

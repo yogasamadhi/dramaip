@@ -193,6 +193,18 @@ services:
       BILLING_GRPC_ADDR: ":9103"
       QUOTA_GRPC_ENDPOINT: quota:9104
       BILLING_QUOTA_DIAL_TIMEOUT: ${BILLING_QUOTA_DIAL_TIMEOUT:-10s}
+      # Kept disabled by default. Sandbox credentials and certificate paths are
+      # supplied from services/.env or an operator-managed override; no secret
+      # is committed to Compose.
+      WECHAT_PAY_ENABLED: ${WECHAT_PAY_ENABLED:-false}
+      WECHAT_PAY_APP_ID: ${WECHAT_PAY_APP_ID:-}
+      WECHAT_PAY_MCH_ID: ${WECHAT_PAY_MCH_ID:-}
+      WECHAT_PAY_API_V3_KEY: ${WECHAT_PAY_API_V3_KEY:-}
+      WECHAT_PAY_CERT_SERIAL: ${WECHAT_PAY_CERT_SERIAL:-}
+      WECHAT_PAY_PRIVATE_KEY_PATH: ${WECHAT_PAY_PRIVATE_KEY_PATH:-}
+      WECHAT_PAY_PLATFORM_CERT_PATH: ${WECHAT_PAY_PLATFORM_CERT_PATH:-}
+      WECHAT_PAY_NOTIFY_URL: ${WECHAT_PAY_NOTIFY_URL:-}
+      WECHAT_PAY_API_BASE_URL: ${WECHAT_PAY_API_BASE_URL:-https://api.mch.weixin.qq.com}
       OTEL_SERVICE_NAME: dramaip-billing
 
   quota:

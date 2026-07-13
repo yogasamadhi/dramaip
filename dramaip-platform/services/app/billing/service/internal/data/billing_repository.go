@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -133,6 +134,23 @@ type SandboxPaymentResult struct {
 
 type SimulatedPaymentResult = SandboxPaymentResult
 
+// WechatWebhookEvent keeps the signed transport boundary intact for audit and
+// reconciliation. RawBody is stored separately from the JSON payload so a
+// future verifier can reproduce exactly what the provider signed.
+type WechatWebhookEvent struct {
+	ProviderEventID       string
+	ProviderOrderID       string
+	ProviderTransactionID string
+	RawBody               []byte
+	SignatureTimestamp    string
+	SignatureNonce        string
+	SignatureSerial       string
+}
+
+type WechatWebhookReceipt struct {
+	Processed bool
+}
+
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	db, err := platform.OpenDomainPostgres(context.Background(), "billing")
 	if err != nil {
@@ -243,6 +261,17 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 }
 
 func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCode string, provider string) (CheckoutResult, error) {
+	return r.createCheckout(ctx, userID, planCode, provider, platform.NewUUID(), "")
+}
+
+// CreateWechatCheckout persists the local side of an already accepted WeChat
+// native order. providerOrderID is deliberately distinct from the UUID primary
+// key because WeChat's out_trade_no has a tighter length limit.
+func (r *BillingRepo) CreateWechatCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string) (CheckoutResult, error) {
+	return r.createCheckout(ctx, userID, planCode, "wechat_pay", orderID, providerOrderID)
+}
+
+func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCode string, provider string, orderID string, providerOrderID string) (CheckoutResult, error) {
 	var plan struct {
 		ID                string
 		Code              string
@@ -264,7 +293,12 @@ func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCod
 	`, planCode).Scan(&plan).Error; err != nil || plan.ID == "" {
 		return CheckoutResult{}, status.Error(codes.NotFound, "plan not found")
 	}
-	orderID := platform.NewUUID()
+	if orderID == "" {
+		return CheckoutResult{}, status.Error(codes.InvalidArgument, "checkout order id is required")
+	}
+	if providerOrderID == "" {
+		providerOrderID = orderID
+	}
 	eventID := platform.NewUUID()
 	traceID := platform.TraceID(ctx)
 	now := time.Now().UTC()
@@ -290,7 +324,7 @@ func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCod
 				?::uuid, ?::uuid, ?::uuid, ?::numeric, ?, 'pending', ?, ?,
 				?, ?, ?, ?::numeric, ?, ?, ?, ?, 'checkout', ?
 			)
-		`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, orderID,
+	`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, providerOrderID,
 			plan.Code, plan.Name, plan.BillingPeriod, plan.Price, plan.MonthlyTokenQuota,
 			plan.MaxRPM, plan.MaxContextTokens, plan.ModelLevel, now).Error; err != nil {
 			return err
@@ -311,14 +345,70 @@ func (r *BillingRepo) ConfirmSandboxPayment(ctx context.Context, userID string, 
 }
 
 func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string, checkoutID string) (SimulatedPaymentResult, error) {
+	return r.confirmProviderPayment(ctx, userID, checkoutID, "simulated", "", "", 0, "", nil)
+}
+
+// ConfirmWechatPayment is called only after the webhook ingress has verified
+// the raw V3 signature and independently confirmed the provider transaction.
+// providerOrderID is WeChat's out_trade_no, not the local UUID primary key.
+func (r *BillingRepo) ConfirmWechatPayment(ctx context.Context, providerOrderID, providerEventID, providerTransactionID string, totalCents int64, currency string, rawPayload []byte) (SimulatedPaymentResult, error) {
+	return r.confirmProviderPayment(ctx, "", providerOrderID, "wechat_pay", providerEventID, providerTransactionID, totalCents, currency, rawPayload)
+}
+
+// RecordWechatWebhook writes the verified provider event before any outbound
+// reconciliation. The provider event id is the idempotency key; a processed
+// duplicate can be acknowledged immediately without replaying the saga.
+func (r *BillingRepo) RecordWechatWebhook(ctx context.Context, event WechatWebhookEvent) (WechatWebhookReceipt, error) {
+	var receipt struct {
+		Processed bool
+	}
+	err := r.data.DB.WithContext(ctx).Raw(`
+		INSERT INTO billing.webhook_events (
+			id, provider, provider_event_id, raw_payload, raw_body, received_at,
+			signature_timestamp, signature_nonce, signature_serial, verification_status,
+			provider_order_id, provider_transaction_id
+		)
+		VALUES (?::uuid, 'wechat_pay', ?, ?::jsonb, ?, now(), ?, ?, ?, 'received', ?, ?)
+		ON CONFLICT (provider, provider_event_id) DO UPDATE
+		SET received_at = now()
+		RETURNING processed_at IS NOT NULL AS processed
+	`, platform.NewUUID(), event.ProviderEventID, string(event.RawBody), event.RawBody,
+		event.SignatureTimestamp, event.SignatureNonce, event.SignatureSerial,
+		event.ProviderOrderID, event.ProviderTransactionID).Scan(&receipt).Error
+	if err != nil {
+		return WechatWebhookReceipt{}, err
+	}
+	return WechatWebhookReceipt{Processed: receipt.Processed}, nil
+}
+
+func (r *BillingRepo) MarkWechatWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
+	return r.data.DB.WithContext(ctx).Exec(`
+		UPDATE billing.webhook_events
+		SET verification_status = 'query_pending', verification_error = ?
+		WHERE provider = 'wechat_pay' AND provider_event_id = ?
+	`, reason, providerEventID).Error
+}
+
+func (r *BillingRepo) MarkWechatWebhookQueryConfirmed(ctx context.Context, providerEventID string, queryPayload []byte) error {
+	return r.data.DB.WithContext(ctx).Exec(`
+		UPDATE billing.webhook_events
+		SET verification_status = 'query_confirmed', verification_error = NULL,
+		    query_payload = ?::jsonb, query_confirmed_at = now()
+		WHERE provider = 'wechat_pay' AND provider_event_id = ?
+	`, string(queryPayload), providerEventID).Error
+}
+
+func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string, checkoutID string, provider string, providerEventID string, providerPaymentID string, providerTotalCents int64, providerCurrency string, providerRawPayload []byte) (SimulatedPaymentResult, error) {
 	var out SandboxPaymentResult
 	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var order struct {
 			ID                 string
+			UserID             string
 			PlanID             string
 			Amount             float64
 			Currency           string
 			Status             string
+			Provider           string
 			SubscriptionID     string
 			PlanCode           string
 			PlanName           string
@@ -334,10 +424,12 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 		if err := tx.Raw(`
 			SELECT
 				o.id::text AS id,
+				o.user_id::text AS user_id,
 				o.plan_id::text AS plan_id,
 				o.amount,
 				o.currency,
 				o.status,
+				o.provider,
 				COALESCE(o.subscription_id::text, '') AS subscription_id,
 				o.plan_code,
 				o.plan_name,
@@ -350,10 +442,13 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 				o.plan_snapshot_source,
 				o.plan_snapshot_at::text AS plan_snapshot_at
 			FROM billing.orders o
-			WHERE o.id = ?::uuid AND o.user_id = ?::uuid
+			WHERE (
+				(? = 'wechat_pay' AND o.provider_order_id = ?)
+				OR (? <> 'wechat_pay' AND o.id::text = ?)
+			) AND (? = '' OR o.user_id::text = ?)
 			LIMIT 1
 			FOR UPDATE OF o
-		`, checkoutID, userID).Scan(&order).Error; err != nil {
+		`, provider, checkoutID, provider, checkoutID, userID, userID).Scan(&order).Error; err != nil {
 			return err
 		}
 		if order.ID == "" {
@@ -373,25 +468,45 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 		if order.Status != "pending" {
 			return status.Errorf(codes.FailedPrecondition, "checkout status %s cannot be confirmed", order.Status)
 		}
+		if order.Provider != provider {
+			return status.Errorf(codes.FailedPrecondition, "checkout provider %s does not match %s", order.Provider, provider)
+		}
+		if provider == "wechat_pay" {
+			expectedCents := int64(math.Round(order.Amount * 100))
+			if providerTotalCents != expectedCents || providerCurrency != order.Currency {
+				return status.Error(codes.FailedPrecondition, "wechat pay confirmation amount or currency does not match checkout")
+			}
+		}
 		now := time.Now().UTC()
 		periodEnd := now.AddDate(0, 1, 0)
 		subscriptionID := platform.NewUUID()
 		paymentID := platform.NewUUID()
 		webhookEventID := platform.NewUUID()
 		outboxEventID := platform.NewUUID()
-		providerEventID := "simulated_" + order.ID
-		rawPayload, err := json.Marshal(map[string]any{"checkout_id": order.ID, "provider": "simulated", "confirmed_at": now.Format(time.RFC3339)})
-		if err != nil {
-			return err
+		if providerEventID == "" {
+			providerEventID = "simulated_" + order.ID
 		}
-		if err := tx.Exec(`UPDATE billing.subscriptions SET status = 'superseded', updated_at = now() WHERE user_id = ?::uuid AND status = 'active'`, userID).Error; err != nil {
+		if providerPaymentID == "" {
+			providerPaymentID = providerEventID
+		}
+		rawPayload := providerRawPayload
+		if len(rawPayload) == 0 {
+			var err error
+			rawPayload, err = json.Marshal(map[string]any{"checkout_id": order.ID, "provider": provider, "confirmed_at": now.Format(time.RFC3339)})
+			if err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec(`UPDATE billing.subscriptions SET status = 'superseded', updated_at = now() WHERE user_id = ?::uuid AND status = 'active'`, order.UserID).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec(`
 			INSERT INTO billing.webhook_events (id, provider, provider_event_id, processed_at, raw_payload)
-			VALUES (?::uuid, 'simulated', ?, now(), ?::jsonb)
-			ON CONFLICT (provider, provider_event_id) DO UPDATE SET processed_at = COALESCE(billing.webhook_events.processed_at, now())
-		`, webhookEventID, providerEventID, string(rawPayload)).Error; err != nil {
+			VALUES (?::uuid, ?, ?, now(), ?::jsonb)
+			ON CONFLICT (provider, provider_event_id) DO UPDATE
+			SET processed_at = COALESCE(billing.webhook_events.processed_at, now()),
+			    verification_status = CASE WHEN billing.webhook_events.provider = 'wechat_pay' THEN 'processed' ELSE billing.webhook_events.verification_status END
+		`, webhookEventID, provider, providerEventID, string(rawPayload)).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec(`
@@ -401,15 +516,15 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
 			)
 			VALUES (
-				?::uuid, ?::uuid, ?::uuid, 'simulated', ?, 'quota_pending', ?, ?,
+				?::uuid, ?::uuid, ?::uuid, ?, ?, 'quota_pending', ?, ?,
 				?, ?, ?, ?::numeric, ?, ?, ?, ?, ?, ?, ?::timestamptz
 			)
-		`, subscriptionID, userID, order.PlanID, "simulated_"+subscriptionID, now, periodEnd,
+		`, subscriptionID, order.UserID, order.PlanID, provider, provider+"_"+subscriptionID, now, periodEnd,
 			order.PlanCode, order.PlanName, order.BillingPeriod, order.PlanPrice, order.Currency, order.QuotaTokens,
 			order.MaxRPM, order.MaxContextTokens, order.ModelLevel, order.PlanSnapshotSource, order.PlanSnapshotAt).Error; err != nil {
 			return err
 		}
-		if err := insertSubscriptionPeriod(tx, subscriptionID, userID, order.ID, order.PlanID, PlanSnapshot{
+		if err := insertSubscriptionPeriod(tx, subscriptionID, order.UserID, order.ID, order.PlanID, PlanSnapshot{
 			Code: order.PlanCode, Name: order.PlanName, BillingPeriod: order.BillingPeriod,
 			Price: order.PlanPrice, Currency: order.Currency, MonthlyTokenQuota: order.QuotaTokens,
 			MaxRPM: order.MaxRPM, MaxContextTokens: order.MaxContextTokens, ModelLevel: order.ModelLevel,
@@ -422,8 +537,8 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 		}
 		if err := tx.Exec(`
 			INSERT INTO billing.payments (id, user_id, order_id, provider, provider_payment_id, amount, currency, status, raw_payload)
-			VALUES (?::uuid, ?::uuid, ?::uuid, 'simulated', ?, ?, ?, 'paid', ?::jsonb)
-		`, paymentID, userID, order.ID, providerEventID, order.Amount, order.Currency, string(rawPayload)).Error; err != nil {
+			VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, 'paid', ?::jsonb)
+		`, paymentID, order.UserID, order.ID, provider, providerPaymentID, order.Amount, order.Currency, string(rawPayload)).Error; err != nil {
 			return err
 		}
 		traceID := platform.TraceID(ctx)
@@ -431,9 +546,9 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 			PaymentId:      paymentID,
 			OrderId:        order.ID,
 			SubscriptionId: subscriptionID,
-			UserId:         userID,
+			UserId:         order.UserID,
 			PlanCode:       order.PlanCode,
-			Provider:       "simulated",
+			Provider:       provider,
 			Amount:         strconv.FormatFloat(order.Amount, 'f', 2, 64),
 			Currency:       order.Currency,
 		}))
