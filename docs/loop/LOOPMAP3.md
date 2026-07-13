@@ -231,7 +231,7 @@ make platform-down
 | LM3-21 | P1 | Observability | done | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
 | LM3-22 | P1 | SRE/FinOps | done | 建立指标、看板、告警和错误聚合 | Prometheus、Grafana、Sentry/同类 | LM3-14、LM3-21 |
 | LM3-23 | P1 | 平台可靠性 | done | 落地超时、重试、熔断、降级和舱壁 | gRPC、BFF、AI Gateway、jobs | LM3-21 |
-| LM3-24 | P1 | Web 产品 | todo | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
+| LM3-24 | P1 | Web 产品 | done | 完成 Web 账号与付费体验 | Web、Web BFF、下载/订单/用量 | LM3-06、LM3-16～LM3-20 |
 | LM3-25 | P0 | Desktop 安全 | todo | 将桌面本地凭据迁移到系统 Keychain | Electron secrets、模型/视频配置、迁移 | LM3-03 |
 | LM3-26 | P0 | Desktop/Auth | todo | 建立 Desktop BFF 与 PKCE 登录 | Desktop BFF、Web auth callback、Electron | LM3-05、LM3-07、LM3-25 |
 | LM3-27 | P0 | Desktop/AI | todo | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
@@ -507,6 +507,7 @@ make platform-down
 - **验收**：真实用户可从注册走到沙箱支付、查看额度、管理订阅和下载桌面端；不再有 billing/download placeholder。
 - **验证**：`pnpm lint && pnpm typecheck && pnpm build:web`；Web BFF E2E；浏览器桌面/移动宽度 smoke；支付失败/过期状态检查。
 - **风险/回滚边界**：用户可见商业流程；页面可灰度，不能回退认证与账本安全规则。
+- **完成边界（2026-07-13）**：Web 已交付注册后的邮箱验证、找回/重置密码、受验证邮箱约束的订单创建和模拟支付确认、套餐切换、取消/恢复、退款申请、账单/用量概览、trace_id 错误关联与官方 Gitee Release 下载入口。验证码只走受控服务端邮件投递网关，数据库仅保存哈希；密码重置撤销 refresh token 并失效既有 access session。真实付款按所有者要求继续跳过；现有 Compose 栈无法提供 `localhost:8000`，因此健康栈上的浏览器/E2E 与邮件网关投递演练未被伪称完成，详见 [LM3-24 运行手册](./LM3-24-Web账号与付费体验.md)。
 
 ### LM3-25：桌面本地凭据迁移到 Keychain
 
@@ -1158,4 +1159,20 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no Gitee
 Loop branch cleanup: Delete `loop/lm3-23-resilience` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
 Notes: The owner explicitly skips real payment. Resilience configuration can be tuned, but it must not be configured to skip quota pre-reservation, trust client identity, mark unconfirmed outbox events as published, or retry command RPCs outside their existing idempotency/Saga protocols.
+```
+
+```text
+Loop: LM3-24
+Target branch: main
+Loop branch: loop/lm3-24-web-account-billing (deleted after the closing merge push)
+Commit(s): acdb9e4 loop(LM3-24): complete web account billing experience; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed; the production build includes the new billing, download, email-verification, password-recovery and reset routes. Full `GOCACHE=/tmp/dramaip-go-race-lm3-20 go test ./...` and `go test -race ./...` passed. Auth/BFF tests cover no-code HTTP responses, cookie/CSRF behavior, verified-email checkout enforcement, reset delivery gateway behavior, and production HTTPS-only delivery endpoints. `make event-contracts`, Docker Compose configuration, Helm lint (with development host-path disabled), development/production Helm renders, and `node --check scripts/platform-e2e.mjs` passed.
+Runtime limitation: `make platform-e2e` was attempted read-only and failed at `localhost:8000` with `ECONNREFUSED`; the existing user-owned Compose stack was not stopped, rebuilt, or deleted. Browser desktop/mobile smoke, verified-account checkout through Kong, simulated-payment failure/expiry UI checks, and configured email-gateway delivery must be repeated on a restored healthy stack using `docs/loop/LM3-24-Web账号与付费体验.md`. No real payment was initiated or claimed.
+Diff review: Reviewed the complete functional diff and ran cached and working-tree `git diff --check`. The change adds hashed one-time email actions, reset-driven refresh/access session invalidation, a production HTTPS-only delivery boundary, email-verification checkout gates, Web account/billing/download/recovery views, SDK methods, deployment wiring, generated protobuf, migration 028, and operator documentation. It contains no real password, token, API key, mail credential, payment material, private key, cache, image, or generated build artifact.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before this loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no Gitee hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-24-web-account-billing` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean loop branch before its no-ff merge.
+Notes: The repository owner explicitly skips real payment. Official release publication remains an operator-controlled artifact/signing action; the Web page opens the canonical Gitee Release channel and must not substitute an unsigned third-party package. Email delivery is provider-owned configuration and must use HTTPS in production; the public reset request remains account-enumeration safe.
 ```
