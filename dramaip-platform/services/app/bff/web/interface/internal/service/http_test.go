@@ -80,12 +80,13 @@ func TestChatUsesIdempotencyHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(`{"request_id":"trace-42","messages":[{"role":"user","content":"hi"}]}`))
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Idempotency-Key", "header-key-42")
+	req.Header.Set("X-Forwarded-For", "198.51.100.10, 203.0.113.42")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("chat status = %d: %s", rec.Code, rec.Body.String())
 	}
-	if ai.request == nil || ai.request.RequestId != "trace-42" || ai.request.IdempotencyKey != "header-key-42" {
+	if ai.request == nil || ai.request.RequestId != "trace-42" || ai.request.IdempotencyKey != "header-key-42" || ai.request.ClientIp != "203.0.113.42" {
 		t.Fatalf("forwarded chat request = %#v", ai.request)
 	}
 	if got := rec.Header().Get("Idempotency-Key"); got != "header-key-42" {

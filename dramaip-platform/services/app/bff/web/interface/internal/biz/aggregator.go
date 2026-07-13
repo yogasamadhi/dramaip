@@ -198,9 +198,9 @@ func (u *BFFUsecase) CancelSubscription(ctx context.Context, userID string, subs
 	return reply, err
 }
 
-func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, idempotencyKey string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64) (*aiv1.ChatReply, error) {
+func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64) (*aiv1.ChatReply, error) {
 	return u.data.AI.Chat(ctx, &aiv1.ChatRequest{
-		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, Provider: provider,
+		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, ClientIp: clientIP, Provider: provider,
 		Model: model, Messages: messages, MaxTokens: maxTokens,
 	})
 }

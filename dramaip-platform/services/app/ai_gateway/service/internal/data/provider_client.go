@@ -361,6 +361,16 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	}, nil
 }
 
+func (d *Data) ValidateProvider(p Provider) error {
+	if p.Name == "test" || p.Name == "test-openai-compatible" || d.ProviderCaller != nil {
+		return nil
+	}
+	if p.APIKey == "" || strings.Contains(p.APIKey, "replace-me") {
+		return status.Errorf(codes.FailedPrecondition, "provider %s api key is not configured", p.Name)
+	}
+	return nil
+}
+
 func loadProviders(cfg *conf.Bootstrap) map[string]Provider {
 	names := splitList(cfg.AI.Providers)
 	out := make(map[string]Provider, len(names)+1)
