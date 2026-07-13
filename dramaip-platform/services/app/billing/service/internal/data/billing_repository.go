@@ -35,6 +35,23 @@ type PlanRow struct {
 	MaxRPM            int64
 }
 
+// PlanSnapshot is the immutable entitlement captured when a checkout is
+// created. It is copied to the subscription and every quota period account so
+// historical rights never need to be reconstructed from billing.plans.
+type PlanSnapshot struct {
+	Code              string
+	Name              string
+	BillingPeriod     string
+	Price             string
+	Currency          string
+	MonthlyTokenQuota int64
+	MaxRPM            int64
+	MaxContextTokens  int64
+	ModelLevel        string
+	Source            string
+	At                string
+}
+
 type SubscriptionRow struct {
 	ID                 string
 	UserID             string
@@ -45,6 +62,25 @@ type SubscriptionRow struct {
 	CurrentPeriodEnd   string
 	CancelAtPeriodEnd  bool
 	CanceledAt         string
+	PlanName           string
+	BillingPeriod      string
+	PlanPrice          string
+	Currency           string
+	MonthlyTokenQuota  int64
+	MaxRPM             int64
+	MaxContextTokens   int64
+	ModelLevel         string
+	PlanSnapshotSource string
+	PlanSnapshotAt     string
+}
+
+func (row SubscriptionRow) PlanSnapshot() PlanSnapshot {
+	return PlanSnapshot{
+		Code: row.PlanCode, Name: row.PlanName, BillingPeriod: row.BillingPeriod,
+		Price: row.PlanPrice, Currency: row.Currency, MonthlyTokenQuota: row.MonthlyTokenQuota,
+		MaxRPM: row.MaxRPM, MaxContextTokens: row.MaxContextTokens, ModelLevel: row.ModelLevel,
+		Source: row.PlanSnapshotSource, At: row.PlanSnapshotAt,
+	}
 }
 
 type OrderRow struct {
@@ -131,10 +167,13 @@ func (r *BillingRepo) Checks() map[string]func(context.Context) error {
 	}
 }
 
-func (r *BillingRepo) CreatePeriodAccount(ctx context.Context, userID string, subscriptionID string, planCode string, quotaTokens int64, periodStart string, periodEnd string) (TokenBalanceRow, error) {
+func (r *BillingRepo) CreatePeriodAccount(ctx context.Context, userID string, subscriptionID string, snapshot PlanSnapshot, periodStart string, periodEnd string) (TokenBalanceRow, error) {
 	if _, err := r.data.Quota.CreatePeriodAccount(ctx, &quotav1.CreatePeriodAccountRequest{
-		UserId: userID, SubscriptionId: subscriptionID, QuotaTokens: quotaTokens,
-		PeriodStart: periodStart, PeriodEnd: periodEnd, PlanCode: planCode,
+		UserId: userID, SubscriptionId: subscriptionID, QuotaTokens: snapshot.MonthlyTokenQuota,
+		PeriodStart: periodStart, PeriodEnd: periodEnd, PlanCode: snapshot.Code,
+		PlanName: snapshot.Name, BillingPeriod: snapshot.BillingPeriod, PlanPrice: snapshot.Price,
+		Currency: snapshot.Currency, MaxRpm: snapshot.MaxRPM, MaxContextTokens: snapshot.MaxContextTokens,
+		ModelLevel: snapshot.ModelLevel, PlanSnapshotSource: snapshot.Source, PlanSnapshotAt: snapshot.At,
 	}); err != nil {
 		return TokenBalanceRow{}, err
 	}
@@ -166,14 +205,23 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 			sub.id::text AS id,
 			sub.user_id::text AS user_id,
 			sub.plan_id::text AS plan_id,
-			plan.code AS plan_code,
+			sub.plan_code,
+			sub.plan_name,
+			sub.billing_period,
+			sub.plan_price::text AS plan_price,
+			sub.currency,
+			sub.monthly_token_quota,
+			sub.max_rpm,
+			sub.max_context_tokens,
+			sub.model_level,
+			sub.plan_snapshot_source,
+			sub.plan_snapshot_at::text AS plan_snapshot_at,
 			sub.status,
 			sub.current_period_start::text AS current_period_start,
 			sub.current_period_end::text AS current_period_end,
 			sub.cancel_at_period_end,
 			COALESCE(sub.canceled_at::text, '') AS canceled_at
 		FROM billing.subscriptions sub
-		JOIN billing.plans plan ON plan.id = sub.plan_id
 		WHERE sub.user_id = ?::uuid AND sub.status = 'active'
 		ORDER BY sub.created_at DESC
 		LIMIT 1
@@ -186,12 +234,20 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 
 func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCode string, provider string) (CheckoutResult, error) {
 	var plan struct {
-		ID    string
-		Code  string
-		Price float64
+		ID                string
+		Code              string
+		Name              string
+		BillingPeriod     string
+		Price             string
+		Currency          string
+		MonthlyTokenQuota int64
+		MaxRPM            int64
+		MaxContextTokens  int64
+		ModelLevel        string
 	}
 	if err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, code, price
+		SELECT id::text AS id, code, name, billing_period, price::text AS price, currency,
+		       monthly_token_quota, max_rpm, max_context_tokens, model_level
 		FROM billing.plans
 		WHERE code = ? AND is_active = true
 		LIMIT 1
@@ -207,17 +263,26 @@ func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCod
 		UserId:   userID,
 		PlanCode: plan.Code,
 		Provider: provider,
-		Amount:   strconv.FormatFloat(plan.Price, 'f', 2, 64),
-		Currency: "CNY",
+		Amount:   plan.Price,
+		Currency: plan.Currency,
 	}))
 	if err != nil {
 		return CheckoutResult{}, err
 	}
 	err = r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec(`
-			INSERT INTO billing.orders (id, user_id, plan_id, amount, currency, status, provider, provider_order_id)
-			VALUES (?::uuid, ?::uuid, ?::uuid, ?, 'CNY', 'pending', ?, ?)
-		`, orderID, userID, plan.ID, plan.Price, provider, orderID).Error; err != nil {
+			INSERT INTO billing.orders (
+				id, user_id, plan_id, amount, currency, status, provider, provider_order_id,
+				plan_code, plan_name, billing_period, plan_price, monthly_token_quota,
+				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
+			)
+			VALUES (
+				?::uuid, ?::uuid, ?::uuid, ?::numeric, ?, 'pending', ?, ?,
+				?, ?, ?, ?::numeric, ?, ?, ?, ?, 'checkout', ?
+			)
+		`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, orderID,
+			plan.Code, plan.Name, plan.BillingPeriod, plan.Price, plan.MonthlyTokenQuota,
+			plan.MaxRPM, plan.MaxContextTokens, plan.ModelLevel, now).Error; err != nil {
 			return err
 		}
 		return tx.Exec(`
@@ -239,14 +304,22 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 	var out SandboxPaymentResult
 	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var order struct {
-			ID             string
-			PlanID         string
-			Amount         float64
-			Currency       string
-			Status         string
-			SubscriptionID string
-			QuotaTokens    int64
-			PlanCode       string
+			ID                 string
+			PlanID             string
+			Amount             float64
+			Currency           string
+			Status             string
+			SubscriptionID     string
+			PlanCode           string
+			PlanName           string
+			BillingPeriod      string
+			PlanPrice          string
+			QuotaTokens        int64
+			MaxRPM             int64
+			MaxContextTokens   int64
+			ModelLevel         string
+			PlanSnapshotSource string
+			PlanSnapshotAt     string
 		}
 		if err := tx.Raw(`
 			SELECT
@@ -256,10 +329,17 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 				o.currency,
 				o.status,
 				COALESCE(o.subscription_id::text, '') AS subscription_id,
-				p.monthly_token_quota AS quota_tokens,
-				p.code AS plan_code
+				o.plan_code,
+				o.plan_name,
+				o.billing_period,
+				o.plan_price::text AS plan_price,
+				o.monthly_token_quota AS quota_tokens,
+				o.max_rpm,
+				o.max_context_tokens,
+				o.model_level,
+				o.plan_snapshot_source,
+				o.plan_snapshot_at::text AS plan_snapshot_at
 			FROM billing.orders o
-			JOIN billing.plans p ON p.id = o.plan_id
 			WHERE o.id = ?::uuid AND o.user_id = ?::uuid
 			LIMIT 1
 			FOR UPDATE OF o
@@ -305,9 +385,18 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 			return err
 		}
 		if err := tx.Exec(`
-			INSERT INTO billing.subscriptions (id, user_id, plan_id, provider, provider_subscription_id, status, current_period_start, current_period_end)
-			VALUES (?::uuid, ?::uuid, ?::uuid, 'simulated', ?, 'quota_pending', ?, ?)
-		`, subscriptionID, userID, order.PlanID, "simulated_"+subscriptionID, now, periodEnd).Error; err != nil {
+			INSERT INTO billing.subscriptions (
+				id, user_id, plan_id, provider, provider_subscription_id, status, current_period_start, current_period_end,
+				plan_code, plan_name, billing_period, plan_price, currency, monthly_token_quota,
+				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
+			)
+			VALUES (
+				?::uuid, ?::uuid, ?::uuid, 'simulated', ?, 'quota_pending', ?, ?,
+				?, ?, ?, ?::numeric, ?, ?, ?, ?, ?, ?, ?::timestamptz
+			)
+		`, subscriptionID, userID, order.PlanID, "simulated_"+subscriptionID, now, periodEnd,
+			order.PlanCode, order.PlanName, order.BillingPeriod, order.PlanPrice, order.Currency, order.QuotaTokens,
+			order.MaxRPM, order.MaxContextTokens, order.ModelLevel, order.PlanSnapshotSource, order.PlanSnapshotAt).Error; err != nil {
 			return err
 		}
 		if err := tx.Exec(`UPDATE billing.orders SET status = 'paid', paid_at = now(), updated_at = now(), subscription_id = ?::uuid WHERE id = ?::uuid`, subscriptionID, order.ID).Error; err != nil {
@@ -371,13 +460,12 @@ func (r *BillingRepo) MarkSubscriptionActivationFailed(ctx context.Context, subs
 func (r *BillingRepo) ListOrders(ctx context.Context, userID string) ([]OrderRow, error) {
 	var rows []OrderRow
 	err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, p.code AS plan_code,
+		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, o.plan_code,
 		       o.provider, o.status, o.amount::text AS amount, o.currency,
 		       'simulated://payments/orders/' || o.id::text AS payment_url,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
 		       COALESCE(o.subscription_id::text, '') AS subscription_id
 		FROM billing.orders o
-		JOIN billing.plans p ON p.id = o.plan_id
 		WHERE o.user_id = ?::uuid
 		ORDER BY o.created_at DESC
 		LIMIT 50
@@ -388,13 +476,12 @@ func (r *BillingRepo) ListOrders(ctx context.Context, userID string) ([]OrderRow
 func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID string) (OrderRow, error) {
 	var row OrderRow
 	err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, p.code AS plan_code,
+		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, o.plan_code,
 		       o.provider, o.status, o.amount::text AS amount, o.currency,
 		       'simulated://payments/orders/' || o.id::text AS payment_url,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
 		       COALESCE(o.subscription_id::text, '') AS subscription_id
 		FROM billing.orders o
-		JOIN billing.plans p ON p.id = o.plan_id
 		WHERE o.id = ?::uuid AND o.user_id = ?::uuid
 		LIMIT 1
 	`, orderID, userID).Scan(&row).Error
@@ -422,10 +509,12 @@ func (r *BillingRepo) CancelSubscription(ctx context.Context, userID string, sub
 func loadSubscription(ctx context.Context, tx *gorm.DB, userID string) (SubscriptionRow, error) {
 	var sub SubscriptionRow
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id, plan.code AS plan_code,
+		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id,
+		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
+		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
+		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
 		       sub.status, sub.current_period_start::text AS current_period_start, sub.current_period_end::text AS current_period_end
 		FROM billing.subscriptions sub
-		JOIN billing.plans plan ON plan.id = sub.plan_id
 		WHERE sub.user_id = ?::uuid AND sub.status = 'active'
 		ORDER BY sub.created_at DESC
 		LIMIT 1
@@ -441,11 +530,13 @@ func loadSubscription(ctx context.Context, tx *gorm.DB, userID string) (Subscrip
 func loadSubscriptionByID(ctx context.Context, tx *gorm.DB, subscriptionID string) (SubscriptionRow, error) {
 	var sub SubscriptionRow
 	if err := tx.WithContext(ctx).Raw(`
-		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id, plan.code AS plan_code,
+		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_id::text AS plan_id,
+		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
+		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
+		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
 		       sub.status, sub.current_period_start::text AS current_period_start, sub.current_period_end::text AS current_period_end,
 		       sub.cancel_at_period_end, COALESCE(sub.canceled_at::text, '') AS canceled_at
 		FROM billing.subscriptions sub
-		JOIN billing.plans plan ON plan.id = sub.plan_id
 		WHERE sub.id = ?::uuid
 		LIMIT 1
 	`, subscriptionID).Scan(&sub).Error; err != nil {

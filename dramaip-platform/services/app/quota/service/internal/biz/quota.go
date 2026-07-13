@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"time"
 
 	"github.com/dramaip/dramaip-platform/services/app/quota/service/internal/data"
 	"google.golang.org/grpc/codes"
@@ -18,23 +19,36 @@ func (u *QuotaUsecase) GetTokenBalance(ctx context.Context, userID string) (data
 	return u.repo.GetTokenBalance(ctx, userID)
 }
 
-func (u *QuotaUsecase) CreatePeriodAccount(ctx context.Context, userID string, subscriptionID string, planCode string, quotaTokens int64, periodStart string, periodEnd string) (data.TokenAccount, error) {
-	if userID == "" || subscriptionID == "" {
+func (u *QuotaUsecase) CreatePeriodAccount(ctx context.Context, input data.CreatePeriodAccountInput) (data.TokenAccount, error) {
+	if input.UserID == "" || input.SubscriptionID == "" {
 		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing user or subscription id")
 	}
-	if planCode == "" {
-		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing plan code")
+	if input.PlanSnapshotSource == "" {
+		input = legacyCompatibleSnapshot(input)
 	}
-	if quotaTokens <= 0 {
+	if input.PlanCode == "" || input.PlanName == "" || input.BillingPeriod == "" || input.PlanPrice == "" || input.Currency == "" || input.ModelLevel == "" {
+		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing plan snapshot")
+	}
+	if input.QuotaTokens <= 0 {
 		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "quota tokens must be positive")
 	}
-	if periodStart == "" || periodEnd == "" {
+	if input.MaxRPM <= 0 || input.MaxContextTokens <= 0 || input.PeriodStart == "" || input.PeriodEnd == "" || input.PlanSnapshotAt == "" {
 		return data.TokenAccount{}, status.Error(codes.InvalidArgument, "missing quota period")
 	}
-	return u.repo.CreatePeriodAccount(ctx, data.CreatePeriodAccountInput{
-		UserID: userID, SubscriptionID: subscriptionID, PlanCode: planCode, QuotaTokens: quotaTokens,
-		PeriodStart: periodStart, PeriodEnd: periodEnd,
-	})
+	return u.repo.CreatePeriodAccount(ctx, input)
+}
+
+func legacyCompatibleSnapshot(input data.CreatePeriodAccountInput) data.CreatePeriodAccountInput {
+	input.PlanName = "Legacy plan"
+	input.BillingPeriod = "monthly"
+	input.PlanPrice = "0"
+	input.Currency = "CNY"
+	input.MaxRPM = 1
+	input.MaxContextTokens = 1
+	input.ModelLevel = "legacy"
+	input.PlanSnapshotSource = "legacy_compat"
+	input.PlanSnapshotAt = time.Now().UTC().Format(time.RFC3339Nano)
+	return input
 }
 
 func (u *QuotaUsecase) ReserveTokens(ctx context.Context, userID string, requestID string, reservedTokens int64) (data.TokenReservation, error) {

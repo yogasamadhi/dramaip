@@ -150,15 +150,24 @@ func (x *TokenBalance) GetPeriodEnd() string {
 }
 
 type CreatePeriodAccountRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	SubscriptionId string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	QuotaTokens    int64                  `protobuf:"varint,3,opt,name=quota_tokens,json=quotaTokens,proto3" json:"quota_tokens,omitempty"`
-	PeriodStart    string                 `protobuf:"bytes,4,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
-	PeriodEnd      string                 `protobuf:"bytes,5,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
-	PlanCode       string                 `protobuf:"bytes,6,opt,name=plan_code,json=planCode,proto3" json:"plan_code,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	UserId             string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SubscriptionId     string                 `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	QuotaTokens        int64                  `protobuf:"varint,3,opt,name=quota_tokens,json=quotaTokens,proto3" json:"quota_tokens,omitempty"`
+	PeriodStart        string                 `protobuf:"bytes,4,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
+	PeriodEnd          string                 `protobuf:"bytes,5,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
+	PlanCode           string                 `protobuf:"bytes,6,opt,name=plan_code,json=planCode,proto3" json:"plan_code,omitempty"`
+	PlanName           string                 `protobuf:"bytes,7,opt,name=plan_name,json=planName,proto3" json:"plan_name,omitempty"`
+	BillingPeriod      string                 `protobuf:"bytes,8,opt,name=billing_period,json=billingPeriod,proto3" json:"billing_period,omitempty"`
+	PlanPrice          string                 `protobuf:"bytes,9,opt,name=plan_price,json=planPrice,proto3" json:"plan_price,omitempty"`
+	Currency           string                 `protobuf:"bytes,10,opt,name=currency,proto3" json:"currency,omitempty"`
+	MaxRpm             int64                  `protobuf:"varint,11,opt,name=max_rpm,json=maxRpm,proto3" json:"max_rpm,omitempty"`
+	MaxContextTokens   int64                  `protobuf:"varint,12,opt,name=max_context_tokens,json=maxContextTokens,proto3" json:"max_context_tokens,omitempty"`
+	ModelLevel         string                 `protobuf:"bytes,13,opt,name=model_level,json=modelLevel,proto3" json:"model_level,omitempty"`
+	PlanSnapshotSource string                 `protobuf:"bytes,14,opt,name=plan_snapshot_source,json=planSnapshotSource,proto3" json:"plan_snapshot_source,omitempty"`
+	PlanSnapshotAt     string                 `protobuf:"bytes,15,opt,name=plan_snapshot_at,json=planSnapshotAt,proto3" json:"plan_snapshot_at,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CreatePeriodAccountRequest) Reset() {
@@ -229,6 +238,69 @@ func (x *CreatePeriodAccountRequest) GetPeriodEnd() string {
 func (x *CreatePeriodAccountRequest) GetPlanCode() string {
 	if x != nil {
 		return x.PlanCode
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetPlanName() string {
+	if x != nil {
+		return x.PlanName
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetBillingPeriod() string {
+	if x != nil {
+		return x.BillingPeriod
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetPlanPrice() string {
+	if x != nil {
+		return x.PlanPrice
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetMaxRpm() int64 {
+	if x != nil {
+		return x.MaxRpm
+	}
+	return 0
+}
+
+func (x *CreatePeriodAccountRequest) GetMaxContextTokens() int64 {
+	if x != nil {
+		return x.MaxContextTokens
+	}
+	return 0
+}
+
+func (x *CreatePeriodAccountRequest) GetModelLevel() string {
+	if x != nil {
+		return x.ModelLevel
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetPlanSnapshotSource() string {
+	if x != nil {
+		return x.PlanSnapshotSource
+	}
+	return ""
+}
+
+func (x *CreatePeriodAccountRequest) GetPlanSnapshotAt() string {
+	if x != nil {
+		return x.PlanSnapshotAt
 	}
 	return ""
 }
@@ -948,7 +1020,7 @@ const file_api_quota_service_v1_quota_proto_rawDesc = "" +
 	"\x10remaining_tokens\x18\x04 \x01(\x03R\x0fremainingTokens\x12!\n" +
 	"\fperiod_start\x18\x05 \x01(\tR\vperiodStart\x12\x1d\n" +
 	"\n" +
-	"period_end\x18\x06 \x01(\tR\tperiodEnd\"\xe0\x01\n" +
+	"period_end\x18\x06 \x01(\tR\tperiodEnd\"\xa3\x04\n" +
 	"\x1aCreatePeriodAccountRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12!\n" +
@@ -956,7 +1028,19 @@ const file_api_quota_service_v1_quota_proto_rawDesc = "" +
 	"\fperiod_start\x18\x04 \x01(\tR\vperiodStart\x12\x1d\n" +
 	"\n" +
 	"period_end\x18\x05 \x01(\tR\tperiodEnd\x12\x1b\n" +
-	"\tplan_code\x18\x06 \x01(\tR\bplanCode\"\xa4\x01\n" +
+	"\tplan_code\x18\x06 \x01(\tR\bplanCode\x12\x1b\n" +
+	"\tplan_name\x18\a \x01(\tR\bplanName\x12%\n" +
+	"\x0ebilling_period\x18\b \x01(\tR\rbillingPeriod\x12\x1d\n" +
+	"\n" +
+	"plan_price\x18\t \x01(\tR\tplanPrice\x12\x1a\n" +
+	"\bcurrency\x18\n" +
+	" \x01(\tR\bcurrency\x12\x17\n" +
+	"\amax_rpm\x18\v \x01(\x03R\x06maxRpm\x12,\n" +
+	"\x12max_context_tokens\x18\f \x01(\x03R\x10maxContextTokens\x12\x1f\n" +
+	"\vmodel_level\x18\r \x01(\tR\n" +
+	"modelLevel\x120\n" +
+	"\x14plan_snapshot_source\x18\x0e \x01(\tR\x12planSnapshotSource\x12(\n" +
+	"\x10plan_snapshot_at\x18\x0f \x01(\tR\x0eplanSnapshotAt\"\xa4\x01\n" +
 	"\fTokenAccount\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12'\n" +

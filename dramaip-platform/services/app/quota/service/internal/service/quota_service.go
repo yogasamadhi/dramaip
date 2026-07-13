@@ -28,7 +28,13 @@ func (s *QuotaService) GetTokenBalance(ctx context.Context, req *quotav1.GetToke
 }
 
 func (s *QuotaService) CreatePeriodAccount(ctx context.Context, req *quotav1.CreatePeriodAccountRequest) (*quotav1.TokenAccount, error) {
-	account, err := s.uc.CreatePeriodAccount(ctx, req.UserId, req.SubscriptionId, req.PlanCode, req.QuotaTokens, req.PeriodStart, req.PeriodEnd)
+	account, err := s.uc.CreatePeriodAccount(ctx, data.CreatePeriodAccountInput{
+		UserID: req.UserId, SubscriptionID: req.SubscriptionId, PlanCode: req.PlanCode, PlanName: req.PlanName,
+		BillingPeriod: req.BillingPeriod, PlanPrice: req.PlanPrice, Currency: req.Currency,
+		QuotaTokens: req.QuotaTokens, MaxRPM: req.MaxRpm, MaxContextTokens: req.MaxContextTokens,
+		ModelLevel: req.ModelLevel, PlanSnapshotSource: req.PlanSnapshotSource, PlanSnapshotAt: req.PlanSnapshotAt,
+		PeriodStart: req.PeriodStart, PeriodEnd: req.PeriodEnd,
+	})
 	if err != nil {
 		return nil, err
 	}

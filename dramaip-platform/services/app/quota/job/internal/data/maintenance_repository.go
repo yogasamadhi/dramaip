@@ -50,8 +50,14 @@ func (d *Data) Maintain(ctx context.Context) error {
 			}
 		}
 		return tx.Exec(`
-			INSERT INTO quota.token_accounts (id, user_id, subscription_id, plan_code, period_start, period_end, quota_tokens, used_tokens, status)
-			SELECT gen_random_uuid(), user_id, subscription_id, plan_code, period_end, period_end + interval '1 month', quota_tokens, 0, 'active'
+			INSERT INTO quota.token_accounts (
+				id, user_id, subscription_id, plan_code, plan_name, billing_period, plan_price, currency,
+				period_start, period_end, quota_tokens, max_rpm, max_context_tokens, model_level,
+				plan_snapshot_source, plan_snapshot_at, used_tokens, status
+			)
+			SELECT gen_random_uuid(), user_id, subscription_id, plan_code, plan_name, billing_period, plan_price, currency,
+				period_end, period_end + interval '1 month', quota_tokens, max_rpm, max_context_tokens, model_level,
+				'period_renewal', now(), 0, 'active'
 			FROM quota.token_accounts current
 			WHERE current.status = 'active'
 			  AND current.period_end <= now()
