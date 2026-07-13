@@ -77,14 +77,14 @@
 
 ### 1.3 已知失败与不可信检查
 
-- `dramaip-platform/services`: `go test ./...` 失败；BFF 测试仍调用无版本路径，真实路由已使用 `/v1/...`。
-- `dramaip-platform/clients`: `pnpm lint` 失败并进入 ESLint 交互式初始化，尚不能作为 CI Gate。
-- 平台完整 Compose E2E 当前只在手工 workflow dispatch 中运行，不保护普通 PR。
-- 桌面端 workflow 位于子目录 `.github/workflows`，在当前父级单仓库形态下不是有效的根仓库 CI。
+- `dramaip-platform/services`: `go test ./...` 已通过；BFF 路由和测试均使用 `/v1/...`。
+- `dramaip-platform/clients`: `pnpm lint` 已使用显式 ESLint CLI 配置，无交互通过；Web/Mobile lint 可作为 CI Gate。
+- 平台完整 Compose E2E 已分流到 GitHub workflow 的夜间、发布标签或手动触发，PR 运行轻量 Web route smoke；Gitee Go 的仓库级开通与门禁绑定仍需在远端 UI 完成。
+- 桌面端 workflow 已迁移到根 `.github/workflows/desktop-ci.yml`，并显式设置 `dramaip-desktop` 工作目录。
 - 平台客户端没有稳定的自动化测试基线；Go 领域层测试覆盖不足。
 - 尚未在本地图创建时重跑桌面 Electron E2E、跨平台 package smoke、平台完整 Compose E2E、Kubernetes 部署或恢复演练。
 - LM3-00 负责将当前活动文档链接从 `docs/process` 收口到 `docs/loop`；历史完成记录中的旧路径字符串保留为审计事实。
-- [差异演进.md](../差异演进.md) 的 D-001～D-011 均视为未完成，除非后续 loop 按完成定义闭环并更新记录。
+- [差异演进.md](../差异演进.md) 的 D-001（Web BFF 路径迁移）和 D-004（`/v1` 测试契约）已完成并保留记录；其余 D 项仍待后续 loop 闭环。
 
 ### 1.4 差异映射
 
