@@ -855,3 +855,19 @@ Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-04-
 Current branch/worktree: main; clean before this metadata update.
 Notes: subscription, quota, and notification event contracts plus compatible consumer parsing are delivered here; their future domain-specific producer/consumer business behavior remains in the owning loops (notably LM3-08, LM3-09, LM3-12, and LM3-15).
 ```
+
+```text
+Loop: LM3-05
+Target branch: main
+Loop branch: loop/lm3-05-jwks-auth
+Commit(s): 0fba83e loop(LM3-05): migrate auth to JWKS signing; this completion-record update is the loop's final metadata commit.
+Merge commit: 51377f3 merge: LM3-05 JWKS production auth; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `GOCACHE=/tmp/dramaip-go-build go test ./...` and `make event-contracts` passed in `dramaip-platform/services`; the latter runs Buf format/lint/breaking/generated-output checks against `origin/main`. `pnpm typecheck` passed in `dramaip-platform/clients`. Helm lint/template with a mounted auth keyset reference, Docker Compose config, Kong-template YAML parsing, and `git diff --check` passed. Auth tests cover key rotation, issuer/audience/expiry/algorithm/kid rejection, production key-material enforcement, and the JWKS HTTP response. A temporary local PostgreSQL instance executed the refresh-token rotation/reuse/device-revocation integration test and was stopped/removed afterward.
+Kong boundary: The normal Gitee repository contains no production private key or generated public-key declaration. `cmd/kong-jwt-config` renders Kong RS256 credentials from the operator-controlled public JWKS; the generated plugin checks `kid`, `exp`, and `nbf`, while Auth/BFF retains issuer, audience, and Redis-session checks.
+Diff review: Reviewed the RS256 key loader, strict production configuration, generated API fields, refresh-family transaction, migration, device header propagation, public JWKS route, Kong renderer/template, Helm secret mount, Compose/config examples, and documentation. No private PEM, shared HMAC secret, real environment file, container data, cache, or unrelated artifact was included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target was aligned immediately before the no-ff merge.
+Push: Core merge 51377f3 was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-05 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-05-jwks-auth` immediately afterward.
+Current branch/worktree: loop/lm3-05-jwks-auth; clean before this metadata update.
+Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Production release still requires an operator to supply the approved RSA private key/JWKS keyset and render/reload Kong according to `deploy/kong/README.md`.
+```
