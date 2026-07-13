@@ -14,7 +14,8 @@ The launcher starts the Docker stack and the Next.js web app.
 
 Before v1.0, Docker Compose is the supported development and acceptance path.
 K8s/Helm files remain in the repository, but the local baseline is Compose:
-Kong -> BFF -> auth/user/billing/quota/ai-gateway/notification.
+Kong -> BFF -> auth/user/billing/quota/ai-gateway/notification, with
+`notification-job` consuming its own RabbitMQ event subscription.
 
 | Entry | URL |
 | --- | --- |
@@ -47,9 +48,10 @@ The end-to-end check enters through Kong and verifies:
 4. protected dashboard and token balance
 5. checkout creation
 6. simulated payment confirmation
-7. AI chat without a real key returns an explicit provider-key error
-8. AI chat with provider `test` succeeds and consumes quota
-9. refresh and logout
+7. notification job consumes the payment event once and records the in-app notification
+8. AI chat without a real key returns an explicit provider-key error
+9. AI chat with provider `test` succeeds and consumes quota
+10. refresh and logout
 
 ## AI Provider Configuration
 
@@ -116,3 +118,6 @@ Runnable services under `services/app/` follow the Kratos layout:
   automatically sends the matching CSRF header for Cookie session writes.
 - Kong health timeout: inspect `docker compose -f deploy/docker-drama/docker-compose.yaml ps`
   and `make platform-logs`.
+- notification event remains pending: inspect `notification-job` health/logs and the
+  RabbitMQ `dramaip.notification.events` / `.dlq` queues. A failed delivery is
+  retried up to `NOTIFICATION_EVENT_MAX_RETRIES`, then retained in the DLQ.

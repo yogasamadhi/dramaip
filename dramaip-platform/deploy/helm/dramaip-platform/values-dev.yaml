@@ -27,6 +27,9 @@ images:
   notification:
     repository: dramaip-notification
     tag: dev
+  notificationJob:
+    repository: dramaip-notification-job
+    tag: dev
   billingJob:
     repository: dramaip-billing-job
     tag: dev

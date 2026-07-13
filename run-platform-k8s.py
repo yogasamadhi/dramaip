@@ -77,6 +77,7 @@ SERVICE_IMAGES = (
     ("quota", "dramaip-quota", "./app/quota/service/cmd/server"),
     ("aiGateway", "dramaip-ai-gateway", "./app/ai_gateway/service/cmd/server"),
     ("notification", "dramaip-notification", "./app/notification/service/cmd/server"),
+    ("notificationJob", "dramaip-notification-job", "./app/notification/job/cmd/server"),
     ("billingJob", "dramaip-billing-job", "./app/billing/job/cmd/server"),
     ("quotaJob", "dramaip-quota-job", "./app/quota/job/cmd/server"),
 )
@@ -1153,7 +1154,7 @@ def install_platform(args: argparse.Namespace) -> None:
 def wait_for_bff(args: argparse.Namespace) -> None:
     if args.dry_run or args.no_wait:
         return
-    for component in ("auth", "user", "billing", "quota", "ai-gateway", "notification", "web-bff", "billing-job", "quota-job"):
+    for component in ("auth", "user", "billing", "quota", "ai-gateway", "notification", "notification-job", "web-bff", "billing-job", "quota-job"):
         info(f"Waiting for {component} rollout")
         run(
             kubectl_base(args)

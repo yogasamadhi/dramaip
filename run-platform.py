@@ -2,8 +2,8 @@
 """
 Start dramaip-platform services and web app in development mode.
 
-All 9 Go microservices (web-bff/auth/user/billing/quota/ai-gateway/notification/
-billing-job/quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
+All 10 Go microservices (web-bff/auth/user/billing/quota/ai-gateway/notification/
+notification-job/billing-job/quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
 as containers via docker compose; this launcher only brings the stack up and
 optionally starts the local Next.js web dev server.
 
@@ -46,12 +46,12 @@ CLIENT_MODULE_CHECKS = (
 CURRENT_PID = os.getpid()
 _SHUTDOWN_SIGNAL: int | None = None
 
-# All 9 Go services + Kong + dev infra live in docker-compose.yaml. This launcher
+# All 10 Go services + Kong + dev infra live in docker-compose.yaml. This launcher
 # brings the stack up (Kong is the sole external entry, proxy port 8000 → web-bff:8100)
 # and optionally starts the local Next.js web dev server.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 KONG_PROXY_PORT = 8000
-KONG_HEALTH_TIMEOUT_S = 90.0   # full stack (build + 9 services + infra) takes longer than Kong alone
+KONG_HEALTH_TIMEOUT_S = 90.0   # full stack (build + 10 services + infra) takes longer than Kong alone
 WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
 DEV_ACCOUNT_EMAIL = "creator@example.com"
 DEV_ACCOUNT_PASSWORD = "password123"
@@ -237,7 +237,7 @@ def client_modules_resolve() -> bool:
 
 
 def ensure_stack_running() -> None:
-    """Bring up the full docker compose stack (9 Go services + Kong + dev infra).
+    """Bring up the full docker compose stack (10 Go services + Kong + dev infra).
 
     Kong depends on `web-bff`, which (transitively) depends on postgres/redis/etc.,
     so `up kong` pulls the whole stack. We `--build` so Go code changes are

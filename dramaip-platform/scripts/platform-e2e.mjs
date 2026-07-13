@@ -72,6 +72,23 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitForNotification(type, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs
+  let latest = []
+  while (Date.now() < deadline) {
+    const response = await request('GET', '/v1/me/notifications')
+    latest = Array.isArray(response.notifications) ? response.notifications : []
+    const notification = latest.find((item) => item.type === type)
+    if (notification) return notification
+    await sleep(500)
+  }
+  throw new Error(`timed out waiting for ${type} notification; latest=${JSON.stringify(latest)}`)
+}
+
 const health = await request('GET', '/v1/healthz')
 assert(health.ok === true, 'healthz did not report ok=true')
 
@@ -114,10 +131,8 @@ const confirmed = await request('POST', '/v1/billing/payments/simulated/confirm'
 assert(confirmed.status === 'paid', 'simulated payment was not paid')
 assert(confirmed.token_balance?.remaining_tokens > 0, 'simulated payment did not create token balance')
 
-const notifications = await request('GET', '/v1/me/notifications')
-assert(Array.isArray(notifications.notifications), 'notifications response is invalid')
-assert(notifications.notifications.length > 0, 'simulated payment did not create an in-app notification')
-await request('POST', `/v1/me/notifications/${notifications.notifications[0].id}/read`)
+const paymentNotification = await waitForNotification('payment_succeeded')
+await request('POST', `/v1/me/notifications/${paymentNotification.id}/read`)
 
 const accountReport = await request('GET', '/v1/me/account-report')
 assert(accountReport.order_summary?.total >= 1, 'account report order summary is invalid')

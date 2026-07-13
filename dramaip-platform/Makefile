@@ -10,7 +10,7 @@ platform-down:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) down
 
 platform-logs:
-	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) logs -f web-bff auth user billing quota ai-gateway notification billing-job quota-job kong postgres redis rabbitmq
+	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) logs -f web-bff auth user billing quota ai-gateway notification notification-job billing-job quota-job kong postgres redis rabbitmq
 
 platform-e2e:
 	node scripts/platform-e2e.mjs

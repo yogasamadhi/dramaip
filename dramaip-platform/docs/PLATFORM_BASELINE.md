@@ -21,9 +21,9 @@ Browser / Next.js Web
   -> Kong (:8000)
     -> BFF container (:8100, Docker network only)
       -> auth/user/billing/quota/ai-gateway/notification over internal gRPC
-        -> PostgreSQL: users, plans, subscriptions, token accounts, orders, outbox, notifications
+        -> PostgreSQL: users, plans, subscriptions, token accounts, orders, outbox, notifications, notification inbox
         -> Redis: access-token session cache
-        -> RabbitMQ management API: checkout event publishing
+        -> RabbitMQ topic exchange: versioned events; notification-job consumes its dedicated queue
       -> Prometheus: /metrics scrape
       -> Fluent Bit -> OpenSearch: container logs
 ```
@@ -39,7 +39,7 @@ network and is reached by Kong through `http://web-bff:8100`.
 | BFF | Web-facing orchestration service |
 | PostgreSQL | Source of truth for auth, billing, quota, and account data |
 | Redis | Access-token session cache |
-| RabbitMQ | Checkout event bus |
+| RabbitMQ | Versioned event topic exchange with dedicated domain queues and dead-letter queues |
 | Prometheus | Metrics scrape for BFF, Kong, RabbitMQ, and OTel Collector |
 | Grafana | Metrics UI |
 | Fluent Bit | Docker log collection |

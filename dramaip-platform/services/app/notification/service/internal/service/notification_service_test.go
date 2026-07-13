@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
+	"github.com/dramaip/dramaip-platform/services/app/notification/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/biz"
-	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"

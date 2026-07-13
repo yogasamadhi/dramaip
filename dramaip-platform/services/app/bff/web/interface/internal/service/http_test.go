@@ -71,6 +71,19 @@ func TestBFFHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestPaymentConfirmationDefersNotificationToEventConsumer(t *testing.T) {
+	notification := &fakeNotification{rows: map[string]*notificationv1.Notification{}}
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: notification,
+	})
+	if _, err := uc.SimulatedConfirmPayment(context.Background(), "u1", "order"); err != nil {
+		t.Fatalf("SimulatedConfirmPayment() error = %v", err)
+	}
+	if notification.createCalls != 0 {
+		t.Fatalf("synchronous notification creates = %d, want 0", notification.createCalls)
+	}
+}
+
 func TestCookieSessionAndCSRF(t *testing.T) {
 	router := newTestHTTPService().Router()
 	session := loginForSession(t, router)
@@ -207,7 +220,9 @@ func newTestHTTPService() *HTTPService {
 
 func newTestHTTPServiceWithConfig(cfg *conf.Bootstrap) *HTTPService {
 	uc := biz.NewBFFUsecase(&data.Data{
-		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{
+			"n1": {Id: "n1", Type: "test", Title: "Existing notification", Body: "Read-path fixture", SourceEventId: "fixture", CreatedAt: "2026-07-13T00:00:00Z"},
+		}},
 	})
 	return NewHTTPService(uc, cfg)
 }
@@ -382,7 +397,8 @@ func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv
 }
 
 type fakeNotification struct {
-	rows map[string]*notificationv1.Notification
+	rows        map[string]*notificationv1.Notification
+	createCalls int
 }
 
 func (f *fakeNotification) ListNotifications(ctx context.Context, req *notificationv1.ListNotificationsRequest, _ ...grpc.CallOption) (*notificationv1.ListNotificationsResponse, error) {
@@ -412,6 +428,7 @@ func (f *fakeNotification) CreateNotification(ctx context.Context, req *notifica
 	if platform.UserIdentity(ctx) != req.UserId {
 		return nil, status.Error(codes.PermissionDenied, "notification identity mismatch")
 	}
+	f.createCalls++
 	row := &notificationv1.Notification{Id: "n1", Type: req.Type, Title: req.Title, Body: req.Body, SourceEventId: req.SourceEventId, CreatedAt: "2026-07-13T00:00:00Z"}
 	f.rows[row.Id] = row
 	return &notificationv1.CreateNotificationResponse{Notification: row}, nil

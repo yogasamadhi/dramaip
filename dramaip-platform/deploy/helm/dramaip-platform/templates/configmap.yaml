@@ -25,6 +25,7 @@ data:
   AI_GATEWAY_GRPC_ADDR: {{ .Values.config.aiGatewayGrpcAddr | quote }}
   NOTIFICATION_HTTP_ADDR: {{ .Values.config.notificationHttpAddr | quote }}
   NOTIFICATION_GRPC_ADDR: {{ .Values.config.notificationGrpcAddr | quote }}
+  NOTIFICATION_JOB_HTTP_ADDR: {{ .Values.config.notificationJobHttpAddr | quote }}
   BILLING_JOB_HTTP_ADDR: {{ .Values.config.billingJobHttpAddr | quote }}
   QUOTA_JOB_HTTP_ADDR: {{ .Values.config.quotaJobHttpAddr | quote }}
   AUTO_MIGRATE: {{ .Values.config.autoMigrate | quote }}
@@ -38,7 +39,15 @@ data:
   RABBITMQ_HOST: {{ .Values.config.rabbitmq.host | quote }}
   RABBITMQ_PORT: {{ .Values.config.rabbitmq.port | quote }}
   RABBITMQ_VHOST: {{ .Values.config.rabbitmq.vhost | quote }}
+  RABBITMQ_EXCHANGE: {{ .Values.config.rabbitmq.exchange | quote }}
   RABBITMQ_EVENTS_QUEUE: {{ .Values.config.rabbitmq.eventsQueue | quote }}
+  NOTIFICATION_EVENTS_QUEUE: {{ .Values.config.notificationConsumer.eventsQueue | quote }}
+  NOTIFICATION_DLQ_EXCHANGE: {{ .Values.config.notificationConsumer.deadLetterExchange | quote }}
+  NOTIFICATION_DLQ_QUEUE: {{ .Values.config.notificationConsumer.deadLetterQueue | quote }}
+  NOTIFICATION_EVENT_PREFETCH: {{ .Values.config.notificationConsumer.prefetch | quote }}
+  NOTIFICATION_EVENT_MAX_RETRIES: {{ .Values.config.notificationConsumer.maxRetries | quote }}
+  NOTIFICATION_INBOX_LEASE: {{ .Values.config.notificationConsumer.inboxLease | quote }}
+  NOTIFICATION_CHANNELS: {{ .Values.config.notificationConsumer.channels | quote }}
   JWT_ISSUER: {{ .Values.config.jwt.issuer | quote }}
   JWT_AUDIENCE: {{ .Values.config.jwt.audience | quote }}
   JWT_ACTIVE_KID: {{ .Values.config.jwt.activeKeyID | quote }}
