@@ -206,6 +206,54 @@ func TestProtectedRoutesRequireToken(t *testing.T) {
 	}
 }
 
+func TestEmailVerificationAndPasswordRecoveryRoutes(t *testing.T) {
+	router := newTestHTTPService().Router()
+
+	requestVerification := httptest.NewRequest(http.MethodPost, "/v1/auth/email-verification/request", nil)
+	requestVerification.Header.Set("Authorization", "Bearer token")
+	verificationRecorder := httptest.NewRecorder()
+	router.ServeHTTP(verificationRecorder, requestVerification)
+	if verificationRecorder.Code != http.StatusAccepted || strings.Contains(verificationRecorder.Body.String(), "code") {
+		t.Fatalf("verification request = %d %s", verificationRecorder.Code, verificationRecorder.Body.String())
+	}
+
+	confirmVerification := httptest.NewRequest(http.MethodPost, "/v1/auth/email-verification/confirm", bytes.NewBufferString(`{"code":"ABCDEFG2"}`))
+	confirmVerification.Header.Set("Authorization", "Bearer token")
+	confirmRecorder := httptest.NewRecorder()
+	router.ServeHTTP(confirmRecorder, confirmVerification)
+	if confirmRecorder.Code != http.StatusOK || strings.Contains(confirmRecorder.Body.String(), "ABCDEFG2") {
+		t.Fatalf("verification confirmation = %d %s", confirmRecorder.Code, confirmRecorder.Body.String())
+	}
+
+	requestReset := httptest.NewRequest(http.MethodPost, "/v1/auth/password-reset/request", bytes.NewBufferString(`{"email":"creator@example.com"}`))
+	resetRequestRecorder := httptest.NewRecorder()
+	router.ServeHTTP(resetRequestRecorder, requestReset)
+	if resetRequestRecorder.Code != http.StatusAccepted || strings.Contains(resetRequestRecorder.Body.String(), "creator@example.com") {
+		t.Fatalf("password reset request = %d %s", resetRequestRecorder.Code, resetRequestRecorder.Body.String())
+	}
+
+	confirmReset := httptest.NewRequest(http.MethodPost, "/v1/auth/password-reset/confirm", bytes.NewBufferString(`{"email":"creator@example.com","code":"ABCDEFG2","password":"password456"}`))
+	resetConfirmRecorder := httptest.NewRecorder()
+	router.ServeHTTP(resetConfirmRecorder, confirmReset)
+	if resetConfirmRecorder.Code != http.StatusOK || strings.Contains(resetConfirmRecorder.Body.String(), "password456") {
+		t.Fatalf("password reset confirmation = %d %s", resetConfirmRecorder.Code, resetConfirmRecorder.Body.String())
+	}
+}
+
+func TestCheckoutRequiresVerifiedEmail(t *testing.T) {
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: unverifiedAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+	req := httptest.NewRequest(http.MethodPost, "/v1/billing/checkout", bytes.NewBufferString(`{"plan_id":"pro"}`))
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "email_verification_required") {
+		t.Fatalf("unverified checkout = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestMetricsEndpoint(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/metrics", nil)
 	rec := httptest.NewRecorder()
@@ -361,14 +409,16 @@ func patchJSON(t *testing.T, router http.Handler, path, token, body string, want
 
 type fakeAuth struct{}
 
+type unverifiedAuth struct{ fakeAuth }
+
 func (fakeAuth) Register(context.Context, *authv1.RegisterRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
 	return nil, status.Error(codes.Unimplemented, "register")
 }
 func (fakeAuth) Login(context.Context, *authv1.LoginRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
-	return &authv1.AuthReply{AccessToken: "token", RefreshToken: "refresh", TokenType: "Bearer", ExpiresIn: 900, UserId: "u1", Email: "creator@example.com", Name: "Development Creator"}, nil
+	return &authv1.AuthReply{AccessToken: "token", RefreshToken: "refresh", TokenType: "Bearer", ExpiresIn: 900, UserId: "u1", Email: "creator@example.com", Name: "Development Creator", EmailVerified: true}, nil
 }
 func (fakeAuth) Refresh(context.Context, *authv1.RefreshRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
-	return &authv1.AuthReply{AccessToken: "token2", RefreshToken: "refresh2", TokenType: "Bearer", ExpiresIn: 900, UserId: "u1", Email: "creator@example.com", Name: "Development Creator"}, nil
+	return &authv1.AuthReply{AccessToken: "token2", RefreshToken: "refresh2", TokenType: "Bearer", ExpiresIn: 900, UserId: "u1", Email: "creator@example.com", Name: "Development Creator", EmailVerified: true}, nil
 }
 func (fakeAuth) Logout(context.Context, *authv1.LogoutRequest, ...grpc.CallOption) (*authv1.LogoutReply, error) {
 	return &authv1.LogoutReply{Ok: true}, nil
@@ -377,7 +427,25 @@ func (fakeAuth) ValidateAccessToken(_ context.Context, req *authv1.ValidateAcces
 	if req.AccessToken != "token" {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
-	return &authv1.AuthReply{UserId: "u1", Email: "creator@example.com"}, nil
+	return &authv1.AuthReply{UserId: "u1", Email: "creator@example.com", EmailVerified: true}, nil
+}
+func (unverifiedAuth) ValidateAccessToken(_ context.Context, req *authv1.ValidateAccessTokenRequest, _ ...grpc.CallOption) (*authv1.AuthReply, error) {
+	if req.AccessToken != "token" {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
+	}
+	return &authv1.AuthReply{UserId: "u1", Email: "creator@example.com", EmailVerified: false}, nil
+}
+func (fakeAuth) RequestEmailVerification(context.Context, *authv1.RequestEmailVerificationRequest, ...grpc.CallOption) (*authv1.EmailActionReply, error) {
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+func (fakeAuth) VerifyEmail(context.Context, *authv1.VerifyEmailRequest, ...grpc.CallOption) (*authv1.EmailActionReply, error) {
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+func (fakeAuth) RequestPasswordReset(context.Context, *authv1.RequestPasswordResetRequest, ...grpc.CallOption) (*authv1.EmailActionReply, error) {
+	return &authv1.EmailActionReply{Accepted: true}, nil
+}
+func (fakeAuth) ResetPassword(context.Context, *authv1.ResetPasswordRequest, ...grpc.CallOption) (*authv1.EmailActionReply, error) {
+	return &authv1.EmailActionReply{Accepted: true}, nil
 }
 
 type fakeUser struct{}

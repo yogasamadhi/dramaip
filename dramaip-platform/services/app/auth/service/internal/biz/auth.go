@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base32"
 	"encoding/base64"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -19,27 +21,30 @@ import (
 )
 
 type AuthUsecase struct {
-	repo       *data.AuthRepo
-	issuer     string
-	audience   string
-	keys       *signingKeySet
-	accessTTL  time.Duration
-	refreshTTL time.Duration
+	repo        *data.AuthRepo
+	issuer      string
+	audience    string
+	keys        *signingKeySet
+	accessTTL   time.Duration
+	refreshTTL  time.Duration
+	emailSender *emailActionSender
 }
 
 type Session struct {
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
-	ExpiresIn    int64
-	UserID       string
-	Email        string
-	Name         string
+	AccessToken   string
+	RefreshToken  string
+	TokenType     string
+	ExpiresIn     int64
+	UserID        string
+	Email         string
+	Name          string
+	EmailVerified bool
 }
 
 type AuthIdentity struct {
-	UserID string
-	Email  string
+	UserID        string
+	Email         string
+	EmailVerified bool
 }
 
 func NewAuthUsecase(repo *data.AuthRepo, cfg *conf.Bootstrap) (*AuthUsecase, error) {
@@ -48,12 +53,13 @@ func NewAuthUsecase(repo *data.AuthRepo, cfg *conf.Bootstrap) (*AuthUsecase, err
 		return nil, err
 	}
 	return &AuthUsecase{
-		repo:       repo,
-		issuer:     cfg.JWT.Issuer,
-		audience:   cfg.JWT.Audience,
-		keys:       keys,
-		accessTTL:  kratosx.Duration(cfg.JWT.AccessTokenTTL, 15*time.Minute),
-		refreshTTL: kratosx.Duration(cfg.JWT.RefreshTokenTTL, 720*time.Hour),
+		repo:        repo,
+		issuer:      cfg.JWT.Issuer,
+		audience:    cfg.JWT.Audience,
+		keys:        keys,
+		accessTTL:   kratosx.Duration(cfg.JWT.AccessTokenTTL, 15*time.Minute),
+		refreshTTL:  kratosx.Duration(cfg.JWT.RefreshTokenTTL, 720*time.Hour),
+		emailSender: newEmailActionSender(cfg.Email, cfg.Environment),
 	}, nil
 }
 
@@ -124,6 +130,7 @@ func (u *AuthUsecase) Refresh(ctx context.Context, refreshToken string) (Session
 	return Session{
 		AccessToken: accessToken, RefreshToken: nextRefreshToken, TokenType: "Bearer",
 		ExpiresIn: int64(u.accessTTL.Seconds()), UserID: user.ID, Email: user.Email, Name: user.Name,
+		EmailVerified: user.EmailVerified,
 	}, nil
 }
 
@@ -159,7 +166,83 @@ func (u *AuthUsecase) ValidateAccessToken(ctx context.Context, accessToken strin
 	if err != nil || cached != userID {
 		return AuthIdentity{}, status.Error(codes.Unauthenticated, "session expired")
 	}
-	return AuthIdentity{UserID: userID, Email: claims.Email}, nil
+	if claims.IssuedAt == nil {
+		return AuthIdentity{}, status.Error(codes.Unauthenticated, "invalid token")
+	}
+	valid, emailVerified, err := u.repo.AccessSessionState(ctx, userID, claims.IssuedAt.Time)
+	if err != nil || !valid {
+		return AuthIdentity{}, status.Error(codes.Unauthenticated, "session expired")
+	}
+	return AuthIdentity{UserID: userID, Email: claims.Email, EmailVerified: emailVerified}, nil
+}
+
+func (u *AuthUsecase) RequestEmailVerification(ctx context.Context, userID string) error {
+	user, err := u.repo.FindUserByID(ctx, userID)
+	if err != nil {
+		return status.Error(codes.NotFound, "account not found")
+	}
+	return u.sendEmailAction(ctx, user, "verify_email")
+}
+
+// RequestPasswordReset intentionally returns success for an unknown account
+// and for a delivery failure so callers cannot use it to enumerate accounts.
+func (u *AuthUsecase) RequestPasswordReset(ctx context.Context, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(email, "@") {
+		return status.Error(codes.InvalidArgument, "invalid email")
+	}
+	user, err := u.repo.FindUserByEmail(ctx, email)
+	if err != nil {
+		return nil
+	}
+	_ = u.sendEmailAction(ctx, user, "reset_password")
+	return nil
+}
+
+func (u *AuthUsecase) VerifyEmail(ctx context.Context, userID string, code string) error {
+	if strings.TrimSpace(userID) == "" || !validEmailActionCode(code) {
+		return status.Error(codes.InvalidArgument, "invalid verification code")
+	}
+	if err := u.repo.VerifyEmailAction(ctx, userID, tokenHash(code)); err != nil {
+		if errors.Is(err, data.ErrEmailActionNotFound) {
+			return status.Error(codes.InvalidArgument, "invalid or expired verification code")
+		}
+		return err
+	}
+	return nil
+}
+
+func (u *AuthUsecase) ResetPassword(ctx context.Context, email string, code string, password string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !strings.Contains(email, "@") || len(password) < 8 || !validEmailActionCode(code) {
+		return status.Error(codes.InvalidArgument, "invalid password reset")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	if err := u.repo.ResetPasswordWithAction(ctx, email, tokenHash(code), string(hash)); err != nil {
+		if errors.Is(err, data.ErrEmailActionNotFound) {
+			return status.Error(codes.InvalidArgument, "invalid or expired password reset code")
+		}
+		return err
+	}
+	return nil
+}
+
+func (u *AuthUsecase) sendEmailAction(ctx context.Context, user data.UserRow, purpose string) error {
+	count, err := u.repo.IncrementEmailAction(ctx, user.Email, purpose, int64((15 * time.Minute).Seconds()))
+	if err == nil && count > 5 {
+		return status.Error(codes.ResourceExhausted, "too many email requests")
+	}
+	code, err := randomEmailActionCode()
+	if err != nil {
+		return err
+	}
+	if err := u.repo.CreateEmailAction(ctx, user.ID, purpose, tokenHash(code), time.Now().UTC().Add(emailActionTTL)); err != nil {
+		return err
+	}
+	return u.emailSender.Send(ctx, user.Email, purpose, code)
 }
 
 func (u *AuthUsecase) issueSession(ctx context.Context, user data.UserRow, deviceID string) (Session, error) {
@@ -186,6 +269,7 @@ func (u *AuthUsecase) issueSession(ctx context.Context, user data.UserRow, devic
 	return Session{
 		AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer",
 		ExpiresIn: int64(u.accessTTL.Seconds()), UserID: user.ID, Email: user.Email, Name: user.Name,
+		EmailVerified: user.EmailVerified,
 	}, nil
 }
 
@@ -201,6 +285,27 @@ func randomToken() string {
 		panic(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(b[:])
+}
+
+func randomEmailActionCode() (string, error) {
+	var raw [6]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(raw[:])[:8], nil
+}
+
+func validEmailActionCode(code string) bool {
+	code = strings.TrimSpace(code)
+	if len(code) != 8 {
+		return false
+	}
+	for _, runeValue := range code {
+		if !strings.ContainsRune("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567", runeValue) {
+			return false
+		}
+	}
+	return true
 }
 
 func tokenHash(token string) string {

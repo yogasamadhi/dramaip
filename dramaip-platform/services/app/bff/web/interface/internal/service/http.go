@@ -63,6 +63,10 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/v1/auth/logout", s.handleLogout)
 	mux.HandleFunc("/v1/auth/session", s.handleSession)
+	mux.HandleFunc("/v1/auth/email-verification/request", s.handleRequestEmailVerification)
+	mux.HandleFunc("/v1/auth/email-verification/confirm", s.handleVerifyEmail)
+	mux.HandleFunc("/v1/auth/password-reset/request", s.handleRequestPasswordReset)
+	mux.HandleFunc("/v1/auth/password-reset/confirm", s.handleResetPassword)
 	mux.HandleFunc("/v1/plans", s.handlePlans)
 	mux.HandleFunc("/v1/me/profile", s.handleProfile)
 	mux.HandleFunc("/v1/me/dashboard", s.handleDashboard)
@@ -224,6 +228,91 @@ func (s *HTTPService) handleSession(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, map[string]any{"user": map[string]string{"id": auth.UserId, "email": auth.Email, "name": auth.Name}})
+}
+
+func (s *HTTPService) handleRequestEmailVerification(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	reply, err := s.uc.RequestEmailVerification(r.Context(), auth.UserId)
+	if err != nil {
+		writeGRPCError(w, err, "email_verification_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]bool{"accepted": reply.Accepted})
+}
+
+func (s *HTTPService) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	reply, err := s.uc.VerifyEmail(r.Context(), auth.UserId, req.Code)
+	if err != nil {
+		writeGRPCError(w, err, "email_verification_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"accepted": reply.Accepted})
+}
+
+func (s *HTTPService) handleRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	reply, err := s.uc.RequestPasswordReset(r.Context(), req.Email)
+	if err != nil {
+		writeGRPCError(w, err, "password_reset_unavailable")
+		return
+	}
+	// This response is deliberately identical for a known or unknown email.
+	writeJSON(w, http.StatusAccepted, map[string]bool{"accepted": reply.Accepted})
+}
+
+func (s *HTTPService) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Email    string `json:"email"`
+		Code     string `json:"code"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	reply, err := s.uc.ResetPassword(r.Context(), req.Email, req.Code, req.Password)
+	if err != nil {
+		writeGRPCError(w, err, "password_reset_unavailable")
+		return
+	}
+	s.clearSessionCookies(w)
+	writeJSON(w, http.StatusOK, map[string]bool{"accepted": reply.Accepted})
 }
 
 func (s *HTTPService) handlePlans(w http.ResponseWriter, r *http.Request) {
@@ -480,6 +569,10 @@ func (s *HTTPService) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !auth.EmailVerified {
+		writeError(w, http.StatusForbidden, "email_verification_required")
+		return
+	}
 	var req struct {
 		PlanID  string `json:"plan_id"`
 		Channel string `json:"channel"`
@@ -511,6 +604,10 @@ func (s *HTTPService) handleSimulatedConfirmPayment(w http.ResponseWriter, r *ht
 	}
 	auth, ok := s.authenticate(w, r)
 	if !ok {
+		return
+	}
+	if !auth.EmailVerified {
+		writeError(w, http.StatusForbidden, "email_verification_required")
 		return
 	}
 	var req struct {

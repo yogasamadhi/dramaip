@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const baseURL = process.env.DRAMAIP_API_BASE_URL ?? 'http://localhost:8000'
-const email = process.env.DRAMAIP_E2E_EMAIL ?? `e2e+${Date.now()}@example.com`
+const email = process.env.DRAMAIP_E2E_EMAIL ?? 'creator@example.com'
 const password = process.env.DRAMAIP_E2E_PASSWORD ?? 'password123'
 const csrfCookieName = 'dramaip_web_csrf'
 const cookieJar = new Map()
@@ -93,15 +93,7 @@ async function waitForNotification(type, timeoutMs = 15_000) {
 const health = await request('GET', '/v1/healthz')
 assert(health.ok === true, 'healthz did not report ok=true')
 
-let session
-try {
-  session = await request('POST', '/v1/auth/register', {
-    body: { email, password, display_name: 'Platform E2E' },
-  })
-} catch (error) {
-  if (!process.env.DRAMAIP_E2E_EMAIL) throw error
-  session = await request('POST', '/v1/auth/login', { body: { email, password } })
-}
+const session = await request('POST', '/v1/auth/login', { body: { email, password } })
 assert(session.user?.id, 'auth did not return a user')
 assert(cookieJar.has('dramaip_web_access') && cookieJar.has('dramaip_web_refresh') && cookieJar.has(csrfCookieName), 'auth did not set a complete Cookie session')
 

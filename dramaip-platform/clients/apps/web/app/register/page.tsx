@@ -38,7 +38,7 @@ export default function RegisterPage() {
       setSubmitError(null)
       await apiClient.register(input)
       queryClient.clear()
-      router.replace(currentNextPath())
+      router.replace('/verify-email')
     } catch (error) {
       setSubmitError(parseApiError(error, '注册失败，请稍后重试。').message)
     }
@@ -48,7 +48,7 @@ export default function RegisterPage() {
     <main className="mx-auto max-w-md px-6 py-10">
       <h1 className="text-3xl font-semibold text-slate-950">注册</h1>
       <p className="mt-3 text-sm leading-6 text-slate-600">
-        创建平台账号，用于订阅、额度管理和云端智能网关访问。
+        创建平台账号，用于订阅、额度管理和云端智能网关访问。注册后请完成邮箱验证。
       </p>
       <form className="mt-8 grid gap-4" onSubmit={form.handleSubmit(handleRegister)}>
         <label className="grid gap-2 text-sm">

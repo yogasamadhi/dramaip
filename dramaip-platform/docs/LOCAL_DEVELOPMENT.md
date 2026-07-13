@@ -43,7 +43,7 @@ make platform-e2e
 The end-to-end check enters through Kong and verifies:
 
 1. `/v1/healthz`
-2. register a fresh test account, or log in with the configured e2e account
+2. log in with a verified e2e account (the bundled seed account is verified)
 3. plan catalog
 4. protected dashboard and token balance
 5. checkout creation
@@ -112,6 +112,38 @@ Production environments must use verified payment webhooks instead.
 
 `POST /v1/billing/sandbox/confirm-payment` is kept only as a deprecated
 compatibility endpoint and delegates to the simulated provider path.
+
+## Email Verification and Password Recovery
+
+The Web routes `/verify-email`, `/forgot-password`, and `/reset-password` use
+an 8-character, one-time code that expires after 15 minutes. The auth service
+stores only a SHA-256 hash of the code; it does not put a code, password, or
+token in a URL, trace, or log. Password reset also revokes every refresh token
+and invalidates existing access sessions immediately.
+
+To exercise delivery against a controlled local test gateway, set these only in
+your untracked local environment (never commit the delivery token):
+
+```bash
+AUTH_EMAIL_DELIVERY_URL=https://mail-gateway.example.test/deliver
+AUTH_EMAIL_DELIVERY_TOKEN=replace-me
+AUTH_EMAIL_FROM=noreply@example.test
+AUTH_EMAIL_TIMEOUT=10s
+```
+
+The gateway must accept a JSON POST body with `to`, `from`, `template`,
+`subject`, and `text`. The public reset request intentionally returns the same
+accepted response for registered and unregistered email addresses. Without a
+delivery gateway, verification reports that delivery is unavailable and reset
+requests remain intentionally non-enumerating; do not treat that state as a
+production-ready email flow. Production auth-service accepts only an HTTPS
+delivery endpoint.
+
+`make platform-e2e` deliberately uses the verified seed account by default so
+the billing/ledger smoke does not require reading a delivery mailbox. To run a
+registration-and-verification browser test, point the auth service at an
+isolated delivery gateway and use a test account that completes the code entry
+through `/verify-email`; do not expose a test-only endpoint that returns codes.
 
 ## Useful Commands
 

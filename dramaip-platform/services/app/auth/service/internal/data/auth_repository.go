@@ -14,6 +14,7 @@ import (
 var (
 	ErrRefreshTokenNotFound = errors.New("refresh token not found")
 	ErrRefreshTokenReuse    = errors.New("refresh token reuse detected")
+	ErrEmailActionNotFound  = errors.New("email action not found")
 )
 
 type Data struct {
@@ -22,10 +23,11 @@ type Data struct {
 }
 
 type UserRow struct {
-	ID           string
-	Email        string
-	Name         string
-	PasswordHash string
+	ID            string
+	Email         string
+	Name          string
+	PasswordHash  string
+	EmailVerified bool
 }
 
 type RefreshTokenInput struct {
@@ -49,6 +51,7 @@ type refreshTokenRecord struct {
 	UserStatus    string
 	Email         string
 	PasswordHash  string
+	EmailVerified bool
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -81,11 +84,27 @@ func (r *AuthRepo) Checks() map[string]func(context.Context) error {
 func (r *AuthRepo) FindUserByEmail(ctx context.Context, email string) (UserRow, error) {
 	var user UserRow
 	err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT u.id::text AS id, u.email, u.email AS name, u.password_hash
+		SELECT u.id::text AS id, u.email, u.email AS name, u.password_hash,
+		       (u.email_verified_at IS NOT NULL) AS email_verified
 		FROM auth.users u
 		WHERE lower(u.email) = lower(?) AND u.status = 'active'
 		LIMIT 1
 	`, email).Scan(&user).Error
+	if err != nil || user.ID == "" {
+		return UserRow{}, gorm.ErrRecordNotFound
+	}
+	return user, nil
+}
+
+func (r *AuthRepo) FindUserByID(ctx context.Context, userID string) (UserRow, error) {
+	var user UserRow
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT u.id::text AS id, u.email, u.email AS name, u.password_hash,
+		       (u.email_verified_at IS NOT NULL) AS email_verified
+		FROM auth.users u
+		WHERE u.id = ?::uuid AND u.status = 'active'
+		LIMIT 1
+	`, userID).Scan(&user).Error
 	if err != nil || user.ID == "" {
 		return UserRow{}, gorm.ErrRecordNotFound
 	}
@@ -108,6 +127,95 @@ func (r *AuthRepo) InsertUser(ctx context.Context, id string, email string, pass
 		return UserRow{}, err
 	}
 	return r.FindUserByEmail(ctx, email)
+}
+
+func (r *AuthRepo) CreateEmailAction(ctx context.Context, userID string, purpose string, hash string, expiresAt time.Time) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`
+			UPDATE auth.email_actions
+			SET consumed_at = now()
+			WHERE user_id = ?::uuid AND purpose = ? AND consumed_at IS NULL
+		`, userID, purpose).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`
+			INSERT INTO auth.email_actions (id, user_id, purpose, token_hash, expires_at)
+			VALUES (?::uuid, ?::uuid, ?, ?, ?)
+		`, platform.NewUUID(), userID, purpose, hash, expiresAt).Error
+	})
+}
+
+func (r *AuthRepo) VerifyEmailAction(ctx context.Context, userID string, hash string) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var action struct{ ID string }
+		if err := tx.Raw(`
+			SELECT id::text AS id
+			FROM auth.email_actions
+			WHERE user_id = ?::uuid AND purpose = 'verify_email' AND token_hash = ?
+			  AND consumed_at IS NULL AND expires_at > now()
+			ORDER BY created_at DESC
+			LIMIT 1
+			FOR UPDATE
+		`, userID, hash).Scan(&action).Error; err != nil {
+			return err
+		}
+		if action.ID == "" {
+			return ErrEmailActionNotFound
+		}
+		if err := tx.Exec(`UPDATE auth.email_actions SET consumed_at = now() WHERE id = ?::uuid`, action.ID).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`UPDATE auth.users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now() WHERE id = ?::uuid`, userID).Error
+	})
+}
+
+func (r *AuthRepo) ResetPasswordWithAction(ctx context.Context, email string, hash string, passwordHash string) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user struct{ ID string }
+		if err := tx.Raw(`
+			SELECT id::text AS id FROM auth.users
+			WHERE lower(email) = lower(?) AND status = 'active'
+			LIMIT 1 FOR UPDATE
+		`, email).Scan(&user).Error; err != nil {
+			return err
+		}
+		if user.ID == "" {
+			return ErrEmailActionNotFound
+		}
+		var action struct{ ID string }
+		if err := tx.Raw(`
+			SELECT id::text AS id
+			FROM auth.email_actions
+			WHERE user_id = ?::uuid AND purpose = 'reset_password' AND token_hash = ?
+			  AND consumed_at IS NULL AND expires_at > now()
+			ORDER BY created_at DESC
+			LIMIT 1
+			FOR UPDATE
+		`, user.ID, hash).Scan(&action).Error; err != nil {
+			return err
+		}
+		if action.ID == "" {
+			return ErrEmailActionNotFound
+		}
+		if err := tx.Exec(`UPDATE auth.email_actions SET consumed_at = now() WHERE id = ?::uuid`, action.ID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`
+			UPDATE auth.users
+			-- JWT issued-at values are second-granularity. Move the cutoff to the
+			-- following second so a token issued just before this reset in the
+			-- same second is not accidentally retained.
+			SET password_hash = ?, session_invalidated_at = date_trunc('second', now()) + interval '1 second', updated_at = now()
+			WHERE id = ?::uuid
+		`, passwordHash, user.ID).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`
+			UPDATE auth.refresh_tokens
+			SET revoked_at = COALESCE(revoked_at, now()), revoked_reason = 'password_reset'
+			WHERE user_id = ?::uuid AND revoked_at IS NULL
+		`, user.ID).Error
+	})
 }
 
 func (r *AuthRepo) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
@@ -149,7 +257,8 @@ func (r *AuthRepo) RotateRefreshToken(ctx context.Context, tokenHash string, rep
 				rt.expires_at,
 				u.status AS user_status,
 				u.email,
-				u.password_hash
+				u.password_hash,
+				(u.email_verified_at IS NOT NULL) AS email_verified
 			FROM auth.refresh_tokens rt
 			JOIN auth.users u ON u.id = rt.user_id
 			WHERE rt.token_hash = ?
@@ -201,7 +310,7 @@ func (r *AuthRepo) RotateRefreshToken(ctx context.Context, tokenHash string, rep
 		`, replacement.ID, record.UserID, replacement.TokenHash, replacement.ExpiresAt, record.FamilyID, record.ID, record.DeviceID).Error; err != nil {
 			return err
 		}
-		user = UserRow{ID: record.UserID, Email: record.Email, Name: record.Email, PasswordHash: record.PasswordHash}
+		user = UserRow{ID: record.UserID, Email: record.Email, Name: record.Email, PasswordHash: record.PasswordHash, EmailVerified: record.EmailVerified}
 		return nil
 	})
 	if err != nil {
@@ -250,6 +359,33 @@ func (r *AuthRepo) ClearLoginFailures(ctx context.Context, email string) error {
 	return err
 }
 
+func (r *AuthRepo) IncrementEmailAction(ctx context.Context, email string, purpose string, windowSeconds int64) (int64, error) {
+	key := "email_action:" + purpose + ":" + email
+	value, err := r.data.Redis.Command(ctx, "INCR", key)
+	if err != nil {
+		return 0, err
+	}
+	if value == "1" {
+		_, _ = r.data.Redis.Command(ctx, "EXPIRE", key, strconv.FormatInt(windowSeconds, 10))
+	}
+	return strconv.ParseInt(value, 10, 64)
+}
+
 func (r *AuthRepo) GetSession(ctx context.Context, accessToken string) (string, error) {
 	return r.data.Redis.Command(ctx, "GET", "session:"+accessToken)
+}
+
+func (r *AuthRepo) AccessSessionState(ctx context.Context, userID string, issuedAt time.Time) (bool, bool, error) {
+	var state struct {
+		Valid         bool
+		EmailVerified bool
+	}
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT
+		  (status = 'active' AND (session_invalidated_at IS NULL OR session_invalidated_at <= ?)) AS valid,
+		  (email_verified_at IS NOT NULL) AS email_verified
+		FROM auth.users
+		WHERE id = ?::uuid
+	`, issuedAt, userID).Scan(&state).Error
+	return state.Valid, state.EmailVerified, err
 }

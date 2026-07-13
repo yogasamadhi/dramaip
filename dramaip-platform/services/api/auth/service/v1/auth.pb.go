@@ -306,6 +306,7 @@ type AuthReply struct {
 	UserId        string                 `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Email         string                 `protobuf:"bytes,6,opt,name=email,proto3" json:"email,omitempty"`
 	Name          string                 `protobuf:"bytes,7,opt,name=name,proto3" json:"name,omitempty"`
+	EmailVerified bool                   `protobuf:"varint,8,opt,name=email_verified,json=emailVerified,proto3" json:"email_verified,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -389,6 +390,13 @@ func (x *AuthReply) GetName() string {
 	return ""
 }
 
+func (x *AuthReply) GetEmailVerified() bool {
+	if x != nil {
+		return x.EmailVerified
+	}
+	return false
+}
+
 type LogoutReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
@@ -433,6 +441,252 @@ func (x *LogoutReply) GetOk() bool {
 	return false
 }
 
+// Verification and recovery codes are delivered out of band. They are never
+// returned by this API, placed in a URL, or written to logs.
+type RequestEmailVerificationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestEmailVerificationRequest) Reset() {
+	*x = RequestEmailVerificationRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestEmailVerificationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestEmailVerificationRequest) ProtoMessage() {}
+
+func (x *RequestEmailVerificationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestEmailVerificationRequest.ProtoReflect.Descriptor instead.
+func (*RequestEmailVerificationRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RequestEmailVerificationRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type VerifyEmailRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VerifyEmailRequest) Reset() {
+	*x = VerifyEmailRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VerifyEmailRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VerifyEmailRequest) ProtoMessage() {}
+
+func (x *VerifyEmailRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VerifyEmailRequest.ProtoReflect.Descriptor instead.
+func (*VerifyEmailRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *VerifyEmailRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *VerifyEmailRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type RequestPasswordResetRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestPasswordResetRequest) Reset() {
+	*x = RequestPasswordResetRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestPasswordResetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestPasswordResetRequest) ProtoMessage() {}
+
+func (x *RequestPasswordResetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestPasswordResetRequest.ProtoReflect.Descriptor instead.
+func (*RequestPasswordResetRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RequestPasswordResetRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+type ResetPasswordRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Code          string                 `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
+	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetPasswordRequest) Reset() {
+	*x = ResetPasswordRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPasswordRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPasswordRequest) ProtoMessage() {}
+
+func (x *ResetPasswordRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPasswordRequest.ProtoReflect.Descriptor instead.
+func (*ResetPasswordRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ResetPasswordRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ResetPasswordRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *ResetPasswordRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type EmailActionReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accepted      bool                   `protobuf:"varint,1,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EmailActionReply) Reset() {
+	*x = EmailActionReply{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EmailActionReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EmailActionReply) ProtoMessage() {}
+
+func (x *EmailActionReply) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EmailActionReply.ProtoReflect.Descriptor instead.
+func (*EmailActionReply) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *EmailActionReply) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
 var File_api_auth_service_v1_auth_proto protoreflect.FileDescriptor
 
 const file_api_auth_service_v1_auth_proto_rawDesc = "" +
@@ -454,7 +708,7 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"\faccess_token\x18\x02 \x01(\tR\vaccessToken\x12\x1b\n" +
 	"\tdevice_id\x18\x03 \x01(\tR\bdeviceId\"?\n" +
 	"\x1aValidateAccessTokenRequest\x12!\n" +
-	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"\xd4\x01\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"\xfb\x01\n" +
 	"\tAuthReply\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
 	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1d\n" +
@@ -464,15 +718,33 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"token_type\x18\x04 \x01(\tR\ttokenType\x12\x17\n" +
 	"\auser_id\x18\x05 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x06 \x01(\tR\x05email\x12\x12\n" +
-	"\x04name\x18\a \x01(\tR\x04name\"\x1d\n" +
+	"\x04name\x18\a \x01(\tR\x04name\x12%\n" +
+	"\x0eemail_verified\x18\b \x01(\bR\remailVerified\"\x1d\n" +
 	"\vLogoutReply\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok2\xdb\x03\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\":\n" +
+	"\x1fRequestEmailVerificationRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"A\n" +
+	"\x12VerifyEmailRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\"3\n" +
+	"\x1bRequestPasswordResetRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\"\\\n" +
+	"\x14ResetPasswordRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
+	"\x04code\x18\x02 \x01(\tR\x04code\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\".\n" +
+	"\x10EmailActionReply\x12\x1a\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted2\xa7\a\n" +
 	"\vAuthService\x12X\n" +
 	"\bRegister\x12(.dramaip.auth.service.v1.RegisterRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12R\n" +
 	"\x05Login\x12%.dramaip.auth.service.v1.LoginRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12V\n" +
 	"\aRefresh\x12'.dramaip.auth.service.v1.RefreshRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12V\n" +
 	"\x06Logout\x12&.dramaip.auth.service.v1.LogoutRequest\x1a$.dramaip.auth.service.v1.LogoutReply\x12n\n" +
-	"\x13ValidateAccessToken\x123.dramaip.auth.service.v1.ValidateAccessTokenRequest\x1a\".dramaip.auth.service.v1.AuthReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
+	"\x13ValidateAccessToken\x123.dramaip.auth.service.v1.ValidateAccessTokenRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12\x7f\n" +
+	"\x18RequestEmailVerification\x128.dramaip.auth.service.v1.RequestEmailVerificationRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12e\n" +
+	"\vVerifyEmail\x12+.dramaip.auth.service.v1.VerifyEmailRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12w\n" +
+	"\x14RequestPasswordReset\x124.dramaip.auth.service.v1.RequestPasswordResetRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12i\n" +
+	"\rResetPassword\x12-.dramaip.auth.service.v1.ResetPasswordRequest\x1a).dramaip.auth.service.v1.EmailActionReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
 
 var (
 	file_api_auth_service_v1_auth_proto_rawDescOnce sync.Once
@@ -486,32 +758,45 @@ func file_api_auth_service_v1_auth_proto_rawDescGZIP() []byte {
 	return file_api_auth_service_v1_auth_proto_rawDescData
 }
 
-var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_api_auth_service_v1_auth_proto_goTypes = []any{
-	(*RegisterRequest)(nil),            // 0: dramaip.auth.service.v1.RegisterRequest
-	(*LoginRequest)(nil),               // 1: dramaip.auth.service.v1.LoginRequest
-	(*RefreshRequest)(nil),             // 2: dramaip.auth.service.v1.RefreshRequest
-	(*LogoutRequest)(nil),              // 3: dramaip.auth.service.v1.LogoutRequest
-	(*ValidateAccessTokenRequest)(nil), // 4: dramaip.auth.service.v1.ValidateAccessTokenRequest
-	(*AuthReply)(nil),                  // 5: dramaip.auth.service.v1.AuthReply
-	(*LogoutReply)(nil),                // 6: dramaip.auth.service.v1.LogoutReply
+	(*RegisterRequest)(nil),                 // 0: dramaip.auth.service.v1.RegisterRequest
+	(*LoginRequest)(nil),                    // 1: dramaip.auth.service.v1.LoginRequest
+	(*RefreshRequest)(nil),                  // 2: dramaip.auth.service.v1.RefreshRequest
+	(*LogoutRequest)(nil),                   // 3: dramaip.auth.service.v1.LogoutRequest
+	(*ValidateAccessTokenRequest)(nil),      // 4: dramaip.auth.service.v1.ValidateAccessTokenRequest
+	(*AuthReply)(nil),                       // 5: dramaip.auth.service.v1.AuthReply
+	(*LogoutReply)(nil),                     // 6: dramaip.auth.service.v1.LogoutReply
+	(*RequestEmailVerificationRequest)(nil), // 7: dramaip.auth.service.v1.RequestEmailVerificationRequest
+	(*VerifyEmailRequest)(nil),              // 8: dramaip.auth.service.v1.VerifyEmailRequest
+	(*RequestPasswordResetRequest)(nil),     // 9: dramaip.auth.service.v1.RequestPasswordResetRequest
+	(*ResetPasswordRequest)(nil),            // 10: dramaip.auth.service.v1.ResetPasswordRequest
+	(*EmailActionReply)(nil),                // 11: dramaip.auth.service.v1.EmailActionReply
 }
 var file_api_auth_service_v1_auth_proto_depIdxs = []int32{
-	0, // 0: dramaip.auth.service.v1.AuthService.Register:input_type -> dramaip.auth.service.v1.RegisterRequest
-	1, // 1: dramaip.auth.service.v1.AuthService.Login:input_type -> dramaip.auth.service.v1.LoginRequest
-	2, // 2: dramaip.auth.service.v1.AuthService.Refresh:input_type -> dramaip.auth.service.v1.RefreshRequest
-	3, // 3: dramaip.auth.service.v1.AuthService.Logout:input_type -> dramaip.auth.service.v1.LogoutRequest
-	4, // 4: dramaip.auth.service.v1.AuthService.ValidateAccessToken:input_type -> dramaip.auth.service.v1.ValidateAccessTokenRequest
-	5, // 5: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
-	5, // 6: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
-	5, // 7: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
-	6, // 8: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
-	5, // 9: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
-	5, // [5:10] is the sub-list for method output_type
-	0, // [0:5] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: dramaip.auth.service.v1.AuthService.Register:input_type -> dramaip.auth.service.v1.RegisterRequest
+	1,  // 1: dramaip.auth.service.v1.AuthService.Login:input_type -> dramaip.auth.service.v1.LoginRequest
+	2,  // 2: dramaip.auth.service.v1.AuthService.Refresh:input_type -> dramaip.auth.service.v1.RefreshRequest
+	3,  // 3: dramaip.auth.service.v1.AuthService.Logout:input_type -> dramaip.auth.service.v1.LogoutRequest
+	4,  // 4: dramaip.auth.service.v1.AuthService.ValidateAccessToken:input_type -> dramaip.auth.service.v1.ValidateAccessTokenRequest
+	7,  // 5: dramaip.auth.service.v1.AuthService.RequestEmailVerification:input_type -> dramaip.auth.service.v1.RequestEmailVerificationRequest
+	8,  // 6: dramaip.auth.service.v1.AuthService.VerifyEmail:input_type -> dramaip.auth.service.v1.VerifyEmailRequest
+	9,  // 7: dramaip.auth.service.v1.AuthService.RequestPasswordReset:input_type -> dramaip.auth.service.v1.RequestPasswordResetRequest
+	10, // 8: dramaip.auth.service.v1.AuthService.ResetPassword:input_type -> dramaip.auth.service.v1.ResetPasswordRequest
+	5,  // 9: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 10: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 11: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
+	6,  // 12: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
+	5,  // 13: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
+	11, // 14: dramaip.auth.service.v1.AuthService.RequestEmailVerification:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 15: dramaip.auth.service.v1.AuthService.VerifyEmail:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 16: dramaip.auth.service.v1.AuthService.RequestPasswordReset:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 17: dramaip.auth.service.v1.AuthService.ResetPassword:output_type -> dramaip.auth.service.v1.EmailActionReply
+	9,  // [9:18] is the sub-list for method output_type
+	0,  // [0:9] is the sub-list for method input_type
+	0,  // [0:0] is the sub-list for extension type_name
+	0,  // [0:0] is the sub-list for extension extendee
+	0,  // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_api_auth_service_v1_auth_proto_init() }
@@ -525,7 +810,7 @@ func file_api_auth_service_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_auth_service_v1_auth_proto_rawDesc), len(file_api_auth_service_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

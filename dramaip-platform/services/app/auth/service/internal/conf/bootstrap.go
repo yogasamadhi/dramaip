@@ -9,6 +9,7 @@ type Bootstrap struct {
 	Server      ServerConfig        `yaml:"server"`
 	Data        DataConfig          `yaml:"data"`
 	JWT         JWTConfig           `yaml:"jwt"`
+	Email       EmailConfig         `yaml:"email"`
 	Environment string              `yaml:"environment"`
 	MTLS        platform.MTLSConfig `yaml:"-"`
 	AutoMigrate bool                `yaml:"auto_migrate"`
@@ -37,6 +38,15 @@ type JWTConfig struct {
 	RefreshTokenTTL string `yaml:"refresh_token_ttl"`
 }
 
+// EmailConfig points to a provider-owned delivery gateway. The auth service
+// sends a short code in the request body only; it never constructs a token URL.
+type EmailConfig struct {
+	DeliveryURL   string `yaml:"delivery_url"`
+	DeliveryToken string `yaml:"delivery_token"`
+	From          string `yaml:"from"`
+	Timeout       string `yaml:"timeout"`
+}
+
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server: ServerConfig{
@@ -50,6 +60,7 @@ func Load() (*Bootstrap, error) {
 			AccessTokenTTL:  "15m",
 			RefreshTokenTTL: "720h",
 		},
+		Email:       EmailConfig{Timeout: "10s"},
 		Environment: "development",
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -67,6 +78,10 @@ func Load() (*Bootstrap, error) {
 	cfg.JWT.JWKSFile = kratosx.Env("JWT_JWKS_FILE", cfg.JWT.JWKSFile)
 	cfg.JWT.AccessTokenTTL = kratosx.Env("JWT_ACCESS_TTL", cfg.JWT.AccessTokenTTL)
 	cfg.JWT.RefreshTokenTTL = kratosx.Env("JWT_REFRESH_TTL", cfg.JWT.RefreshTokenTTL)
+	cfg.Email.DeliveryURL = kratosx.Env("AUTH_EMAIL_DELIVERY_URL", cfg.Email.DeliveryURL)
+	cfg.Email.DeliveryToken = kratosx.Env("AUTH_EMAIL_DELIVERY_TOKEN", cfg.Email.DeliveryToken)
+	cfg.Email.From = kratosx.Env("AUTH_EMAIL_FROM", cfg.Email.From)
+	cfg.Email.Timeout = kratosx.Env("AUTH_EMAIL_TIMEOUT", cfg.Email.Timeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {
 		return nil, err

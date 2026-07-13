@@ -13,3 +13,7 @@ jwt:
   audience: dramaip-api
   access_token_ttl: 15m
   refresh_token_ttl: 720h
+email:
+  # A provider-owned HTTPS delivery gateway. Configure through environment
+  # variables in deployment; no provider credential is stored in this file.
+  timeout: 10s

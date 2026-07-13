@@ -10,6 +10,10 @@ service AuthService {
   rpc Refresh(RefreshRequest) returns (AuthReply);
   rpc Logout(LogoutRequest) returns (LogoutReply);
   rpc ValidateAccessToken(ValidateAccessTokenRequest) returns (AuthReply);
+  rpc RequestEmailVerification(RequestEmailVerificationRequest) returns (EmailActionReply);
+  rpc VerifyEmail(VerifyEmailRequest) returns (EmailActionReply);
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (EmailActionReply);
+  rpc ResetPassword(ResetPasswordRequest) returns (EmailActionReply);
 }
 
 message RegisterRequest {
@@ -47,8 +51,34 @@ message AuthReply {
   string user_id = 5;
   string email = 6;
   string name = 7;
+  bool email_verified = 8;
 }
 
 message LogoutReply {
   bool ok = 1;
+}
+
+// Verification and recovery codes are delivered out of band. They are never
+// returned by this API, placed in a URL, or written to logs.
+message RequestEmailVerificationRequest {
+  string user_id = 1;
+}
+
+message VerifyEmailRequest {
+  string user_id = 1;
+  string code = 2;
+}
+
+message RequestPasswordResetRequest {
+  string email = 1;
+}
+
+message ResetPasswordRequest {
+  string email = 1;
+  string code = 2;
+  string password = 3;
+}
+
+message EmailActionReply {
+  bool accepted = 1;
 }

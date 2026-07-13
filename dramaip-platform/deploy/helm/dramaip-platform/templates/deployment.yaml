@@ -105,6 +105,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "dramaip-platform.secretName" $ }}
                   key: REDIS_PASSWORD
+            - name: AUTH_EMAIL_DELIVERY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" $ }}
+                  key: AUTH_EMAIL_DELIVERY_TOKEN
             {{- end }}
             {{- if or (eq $key "billingJob") (eq $key "notificationJob") }}
             - name: RABBITMQ_USER

@@ -49,6 +49,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <NavLink href="/pricing" current={pathname === '/pricing'}>
               套餐
             </NavLink>
+            <NavLink href="/billing" current={pathname === '/billing'}>
+              账单
+            </NavLink>
+            <NavLink href="/download" current={pathname === '/download'}>
+              下载
+            </NavLink>
             <NavLink href="/chat" current={pathname === '/chat'}>
               AI 对话
             </NavLink>

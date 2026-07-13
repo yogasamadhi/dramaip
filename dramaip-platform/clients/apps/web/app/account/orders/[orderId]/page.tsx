@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { RequireAuth } from '../../../../components/RequireAuth'
 import { Button } from '../../../../components/ui/Button'
-import { parseApiError } from '../../../../lib/api-error'
+import { formatApiError } from '../../../../lib/api-error'
 import { apiClient } from '../../../../lib/api-client'
 import { paymentProviderLabel, planCodeLabel } from '../../../../lib/display'
 import { isSimulatedPaymentEnabled } from '../../../../lib/runtime'
@@ -40,7 +40,7 @@ export default function OrderDetailPage() {
         {order.isLoading ? <p className="mt-8 text-sm text-slate-600">正在加载订单...</p> : null}
         {order.error ? (
           <section className="mt-8 rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
-            {parseApiError(order.error, '订单暂不可用。').message}
+            {formatApiError(order.error, '订单暂不可用。')}
           </section>
         ) : null}
         {order.data ? (
@@ -75,7 +75,7 @@ export default function OrderDetailPage() {
               </p>
             ) : null}
             {simulatedConfirm.error ? (
-              <p className="mt-4 text-sm text-rose-700">{parseApiError(simulatedConfirm.error).message}</p>
+              <p className="mt-4 text-sm text-rose-700">{formatApiError(simulatedConfirm.error, '模拟支付暂不可用。')}</p>
             ) : null}
           </section>
         ) : null}
