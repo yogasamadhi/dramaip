@@ -11,6 +11,7 @@ data:
   WEB_BFF_HTTP_ADDR: {{ .Values.config.webBffHttpAddr | quote }}
   DESKTOP_BFF_HTTP_ADDR: {{ .Values.config.desktopBffHttpAddr | quote }}
   MOBILE_BFF_HTTP_ADDR: {{ .Values.config.mobileBffHttpAddr | quote }}
+  ADMIN_BFF_HTTP_ADDR: {{ .Values.config.adminBffHttpAddr | quote }}
   WEB_REFRESH_COOKIE_TTL: {{ .Values.config.webSession.refreshCookieTtl | quote }}
   WEB_COOKIE_DOMAIN: {{ .Values.config.webSession.cookieDomain | quote }}
   GRPC_MTLS_ENABLED: {{ .Values.internalMTLS.enabled | quote }}
@@ -81,6 +82,12 @@ data:
   JWT_JWKS_FILE: {{ if .Values.authJWT.keysetSecret }}{{ printf "/var/run/dramaip/auth-jwt/%s" .Values.authJWT.jwksFile | quote }}{{ else }}""{{ end }}
   JWT_ACCESS_TTL: {{ .Values.config.jwt.accessTtlSeconds | quote }}
   JWT_REFRESH_TTL: {{ .Values.config.jwt.refreshTtlSeconds | quote }}
+  ADMIN_JWT_ISSUER: {{ .Values.config.adminJWT.issuer | quote }}
+  ADMIN_JWT_AUDIENCE: {{ .Values.config.adminJWT.audience | quote }}
+  ADMIN_JWT_ACTIVE_KID: {{ .Values.config.adminJWT.activeKeyID | quote }}
+  ADMIN_JWT_PRIVATE_KEY_FILE: {{ if .Values.adminJWT.keysetSecret }}{{ printf "/var/run/dramaip/admin-jwt/%s" .Values.adminJWT.privateKeyFile | quote }}{{ else }}""{{ end }}
+  ADMIN_JWT_JWKS_FILE: {{ if .Values.adminJWT.keysetSecret }}{{ printf "/var/run/dramaip/admin-jwt/%s" .Values.adminJWT.jwksFile | quote }}{{ else }}""{{ end }}
+  ADMIN_JWT_ACCESS_TTL: {{ .Values.config.adminJWT.accessTokenTtl | quote }}
   AUTH_EMAIL_DELIVERY_URL: {{ .Values.config.email.deliveryURL | quote }}
   AUTH_EMAIL_FROM: {{ .Values.config.email.from | quote }}
   AUTH_EMAIL_TIMEOUT: {{ .Values.config.email.timeout | quote }}

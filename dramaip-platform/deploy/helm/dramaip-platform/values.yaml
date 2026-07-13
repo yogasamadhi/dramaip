@@ -15,6 +15,9 @@ images:
   mobileBff:
     repository: ghcr.io/dramaip/dramaip-mobile-bff
     tag: "0.1.0"
+  adminBff:
+    repository: ghcr.io/dramaip/dramaip-admin-bff
+    tag: "0.1.0"
   auth:
     repository: ghcr.io/dramaip/dramaip-auth
     tag: "0.1.0"
@@ -177,6 +180,7 @@ config:
   webBffHttpAddr: :8100
   desktopBffHttpAddr: :8110
   mobileBffHttpAddr: :8120
+  adminBffHttpAddr: :8130
   webSession:
     refreshCookieTtl: 720h
     # Empty preserves a host-only Cookie for same-origin Web/API deployment.
@@ -235,6 +239,11 @@ config:
     activeKeyID: ""
     accessTtlSeconds: "900"
     refreshTtlSeconds: "2592000"
+  adminJWT:
+    issuer: dramaip-admin
+    audience: dramaip-admin-api
+    activeKeyID: ""
+    accessTokenTtl: 10m
   email:
     # Provider-owned HTTPS gateway. Public registration must not be enabled
     # until this is configured together with the Secret token below.
@@ -299,6 +308,7 @@ secret:
   postgresAIGatewayPassword: change-me
   postgresNotificationPassword: change-me
   postgresInspirationPassword: change-me
+  postgresAdminPassword: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -314,6 +324,13 @@ authJWT:
   privateKeyFile: private.pem
   jwksFile: jwks.json
 
+# Admin uses a separate RSA key set, issuer and audience from C-end auth.
+# Mount it only in admin-bff; no private key is rendered by this chart.
+adminJWT:
+  keysetSecret: ""
+  privateKeyFile: private.pem
+  jwksFile: jwks.json
+
 # Production mTLS material is operator-owned. The Secret contains one
 # certificate/key pair per workload plus the shared CA; it is never generated
 # by this chart or committed to the repository.
@@ -325,6 +342,7 @@ internalMTLS:
     webBff: web-bff.crt
     desktopBff: desktop-bff.crt
     mobileBff: mobile-bff.crt
+    adminBff: admin-bff.crt
     auth: auth.crt
     user: user.crt
     billing: billing.crt
@@ -339,6 +357,7 @@ internalMTLS:
     webBff: web-bff.key
     desktopBff: desktop-bff.key
     mobileBff: mobile-bff.key
+    adminBff: admin-bff.key
     auth: auth.key
     user: user.key
     billing: billing.key
@@ -354,7 +373,7 @@ migrations:
   enabled: true
   useHelmHook: true
   # Requires the migration identity to have CREATEROLE. Set false only after
-  # the seven runtime roles have been pre-provisioned by the database operator.
+  # the eight runtime roles have been pre-provisioned by the database operator.
   bootstrapRuntimeRoles: true
   serviceAccountName: ""
   backoffLimit: 2

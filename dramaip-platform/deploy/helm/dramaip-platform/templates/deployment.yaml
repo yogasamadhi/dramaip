@@ -2,6 +2,7 @@
   (dict "key" "webBff" "component" "web-bff" "http" 8100 "grpc" 0)
   (dict "key" "desktopBff" "component" "desktop-bff" "http" 8110 "grpc" 0)
   (dict "key" "mobileBff" "component" "mobile-bff" "http" 8120 "grpc" 0)
+  (dict "key" "adminBff" "component" "admin-bff" "http" 8130 "grpc" 0)
   (dict "key" "auth" "component" "auth" "http" 8101 "grpc" 9101)
   (dict "key" "user" "component" "user" "http" 8102 "grpc" 9102)
   (dict "key" "billing" "component" "billing" "http" 8103 "grpc" 9103)
@@ -21,6 +22,7 @@
   "aiGateway" (dict "user" "dramaip_ai_gateway" "passwordKey" "POSTGRES_AI_GATEWAY_PASSWORD")
   "notification" (dict "user" "dramaip_notification" "passwordKey" "POSTGRES_NOTIFICATION_PASSWORD")
   "inspiration" (dict "user" "dramaip_inspiration" "passwordKey" "POSTGRES_INSPIRATION_PASSWORD")
+  "adminBff" (dict "user" "dramaip_admin" "passwordKey" "POSTGRES_ADMIN_PASSWORD")
   "notificationJob" (dict "user" "dramaip_notification" "passwordKey" "POSTGRES_NOTIFICATION_PASSWORD")
   "billingJob" (dict "user" "dramaip_billing" "passwordKey" "POSTGRES_BILLING_PASSWORD")
   "quotaJob" (dict "user" "dramaip_quota" "passwordKey" "POSTGRES_QUOTA_PASSWORD")
@@ -170,6 +172,10 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: "dramaip-mobile-bff"
             {{- end }}
+            {{- if eq $key "adminBff" }}
+            - name: OTEL_SERVICE_NAME
+              value: "dramaip-admin-bff"
+            {{- end }}
           {{- if $.Values.internalMTLS.enabled }}
             - name: GRPC_MTLS_CERT_FILE
               value: /var/run/dramaip/mtls/tls.crt
@@ -177,7 +183,7 @@ spec:
               value: /var/run/dramaip/mtls/tls.key
           {{- end }}
           {{- end }}
-          {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
+          {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "adminBff") $.Values.adminJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
           volumeMounts:
             {{- if $.Values.internalMTLS.enabled }}
             - name: internal-mtls
@@ -196,6 +202,11 @@ spec:
             {{- if and (eq $key "auth") $.Values.authJWT.keysetSecret }}
             - name: auth-jwt-keyset
               mountPath: /var/run/dramaip/auth-jwt
+              readOnly: true
+            {{- end }}
+            {{- if and (eq $key "adminBff") $.Values.adminJWT.keysetSecret }}
+            - name: admin-jwt-keyset
+              mountPath: /var/run/dramaip/admin-jwt
               readOnly: true
             {{- end }}
             {{- if and (eq $key "billing") $.Values.payment.wechat.enabled }}
@@ -244,7 +255,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
-      {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
+      {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "adminBff") $.Values.adminJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
       volumes:
         {{- if $.Values.internalMTLS.enabled }}
         - name: internal-mtls
@@ -255,6 +266,11 @@ spec:
         - name: auth-jwt-keyset
           secret:
             secretName: {{ $.Values.authJWT.keysetSecret }}
+        {{- end }}
+        {{- if and (eq $key "adminBff") $.Values.adminJWT.keysetSecret }}
+        - name: admin-jwt-keyset
+          secret:
+            secretName: {{ $.Values.adminJWT.keysetSecret }}
         {{- end }}
         {{- if and (eq $key "billing") $.Values.payment.wechat.enabled }}
         - name: wechat-pay-credentials

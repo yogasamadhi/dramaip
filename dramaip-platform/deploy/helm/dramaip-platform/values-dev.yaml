@@ -15,6 +15,9 @@ images:
   mobileBff:
     repository: dramaip-mobile-bff
     tag: dev
+  adminBff:
+    repository: dramaip-admin-bff
+    tag: dev
   auth:
     repository: dramaip-auth
     tag: dev
@@ -87,6 +90,7 @@ secret:
   postgresAIGatewayPassword: dramaip
   postgresNotificationPassword: dramaip
   postgresInspirationPassword: dramaip
+  postgresAdminPassword: dramaip
   redisPassword: dramaip
   rabbitmqUser: dramaip
   rabbitmqPassword: dramaip

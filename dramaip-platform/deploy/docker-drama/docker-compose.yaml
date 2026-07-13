@@ -122,6 +122,7 @@ services:
       POSTGRES_AI_GATEWAY_PASSWORD: ${POSTGRES_AI_GATEWAY_PASSWORD:-dramaip}
       POSTGRES_NOTIFICATION_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
       POSTGRES_INSPIRATION_PASSWORD: ${POSTGRES_INSPIRATION_PASSWORD:-dramaip}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-dramaip}
     depends_on:
       postgres:
         condition: service_healthy
@@ -501,6 +502,31 @@ services:
       INSPIRATION_GRPC_ENDPOINT: inspiration:9107
       OTEL_SERVICE_NAME: dramaip-mobile-bff
 
+  # Admin owns its privileged identity/audit metadata in an independent schema
+  # and validates a separate JWT key set. It never accepts Web C-end cookies.
+  admin-bff:
+    <<: *app-common
+    container_name: drama-admin-bff
+    image: dramaip-admin-bff
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/admin/interface/cmd/server
+        OUTPUT: dramaip-admin-bff
+    environment:
+      <<: *app-env
+      POSTGRES_USER: dramaip_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-dramaip}
+      ADMIN_BFF_HTTP_ADDR: ":8130"
+      ADMIN_JWT_ISSUER: ${ADMIN_JWT_ISSUER:-dramaip-admin}
+      ADMIN_JWT_AUDIENCE: ${ADMIN_JWT_AUDIENCE:-dramaip-admin-api}
+      ADMIN_JWT_ACTIVE_KID: ${ADMIN_JWT_ACTIVE_KID:-}
+      ADMIN_JWT_PRIVATE_KEY_FILE: ${ADMIN_JWT_PRIVATE_KEY_FILE:-}
+      ADMIN_JWT_JWKS_FILE: ${ADMIN_JWT_JWKS_FILE:-}
+      ADMIN_JWT_ACCESS_TTL: ${ADMIN_JWT_ACCESS_TTL:-10m}
+      OTEL_SERVICE_NAME: dramaip-admin-bff
+
   # Application external entry — the ONLY API service clients may reach from outside.
   # (postgres/redis/rabbitmq/prometheus/grafana/jaeger below are dev-time
   # infra ports; in prod (k8s) everything collapses to exposing Kong alone.)
@@ -525,6 +551,7 @@ services:
       - web-bff
       - desktop-bff
       - mobile-bff
+      - admin-bff
 
   # ─────────────────── 可观测性 ───────────────────
   # 三大支柱（10 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，

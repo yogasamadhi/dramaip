@@ -149,6 +149,30 @@ services:
           remove:
             headers: [X-User-Id, X-User-Role, X-User-Email, X-User-Plan, X-Dramaip-User-Id]
 
+  # Admin is not a Web/Mobile/Desktop variation. Its BFF validates a separate
+  # admin issuer/audience/key set and stores short-lived privileged sessions
+  # in the admin schema. Do not attach C-end Cookie JWT credentials here.
+  - name: dramaip-admin-bff
+    url: http://admin-bff:8130
+    routes:
+      - name: dramaip-admin-api
+        paths:
+          - /v1/admin
+        strip_path: false
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 30
+              policy: local
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+    plugins:
+      - name: request-transformer
+        config:
+          remove:
+            headers: [X-User-Id, X-User-Role, X-User-Email, X-User-Plan, X-Dramaip-User-Id, X-Admin-Id, X-Admin-Role, X-Admin-Permission]
+
 # JWT_CREDENTIALS
 
 plugins:

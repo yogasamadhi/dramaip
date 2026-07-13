@@ -1,0 +1,7 @@
+server:
+  http:
+    addr: 127.0.0.1:8130
+admin_jwt:
+  issuer: dramaip-admin
+  audience: dramaip-admin-api
+  access_token_ttl: 10m
