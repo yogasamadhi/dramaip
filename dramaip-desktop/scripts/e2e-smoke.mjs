@@ -97,7 +97,7 @@ function runElectronE2eSmoke() {
 
 if (!skipBuild) {
   run(localBin('electron-vite'), ['build'], { cwd: desktopDir })
-  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3'], { cwd: desktopDir })
+  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3,keytar'], { cwd: desktopDir })
 }
 
 await runElectronE2eSmoke()

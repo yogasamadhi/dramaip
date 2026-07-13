@@ -29,7 +29,6 @@ interface FormState {
   apiKey: string
   model: string
   isDefault: boolean
-  allowUnsafeApiKeyStorage: boolean
 }
 
 interface BudgetFormState {
@@ -48,7 +47,6 @@ const EMPTY: FormState = {
   apiKey: '',
   model: 'gpt-4o-mini',
   isDefault: false,
-  allowUnsafeApiKeyStorage: false,
 }
 
 const EMPTY_BUDGET: BudgetFormState = {
@@ -96,10 +94,6 @@ export function ModelSettingsPage() {
   async function handleAdd() {
     if (!form.name.trim() || !form.baseUrl.trim() || !form.model.trim()) {
       toast.error('请填写名称、Base URL 与模型')
-      return
-    }
-    if (form.apiKey.trim() && secretStatus?.encryptionAvailable === false && !form.allowUnsafeApiKeyStorage) {
-      toast.error('系统安全存储不可用，请确认是否允许本机明文保存 API Key')
       return
     }
     try {
@@ -227,23 +221,15 @@ export function ModelSettingsPage() {
                   <Label>API Key</Label>
                   <Input type="password" value={form.apiKey} onChange={(e) => set('apiKey', e.target.value)} placeholder="sk-..." />
                 </div>
-                {secretStatus?.encryptionAvailable === false && (
+                {secretStatus?.keychainAvailable === false && (
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
                     <div className="flex items-center gap-2 font-medium text-destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      系统安全存储不可用
+                      系统凭据管理器不可用
                     </div>
                     <p className="text-muted-foreground">
-                      默认拒绝保存 API Key。勾选后会以本机明文降级格式保存，仅建议在受控设备上临时使用。
+                      为避免 API Key 落入 SQLite，本应用不会使用明文降级。请恢复系统钥匙串/凭据管理器后再保存。
                     </p>
-                    <label className="flex items-center gap-2 text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={form.allowUnsafeApiKeyStorage}
-                        onChange={(e) => set('allowUnsafeApiKeyStorage', e.target.checked)}
-                      />
-                      允许本机明文保存 API Key
-                    </label>
                   </div>
                 )}
                 <div className="space-y-2">

@@ -9,7 +9,6 @@ interface ModelInput {
   apiKey?: string
   model: string
   isDefault?: boolean
-  allowUnsafeApiKeyStorage?: boolean
 }
 
 interface ModelState {

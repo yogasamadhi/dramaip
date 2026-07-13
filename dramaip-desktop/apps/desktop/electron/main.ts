@@ -70,9 +70,9 @@ function writePackageSmokeResult(payload: Record<string, unknown>): void {
   )
 }
 
-function runPackageSmoke(): void {
+async function runPackageSmoke(): Promise<void> {
   try {
-    initDatabase()
+    await initDatabase()
     registerAllIpc()
     const dbPath = join(app.getPath('userData'), DB_FILE_NAME)
     if (!existsSync(dbPath)) throw new Error(`数据库文件未创建：${dbPath}`)
@@ -133,7 +133,7 @@ function waitForWindowLoaded(mainWindow: BrowserWindow): Promise<void> {
 
 async function runE2eSmoke(): Promise<void> {
   try {
-    initDatabase()
+    await initDatabase()
     registerAllIpc()
     const mainWindow = createWindow({ show: false })
     await waitForWindowLoaded(mainWindow)
@@ -200,19 +200,19 @@ function createWindow(options: { show?: boolean } = {}): BrowserWindow {
 
 configurePackageSmokeUserData()
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   installProcessLoggers()
   logger.info('main', 'app ready', { version: app.getVersion(), platform: process.platform })
   installSecurityHeaders()
   if (isPackageSmoke()) {
-    runPackageSmoke()
+    await runPackageSmoke()
     return
   }
   if (isE2eSmoke()) {
     void runE2eSmoke()
     return
   }
-  safeInitDatabase()
+  await safeInitDatabase()
   registerAllIpc()
   createWindow()
 

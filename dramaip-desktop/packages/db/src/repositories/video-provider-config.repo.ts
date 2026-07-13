@@ -38,12 +38,12 @@ export function getVideoProviderConfig(db: DB, id: string): VideoProviderConfig 
 
 export function createVideoProviderConfig(
   db: DB,
-  data: Partial<OptionalId<VideoProviderConfig>> & { name: string; kind: string },
+  data: Partial<OptionalId<VideoProviderConfig>> & { id?: string; name: string; kind: string },
 ): VideoProviderConfig {
   const ts = now()
   if (data.isDefault) clearDefault(db)
   const value: typeof videoProviderConfigs.$inferInsert = {
-    id: genId(),
+    id: data.id ?? genId(),
     createdAt: ts,
     updatedAt: ts,
     name: data.name,

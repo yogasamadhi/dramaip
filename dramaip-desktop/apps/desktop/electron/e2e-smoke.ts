@@ -19,9 +19,12 @@ import {
   previewProjectPackage,
   serializeProjectPackage,
 } from '@sdns/export'
+import { schema } from '@sdns/db'
+import { eq, sql } from 'drizzle-orm'
 import { buildAgentCommandPlan } from '../renderer/src/lib/agentCommandPlanner'
 import { buildProjectWorkflowStages } from '../renderer/src/lib/projectWorkflowGuide'
 import { getRepos } from './db'
+import { deleteModelConfigWithSecret, migrateLegacySecretsToKeychain } from './secrets'
 
 export interface E2eSmokeStep {
   name: string
@@ -39,6 +42,7 @@ export interface E2eSmokeResult {
 
 interface RendererSmokeResult {
   projectId: string
+  modelConfigId: string
   steps: E2eSmokeStep[]
 }
 
@@ -47,13 +51,67 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
     `(${rendererSmokeMain.toString()})()`,
     true,
   ) as RendererSmokeResult
+  const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const p0Steps = runP0ProductionPathSmoke(renderer.projectId)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
   if (!projectPackageStep.ok) throw new Error(projectPackageStep.error ?? '项目包往返失败')
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, ...p0Steps, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, ...p0Steps, projectPackageStep],
+  }
+}
+
+async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const stored = repos.db
+      .select({ apiKey: schema.modelConfigs.apiKey })
+      .from(schema.modelConfigs)
+      .where(eq(schema.modelConfigs.id, modelConfigId))
+      .get()
+    if (!stored?.apiKey.startsWith('keychain:v1:')) {
+      throw new Error('模型配置未保存为 Keychain 引用')
+    }
+    await deleteModelConfigWithSecret(repos, modelConfigId)
+
+    // 旧库 fixture：直接写入一个历史裸值，随后只通过主进程迁移入口处理。
+    const legacy = repos.modelConfig.createModelConfig(repos.db, {
+      name: 'Legacy Keychain Fixture',
+      provider: 'mock',
+      baseUrl: 'https://example.invalid/v1',
+      apiKey: 'legacy-e2e-not-a-real-key',
+      model: 'legacy-fixture',
+    })
+    const migration = await migrateLegacySecretsToKeychain(repos)
+    const migrated = repos.db
+      .select({ apiKey: schema.modelConfigs.apiKey })
+      .from(schema.modelConfigs)
+      .where(eq(schema.modelConfigs.id, legacy.id))
+      .get()
+    const auditRows = repos.db.all(sql`
+      SELECT status, credential_ref AS credentialRef
+      FROM credential_migration_audit
+      WHERE area = 'model_config' AND record_id = ${legacy.id}
+    `) as Array<{ status?: string; credentialRef?: string }>
+    if (
+      migration.migrated < 1 ||
+      !migrated?.apiKey.startsWith('keychain:v1:') ||
+      auditRows[0]?.status !== 'migrated' ||
+      !auditRows[0]?.credentialRef?.startsWith('keychain:v1:')
+    ) {
+      throw new Error('旧 SQLite 凭据未完成可审计 Keychain 迁移')
+    }
+    await deleteModelConfigWithSecret(repos, legacy.id)
+    return { name: 'keychain-reference-migration-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'keychain-reference-migration-and-renderer-mask',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 
@@ -464,7 +522,9 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
 
   const title = `E2E 项目 ${Date.now()}`
   const modelName = `E2E Mock Model ${Date.now()}`
+  const e2eApiKey = `sk-e2e-${Date.now()}-not-a-real-key`
   let projectId = ''
+  let modelConfigId = ''
 
   await step('open-create-project-page', async () => {
     window.location.hash = '#/projects/new'
@@ -497,10 +557,19 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     setInputValue(inputByPlaceholder('默认 GPT-4o'), modelName)
     setInputValue(inputByPlaceholder('openai / deepseek'), 'mock')
     setInputValue(inputByPlaceholder('https://api.openai.com/v1'), 'https://example.invalid/v1')
+    setInputValue(inputByPlaceholder('sk-...'), e2eApiKey)
     setInputValue(inputByPlaceholder('gpt-4o-mini'), 'e2e-mock-model')
     clickButton('添加')
     await waitFor('模型配置列表', () => text().includes(modelName))
+    const api = (window as unknown as {
+      api: { model: { list: () => Promise<Array<{ id: string; name: string; apiKey?: string }>> } }
+    }).api
+    const config = (await api.model.list()).find((item) => item.name === modelName)
+    if (!config?.id || !config.apiKey?.startsWith('masked:v1:') || config.apiKey.includes(e2eApiKey)) {
+      throw new Error('renderer 未获得掩码后的模型配置')
+    }
+    modelConfigId = config.id
   })
 
-  return { projectId, steps }
+  return { projectId, modelConfigId, steps }
 }

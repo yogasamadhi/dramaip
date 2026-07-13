@@ -14,6 +14,7 @@ export function getModelConfig(db: DB, id: string): ModelConfig | undefined {
 }
 
 export interface NewModelConfig {
+  id?: string
   name: string
   provider: string
   baseUrl: string
@@ -26,7 +27,7 @@ export function createModelConfig(db: DB, data: NewModelConfig): ModelConfig {
   const ts = now()
   if (data.isDefault) clearDefault(db)
   const value: typeof modelConfigs.$inferInsert = {
-    id: genId(),
+    id: data.id ?? genId(),
     createdAt: ts,
     updatedAt: ts,
     name: data.name,

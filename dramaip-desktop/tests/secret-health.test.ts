@@ -2,12 +2,15 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   ENCRYPTED_PREFIX,
+  KEYCHAIN_PREFIX,
   MASKED_PREFIX,
   PLAINTEXT_PREFIX,
   classifySecretValue,
   decryptSecretValue,
   encryptSecretValue,
+  isKeychainReference,
   planSecretMigrations,
+  readLegacySecretForMigration,
   summarizeSecretValues,
   type SecretCipher,
 } from '../apps/desktop/electron/secret-health'
@@ -36,12 +39,25 @@ test('classifies stored secret values without exposing the secret', () => {
   assert.equal(classifySecretValue('', fakeCipher()), 'empty')
   assert.equal(classifySecretValue(`${PLAINTEXT_PREFIX}secret`, fakeCipher()), 'unsafe_plaintext')
   assert.equal(classifySecretValue(`${MASKED_PREFIX}1234`, fakeCipher()), 'masked')
+  assert.equal(classifySecretValue(`${KEYCHAIN_PREFIX}model_config:cfg:uuid`, fakeCipher()), 'keychain')
+  assert.equal(isKeychainReference(`${KEYCHAIN_PREFIX}model_config:cfg:uuid`), true)
   assert.equal(classifySecretValue('legacy-secret', fakeCipher()), 'legacy_plaintext')
   assert.equal(classifySecretValue(encoded('sealed:secret'), fakeCipher()), 'encrypted')
   assert.equal(classifySecretValue(encoded('sealed:secret'), fakeCipher({ failDecrypt: true })), 'unreadable_encrypted')
 })
 
-test('encrypts, decrypts, and explicitly gates unsafe plaintext fallback', () => {
+test('reads legacy encrypted values only for a successful Keychain handoff', () => {
+  const encrypted = encoded('sealed:legacy-secret')
+  const migrated = readLegacySecretForMigration(encrypted, fakeCipher())
+  assert.equal(migrated.state, 'encrypted')
+  assert.equal(migrated.plaintext, 'legacy-secret')
+
+  const unavailable = readLegacySecretForMigration(encrypted, fakeCipher({ available: false }))
+  assert.equal(unavailable.plaintext, undefined)
+  assert.match(unavailable.error ?? '', /不可用/)
+})
+
+test('encrypts, decrypts, and rejects unsafe plaintext fallback', () => {
   const cipher = fakeCipher()
   const encrypted = encryptSecretValue('secret', cipher)
   assert.match(encrypted, new RegExp(`^${ENCRYPTED_PREFIX}`))
@@ -52,7 +68,7 @@ test('encrypts, decrypts, and explicitly gates unsafe plaintext fallback', () =>
 
   const unavailable = fakeCipher({ available: false })
   assert.throws(() => encryptSecretValue('secret', unavailable), /安全存储不可用/)
-  assert.equal(encryptSecretValue('secret', unavailable, true), `${PLAINTEXT_PREFIX}secret`)
+  assert.throws(() => encryptSecretValue('secret', unavailable), /安全存储不可用/)
 })
 
 test('summarizes secret health and plans only reversible migrations', () => {

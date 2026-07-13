@@ -12,7 +12,7 @@ import {
   type Repositories,
 } from '@sdns/db'
 import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
-import { encryptExistingSecrets, installSecretProtection } from './secrets'
+import { initializeSecretStorage, installSecretProtection } from './secrets'
 import { logger } from './logger'
 
 let repos: Repositories | null = null
@@ -54,7 +54,7 @@ export interface DatabaseRuntimeInfo {
   migration: DatabaseMigrationInfo
 }
 
-export function initDatabase(): void {
+export async function initDatabase(): Promise<void> {
   const { userData, dbPath } = getDatabasePaths()
   // v1.0：打开前先做一次自动备份（仅当库已存在时）
   try {
@@ -62,7 +62,7 @@ export function initDatabase(): void {
   } catch {
     // 备份失败不阻断启动
   }
-  openDatabase(dbPath)
+  await openDatabase(dbPath)
 }
 
 function getDatabasePaths(): { userData: string; dbPath: string; backupDir: string } {
@@ -74,15 +74,15 @@ function getDatabasePaths(): { userData: string; dbPath: string; backupDir: stri
   }
 }
 
-function openDatabase(dbPath: string): void {
+async function openDatabase(dbPath: string): Promise<void> {
   const created = createDb(dbPath)
   rawDb = created.raw
   repos = createRepositories(created.db)
   installSecretProtection(repos)
-  const secretMigration = encryptExistingSecrets(repos)
+  const secretMigration = await initializeSecretStorage(repos)
   const logLevel = secretMigration.failed > 0 ? 'warn' : 'info'
   logger[logLevel]('security', 'secret migration checked', {
-    encryptionAvailable: secretMigration.encryptionAvailable,
+    keychainAvailable: secretMigration.keychainAvailable,
     attempted: secretMigration.attempted,
     migrated: secretMigration.migrated,
     skipped: secretMigration.skipped,
@@ -248,7 +248,7 @@ export function createManualDatabaseBackup(): DatabaseBackupResult {
   }
 }
 
-export function restoreDatabaseBackup(backupPath: string): DatabaseBackupResult {
+export async function restoreDatabaseBackup(backupPath: string): Promise<DatabaseBackupResult> {
   const { userData, dbPath, backupDir } = getDatabasePaths()
   try {
     const backupRoot = resolve(backupDir)
@@ -272,7 +272,7 @@ export function restoreDatabaseBackup(backupPath: string): DatabaseBackupResult 
 
     closeDatabase()
     restoreSqliteDatabaseFromBackup(sourcePath, dbPath)
-    openDatabase(dbPath)
+    await openDatabase(dbPath)
     pruneDatabaseBackups(backupDir)
 
     return {
@@ -284,7 +284,7 @@ export function restoreDatabaseBackup(backupPath: string): DatabaseBackupResult 
   } catch (error) {
     if (!repos) {
       try {
-        openDatabase(dbPath)
+        await openDatabase(dbPath)
       } catch {
         // 若重开也失败，交给结构化错误提示调用方。
       }
@@ -314,9 +314,9 @@ export function getRepos(): Repositories {
 }
 
 /** v1.0：数据库初始化失败时的顶层兜底，弹原生对话框提示而非静默崩溃 */
-export function safeInitDatabase(): void {
+export async function safeInitDatabase(): Promise<void> {
   try {
-    initDatabase()
+    await initDatabase()
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     void dialog.showErrorBox(
