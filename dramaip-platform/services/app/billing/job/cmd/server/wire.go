@@ -9,6 +9,7 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/service"
 	kratos "github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v2/transport"
 	"github.com/google/wire"
 )
 
@@ -20,6 +21,7 @@ func wireApp() (*kratos.App, func(), error) {
 		service.NewOutboxService,
 		server.NewHTTPServer,
 		server.NewJobServer,
+		wire.Bind(new(transport.Server), new(*server.JobServer)),
 		newApp,
 	))
 }

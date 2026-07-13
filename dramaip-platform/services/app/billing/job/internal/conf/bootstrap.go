@@ -24,6 +24,8 @@ type EndpointConfig struct {
 type JobConfig struct {
 	OutboxRelayInterval string `yaml:"outbox_relay_interval"`
 	OutboxBatchSize     int    `yaml:"outbox_batch_size"`
+	OutboxLease         string `yaml:"outbox_lease"`
+	OutboxRetryDelay    string `yaml:"outbox_retry_delay"`
 }
 
 type QuotaConfig struct {
@@ -34,7 +36,7 @@ func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Environment: "dev",
 		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
-		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100},
+		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s"},
 		Quota:       QuotaConfig{GRPCEndpoint: "localhost:9104"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -43,6 +45,8 @@ func Load() (*Bootstrap, error) {
 	cfg.Server.HTTP.Addr = kratosx.Env("BILLING_JOB_HTTP_ADDR", cfg.Server.HTTP.Addr)
 	cfg.Job.OutboxRelayInterval = kratosx.Env("OUTBOX_POLL_INTERVAL", kratosx.Env("OUTBOX_POLL_INTERVAL_MS", cfg.Job.OutboxRelayInterval))
 	cfg.Job.OutboxBatchSize = kratosx.EnvInt("OUTBOX_BATCH_SIZE", cfg.Job.OutboxBatchSize)
+	cfg.Job.OutboxLease = kratosx.Env("OUTBOX_LEASE", cfg.Job.OutboxLease)
+	cfg.Job.OutboxRetryDelay = kratosx.Env("OUTBOX_RETRY_DELAY", cfg.Job.OutboxRetryDelay)
 	cfg.Quota.GRPCEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Quota.GRPCEndpoint)
 	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)

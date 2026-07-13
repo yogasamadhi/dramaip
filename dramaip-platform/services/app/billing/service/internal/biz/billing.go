@@ -11,11 +11,25 @@ import (
 )
 
 type BillingUsecase struct {
-	repo             *data.BillingRepo
+	repo             BillingRepository
 	simulatedEnabled bool
 }
 
-func NewBillingUsecase(repo *data.BillingRepo, cfg *conf.Bootstrap) *BillingUsecase {
+type BillingRepository interface {
+	Checks() map[string]func(context.Context) error
+	ListPlans(context.Context) ([]data.PlanRow, error)
+	GetSubscription(context.Context, string) (data.SubscriptionRow, error)
+	CreateCheckout(context.Context, string, string, string) (data.CheckoutResult, error)
+	ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error)
+	CreatePeriodAccount(context.Context, string, string, data.PlanSnapshot, string, string) (data.TokenBalanceRow, error)
+	ActivateSubscription(context.Context, string) error
+	MarkSubscriptionActivationFailed(context.Context, string, string) error
+	ListOrders(context.Context, string) ([]data.OrderRow, error)
+	GetOrder(context.Context, string, string) (data.OrderRow, error)
+	CancelSubscription(context.Context, string, string, bool) (data.SubscriptionRow, error)
+}
+
+func NewBillingUsecase(repo BillingRepository, cfg *conf.Bootstrap) *BillingUsecase {
 	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled}
 }
 
@@ -55,7 +69,8 @@ func (u *BillingUsecase) ConfirmSimulatedPayment(ctx context.Context, userID str
 		_ = u.repo.MarkSubscriptionActivationFailed(ctx, result.Subscription.ID, err.Error())
 		return data.SandboxPaymentResult{}, err
 	}
-	if err := u.repo.MarkSubscriptionActive(ctx, result.Subscription.ID); err != nil {
+	if err := u.repo.ActivateSubscription(ctx, result.Subscription.ID); err != nil {
+		_ = u.repo.MarkSubscriptionActivationFailed(ctx, result.Subscription.ID, err.Error())
 		return data.SandboxPaymentResult{}, err
 	}
 	result.Subscription.Status = "active"

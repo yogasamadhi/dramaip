@@ -7,6 +7,7 @@ import (
 	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/activation"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
 	billingeventsv1 "github.com/dramaip/dramaip-platform/services/events/billing/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
@@ -441,19 +442,15 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 	return out, err
 }
 
-func (r *BillingRepo) MarkSubscriptionActive(ctx context.Context, subscriptionID string) error {
-	return r.data.DB.WithContext(ctx).Exec(`
-		UPDATE billing.subscriptions
-		SET status = 'active', activation_error = NULL, quota_provisioned_at = now(), updated_at = now()
-		WHERE id = ?::uuid
-	`, subscriptionID).Error
+func (r *BillingRepo) ActivateSubscription(ctx context.Context, subscriptionID string) error {
+	return activation.ActivateSubscription(ctx, r.data.DB, subscriptionID)
 }
 
 func (r *BillingRepo) MarkSubscriptionActivationFailed(ctx context.Context, subscriptionID string, reason string) error {
 	return r.data.DB.WithContext(ctx).Exec(`
 		UPDATE billing.subscriptions
 		SET status = 'activation_failed', activation_error = ?, updated_at = now()
-		WHERE id = ?::uuid
+		WHERE id = ?::uuid AND status IN ('quota_pending', 'activation_failed')
 	`, reason, subscriptionID).Error
 }
 
@@ -492,15 +489,14 @@ func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID strin
 }
 
 func (r *BillingRepo) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (SubscriptionRow, error) {
-	statusValue := "active"
-	if immediate {
-		statusValue = "canceled"
-	}
 	if err := r.data.DB.WithContext(ctx).Exec(`
 		UPDATE billing.subscriptions
-		SET cancel_at_period_end = ?, canceled_at = now(), status = ?, updated_at = now()
+		SET cancel_at_period_end = ?,
+		    canceled_at = now(),
+		    status = CASE WHEN ? THEN 'canceled' ELSE status END,
+		    updated_at = now()
 		WHERE id = ?::uuid AND user_id = ?::uuid AND status IN ('active', 'quota_pending', 'activation_failed')
-	`, !immediate, statusValue, subscriptionID, userID).Error; err != nil {
+	`, !immediate, immediate, subscriptionID, userID).Error; err != nil {
 		return SubscriptionRow{}, err
 	}
 	return loadSubscriptionByID(ctx, r.data.DB, subscriptionID)

@@ -1,4 +1,4 @@
-.PHONY: test db-role-matrix plan-snapshot-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
+.PHONY: test db-role-matrix plan-snapshot-integration billing-saga-integration quota-state-machine-integration proto event-contracts tidy kong-up kong-down kong-logs \
         run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-notification run-notification-job run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
@@ -18,6 +18,14 @@ db-role-matrix:
 # paid subscription still has the old snapshot.
 plan-snapshot-integration:
 	GOCACHE=$(GOCACHE) go test ./app/billing/service/internal/data -run '^TestCheckoutSnapshotSurvivesPlanChangeIntegration$$' -count=1
+
+# Reuses the isolated snapshot database contract above and additionally covers
+# quota outage compensation, payment replay, activation, outbox lease expiry,
+# and relay retry.
+billing-saga-integration:
+	@test -n "$(POSTGRES_BILLING_SAGA_TEST_DSN)" || (echo "POSTGRES_BILLING_SAGA_TEST_DSN is required"; exit 1)
+	GOCACHE=$(GOCACHE) go test ./app/billing/service/internal/biz -run '^TestConfirmSimulatedPaymentTracksQuotaActivationFailures$$' -count=1
+	POSTGRES_SNAPSHOT_TEST_DSN="$(POSTGRES_BILLING_SAGA_TEST_DSN)" GOCACHE=$(GOCACHE) go test ./app/billing/service/internal/data -run '^TestCheckoutSnapshotSurvivesPlanChangeIntegration$$' -count=1
 
 # Requires a fresh isolated PostgreSQL instance with a DDL login that has
 # CREATEROLE. Exercises quota reservation concurrency and recovery states.
