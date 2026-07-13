@@ -592,6 +592,9 @@ func (s *HTTPService) authenticate(w http.ResponseWriter, r *http.Request) (*aut
 		writeGRPCError(w, err, "invalid_token")
 		return nil, false
 	}
+	// Downstream gRPC receives a user identity only after this BFF has verified
+	// the browser JWT/session. Client supplied X-User-* headers are never used.
+	*r = *r.WithContext(platform.WithUserIdentity(r.Context(), auth.UserId))
 	return auth, true
 }
 

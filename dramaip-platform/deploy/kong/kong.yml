@@ -52,6 +52,13 @@ services:
           - /v1/
         strip_path: false
     plugins:
+      # Never let an external client manufacture an internal identity. The Web
+      # BFF derives user context from the verified Cookie/JWT and forwards it
+      # only over authenticated internal gRPC.
+      - name: request-transformer
+        config:
+          remove:
+            headers: [X-User-Id, X-User-Role, X-User-Email, X-User-Plan, X-Dramaip-User-Id]
       - name: cors
         config:
           # Development origins only. Production declarations must replace

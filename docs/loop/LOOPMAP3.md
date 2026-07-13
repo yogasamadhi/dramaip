@@ -214,7 +214,7 @@ make platform-down
 | LM3-04 | P0 | 契约治理 | done | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
 | LM3-05 | P0 | Auth/安全 | done | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
 | LM3-06 | P0 | Web/Auth | done | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
-| LM3-07 | P0 | 平台安全 | todo | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
+| LM3-07 | P0 | 平台安全 | done | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
 | LM3-08 | P0 | Notification | todo | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
 | LM3-09 | P1 | Notification | todo | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |
 | LM3-10 | P0 | 数据平台 | todo | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、CI | LM3-08 |

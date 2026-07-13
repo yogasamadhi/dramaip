@@ -1,11 +1,16 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+)
 
 type Bootstrap struct {
-	Server ServerConfig `yaml:"server"`
-	Job    JobConfig    `yaml:"jobs"`
-	Quota  QuotaConfig  `yaml:"quota"`
+	Environment string              `yaml:"environment"`
+	Server      ServerConfig        `yaml:"server"`
+	Job         JobConfig           `yaml:"jobs"`
+	Quota       QuotaConfig         `yaml:"quota"`
+	MTLS        platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
@@ -27,9 +32,10 @@ type QuotaConfig struct {
 
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
-		Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
-		Job:    JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100},
-		Quota:  QuotaConfig{GRPCEndpoint: "localhost:9104"},
+		Environment: "dev",
+		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
+		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100},
+		Quota:       QuotaConfig{GRPCEndpoint: "localhost:9104"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
 		return nil, err
@@ -38,5 +44,11 @@ func Load() (*Bootstrap, error) {
 	cfg.Job.OutboxRelayInterval = kratosx.Env("OUTBOX_POLL_INTERVAL", kratosx.Env("OUTBOX_POLL_INTERVAL_MS", cfg.Job.OutboxRelayInterval))
 	cfg.Job.OutboxBatchSize = kratosx.EnvInt("OUTBOX_BATCH_SIZE", cfg.Job.OutboxBatchSize)
 	cfg.Quota.GRPCEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Quota.GRPCEndpoint)
+	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
+	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

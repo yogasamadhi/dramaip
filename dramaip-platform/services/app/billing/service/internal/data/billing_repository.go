@@ -98,7 +98,7 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	}
 	dialCtx, cancel := context.WithTimeout(context.Background(), kratosx.Duration(cfg.Quota.DialTimeout, 10*time.Second))
 	defer cancel()
-	quotaConn, err := platform.DialGRPC(dialCtx, cfg.Quota.GRPCEndpoint)
+	quotaConn, err := platform.DialGRPC(dialCtx, cfg.Quota.GRPCEndpoint, cfg.MTLS)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -124,7 +124,8 @@ func (r *BillingRepo) Checks() map[string]func(context.Context) error {
 	return map[string]func(context.Context) error{
 		"postgres": func(ctx context.Context) error { return platform.CheckPostgres(ctx, r.data.DB) },
 		"quota": func(ctx context.Context) error {
-			_, err := r.data.Quota.GetTokenBalance(ctx, &quotav1.GetTokenBalanceRequest{UserId: "00000000-0000-4000-8000-000000000001"})
+			const healthUserID = "00000000-0000-4000-8000-000000000001"
+			_, err := r.data.Quota.GetTokenBalance(platform.WithUserIdentity(ctx, healthUserID), &quotav1.GetTokenBalanceRequest{UserId: healthUserID})
 			return err
 		},
 	}

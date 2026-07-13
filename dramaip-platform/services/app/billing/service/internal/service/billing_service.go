@@ -7,6 +7,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type BillingService struct {
@@ -35,6 +36,9 @@ func (s *BillingService) ListPlans(ctx context.Context, _ *billingv1.ListPlansRe
 }
 
 func (s *BillingService) CreateCheckout(ctx context.Context, req *billingv1.CreateCheckoutRequest) (*billingv1.CreateCheckoutReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	result, err := s.uc.CreateCheckout(ctx, req.UserId, req.PlanId, req.Provider)
 	if err != nil {
 		return nil, err
@@ -46,6 +50,9 @@ func (s *BillingService) CreateCheckout(ctx context.Context, req *billingv1.Crea
 }
 
 func (s *BillingService) ConfirmSandboxPayment(ctx context.Context, req *billingv1.ConfirmSandboxPaymentRequest) (*billingv1.ConfirmSandboxPaymentReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	result, err := s.uc.ConfirmSandboxPayment(ctx, req.UserId, req.CheckoutId)
 	if err != nil {
 		return nil, err
@@ -58,6 +65,9 @@ func (s *BillingService) ConfirmSandboxPayment(ctx context.Context, req *billing
 }
 
 func (s *BillingService) ConfirmSimulatedPayment(ctx context.Context, req *billingv1.ConfirmSimulatedPaymentRequest) (*billingv1.ConfirmSimulatedPaymentReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	result, err := s.uc.ConfirmSimulatedPayment(ctx, req.UserId, req.CheckoutId)
 	if err != nil {
 		return nil, err
@@ -70,6 +80,9 @@ func (s *BillingService) ConfirmSimulatedPayment(ctx context.Context, req *billi
 }
 
 func (s *BillingService) GetSubscription(ctx context.Context, req *billingv1.GetSubscriptionRequest) (*billingv1.Subscription, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	sub, err := s.uc.GetSubscription(ctx, req.UserId)
 	if err != nil {
 		return nil, err
@@ -78,6 +91,9 @@ func (s *BillingService) GetSubscription(ctx context.Context, req *billingv1.Get
 }
 
 func (s *BillingService) ListOrders(ctx context.Context, req *billingv1.ListOrdersRequest) (*billingv1.ListOrdersReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	rows, err := s.uc.ListOrders(ctx, req.UserId)
 	if err != nil {
 		return nil, err
@@ -90,6 +106,9 @@ func (s *BillingService) ListOrders(ctx context.Context, req *billingv1.ListOrde
 }
 
 func (s *BillingService) GetOrder(ctx context.Context, req *billingv1.GetOrderRequest) (*billingv1.Order, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	row, err := s.uc.GetOrder(ctx, req.UserId, req.OrderId)
 	if err != nil {
 		return nil, err
@@ -98,6 +117,9 @@ func (s *BillingService) GetOrder(ctx context.Context, req *billingv1.GetOrderRe
 }
 
 func (s *BillingService) CancelSubscription(ctx context.Context, req *billingv1.CancelSubscriptionRequest) (*billingv1.Subscription, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
 	sub, err := s.uc.CancelSubscription(ctx, req.UserId, req.SubscriptionId, req.Immediate)
 	if err != nil {
 		return nil, err

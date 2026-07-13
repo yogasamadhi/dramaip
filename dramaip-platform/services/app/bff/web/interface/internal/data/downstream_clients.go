@@ -29,29 +29,29 @@ type Data struct {
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), kratosx.Duration(cfg.Downstream.DialTimeout, 15*time.Second))
 	defer cancel()
-	authConn, err := platform.DialGRPC(ctx, cfg.Downstream.AuthEndpoint)
+	authConn, err := platform.DialGRPC(ctx, cfg.Downstream.AuthEndpoint, cfg.MTLS)
 	if err != nil {
 		return nil, nil, err
 	}
-	userConn, err := platform.DialGRPC(ctx, cfg.Downstream.UserEndpoint)
+	userConn, err := platform.DialGRPC(ctx, cfg.Downstream.UserEndpoint, cfg.MTLS)
 	if err != nil {
 		_ = authConn.Close()
 		return nil, nil, err
 	}
-	billingConn, err := platform.DialGRPC(ctx, cfg.Downstream.BillingEndpoint)
+	billingConn, err := platform.DialGRPC(ctx, cfg.Downstream.BillingEndpoint, cfg.MTLS)
 	if err != nil {
 		_ = authConn.Close()
 		_ = userConn.Close()
 		return nil, nil, err
 	}
-	quotaConn, err := platform.DialGRPC(ctx, cfg.Downstream.QuotaEndpoint)
+	quotaConn, err := platform.DialGRPC(ctx, cfg.Downstream.QuotaEndpoint, cfg.MTLS)
 	if err != nil {
 		_ = authConn.Close()
 		_ = userConn.Close()
 		_ = billingConn.Close()
 		return nil, nil, err
 	}
-	aiConn, err := platform.DialGRPC(ctx, cfg.Downstream.AIGatewayEndpoint)
+	aiConn, err := platform.DialGRPC(ctx, cfg.Downstream.AIGatewayEndpoint, cfg.MTLS)
 	if err != nil {
 		_ = authConn.Close()
 		_ = userConn.Close()
@@ -83,17 +83,18 @@ func (d *Data) Close() {
 }
 
 func (d *Data) Checks() map[string]func(context.Context) error {
+	const healthUserID = "00000000-0000-4000-8000-000000000001"
 	return map[string]func(context.Context) error{
 		"billing": func(ctx context.Context) error {
 			_, err := d.Billing.ListPlans(ctx, &billingv1.ListPlansRequest{})
 			return err
 		},
 		"quota": func(ctx context.Context) error {
-			_, err := d.Quota.GetTokenBalance(ctx, &quotav1.GetTokenBalanceRequest{UserId: "00000000-0000-4000-8000-000000000001"})
+			_, err := d.Quota.GetTokenBalance(platform.WithUserIdentity(ctx, healthUserID), &quotav1.GetTokenBalanceRequest{UserId: healthUserID})
 			return err
 		},
 		"user": func(ctx context.Context) error {
-			_, err := d.User.GetProfile(ctx, &userv1.GetProfileRequest{UserId: "00000000-0000-4000-8000-000000000001"})
+			_, err := d.User.GetProfile(platform.WithUserIdentity(ctx, healthUserID), &userv1.GetProfileRequest{UserId: healthUserID})
 			return err
 		},
 		"postgres": func(ctx context.Context) error {

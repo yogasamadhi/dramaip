@@ -4,13 +4,15 @@ import (
 	"strings"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type Bootstrap struct {
-	Server      ServerConfig     `yaml:"server"`
-	Downstream  DownstreamConfig `yaml:"downstream"`
-	Environment string           `yaml:"environment"`
-	Session     SessionConfig    `yaml:"session"`
+	Server      ServerConfig        `yaml:"server"`
+	Downstream  DownstreamConfig    `yaml:"downstream"`
+	Environment string              `yaml:"environment"`
+	Session     SessionConfig       `yaml:"session"`
+	MTLS        platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
@@ -62,6 +64,11 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("WEB_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
+	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }
 

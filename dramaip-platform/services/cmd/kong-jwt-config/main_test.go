@@ -68,6 +68,11 @@ func TestProductionTemplateRendersRS256Plugin(t *testing.T) {
 	if strings.Contains(rendered, jwtPluginMarker) || strings.Contains(rendered, jwtCredentialsMarker) || !strings.Contains(rendered, "algorithm: RS256") {
 		t.Fatalf("production Kong template was not fully rendered:\n%s", rendered)
 	}
+	for _, header := range []string{"name: request-transformer", "X-User-Id", "X-User-Role", "X-Dramaip-User-Id"} {
+		if !strings.Contains(rendered, header) {
+			t.Fatalf("Kong template does not strip untrusted identity header %q", header)
+		}
+	}
 }
 
 func testJWK(kid string, key *rsa.PublicKey) jwk {

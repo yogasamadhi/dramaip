@@ -216,6 +216,32 @@ authJWT:
   privateKeyFile: private.pem
   jwksFile: jwks.json
 
+# Production mTLS material is operator-owned. The Secret contains one
+# certificate/key pair per workload plus the shared CA; it is never generated
+# by this chart or committed to the repository.
+internalMTLS:
+  enabled: true
+  existingSecret: dramaip-internal-mtls
+  caKey: ca.crt
+  certKeys:
+    webBff: web-bff.crt
+    auth: auth.crt
+    user: user.crt
+    billing: billing.crt
+    quota: quota.crt
+    aiGateway: ai-gateway.crt
+    billingJob: billing-job.crt
+    quotaJob: quota-job.crt
+  keyKeys:
+    webBff: web-bff.key
+    auth: auth.key
+    user: user.key
+    billing: billing.key
+    quota: quota.key
+    aiGateway: ai-gateway.key
+    billingJob: billing-job.key
+    quotaJob: quota-job.key
+
 migrations:
   enabled: true
   useHelmHook: true

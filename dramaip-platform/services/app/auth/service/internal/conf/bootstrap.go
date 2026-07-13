@@ -1,13 +1,17 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+)
 
 type Bootstrap struct {
-	Server      ServerConfig `yaml:"server"`
-	Data        DataConfig   `yaml:"data"`
-	JWT         JWTConfig    `yaml:"jwt"`
-	Environment string       `yaml:"environment"`
-	AutoMigrate bool         `yaml:"auto_migrate"`
+	Server      ServerConfig        `yaml:"server"`
+	Data        DataConfig          `yaml:"data"`
+	JWT         JWTConfig           `yaml:"jwt"`
+	Environment string              `yaml:"environment"`
+	MTLS        platform.MTLSConfig `yaml:"-"`
+	AutoMigrate bool                `yaml:"auto_migrate"`
 }
 
 type ServerConfig struct {
@@ -63,5 +67,10 @@ func Load() (*Bootstrap, error) {
 	cfg.JWT.JWKSFile = kratosx.Env("JWT_JWKS_FILE", cfg.JWT.JWKSFile)
 	cfg.JWT.AccessTokenTTL = kratosx.Env("JWT_ACCESS_TTL", cfg.JWT.AccessTokenTTL)
 	cfg.JWT.RefreshTokenTTL = kratosx.Env("JWT_REFRESH_TTL", cfg.JWT.RefreshTokenTTL)
+	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

@@ -1,9 +1,14 @@
 package conf
 
-import "github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+import (
+	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+)
 
 type Bootstrap struct {
-	Server ServerConfig `yaml:"server"`
+	Environment string              `yaml:"environment"`
+	Server      ServerConfig        `yaml:"server"`
+	MTLS        platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
@@ -16,11 +21,17 @@ type EndpointConfig struct {
 }
 
 func Load() (*Bootstrap, error) {
-	cfg := &Bootstrap{Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8104"}, GRPC: EndpointConfig{Addr: ":9104"}}}
+	cfg := &Bootstrap{Environment: "dev", Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8104"}, GRPC: EndpointConfig{Addr: ":9104"}}}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
 		return nil, err
 	}
 	cfg.Server.HTTP.Addr = kratosx.Env("QUOTA_HTTP_ADDR", cfg.Server.HTTP.Addr)
 	cfg.Server.GRPC.Addr = kratosx.Env("QUOTA_GRPC_ADDR", cfg.Server.GRPC.Addr)
+	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
+	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

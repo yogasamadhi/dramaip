@@ -11,6 +11,8 @@ data:
   WEB_BFF_HTTP_ADDR: {{ .Values.config.webBffHttpAddr | quote }}
   WEB_REFRESH_COOKIE_TTL: {{ .Values.config.webSession.refreshCookieTtl | quote }}
   WEB_COOKIE_DOMAIN: {{ .Values.config.webSession.cookieDomain | quote }}
+  GRPC_MTLS_ENABLED: {{ .Values.internalMTLS.enabled | quote }}
+  GRPC_MTLS_CA_FILE: {{ if .Values.internalMTLS.enabled }}"/var/run/dramaip/mtls/ca.crt"{{ else }}""{{ end }}
   AUTH_HTTP_ADDR: {{ .Values.config.authHttpAddr | quote }}
   AUTH_GRPC_ADDR: {{ .Values.config.authGrpcAddr | quote }}
   USER_HTTP_ADDR: {{ .Values.config.userHttpAddr | quote }}
