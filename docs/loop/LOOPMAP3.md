@@ -207,7 +207,7 @@ make platform-down
 | Loop | P | Owner | 状态 | 单一目标 | 主要范围 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- |
 | LM3-00 | P0 | 工程负责人 | done | 固化基线并收口文档入口 | 根文档、`docs/loop`、验证记录 | 无 |
-| LM3-01 | P0 | API/平台 | todo | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
+| LM3-01 | P0 | API/平台 | done | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
 | LM3-02 | P0 | 平台架构 | todo | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
 | LM3-03 | P0 | DevEx/CI | todo | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
 | LM3-04 | P0 | 契约治理 | todo | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
@@ -789,4 +789,20 @@ Push: Core documentation merge 7b83af6 was pushed successfully to `origin/main`;
 Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-00-doc-baseline` immediately afterward.
 Current branch/worktree: loop/lm3-00-doc-baseline; clean before this metadata update.
 Notes: LM3-00 moved active process documentation into `docs/loop`, added the root project entry point, repaired active links, retained historical audit paths without rewriting history, and refreshed the difference-document audit date. No product code or deployment configuration changed.
+```
+
+```text
+Loop: LM3-01
+Target branch: main
+Loop branch: loop/lm3-01-v1-contract
+Commit(s): 8d25eb8 loop(LM3-01): enforce versioned platform routes; this completion-record update is the loop's final metadata commit.
+Merge commit: bfff443 merge: LM3-01 versioned platform routes; the metadata commit is merged immediately after this record is committed.
+Verification: `GOCACHE=/tmp/dramaip-go-build go test ./app/bff/interface/internal/service` passed before merge; `GOCACHE=/tmp/dramaip-go-build go test ./...` passed before and after merge; `pnpm typecheck` passed before and after merge in `clients`; `make web-route-smoke` passed before and after merge. The BFF test suite now includes v1 success paths and a negative test that unversioned business paths return 404. `git diff --check` passed before and after merge.
+Compose E2E: attempted `make platform-up` twice (once normally and once with `COMPOSE_PARALLEL_LIMIT=1`). Both attempts reached the nine Docker `go build` layers and produced no further output or containers for several minutes, so both were interrupted and followed by `make platform-down`. The failed environment build did not modify the working tree. This is recorded as an LM3-03 DevEx/CI follow-up; the direct BFF, SDK, route-smoke, and documentation contract checks above are the replacement evidence for this loop.
+Diff review: Reviewed the cumulative four-file diff: BFF tests use `/v1`, unversioned paths have explicit negative coverage, and README/operational/API baseline docs describe the same versioned endpoints. No credentials, environment files, generated artifacts, or unrelated files were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` succeeded before branch creation and again before merge.
+Push: Core merge bfff443 was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-01 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-01-v1-contract` immediately afterward.
+Current branch/worktree: loop/lm3-01-v1-contract; clean before this metadata update.
+Notes: `/billing` remains only as a Web UI route, not an external API path. The Compose build stall is an operational limitation, not evidence that an unversioned route remains exposed.
 ```
