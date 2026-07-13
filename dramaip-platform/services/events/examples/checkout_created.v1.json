@@ -1,0 +1,17 @@
+{
+  "eventId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "eventType": "billing.checkout.created.v1",
+  "schemaVersion": 1,
+  "aggregateType": "billing.order",
+  "aggregateId": "33333333-3333-4333-8333-333333333333",
+  "occurredAt": "2026-07-13T00:00:00Z",
+  "traceId": "trace-checkout-example",
+  "checkoutCreated": {
+    "orderId": "33333333-3333-4333-8333-333333333333",
+    "userId": "55555555-5555-4555-8555-555555555555",
+    "planCode": "pro-monthly",
+    "provider": "simulated",
+    "amount": "29.90",
+    "currency": "CNY"
+  }
+}

@@ -4,6 +4,10 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
+
+	notificationeventsv1 "github.com/dramaip/dramaip-platform/services/events/notification/v1"
+	"github.com/dramaip/dramaip-platform/services/pkg/events"
 )
 
 func TestRabbitConfigFromEnvUsesURL(t *testing.T) {
@@ -53,7 +57,15 @@ func TestRabbitPublisherIntegration(t *testing.T) {
 	if err := publisher.Health(context.Background()); err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}
-	if err := publisher.Publish(context.Background(), "platform.test", map[string]any{"ok": true}); err != nil {
+	envelope := events.NewNotificationRequested("event-1", "", time.Now().UTC(), &notificationeventsv1.NotificationRequested{
+		NotificationId: "notification-1",
+		UserId:         "user-1",
+		Category:       "test",
+		Title:          "Platform test",
+		Body:           "RabbitMQ integration test",
+		SourceEventId:  "source-1",
+	})
+	if err := publisher.Publish(context.Background(), envelope); err != nil {
 		t.Fatalf("Publish() error = %v", err)
 	}
 }

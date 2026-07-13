@@ -2,12 +2,13 @@ package platform
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
 	"strings"
 
+	envelopev1 "github.com/dramaip/dramaip-platform/services/events/envelope/v1"
+	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
 )
@@ -82,8 +83,13 @@ func (p *RabbitPublisher) Health(context.Context) error {
 	return nil
 }
 
-func (p *RabbitPublisher) Publish(ctx context.Context, eventType string, payload map[string]any) error {
-	raw, err := json.Marshal(payload)
+// Publish serializes the generated event envelope and uses its versioned event
+// type for AMQP routing. Arbitrary JSON maps are intentionally not accepted.
+func (p *RabbitPublisher) Publish(ctx context.Context, envelope *envelopev1.EventEnvelope) error {
+	if err := p.Health(ctx); err != nil {
+		return err
+	}
+	raw, err := events.MarshalEnvelope(envelope)
 	if err != nil {
 		return err
 	}
@@ -92,9 +98,14 @@ func (p *RabbitPublisher) Publish(ctx context.Context, eventType string, payload
 	if traceID := TraceID(ctx); traceID != "" {
 		headers["trace_id"] = traceID
 	}
+	if envelope.GetTraceId() != "" {
+		headers["trace_id"] = envelope.GetTraceId()
+	}
+	headers["event_id"] = envelope.GetEventId()
+	headers["schema_version"] = envelope.GetSchemaVersion()
 	return p.ch.PublishWithContext(ctx, p.config.Exchange, p.config.Queue, false, false, amqp.Publishing{
-		ContentType:  "application/json",
-		Type:         eventType,
+		ContentType:  "application/protobuf+json",
+		Type:         envelope.GetEventType(),
 		DeliveryMode: amqp.Persistent,
 		Headers:      headers,
 		Body:         raw,

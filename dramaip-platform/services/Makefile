@@ -1,4 +1,4 @@
-.PHONY: test proto tidy kong-up kong-down kong-logs \
+.PHONY: test proto event-contracts tidy kong-up kong-down kong-logs \
         run-web-bff run-auth run-user run-billing run-quota run-ai-gateway run-billing-job run-quota-job run-migrate
 
 GOCACHE ?= /tmp/dramaip-go-build
@@ -58,3 +58,6 @@ proto:
 		exit 1; \
 	fi
 	buf generate
+
+event-contracts:
+	bash scripts/check-event-contracts.sh
