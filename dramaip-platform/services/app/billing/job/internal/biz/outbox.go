@@ -46,6 +46,10 @@ func (u *OutboxUsecase) Relay(ctx context.Context) error {
 	return u.data.Relay(ctx, u.batch, u.lease, u.retry)
 }
 
+func (u *OutboxUsecase) PendingOutbox(ctx context.Context) (int64, error) {
+	return u.data.PendingOutbox(ctx)
+}
+
 func (u *OutboxUsecase) RetryQuotaProvisioning(ctx context.Context) error {
 	return u.data.RetryQuotaProvisioning(ctx, u.batch)
 }

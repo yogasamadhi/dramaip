@@ -103,11 +103,14 @@ func declarePublisherTopology(ch *amqp.Channel, config RabbitConfig) error {
 
 func (p *RabbitPublisher) Health(context.Context) error {
 	if p == nil || p.conn == nil || p.ch == nil {
+		SetGauge("dramaip_dependency_up", 0, map[string]string{"dependency": "rabbitmq"})
 		return fmt.Errorf("rabbitmq publisher is not initialized")
 	}
 	if p.conn.IsClosed() {
+		SetGauge("dramaip_dependency_up", 0, map[string]string{"dependency": "rabbitmq"})
 		return fmt.Errorf("rabbitmq connection is closed")
 	}
+	SetGauge("dramaip_dependency_up", 1, map[string]string{"dependency": "rabbitmq"})
 	return nil
 }
 

@@ -1,7 +1,7 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
 COMPOSE_ENV ?= services/.env
 
-.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke web-route-smoke test
+.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke test
 
 platform-up:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
@@ -17,6 +17,12 @@ platform-e2e:
 
 observability-smoke:
 	node scripts/observability-smoke.mjs
+
+observability-config-smoke:
+	node scripts/observability-config-smoke.mjs
+
+observability-rule-test:
+	docker run --rm --mount type=bind,source=$(CURDIR)/deploy/docker-drama/prometheus,target=/etc/prometheus,readonly --entrypoint promtool prom/prometheus:v3.11.3 test rules /etc/prometheus/alerts_test.yml
 
 web-route-smoke:
 	node scripts/web-route-smoke.mjs

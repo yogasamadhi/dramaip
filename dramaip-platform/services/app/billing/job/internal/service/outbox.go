@@ -60,6 +60,12 @@ func (s *OutboxService) runOutboxCycle(ctx context.Context) {
 	s.runOperation(ctx, "billing.outbox.relay", s.uc.Relay)
 	s.runOperation(ctx, "billing.quota_provisioning.retry", s.uc.RetryQuotaProvisioning)
 	s.runOperation(ctx, "billing.subscription.lifecycle", s.uc.ProcessSubscriptionLifecycle)
+	if pending, err := s.uc.PendingOutbox(ctx); err != nil {
+		platform.ReportError(ctx, "billing.outbox.pending", err)
+		platform.StructuredLog(ctx, "billing-job", "error", "outbox_backlog_metric_failed", map[string]any{"error": err})
+	} else {
+		platform.SetOutboxPending(pending)
+	}
 }
 
 func (s *OutboxService) runReconciliation(ctx context.Context, trigger, requestedBy string) (data.ReconciliationRun, error) {

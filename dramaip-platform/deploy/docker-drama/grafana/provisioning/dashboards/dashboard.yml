@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: dramaip-platform
+    orgId: 1
+    folder: DramaIP
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
