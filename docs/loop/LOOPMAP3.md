@@ -237,7 +237,7 @@ make platform-down
 | LM3-27 | P0 | Desktop/AI | done | 打通桌面 Cloud AI 与本地降级 | Cloud Provider、预检、余额、AI Gateway | LM3-13、LM3-14、LM3-26 |
 | LM3-28 | P2 | Mobile | done | 交付移动端安全登录与精简账户视图 | Mobile BFF、Expo、安全存储 | LM3-05、LM3-07、LM3-24 |
 | LM3-29 | P2 | Mobile | done | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
-| LM3-30 | P1 | Admin/安全 | todo | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
+| LM3-30 | P1 | Admin/安全 | done | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | todo | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
 | LM3-32 | P1 | Platform/SRE | todo | 建立生产部署、密钥和发布流水线 | Docker、K8s、Helm、Kong、CI/CD | G1～G5 |
 | LM3-33 | P0 | DBA/SRE | todo | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
@@ -1255,4 +1255,20 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-29-mobile-inspiration-handoff` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
 Notes: This is intentionally a small, explicit handoff protocol. LM3-35 remains responsible for generic local-first project synchronization, automated conflict resolution and any document merge semantics. The user explicitly skips real payment.
+```
+
+```text
+Loop: LM3-30
+Target branch: main
+Loop branch: loop/lm3-30-admin-rbac
+Commit(s): 0a9cf3e loop(LM3-30): add admin RBAC boundary; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf format --diff --exit-code`, `buf generate`, `buf lint`, full `GOCACHE=/tmp/dramaip-go-lm3-30 go test ./...`, and `GOCACHE=/tmp/dramaip-go-lm3-30-race-final go test -race ./app/admin/interface/... ./pkg/platform` passed. Tests cover a valid separately signed C-end JWT rejected by Admin, session revocation, dynamic role downgrade, production keyset fail-closed behavior, role denial, one-time confirmation, explicit administrator suspension, and audit actor/reason/trace plus before/after evidence. The database role migration test verifies the new eighth role/schema and append-only audit DDL. Docker Compose static configuration, Helm lint (with the pre-existing development persistence informational message), development/production Helm rendering, observability config smoke, Kong YAML parsing and `git diff --check` passed.
+Runtime limitation: No healthy live Compose/staging stack was available, and the pre-existing user-owned Compose stack was not started, stopped, rebuilt or deleted. The Admin BFF HTTP E2E is in-process with a repository fake; production must additionally use a controlled offline-created test administrator to verify the independent Kong credential/JWKS, database trigger and role matrix in a healthy isolated environment. No real payment, payment provider, AI provider, user content or privileged production credential was used.
+Diff review: Reviewed the complete staged 32-file functional diff, generated protobuf output, admin token/session/RBAC/audit paths, migration grants/trigger, Compose/Helm/Kong wiring and documentation. It adds only a dedicated admin schema/runtime role, independent keyset configuration, short session verification, explicit confirmation, append-only audit metadata, tests and runbook. It contains no real password, token, API key, private key, payment material, provider credential, cache, database, container image or build artifact. Existing development-default placeholder references remain parameterized; production requires an operator-managed Admin keyset and has no public bootstrap account.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-30-admin-rbac` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
+Notes: LM3-31 remains responsible for the independent Admin frontend, reporting/read-model and cross-domain operational queries. The user explicitly skips real payment; no payment action is part of this loop.
 ```
