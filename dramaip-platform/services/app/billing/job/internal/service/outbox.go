@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log"
 	"sync/atomic"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type OutboxService struct {
@@ -57,22 +57,19 @@ func (s *OutboxService) Run(ctx context.Context) error {
 }
 
 func (s *OutboxService) runOutboxCycle(ctx context.Context) {
-	if err := s.uc.Relay(ctx); err != nil {
-		log.Printf("outbox relay failed: %v", err)
-	}
-	if err := s.uc.RetryQuotaProvisioning(ctx); err != nil {
-		log.Printf("quota provisioning retry failed: %v", err)
-	}
-	if err := s.uc.ProcessSubscriptionLifecycle(ctx); err != nil {
-		log.Printf("subscription lifecycle processing failed: %v", err)
-	}
+	s.runOperation(ctx, "billing.outbox.relay", s.uc.Relay)
+	s.runOperation(ctx, "billing.quota_provisioning.retry", s.uc.RetryQuotaProvisioning)
+	s.runOperation(ctx, "billing.subscription.lifecycle", s.uc.ProcessSubscriptionLifecycle)
 }
 
 func (s *OutboxService) runReconciliation(ctx context.Context, trigger, requestedBy string) (data.ReconciliationRun, error) {
+	ctx, span := platform.Tracer("billing-job").Start(ctx, "billing.reconciliation")
+	defer span.End()
 	run, err := s.uc.Reconcile(ctx, trigger, requestedBy)
 	if err != nil {
+		span.RecordError(err)
 		atomic.AddUint64(&s.reconciliationFailures, 1)
-		log.Printf("billing reconciliation failed: %v", err)
+		platform.StructuredLog(ctx, "billing-job", "error", "billing_reconciliation_failed", map[string]any{"trigger": trigger, "error": err})
 		return run, err
 	}
 	if run.Status == "completed" {
@@ -80,6 +77,15 @@ func (s *OutboxService) runReconciliation(ctx context.Context, trigger, requeste
 		atomic.AddUint64(&s.reconciliationItems, uint64(run.DetectedItems))
 	}
 	return run, nil
+}
+
+func (s *OutboxService) runOperation(ctx context.Context, operation string, fn func(context.Context) error) {
+	ctx, span := platform.Tracer("billing-job").Start(ctx, operation)
+	defer span.End()
+	if err := fn(ctx); err != nil {
+		span.RecordError(err)
+		platform.StructuredLog(ctx, "billing-job", "error", "job_operation_failed", map[string]any{"job_operation": operation, "error": err})
+	}
 }
 
 func (s *OutboxService) Reconcile(ctx context.Context, requestedBy string) (data.ReconciliationRun, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/transport"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"go.opentelemetry.io/otel"
 )
 
 const Version = "0.4.0"
@@ -38,13 +39,25 @@ func EnvDurationSeconds(key string, fallbackSeconds int) time.Duration {
 }
 
 func Logger(service string) log.Logger {
-	return log.With(log.NewStdLogger(os.Stdout),
-		"ts", log.DefaultTimestamp,
-		"caller", log.DefaultCaller,
-		"service.id", service,
-		"service.name", service,
-		"service.version", Version,
-	)
+	return structuredLogger{service: service}
+}
+
+type structuredLogger struct{ service string }
+
+func (l structuredLogger) Log(level log.Level, keyvals ...any) error {
+	fields := map[string]any{"service_version": Version}
+	for i := 0; i+1 < len(keyvals); i += 2 {
+		key, ok := keyvals[i].(string)
+		if !ok || key == "" {
+			key = fmt.Sprintf("field_%d", i/2)
+		}
+		fields[key] = keyvals[i+1]
+	}
+	if len(keyvals)%2 != 0 {
+		fields["malformed_keyvals"] = true
+	}
+	platform.StructuredLog(context.Background(), l.service, level.String(), "kratos", fields)
+	return nil
 }
 
 func NewApp(name string, servers ...transport.Server) *kratos.App {
@@ -62,16 +75,61 @@ func TraceMiddleware(service string) middleware.Middleware {
 	tracer := platform.Tracer(service)
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req any) (any, error) {
-			ctx = platform.WithRequestID(ctx, platform.RequestID(ctx))
-			ctx, span := tracer.Start(ctx, "kratos "+service)
+			ctx, operation := extractServerTrace(ctx, service)
+			ctx, span := tracer.Start(ctx, operation)
 			defer span.End()
+			writeTraceHeaders(ctx)
+			started := time.Now()
 			reply, err := handler(ctx, req)
 			if err != nil {
 				span.RecordError(err)
 			}
+			fields := map[string]any{
+				"route":       operation,
+				"outcome":     "ok",
+				"duration_ms": time.Since(started).Milliseconds(),
+			}
+			if err != nil {
+				fields["outcome"] = "error"
+			}
+			if userID := platform.UserIdentity(ctx); userID != "" {
+				fields["user_id"] = userID
+			}
+			platform.StructuredLog(ctx, service, logLevel(err), "request_completed", fields)
 			return reply, err
 		}
 	}
+}
+
+func extractServerTrace(ctx context.Context, service string) (context.Context, string) {
+	operation := "kratos " + service
+	if tr, ok := transport.FromServerContext(ctx); ok {
+		ctx = otel.GetTextMapPropagator().Extract(ctx, tr.RequestHeader())
+		ctx = platform.WithRequestID(ctx, tr.RequestHeader().Get("X-Request-Id"))
+		if tr.Operation() != "" {
+			operation = tr.Operation()
+		}
+		return ctx, operation
+	}
+	return platform.WithRequestID(ctx, platform.RequestID(ctx)), operation
+}
+
+func writeTraceHeaders(ctx context.Context) {
+	tr, ok := transport.FromServerContext(ctx)
+	if !ok {
+		return
+	}
+	if traceID := platform.TraceID(ctx); traceID != "" {
+		tr.ReplyHeader().Set("X-Trace-Id", traceID)
+	}
+	tr.ReplyHeader().Set("X-Request-Id", platform.RequestID(ctx))
+}
+
+func logLevel(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "info"
 }
 
 func RegisterHealth(server *khttp.Server, service string, checks map[string]func(context.Context) error) {

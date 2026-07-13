@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -27,13 +29,24 @@ type contextKey string
 
 const requestIDKey contextKey = "dramaip_request_id"
 
-var sensitivePatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?i)(sk-[a-z0-9_\-]{8,})`),
-	regexp.MustCompile(`(?i)(bearer\s+)[a-z0-9_\-\.]+`),
-	regexp.MustCompile(`(?i)(refresh[_-]?token["':=\s]+)[^"',\s]+`),
-	regexp.MustCompile(`(?i)(access[_-]?token["':=\s]+)[^"',\s]+`),
-	regexp.MustCompile(`(?i)(password["':=\s]+)[^"',\s]+`),
+type sensitivePattern struct {
+	pattern     *regexp.Regexp
+	replacement string
 }
+
+var sensitivePatterns = []sensitivePattern{
+	{regexp.MustCompile(`(?i)sk-[a-z0-9_\-]{8,}`), "[REDACTED]"},
+	{regexp.MustCompile(`(?i)(bearer\s+)[a-z0-9_\-\.]+`), "${1}[REDACTED]"},
+	{regexp.MustCompile(`(?i)(refresh[_-]?token["':=\s]+)[^"',\s]+`), "${1}[REDACTED]"},
+	{regexp.MustCompile(`(?i)(access[_-]?token["':=\s]+)[^"',\s]+`), "${1}[REDACTED]"},
+	{regexp.MustCompile(`(?i)(password["':=\s]+)[^"',\s]+`), "${1}[REDACTED]"},
+	{regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://[^:/\s]+:)[^@/\s]+@`), "${1}[REDACTED]@"},
+}
+
+var (
+	structuredLogMu     sync.Mutex
+	structuredLogWriter io.Writer = os.Stdout
+)
 
 func InitObservability(ctx context.Context, service string) func(context.Context) error {
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
@@ -97,6 +110,37 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, requestIDKey, id)
 }
 
+// ContextWithTraceID restores an asynchronous trace from the durable trace_id
+// stored by the outbox. A stored trace_id has no parent span ID, so the
+// generated remote span ID is deliberately synthetic; all following spans
+// still remain in the original trace instead of being split into a new one.
+// Invalid legacy IDs remain request IDs only and never become a fake OTel ID.
+func ContextWithTraceID(ctx context.Context, id string) context.Context {
+	if trace.SpanContextFromContext(ctx).IsValid() {
+		return ctx
+	}
+	ctx = WithRequestID(ctx, id)
+	traceID, err := trace.TraceIDFromHex(id)
+	if err != nil {
+		return ctx
+	}
+	var rawSpanID [8]byte
+	if _, err := rand.Read(rawSpanID[:]); err != nil {
+		return ctx
+	}
+	spanID := trace.SpanID(rawSpanID)
+	if !spanID.IsValid() {
+		return ctx
+	}
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
+	return trace.ContextWithRemoteSpanContext(ctx, spanContext)
+}
+
 func NewTraceLikeID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -113,22 +157,34 @@ func TraceMiddleware(service string, next http.Handler) http.Handler {
 		ctx = WithRequestID(ctx, requestID)
 		ctx, span := tracer.Start(ctx, r.Method+" "+r.URL.Path)
 		defer span.End()
+		started := time.Now()
 		traceID := TraceID(ctx)
 		if traceID != "" {
 			w.Header().Set("X-Trace-Id", traceID)
 		}
 		w.Header().Set("X-Request-Id", RequestID(ctx))
 		next.ServeHTTP(w, r.WithContext(ctx))
+		fields := map[string]any{
+			"http_method": r.Method,
+			"http_route":  r.URL.Path,
+			"duration_ms": time.Since(started).Milliseconds(),
+		}
+		if userID := UserIdentity(ctx); userID != "" {
+			fields["user_id"] = userID
+		}
+		StructuredLog(ctx, service, "info", "request_completed", fields)
 	})
 }
 
 func UnaryClientTraceInterceptor(service string) grpc.UnaryClientInterceptor {
 	tracer := Tracer(service)
 	return func(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		ctx = WithRequestID(ctx, RequestID(ctx))
 		ctx, span := tracer.Start(ctx, "grpc.client "+method)
 		defer span.End()
 		md, _ := metadata.FromOutgoingContext(ctx)
 		md = md.Copy()
+		md.Set("x-request-id", RequestID(ctx))
 		carrier := metadataCarrier(md)
 		otel.GetTextMapPropagator().Inject(ctx, carrier)
 		ctx = metadata.NewOutgoingContext(ctx, metadata.MD(carrier))
@@ -145,6 +201,7 @@ func UnaryServerTraceInterceptor(service string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
 		ctx = otel.GetTextMapPropagator().Extract(ctx, metadataCarrier(md.Copy()))
+		ctx = WithRequestID(ctx, firstMetadataValue(md, "x-request-id"))
 		ctx, span := tracer.Start(ctx, "grpc.server "+info.FullMethod)
 		defer span.End()
 		reply, err := handler(ctx, req)
@@ -155,36 +212,48 @@ func UnaryServerTraceInterceptor(service string) grpc.UnaryServerInterceptor {
 	}
 }
 
-func StructuredLog(ctx context.Context, service string, level string, operation string, fields map[string]any) {
-	if fields == nil {
-		fields = map[string]any{}
+func firstMetadataValue(md metadata.MD, key string) string {
+	values := md.Get(key)
+	if len(values) == 0 {
+		return ""
 	}
-	fields["timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
-	fields["level"] = level
-	fields["service"] = service
-	fields["env"] = Env("ENV", "dev")
-	fields["operation"] = operation
+	return values[0]
+}
+
+func StructuredLog(ctx context.Context, service string, level string, operation string, fields map[string]any) {
+	entry := redactMap(fields)
+	entry["timestamp"] = time.Now().UTC().Format(time.RFC3339Nano)
+	entry["level"] = level
+	entry["service"] = service
+	entry["env"] = Env("ENV", "dev")
+	entry["operation"] = operation
 	if traceID := TraceID(ctx); traceID != "" {
-		fields["trace_id"] = traceID
+		entry["trace_id"] = traceID
 	}
 	if spanID := SpanID(ctx); spanID != "" {
-		fields["span_id"] = spanID
+		entry["span_id"] = spanID
 	}
 	if requestID := RequestID(ctx); requestID != "" {
-		fields["request_id"] = requestID
+		entry["request_id"] = requestID
 	}
-	raw, err := json.Marshal(redactMap(fields))
+	raw, err := json.Marshal(entry)
 	if err != nil {
-		fmt.Fprintf(os.Stdout, `{"timestamp":%q,"level":"error","service":%q,"operation":"log_encode_failed","error":%q}`+"\n", time.Now().UTC().Format(time.RFC3339Nano), service, err.Error())
+		writeStructuredLog(fmt.Sprintf(`{"timestamp":%q,"level":"error","service":%q,"operation":"log_encode_failed","error":%q}`, time.Now().UTC().Format(time.RFC3339Nano), service, Redact(err.Error())))
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(raw))
+	writeStructuredLog(string(raw))
+}
+
+func writeStructuredLog(line string) {
+	structuredLogMu.Lock()
+	defer structuredLogMu.Unlock()
+	_, _ = fmt.Fprintln(structuredLogWriter, line)
 }
 
 func Redact(value string) string {
 	out := value
-	for _, pattern := range sensitivePatterns {
-		out = pattern.ReplaceAllString(out, "${1}[REDACTED]")
+	for _, rule := range sensitivePatterns {
+		out = rule.pattern.ReplaceAllString(out, rule.replacement)
 	}
 	return out
 }
@@ -192,18 +261,57 @@ func Redact(value string) string {
 func redactMap(input map[string]any) map[string]any {
 	out := make(map[string]any, len(input))
 	for key, value := range input {
-		lower := strings.ToLower(key)
-		if strings.Contains(lower, "token") || strings.Contains(lower, "password") || strings.Contains(lower, "secret") || strings.Contains(lower, "api_key") {
-			out[key] = "[REDACTED]"
-			continue
-		}
-		if text, ok := value.(string); ok {
-			out[key] = Redact(text)
-			continue
-		}
-		out[key] = value
+		out[key] = redactValue(key, value)
 	}
 	return out
+}
+
+func redactValue(key string, value any) any {
+	if sensitiveLogKey(key) {
+		return "[REDACTED]"
+	}
+	switch typed := value.(type) {
+	case string:
+		return Redact(typed)
+	case error:
+		return Redact(typed.Error())
+	case map[string]any:
+		return redactMap(typed)
+	case map[string]string:
+		out := make(map[string]string, len(typed))
+		for nestedKey, nestedValue := range typed {
+			redacted := redactValue(nestedKey, nestedValue)
+			out[nestedKey], _ = redacted.(string)
+		}
+		return out
+	case []any:
+		out := make([]any, len(typed))
+		for i, nestedValue := range typed {
+			out[i] = redactValue(key, nestedValue)
+		}
+		return out
+	case []string:
+		out := make([]string, len(typed))
+		for i, nestedValue := range typed {
+			out[i] = Redact(nestedValue)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+func sensitiveLogKey(key string) bool {
+	lower := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	for _, fragment := range []string{
+		"token", "password", "secret", "api_key", "apikey", "authorization", "cookie", "credential", "private_key",
+		"body", "payload", "content", "prompt", "message", "messages", "input", "output", "response",
+	} {
+		if strings.Contains(lower, fragment) {
+			return true
+		}
+	}
+	return false
 }
 
 type metadataCarrier metadata.MD

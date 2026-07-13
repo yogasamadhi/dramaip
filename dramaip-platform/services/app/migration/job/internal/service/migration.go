@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"log"
 
 	"github.com/dramaip/dramaip-platform/services/app/migration/job/internal/biz"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type MigrationService struct {
@@ -19,6 +19,6 @@ func (s *MigrationService) Run(ctx context.Context) error {
 	if err := s.uc.Run(ctx); err != nil {
 		return err
 	}
-	log.Printf("migrations applied")
+	platform.StructuredLog(ctx, "migration-job", "info", "migrations_applied", nil)
 	return nil
 }

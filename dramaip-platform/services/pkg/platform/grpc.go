@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"log"
 	"net"
 
 	"google.golang.org/grpc"
@@ -18,7 +17,7 @@ func ServeGRPC(addr string, register func(*grpc.Server)) error {
 	}
 	server := grpc.NewServer(grpc.UnaryInterceptor(UnaryServerTraceInterceptor(Env("OTEL_SERVICE_NAME", "dramaip-grpc"))))
 	register(server)
-	log.Printf("gRPC listening on %s", addr)
+	StructuredLog(context.Background(), Env("OTEL_SERVICE_NAME", "dramaip-grpc"), "info", "grpc_listening", map[string]any{"address": addr})
 	return server.Serve(listener)
 }
 

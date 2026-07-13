@@ -1,7 +1,7 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
 COMPOSE_ENV ?= services/.env
 
-.PHONY: platform-up platform-down platform-logs platform-e2e web-route-smoke test
+.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke web-route-smoke test
 
 platform-up:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
@@ -14,6 +14,9 @@ platform-logs:
 
 platform-e2e:
 	node scripts/platform-e2e.mjs
+
+observability-smoke:
+	node scripts/observability-smoke.mjs
 
 web-route-smoke:
 	node scripts/web-route-smoke.mjs

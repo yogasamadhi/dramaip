@@ -451,7 +451,7 @@ services:
     image: prom/prometheus:v3.11.3
     pull_policy: missing
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./docker-data/prometheus:/prometheus
@@ -470,8 +470,8 @@ services:
     pull_policy: missing
     command: ["--config", "/etc/otelcol-contrib/config.yaml"]
     ports:
-      - "4317:4317"     # OTLP gRPC（Kratos OTel exporter 发往这里）
-      - "4318:4318"     # OTLP HTTP
+      - "127.0.0.1:4317:4317"     # OTLP gRPC（Kratos OTel exporter 发往这里）
+      - "127.0.0.1:4318:4318"     # OTLP HTTP
     volumes:
       - ./otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
     depends_on:
@@ -485,13 +485,13 @@ services:
     pull_policy: missing
     command: ["--config", "/jaeger/config.yaml"]
     ports:
-      - "16686:16686"   # Jaeger UI
+      - "127.0.0.1:16686:16686"   # Jaeger UI（local development only）
     volumes:
       - ./jaeger/config.yaml:/jaeger/config.yaml:ro
       - ./docker-data/jaeger:/badger
 
   # ────── 日志 (Logging)：采集 → 存储/检索 → UI（深挖到「哪一行」）──────
-  # 日志采集：tail docker json-file + opensearch output 直连（无认证）。
+  # 日志采集：tail docker json-file + 本机开发 OpenSearch 直连（无认证）。
   # 注：Fluent Bit 无 `docker` filter 插件；容器【名】需改用 fluentbit 日志驱动或 Lua 注入。
   # 挂宿主 /var/lib/docker/containers 是采集容器日志的标配；state 卷持久化 tail DB 偏移，
   # 避免 fluent-bit 重启后从头重读 → OpenSearch 日志重复。
@@ -506,8 +506,9 @@ services:
     depends_on:
       - opensearch
 
-  # OpenSearch 存储/检索。security plugin 禁用
-  # （dev/内网起步最简，Dashboards 免认证直连）；生产环境再开。
+  # OpenSearch 存储/检索。此 Compose 服务仅用于本机开发：安全插件关闭且所有
+  # 端口限制在 loopback。生产环境不得复用它，必须使用启用认证、TLS、索引
+  # 生命周期和最小权限角色的受管/受控 OpenSearch 集群（见 docs/LOCAL_DEVELOPMENT.md）。
   opensearch:
     container_name: drama-opensearch
     image: opensearchproject/opensearch:3.6.0
@@ -528,8 +529,8 @@ services:
         soft: 65536
         hard: 65536
     ports:
-      - "9200:9200"   # REST API（Dashboards / Fluent Bit 连）
-      - "9600:9600"   # 性能指标，留作后续 prometheus 抓
+      - "127.0.0.1:9200:9200"   # REST API（Dashboards / Fluent Bit 连）
+      - "127.0.0.1:9600:9600"   # 性能指标，留作后续 prometheus 抓
     volumes:
       - ./docker-data/opensearch:/usr/share/opensearch/data
 
@@ -541,7 +542,7 @@ services:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"   # 配合 OS 侧 plugins.security.disabled=true，移除登录页与 tenantinfo 400
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     depends_on:
       - opensearch
 
@@ -554,7 +555,7 @@ services:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-dramaip}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dramaip}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./docker-data/grafana:/var/lib/grafana
