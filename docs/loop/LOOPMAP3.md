@@ -1224,3 +1224,19 @@ Loop branch cleanup: Delete `loop/lm3-27-desktop-cloud-ai` after the closing mer
 Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
 Notes: Cloud login remains feature-disabled by default. A rollback disables Cloud access while preserving local-first editing and BYOK configurations; the Cloud virtual model stores only `cloud://<provider>` and no platform API Key.
 ```
+
+```text
+Loop: LM3-28
+Target branch: main
+Loop branch: loop/lm3-28-mobile-auth-brief
+Commit(s): caa25d7 loop(LM3-28): add mobile secure login and brief; this completion-record commit.
+Merge commit: The required closing no-ff merge follows after synchronization with origin/main.
+Verification: `buf lint` and full `GOCACHE=/tmp/dramaip-go-lm3-28 go test ./...` passed. `pnpm lint`, `pnpm typecheck`, and the Mobile secure-storage smoke passed. Expo public-config inspection and iOS/Android export bundle smoke both passed. `make observability-config-smoke`, Docker Compose configuration, Helm lint (with development persistence disabled for rendering), and development/production Helm renders passed. Mobile BFF HTTP tests cover login/refresh, trusted identity propagation, compact response shape, unauthenticated access, strict JSON input, and metrics.
+Runtime limitation: Live Kong/Mobile BFF and device E2E are not claimed. The pre-existing user-owned Compose stack still does not provide a healthy `localhost:8000` endpoint; it was not started, stopped, rebuilt, or deleted. Run the documented device login/refresh/offline/expiry smoke on a restored healthy environment before production enablement. No real payment, payment-provider, or AI-provider action was initiated.
+Diff review: Reviewed all functional and generated protobuf changes and ran staged/working-tree `git diff --check`. The change adds a separate Mobile BFF contract/application, OS secure refresh-token storage, in-memory access token, compact three-field account summary, strict auth input validation, gateway/Compose/Helm/metrics wiring, Expo iOS/Android bundle compatibility, focused tests, and documentation. It contains no user password, real token, API key, payment material, provider credential, certificate, cache, database, or generated build artifact.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before the loop branch was created; the same synchronization is repeated immediately before the closing merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-28-mobile-auth-brief` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
+Notes: Refresh tokens remain in iOS Keychain/Android Keystore through Expo SecureStore; access tokens are never persisted. Offline restore retains the refresh credential for retry, while a confirmed 401 clears it and returns the user to login. Mobile authoring, cross-device sync, and desktop handoff remain LM3-29 scope.
+```
