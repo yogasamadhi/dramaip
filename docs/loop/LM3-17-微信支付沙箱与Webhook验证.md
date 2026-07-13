@@ -52,11 +52,15 @@ Secret 仅挂载到 billing workload。`Wechatpay-Serial` 必须和此配置完�
 会创建只匹配 `/v1/webhooks/wechat-pay` 的 billing Ingress，并附加独立限流和大小限制插件；不附加
 CORS 或 JWT 插件。
 
-官方沙箱操作顺序：创建可用的 native-payment 沙箱商户配置 → 通过已认证的 Web checkout 选择
+若未来需要实际开启渠道，官方沙箱操作顺序为：创建可用的 native-payment 沙箱商户配置 → 通过已认证的 Web checkout 选择
 `provider=wechat_pay` → 扫描返回的 `code_url` 完成付款 → 在支付平台侧确认 callback 为 2xx → 核对
 `billing.orders`、`billing.payments`、`billing.webhook_events`、`billing.subscriptions`、
 `quota.token_accounts` 与 outbox/消费者记录。付款页或前端回跳不能作为成功证据；只有上述服务端查询
 和 Saga 终态才可判定成功。
+
+2026-07-13，项目所有者明确授权跳过这一次真实付款演练。因此仓库中没有也不应加入沙箱商户证书、
+APIv3 key、付款记录或公网回调记录；现有实现、自动化测试与部署接线可以交付，但不能据此宣称真实
+微信渠道已经开通。任何未来把 `WECHAT_PAY_ENABLED` 设为 `true` 的环境，都必须先执行上述演练。
 
 ## 自动验证
 
