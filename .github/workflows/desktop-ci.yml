@@ -1,13 +1,37 @@
-name: CI
+name: DramaIP desktop CI
 
 on:
   pull_request:
+    paths:
+      - 'dramaip-desktop/**'
+      - '.github/workflows/desktop-ci.yml'
   push:
     branches:
       - main
+    tags:
+      - 'v*'
+    paths:
+      - 'dramaip-desktop/**'
+      - '.github/workflows/desktop-ci.yml'
+  schedule:
+    - cron: '43 3 * * *'
+  workflow_dispatch:
+    inputs:
+      run_package_smoke:
+        description: 'Build native packages and run the cross-platform package smoke'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: read
+
+concurrency:
+  group: desktop-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
@@ -16,6 +40,9 @@ jobs:
     timeout-minutes: 30
     env:
       CI: true
+    defaults:
+      run:
+        working-directory: dramaip-desktop
 
     steps:
       - name: Checkout
@@ -31,6 +58,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: dramaip-desktop/pnpm-lock.yaml
 
       - name: Resolve pnpm store
         id: pnpm-store
@@ -44,13 +72,16 @@ jobs:
             ${{ steps.pnpm-store.outputs.path }}
             ~/.cache/electron
             ~/.cache/electron-builder
-            node_modules/.pnpm/**/better-sqlite3
-          key: ${{ runner.os }}-node22-native-${{ hashFiles('pnpm-lock.yaml') }}
+            dramaip-desktop/node_modules/.pnpm/**/better-sqlite3
+          key: ${{ runner.os }}-node22-native-${{ hashFiles('dramaip-desktop/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-node22-native-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint without prompts
+        run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -61,9 +92,16 @@ jobs:
       - name: DB smoke
         run: pnpm test:db
 
+      - name: Build desktop application
+        run: pnpm build
+
   package-smoke:
     name: Package smoke (${{ matrix.os }})
     needs: verify
+    if: >-
+      github.event_name == 'schedule' ||
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_package_smoke == 'true')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -80,6 +118,9 @@ jobs:
       CI: true
       CSC_IDENTITY_AUTO_DISCOVERY: false
       USE_HARD_LINKS: false
+    defaults:
+      run:
+        working-directory: dramaip-desktop
 
     steps:
       - name: Checkout
@@ -95,6 +136,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+          cache-dependency-path: dramaip-desktop/pnpm-lock.yaml
 
       - name: Install Linux package smoke dependencies
         if: runner.os == 'Linux'
@@ -114,8 +156,8 @@ jobs:
             ${{ steps.pnpm-store.outputs.path }}
             ~/.cache/electron
             ~/.cache/electron-builder
-            node_modules/.pnpm/**/better-sqlite3
-          key: package-${{ runner.os }}-node22-native-${{ hashFiles('pnpm-lock.yaml') }}
+            dramaip-desktop/node_modules/.pnpm/**/better-sqlite3
+          key: package-${{ runner.os }}-node22-native-${{ hashFiles('dramaip-desktop/pnpm-lock.yaml') }}
           restore-keys: |
             package-${{ runner.os }}-node22-native-
 
