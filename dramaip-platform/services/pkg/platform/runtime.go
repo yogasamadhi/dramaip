@@ -29,6 +29,14 @@ func EnvInt(key string, fallback int) int {
 	return value
 }
 
+func EnvBool(key string, fallback bool) bool {
+	value, err := strconv.ParseBool(Env(key, ""))
+	if err != nil {
+		return fallback
+	}
+	return value
+}
+
 func EnvDurationSeconds(key string, fallbackSeconds int) time.Duration {
 	return time.Duration(EnvInt(key, fallbackSeconds)) * time.Second
 }

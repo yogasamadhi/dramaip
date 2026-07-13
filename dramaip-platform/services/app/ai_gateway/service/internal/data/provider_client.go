@@ -66,7 +66,7 @@ type Data struct {
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
-	db, err := platform.OpenPostgres()
+	db, err := platform.OpenDomainPostgres(context.Background(), "ai_gateway")
 	if err != nil {
 		return nil, nil, err
 	}

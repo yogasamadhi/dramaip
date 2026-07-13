@@ -66,7 +66,7 @@ type UsageTrendPoint struct {
 }
 
 func NewData(_ *conf.Bootstrap) (*Data, func(), error) {
-	db, err := platform.OpenPostgres()
+	db, err := platform.OpenDomainPostgres(context.Background(), "quota")
 	if err != nil {
 		return nil, nil, err
 	}

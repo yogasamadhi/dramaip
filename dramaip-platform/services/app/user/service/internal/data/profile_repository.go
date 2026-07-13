@@ -24,7 +24,7 @@ type ProfileRow struct {
 }
 
 func NewData(_ *conf.Bootstrap) (*Data, func(), error) {
-	db, err := platform.OpenPostgres()
+	db, err := platform.OpenDomainPostgres(context.Background(), "user_profile")
 	if err != nil {
 		return nil, nil, err
 	}

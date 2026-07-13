@@ -43,7 +43,7 @@ images:
 config:
   env: dev
   logLevel: debug
-  autoMigrate: "true"
+  autoMigrate: "false"
   postgres:
     host: postgres
     sslmode: disable
@@ -71,6 +71,12 @@ migrations:
 secret:
   postgresUser: dramaip
   postgresPassword: dramaip
+  postgresAuthPassword: dramaip
+  postgresUserProfilePassword: dramaip
+  postgresBillingPassword: dramaip
+  postgresQuotaPassword: dramaip
+  postgresAIGatewayPassword: dramaip
+  postgresNotificationPassword: dramaip
   redisPassword: dramaip
   rabbitmqUser: dramaip
   rabbitmqPassword: dramaip

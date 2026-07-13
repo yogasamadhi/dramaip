@@ -53,7 +53,7 @@ services:
     volumes:
       - ./docker-data/postgres:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dramaip -d dramaip"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -107,6 +107,15 @@ services:
     environment:
       <<: *app-env
       OTEL_SERVICE_NAME: dramaip-migrate
+      # The one-shot migration job is the only process that receives the DDL
+      # identity and the bootstrap passwords for all runtime database roles.
+      DB_ROLE_BOOTSTRAP: ${DB_ROLE_BOOTSTRAP:-true}
+      POSTGRES_AUTH_PASSWORD: ${POSTGRES_AUTH_PASSWORD:-dramaip}
+      POSTGRES_USER_PROFILE_PASSWORD: ${POSTGRES_USER_PROFILE_PASSWORD:-dramaip}
+      POSTGRES_BILLING_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-dramaip}
+      POSTGRES_QUOTA_PASSWORD: ${POSTGRES_QUOTA_PASSWORD:-dramaip}
+      POSTGRES_AI_GATEWAY_PASSWORD: ${POSTGRES_AI_GATEWAY_PASSWORD:-dramaip}
+      POSTGRES_NOTIFICATION_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,6 +132,8 @@ services:
         OUTPUT: dramaip-auth
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_auth
+      POSTGRES_PASSWORD: ${POSTGRES_AUTH_PASSWORD:-dramaip}
       AUTH_HTTP_ADDR: ":8101"
       AUTH_GRPC_ADDR: ":9101"
       REDIS_ADDR: redis:6379
@@ -158,6 +169,8 @@ services:
         OUTPUT: dramaip-user
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_user
+      POSTGRES_PASSWORD: ${POSTGRES_USER_PROFILE_PASSWORD:-dramaip}
       USER_HTTP_ADDR: ":8102"
       USER_GRPC_ADDR: ":9102"
       OTEL_SERVICE_NAME: dramaip-user
@@ -174,6 +187,8 @@ services:
         OUTPUT: dramaip-billing
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_billing
+      POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-dramaip}
       BILLING_HTTP_ADDR: ":8103"
       BILLING_GRPC_ADDR: ":9103"
       QUOTA_GRPC_ENDPOINT: quota:9104
@@ -192,6 +207,8 @@ services:
         OUTPUT: dramaip-quota
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_quota
+      POSTGRES_PASSWORD: ${POSTGRES_QUOTA_PASSWORD:-dramaip}
       QUOTA_HTTP_ADDR: ":8104"
       QUOTA_GRPC_ADDR: ":9104"
       OTEL_SERVICE_NAME: dramaip-quota
@@ -208,6 +225,8 @@ services:
         OUTPUT: dramaip-ai-gateway
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_ai_gateway
+      POSTGRES_PASSWORD: ${POSTGRES_AI_GATEWAY_PASSWORD:-dramaip}
       AI_GATEWAY_HTTP_ADDR: ":8105"
       AI_GATEWAY_GRPC_ADDR: ":9105"
       # ai-gateway 调用 quota（ReserveTokens/SettleTokens ...）。
@@ -233,6 +252,8 @@ services:
         OUTPUT: dramaip-notification
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_notification
+      POSTGRES_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
       NOTIFICATION_HTTP_ADDR: ":8108"
       NOTIFICATION_GRPC_ADDR: ":9106"
       OTEL_SERVICE_NAME: dramaip-notification
@@ -249,6 +270,8 @@ services:
         OUTPUT: dramaip-notification-job
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_notification
+      POSTGRES_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
       NOTIFICATION_JOB_HTTP_ADDR: ":8109"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
@@ -287,6 +310,8 @@ services:
         OUTPUT: dramaip-billing-job
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_billing
+      POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-dramaip}
       BILLING_JOB_HTTP_ADDR: ":8106"
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
       OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
@@ -320,6 +345,8 @@ services:
         OUTPUT: dramaip-quota-job
     environment:
       <<: *app-env
+      POSTGRES_USER: dramaip_quota
+      POSTGRES_PASSWORD: ${POSTGRES_QUOTA_PASSWORD:-dramaip}
       QUOTA_JOB_HTTP_ADDR: ":8107"
       QUOTA_JOB_TICK_SECONDS: ${QUOTA_JOB_TICK_SECONDS:-60}
       OTEL_SERVICE_NAME: dramaip-quota-job
@@ -337,6 +364,13 @@ services:
     environment:
       <<: *app-env
       # BFF 自己只读这 7 个变量；POSTGRES/REDIS/JWT/MIGRATIONS 归下游服务。
+      # Override inherited values so the BFF never receives a usable database
+      # credential, even though it shares the common runtime environment.
+      POSTGRES_HOST: ""
+      POSTGRES_PORT: ""
+      POSTGRES_USER: ""
+      POSTGRES_PASSWORD: ""
+      POSTGRES_DB: ""
       WEB_BFF_HTTP_ADDR: ":8100"
       AUTH_GRPC_ENDPOINT: auth:9101
       USER_GRPC_ENDPOINT: user:9102

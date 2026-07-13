@@ -23,6 +23,9 @@ type migrationFile struct {
 }
 
 func RunMigrations(db *gorm.DB, root string) error {
+	if err := BootstrapDatabaseRoles(context.Background(), db); err != nil {
+		return fmt.Errorf("bootstrap database roles: %w", err)
+	}
 	files, err := scanMigrationFiles(root)
 	if err != nil {
 		return err

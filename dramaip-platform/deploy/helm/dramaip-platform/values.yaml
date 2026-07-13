@@ -220,8 +220,16 @@ devInfra:
 
 secret:
   existingSecret: ""
+  # DDL-only identity used by the migration Job. It is intentionally overridden
+  # in every runtime workload by its schema-specific role below.
   postgresUser: dramaip
   postgresPassword: change-me
+  postgresAuthPassword: change-me
+  postgresUserProfilePassword: change-me
+  postgresBillingPassword: change-me
+  postgresQuotaPassword: change-me
+  postgresAIGatewayPassword: change-me
+  postgresNotificationPassword: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -268,6 +276,9 @@ internalMTLS:
 migrations:
   enabled: true
   useHelmHook: true
+  # Requires the migration identity to have CREATEROLE. Set false only after
+  # the six runtime roles have been pre-provisioned by the database operator.
+  bootstrapRuntimeRoles: true
   serviceAccountName: ""
   backoffLimit: 2
 
