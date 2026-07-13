@@ -72,6 +72,12 @@ kong:
       origins:
         - https://app.staging.example.invalid
 
+adminIngress:
+  cors:
+    enabled: true
+    origins:
+      - https://admin.staging.example.invalid
+
 autoscaling:
   enabled: true
   minReplicas: 1

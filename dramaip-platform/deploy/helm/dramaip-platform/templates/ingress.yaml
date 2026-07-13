@@ -60,6 +60,55 @@ spec:
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}
+{{- end }}
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.adminIngress.enabled }}
+{{- $adminPluginNames := list -}}
+{{- $adminAnnotations := omit .Values.adminIngress.annotations "konghq.com/plugins" -}}
+{{- if and .Values.kong.plugins.enabled .Values.adminIngress.cors.enabled -}}
+{{- $adminPluginNames = append $adminPluginNames (printf "%s-admin-cors" (include "dramaip-platform.fullname" .)) -}}
+{{- end -}}
+{{- if and .Values.kong.plugins.enabled .Values.adminIngress.rateLimiting.enabled -}}
+{{- $adminPluginNames = append $adminPluginNames (printf "%s-admin-rate-limiting" (include "dramaip-platform.fullname" .)) -}}
+{{- end -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-admin-bff
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin-bff
+  {{- if or $adminAnnotations $adminPluginNames }}
+  annotations:
+    {{- if $adminPluginNames }}
+    konghq.com/plugins: {{ join "," $adminPluginNames | quote }}
+    {{- end }}
+    {{- with $adminAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- $adminHosts := default .Values.ingress.hosts .Values.adminIngress.hosts }}
+    {{- range $adminHosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: /v1/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dramaip-platform.fullname" $ }}-admin-bff
+                port:
+                  number: 8130
     {{- end }}
 {{- end }}
 {{- if and .Values.ingress.enabled .Values.payment.wechat.enabled }}

@@ -84,6 +84,12 @@ The chart can render Kong CRDs for edge concerns:
 - `KongPlugin` `cors`
 - `KongPlugin` `rate-limiting`
 
+`/v1/admin` is a separate Ingress to `admin-bff`, with an independently
+configured, stricter rate limit. It does not inherit the Web Cookie CORS policy.
+When the separately deployed Admin SPA uses a different origin, set an exact
+`adminIngress.cors.origins` value; cross-origin Admin access is disabled by
+default.
+
 They are enabled when `ingress.enabled=true` and `kong.plugins.enabled=true`.
 The Ingress is annotated with `konghq.com/plugins` automatically.
 
