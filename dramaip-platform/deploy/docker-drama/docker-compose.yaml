@@ -1,11 +1,11 @@
-# 全栈本地开发编排：基础设施 + 8 个 Go 微服务 + Kong + 可观测性。
+# 全栈本地开发编排：基础设施 + 9 个 Go 微服务 + Kong + 可观测性。
 #
-# 8 个 Go 服务统一用 services/Dockerfile.service + build.args.TARGET 构建，
+# 9 个 Go 服务统一用 services/Dockerfile.service + build.args.TARGET 构建，
 # 与 K8s chart（deploy/helm/dramaip-platform/templates/deployment.yaml）同源。
 # 修改 Go 代码后用 `make platform-up`（即 docker compose up -d --build）重建。
 #
 # 服务间 gRPC 走 compose 内部 DNS（如 web-bff → auth:9101）；下游服务的
-# 8101–8107 / 9101–9105 不映射到主机，外部访问统一经 Kong :8000 → web-bff:8100。
+# 8101–8108 / 9101–9106 不映射到主机，外部访问统一经 Kong :8000 → web-bff:8100。
 
 # 共享锚点：所有 app 服务都继承这套通用 env + 重启策略 + 基础依赖。
 x-app-common: &app-common
@@ -221,6 +221,22 @@ services:
       AI_TEST_PROVIDER_ENABLED: ${AI_TEST_PROVIDER_ENABLED:-true}
       OTEL_SERVICE_NAME: dramaip-ai-gateway
 
+  notification:
+    <<: *app-common
+    container_name: drama-notification
+    image: dramaip-notification
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/notification/service/cmd/server
+        OUTPUT: dramaip-notification
+    environment:
+      <<: *app-env
+      NOTIFICATION_HTTP_ADDR: ":8108"
+      NOTIFICATION_GRPC_ADDR: ":9106"
+      OTEL_SERVICE_NAME: dramaip-notification
+
   billing-job:
     <<: *app-common
     container_name: drama-billing-job
@@ -281,13 +297,14 @@ services:
         OUTPUT: dramaip-web-bff
     environment:
       <<: *app-env
-      # BFF 自己只读这 6 个变量；POSTGRES/REDIS/JWT/MIGRATIONS 归下游服务。
+      # BFF 自己只读这 7 个变量；POSTGRES/REDIS/JWT/MIGRATIONS 归下游服务。
       WEB_BFF_HTTP_ADDR: ":8100"
       AUTH_GRPC_ENDPOINT: auth:9101
       USER_GRPC_ENDPOINT: user:9102
       BILLING_GRPC_ENDPOINT: billing:9103
       QUOTA_GRPC_ENDPOINT: quota:9104
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
+      NOTIFICATION_GRPC_ENDPOINT: notification:9106
       OTEL_SERVICE_NAME: dramaip-web-bff
 
   # Application external entry — the ONLY API service clients may reach from outside.
@@ -314,7 +331,7 @@ services:
       - web-bff
 
   # ─────────────────── 可观测性 ───────────────────
-  # 三大支柱（8 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，
+  # 三大支柱（9 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，
   # logs 走 stdout 由宿主 docker json-file 落盘、再由 fluent-bit 采集。
   # 书写顺序≠启动顺序（启动由 depends_on 拓扑决定），这里按「排查优先级」排——
   # 接到告警后的典型动线：指标发现问题 → 链路定位服务 → 日志深挖到行。

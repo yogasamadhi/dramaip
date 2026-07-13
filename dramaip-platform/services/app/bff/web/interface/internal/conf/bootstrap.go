@@ -24,12 +24,13 @@ type EndpointConfig struct {
 }
 
 type DownstreamConfig struct {
-	AuthEndpoint      string `yaml:"auth_grpc_addr"`
-	UserEndpoint      string `yaml:"user_grpc_addr"`
-	BillingEndpoint   string `yaml:"billing_grpc_addr"`
-	QuotaEndpoint     string `yaml:"quota_grpc_addr"`
-	AIGatewayEndpoint string `yaml:"ai_gateway_grpc_addr"`
-	DialTimeout       string `yaml:"dial_timeout"`
+	AuthEndpoint         string `yaml:"auth_grpc_addr"`
+	UserEndpoint         string `yaml:"user_grpc_addr"`
+	BillingEndpoint      string `yaml:"billing_grpc_addr"`
+	QuotaEndpoint        string `yaml:"quota_grpc_addr"`
+	AIGatewayEndpoint    string `yaml:"ai_gateway_grpc_addr"`
+	NotificationEndpoint string `yaml:"notification_grpc_addr"`
+	DialTimeout          string `yaml:"dial_timeout"`
 }
 
 type SessionConfig struct {
@@ -41,12 +42,13 @@ func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8100"}},
 		Downstream: DownstreamConfig{
-			AuthEndpoint:      "localhost:9101",
-			UserEndpoint:      "localhost:9102",
-			BillingEndpoint:   "localhost:9103",
-			QuotaEndpoint:     "localhost:9104",
-			AIGatewayEndpoint: "localhost:9105",
-			DialTimeout:       "15s",
+			AuthEndpoint:         "localhost:9101",
+			UserEndpoint:         "localhost:9102",
+			BillingEndpoint:      "localhost:9103",
+			QuotaEndpoint:        "localhost:9104",
+			AIGatewayEndpoint:    "localhost:9105",
+			NotificationEndpoint: "localhost:9106",
+			DialTimeout:          "15s",
 		},
 		Environment: "development",
 		Session:     SessionConfig{RefreshCookieTTL: "720h"},
@@ -63,6 +65,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.BillingEndpoint = kratosx.Env("BILLING_GRPC_ENDPOINT", cfg.Downstream.BillingEndpoint)
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
+	cfg.Downstream.NotificationEndpoint = kratosx.Env("NOTIFICATION_GRPC_ENDPOINT", cfg.Downstream.NotificationEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("WEB_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {

@@ -23,6 +23,8 @@ data:
   QUOTA_GRPC_ADDR: {{ .Values.config.quotaGrpcAddr | quote }}
   AI_GATEWAY_HTTP_ADDR: {{ .Values.config.aiGatewayHttpAddr | quote }}
   AI_GATEWAY_GRPC_ADDR: {{ .Values.config.aiGatewayGrpcAddr | quote }}
+  NOTIFICATION_HTTP_ADDR: {{ .Values.config.notificationHttpAddr | quote }}
+  NOTIFICATION_GRPC_ADDR: {{ .Values.config.notificationGrpcAddr | quote }}
   BILLING_JOB_HTTP_ADDR: {{ .Values.config.billingJobHttpAddr | quote }}
   QUOTA_JOB_HTTP_ADDR: {{ .Values.config.quotaJobHttpAddr | quote }}
   AUTO_MIGRATE: {{ .Values.config.autoMigrate | quote }}
@@ -51,6 +53,7 @@ data:
   BILLING_GRPC_ENDPOINT: {{ .Values.config.downstream.billingGrpcEndpoint | quote }}
   QUOTA_GRPC_ENDPOINT: {{ .Values.config.downstream.quotaGrpcEndpoint | quote }}
   AI_GATEWAY_GRPC_ENDPOINT: {{ .Values.config.downstream.aiGatewayGrpcEndpoint | quote }}
+  NOTIFICATION_GRPC_ENDPOINT: {{ .Values.config.downstream.notificationGrpcEndpoint | quote }}
   AI_PROVIDERS: {{ .Values.config.ai.providers | quote }}
   AI_PROVIDER_DEFAULT: {{ .Values.config.ai.defaultProvider | quote }}
   AI_PROVIDER_BASE_URL: {{ .Values.config.ai.providerBaseUrl | quote }}

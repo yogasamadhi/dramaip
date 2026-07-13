@@ -58,7 +58,7 @@
 
 - 桌面端已经覆盖本地项目、小说、改编、剧本、分镜、视频前置、导出、备份、项目包和 AI 工作流。
 - 桌面端已有类型检查、单元测试、DB migration replay、DB smoke、Electron E2E 和打包 smoke 入口。
-- 平台端已有 auth、user、billing、quota、ai-gateway、billing-job、quota-job、migration-job 和通用 BFF 骨架。
+- 平台端已有 auth、user、billing、quota、ai-gateway、notification、billing-job、quota-job、migration-job 和 Web BFF 骨架。
 - Compose、Kong、PostgreSQL、Redis、RabbitMQ、Prometheus、Jaeger、OpenSearch、Grafana 等目录已存在。
 - Web 已有登录、注册、套餐、账号、订单、用量和 Cloud AI 页面骨架；Mobile 已有 Expo Router 骨架。
 - SDK、proto、Go 单模块 monorepo 和 `/v1/...` 路由已部分落地。
@@ -92,7 +92,7 @@
 | 差异 | 对应 Loop | 目标结果 |
 | --- | --- | --- |
 | D-001 通用 BFF 未分端 | LM3-02、LM3-25、LM3-27、LM3-29 | Web/Desktop/Mobile/Admin 使用独立 BFF |
-| D-002 BFF 直连 notification schema | LM3-08、LM3-10 | BFF 只调用 notification API，DB role 强制边界 |
+| D-002 BFF 直连 notification schema | LM3-08（done）、LM3-10 | BFF 只调用 notification API，DB role 强制边界 |
 | D-003 缺少事件契约 | LM3-04 | 事件 schema 版本化并由 CI 校验 |
 | D-004 BFF 测试使用无版本路径 | LM3-01 | API、SDK、测试统一 `/v1/...` |
 | D-005 套餐快照不完整 | LM3-11 | 订单、订阅、周期账户可重建历史权益 |
@@ -100,7 +100,7 @@
 | D-007 DB role 未隔离 | LM3-10 | 服务只能访问自己 schema |
 | D-008 生产仍使用 HS256 | LM3-05（done） | RS256 + JWKS + key rotation |
 | D-009 Web token 存 localStorage | LM3-06（done） | HttpOnly Cookie + CSRF，长期 token 不进 localStorage |
-| D-010 notification 无独立 service/job | LM3-08、LM3-09 | notification 同步和异步边界完整 |
+| D-010 notification 无独立 service/job | LM3-08（service done）、LM3-09 | notification 同步和异步边界完整 |
 | D-011 缺少独立管理后台 | LM3-29、LM3-30 | Admin 独立认证、BFF、RBAC、审计和 UI |
 
 ## 2. 兼容、安全、数据与产品约束
@@ -215,7 +215,7 @@ make platform-down
 | LM3-05 | P0 | Auth/安全 | done | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
 | LM3-06 | P0 | Web/Auth | done | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
 | LM3-07 | P0 | 平台安全 | done | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
-| LM3-08 | P0 | Notification | todo | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
+| LM3-08 | P0 | Notification | done | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
 | LM3-09 | P1 | Notification | todo | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |
 | LM3-10 | P0 | 数据平台 | todo | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、CI | LM3-08 |
 | LM3-11 | P0 | Billing | todo | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |

@@ -12,11 +12,13 @@ import (
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -51,6 +53,7 @@ func TestBFFHTTPFlow(t *testing.T) {
 			t.Fatalf("notifications = %+v", got)
 		}
 	})
+	postJSON(t, router, "/v1/me/notifications/n1/read", token, `{}`, http.StatusOK)
 	getJSON(t, router, http.MethodGet, "/v1/me/account-report", token, http.StatusOK, func(got map[string]any) {
 		if got["order_summary"] == nil || got["usage_summary"] == nil {
 			t.Fatalf("account report = %+v", got)
@@ -204,7 +207,7 @@ func newTestHTTPService() *HTTPService {
 
 func newTestHTTPServiceWithConfig(cfg *conf.Bootstrap) *HTTPService {
 	uc := biz.NewBFFUsecase(&data.Data{
-		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{},
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
 	})
 	return NewHTTPService(uc, cfg)
 }
@@ -376,4 +379,40 @@ type fakeAI struct{}
 
 func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error) {
 	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100}, nil
+}
+
+type fakeNotification struct {
+	rows map[string]*notificationv1.Notification
+}
+
+func (f *fakeNotification) ListNotifications(ctx context.Context, req *notificationv1.ListNotificationsRequest, _ ...grpc.CallOption) (*notificationv1.ListNotificationsResponse, error) {
+	if platform.UserIdentity(ctx) != req.UserId {
+		return nil, status.Error(codes.PermissionDenied, "notification identity mismatch")
+	}
+	rows := make([]*notificationv1.Notification, 0, len(f.rows))
+	for _, row := range f.rows {
+		rows = append(rows, row)
+	}
+	return &notificationv1.ListNotificationsResponse{Notifications: rows}, nil
+}
+
+func (f *fakeNotification) MarkNotificationRead(ctx context.Context, req *notificationv1.MarkNotificationReadRequest, _ ...grpc.CallOption) (*notificationv1.MarkNotificationReadResponse, error) {
+	if platform.UserIdentity(ctx) != req.UserId {
+		return nil, status.Error(codes.PermissionDenied, "notification identity mismatch")
+	}
+	row, ok := f.rows[req.NotificationId]
+	if !ok {
+		return nil, status.Error(codes.NotFound, "notification not found")
+	}
+	row.ReadAt = "2026-07-13T00:00:00Z"
+	return &notificationv1.MarkNotificationReadResponse{Notification: row}, nil
+}
+
+func (f *fakeNotification) CreateNotification(ctx context.Context, req *notificationv1.CreateNotificationRequest, _ ...grpc.CallOption) (*notificationv1.CreateNotificationResponse, error) {
+	if platform.UserIdentity(ctx) != req.UserId {
+		return nil, status.Error(codes.PermissionDenied, "notification identity mismatch")
+	}
+	row := &notificationv1.Notification{Id: "n1", Type: req.Type, Title: req.Title, Body: req.Body, SourceEventId: req.SourceEventId, CreatedAt: "2026-07-13T00:00:00Z"}
+	f.rows[row.Id] = row
+	return &notificationv1.CreateNotificationResponse{Notification: row}, nil
 }

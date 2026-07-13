@@ -5,6 +5,7 @@
   (dict "component" "billing" "http" 8103 "grpc" 9103)
   (dict "component" "quota" "http" 8104 "grpc" 9104)
   (dict "component" "ai-gateway" "http" 8105 "grpc" 9105)
+  (dict "component" "notification" "http" 8108 "grpc" 9106)
 -}}
 {{- range $index, $service := $services }}
 {{- $component := index $service "component" }}

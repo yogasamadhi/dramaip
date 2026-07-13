@@ -20,9 +20,10 @@ model API keys:
 Browser / Next.js Web
   -> Kong (:8000)
     -> BFF container (:8100, Docker network only)
-      -> PostgreSQL: users, plans, subscriptions, token accounts, orders, outbox
-      -> Redis: access-token session cache
-      -> RabbitMQ management API: checkout event publishing
+      -> auth/user/billing/quota/ai-gateway/notification over internal gRPC
+        -> PostgreSQL: users, plans, subscriptions, token accounts, orders, outbox, notifications
+        -> Redis: access-token session cache
+        -> RabbitMQ management API: checkout event publishing
       -> Prometheus: /metrics scrape
       -> Fluent Bit -> OpenSearch: container logs
 ```
@@ -63,6 +64,8 @@ network and is reached by Kong through `http://web-bff:8100`.
 | `GET` | `/v1/me/orders` | Current user's order list |
 | `GET` | `/v1/me/token-usage` | Token usage details |
 | `GET` | `/v1/me/usage-trend` | Token usage trend |
+| `GET` | `/v1/me/notifications` | Current user's notification list |
+| `POST` | `/v1/me/notifications/{id}/read` | Mark a current-user notification read |
 | `GET` | `/v1/me/dashboard` | Profile and subscription state |
 | `GET` | `/v1/me/token-balance` | Monthly token quota state |
 | `POST` | `/v1/ai/chat` | Cloud AI gateway chat with quota reservation/settlement |
@@ -108,8 +111,8 @@ AI no-key error handling, test-provider quota settlement, refresh, and logout.
 - Add email verification and account recovery after the registration and
   refresh-token rotation paths are stable.
 - Replace checkout placeholder URLs with WeChat Pay / Alipay order creation.
-- Keep BFF as the HTTP aggregation layer while auth, user, billing, quota, and
-  ai-gateway own their data through Kratos services.
+- Keep BFF as the HTTP aggregation layer while auth, user, billing, quota,
+  ai-gateway, and notification own their data through Kratos services.
 - Add OpenTelemetry SDK instrumentation to emit service traces into the
   existing Collector -> Jaeger pipeline.
 

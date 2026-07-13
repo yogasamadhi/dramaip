@@ -24,6 +24,9 @@ images:
   aiGateway:
     repository: ghcr.io/dramaip/dramaip-ai-gateway
     tag: "0.1.0"
+  notification:
+    repository: ghcr.io/dramaip/dramaip-notification
+    tag: "0.1.0"
   billingJob:
     repository: ghcr.io/dramaip/dramaip-billing-job
     tag: "0.1.0"
@@ -145,6 +148,8 @@ config:
   quotaGrpcAddr: :9104
   aiGatewayHttpAddr: :8105
   aiGatewayGrpcAddr: :9105
+  notificationHttpAddr: :8108
+  notificationGrpcAddr: :9106
   billingJobHttpAddr: :8106
   quotaJobHttpAddr: :8107
   autoMigrate: "false"
@@ -177,6 +182,7 @@ config:
     billingGrpcEndpoint: dramaip-platform-billing:9103
     quotaGrpcEndpoint: dramaip-platform-quota:9104
     aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
+    notificationGrpcEndpoint: dramaip-platform-notification:9106
   ai:
     providers: openai-compatible
     defaultProvider: openai-compatible
@@ -230,6 +236,7 @@ internalMTLS:
     billing: billing.crt
     quota: quota.crt
     aiGateway: ai-gateway.crt
+    notification: notification-service.crt
     billingJob: billing-job.crt
     quotaJob: quota-job.crt
   keyKeys:
@@ -239,6 +246,7 @@ internalMTLS:
     billing: billing.key
     quota: quota.key
     aiGateway: ai-gateway.key
+    notification: notification-service.key
     billingJob: billing-job.key
     quotaJob: quota-job.key
 

@@ -24,6 +24,9 @@ images:
   aiGateway:
     repository: dramaip-ai-gateway
     tag: dev
+  notification:
+    repository: dramaip-notification
+    tag: dev
   billingJob:
     repository: dramaip-billing-job
     tag: dev

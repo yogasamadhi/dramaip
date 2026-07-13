@@ -7,23 +7,23 @@ import (
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc"
-	"gorm.io/gorm"
 )
 
 type Data struct {
-	Auth    authv1.AuthServiceClient
-	User    userv1.UserServiceClient
-	Billing billingv1.BillingServiceClient
-	Quota   quotav1.QuotaServiceClient
-	AI      aiv1.AiGatewayServiceClient
-	DB      *gorm.DB
-	conns   []*grpc.ClientConn
+	Auth         authv1.AuthServiceClient
+	User         userv1.UserServiceClient
+	Billing      billingv1.BillingServiceClient
+	Quota        quotav1.QuotaServiceClient
+	AI           aiv1.AiGatewayServiceClient
+	Notification notificationv1.NotificationServiceClient
+	conns        []*grpc.ClientConn
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -59,7 +59,7 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = quotaConn.Close()
 		return nil, nil, err
 	}
-	db, err := platform.OpenPostgres()
+	notificationConn, err := platform.DialGRPC(ctx, cfg.Downstream.NotificationEndpoint, cfg.MTLS)
 	if err != nil {
 		_ = authConn.Close()
 		_ = userConn.Close()
@@ -71,7 +71,8 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	d := &Data{
 		Auth: authv1.NewAuthServiceClient(authConn), User: userv1.NewUserServiceClient(userConn),
 		Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn),
-		AI: aiv1.NewAiGatewayServiceClient(aiConn), DB: db, conns: []*grpc.ClientConn{authConn, userConn, billingConn, quotaConn, aiConn},
+		AI: aiv1.NewAiGatewayServiceClient(aiConn), Notification: notificationv1.NewNotificationServiceClient(notificationConn),
+		conns: []*grpc.ClientConn{authConn, userConn, billingConn, quotaConn, aiConn, notificationConn},
 	}
 	return d, d.Close, nil
 }
@@ -97,11 +98,9 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 			_, err := d.User.GetProfile(platform.WithUserIdentity(ctx, healthUserID), &userv1.GetProfileRequest{UserId: healthUserID})
 			return err
 		},
-		"postgres": func(ctx context.Context) error {
-			if d.DB == nil {
-				return nil
-			}
-			return platform.CheckPostgres(ctx, d.DB)
+		"notification": func(ctx context.Context) error {
+			_, err := d.Notification.ListNotifications(platform.WithUserIdentity(ctx, healthUserID), &notificationv1.ListNotificationsRequest{UserId: healthUserID, Limit: 1})
+			return err
 		},
 	}
 }
@@ -117,56 +116,38 @@ type NotificationRow struct {
 }
 
 func (d *Data) ListNotifications(ctx context.Context, userID string, limit int) ([]NotificationRow, error) {
-	if d.DB == nil {
-		return []NotificationRow{}, nil
+	reply, err := d.Notification.ListNotifications(ctx, &notificationv1.ListNotificationsRequest{UserId: userID, Limit: int32(limit)})
+	if err != nil {
+		return nil, err
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	rows := make([]NotificationRow, 0, len(reply.GetNotifications()))
+	for _, notification := range reply.GetNotifications() {
+		rows = append(rows, notificationRow(notification))
 	}
-	var rows []NotificationRow
-	err := d.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, type, title, body, source_event_id,
-		       COALESCE(read_at::text, '') AS read_at, created_at::text AS created_at
-		FROM notification.notifications
-		WHERE user_id = ?::uuid
-		ORDER BY created_at DESC
-		LIMIT ?
-	`, userID, limit).Scan(&rows).Error
-	return rows, err
+	return rows, nil
 }
 
 func (d *Data) MarkNotificationRead(ctx context.Context, userID string, notificationID string) (NotificationRow, error) {
-	if d.DB == nil {
-		return NotificationRow{ID: notificationID, ReadAt: time.Now().UTC().Format(time.RFC3339)}, nil
-	}
-	if err := d.DB.WithContext(ctx).Exec(`
-		UPDATE notification.notifications
-		SET read_at = COALESCE(read_at, now()), updated_at = now()
-		WHERE id = ?::uuid AND user_id = ?::uuid
-	`, notificationID, userID).Error; err != nil {
+	reply, err := d.Notification.MarkNotificationRead(ctx, &notificationv1.MarkNotificationReadRequest{UserId: userID, NotificationId: notificationID})
+	if err != nil {
 		return NotificationRow{}, err
 	}
-	var row NotificationRow
-	err := d.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, type, title, body, source_event_id,
-		       COALESCE(read_at::text, '') AS read_at, created_at::text AS created_at
-		FROM notification.notifications
-		WHERE id = ?::uuid AND user_id = ?::uuid
-		LIMIT 1
-	`, notificationID, userID).Scan(&row).Error
-	return row, err
+	return notificationRow(reply.GetNotification()), nil
 }
 
 func (d *Data) CreateNotification(ctx context.Context, userID string, typ string, title string, body string, sourceEventID string) error {
-	if d.DB == nil {
-		return nil
+	_, err := d.Notification.CreateNotification(ctx, &notificationv1.CreateNotificationRequest{
+		UserId: userID, Type: typ, Title: title, Body: body, SourceEventId: sourceEventID,
+	})
+	return err
+}
+
+func notificationRow(notification *notificationv1.Notification) NotificationRow {
+	if notification == nil {
+		return NotificationRow{}
 	}
-	if sourceEventID == "" {
-		sourceEventID = platform.NewUUID()
+	return NotificationRow{
+		ID: notification.GetId(), Type: notification.GetType(), Title: notification.GetTitle(), Body: notification.GetBody(),
+		SourceEventID: notification.GetSourceEventId(), ReadAt: notification.GetReadAt(), CreatedAt: notification.GetCreatedAt(),
 	}
-	return d.DB.WithContext(ctx).Exec(`
-		INSERT INTO notification.notifications (id, user_id, type, title, body, source_event_id)
-		VALUES (?::uuid, ?::uuid, ?, ?, ?, ?)
-		ON CONFLICT (user_id, source_event_id) DO NOTHING
-	`, platform.NewUUID(), userID, typ, title, body, sourceEventID).Error
 }

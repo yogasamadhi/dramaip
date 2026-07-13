@@ -14,7 +14,7 @@ The launcher starts the Docker stack and the Next.js web app.
 
 Before v1.0, Docker Compose is the supported development and acceptance path.
 K8s/Helm files remain in the repository, but the local baseline is Compose:
-Kong -> BFF -> auth/user/billing/quota/ai-gateway.
+Kong -> BFF -> auth/user/billing/quota/ai-gateway/notification.
 
 | Entry | URL |
 | --- | --- |

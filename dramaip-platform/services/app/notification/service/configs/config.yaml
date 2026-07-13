@@ -1,0 +1,6 @@
+environment: dev
+server:
+  http:
+    addr: 0.0.0.0:8108
+  grpc:
+    addr: 0.0.0.0:9106
