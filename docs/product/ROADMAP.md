@@ -69,7 +69,7 @@ v0.1 已在 `PROJECT_BRIEF.md` 中定义。本文档从 v0.2 开始描述。
 9. 视频前置资产：角色选角、音色、旁白、字幕、封面、首帧图等资产进入项目包和视频任务上下文。
 10. 发布验证：Electron E2E smoke 覆盖 P0 主流程、Agent 指挥台、拆书卡片、修稿采用、小说投稿包和项目包往返。
 
-仍保持本地优先：云同步、资源市场、公共知识库和云端语义搜索不作为当前主流程依赖。移动端当前只定义轻量灵感记录与桌面导入，详见 [MOBILE_INSPIRATION_IMPORT.md](./MOBILE_INSPIRATION_IMPORT.md)；生态后续边界见 [ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md](./ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)；执行记录见 [LOOPMAP2.md](../process/LOOPMAP2.md)。
+仍保持本地优先：云同步、资源市场、公共知识库和云端语义搜索不作为当前主流程依赖。移动端当前只定义轻量灵感记录与桌面导入，详见 [MOBILE_INSPIRATION_IMPORT.md](./MOBILE_INSPIRATION_IMPORT.md)；生态后续边界见 [ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md](./ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)；执行记录见 [LOOPMAP2.md](../loop/LOOPMAP2.md)。
 
 ---
 

@@ -12,9 +12,10 @@
 
 ## 流程记录
 
-- [Loop Engineering Rules](./process/LOOPRULE.md)
-- [Production Optimization Loop Map](./process/LOOPMAP.md)
-- [Production Optimization Loop Map 2](./process/LOOPMAP2.md)
+- [Loop Engineering Rules](./loop/LOOPRULE.md)
+- [Production Optimization Loop Map](./loop/LOOPMAP.md)
+- [Production Optimization Loop Map 2](./loop/LOOPMAP2.md)
+- [Platform Architecture Convergence Loop Map 3](./loop/LOOPMAP3.md)
 
 ## 项目文档
 
@@ -22,5 +23,3 @@
 - [桌面端文档目录](../dramaip-desktop/docs/README.md)
 - [平台端项目](../dramaip-platform/README.md)
 - [平台端私有文档目录](../dramaip-platform/docs/README.md)
-- [平台端项目](../dramaip-platform/README.md)
-- [平台端文档目录](../dramaip-platform/docs/README.md)
