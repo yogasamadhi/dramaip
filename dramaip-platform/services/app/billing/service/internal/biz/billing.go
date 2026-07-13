@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	"github.com/dramaip/dramaip-platform/services/app/billing/internal/alipay"
 	"github.com/dramaip/dramaip-platform/services/app/billing/internal/wechat"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/data"
@@ -20,6 +21,7 @@ type BillingUsecase struct {
 	repo             BillingRepository
 	simulatedEnabled bool
 	wechatPay        conf.WechatPayConfig
+	alipay           conf.AlipayConfig
 }
 
 type BillingRepository interface {
@@ -28,11 +30,16 @@ type BillingRepository interface {
 	GetSubscription(context.Context, string) (data.SubscriptionRow, error)
 	CreateCheckout(context.Context, string, string, string) (data.CheckoutResult, error)
 	CreateWechatCheckout(context.Context, string, string, string, string) (data.CheckoutResult, error)
+	CreateAlipayCheckout(context.Context, string, string, string, string) (data.CheckoutResult, error)
 	ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error)
 	ConfirmWechatPayment(context.Context, string, string, string, int64, string, []byte) (data.SimulatedPaymentResult, error)
+	ConfirmAlipayPayment(context.Context, string, string, string, int64, string, []byte) (data.SimulatedPaymentResult, error)
 	RecordWechatWebhook(context.Context, data.WechatWebhookEvent) (data.WechatWebhookReceipt, error)
+	RecordAlipayWebhook(context.Context, data.AlipayWebhookEvent) (data.AlipayWebhookReceipt, error)
 	MarkWechatWebhookQueryFailed(context.Context, string, string) error
 	MarkWechatWebhookQueryConfirmed(context.Context, string, []byte) error
+	MarkAlipayWebhookQueryFailed(context.Context, string, string) error
+	MarkAlipayWebhookQueryConfirmed(context.Context, string, []byte) error
 	CreatePeriodAccount(context.Context, string, string, data.PlanSnapshot, string, string) (data.TokenBalanceRow, error)
 	ActivateSubscription(context.Context, string) error
 	MarkSubscriptionActivationFailed(context.Context, string, string) error
@@ -51,7 +58,7 @@ type BillingRepository interface {
 }
 
 func NewBillingUsecase(repo BillingRepository, cfg *conf.Bootstrap) *BillingUsecase {
-	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled, wechatPay: cfg.Payment.WechatPay}
+	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled, wechatPay: cfg.Payment.WechatPay, alipay: cfg.Payment.Alipay}
 }
 
 func (u *BillingUsecase) Checks() map[string]func(context.Context) error {
@@ -72,6 +79,9 @@ func (u *BillingUsecase) CreateCheckout(ctx context.Context, userID string, plan
 	}
 	if provider == "wechat_pay" {
 		return u.createWechatCheckout(ctx, userID, planID)
+	}
+	if provider == "alipay" {
+		return u.createAlipayCheckout(ctx, userID, planID)
 	}
 	if provider != "simulated" {
 		return data.CheckoutResult{}, status.Errorf(codes.InvalidArgument, "unsupported payment provider %q", provider)
@@ -126,6 +136,50 @@ func (u *BillingUsecase) createWechatCheckout(ctx context.Context, userID string
 	return checkout, nil
 }
 
+func (u *BillingUsecase) createAlipayCheckout(ctx context.Context, userID string, planID string) (data.CheckoutResult, error) {
+	if !u.alipay.Enabled {
+		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "alipay is not enabled")
+	}
+	var plan data.PlanRow
+	plans, err := u.repo.ListPlans(ctx)
+	if err != nil {
+		return data.CheckoutResult{}, err
+	}
+	for _, candidate := range plans {
+		if candidate.Code == planID {
+			plan = candidate
+			break
+		}
+	}
+	if plan.ID == "" {
+		return data.CheckoutResult{}, status.Error(codes.NotFound, "plan not found")
+	}
+	client, err := alipay.NewClient(alipay.Config{
+		AppID: u.alipay.AppID, SellerID: u.alipay.SellerID,
+		MerchantPrivateKeyPath: u.alipay.MerchantPrivateKeyPath,
+		AlipayPublicKeyPath:    u.alipay.AlipayPublicKeyPath,
+		NotifyURL:              u.alipay.NotifyURL,
+		Gateway:                u.alipay.Gateway,
+	})
+	if err != nil {
+		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "alipay configuration is incomplete")
+	}
+	orderID := platform.NewUUID()
+	precreated, err := client.CreatePrecreateOrder(ctx, alipay.PrecreateOrderRequest{
+		OutTradeNo: orderID, Subject: fmt.Sprintf("DramaIP %s", plan.Name),
+		TotalCents: int64(math.Round(plan.Price * 100)), Currency: plan.Currency,
+	})
+	if err != nil {
+		return data.CheckoutResult{}, status.Errorf(codes.Unavailable, "create alipay order: %v", err)
+	}
+	checkout, err := u.repo.CreateAlipayCheckout(ctx, userID, planID, orderID, orderID)
+	if err != nil {
+		return data.CheckoutResult{}, err
+	}
+	checkout.PaymentURL = precreated.QRCode
+	return checkout, nil
+}
+
 func (u *BillingUsecase) ConfirmSandboxPayment(ctx context.Context, userID string, checkoutID string) (data.SandboxPaymentResult, error) {
 	return u.ConfirmSimulatedPayment(ctx, userID, checkoutID)
 }
@@ -153,8 +207,22 @@ func (u *BillingUsecase) ConfirmWechatPayment(ctx context.Context, orderID, prov
 	return u.activateConfirmedPayment(ctx, result)
 }
 
+// ConfirmAlipayPayment is reachable only from the verified and actively
+// reconciled Alipay webhook ingress, never from a user-facing endpoint.
+func (u *BillingUsecase) ConfirmAlipayPayment(ctx context.Context, orderID, providerEventID, providerTransactionID string, totalCents int64, currency string, rawPayload []byte) (data.SimulatedPaymentResult, error) {
+	result, err := u.repo.ConfirmAlipayPayment(ctx, orderID, providerEventID, providerTransactionID, totalCents, currency, rawPayload)
+	if err != nil {
+		return data.SandboxPaymentResult{}, err
+	}
+	return u.activateConfirmedPayment(ctx, result)
+}
+
 func (u *BillingUsecase) RecordWechatWebhook(ctx context.Context, event data.WechatWebhookEvent) (data.WechatWebhookReceipt, error) {
 	return u.repo.RecordWechatWebhook(ctx, event)
+}
+
+func (u *BillingUsecase) RecordAlipayWebhook(ctx context.Context, event data.AlipayWebhookEvent) (data.AlipayWebhookReceipt, error) {
+	return u.repo.RecordAlipayWebhook(ctx, event)
 }
 
 func (u *BillingUsecase) MarkWechatWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
@@ -163,6 +231,14 @@ func (u *BillingUsecase) MarkWechatWebhookQueryFailed(ctx context.Context, provi
 
 func (u *BillingUsecase) MarkWechatWebhookQueryConfirmed(ctx context.Context, providerEventID string, queryPayload []byte) error {
 	return u.repo.MarkWechatWebhookQueryConfirmed(ctx, providerEventID, queryPayload)
+}
+
+func (u *BillingUsecase) MarkAlipayWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
+	return u.repo.MarkAlipayWebhookQueryFailed(ctx, providerEventID, reason)
+}
+
+func (u *BillingUsecase) MarkAlipayWebhookQueryConfirmed(ctx context.Context, providerEventID string, queryPayload []byte) error {
+	return u.repo.MarkAlipayWebhookQueryConfirmed(ctx, providerEventID, queryPayload)
 }
 
 func (u *BillingUsecase) activateConfirmedPayment(ctx context.Context, result data.SimulatedPaymentResult) (data.SimulatedPaymentResult, error) {

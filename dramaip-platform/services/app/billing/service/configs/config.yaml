@@ -18,6 +18,9 @@ payment:
     api_base_url: https://api.mch.weixin.qq.com
   alipay:
     enabled: false
+    gateway: https://openapi.alipay.com/gateway.do
+  alipay:
+    enabled: false
 quota:
   grpc_addr: localhost:9104
   dial_timeout: 10s

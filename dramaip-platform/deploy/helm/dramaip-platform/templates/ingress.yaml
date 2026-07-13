@@ -90,3 +90,45 @@ spec:
                   number: 8103
     {{- end }}
 {{- end }}
+{{- if and .Values.ingress.enabled .Values.payment.alipay.enabled }}
+---
+{{- $alipayWebhookPluginNames := list -}}
+{{- if .Values.kong.plugins.enabled -}}
+{{- $alipayWebhookPluginNames = append $alipayWebhookPluginNames (printf "%s-alipay-webhook-rate-limiting" (include "dramaip-platform.fullname" .)) -}}
+{{- $alipayWebhookPluginNames = append $alipayWebhookPluginNames (printf "%s-alipay-webhook-size-limit" (include "dramaip-platform.fullname" .)) -}}
+{{- end -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-alipay-webhook
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: billing
+  {{- if $alipayWebhookPluginNames }}
+  annotations:
+    # No browser CORS or JWT plugin belongs here. Alipay signs the original
+    # form body and billing-service verifies it before active reconciliation.
+    konghq.com/plugins: {{ join "," $alipayWebhookPluginNames | quote }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: /v1/webhooks/alipay
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "dramaip-platform.fullname" $ }}-billing
+                port:
+                  number: 8103
+    {{- end }}
+{{- end }}

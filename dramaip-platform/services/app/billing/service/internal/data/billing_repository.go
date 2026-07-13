@@ -151,6 +151,23 @@ type WechatWebhookReceipt struct {
 	Processed bool
 }
 
+// AlipayWebhookEvent stores the signed form separately from a minimized JSON
+// audit payload. Alipay forms can include buyer-facing fields, so raw_body is
+// retained for audit while JSON columns avoid copying unnecessary PII.
+type AlipayWebhookEvent struct {
+	ProviderEventID       string
+	ProviderOrderID       string
+	ProviderTransactionID string
+	RawBody               []byte
+	AuditPayload          []byte
+	NotifyTime            string
+	SignType              string
+}
+
+type AlipayWebhookReceipt struct {
+	Processed bool
+}
+
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 	db, err := platform.OpenDomainPostgres(context.Background(), "billing")
 	if err != nil {
@@ -271,6 +288,12 @@ func (r *BillingRepo) CreateWechatCheckout(ctx context.Context, userID string, p
 	return r.createCheckout(ctx, userID, planCode, "wechat_pay", orderID, providerOrderID)
 }
 
+// CreateAlipayCheckout persists the local side of an already accepted Alipay
+// precreate order. Alipay accepts the UUID-shaped merchant out_trade_no.
+func (r *BillingRepo) CreateAlipayCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string) (CheckoutResult, error) {
+	return r.createCheckout(ctx, userID, planCode, "alipay", orderID, providerOrderID)
+}
+
 func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCode string, provider string, orderID string, providerOrderID string) (CheckoutResult, error) {
 	var plan struct {
 		ID                string
@@ -355,6 +378,10 @@ func (r *BillingRepo) ConfirmWechatPayment(ctx context.Context, providerOrderID,
 	return r.confirmProviderPayment(ctx, "", providerOrderID, "wechat_pay", providerEventID, providerTransactionID, totalCents, currency, rawPayload)
 }
 
+func (r *BillingRepo) ConfirmAlipayPayment(ctx context.Context, providerOrderID, providerEventID, providerTransactionID string, totalCents int64, currency string, rawPayload []byte) (SimulatedPaymentResult, error) {
+	return r.confirmProviderPayment(ctx, "", providerOrderID, "alipay", providerEventID, providerTransactionID, totalCents, currency, rawPayload)
+}
+
 // RecordWechatWebhook writes the verified provider event before any outbound
 // reconciliation. The provider event id is the idempotency key; a processed
 // duplicate can be acknowledged immediately without replaying the saga.
@@ -381,6 +408,31 @@ func (r *BillingRepo) RecordWechatWebhook(ctx context.Context, event WechatWebho
 	return WechatWebhookReceipt{Processed: receipt.Processed}, nil
 }
 
+func (r *BillingRepo) RecordAlipayWebhook(ctx context.Context, event AlipayWebhookEvent) (AlipayWebhookReceipt, error) {
+	var receipt struct {
+		Processed bool
+	}
+	if len(event.AuditPayload) == 0 {
+		event.AuditPayload = []byte(`{}`)
+	}
+	err := r.data.DB.WithContext(ctx).Raw(`
+		INSERT INTO billing.webhook_events (
+			id, provider, provider_event_id, raw_payload, raw_body, received_at,
+			signature_timestamp, signature_serial, verification_status,
+			provider_order_id, provider_transaction_id
+		)
+		VALUES (?::uuid, 'alipay', ?, ?::jsonb, ?, now(), ?, ?, 'received', ?, ?)
+		ON CONFLICT (provider, provider_event_id) DO UPDATE
+		SET received_at = now()
+		RETURNING processed_at IS NOT NULL AS processed
+	`, platform.NewUUID(), event.ProviderEventID, string(event.AuditPayload), event.RawBody,
+		event.NotifyTime, event.SignType, event.ProviderOrderID, event.ProviderTransactionID).Scan(&receipt).Error
+	if err != nil {
+		return AlipayWebhookReceipt{}, err
+	}
+	return AlipayWebhookReceipt{Processed: receipt.Processed}, nil
+}
+
 func (r *BillingRepo) MarkWechatWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
 	return r.data.DB.WithContext(ctx).Exec(`
 		UPDATE billing.webhook_events
@@ -395,6 +447,23 @@ func (r *BillingRepo) MarkWechatWebhookQueryConfirmed(ctx context.Context, provi
 		SET verification_status = 'query_confirmed', verification_error = NULL,
 		    query_payload = ?::jsonb, query_confirmed_at = now()
 		WHERE provider = 'wechat_pay' AND provider_event_id = ?
+	`, string(queryPayload), providerEventID).Error
+}
+
+func (r *BillingRepo) MarkAlipayWebhookQueryFailed(ctx context.Context, providerEventID string, reason string) error {
+	return r.data.DB.WithContext(ctx).Exec(`
+		UPDATE billing.webhook_events
+		SET verification_status = 'query_pending', verification_error = ?
+		WHERE provider = 'alipay' AND provider_event_id = ?
+	`, reason, providerEventID).Error
+}
+
+func (r *BillingRepo) MarkAlipayWebhookQueryConfirmed(ctx context.Context, providerEventID string, queryPayload []byte) error {
+	return r.data.DB.WithContext(ctx).Exec(`
+		UPDATE billing.webhook_events
+		SET verification_status = 'query_confirmed', verification_error = NULL,
+		    query_payload = ?::jsonb, query_confirmed_at = now()
+		WHERE provider = 'alipay' AND provider_event_id = ?
 	`, string(queryPayload), providerEventID).Error
 }
 
@@ -443,8 +512,8 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 				o.plan_snapshot_at::text AS plan_snapshot_at
 			FROM billing.orders o
 			WHERE (
-				(? = 'wechat_pay' AND o.provider_order_id = ?)
-				OR (? <> 'wechat_pay' AND o.id::text = ?)
+				(? = 'simulated' AND o.id::text = ?)
+				OR (? <> 'simulated' AND o.provider_order_id = ?)
 			) AND (? = '' OR o.user_id::text = ?)
 			LIMIT 1
 			FOR UPDATE OF o
@@ -471,10 +540,10 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 		if order.Provider != provider {
 			return status.Errorf(codes.FailedPrecondition, "checkout provider %s does not match %s", order.Provider, provider)
 		}
-		if provider == "wechat_pay" {
+		if provider == "wechat_pay" || provider == "alipay" {
 			expectedCents := int64(math.Round(order.Amount * 100))
 			if providerTotalCents != expectedCents || providerCurrency != order.Currency {
-				return status.Error(codes.FailedPrecondition, "wechat pay confirmation amount or currency does not match checkout")
+				return status.Errorf(codes.FailedPrecondition, "%s confirmation amount or currency does not match checkout", provider)
 			}
 		}
 		now := time.Now().UTC()
@@ -505,7 +574,7 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 			VALUES (?::uuid, ?, ?, now(), ?::jsonb)
 			ON CONFLICT (provider, provider_event_id) DO UPDATE
 			SET processed_at = COALESCE(billing.webhook_events.processed_at, now()),
-			    verification_status = CASE WHEN billing.webhook_events.provider = 'wechat_pay' THEN 'processed' ELSE billing.webhook_events.verification_status END
+			    verification_status = CASE WHEN billing.webhook_events.provider IN ('wechat_pay', 'alipay') THEN 'processed' ELSE billing.webhook_events.verification_status END
 		`, webhookEventID, provider, providerEventID, string(rawPayload)).Error; err != nil {
 			return err
 		}

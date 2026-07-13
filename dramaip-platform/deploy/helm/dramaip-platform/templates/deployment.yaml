@@ -153,7 +153,7 @@ spec:
               value: /var/run/dramaip/mtls/tls.key
           {{- end }}
           {{- end }}
-          {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) }}
+          {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
           volumeMounts:
             {{- if $.Values.internalMTLS.enabled }}
             - name: internal-mtls
@@ -184,6 +184,16 @@ spec:
               subPath: {{ $.Values.payment.wechat.platformCertificateKey | quote }}
               readOnly: true
             {{- end }}
+            {{- if and (eq $key "billing") $.Values.payment.alipay.enabled }}
+            - name: alipay-credentials
+              mountPath: /var/run/dramaip/alipay/app-private-key.pem
+              subPath: {{ $.Values.payment.alipay.merchantPrivateKeyKey | quote }}
+              readOnly: true
+            - name: alipay-credentials
+              mountPath: /var/run/dramaip/alipay/alipay-public-key.pem
+              subPath: {{ $.Values.payment.alipay.alipayPublicKeyKey | quote }}
+              readOnly: true
+            {{- end }}
           {{- end }}
           readinessProbe:
             httpGet:
@@ -210,7 +220,7 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
-      {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) }}
+      {{- if or $.Values.internalMTLS.enabled (and (eq $key "auth") $.Values.authJWT.keysetSecret) (and (eq $key "billing") $.Values.payment.wechat.enabled) (and (eq $key "billing") $.Values.payment.alipay.enabled) }}
       volumes:
         {{- if $.Values.internalMTLS.enabled }}
         - name: internal-mtls
@@ -226,6 +236,11 @@ spec:
         - name: wechat-pay-credentials
           secret:
             secretName: {{ required "payment.wechat.credentialsSecret is required when WeChat Pay is enabled" $.Values.payment.wechat.credentialsSecret }}
+        {{- end }}
+        {{- if and (eq $key "billing") $.Values.payment.alipay.enabled }}
+        - name: alipay-credentials
+          secret:
+            secretName: {{ required "payment.alipay.credentialsSecret is required when Alipay is enabled" $.Values.payment.alipay.credentialsSecret }}
         {{- end }}
       {{- end }}
 {{- end }}

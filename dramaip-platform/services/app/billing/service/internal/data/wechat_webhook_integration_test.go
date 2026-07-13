@@ -21,7 +21,7 @@ func TestWechatWebhookInboxIntegration(t *testing.T) {
 	if dsn == "" {
 		t.Skip("POSTGRES_WECHAT_WEBHOOK_TEST_DSN is not set")
 	}
-	db := openFreshWechatWebhookDB(t, dsn)
+	db := openFreshWebhookDB(t, dsn)
 	repo := NewBillingRepo(&Data{DB: db})
 	ctx := context.Background()
 	userID := platform.NewUUID()
@@ -77,7 +77,7 @@ func TestWechatWebhookInboxIntegration(t *testing.T) {
 	}
 }
 
-func openFreshWechatWebhookDB(t *testing.T, dsn string) *gorm.DB {
+func openFreshWebhookDB(t *testing.T, dsn string) *gorm.DB {
 	t.Helper()
 	t.Setenv("POSTGRES_DSN", dsn)
 	t.Setenv("DB_ROLE_BOOTSTRAP", "true")

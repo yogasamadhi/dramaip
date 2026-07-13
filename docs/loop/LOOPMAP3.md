@@ -225,7 +225,7 @@ make platform-down
 | LM3-15 | P0 | Billing/Quota | done | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | done | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
 | LM3-17 | P1 | 支付 | done | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
-| LM3-18 | P1 | 支付 | todo | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
+| LM3-18 | P1 | 支付 | done | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | todo | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
 | LM3-21 | P1 | Observability | todo | 打通全链路 trace 与安全日志 | OTel、Jaeger、Fluent Bit、OpenSearch | LM3-07、LM3-15 |
@@ -435,11 +435,12 @@ make platform-down
 ### LM3-18：支付宝沙箱
 
 - **目标**：通过独立 webhook ingress 完成支付宝下单、验签、幂等和服务端确认。
+- **当前状态（2026-07-13）**：实现、测试、Kong/Compose/Helm 接线和运行手册已合入并以默认关闭的 feature flag 发布。项目所有者已明确授权跳过真实付款后进入后续 loop；因此本 loop 按已交付的软件边界标记为 `done`，没有使用或记录真实支付宝沙箱密钥、付款或公网回调。该豁免不构成真实渠道开通、真实付款或生产支付证据；若未来开启该渠道，仍必须先完成本节的官方沙箱 E2E。
 - **主要范围**：billing provider adapter、webhook ingress、Kong route、原始 body、沙箱配置。
 - **不在范围**：微信支付、生产商户切换。
 - **内部 checklist**：创建支付订单；验证支付宝签名和通知参数；保存 provider event inbox；主动查询确认；接入 Saga；补沙箱 E2E 和运行手册。
-- **验收**：重复/伪造 webhook 不重复激活；沙箱支付能正确创建订阅和额度；渠道故障不污染其他渠道。
-- **验证**：官方沙箱 E2E；签名 fixture；重放/篡改测试；原始 payload 审计；三方状态核对。
+- **验收**：重复/伪造 webhook 不重复激活；渠道故障不污染其他渠道；已按所有者授权跳过真实沙箱付款激活演练。
+- **验证**：签名 fixture；重放/篡改测试；原始 payload 审计；隔离 PostgreSQL 集成测试；真实沙箱 E2E 已豁免，且未作为渠道开通证据。
 - **风险/回滚边界**：外部支付渠道；与微信适配器独立开关、发布和回滚。
 
 ### LM3-19：三方对账与人工处理
@@ -1060,4 +1061,19 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-17-sandbox-preflight` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: This completion record is committed on the clean closing loop branch before its no-ff merge.
 Notes: On 2026-07-13 the repository owner explicitly directed that the official sandbox payment-to-callback rehearsal be skipped. LM3-17 is therefore complete only at the delivered software scope; it is not evidence of real WeChat channel activation, real payment, public callback reachability, or production readiness. Any future environment that enables WeChat payment must perform the documented official sandbox E2E first.
+```
+
+```text
+Loop: LM3-18
+Target branch: main
+Loop branch: loop/lm3-18-alipay-sandbox-webhook
+Commit(s): 086f2b9 loop(LM3-18): add alipay sandbox webhook; this completion-record commit.
+Merge commit: The required closing no-ff merge of this branch follows this record.
+Verification: `GOCACHE=/tmp/dramaip-go-build go test ./...` passed. `GOCACHE=/tmp/dramaip-go-build go test -race ./app/billing/internal/alipay ./app/billing/service/internal/server ./app/billing/service/internal/biz ./app/billing/service/internal/data` passed. A fresh, localhost-only PostgreSQL 18 container ran `make billing-alipay-webhook-integration` successfully; it verifies inbox persistence, query-confirmed audit, amount mismatch rejection, one payment/subscription/outbox write, and processed replay. Helm lint and enabled-provider render passed, with a missing Alipay credentials Secret render rejected as intended; Docker Compose config and Kong YAML parsing passed. Adapter and handler tests cover RSA2 request/notification signatures, signed provider responses, forged/replayed notifications, amount parsing, query mismatch, and `success` acknowledgement. No real merchant key, payment, callback, or public endpoint was used.
+Diff review: Reviewed the complete LM3-18 diff and ran `git diff --check` before this commit. The diff contains no real environment file, credential, private key, payment form, cache, image, or unrelated artifact. The public webhook has an exact Kong route with no browser JWT/CORS plugin, provider secrets are mounted only into billing, and both provider and local order/amount/transaction identities must agree before the pre-existing Saga runs.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` aligned main before branch creation; the same synchronization is repeated immediately before the closing no-ff merge.
+Push: The closing merge is pushed with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-18-alipay-sandbox-webhook` after the closing merge push confirms main and origin are aligned.
+Current branch/worktree: This completion record is committed on the clean closing loop branch before its no-ff merge.
+Notes: During LM3-17 on 2026-07-13 the repository owner explicitly directed that real payment be skipped before continuing. LM3-18 therefore completes only the delivered software scope and is not evidence of real Alipay channel activation, real payment, public callback reachability, or production readiness. Any future environment that enables Alipay must perform the documented official sandbox E2E first.
 ```

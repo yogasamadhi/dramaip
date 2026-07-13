@@ -25,6 +25,7 @@ type EndpointConfig struct {
 type PaymentConfig struct {
 	SimulatedEnabled bool            `yaml:"simulated_enabled"`
 	WechatPay        WechatPayConfig `yaml:"wechat_pay"`
+	Alipay           AlipayConfig    `yaml:"alipay"`
 }
 
 type WechatPayConfig struct {
@@ -40,6 +41,16 @@ type WechatPayConfig struct {
 	APIBaseURL                string `yaml:"api_base_url"`
 }
 
+type AlipayConfig struct {
+	Enabled                bool   `yaml:"enabled"`
+	AppID                  string `yaml:"app_id"`
+	SellerID               string `yaml:"seller_id"`
+	MerchantPrivateKeyPath string `yaml:"merchant_private_key_path"`
+	AlipayPublicKeyPath    string `yaml:"alipay_public_key_path"`
+	NotifyURL              string `yaml:"notify_url"`
+	Gateway                string `yaml:"gateway"`
+}
+
 type QuotaConfig struct {
 	GRPCEndpoint string `yaml:"grpc_addr"`
 	DialTimeout  string `yaml:"dial_timeout"`
@@ -52,8 +63,12 @@ func Load() (*Bootstrap, error) {
 			HTTP: EndpointConfig{Addr: ":8103"},
 			GRPC: EndpointConfig{Addr: ":9103"},
 		},
-		Payment: PaymentConfig{SimulatedEnabled: true, WechatPay: WechatPayConfig{APIBaseURL: "https://api.mch.weixin.qq.com"}},
-		Quota:   QuotaConfig{GRPCEndpoint: "localhost:9104", DialTimeout: "10s"},
+		Payment: PaymentConfig{
+			SimulatedEnabled: true,
+			WechatPay:        WechatPayConfig{APIBaseURL: "https://api.mch.weixin.qq.com"},
+			Alipay:           AlipayConfig{Gateway: "https://openapi.alipay.com/gateway.do"},
+		},
+		Quota: QuotaConfig{GRPCEndpoint: "localhost:9104", DialTimeout: "10s"},
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
 		return nil, err
@@ -74,6 +89,13 @@ func Load() (*Bootstrap, error) {
 	cfg.Payment.WechatPay.PlatformCertificatePath = kratosx.Env("WECHAT_PAY_PLATFORM_CERT_PATH", cfg.Payment.WechatPay.PlatformCertificatePath)
 	cfg.Payment.WechatPay.NotifyURL = kratosx.Env("WECHAT_PAY_NOTIFY_URL", cfg.Payment.WechatPay.NotifyURL)
 	cfg.Payment.WechatPay.APIBaseURL = kratosx.Env("WECHAT_PAY_API_BASE_URL", cfg.Payment.WechatPay.APIBaseURL)
+	cfg.Payment.Alipay.Enabled = kratosx.EnvBool("ALIPAY_ENABLED", cfg.Payment.Alipay.Enabled)
+	cfg.Payment.Alipay.AppID = kratosx.Env("ALIPAY_APP_ID", cfg.Payment.Alipay.AppID)
+	cfg.Payment.Alipay.SellerID = kratosx.Env("ALIPAY_SELLER_ID", cfg.Payment.Alipay.SellerID)
+	cfg.Payment.Alipay.MerchantPrivateKeyPath = kratosx.Env("ALIPAY_PRIVATE_KEY_PATH", cfg.Payment.Alipay.MerchantPrivateKeyPath)
+	cfg.Payment.Alipay.AlipayPublicKeyPath = kratosx.Env("ALIPAY_PUBLIC_KEY_PATH", cfg.Payment.Alipay.AlipayPublicKeyPath)
+	cfg.Payment.Alipay.NotifyURL = kratosx.Env("ALIPAY_NOTIFY_URL", cfg.Payment.Alipay.NotifyURL)
+	cfg.Payment.Alipay.Gateway = kratosx.Env("ALIPAY_GATEWAY", cfg.Payment.Alipay.Gateway)
 	if cfg.Env != "dev" && cfg.Env != "test" {
 		cfg.Payment.SimulatedEnabled = false
 	}
