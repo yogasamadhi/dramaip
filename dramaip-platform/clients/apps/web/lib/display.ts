@@ -32,10 +32,10 @@ export function aiProviderLabel(value?: string) {
 
 export function serviceLabel(value?: string) {
   const labels: Record<string, string> = {
-    bff: '平台 BFF',
-    'dramaip-bff': '平台 BFF',
-    'bff-interface': '平台 BFF',
-    'dramaip-bff-interface': '平台 BFF',
+    'web-bff': 'Web 平台 BFF',
+    'dramaip-web-bff': 'Web 平台 BFF',
+    'web-bff-interface': 'Web 平台 BFF',
+    'dramaip-web-bff-interface': 'Web 平台 BFF',
   }
   return value ? labels[value] ?? value : '-'
 }

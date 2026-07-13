@@ -9,4 +9,4 @@ Each app directory is reserved for a Kratos runnable unit.
 - `quota/service`: token accounts, reservations, usage logs
 - `quota/job`: quota aggregation and period account maintenance
 - `ai_gateway/service`: hosted model proxy and token metering
-- `bff/interface`: frontend-facing API aggregation
+- `bff/web/interface`: Web frontend-facing API aggregation

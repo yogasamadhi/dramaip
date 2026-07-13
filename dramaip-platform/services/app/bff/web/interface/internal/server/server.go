@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/dramaip/dramaip-platform/services/app/bff/interface/internal/conf"
-	bffsvc "github.com/dramaip/dramaip-platform/services/app/bff/interface/internal/service"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
+	bffsvc "github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/service"
 	"github.com/go-kratos/kratos/v2/middleware/recovery"
 	khttp "github.com/go-kratos/kratos/v2/transport/http"
 )

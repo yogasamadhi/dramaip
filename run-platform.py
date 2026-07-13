@@ -2,7 +2,7 @@
 """
 Start dramaip-platform services and web app in development mode.
 
-All 8 Go microservices (bff/auth/user/billing/quota/ai-gateway/billing-job/
+All 8 Go microservices (web-bff/auth/user/billing/quota/ai-gateway/billing-job/
 quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
 as containers via docker compose; this launcher only brings the stack up and
 optionally starts the local Next.js web dev server.
@@ -47,7 +47,7 @@ CURRENT_PID = os.getpid()
 _SHUTDOWN_SIGNAL: int | None = None
 
 # All 8 Go services + Kong + dev infra live in docker-compose.yaml. This launcher
-# brings the stack up (Kong is the sole external entry, proxy port 8000 → bff:8100)
+# brings the stack up (Kong is the sole external entry, proxy port 8000 → web-bff:8100)
 # and optionally starts the local Next.js web dev server.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 KONG_PROXY_PORT = 8000
@@ -239,7 +239,7 @@ def client_modules_resolve() -> bool:
 def ensure_stack_running() -> None:
     """Bring up the full docker compose stack (8 Go services + Kong + dev infra).
 
-    Kong depends on `bff`, which (transitively) depends on postgres/redis/etc.,
+    Kong depends on `web-bff`, which (transitively) depends on postgres/redis/etc.,
     so `up kong` pulls the whole stack. We `--build` so Go code changes are
     picked up on each launch.
     """
@@ -265,7 +265,7 @@ def ensure_stack_running() -> None:
         time.sleep(2)
     warn(f"Kong/BFF health did not become ready within {KONG_HEALTH_TIMEOUT_S:.0f}s: {last_error}")
     print_compose_status()
-    warn(f"Continuing so you can inspect logs. Try `{' '.join(compose_cmd('logs', '-f', 'bff', 'kong'))}`.")
+    warn(f"Continuing so you can inspect logs. Try `{' '.join(compose_cmd('logs', '-f', 'web-bff', 'kong'))}`.")
 
 
 def http_ok(url: str, timeout: float) -> tuple[bool, str]:

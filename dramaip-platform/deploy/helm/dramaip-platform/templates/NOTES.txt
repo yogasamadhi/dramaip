@@ -1,7 +1,7 @@
 DramaIP platform BFF has been rendered.
 
 Service:
-  {{ include "dramaip-platform.fullname" . }}-bff:{{ .Values.service.port }}
+  {{ include "dramaip-platform.fullname" . }}-web-bff:{{ .Values.service.port }}
 
 Health:
   /healthz

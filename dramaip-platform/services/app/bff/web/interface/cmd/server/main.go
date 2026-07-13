@@ -12,14 +12,14 @@ import (
 func main() {
 	app, cleanup, err := wireApp()
 	if err != nil {
-		log.Fatalf("init bff interface: %v", err)
+		log.Fatalf("init web bff interface: %v", err)
 	}
 	defer cleanup()
 	if err := app.Run(); err != nil {
-		log.Fatalf("bff interface stopped: %v", err)
+		log.Fatalf("web bff interface stopped: %v", err)
 	}
 }
 
 func newApp(httpServer *khttp.Server) *kratos.App {
-	return kratosx.NewApp("bff-interface", httpServer)
+	return kratosx.NewApp("web-bff-interface", httpServer)
 }

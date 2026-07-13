@@ -10,7 +10,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
-	"github.com/dramaip/dramaip-platform/services/app/bff/interface/internal/data"
+	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

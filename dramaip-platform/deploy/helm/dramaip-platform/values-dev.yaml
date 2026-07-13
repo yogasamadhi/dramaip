@@ -1,13 +1,13 @@
 replicaCount: 1
 
 image:
-  repository: dramaip-bff
+  repository: dramaip-web-bff
   tag: dev
   pullPolicy: IfNotPresent
 
 images:
-  bff:
-    repository: dramaip-bff
+  webBff:
+    repository: dramaip-web-bff
     tag: dev
   auth:
     repository: dramaip-auth

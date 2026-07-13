@@ -26,7 +26,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "dramaip-platform.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "dramaip-platform.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: bff
+app.kubernetes.io/component: web-bff
 {{- end -}}
 
 {{- define "dramaip-platform.serviceAccountName" -}}
