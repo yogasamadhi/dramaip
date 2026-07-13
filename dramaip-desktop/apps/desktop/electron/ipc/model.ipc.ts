@@ -1,7 +1,12 @@
 // 模型配置 CRUD + 默认模型 + 按任务组绑定（ROADMAP v1.0-3）
 import { ipcMain } from 'electron'
 import { getRepos } from '../db'
-import { maskModelConfig } from '../secrets'
+import {
+  createModelConfigWithSecret,
+  deleteModelConfigWithSecret,
+  maskModelConfig,
+  updateModelConfigWithSecret,
+} from '../secrets'
 
 export function registerModelIpc(): void {
   const repos = () => getRepos()
@@ -11,15 +16,15 @@ export function registerModelIpc(): void {
     const config = repos().modelConfig.getDefaultModelConfig(repos().db)
     return config ? maskModelConfig(config) : undefined
   })
-  ipcMain.handle('model:create', (_e, data: unknown) =>
-    maskModelConfig(repos().modelConfig.createModelConfig(repos().db, data as never)),
+  ipcMain.handle('model:create', async (_e, data: unknown) =>
+    maskModelConfig(await createModelConfigWithSecret(repos(), data)),
   )
-  ipcMain.handle('model:update', (_e, id: string, patch: unknown) => {
-    const updated = repos().modelConfig.updateModelConfig(repos().db, id, patch as never)
+  ipcMain.handle('model:update', async (_e, id: string, patch: unknown) => {
+    const updated = await updateModelConfigWithSecret(repos(), id, patch)
     return updated ? maskModelConfig(updated) : undefined
   })
-  ipcMain.handle('model:delete', (_e, id: string) => {
-    repos().modelConfig.deleteModelConfig(repos().db, id)
+  ipcMain.handle('model:delete', async (_e, id: string) => {
+    await deleteModelConfigWithSecret(repos(), id)
     return true
   })
   ipcMain.handle('model:setDefault', (_e, id: string) => {

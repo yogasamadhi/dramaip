@@ -87,6 +87,18 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'video_results').includes('local_video_path'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
+    assert.ok(tableExists(raw, 'credential_migration_audit'))
+    assert.deepEqual(columns(raw, 'credential_migration_audit'), [
+      'area',
+      'record_id',
+      'source_state',
+      'credential_ref',
+      'status',
+      'attempts',
+      'last_error',
+      'completed_at',
+      'updated_at',
+    ])
     assert.ok(tableExists(raw, 'case_study_documents'))
     assert.ok(tableExists(raw, 'case_study_chapters'))
     assert.ok(columns(raw, 'creative_case_studies').includes('rhythm_curve'))

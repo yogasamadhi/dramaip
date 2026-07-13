@@ -251,15 +251,19 @@ export interface CaseStudyImportResult {
 }
 
 export interface SecretStorageStatus {
+  /** Compatibility field: this now reflects the system credential store state. */
   encryptionAvailable: boolean
-  mode: 'encrypted' | 'unsafe_plaintext_unavailable'
+  keychainAvailable: boolean
+  mode: 'system_keychain' | 'keychain_unavailable'
   health?: SecretStorageHealth
   lastMigration?: SecretMigrationSummary
+  unavailableReason?: string
 }
 
 export interface SecretStateCounts {
   total: number
   empty: number
+  keychain: number
   encrypted: number
   unsafePlaintext: number
   masked: number
@@ -270,6 +274,7 @@ export interface SecretStateCounts {
 export interface SecretStorageHealth {
   checkedAt: string
   encryptionAvailable: boolean
+  keychainAvailable: boolean
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
@@ -277,7 +282,7 @@ export interface SecretStorageHealth {
 
 export interface SecretMigrationSummary {
   checkedAt: string
-  encryptionAvailable: boolean
+  keychainAvailable: boolean
   attempted: number
   migrated: number
   skipped: number

@@ -10,7 +10,12 @@ import {
   compareVideoResults,
   selectBestVideoResult,
 } from '@sdns/ai'
-import { maskVideoConfig } from '../secrets'
+import {
+  createVideoConfigWithSecret,
+  deleteVideoConfigWithSecret,
+  maskVideoConfig,
+  updateVideoConfigWithSecret,
+} from '../secrets'
 import { logger } from '../logger'
 import { createVideoAssetArchiver } from '../video-assets'
 import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
@@ -27,15 +32,15 @@ export function registerVideoIpc(): void {
     const config = repos().videoProviderConfig.getDefaultVideoProviderConfig(repos().db)
     return config ? maskVideoConfig(config) : undefined
   })
-  ipcMain.handle('videoProvider:create', (_e, data: unknown) =>
-    maskVideoConfig(repos().videoProviderConfig.createVideoProviderConfig(repos().db, data as never)),
+  ipcMain.handle('videoProvider:create', async (_e, data: unknown) =>
+    maskVideoConfig(await createVideoConfigWithSecret(repos(), data)),
   )
-  ipcMain.handle('videoProvider:update', (_e, id: string, patch: unknown) => {
-    const updated = repos().videoProviderConfig.updateVideoProviderConfig(repos().db, id, patch as never)
+  ipcMain.handle('videoProvider:update', async (_e, id: string, patch: unknown) => {
+    const updated = await updateVideoConfigWithSecret(repos(), id, patch)
     return updated ? maskVideoConfig(updated) : undefined
   })
-  ipcMain.handle('videoProvider:delete', (_e, id: string) => {
-    repos().videoProviderConfig.deleteVideoProviderConfig(repos().db, id)
+  ipcMain.handle('videoProvider:delete', async (_e, id: string) => {
+    await deleteVideoConfigWithSecret(repos(), id)
     return true
   })
   ipcMain.handle('videoProvider:setDefault', (_e, id: string) => {

@@ -109,7 +109,7 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smoke
 ```
 
-- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
+- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 和 `keytar` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
 - 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
 - 打包 smoke 详见 [RELEASE.md](../release/RELEASE.md)。
 - `pnpm test:db` 封装了 `pnpm rebuild:node` 与 `pnpm rebuild:electron`，通常不需要手动进入 `node_modules` 重编。
@@ -118,8 +118,8 @@ pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smok
 
 - 主窗口启用 `contextIsolation`、`sandbox`、`webSecurity`，并对外链跳转做协议白名单；生产态默认只允许 HTTPS，开发态额外允许 localhost HTTP 用系统浏览器打开。
 - 主进程在注册 IPC 时安装统一参数校验层。所有 `ipcMain.handle` 调用会先检查参数数量和基础形状，再进入业务 handler。
-- 模型与视频 Provider 的 `apiKey` 在 Electron 主进程侧用 `safeStorage` 加密后写入 SQLite；读取给 provider 使用前再解密。返回 renderer 的配置只包含 `masked:v1:*` 掩码，不返回明文。若系统环境不支持 `safeStorage`，默认拒绝保存新 Key，只有用户在设置页显式允许时才会写入 `plain:v1:` 明文降级格式。
-- 启动时会扫描模型和视频 Provider Key 的存储状态，识别 `enc:v1:` 加密、`plain:v1:` 明文降级、`masked:v1:` 掩码、旧版裸明文和不可读加密值；安全存储可用时自动把可逆明文迁移到加密格式。迁移摘要写入本地日志，单项失败会保留原值并在设置页健康提示中暴露聚合计数，不输出 Key 明文。
+- 模型与视频 Provider 的 `apiKey` 由 Electron 主进程通过 `keytar` 写入系统凭据库：macOS Keychain、Windows Credential Manager、Linux Secret Service/libsecret。SQLite 的 `api_key` 列只保存 `keychain:v1:<reference>`，不保存新 Key 的明文或密文；Provider 使用前只从主进程内存缓存取值，renderer 始终只获得 `masked:v1:*` 掩码。
+- 启动时会扫描模型和视频 Provider Key 的存储状态，迁移旧 `enc:v1:`、`plain:v1:` 和裸明文记录。迁移顺序固定为“确认 Keychain 写入成功 → 更新 SQLite 引用”，失败则保留旧值并写入不含密钥的 `credential_migration_audit` 记录；自动数据库备份可用于恢复迁移前状态。Keychain 不可用时拒绝保存新 Key，绝不降级为 SQLite 明文。
 - AI / 视频 HTTP provider 统一走带超时和重试的请求 helper，默认只重试网络错误和 408/429/5xx 等可恢复状态。
 
 ## 包构建约定

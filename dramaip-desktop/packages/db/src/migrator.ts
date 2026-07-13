@@ -541,6 +541,29 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(raw, 'shots', 'cover_prompt', 'cover_prompt TEXT')
     },
   },
+  {
+    version: 18,
+    name: 'system-credential-migration-audit',
+    up(raw) {
+      // 只记录迁移状态和凭据引用，绝不记录 API Key 或其密文。
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS credential_migration_audit (
+          area TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          source_state TEXT NOT NULL,
+          credential_ref TEXT,
+          status TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          completed_at TEXT,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (area, record_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_credential_migration_audit_status
+          ON credential_migration_audit(status, updated_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
