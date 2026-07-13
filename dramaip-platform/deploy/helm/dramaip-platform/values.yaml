@@ -92,6 +92,7 @@ payment:
     appID: ""
     mchID: ""
     merchantCertificateSerial: ""
+    platformCertificateSerial: ""
     notifyURL: ""
     apiBaseURL: https://api.mch.weixin.qq.com
     credentialsSecret: ""

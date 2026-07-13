@@ -30,8 +30,8 @@ func TestWechatWebhookOnlyActivatesAfterMatchingServerConfirmation(t *testing.T)
 
 	handler.Handle(recorder, req)
 
-	if recorder.Code != http.StatusOK || uc.confirmed != 1 || uc.recorded.ProviderEventID != "event-1" || client.queries != 1 {
-		t.Fatalf("webhook result code=%d confirmed=%d recorded=%#v queries=%d", recorder.Code, uc.confirmed, uc.recorded, client.queries)
+	if recorder.Code != http.StatusOK || uc.confirmed != 1 || uc.recorded.ProviderEventID != "event-1" || client.queries != 1 || client.platformSerial != "serial" {
+		t.Fatalf("webhook result code=%d confirmed=%d recorded=%#v queries=%d serial=%q", recorder.Code, uc.confirmed, uc.recorded, client.queries, client.platformSerial)
 	}
 	if uc.queryConfirmed != 1 || uc.queryFailed != 0 {
 		t.Fatalf("reconciliation calls confirmed=%d failed=%d", uc.queryConfirmed, uc.queryFailed)
@@ -85,15 +85,17 @@ func TestWechatWebhookDoesNotActivateOnQueryMismatch(t *testing.T) {
 }
 
 type fakeWechatWebhookClient struct {
-	verifyErr    error
-	notification wechat.Notification
-	callback     wechat.Transaction
-	queried      wechat.Transaction
-	queryPayload []byte
-	queries      int
+	verifyErr      error
+	notification   wechat.Notification
+	callback       wechat.Transaction
+	queried        wechat.Transaction
+	queryPayload   []byte
+	queries        int
+	platformSerial string
 }
 
-func (f *fakeWechatWebhookClient) VerifyNotification(string, string, string, []byte, time.Time) error {
+func (f *fakeWechatWebhookClient) VerifyNotification(platformSerial, _ string, _ string, _ string, _ []byte, _ time.Time) error {
+	f.platformSerial = platformSerial
 	return f.verifyErr
 }
 

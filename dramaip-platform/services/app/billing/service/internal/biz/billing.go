@@ -101,6 +101,7 @@ func (u *BillingUsecase) createWechatCheckout(ctx context.Context, userID string
 		AppID: u.wechatPay.AppID, MchID: u.wechatPay.MchID, APIV3Key: u.wechatPay.APIV3Key,
 		MerchantCertificateSerial: u.wechatPay.MerchantCertificateSerial,
 		MerchantPrivateKeyPath:    u.wechatPay.MerchantPrivateKeyPath,
+		PlatformCertificateSerial: u.wechatPay.PlatformCertificateSerial,
 		PlatformCertificatePath:   u.wechatPay.PlatformCertificatePath,
 		APIBaseURL:                u.wechatPay.APIBaseURL,
 	})

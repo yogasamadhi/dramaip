@@ -16,7 +16,7 @@ import (
 const maxWechatWebhookBody = 1 << 20
 
 type wechatWebhookClient interface {
-	VerifyNotification(timestamp, nonce, signature string, rawBody []byte, now time.Time) error
+	VerifyNotification(platformSerial, timestamp, nonce, signature string, rawBody []byte, now time.Time) error
 	ParseNotification(rawBody []byte) (wechat.Notification, wechat.Transaction, error)
 	QueryTransaction(ctx context.Context, outTradeNo string) (wechat.Transaction, []byte, error)
 }
@@ -44,6 +44,7 @@ func newWechatWebhook(cfg conf.WechatPayConfig, uc *billingbiz.BillingUsecase) (
 		AppID: cfg.AppID, MchID: cfg.MchID, APIV3Key: cfg.APIV3Key,
 		MerchantCertificateSerial: cfg.MerchantCertificateSerial,
 		MerchantPrivateKeyPath:    cfg.MerchantPrivateKeyPath,
+		PlatformCertificateSerial: cfg.PlatformCertificateSerial,
 		PlatformCertificatePath:   cfg.PlatformCertificatePath,
 		APIBaseURL:                cfg.APIBaseURL,
 	})
@@ -78,7 +79,7 @@ func (h *wechatWebhook) Handle(w http.ResponseWriter, r *http.Request) {
 		writeWechatReply(w, http.StatusUnauthorized, "FAIL", "invalid signature")
 		return
 	}
-	if err := h.client.VerifyNotification(timestamp, nonce, signature, rawBody, h.now().UTC()); err != nil {
+	if err := h.client.VerifyNotification(serial, timestamp, nonce, signature, rawBody, h.now().UTC()); err != nil {
 		writeWechatReply(w, http.StatusUnauthorized, "FAIL", "invalid signature")
 		return
 	}

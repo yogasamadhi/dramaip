@@ -37,6 +37,7 @@ WECHAT_PAY_MCH_ID=...
 WECHAT_PAY_API_V3_KEY=...                 # 恰好 32 字节
 WECHAT_PAY_CERT_SERIAL=...
 WECHAT_PAY_PRIVATE_KEY_PATH=/secure/apiclient-key.pem
+WECHAT_PAY_PLATFORM_CERT_SERIAL=...        # 与 Wechatpay-Serial 对应
 WECHAT_PAY_PLATFORM_CERT_PATH=/secure/platform-cert.pem
 WECHAT_PAY_NOTIFY_URL=https://<public-host>/v1/webhooks/wechat-pay
 # 沙箱网关由运营方按微信支付文档提供时才覆盖；默认生产 API 地址。
@@ -45,7 +46,9 @@ WECHAT_PAY_API_BASE_URL=https://api.mch.weixin.qq.com
 
 Helm 通过 `payment.wechat.enabled=true` 开启。必须设置
 `payment.wechat.credentialsSecret`，其中包含 `api-v3-key`、`apiclient-key.pem` 和
-`platform-cert.pem`（键名可由 values 覆盖）；该 Secret 仅挂载到 billing workload。启用后 chart
+`platform-cert.pem`（键名可由 values 覆盖），并设置 `payment.wechat.platformCertificateSerial`；该
+Secret 仅挂载到 billing workload。`Wechatpay-Serial` 必须和此配置完全匹配，才能使用该证书验签。
+启用后 chart
 会创建只匹配 `/v1/webhooks/wechat-pay` 的 billing Ingress，并附加独立限流和大小限制插件；不附加
 CORS 或 JWT 插件。
 

@@ -34,6 +34,7 @@ type WechatPayConfig struct {
 	APIV3Key                  string `yaml:"-"`
 	MerchantCertificateSerial string `yaml:"merchant_certificate_serial"`
 	MerchantPrivateKeyPath    string `yaml:"merchant_private_key_path"`
+	PlatformCertificateSerial string `yaml:"platform_certificate_serial"`
 	PlatformCertificatePath   string `yaml:"platform_certificate_path"`
 	NotifyURL                 string `yaml:"notify_url"`
 	APIBaseURL                string `yaml:"api_base_url"`
@@ -69,6 +70,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Payment.WechatPay.APIV3Key = kratosx.Env("WECHAT_PAY_API_V3_KEY", cfg.Payment.WechatPay.APIV3Key)
 	cfg.Payment.WechatPay.MerchantCertificateSerial = kratosx.Env("WECHAT_PAY_CERT_SERIAL", cfg.Payment.WechatPay.MerchantCertificateSerial)
 	cfg.Payment.WechatPay.MerchantPrivateKeyPath = kratosx.Env("WECHAT_PAY_PRIVATE_KEY_PATH", cfg.Payment.WechatPay.MerchantPrivateKeyPath)
+	cfg.Payment.WechatPay.PlatformCertificateSerial = kratosx.Env("WECHAT_PAY_PLATFORM_CERT_SERIAL", cfg.Payment.WechatPay.PlatformCertificateSerial)
 	cfg.Payment.WechatPay.PlatformCertificatePath = kratosx.Env("WECHAT_PAY_PLATFORM_CERT_PATH", cfg.Payment.WechatPay.PlatformCertificatePath)
 	cfg.Payment.WechatPay.NotifyURL = kratosx.Env("WECHAT_PAY_NOTIFY_URL", cfg.Payment.WechatPay.NotifyURL)
 	cfg.Payment.WechatPay.APIBaseURL = kratosx.Env("WECHAT_PAY_API_BASE_URL", cfg.Payment.WechatPay.APIBaseURL)

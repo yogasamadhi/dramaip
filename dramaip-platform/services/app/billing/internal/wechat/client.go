@@ -30,20 +30,22 @@ type Config struct {
 	APIV3Key                  string
 	MerchantCertificateSerial string
 	MerchantPrivateKeyPath    string
+	PlatformCertificateSerial string
 	PlatformCertificatePath   string
 	APIBaseURL                string
 	HTTPClient                *http.Client
 }
 
 type Client struct {
-	appID       string
-	mchID       string
-	apiV3Key    string
-	serial      string
-	merchantKey *rsa.PrivateKey
-	platformKey *rsa.PublicKey
-	apiBaseURL  string
-	httpClient  *http.Client
+	appID          string
+	mchID          string
+	apiV3Key       string
+	serial         string
+	merchantKey    *rsa.PrivateKey
+	platformKey    *rsa.PublicKey
+	platformSerial string
+	apiBaseURL     string
+	httpClient     *http.Client
 }
 
 type NativeOrderRequest struct {
@@ -65,6 +67,7 @@ func NewClient(cfg Config) (*Client, error) {
 		"app id": cfg.AppID, "merchant id": cfg.MchID, "api v3 key": cfg.APIV3Key,
 		"merchant certificate serial": cfg.MerchantCertificateSerial,
 		"merchant private key path":   cfg.MerchantPrivateKeyPath,
+		"platform certificate serial": cfg.PlatformCertificateSerial,
 		"platform certificate path":   cfg.PlatformCertificatePath,
 	} {
 		if strings.TrimSpace(value) == "" {
@@ -104,11 +107,15 @@ func NewClient(cfg Config) (*Client, error) {
 	return &Client{
 		appID: cfg.AppID, mchID: cfg.MchID, apiV3Key: cfg.APIV3Key,
 		serial: cfg.MerchantCertificateSerial, merchantKey: merchantKey,
-		platformKey: platformKey, apiBaseURL: baseURL, httpClient: client,
+		platformKey: platformKey, platformSerial: cfg.PlatformCertificateSerial,
+		apiBaseURL: baseURL, httpClient: client,
 	}, nil
 }
 
-func (c *Client) VerifyNotification(timestamp, nonce, signature string, rawBody []byte, now time.Time) error {
+func (c *Client) VerifyNotification(platformSerial, timestamp, nonce, signature string, rawBody []byte, now time.Time) error {
+	if !strings.EqualFold(strings.TrimSpace(platformSerial), strings.TrimSpace(c.platformSerial)) {
+		return fmt.Errorf("wechat pay notification certificate serial does not match configured certificate")
+	}
 	return VerifySignature(c.platformKey, timestamp, nonce, signature, rawBody, now, DefaultReplayWindow)
 }
 
