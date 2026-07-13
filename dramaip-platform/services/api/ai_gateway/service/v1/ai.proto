@@ -5,7 +5,41 @@ package dramaip.ai_gateway.service.v1;
 option go_package = "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1;aigatewayv1";
 
 service AiGatewayService {
+  // Lists the currently configured, billable cloud models. This is a
+  // read-only authenticated capability; it never exposes provider secrets.
+  rpc ListModels(ListModelsRequest) returns (ListModelsReply);
+  // Checks a bounded desktop context before a billable Chat request. The
+  // request intentionally contains only counts, never creative content.
+  rpc Preflight(PreflightRequest) returns (PreflightReply);
   rpc Chat(ChatRequest) returns (ChatReply);
+}
+
+message ListModelsRequest {
+  string user_id = 1;
+}
+
+message CloudModel {
+  string provider = 1;
+  string model = 2;
+  bool is_default = 3;
+}
+
+message ListModelsReply {
+  repeated CloudModel models = 1;
+}
+
+message PreflightRequest {
+  string user_id = 1;
+  string provider = 2;
+  string model = 3;
+  int64 context_characters = 4;
+  int64 message_count = 5;
+  int64 max_tokens = 6;
+}
+
+message PreflightReply {
+  CloudModel model = 1;
+  int64 estimated_tokens = 2;
 }
 
 message ChatRequest {

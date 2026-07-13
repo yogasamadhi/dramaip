@@ -16,12 +16,19 @@ import (
 	"google.golang.org/grpc"
 )
 
+// AIClient deliberately contains only the Web BFF capability. Keeping the
+// adapter narrow prevents unrelated AI Gateway contract additions from
+// expanding this BFF's surface or invalidating its focused tests.
+type AIClient interface {
+	Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error)
+}
+
 type Data struct {
 	Auth         authv1.AuthServiceClient
 	User         userv1.UserServiceClient
 	Billing      billingv1.BillingServiceClient
 	Quota        quotav1.QuotaServiceClient
-	AI           aiv1.AiGatewayServiceClient
+	AI           AIClient
 	Notification notificationv1.NotificationServiceClient
 	conns        []*grpc.ClientConn
 }

@@ -74,6 +74,13 @@ async function verifyCloudAuthRendererBoundary(win: BrowserWindow): Promise<E2eS
     if (keys.some((key) => /token|verifier|code|secret/i.test(key))) {
       throw new Error('renderer 云端状态泄露了敏感字段')
     }
+    const cloudAIKeys = await win.webContents.executeJavaScript(`Object.keys(window.api.cloudAI ?? {})`, true) as string[]
+    if (!cloudAIKeys.includes('models') || !cloudAIKeys.includes('onBalance')) {
+      throw new Error('renderer 未获得受限云端 AI 状态契约')
+    }
+    if (cloudAIKeys.some((key) => /chat|token|request|credential|secret/i.test(key))) {
+      throw new Error('renderer 暴露了 token-bearing 云端 AI 操作')
+    }
     return { name: 'cloud-auth-renderer-boundary', ok: true, durationMs: Date.now() - startedAt }
   } catch (error) {
     return {

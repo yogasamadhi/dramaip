@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,6 +43,34 @@ type ChatResult struct {
 	Status           string
 }
 
+// CloudModel is the public, non-secret description of an AI Gateway model.
+// Provider API keys and base URLs never leave the gateway process.
+type CloudModel struct {
+	Provider  string
+	Model     string
+	IsDefault bool
+}
+
+type PreflightInput struct {
+	UserID            string
+	Provider          string
+	Model             string
+	ContextCharacters int64
+	MessageCount      int64
+	MaxTokens         int64
+}
+
+type PreflightResult struct {
+	Model           CloudModel
+	EstimatedTokens int64
+}
+
+const (
+	maxDesktopContextCharacters int64 = 24_000
+	maxDesktopMessageCount      int64 = 8
+	maxDesktopCompletionTokens  int64 = 8_192
+)
+
 type AiGatewayUsecase struct {
 	data            *data.Data
 	userRPMLimit    int
@@ -68,6 +97,62 @@ func (u *AiGatewayUsecase) Checks() map[string]func(context.Context) error {
 	return u.data.Checks()
 }
 
+// ListModels returns only providers that are both callable and priced. A
+// desktop client therefore cannot select an unconfigured or unbillable model
+// and cannot infer any provider credential material.
+func (u *AiGatewayUsecase) ListModels() []CloudModel {
+	names := make([]string, 0, len(u.data.Providers))
+	for name := range u.data.Providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	models := make([]CloudModel, 0, len(names))
+	for _, name := range names {
+		provider := u.data.Providers[name]
+		if provider.Model == "" || u.data.ValidateProvider(provider) != nil {
+			continue
+		}
+		if _, err := u.data.PricingFor(provider, provider.Model); err != nil {
+			continue
+		}
+		models = append(models, CloudModel{
+			Provider:  provider.Name,
+			Model:     provider.Model,
+			IsDefault: provider.Name == u.data.DefaultProvider,
+		})
+	}
+	if len(models) > 0 && !hasDefaultModel(models) {
+		models[0].IsDefault = true
+	}
+	return models
+}
+
+// Preflight validates the desktop's deliberately content-free context summary
+// before a chargeable call. Actual prompt content is sent only to Chat after
+// this check succeeds.
+func (u *AiGatewayUsecase) Preflight(input PreflightInput) (PreflightResult, error) {
+	if strings.TrimSpace(input.UserID) == "" {
+		return PreflightResult{}, status.Error(codes.InvalidArgument, "missing user id")
+	}
+	if input.ContextCharacters < 1 || input.ContextCharacters > maxDesktopContextCharacters {
+		return PreflightResult{}, status.Error(codes.InvalidArgument, "desktop context exceeds limit")
+	}
+	if input.MessageCount < 1 || input.MessageCount > maxDesktopMessageCount {
+		return PreflightResult{}, status.Error(codes.InvalidArgument, "desktop message count exceeds limit")
+	}
+	if input.MaxTokens < 1 || input.MaxTokens > maxDesktopCompletionTokens {
+		return PreflightResult{}, status.Error(codes.InvalidArgument, "desktop max tokens exceeds limit")
+	}
+	model, err := u.resolveCloudModel(input.Provider, input.Model)
+	if err != nil {
+		return PreflightResult{}, err
+	}
+	return PreflightResult{
+		Model:           model,
+		EstimatedTokens: input.ContextCharacters/4 + input.MessageCount + input.MaxTokens,
+	}, nil
+}
+
 func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResult, error) {
 	if input.UserID == "" {
 		return ChatResult{}, status.Error(codes.InvalidArgument, "missing user id")
@@ -86,14 +171,12 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	if input.RequestID == "" {
 		input.RequestID = input.IdempotencyKey
 	}
-	provider, ok := u.provider(input.Provider)
-	if !ok {
-		return ChatResult{}, status.Errorf(codes.NotFound, "provider %s is not configured", input.Provider)
+	selected, err := u.resolveCloudModel(input.Provider, input.Model)
+	if err != nil {
+		return ChatResult{}, err
 	}
-	model := input.Model
-	if model == "" {
-		model = provider.Model
-	}
+	provider := u.data.Providers[selected.Provider]
+	model := selected.Model
 	requestHash, err := chatRequestHash(provider.Name, model, input.Messages, input.MaxTokens)
 	if err != nil {
 		return ChatResult{}, err
@@ -247,6 +330,36 @@ func (u *AiGatewayUsecase) provider(name string) (data.Provider, bool) {
 	}
 	provider, ok := u.data.Providers[name]
 	return provider, ok
+}
+
+func (u *AiGatewayUsecase) resolveCloudModel(providerName string, requestedModel string) (CloudModel, error) {
+	provider, ok := u.provider(strings.TrimSpace(providerName))
+	if !ok {
+		return CloudModel{}, status.Errorf(codes.NotFound, "provider %s is not configured", providerName)
+	}
+	if err := u.data.ValidateProvider(provider); err != nil {
+		return CloudModel{}, err
+	}
+	model := strings.TrimSpace(requestedModel)
+	if model == "" {
+		model = provider.Model
+	}
+	if model == "" {
+		return CloudModel{}, status.Error(codes.FailedPrecondition, "provider model is not configured")
+	}
+	if _, err := u.data.PricingFor(provider, model); err != nil {
+		return CloudModel{}, err
+	}
+	return CloudModel{Provider: provider.Name, Model: model, IsDefault: provider.Name == u.data.DefaultProvider}, nil
+}
+
+func hasDefaultModel(models []CloudModel) bool {
+	for _, model := range models {
+		if model.IsDefault {
+			return true
+		}
+	}
+	return false
 }
 
 func chatRequestHash(provider string, model string, messages []ChatMessage, maxTokens int64) (string, error) {

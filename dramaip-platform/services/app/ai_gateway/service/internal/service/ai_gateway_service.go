@@ -17,6 +17,35 @@ func NewAiGatewayService(uc *biz.AiGatewayUsecase) *AiGatewayService {
 	return &AiGatewayService{uc: uc}
 }
 
+func (s *AiGatewayService) ListModels(ctx context.Context, req *aiv1.ListModelsRequest) (*aiv1.ListModelsReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	models := s.uc.ListModels()
+	reply := &aiv1.ListModelsReply{Models: make([]*aiv1.CloudModel, 0, len(models))}
+	for _, model := range models {
+		reply.Models = append(reply.Models, &aiv1.CloudModel{Provider: model.Provider, Model: model.Model, IsDefault: model.IsDefault})
+	}
+	return reply, nil
+}
+
+func (s *AiGatewayService) Preflight(ctx context.Context, req *aiv1.PreflightRequest) (*aiv1.PreflightReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	result, err := s.uc.Preflight(biz.PreflightInput{
+		UserID: req.UserId, Provider: req.Provider, Model: req.Model,
+		ContextCharacters: req.ContextCharacters, MessageCount: req.MessageCount, MaxTokens: req.MaxTokens,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &aiv1.PreflightReply{
+		Model:           &aiv1.CloudModel{Provider: result.Model.Provider, Model: result.Model.Model, IsDefault: result.Model.IsDefault},
+		EstimatedTokens: result.EstimatedTokens,
+	}, nil
+}
+
 func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*aiv1.ChatReply, error) {
 	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
 		return nil, err

@@ -21,17 +21,18 @@ type EndpointConfig struct {
 }
 
 type DownstreamConfig struct {
-	AuthEndpoint    string `yaml:"auth_grpc_addr"`
-	BillingEndpoint string `yaml:"billing_grpc_addr"`
-	QuotaEndpoint   string `yaml:"quota_grpc_addr"`
-	DialTimeout     string `yaml:"dial_timeout"`
+	AuthEndpoint      string `yaml:"auth_grpc_addr"`
+	BillingEndpoint   string `yaml:"billing_grpc_addr"`
+	QuotaEndpoint     string `yaml:"quota_grpc_addr"`
+	AIGatewayEndpoint string `yaml:"ai_gateway_grpc_addr"`
+	DialTimeout       string `yaml:"dial_timeout"`
 }
 
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8110"}},
 		Downstream: DownstreamConfig{
-			AuthEndpoint: "localhost:9101", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", DialTimeout: "15s",
+			AuthEndpoint: "localhost:9101", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", AIGatewayEndpoint: "localhost:9105", DialTimeout: "15s",
 		},
 		Environment: "development",
 	}
@@ -43,6 +44,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.AuthEndpoint = kratosx.Env("AUTH_GRPC_ENDPOINT", cfg.Downstream.AuthEndpoint)
 	cfg.Downstream.BillingEndpoint = kratosx.Env("BILLING_GRPC_ENDPOINT", cfg.Downstream.BillingEndpoint)
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
+	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("DESKTOP_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {

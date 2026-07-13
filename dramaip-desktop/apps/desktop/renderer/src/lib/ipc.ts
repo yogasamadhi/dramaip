@@ -282,6 +282,12 @@ export interface CloudContext {
   tokenBalance: { plan: string; quotaTokens: number; usedTokens: number; remainingTokens: number }
 }
 
+export interface CloudAIModel {
+  provider: string
+  model: string
+  isDefault: boolean
+}
+
 export interface SecretStateCounts {
   total: number
   empty: number
@@ -404,6 +410,10 @@ export interface StudioApi {
     login(): Promise<CloudAuthStatus>
     logout(): Promise<CloudAuthStatus>
     context(): Promise<CloudContext>
+  }
+  cloudAI: {
+    models(): Promise<CloudAIModel[]>
+    onBalance(onBalance: (balance: { remainingTokens: number }) => void): () => void
   }
   dataBackup: {
     list(): Promise<DatabaseBackupInfo[]>

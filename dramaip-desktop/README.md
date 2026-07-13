@@ -105,7 +105,14 @@ pnpm dev
 
 登录使用系统浏览器、一次性 code + PKCE 和 `127.0.0.1` 临时回调；refresh token 保存在系统
 Keychain，access token 仅存在 Electron main process 内存。生产环境两个 Cloud Origin 必须使用
-HTTPS。详见 [LM3-26 登录边界](../docs/loop/LM3-26-Desktop-BFF-PKCE.md)。
+HTTPS。
+
+登录后可在「模型设置」选择 `DramaIP Cloud` 模型。它不要求、也不会保存平台 API Key：仅当前 AI
+任务的受限上下文（最多 8 条消息、24,000 字符）从 Electron main process 经 Kong 与 Desktop BFF 到
+AI Gateway。每个调用带独立幂等键；平台完成 quota/cost 结算后，云端账号页会刷新余额。断网、超时或
+Provider 失败只会失败本次云端任务，本地项目、离线编辑和用户自带 API Key 模型继续可用。详见
+[LM3-26 登录边界](../docs/loop/LM3-26-Desktop-BFF-PKCE.md) 与
+[LM3-27 Cloud AI 边界](../docs/loop/LM3-27-Desktop-Cloud-AI.md)。
 
 ## 文档
 
