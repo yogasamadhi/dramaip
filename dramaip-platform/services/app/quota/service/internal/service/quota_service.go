@@ -40,8 +40,27 @@ func (s *QuotaService) CreatePeriodAccount(ctx context.Context, req *quotav1.Cre
 	}
 	return &quotav1.TokenAccount{
 		Id: account.ID, UserId: account.UserID, SubscriptionId: account.SubscriptionID,
-		QuotaTokens: account.QuotaTokens, UsedTokens: account.UsedTokens,
+		QuotaTokens: account.QuotaTokens, UsedTokens: account.UsedTokens, PlanCode: account.PlanCode,
+		Status: account.Status, PeriodStart: account.PeriodStart, PeriodEnd: account.PeriodEnd,
 	}, nil
+}
+
+func (s *QuotaService) GetPeriodAccount(ctx context.Context, req *quotav1.GetPeriodAccountRequest) (*quotav1.PeriodAccountReply, error) {
+	if err := platform.RequireInternalPeer(ctx, "billing-job"); err != nil {
+		return nil, err
+	}
+	account, found, err := s.uc.GetPeriodAccount(ctx, req.SubscriptionId, req.PeriodStart)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return &quotav1.PeriodAccountReply{Found: false}, nil
+	}
+	return &quotav1.PeriodAccountReply{Found: true, Account: &quotav1.TokenAccount{
+		Id: account.ID, UserId: account.UserID, SubscriptionId: account.SubscriptionID,
+		QuotaTokens: account.QuotaTokens, UsedTokens: account.UsedTokens, PlanCode: account.PlanCode,
+		Status: account.Status, PeriodStart: account.PeriodStart, PeriodEnd: account.PeriodEnd,
+	}}, nil
 }
 
 func (s *QuotaService) ReserveTokens(ctx context.Context, req *quotav1.ReserveTokensRequest) (*quotav1.TokenReservation, error) {

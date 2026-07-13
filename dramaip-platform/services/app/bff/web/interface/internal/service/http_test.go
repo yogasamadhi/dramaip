@@ -406,6 +406,9 @@ func (fakeQuota) GetTokenBalance(context.Context, *quotav1.GetTokenBalanceReques
 func (fakeQuota) CreatePeriodAccount(context.Context, *quotav1.CreatePeriodAccountRequest, ...grpc.CallOption) (*quotav1.TokenAccount, error) {
 	return nil, status.Error(codes.Unimplemented, "period")
 }
+func (fakeQuota) GetPeriodAccount(context.Context, *quotav1.GetPeriodAccountRequest, ...grpc.CallOption) (*quotav1.PeriodAccountReply, error) {
+	return nil, status.Error(codes.Unimplemented, "period lookup")
+}
 func (fakeQuota) ReserveTokens(context.Context, *quotav1.ReserveTokensRequest, ...grpc.CallOption) (*quotav1.TokenReservation, error) {
 	return nil, nil
 }

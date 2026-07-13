@@ -225,6 +225,10 @@ func (q *countingQuota) CreatePeriodAccount(context.Context, *quotav1.CreatePeri
 	return nil, status.Error(codes.Unimplemented, "not used")
 }
 
+func (q *countingQuota) GetPeriodAccount(context.Context, *quotav1.GetPeriodAccountRequest, ...grpc.CallOption) (*quotav1.PeriodAccountReply, error) {
+	return nil, status.Error(codes.Unimplemented, "not used")
+}
+
 func (q *countingQuota) ReserveTokens(_ context.Context, req *quotav1.ReserveTokensRequest, _ ...grpc.CallOption) (*quotav1.TokenReservation, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()

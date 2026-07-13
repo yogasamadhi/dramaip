@@ -118,6 +118,13 @@ spec:
                   name: {{ include "dramaip-platform.secretName" $ }}
                   key: RABBITMQ_PASSWORD
             {{- end }}
+            {{- if eq $key "billingJob" }}
+            - name: RECONCILIATION_OPERATOR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dramaip-platform.secretName" $ }}
+                  key: RECONCILIATION_OPERATOR_TOKEN
+            {{- end }}
             {{- if eq $key "aiGateway" }}
             - name: AI_PROVIDER_API_KEY
               valueFrom:

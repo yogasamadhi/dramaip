@@ -52,6 +52,20 @@ func TestGRPCPeerAuthorizationRejectsUntrustedCaller(t *testing.T) {
 	}
 }
 
+func TestRequireInternalPeer(t *testing.T) {
+	if err := RequireInternalPeer(context.Background(), "billing-job"); err != nil {
+		t.Fatalf("development context should be allowed: %v", err)
+	}
+	ctx := context.WithValue(context.Background(), internalSecurityContextKey{}, true)
+	ctx = peer.NewContext(ctx, &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{PeerCertificates: []*x509.Certificate{{Subject: pkix.Name{CommonName: "billing-job"}}}}}})
+	if err := RequireInternalPeer(ctx, "billing-job"); err != nil {
+		t.Fatalf("billing-job should be allowed: %v", err)
+	}
+	if err := RequireInternalPeer(ctx, "web-bff"); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("wrong method-level peer error = %v", err)
+	}
+}
+
 func TestGRPCUserIdentityPropagationEnforcesOwnership(t *testing.T) {
 	ctx := transport.NewServerContext(context.Background(), testTransport{header: testHeader{userIdentityMetadataKey: "user-a"}})
 	propagate := GRPCUserIdentityPropagation(MTLSConfig{Enabled: true})

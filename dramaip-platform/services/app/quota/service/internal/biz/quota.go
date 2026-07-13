@@ -38,6 +38,13 @@ func (u *QuotaUsecase) CreatePeriodAccount(ctx context.Context, input data.Creat
 	return u.repo.CreatePeriodAccount(ctx, input)
 }
 
+func (u *QuotaUsecase) GetPeriodAccount(ctx context.Context, subscriptionID, periodStart string) (data.TokenAccount, bool, error) {
+	if subscriptionID == "" || periodStart == "" {
+		return data.TokenAccount{}, false, status.Error(codes.InvalidArgument, "missing subscription id or period start")
+	}
+	return u.repo.GetPeriodAccount(ctx, subscriptionID, periodStart)
+}
+
 func legacyCompatibleSnapshot(input data.CreatePeriodAccountInput) data.CreatePeriodAccountInput {
 	input.PlanName = "Legacy plan"
 	input.BillingPeriod = "monthly"
