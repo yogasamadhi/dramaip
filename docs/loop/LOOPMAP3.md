@@ -217,7 +217,7 @@ make platform-down
 | LM3-07 | P0 | 平台安全 | done | 建立可信边缘身份和服务间授权 | Kong、gRPC middleware、资源归属 | LM3-05 |
 | LM3-08 | P0 | Notification | done | 建立通知服务并切断 BFF 直连表 | notification service、BFF | LM3-02、LM3-04 |
 | LM3-09 | P1 | Notification | done | 建立通知事件消费与投递闭环 | notification job、inbox、MQ | LM3-08 |
-| LM3-10 | P0 | 数据平台 | todo | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、CI | LM3-08 |
+| LM3-10 | P0 | 数据平台 | done | 用 DB role 强制数据自治 | PostgreSQL roles、服务配置、手工权限 Gate | LM3-08 |
 | LM3-11 | P0 | Billing | todo | 补齐套餐和权益历史快照 | migrations、billing、quota contract | LM3-10 |
 | LM3-12 | P0 | Quota | todo | 完成原子预扣与结算状态机 | quota schema/biz/data/job | LM3-10、LM3-11 |
 | LM3-13 | P0 | AI Gateway | todo | 完成 AI 请求持久化幂等 | request audit、BFF/SDK、Redis fallback | LM3-12 |
@@ -935,4 +935,19 @@ Push: Core merge e169dac was pushed successfully to `origin/main`; this metadata
 Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-09-notification-job` immediately afterward.
 Current branch/worktree: main; clean before this metadata update.
 Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Delivery is at-least-once with an idempotent notification effect, not a message-level exactly-once claim. Current enabled channel is `in_app`; email/SMS require an explicit adapter in a later loop. Billing, quota, reporting, and other non-notification side effects remain outside notification-job.
+```
+
+```text
+Loop: LM3-10
+Target branch: main
+Loop branch: loop/lm3-10-db-roles
+Commit(s): 9172133 loop(LM3-10): isolate domain database roles
+Merge commit: ed69c32 merge: LM3-10 database role isolation
+Verification: `GOCACHE=/tmp/dramaip-go-build go test ./...` passed before and after the core merge. `make db-role-matrix` passed against a controlled local PostgreSQL test database, applying every migration, connecting as every runtime login, and requiring an attempted foreign-schema table read to fail. Migration 018 then applied successfully to the local Compose database; all six runtime roles are `NOSUPERUSER`/`NOCREATEROLE`, each Compose workload received its expected role, Web BFF had no `POSTGRES_USER` or `POSTGRES_PASSWORD`, and the auth role reported own-schema usage allowed plus billing-schema usage denied. Docker Compose config and Helm lint/template (with a development host-path override) passed. `make platform-e2e` passed after the role-configured workload recreation. A second post-merge E2E attempt could not run because Docker Desktop became unavailable (`Docker Desktop is unable to start`); it did not indicate an application failure.
+Diff review: Reviewed the complete 24-file core diff and ran `git diff --check` before the functional commit and again for `origin/main...HEAD` after the merge. The diff contains no real environment file, password, certificate, private key, cache, image, or unrelated changes. Runtime services use dedicated credentials and fail-closed startup checks; only migration receives the DDL credential set.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target branch aligned before the no-ff merge.
+Push: Core merge and this completion metadata are pending final push to `origin/main`.
+Loop branch cleanup: Pending final metadata push; delete `loop/lm3-10-db-roles` immediately afterward.
+Current branch/worktree: main; only this completion metadata and the D-007 status update are uncommitted.
+Notes: The repository owner explicitly chose normal Gitee use, so LM3-10 supplies a versioned, manually executable role-matrix gate instead of enabling a hosted pipeline. Runtime roles are PostgreSQL cluster-level identities; the test documentation requires an isolated or explicitly role-rotation-safe test instance. Migration rollback never elevates runtime roles or distributes the DDL password.
 ```
