@@ -887,3 +887,18 @@ Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-06-
 Current branch/worktree: loop/lm3-06-web-cookie-csrf; clean before this metadata update.
 Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. Production Web/API deployment must use one public origin or an explicitly configured common Cookie domain covering only controlled sibling subdomains.
 ```
+
+```text
+Loop: LM3-07
+Target branch: main
+Loop branch: loop/lm3-07-trusted-identity
+Commit(s): 9eeee69 loop(LM3-07): enforce trusted service identity; this completion-record update is the loop's final metadata commit.
+Merge commit: b5f0a80 merge: LM3-07 trusted service identity; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `GOCACHE=/tmp/dramaip-go-build go test ./...` and `make event-contracts` passed in `dramaip-platform/services`. Platform tests cover fail-closed mTLS configuration, missing client certificate, rejected caller CN, trusted identity metadata propagation, and cross-user rejection. `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed in `dramaip-platform/clients`. Docker Compose configuration, Kong declaration YAML parsing, Helm lint, and production/development Helm template YAML parsing passed; the production render was inspected to confirm each workload mounts only its own certificate/key pair plus the shared CA.
+Diff review: Reviewed the complete 37-file security diff and `git diff --check` before and after the core merge. Kong strips external `X-User-*` headers; the BFF obtains the propagated user only from a verified Cookie/JWT session; production/unknown environments fail closed without TLS 1.3 mTLS material; service CN allowlists and user/subscription/order/quota/AI ownership checks match the documented boundary. No certificates, private keys, real environment files, caches, or unrelated artifacts were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target was aligned before branch creation and again immediately before the no-ff core merge.
+Push: Core merge b5f0a80 was pushed successfully to `origin/main`; this metadata update is pushed as the final LM3-07 loop step.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-07-trusted-identity` immediately afterward.
+Current branch/worktree: loop/lm3-07-trusted-identity; clean before this metadata update.
+Notes: The repository owner explicitly chose normal Gitee usage; no Gitee Go pipeline or hosted merge gate is claimed. The local Compose profile explicitly disables mTLS and is not production evidence; production deployment requires operator-managed per-workload certificates as documented in `deploy/k8s/README.md`.
+```
