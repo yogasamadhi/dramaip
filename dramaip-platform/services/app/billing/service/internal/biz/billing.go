@@ -50,7 +50,7 @@ func (u *BillingUsecase) ConfirmSimulatedPayment(ctx context.Context, userID str
 	if err != nil {
 		return data.SandboxPaymentResult{}, err
 	}
-	balance, err := u.repo.CreatePeriodAccount(ctx, userID, result.Subscription.ID, result.Subscription.PlanCode, result.QuotaTokens, result.PeriodStart, result.PeriodEnd)
+	balance, err := u.repo.CreatePeriodAccount(ctx, userID, result.Subscription.ID, result.Subscription.PlanSnapshot(), result.PeriodStart, result.PeriodEnd)
 	if err != nil {
 		_ = u.repo.MarkSubscriptionActivationFailed(ctx, result.Subscription.ID, err.Error())
 		return data.SandboxPaymentResult{}, err

@@ -116,17 +116,27 @@ func (d *Data) RetryQuotaProvisioning(ctx context.Context, batch int) error {
 		ID                 string
 		UserID             string
 		PlanCode           string
+		PlanName           string
+		BillingPeriod      string
+		PlanPrice          string
+		Currency           string
 		QuotaTokens        int64
+		MaxRPM             int64
+		MaxContextTokens   int64
+		ModelLevel         string
+		PlanSnapshotSource string
+		PlanSnapshotAt     string
 		CurrentPeriodStart string
 		CurrentPeriodEnd   string
 	}
 	if err := d.DB.WithContext(ctx).Raw(`
-		SELECT sub.id::text AS id, sub.user_id::text AS user_id, plan.code AS plan_code,
-		       plan.monthly_token_quota AS quota_tokens,
+		SELECT sub.id::text AS id, sub.user_id::text AS user_id, sub.plan_code,
+		       sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price, sub.currency,
+		       sub.monthly_token_quota AS quota_tokens, sub.max_rpm, sub.max_context_tokens, sub.model_level,
+		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
 		       sub.current_period_start::text AS current_period_start,
 		       sub.current_period_end::text AS current_period_end
 		FROM billing.subscriptions sub
-		JOIN billing.plans plan ON plan.id = sub.plan_id
 		WHERE sub.status IN ('quota_pending', 'activation_failed')
 		ORDER BY sub.updated_at ASC
 		LIMIT ?
@@ -137,6 +147,9 @@ func (d *Data) RetryQuotaProvisioning(ctx context.Context, batch int) error {
 		if _, err := d.Quota.CreatePeriodAccount(ctx, &quotav1.CreatePeriodAccountRequest{
 			UserId: row.UserID, SubscriptionId: row.ID, PlanCode: row.PlanCode,
 			QuotaTokens: row.QuotaTokens, PeriodStart: row.CurrentPeriodStart, PeriodEnd: row.CurrentPeriodEnd,
+			PlanName: row.PlanName, BillingPeriod: row.BillingPeriod, PlanPrice: row.PlanPrice,
+			Currency: row.Currency, MaxRpm: row.MaxRPM, MaxContextTokens: row.MaxContextTokens,
+			ModelLevel: row.ModelLevel, PlanSnapshotSource: row.PlanSnapshotSource, PlanSnapshotAt: row.PlanSnapshotAt,
 		}); err != nil {
 			_ = d.DB.WithContext(ctx).Exec(`UPDATE billing.subscriptions SET status = 'activation_failed', activation_error = ?, updated_at = now() WHERE id = ?::uuid`, err.Error(), row.ID).Error
 			continue

@@ -34,6 +34,15 @@ message CreatePeriodAccountRequest {
   string period_start = 4;
   string period_end = 5;
   string plan_code = 6;
+  string plan_name = 7;
+  string billing_period = 8;
+  string plan_price = 9;
+  string currency = 10;
+  int64 max_rpm = 11;
+  int64 max_context_tokens = 12;
+  string model_level = 13;
+  string plan_snapshot_source = 14;
+  string plan_snapshot_at = 15;
 }
 
 message TokenAccount {

@@ -30,12 +30,21 @@ type TokenAccount struct {
 }
 
 type CreatePeriodAccountInput struct {
-	UserID         string
-	SubscriptionID string
-	PlanCode       string
-	QuotaTokens    int64
-	PeriodStart    string
-	PeriodEnd      string
+	UserID             string
+	SubscriptionID     string
+	PlanCode           string
+	PlanName           string
+	BillingPeriod      string
+	PlanPrice          string
+	Currency           string
+	QuotaTokens        int64
+	MaxRPM             int64
+	MaxContextTokens   int64
+	ModelLevel         string
+	PlanSnapshotSource string
+	PlanSnapshotAt     string
+	PeriodStart        string
+	PeriodEnd          string
 }
 
 type TokenReservation struct {
@@ -86,14 +95,21 @@ func (r *QuotaRepo) Checks() map[string]func(context.Context) error {
 func (r *QuotaRepo) CreatePeriodAccount(ctx context.Context, input CreatePeriodAccountInput) (TokenAccount, error) {
 	accountID := platform.NewUUID()
 	err := r.data.DB.WithContext(ctx).Exec(`
-		INSERT INTO quota.token_accounts (id, user_id, subscription_id, plan_code, period_start, period_end, quota_tokens, used_tokens, status)
-		VALUES (?::uuid, ?::uuid, ?::uuid, ?, ?::timestamptz, ?::timestamptz, ?, 0, 'active')
+		INSERT INTO quota.token_accounts (
+			id, user_id, subscription_id, plan_code, plan_name, billing_period, plan_price, currency,
+			period_start, period_end, quota_tokens, max_rpm, max_context_tokens, model_level,
+			plan_snapshot_source, plan_snapshot_at, used_tokens, status
+		)
+		VALUES (
+			?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?::numeric, ?,
+			?::timestamptz, ?::timestamptz, ?, ?, ?, ?, ?, ?::timestamptz, 0, 'active'
+		)
 		ON CONFLICT (subscription_id, period_start) DO UPDATE SET
-			plan_code = EXCLUDED.plan_code,
-			quota_tokens = EXCLUDED.quota_tokens,
 			status = 'active',
 			updated_at = now()
-	`, accountID, input.UserID, input.SubscriptionID, input.PlanCode, input.PeriodStart, input.PeriodEnd, input.QuotaTokens).Error
+	`, accountID, input.UserID, input.SubscriptionID, input.PlanCode, input.PlanName, input.BillingPeriod, input.PlanPrice, input.Currency,
+		input.PeriodStart, input.PeriodEnd, input.QuotaTokens, input.MaxRPM, input.MaxContextTokens, input.ModelLevel,
+		input.PlanSnapshotSource, input.PlanSnapshotAt).Error
 	if err != nil {
 		return TokenAccount{}, err
 	}
