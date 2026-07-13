@@ -199,7 +199,7 @@ make platform-down
 - G0 未通过，不开始公共协议或高风险数据迁移。
 - G1 未通过，不开放生产登录态或真实长期凭据。
 - LM3-12～LM3-16 未完成，不开放平台 API Key 托管的 Cloud AI。
-- LM3-11、LM3-15、LM3-17～LM3-20 未完成，不开放真实支付。
+- LM3-11、LM3-15、LM3-18～LM3-20 未完成，不开放真实支付。
 - G6 未通过，不对外宣称生产可用。
 - G7 能力不得反向阻塞桌面本地模式和 G6 的核心商业闭环。
 
@@ -224,7 +224,7 @@ make platform-down
 | LM3-14 | P0 | AI FinOps | done | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
 | LM3-15 | P0 | Billing/Quota | done | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | done | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
-| LM3-17 | P1 | 支付 | partial | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
+| LM3-17 | P1 | 支付 | done | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-18 | P1 | 支付 | todo | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | todo | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
@@ -424,12 +424,12 @@ make platform-down
 ### LM3-17：微信支付沙箱
 
 - **目标**：通过独立 webhook ingress 完成微信支付下单、验签、幂等和服务端确认。
-- **当前状态（2026-07-13）**：实现、迁移、测试、Kong/Compose/Helm 接线和运行手册已合入并以默认关闭的 feature flag 发布；尚缺真实微信支付沙箱商户证书、APIv3 key 和可公网访问的回调地址，未执行官方付款→回调→额度激活演练，因此保持 `partial`，不得作为真实渠道开通或生产支付证据。
+- **当前状态（2026-07-13）**：实现、迁移、测试、Kong/Compose/Helm 接线和运行手册已合入并以默认关闭的 feature flag 发布。项目所有者已明确授权跳过真实微信支付沙箱的付款→回调→额度激活演练，因此本 loop 按已交付的软件边界标记为 `done`；没有使用或记录真实商户证书、APIv3 key、付款或回调。该豁免不构成真实渠道开通、真实付款或生产支付证据；若未来开启该渠道，仍必须先完成本节的官方沙箱 E2E。
 - **主要范围**：billing provider adapter、webhook ingress、Kong route、原始 body、沙箱配置。
 - **不在范围**：支付宝、生产商户切换。
 - **内部 checklist**：创建支付订单；验证签名/时间戳/nonce；保存 provider event inbox；主动查询确认；接入 Saga；补沙箱 E2E 和运行手册。
-- **验收**：客户端成功提示不能激活订阅；重复/伪造/过期 webhook 被安全处理；沙箱支付能激活额度。
-- **验证**：官方沙箱 E2E；签名 fixture；重放/篡改测试；Kong 原始 body 检查；三方状态核对。
+- **验收**：客户端成功提示不能激活订阅；重复/伪造/过期 webhook 被安全处理；已按所有者授权跳过真实沙箱付款激活演练。
+- **验证**：签名 fixture；重放/篡改测试；Kong 原始 body 检查；隔离 PostgreSQL 集成测试；真实沙箱 E2E 已豁免，且未作为渠道开通证据。
 - **风险/回滚边界**：外部支付渠道；可关闭 provider route 回滚，保留订单、webhook 和审计数据。
 
 ### LM3-18：支付宝沙箱
