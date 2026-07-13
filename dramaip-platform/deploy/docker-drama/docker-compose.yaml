@@ -123,6 +123,7 @@ services:
       POSTGRES_NOTIFICATION_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
       POSTGRES_INSPIRATION_PASSWORD: ${POSTGRES_INSPIRATION_PASSWORD:-dramaip}
       POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-dramaip}
+      POSTGRES_REPORTING_PASSWORD: ${POSTGRES_REPORTING_PASSWORD:-dramaip}
     depends_on:
       postgres:
         condition: service_healthy
@@ -320,6 +321,26 @@ services:
       INSPIRATION_GRPC_ADDR: ":9107"
       OTEL_SERVICE_NAME: dramaip-inspiration
 
+  # Reporting is a read-model service. It consumes only durable public events
+  # through reporting-job and never receives any domain schema credential.
+  reporting:
+    <<: *app-common
+    container_name: drama-reporting
+    image: dramaip-reporting
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/reporting/service/cmd/server
+        OUTPUT: dramaip-reporting
+    environment:
+      <<: *app-env
+      POSTGRES_USER: dramaip_reporting
+      POSTGRES_PASSWORD: ${POSTGRES_REPORTING_PASSWORD:-dramaip}
+      REPORTING_HTTP_ADDR: ":8112"
+      REPORTING_GRPC_ADDR: ":9108"
+      OTEL_SERVICE_NAME: dramaip-reporting
+
   notification-job:
     <<: *app-common
     container_name: drama-notification-job
@@ -350,6 +371,45 @@ services:
       NOTIFICATION_INBOX_LEASE: ${NOTIFICATION_INBOX_LEASE:-1m}
       NOTIFICATION_CHANNELS: ${NOTIFICATION_CHANNELS:-in_app}
       OTEL_SERVICE_NAME: dramaip-notification-job
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  reporting-job:
+    <<: *app-common
+    container_name: drama-reporting-job
+    image: dramaip-reporting-job
+    build:
+      context: ../../services
+      dockerfile: Dockerfile.service
+      args:
+        TARGET: ./app/reporting/job/cmd/server
+        OUTPUT: dramaip-reporting-job
+    environment:
+      <<: *app-env
+      POSTGRES_USER: dramaip_reporting
+      POSTGRES_PASSWORD: ${POSTGRES_REPORTING_PASSWORD:-dramaip}
+      REPORTING_JOB_HTTP_ADDR: ":8113"
+      REPORTING_REBUILD_ON_START: ${REPORTING_REBUILD_ON_START:-false}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+      RABBITMQ_USER: ${RABBITMQ_USER:-dramaip}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dramaip}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-dramaip.platform.events}
+      RABBITMQ_EVENTS_QUEUE: ${RABBITMQ_EVENTS_QUEUE:-dramaip.platform.events}
+      REPORTING_EVENTS_QUEUE: ${REPORTING_EVENTS_QUEUE:-dramaip.reporting.events}
+      REPORTING_DLQ_EXCHANGE: ${REPORTING_DLQ_EXCHANGE:-dramaip.platform.events.dlx}
+      REPORTING_DLQ_QUEUE: ${REPORTING_DLQ_QUEUE:-dramaip.reporting.events.dlq}
+      REPORTING_EVENT_PREFETCH: ${REPORTING_EVENT_PREFETCH:-10}
+      REPORTING_EVENT_MAX_RETRIES: ${REPORTING_EVENT_MAX_RETRIES:-3}
+      OTEL_SERVICE_NAME: dramaip-reporting-job
     depends_on:
       postgres:
         condition: service_healthy
@@ -525,6 +585,8 @@ services:
       ADMIN_JWT_PRIVATE_KEY_FILE: ${ADMIN_JWT_PRIVATE_KEY_FILE:-}
       ADMIN_JWT_JWKS_FILE: ${ADMIN_JWT_JWKS_FILE:-}
       ADMIN_JWT_ACCESS_TTL: ${ADMIN_JWT_ACCESS_TTL:-10m}
+      REPORTING_GRPC_ENDPOINT: reporting:9108
+      ADMIN_BFF_GRPC_DIAL_TIMEOUT: ${ADMIN_BFF_GRPC_DIAL_TIMEOUT:-15s}
       OTEL_SERVICE_NAME: dramaip-admin-bff
 
   # Application external entry — the ONLY API service clients may reach from outside.

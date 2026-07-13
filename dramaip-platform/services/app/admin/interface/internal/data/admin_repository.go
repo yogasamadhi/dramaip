@@ -163,6 +163,31 @@ func (r *AdminRepo) SuspendWithConfirmation(ctx context.Context, actorID, target
 	return target, nil
 }
 
+func (r *AdminRepo) ConsumeReportingExceptionConfirmation(ctx context.Context, actorID, exceptionID, confirmationID, traceID string) (string, error) {
+	var reason string
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var confirmation Confirmation
+		if err := tx.Raw(`SELECT id::text AS id, action, target_id::text AS target_id, reason, expires_at::text AS expires_at FROM admin.confirmations WHERE id = ?::uuid AND actor_id = ?::uuid AND consumed_at IS NULL AND expires_at > now() FOR UPDATE`, confirmationID, actorID).Scan(&confirmation).Error; err != nil || confirmation.ID == "" || confirmation.Action != "reporting.exception.resolve" || confirmation.TargetID != exceptionID {
+			return ErrConfirmationInvalid
+		}
+		if err := tx.Exec(`UPDATE admin.confirmations SET consumed_at = now() WHERE id = ?::uuid AND consumed_at IS NULL`, confirmationID).Error; err != nil {
+			return err
+		}
+		before, _ := json.Marshal(map[string]string{"status": "pending"})
+		after, _ := json.Marshal(map[string]string{"status": "consumed"})
+		if err := insertAudit(ctx, tx, actorID, "admin.confirmation.consumed", "confirmation", confirmationID, confirmation.Reason, before, after, traceID); err != nil {
+			return err
+		}
+		request, _ := json.Marshal(map[string]string{"status": "requested"})
+		if err := insertAudit(ctx, tx, actorID, "admin.reporting.exception.resolve.requested", "reporting_exception", exceptionID, confirmation.Reason, before, request, traceID); err != nil {
+			return err
+		}
+		reason = confirmation.Reason
+		return nil
+	})
+	return reason, err
+}
+
 func (r *AdminRepo) ListAuditLogs(ctx context.Context, limit int) ([]AuditLog, error) {
 	var rows []AuditLog
 	err := r.data.DB.WithContext(ctx).Raw(`SELECT id::text AS id, actor_id::text AS actor_id, action, resource_type, resource_id, reason, before_state, after_state, trace_id, created_at::text AS created_at FROM admin.audit_logs ORDER BY created_at DESC, id DESC LIMIT ?`, limit).Scan(&rows).Error

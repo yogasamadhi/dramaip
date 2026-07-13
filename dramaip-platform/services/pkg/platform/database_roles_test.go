@@ -61,6 +61,7 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 		filepath.Join(migrationsRoot, "platform", "018_database_role_isolation.up.sql"),
 		filepath.Join(migrationsRoot, "inspiration", "030_inspiration_mobile_handoff.up.sql"),
 		filepath.Join(migrationsRoot, "admin", "031_admin_rbac_audit.up.sql"),
+		filepath.Join(migrationsRoot, "reporting", "032_reporting_event_read_model.up.sql"),
 	}
 	var builder strings.Builder
 	for _, path := range paths {
@@ -83,7 +84,7 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 			}
 		}
 	}
-	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA inspiration FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin") {
+	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA inspiration FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin, reporting FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin, dramaip_reporting") {
 		t.Fatal("role migration does not revoke every domain schema before grants")
 	}
 	if !strings.Contains(sql, "CREATE TRIGGER admin_audit_logs_immutable") || !strings.Contains(sql, "REVOKE UPDATE, DELETE ON admin.audit_logs FROM dramaip_admin") {

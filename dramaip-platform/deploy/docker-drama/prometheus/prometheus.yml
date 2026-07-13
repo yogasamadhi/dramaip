@@ -46,7 +46,9 @@ scrape_configs:
           - "ai-gateway:8105"
           - "notification:8108"
           - "inspiration:8111"
+          - "reporting:8112"
           - "notification-job:8109"
+          - "reporting-job:8113"
           - "billing-job:8106"
           - "quota-job:8107"
 

@@ -23,12 +23,20 @@ func wireApp() (*kratos.App, func(), error) {
 		return nil, nil, err
 	}
 	adminRepo := data.NewAdminRepo(dataData)
-	adminUsecase, err := biz.NewAdminUsecase(adminRepo, bootstrap)
+	reportingGateway, reportingCleanup, err := data.NewReportingGateway(bootstrap)
 	if err != nil {
+		cleanup()
 		return nil, nil, err
 	}
-	httpService := service.NewHTTPService(adminUsecase)
+	adminUsecase, err := biz.NewAdminUsecase(adminRepo, bootstrap)
+	if err != nil {
+		reportingCleanup()
+		cleanup()
+		return nil, nil, err
+	}
+	reportingUsecase := biz.NewReportingUsecase(reportingGateway)
+	httpService := service.NewHTTPService(adminUsecase, reportingUsecase)
 	httpServer := server.NewHTTPServer(bootstrap, httpService)
 	app := newApp(httpServer)
-	return app, cleanup, nil
+	return app, func() { reportingCleanup(); cleanup() }, nil
 }
