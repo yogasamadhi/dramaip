@@ -3,6 +3,7 @@ package platform
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -93,6 +94,17 @@ func TestMigrationSourceURL(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "file://") {
 		t.Fatalf("migrationSourceURL() = %q", got)
+	}
+}
+
+func TestRepositoryMigrationsHaveUniqueVersions(t *testing.T) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "migrations"))
+	if _, err := scanMigrationFiles(root); err != nil {
+		t.Fatalf("repository migrations are invalid: %v", err)
 	}
 }
 

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package events.billing.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/events/billing/v1;billingeventsv1";
+
+// SubscriptionActivated announces that a subscription can be used after its
+// current period quota account has been provisioned.
+message SubscriptionActivated {
+  string subscription_id = 1;
+  string user_id = 2;
+  string plan_code = 3;
+  string period_start = 4;
+  string period_end = 5;
+}

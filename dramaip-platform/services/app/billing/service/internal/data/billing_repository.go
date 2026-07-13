@@ -3,10 +3,13 @@ package data
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
+	billingeventsv1 "github.com/dramaip/dramaip-platform/services/events/billing/v1"
+	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc"
@@ -197,8 +200,15 @@ func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCod
 	orderID := platform.NewUUID()
 	eventID := platform.NewUUID()
 	traceID := platform.TraceID(ctx)
-	event := map[string]any{"order_id": orderID, "user_id": userID, "plan": plan.Code, "channel": provider, "amount": plan.Price, "trace_id": traceID}
-	raw, err := json.Marshal(event)
+	now := time.Now().UTC()
+	eventPayload, err := events.MarshalEnvelope(events.NewCheckoutCreated(eventID, traceID, now, &billingeventsv1.CheckoutCreated{
+		OrderId:  orderID,
+		UserId:   userID,
+		PlanCode: plan.Code,
+		Provider: provider,
+		Amount:   strconv.FormatFloat(plan.Price, 'f', 2, 64),
+		Currency: "CNY",
+	}))
 	if err != nil {
 		return CheckoutResult{}, err
 	}
@@ -210,9 +220,9 @@ func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCod
 			return err
 		}
 		return tx.Exec(`
-			INSERT INTO billing.outbox_events (id, aggregate_type, aggregate_id, event_type, trace_id, payload)
-			VALUES (?::uuid, 'billing.order', ?::uuid, 'billing.checkout.created', ?, ?::jsonb)
-		`, eventID, orderID, traceID, string(raw)).Error
+			INSERT INTO billing.outbox_events (id, aggregate_type, aggregate_id, event_type, version, trace_id, occurred_at, payload)
+			VALUES (?::uuid, 'billing.order', ?::uuid, 'billing.checkout.created.v1', 1, ?, ?, ?::jsonb)
+		`, eventID, orderID, traceID, now, string(eventPayload)).Error
 	})
 	if err != nil {
 		return CheckoutResult{}, err
@@ -309,11 +319,16 @@ func (r *BillingRepo) ConfirmSimulatedPayment(ctx context.Context, userID string
 			return err
 		}
 		traceID := platform.TraceID(ctx)
-		eventPayload, err := json.Marshal(map[string]any{
-			"event_id": outboxEventID, "event_type": "payment.succeeded.v1", "version": 1,
-			"order_id": order.ID, "subscription_id": subscriptionID, "user_id": userID,
-			"plan": order.PlanCode, "provider": "simulated", "trace_id": traceID, "occurred_at": now.Format(time.RFC3339),
-		})
+		eventPayload, err := events.MarshalEnvelope(events.NewPaymentSucceeded(outboxEventID, traceID, now, &billingeventsv1.PaymentSucceeded{
+			PaymentId:      paymentID,
+			OrderId:        order.ID,
+			SubscriptionId: subscriptionID,
+			UserId:         userID,
+			PlanCode:       order.PlanCode,
+			Provider:       "simulated",
+			Amount:         strconv.FormatFloat(order.Amount, 'f', 2, 64),
+			Currency:       order.Currency,
+		}))
 		if err != nil {
 			return err
 		}

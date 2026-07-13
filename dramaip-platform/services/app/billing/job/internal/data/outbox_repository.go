@@ -2,11 +2,12 @@ package data
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/conf"
+	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -73,16 +74,22 @@ func (d *Data) Relay(ctx context.Context, batch int) error {
 	}
 	for _, row := range rows {
 		eventCtx, span := platform.Tracer("billing-job").Start(ctx, "outbox relay "+row.EventType)
-		var payload map[string]any
-		if err := json.Unmarshal(row.Payload, &payload); err != nil {
+		envelope, err := events.ParseEnvelope(row.Payload)
+		if err != nil {
 			span.RecordError(err)
 			span.End()
 			return err
 		}
-		if row.TraceID != "" {
-			payload["trace_id"] = row.TraceID
+		if envelope.GetEventType() != row.EventType {
+			err := fmt.Errorf("outbox event type %q does not match payload event_type %q", row.EventType, envelope.GetEventType())
+			span.RecordError(err)
+			span.End()
+			return err
 		}
-		if err := d.Publisher.Publish(eventCtx, row.EventType, payload); err != nil {
+		if envelope.GetTraceId() == "" && row.TraceID != "" {
+			envelope.TraceId = row.TraceID
+		}
+		if err := d.Publisher.Publish(eventCtx, envelope); err != nil {
 			_ = d.DB.WithContext(ctx).Exec(`
 				UPDATE billing.outbox_events
 				SET publish_attempts = publish_attempts + 1, last_error = ?, occurred_at = occurred_at

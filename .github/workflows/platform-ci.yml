@@ -45,10 +45,17 @@ jobs:
         working-directory: dramaip-platform/services
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: dramaip-platform/services/go.mod
           cache-dependency-path: dramaip-platform/services/go.sum
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.47.2
+      - name: Verify versioned event contracts
+        run: make event-contracts
       - name: Test services
         run: GOCACHE=/tmp/dramaip-go-build go test ./...
 

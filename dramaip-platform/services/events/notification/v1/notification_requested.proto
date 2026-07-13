@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package events.notification.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/events/notification/v1;notificationeventsv1";
+
+// NotificationRequested asks the notification domain to create a user-facing
+// notification. Delivery and rendering belong to the future notification job.
+message NotificationRequested {
+  string notification_id = 1;
+  string user_id = 2;
+  string category = 3;
+  string title = 4;
+  string body = 5;
+  string source_event_id = 6;
+}

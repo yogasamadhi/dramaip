@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package events.envelope.v1;
+
+import "events/billing/v1/checkout_created.proto";
+import "events/billing/v1/payment_succeeded.proto";
+import "events/billing/v1/subscription_activated.proto";
+import "events/notification/v1/notification_requested.proto";
+import "events/quota/v1/token_usage_recorded.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/dramaip/dramaip-platform/services/events/envelope/v1;envelopev1";
+
+// EventEnvelope is the single RabbitMQ message body. event_type is the stable
+// routing name, while payload carries exactly one versioned domain event.
+message EventEnvelope {
+  string event_id = 1;
+  string event_type = 2;
+  uint32 schema_version = 3;
+  string aggregate_type = 4;
+  string aggregate_id = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  string trace_id = 7;
+
+  oneof payload {
+    events.billing.v1.CheckoutCreated checkout_created = 20;
+    events.billing.v1.PaymentSucceeded payment_succeeded = 21;
+    events.billing.v1.SubscriptionActivated subscription_activated = 22;
+    events.quota.v1.TokenUsageRecorded token_usage_recorded = 23;
+    events.notification.v1.NotificationRequested notification_requested = 24;
+  }
+}

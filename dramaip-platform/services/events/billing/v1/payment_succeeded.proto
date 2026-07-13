@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package events.billing.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/events/billing/v1;billingeventsv1";
+
+// PaymentSucceeded records a provider-confirmed payment. Monetary values use
+// their canonical decimal representation rather than a floating-point value.
+message PaymentSucceeded {
+  string payment_id = 1;
+  string order_id = 2;
+  string subscription_id = 3;
+  string user_id = 4;
+  string plan_code = 5;
+  string provider = 6;
+  string amount = 7;
+  string currency = 8;
+}
