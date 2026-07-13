@@ -209,7 +209,7 @@ make platform-down
 | LM3-00 | P0 | 工程负责人 | done | 固化基线并收口文档入口 | 根文档、`docs/loop`、验证记录 | 无 |
 | LM3-01 | P0 | API/平台 | done | 恢复统一 `/v1` 契约与测试 | BFF router/test、SDK、E2E、Kong | LM3-00 |
 | LM3-02 | P0 | 平台架构 | done | 将通用 BFF 迁移为 Web BFF | proto、Go app、Compose、Kong、SDK | LM3-01 |
-| LM3-03 | P0 | DevEx/CI | todo | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
+| LM3-03 | P0 | DevEx/CI | done | 建立根级非交互绿色 CI | workflows、lint、build、smoke | LM3-02 |
 | LM3-04 | P0 | 契约治理 | todo | 建立版本化事件契约与生成 Gate | `services/events`、buf/CI、producer/consumer | LM3-03 |
 | LM3-05 | P0 | Auth/安全 | todo | 生产认证迁移到 JWKS | auth、Kong、key set、会话 | LM3-03 |
 | LM3-06 | P0 | Web/Auth | todo | Web 长期凭据迁移到安全 Cookie | Web、Web BFF/Auth、CSRF | LM3-05 |
@@ -821,4 +821,20 @@ Push: Core merge e243acc was pushed successfully to `origin/main`; this metadata
 Loop branch cleanup: Pending final metadata merge and push; delete this branch with `git branch -d loop/lm3-02-web-bff-path` immediately afterward.
 Current branch/worktree: loop/lm3-02-web-bff-path; clean before this metadata update.
 Notes: `docs/差异演进.md` now records D-001 as complete for the Web phase and preserves D-004's completed `/v1` test status. The next Desktop/Mobile/Admin loops must create their own mirrored BFF paths and must not reintroduce a generic BFF.
+```
+
+```text
+Loop: LM3-03
+Target branch: main
+Loop branch: loop/lm3-03-root-ci
+Commit(s): d16f371 loop(LM3-03): establish root CI quality gates; this completion-record update is the loop's final metadata commit.
+Merge commit: 76897fb merge: LM3-03 root CI quality gates; the metadata commit is merged immediately after this record is committed.
+Verification: Before and after the core merge, `pnpm lint`, `pnpm typecheck`, and `pnpm build:web` passed in `dramaip-platform/clients`; `make web-route-smoke` passed; `pnpm typecheck`, `pnpm test:unit` (115 tests), `pnpm test:db`, and `pnpm build` passed in `dramaip-desktop`. The root desktop and platform workflow YAML files parsed successfully and `actionlint` accepted both; `git diff --check` passed. The Web and Mobile lint commands now run non-interactively through explicit ESLint configurations, and the desktop CI workflow now runs from the repository root with its working directory set explicitly.
+Hosted pipeline: On 2026-07-13 the repository owner explicitly chose ordinary Gitee use and did not request Gitee Go activation or a remote merge gate. No Gitee-hosted workflow run or automatic merge blocking is claimed here. The root `.github` workflows remain version-controlled, syntactically validated CI definitions for compatible hosts or mirrors; their full Compose E2E jobs are limited to scheduled, tag, or manual triggers.
+Diff review: Reviewed the root workflow migration, path filters, non-interactive lint configuration, package-lock changes, and documentation baseline. No credentials, local environment files, caches, build outputs, or unrelated files were included.
+Remote sync: `git fetch origin` and `git merge --ff-only origin/main` confirmed the target branch was aligned before the no-ff merge.
+Push: Pending final metadata merge and push to `origin/main`.
+Loop branch cleanup: Pending final metadata merge and push; delete `loop/lm3-03-root-ci` immediately afterward.
+Current branch/worktree: main; clean before this metadata update.
+Notes: This loop completes the requested normal Gitee merge workflow and leaves hosted-pipeline activation as an explicit owner decision, not an unstated prerequisite for future implementation work.
 ```
