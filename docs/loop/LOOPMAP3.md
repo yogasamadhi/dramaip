@@ -224,7 +224,7 @@ make platform-down
 | LM3-14 | P0 | AI FinOps | done | 建立 Provider 成本账本与风控 | cost log、pricing、alerts、plans | LM3-13 |
 | LM3-15 | P0 | Billing/Quota | done | 完成支付激活 Saga 和 Outbox | billing、quota、jobs、MQ | LM3-04、LM3-11、LM3-12 |
 | LM3-16 | P1 | Billing | done | 完成订阅全生命周期 | 升降级、续期、取消、退款 | LM3-15 |
-| LM3-17 | P1 | 支付 | todo | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
+| LM3-17 | P1 | 支付 | partial | 接入微信支付沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-18 | P1 | 支付 | todo | 接入支付宝沙箱与 webhook | billing ingress、Kong、SDK | LM3-15 |
 | LM3-19 | P0 | 财务/平台 | todo | 建立支付、订阅、额度三方对账 | billing/quota jobs、reporting | LM3-16～LM3-18 |
 | LM3-20 | P0 | 架构验证 | todo | 通过账本与支付并发安全 Gate | 领域测试、并发测试、沙箱 E2E | LM3-11～LM3-19 |
@@ -424,6 +424,7 @@ make platform-down
 ### LM3-17：微信支付沙箱
 
 - **目标**：通过独立 webhook ingress 完成微信支付下单、验签、幂等和服务端确认。
+- **当前状态（2026-07-13）**：实现、迁移、测试、Kong/Compose/Helm 接线和运行手册已合入并以默认关闭的 feature flag 发布；尚缺真实微信支付沙箱商户证书、APIv3 key 和可公网访问的回调地址，未执行官方付款→回调→额度激活演练，因此保持 `partial`，不得作为真实渠道开通或生产支付证据。
 - **主要范围**：billing provider adapter、webhook ingress、Kong route、原始 body、沙箱配置。
 - **不在范围**：支付宝、生产商户切换。
 - **内部 checklist**：创建支付订单；验证签名/时间戳/nonce；保存 provider event inbox；主动查询确认；接入 Saga；补沙箱 E2E 和运行手册。
