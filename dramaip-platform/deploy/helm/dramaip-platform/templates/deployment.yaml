@@ -261,8 +261,10 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 6
           startupProbe:
-            httpGet:
-              path: {{ $healthPath }}
+            # Startup answers only whether the process has bound its port.
+            # Dependency readiness stays on the HTTP probe below, so a
+            # temporarily unavailable downstream cannot force a restart loop.
+            tcpSocket:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5

@@ -118,7 +118,7 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 		"quota": func(ctx context.Context) error {
 			const healthUserID = "00000000-0000-4000-8000-000000000001"
 			_, err := d.Quota.GetTokenBalance(platform.WithUserIdentity(ctx, healthUserID), &quotav1.GetTokenBalanceRequest{UserId: healthUserID})
-			return err
+			return platform.NormalizeHealthProbeError(err)
 		},
 	}
 }

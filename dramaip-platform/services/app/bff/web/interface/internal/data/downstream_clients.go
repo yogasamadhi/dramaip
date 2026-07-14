@@ -99,11 +99,11 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 		},
 		"quota": func(ctx context.Context) error {
 			_, err := d.Quota.GetTokenBalance(platform.WithUserIdentity(ctx, healthUserID), &quotav1.GetTokenBalanceRequest{UserId: healthUserID})
-			return err
+			return platform.NormalizeHealthProbeError(err)
 		},
 		"user": func(ctx context.Context) error {
 			_, err := d.User.GetProfile(platform.WithUserIdentity(ctx, healthUserID), &userv1.GetProfileRequest{UserId: healthUserID})
-			return err
+			return platform.NormalizeHealthProbeError(err)
 		},
 		"notification": func(ctx context.Context) error {
 			_, err := d.Notification.ListNotifications(platform.WithUserIdentity(ctx, healthUserID), &notificationv1.ListNotificationsRequest{UserId: healthUserID, Limit: 1})
