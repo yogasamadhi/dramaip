@@ -54,7 +54,8 @@ cert_components=(
 )
 # EXIT traps can run after function-local variables have been unwound by
 # `set -e`. Keep transient preload cleanup state at script scope so a failed
-# verification always removes the Docker-socket DaemonSet and archive server.
+# verification removes the Docker-socket DaemonSet and archive server by
+# default. A separately authorized diagnostic mode can retain the loader.
 DRAMAIP_PRELOAD_SERVER_PID=""
 DRAMAIP_PRELOAD_LOADER_CREATED=0
 DRAMAIP_PRELOAD_KEEP_LOADER=0
@@ -418,7 +419,19 @@ spec:
                 fi
               done
               echo "temporary staging application images verified on this worker"
+              touch /tmp/dramaip-preload-ready
               while true; do sleep 3600; done
+          # A running loader is not sufficient: Kubernetes otherwise marks a
+          # Pod ready while wget or docker load is still in progress.  The
+          # marker is created only after every immutable image tag is present
+          # in this worker's host Docker cache.
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-ec", "test -f /tmp/dramaip-preload-ready"]
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 180
           volumeMounts:
             - name: docker-socket
               mountPath: /var/run/docker.sock
