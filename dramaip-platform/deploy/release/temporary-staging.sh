@@ -5,7 +5,7 @@ set -euo pipefail
 # environment. It has no production path and refuses a namespace outside the
 # dramaip-staging family. It does not use a registry: the application images
 # are loaded by exact tag into the Docker cache of worker nodes only.
-action="${1:?usage: temporary-staging.sh <bootstrap|rotate-mtls|install-kong|archive-images|preload-images|remove-images|teardown>}"
+action="${1:?usage: temporary-staging.sh <bootstrap|rotate-mtls|rotate-ingress-tls|install-kong|archive-images|preload-images|remove-images|teardown>}"
 [[ "${DRAMAIP_TEMPORARY_STAGING_AUTHORIZED:-}" == "1" ]] || {
   echo "set DRAMAIP_TEMPORARY_STAGING_AUTHORIZED=1 after approving temporary staging" >&2
   exit 2
@@ -161,6 +161,25 @@ create_mtls_secret() {
   rm -rf "$tmp"
 }
 
+create_ingress_tls_secret() (
+  local tls_secret="$1"
+  local ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
+  local tmp
+  [[ "$ingress_host" =~ ^[A-Za-z0-9.-]+$ ]] || {
+    echo "DRAMAIP_PUBLIC_INGRESS_HOST is invalid" >&2
+    exit 2
+  }
+
+  tmp="$(mktemp -d)"
+  chmod 700 "$tmp"
+  trap 'rm -rf "$tmp"' EXIT
+  openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 2 \
+    -keyout "$tmp/ingress.key" -out "$tmp/ingress.crt" \
+    -subj "/CN=${ingress_host}" -addext "subjectAltName=DNS:${ingress_host}" >/dev/null 2>&1
+  "${kubectl_cmd[@]}" -n "$namespace" create secret tls "$tls_secret" \
+    --cert="$tmp/ingress.crt" --key="$tmp/ingress.key" --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
+)
+
 bootstrap() {
   require_command openssl
   require_command kubectl
@@ -170,8 +189,6 @@ bootstrap() {
   local mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
   local pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:-dramaip-staging-registry}"
   local tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
-  local ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
-  [[ "$ingress_host" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "DRAMAIP_PUBLIC_INGRESS_HOST is invalid" >&2; exit 2; }
 
   local -a runtime_keys=(
     POSTGRES_USER POSTGRES_PASSWORD POSTGRES_AUTH_PASSWORD POSTGRES_USER_PROFILE_PASSWORD
@@ -201,18 +218,7 @@ bootstrap() {
     --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
 
   create_mtls_secret "$mtls_secret"
-
-  local tmp
-  tmp="$(mktemp -d)"
-  chmod 700 "$tmp"
-  cleanup_bootstrap() { rm -rf "$tmp"; }
-  trap cleanup_bootstrap RETURN
-
-  openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 2 \
-    -keyout "$tmp/ingress.key" -out "$tmp/ingress.crt" \
-    -subj "/CN=${ingress_host}" -addext "subjectAltName=DNS:${ingress_host}" >/dev/null 2>&1
-  "${kubectl_cmd[@]}" -n "$namespace" create secret tls "$tls_secret" \
-    --cert="$tmp/ingress.crt" --key="$tmp/ingress.key" --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
+  create_ingress_tls_secret "$tls_secret"
 
   echo "temporary staging bootstrap completed: namespace and short-lived runtime, mTLS, pull, and ingress TLS Secrets were created"
 }
@@ -227,6 +233,18 @@ rotate_mtls() {
   local mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
   create_mtls_secret "$mtls_secret"
   echo "temporary staging mTLS Secret rotated; restart workloads to load the new certificates"
+}
+
+rotate_ingress_tls() {
+  require_command openssl
+  require_command kubectl
+  "${kubectl_cmd[@]}" get namespace "$namespace" >/dev/null || {
+    echo "run bootstrap before rotate-ingress-tls" >&2
+    exit 1
+  }
+  local tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
+  create_ingress_tls_secret "$tls_secret"
+  echo "temporary staging ingress TLS Secret rotated; Kong will reconcile the updated certificate"
 }
 
 install_kong() {
@@ -626,10 +644,11 @@ teardown() {
 case "$action" in
   bootstrap) bootstrap ;;
   rotate-mtls) rotate_mtls ;;
+  rotate-ingress-tls) rotate_ingress_tls ;;
   install-kong) install_kong ;;
   archive-images) archive_images ;;
   preload-images) preload_images ;;
   remove-images) remove_images ;;
   teardown) teardown ;;
-  *) echo "action must be bootstrap, rotate-mtls, install-kong, archive-images, preload-images, remove-images, or teardown" >&2; exit 2 ;;
+  *) echo "action must be bootstrap, rotate-mtls, rotate-ingress-tls, install-kong, archive-images, preload-images, remove-images, or teardown" >&2; exit 2 ;;
 esac
