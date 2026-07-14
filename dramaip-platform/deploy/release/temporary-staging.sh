@@ -388,8 +388,22 @@ spec:
                 sleep 2
               done
               [ "\$loaded" = 1 ] || { echo "temporary archive download or checksum verification failed" >&2; exit 1; }
-              docker load -i "\$archive" >/dev/null
+              if ! load_output="\$(docker load -i "\$archive" 2>&1)"; then
+                echo "temporary Docker archive load failed on this worker" >&2
+                printf '%s\\n' "\$load_output" >&2
+                exit 1
+              fi
               rm -f "\$archive"
+              # The readiness signal must mean this worker actually has the
+              # immutable application tag.  Checking in the worker avoids a
+              # false-positive DaemonSet rollout and keeps Docker work off
+              # the control plane.
+              if ! docker image inspect '${image_registry}/web-bff:${image_tag}' >/dev/null 2>&1; then
+                echo "expected application image tag is absent after Docker load" >&2
+                printf '%s\\n' "\$load_output" >&2
+                docker image ls --format '{{.Repository}}:{{.Tag}}' >&2 || true
+                exit 1
+              fi
               while true; do sleep 3600; done
           volumeMounts:
             - name: docker-socket
