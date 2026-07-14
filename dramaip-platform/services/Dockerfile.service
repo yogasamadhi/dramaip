@@ -1,4 +1,7 @@
-FROM golang:1.24-alpine AS build
+ARG GO_IMAGE=golang:1.24-alpine
+ARG RUNTIME_IMAGE=alpine:3.20
+
+FROM ${GO_IMAGE} AS build
 
 ARG TARGET=./app/bff/web/interface/cmd/server
 ARG OUTPUT=dramaip-service
@@ -13,7 +16,7 @@ RUN echo "${BUILD_CACHE_BUST}" > /tmp/dramaip-build-cache-bust
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/${OUTPUT} ${TARGET}
 
-FROM alpine:3.20
+FROM ${RUNTIME_IMAGE}
 
 ARG OUTPUT=dramaip-service
 

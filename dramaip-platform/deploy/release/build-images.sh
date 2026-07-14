@@ -14,6 +14,20 @@ docker_cmd=(docker)
 if [[ "${DRAMAIP_DOCKER_SUDO:-0}" == "1" ]]; then
   docker_cmd=(sudo docker)
 fi
+build_base_args=()
+if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
+  # This is intentionally an image-prefix value, not arbitrary Docker flags.
+  # It is useful for a controlled operator network whose Docker Hub route is
+  # unavailable; normal builds retain the official image defaults above.
+  [[ "$DRAMAIP_DOCKER_MIRROR" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || {
+    echo "DRAMAIP_DOCKER_MIRROR must be a registry authority" >&2
+    exit 2
+  }
+  build_base_args=(
+    --build-arg "GO_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/golang:1.24-alpine"
+    --build-arg "RUNTIME_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/alpine:3.20"
+  )
+fi
 
 targets=(
   "web-bff:./app/bff/web/interface/cmd/server"
@@ -39,6 +53,6 @@ for item in "${targets[@]}"; do
   name="${item%%:*}"
   target="${item#*:}"
   image="$registry/$name:$tag"
-  "${docker_cmd[@]}" build --pull --file "$services/Dockerfile.service" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
+  "${docker_cmd[@]}" build --pull --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
   if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done

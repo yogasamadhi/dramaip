@@ -17,6 +17,7 @@ kong_namespace="${DRAMAIP_KONG_NAMESPACE:-${namespace}-kong}"
 kong_release="${DRAMAIP_KONG_RELEASE:-dramaip-staging-kong}"
 image_registry="${IMAGE_REGISTRY:-dramaip-staging.local}"
 image_tag="${IMAGE_TAG:-}"
+loader_image="${DRAMAIP_IMAGE_LOADER_IMAGE:-docker:29-cli}"
 kubectl_cmd=(kubectl)
 helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
@@ -65,6 +66,16 @@ require_image_identity() {
     echo "IMAGE_TAG must be a non-empty immutable tag containing only letters, digits, dot, underscore, or hyphen" >&2
     exit 2
   }
+}
+
+require_loader_image() {
+  case "$loader_image" in
+    docker:29-cli|docker.m.daocloud.io/library/docker:29-cli) ;;
+    *)
+      echo "DRAMAIP_IMAGE_LOADER_IMAGE must be the reviewed Docker CLI image or its approved mirror" >&2
+      exit 2
+      ;;
+  esac
 }
 
 create_or_update_secret() {
@@ -166,6 +177,10 @@ install_kong() {
   [[ "$actual_sha" == "$expected_sha" ]] || { echo "Kong chart SHA-256 does not match the reviewed archive" >&2; exit 1; }
   local http_port="${DRAMAIP_KONG_HTTP_NODEPORT:-32080}"
   local https_port="${DRAMAIP_KONG_HTTPS_NODEPORT:-32443}"
+  local gateway_repository="${DRAMAIP_KONG_GATEWAY_REPOSITORY:-kong}"
+  local controller_repository="${DRAMAIP_KONG_CONTROLLER_REPOSITORY:-kong/kubernetes-ingress-controller}"
+  case "$gateway_repository" in kong|docker.m.daocloud.io/library/kong) ;; *) echo "unreviewed Kong gateway repository" >&2; exit 2 ;; esac
+  case "$controller_repository" in kong/kubernetes-ingress-controller|docker.m.daocloud.io/kong/kubernetes-ingress-controller) ;; *) echo "unreviewed Kong controller repository" >&2; exit 2 ;; esac
   [[ "$http_port" =~ ^3[0-2][0-9]{3}$ && "$https_port" =~ ^3[0-2][0-9]{3}$ && "$http_port" != "$https_port" ]] || {
     echo "Kong NodePorts must be distinct Kubernetes NodePort-range values" >&2
     exit 2
@@ -181,6 +196,10 @@ install_kong() {
     --set gateway.proxy.type=NodePort \
     --set "gateway.proxy.http.nodePort=$http_port" \
     --set "gateway.proxy.tls.nodePort=$https_port" \
+    --set-string "gateway.image.repository=$gateway_repository" \
+    --set-string "gateway.image.tag=3.9" \
+    --set-string "controller.ingressController.image.repository=$controller_repository" \
+    --set-string "controller.ingressController.image.tag=3.5" \
     --set 'gateway.nodeSelector.node-role\.kubernetes\.io/worker=worker' \
     --set 'controller.nodeSelector.node-role\.kubernetes\.io/worker=worker' \
     --set "controller.ingressController.watchNamespaces[0]=$namespace" \
@@ -198,6 +217,7 @@ archive_images() {
     exit 2
   }
   require_image_identity
+  require_loader_image
   local archive="${DRAMAIP_IMAGE_ARCHIVE:?DRAMAIP_IMAGE_ARCHIVE must be the destination Docker archive path}"
   [[ "$archive" == /* ]] || { echo "DRAMAIP_IMAGE_ARCHIVE must be an absolute path" >&2; exit 2; }
   mkdir -p "$(dirname "$archive")"
@@ -275,7 +295,7 @@ spec:
         node-role.kubernetes.io/worker: worker
       containers:
         - name: loader
-          image: docker:29-cli
+          image: ${loader_image}
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 0
@@ -328,6 +348,7 @@ remove_images() {
     exit 2
   }
   require_image_identity
+  require_loader_image
   "${kubectl_cmd[@]}" get namespace "$kong_namespace" >/dev/null || { echo "temporary Kong namespace is required for safe image cleanup" >&2; exit 1; }
   "${kubectl_cmd[@]}" -n "$kong_namespace" apply -f - <<EOF >/dev/null
 apiVersion: apps/v1
@@ -347,7 +368,7 @@ spec:
         node-role.kubernetes.io/worker: worker
       containers:
         - name: remover
-          image: docker:29-cli
+          image: ${loader_image}
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 0

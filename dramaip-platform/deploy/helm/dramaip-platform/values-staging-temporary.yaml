@@ -14,6 +14,16 @@ devInfra:
   enabled: true
   persistence:
     enabled: false
+  # The temporary operator network reaches this reviewed mirror while direct
+  # Docker Hub is unavailable. Normal dev/staging values keep their defaults.
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:18-alpine
+  redis:
+    image: docker.m.daocloud.io/library/redis:8-alpine
+  rabbitmq:
+    image: docker.m.daocloud.io/library/rabbitmq:4.3-management-alpine
+  otel:
+    image: docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.155.0
 
 config:
   env: staging
