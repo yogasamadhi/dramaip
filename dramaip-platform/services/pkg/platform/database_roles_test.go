@@ -88,6 +88,9 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA inspiration FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin") || !strings.Contains(sql, "REVOKE ALL ON SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin, reporting FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin, dramaip_reporting") {
 		t.Fatal("role migration does not revoke every domain schema before grants")
 	}
+	if !strings.Contains(sql, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin, reporting FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin, dramaip_reporting") {
+		t.Fatal("role migration does not revoke every domain sequence privilege before grants")
+	}
 	if !strings.Contains(sql, "CREATE TRIGGER admin_audit_logs_immutable") || !strings.Contains(sql, "REVOKE UPDATE, DELETE ON admin.audit_logs FROM dramaip_admin") {
 		t.Fatal("admin audit migration does not enforce append-only runtime access")
 	}
