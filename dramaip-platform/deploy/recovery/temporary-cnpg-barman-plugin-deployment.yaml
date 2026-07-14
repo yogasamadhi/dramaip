@@ -1,0 +1,90 @@
+# This Deployment replaces only the upstream Barman Cloud Plugin Deployment.
+# The staging script applies the SHA-256-verified v0.13.0 upstream CRD, RBAC,
+# Service and sidecar-image Secret, while deliberately omitting its cert-manager
+# resources. It creates short-lived, staging-only mTLS Secrets instead.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: barman-cloud
+  namespace: cnpg-system
+  labels:
+    app: barman-cloud
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: barman-cloud
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: barman-cloud
+        app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+        dramaip.io/temporary: "true"
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/worker: worker
+        kubernetes.io/hostname: k8s-worker01
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: plugin-barman-cloud
+      containers:
+        - name: barman-cloud
+          image: ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.13.0
+          imagePullPolicy: Never
+          args:
+            - operator
+            - --server-cert=/server/tls.crt
+            - --server-key=/server/tls.key
+            - --client-cert=/client/tls.crt
+            - --server-address=:9090
+            - --leader-elect
+            - --log-level=info
+          env:
+            - name: SIDECAR_IMAGE
+              valueFrom:
+                secretKeyRef:
+                  name: plugin-barman-cloud-m5m67kfh8f
+                  key: SIDECAR_IMAGE
+          ports:
+            - containerPort: 9090
+              protocol: TCP
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            tcpSocket:
+              port: 9090
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 10001
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: server
+              mountPath: /server
+            - name: client
+              mountPath: /client
+      volumes:
+        - name: server
+          secret:
+            secretName: barman-cloud-server-tls
+        - name: client
+          secret:
+            secretName: barman-cloud-client-tls

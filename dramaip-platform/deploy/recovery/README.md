@@ -163,6 +163,71 @@ CNPG 1.30 已在本次运行中警告原生 `barmanObjectStore` 将在 1.31 移�
 不可变和真实保留策略的对象存储。worker01 `emptyDir` MinIO、临时 Secret、测试 `7d` 策略以及本次
 on-demand Backup 都不构成异地、加密、自动计划备份、损坏告警或生产 RPO/RTO 的证据。
 
+## 临时 CNPG Barman Cloud Plugin 演练
+
+CloudNativePG 1.30 对原生 `barmanObjectStore` 的弃用警告已在本次演练中实际出现，因此后续恢复
+路径使用官方 Barman Cloud Plugin `v0.13.0`。插件清单以 SHA-256
+`d2e71e7b…13213b0` 校验；控制器和 sidecar 镜像固定为
+`71589d…b6c96`、`990361…bb288`，均明确以 `linux/amd64` 拉取。arm64 构建机只负责拉取、
+导出 tar 和校验，worker 才导入并实际运行镜像；不得把本机默认 arm64 镜像直接交给 worker。
+
+```bash
+# 在 arm64 构建机：导出明确的 amd64 镜像包，并记录脚本输出的 SHA-256
+export DRAMAIP_CNPG_PLUGIN_IMAGE_PREP_AUTHORIZED=1
+bash deploy/recovery/prepare-cnpg-barman-plugin-images.sh
+
+# 在可访问 worker 私网的受控发布主机：短暂 HTTP 分发 + worker-only DaemonSet 导入。
+# 把 <tar-sha256> 替换为上一条命令实际输出；加载器验证后会自动删除。
+export DRAMAIP_CNPG_PLUGIN_PRELOAD_AUTHORIZED=1
+export DRAMAIP_CNPG_PLUGIN_IMAGE_TAR_SHA256=<tar-sha256>
+bash deploy/recovery/preload-cnpg-barman-plugin-images.sh
+```
+
+加载器和插件 Deployment 都选择 worker；Deployment 固定在 worker01，使用
+`imagePullPolicy: Never`、128Mi request / 256Mi limit。它不在任一 master 编译、拉取或运行
+镜像。官方默认安装需要 cert-manager；本演练没有新增该控制器，而是生成 7 天有效、只存在
+Kubernetes Secret 中的临时 mTLS 证书。生产必须改用受审计的 CA/cert-manager 或等价证书生命周期，
+不能复用这些临时自签名证书。
+
+```bash
+export DRAMAIP_CNPG_PLUGIN_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-barman-plugin-staging.sh
+
+# 创建与原生配置等价的 ObjectStore，并以一次 Cluster patch 切换为 plugin。
+export DRAMAIP_CNPG_PLUGIN_MIGRATION_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-barman-plugin-migration.sh
+
+# CNPG 1.30 已存在的 Pod 不会仅因这项配置立刻重建；受控重建两个 standby、再重建 primary。
+# 每个新 Pod 必须有 restartable initContainer `plugin-barman-cloud`，最后一步验证 HA 提升。
+export DRAMAIP_CNPG_PLUGIN_ROLLOUT_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-barman-plugin-rollout.sh
+
+# 同一备份脚本保留 native 默认值；显式 method=plugin 时不会重新应用 native Cluster 清单。
+export DRAMAIP_CNPG_OBJECT_STORE_BACKUP_AUTHORIZED=1
+export DRAMAIP_CNPG_BACKUP_METHOD=plugin
+bash deploy/recovery/temporary-cnpg-object-store-backup.sh
+
+# 独立 worker02 恢复卷和 plugin PITR；绝不覆盖 source 或原生 PITR restore Cluster。
+export DRAMAIP_CNPG_PLUGIN_RESTORE_STORAGE_AUTHORIZED=1
+bash deploy/recovery/prepare-cnpg-plugin-pitr-restore-storage.sh
+export DRAMAIP_CNPG_PLUGIN_PITR_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-barman-plugin-pitr.sh
+```
+
+2026-07-14 的隔离 plugin 证据：插件在 worker01 Ready 并被 CNPG operator 注册；受控重建后，三个
+source Pod 均为 `2/2`（PostgreSQL + `plugin-barman-cloud` native sidecar），删除原 primary
+worker03 的实例后，worker02 自动提升且集群回到 `3/3`。`method: plugin` Backup
+`dramaip-recovery-ha-plugin-backup-20260714t10391784025547z-2890` 完成（backup ID
+`20260714T103909`）；命名恢复点 `cnpg-plugin-pitr-20260714t10391784025547z-2890` 的 WAL 已归档，
+plugin `ScheduledBackup` 亦即时派发。独立 worker02 Cluster 恢复到该点后，临时 payment、
+subscription、token 账本断言为 `1:1:1:0`。
+
+控制平面只有 2Gi 内存时，VIP 或某个 API 实例可能 TLS 握手超时。每个临时脚本均接受
+`DRAMAIP_KUBECTL_SERVER`；仅在先用 `/readyz` 确认后，依次尝试 master03、master02、master01 的
+直连端点。例如 master03 不可用而 master02 正常时使用
+`DRAMAIP_KUBECTL_SERVER=https://192.168.2.202:6443`。这只是 kubectl 编排的故障绕过，不移动
+control-plane 工作负载，也不替代生产 VIP/etcd/容量治理。
+
 正式环境必须以受支持的持久卷方案、跨故障域对象存储和 Secret Manager 注入替换它们。
 
 生产演练还必须记录：备份 ID、目标时间、开始/结束时间、恢复数据校验、三方对账结果、

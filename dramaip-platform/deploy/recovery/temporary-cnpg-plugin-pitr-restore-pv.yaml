@@ -1,0 +1,30 @@
+# Dedicated worker02 volume for the plugin-based PITR restore. The companion
+# storage-preparation script creates the directory as 26:26/0700 before this
+# PV is applied; type Directory deliberately refuses an unsafe root-owned
+# kubelet-created directory.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dramaip-recovery-cnpg-plugin-restore-worker02
+  labels:
+    dramaip.io/temporary: "true"
+    dramaip.io/recovery-role: plugin-restore
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: dramaip-recovery-local
+  volumeMode: Filesystem
+  hostPath:
+    path: /var/lib/dramaip-recovery-staging/cnpg-plugin-restore-worker02
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker02

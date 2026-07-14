@@ -1,0 +1,42 @@
+# The plugin ObjectStore is a mechanical conversion of the temporary native
+# Barman configuration. It is intentionally worker-local/MinIO-only and does
+# not claim production encryption, immutability, cross-site durability or RPO.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: dramaip-recovery-minio-store
+  namespace: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  configuration:
+    destinationPath: s3://dramaip-cnpg-recovery/backups
+    endpointURL: http://cnpg-recovery-minio:9000
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-recovery-minio-credentials
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-recovery-minio-credentials
+        key: SECRET_ACCESS_KEY
+      region:
+        name: cnpg-recovery-minio-credentials
+        key: AWS_REGION
+    data:
+      compression: gzip
+      jobs: 1
+    wal:
+      compression: gzip
+      maxParallel: 1
+  retentionPolicy: 7d
+  instanceSidecarConfiguration:
+    logLevel: info
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    retentionPolicyIntervalSeconds: 1800

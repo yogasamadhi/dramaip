@@ -1,0 +1,21 @@
+# A separate immediate schedule proves that the post-migration plugin path can
+# dispatch an automated Backup. The pre-existing hourly Schedule is converted
+# in place by the migration script; this disposable object is test evidence.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: dramaip-recovery-ha-plugin-hourly
+  namespace: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  cluster:
+    name: dramaip-recovery-ha
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  target: primary
+  backupOwnerReference: self
+  immediate: true
+  schedule: "0 0 * * * *"

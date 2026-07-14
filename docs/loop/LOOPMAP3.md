@@ -598,6 +598,9 @@ make platform-down
 - **验收**：从生产等价备份恢复到目标时间点，支付/billing/quota 对账通过；恢复耗时满足目标。
 - **验证**：完整恢复演练；PITR 演练；备份损坏告警测试；恢复后平台 E2E 和三方对账。
 - **风险/回滚边界**：事故级数据；演练只在隔离环境执行，禁止以未验证备份覆盖权威库。
+- **当前进展（2026-07-14）**：已完成 worker-only CNPG HA、官方 Barman Cloud Plugin、plugin backup/WAL/
+  ScheduledBackup 和独立 PITR 的临时机制演练；缺少生产等价存储、KMS、不可变保留、真实 RPO/RTO
+  与三方对账证据，状态保持 `todo`。详见 [LM3-33 进展记录](./LM3-33-PostgreSQL灾备与恢复.md)。
 
 ### LM3-34：核心平台生产就绪 Gate
 
