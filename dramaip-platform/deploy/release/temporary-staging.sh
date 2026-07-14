@@ -210,16 +210,22 @@ install_kong() {
     --set controller.ingressController.ingressClass=kong \
     --set controller.ingressController.createIngressClass=true \
     --history-max 3
-  # Kong ingress chart 0.24.0 omits EndpointSlice access from the controller
-  # namespace Role. Kubernetes 1.36 requires it while the controller resolves
-  # the Gateway Admin Service. Keep the compatibility grant namespaced and
-  # read-only; the dedicated temporary namespace is deleted on teardown.
+# Kong ingress chart 0.24.0 omits read/list/watch access that KIC 3.5 needs
+# in its own namespace to discover the Gateway Admin Service. Keep this
+# Kubernetes 1.36 compatibility grant namespaced and read-only; the dedicated
+# temporary namespace is deleted on teardown.
   "${kubectl_cmd[@]}" -n "$kong_namespace" apply -f - <<EOF >/dev/null
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ${kong_release}-controller-endpointslices
 rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods", "secrets", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["get", "list", "watch"]
