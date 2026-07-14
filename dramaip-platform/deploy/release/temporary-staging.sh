@@ -52,6 +52,11 @@ cert_components=(
   notification-service inspiration-service reporting-service notification-job
   reporting-job billing-job quota-job
 )
+# EXIT traps can run after function-local variables have been unwound by
+# `set -e`. Keep transient preload cleanup state at script scope so a failed
+# verification always removes the Docker-socket DaemonSet and archive server.
+DRAMAIP_PRELOAD_SERVER_PID=""
+DRAMAIP_PRELOAD_LOADER_CREATED=0
 
 require_command() {
   command -v "$1" >/dev/null || { echo "$1 is required" >&2; exit 127; }
@@ -308,20 +313,18 @@ preload_images() {
   archive_url="http://${server_address}:${server_port}/${archive_name}"
   source_commit="${DRAMAIP_SOURCE_COMMIT:-unknown}"
 
-  local server_pid="" loader_created=0
+  DRAMAIP_PRELOAD_SERVER_PID=""
+  DRAMAIP_PRELOAD_LOADER_CREATED=0
   cleanup_preload() {
     local status=$?
-    # EXIT traps run after function-local scope may already have been unwound
-    # by `set -e`; use defaults so a failed verification still removes the
-    # temporary Docker-socket DaemonSet and archive HTTP server.
-    if [[ "${loader_created:-0}" == "1" ]]; then "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true; fi
-    if [[ -n "${server_pid:-}" ]]; then kill "$server_pid" >/dev/null 2>&1 || true; wait "$server_pid" 2>/dev/null || true; fi
+    if [[ "$DRAMAIP_PRELOAD_LOADER_CREATED" == "1" ]]; then "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true; fi
+    if [[ -n "$DRAMAIP_PRELOAD_SERVER_PID" ]]; then kill "$DRAMAIP_PRELOAD_SERVER_PID" >/dev/null 2>&1 || true; wait "$DRAMAIP_PRELOAD_SERVER_PID" 2>/dev/null || true; fi
     trap - EXIT
     exit "$status"
   }
   trap cleanup_preload EXIT
   python3 -m http.server "$server_port" --bind "$server_address" --directory "$(dirname "$archive")" >/dev/null 2>&1 &
-  server_pid=$!
+  DRAMAIP_PRELOAD_SERVER_PID=$!
   for _ in 1 2 3 4 5; do
     if curl --fail --silent --max-time 2 "$archive_url" --output /dev/null; then break; fi
     sleep 1
@@ -331,6 +334,10 @@ preload_images() {
   local worker_count
   worker_count="$("${kubectl_cmd[@]}" get nodes -l node-role.kubernetes.io/worker=worker --no-headers | wc -l | tr -d ' ')"
   [[ "$worker_count" =~ ^[1-9][0-9]*$ ]] || { echo "no approved worker nodes are available for image preload" >&2; exit 1; }
+  if "${kubectl_cmd[@]}" -n "$namespace" get daemonset dramaip-staging-image-loader >/dev/null 2>&1; then
+    echo "temporary image loader already exists; refuse a concurrent preload" >&2
+    exit 1
+  fi
 
   "${kubectl_cmd[@]}" -n "$namespace" apply -f - <<EOF >/dev/null
 apiVersion: apps/v1
@@ -393,7 +400,7 @@ spec:
             path: /var/run/docker.sock
             type: Socket
 EOF
-  loader_created=1
+  DRAMAIP_PRELOAD_LOADER_CREATED=1
   # Kubernetes 1.36 can report a DaemonSet rollout complete after an early
   # transient ready Pod even when other worker loaders are crash-looping.  Do
   # not start image inspection until every approved worker is both updated and
@@ -430,7 +437,7 @@ EOF
     --from-literal="image-tag=$image_tag" --from-literal="source-commit=$source_commit" \
     --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
   "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --wait=true >/dev/null
-  loader_created=0
+  DRAMAIP_PRELOAD_LOADER_CREATED=0
   echo "temporary staging images preloaded and verified on ${worker_count} worker nodes"
 }
 
