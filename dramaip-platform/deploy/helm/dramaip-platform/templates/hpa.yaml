@@ -1,71 +1,27 @@
 {{- if .Values.autoscaling.enabled -}}
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-web-bff
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: web-bff
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: {{ include "dramaip-platform.fullname" . }}-web-bff
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
-{{- end }}
-{{- if .Values.autoscaling.enabled -}}
+{{- $components := list "web-bff" "desktop-bff" "mobile-bff" "admin-bff" -}}
+{{- range $component := $components }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-desktop-bff
+  name: {{ include "dramaip-platform.fullname" $ }}-{{ $component }}
   labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: desktop-bff
+    {{- include "dramaip-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "dramaip-platform.fullname" . }}-desktop-bff
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+    name: {{ include "dramaip-platform.fullname" $ }}-{{ $component }}
+  minReplicas: {{ $.Values.autoscaling.minReplicas }}
+  maxReplicas: {{ $.Values.autoscaling.maxReplicas }}
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ $.Values.autoscaling.targetCPUUtilizationPercentage }}
 {{- end }}
-{{- if .Values.autoscaling.enabled -}}
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: {{ include "dramaip-platform.fullname" . }}-mobile-bff
-  labels:
-    {{- include "dramaip-platform.labels" . | nindent 4 }}
-    app.kubernetes.io/component: mobile-bff
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: {{ include "dramaip-platform.fullname" . }}-mobile-bff
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
 {{- end }}

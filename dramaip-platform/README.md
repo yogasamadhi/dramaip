@@ -18,6 +18,7 @@ clients/
   apps/
     web/       Next.js website, pricing, account, billing
     mobile/    Expo mobile lightweight creation app
+    admin/     Vite management console (separate Admin BFF session)
   packages/
     sdk/       TypeScript API client shared by clients
 
@@ -40,6 +41,7 @@ cd clients
 pnpm install
 pnpm dev:web
 pnpm dev:mobile
+pnpm dev:admin
 
 cd ../services
 GOCACHE=/tmp/dramaip-go-build go test ./...
@@ -110,3 +112,17 @@ Implementation notes:
   checkout -> subscription -> token-account state machine before real payment
   webhooks are added. `POST /v1/billing/sandbox/confirm-payment` remains as a
   deprecated compatibility endpoint.
+
+## Release preparation
+
+Production delivery is intentionally operator-invoked rather than a hosted
+pipeline. Start with `bash deploy/release/preflight.sh`; the release procedure,
+secret boundaries, image scan, staging deploy, and rollback requirements are in
+[`../docs/loop/LM3-32-无流水线发布准备.md`](../docs/loop/LM3-32-无流水线发布准备.md).
+Before a staging release, run `IMAGE_REGISTRY=<approved-registry/project> bash
+deploy/release/staging-prerequisites.sh staging` to read-only validate the
+operator-managed namespace, release permissions, Kong, Secrets, and registry.
+Use `sync-release-workspace.sh` only for a dedicated release workspace: it
+deletes excluded runtime data and credential-shaped files from that directory.
+The release scripts require explicit approval for cluster changes and never
+perform a real payment.

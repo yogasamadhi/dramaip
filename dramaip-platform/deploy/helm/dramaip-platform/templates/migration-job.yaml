@@ -21,6 +21,18 @@ spec:
         app.kubernetes.io/component: migration
     spec:
       restartPolicy: Never
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if .Values.migrations.serviceAccountName }}
       serviceAccountName: {{ .Values.migrations.serviceAccountName }}
       {{- else if .Values.migrations.useHelmHook }}
@@ -33,11 +45,25 @@ spec:
           image: "{{ .Values.images.migration.repository }}:{{ .Values.images.migration.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           envFrom:
-            - configMapRef:
-                name: {{ include "dramaip-platform.fullname" . }}-config
             - secretRef:
                 name: {{ include "dramaip-platform.secretName" . }}
           env:
+            # When configured as a pre-install/pre-upgrade hook, Helm runs it
+            # before ordinary chart resources such as platform-config exist.
+            # Keep its small database-only runtime configuration independent
+            # of that ConfigMap for both hook and ordinary Job modes.
+            - name: MIGRATIONS_DIR
+              value: {{ .Values.config.migrationsDir | quote }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.config.postgres.host | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.config.postgres.port | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.config.postgres.database | quote }}
+            - name: POSTGRES_SSLMODE
+              value: {{ .Values.config.postgres.sslmode | quote }}
+            - name: TIMEZONE
+              value: {{ .Values.config.timezone | quote }}
             - name: DB_ROLE_BOOTSTRAP
               value: {{ .Values.migrations.bootstrapRuntimeRoles | quote }}
-	{{- end }}
+{{- end }}

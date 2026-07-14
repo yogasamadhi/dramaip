@@ -100,6 +100,36 @@ ingress:
           pathType: Prefix
   tls: []
 
+# Admin uses its own BFF route and edge rate limit. It deliberately does not
+# inherit the Web Cookie CORS policy: set an exact Admin origin only when the
+# separately deployed Admin SPA cannot be served from the same origin as Kong.
+adminIngress:
+  enabled: true
+  hosts: []
+  annotations: {}
+  cors:
+    enabled: false
+    origins: []
+    methods:
+      - GET
+      - POST
+      - OPTIONS
+    headers:
+      - Authorization
+      - Content-Type
+      - X-Request-Id
+      - traceparent
+      - tracestate
+    exposedHeaders:
+      - Content-Type
+      - X-Request-Id
+    credentials: false
+    maxAge: 3600
+  rateLimiting:
+    enabled: true
+    minute: 30
+    policy: local
+
 # Payment providers are off unless an operator supplies their dedicated
 # credentials Secret. Provider secrets are mounted only in billing-service.
 payment:

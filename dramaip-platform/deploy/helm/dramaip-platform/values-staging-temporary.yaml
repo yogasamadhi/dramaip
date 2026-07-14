@@ -1,0 +1,72 @@
+# This overlay is intentionally usable only through helm-release.sh with both
+# DRAMAIP_TEMPORARY_STAGING_INFRA=1 and DRAMAIP_TEMPORARY_STAGING_AUTHORIZED=1.
+# It never changes normal staging or production. All data is emptyDir-backed
+# and is discarded with the dedicated staging namespace.
+replicaCount: 1
+
+image:
+  pullPolicy: IfNotPresent
+
+nodeSelector:
+  node-role.kubernetes.io/worker: worker
+
+devInfra:
+  enabled: true
+  persistence:
+    enabled: false
+  # The temporary operator network reaches this reviewed mirror while direct
+  # Docker Hub is unavailable. Normal dev/staging values keep their defaults.
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:18-alpine
+  redis:
+    image: docker.m.daocloud.io/library/redis:8-alpine
+  rabbitmq:
+    image: docker.m.daocloud.io/library/rabbitmq:4.3-management-alpine
+  otel:
+    image: docker.m.daocloud.io/otel/opentelemetry-collector-contrib:0.155.0
+
+config:
+  env: staging
+  postgres:
+    host: postgres
+    port: "5432"
+    database: dramaip
+    sslmode: disable
+  redis:
+    addr: redis:6379
+  rabbitmq:
+    host: rabbitmq
+    port: "5672"
+    vhost: /
+  otel:
+    endpoint: http://otel-collector:4318
+  billingJob:
+    reconciliationEnabled: "false"
+  ai:
+    # This unroutable local endpoint and generated placeholder token prevent a
+    # temporary health test from reaching an external AI provider.
+    providerBaseUrl: http://127.0.0.1:1
+    openaiCompatibleGpt4oMini:
+      inputPricePerMillion: "0.001"
+      outputPricePerMillion: "0.001"
+      currency: USD
+      exchangeRateToCny: "1"
+
+# A short-lived test deploy validates generated local keys, not the normal
+# staging/production rotation workflow. The application generates ephemeral
+# key material when these mount names are deliberately empty.
+authJWT:
+  keysetSecret: ""
+adminJWT:
+  keysetSecret: ""
+
+migrations:
+  enabled: true
+  # The temporary dependency deployments are created by this chart, so a
+  # pre-install hook would run before PostgreSQL exists. Keep the migration as
+  # a normal Job and let Helm wait for it with --wait-for-jobs.
+  useHelmHook: false
+  # Allow a fresh PostgreSQL image pull and readiness probe before declaring a
+  # migration failure; this overlay remains bounded by Helm's release timeout.
+  backoffLimit: 6
+  bootstrapRuntimeRoles: true

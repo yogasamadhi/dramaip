@@ -38,6 +38,12 @@
 {{- $http := index $workload "http" }}
 {{- $grpc := index $workload "grpc" }}
 {{- $image := index $.Values.images $key }}
+{{- $healthPath := "/healthz" }}
+{{- $metricsPath := "/metrics" }}
+{{- if eq $key "webBff" }}
+{{- $healthPath = "/v1/healthz" }}
+{{- $metricsPath = "/v1/metrics" }}
+{{- end }}
 {{- if $index }}
 ---
 {{- end }}
@@ -69,11 +75,23 @@ spec:
         {{- end }}
         {{- if $.Values.prometheus.annotations.enabled }}
         prometheus.io/scrape: "true"
-        prometheus.io/path: /metrics
+        prometheus.io/path: {{ $metricsPath }}
         prometheus.io/port: {{ $http | quote }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "dramaip-platform.serviceAccountName" $ }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -236,15 +254,17 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: {{ $healthPath }}
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 6
           startupProbe:
-            httpGet:
-              path: /healthz
+            # Startup answers only whether the process has bound its port.
+            # Dependency readiness stays on the HTTP probe below, so a
+            # temporarily unavailable downstream cannot force a restart loop.
+            tcpSocket:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5

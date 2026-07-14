@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-One-click Kubernetes launcher for dramaip-platform.
+Local Kubernetes launcher for dramaip-platform.
 
 Default flow:
   1. Check docker, kubectl, and helm.
   2. Optionally create/start a local kind/minikube cluster.
-  3. Build the service images from dramaip-platform/services/Dockerfile.service.
+  3. Build all current platform workload images from
+     dramaip-platform/services/Dockerfile.service.
   4. Load the image into kind/minikube when the current context suggests it.
   5. Install or upgrade Kong Ingress Controller.
   6. Install or upgrade the dramaip-platform Helm chart.
@@ -71,15 +72,22 @@ DEFAULT_TIMEOUT = "10m"
 
 SERVICE_IMAGES = (
     ("webBff", "dramaip-web-bff", "./app/bff/web/interface/cmd/server"),
+    ("desktopBff", "dramaip-desktop-bff", "./app/bff/desktop/interface/cmd/server"),
+    ("mobileBff", "dramaip-mobile-bff", "./app/bff/mobile/interface/cmd/server"),
+    ("adminBff", "dramaip-admin-bff", "./app/admin/interface/cmd/server"),
     ("auth", "dramaip-auth", "./app/auth/service/cmd/server"),
     ("user", "dramaip-user", "./app/user/service/cmd/server"),
     ("billing", "dramaip-billing", "./app/billing/service/cmd/server"),
     ("quota", "dramaip-quota", "./app/quota/service/cmd/server"),
     ("aiGateway", "dramaip-ai-gateway", "./app/ai_gateway/service/cmd/server"),
     ("notification", "dramaip-notification", "./app/notification/service/cmd/server"),
+    ("inspiration", "dramaip-inspiration", "./app/inspiration/service/cmd/server"),
+    ("reporting", "dramaip-reporting", "./app/reporting/service/cmd/server"),
     ("notificationJob", "dramaip-notification-job", "./app/notification/job/cmd/server"),
+    ("reportingJob", "dramaip-reporting-job", "./app/reporting/job/cmd/server"),
     ("billingJob", "dramaip-billing-job", "./app/billing/job/cmd/server"),
     ("quotaJob", "dramaip-quota-job", "./app/quota/job/cmd/server"),
+    ("migration", "dramaip-migrate", "./app/migration/job/cmd/server"),
 )
 
 _COLOR = sys.stdout.isatty()
@@ -1112,6 +1120,8 @@ def install_platform(args: argparse.Namespace) -> None:
     cmd.extend(["--set", f"config.downstream.quotaGrpcEndpoint={args.release}-quota:9104"])
     cmd.extend(["--set", f"config.downstream.aiGatewayGrpcEndpoint={args.release}-ai-gateway:9105"])
     cmd.extend(["--set", f"config.downstream.notificationGrpcEndpoint={args.release}-notification:9106"])
+    cmd.extend(["--set", f"config.downstream.inspirationGrpcEndpoint={args.release}-inspiration:9107"])
+    cmd.extend(["--set", f"config.downstream.reportingGrpcEndpoint={args.release}-reporting:9108"])
 
     if local_mode and not args.use_migration_job:
         cmd.extend(["--set", "config.autoMigrate=true"])
@@ -1154,7 +1164,11 @@ def install_platform(args: argparse.Namespace) -> None:
 def wait_for_bff(args: argparse.Namespace) -> None:
     if args.dry_run or args.no_wait:
         return
-    for component in ("auth", "user", "billing", "quota", "ai-gateway", "notification", "notification-job", "web-bff", "billing-job", "quota-job"):
+    for component in (
+        "web-bff", "desktop-bff", "mobile-bff", "admin-bff", "auth", "user",
+        "billing", "quota", "ai-gateway", "notification", "inspiration", "reporting",
+        "notification-job", "reporting-job", "billing-job", "quota-job",
+    ):
         info(f"Waiting for {component} rollout")
         run(
             kubectl_base(args)
@@ -1226,7 +1240,7 @@ def start_dev_runtime(args: argparse.Namespace, pnpm: list[str]) -> int:
 
     processes: list[tuple[str, subprocess.Popen]] = []
     env = os.environ.copy()
-    kill_ports = not args.no_kill_ports
+    kill_ports = args.kill_ports
 
     try:
         if port_forward_enabled:
@@ -1413,7 +1427,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--web-port", type=int, default=3000, help="Local web dev port, default: 3000.")
     parser.add_argument("--api-base-url", help="NEXT_PUBLIC_API_BASE_URL for the web app.")
     parser.add_argument("--no-port-forward", action="store_true", help="Do not port-forward Kong locally.")
-    parser.add_argument("--no-kill-ports", action="store_true", help="Do not stop processes occupying API/web ports.")
+    parser.add_argument(
+        "--kill-ports",
+        action="store_true",
+        help="Explicitly stop non-Docker processes occupying requested API/web ports (default: refuse).",
+    )
+    parser.add_argument("--no-kill-ports", action="store_false", dest="kill_ports", help=argparse.SUPPRESS)
+    parser.set_defaults(kill_ports=False)
 
     args = parser.parse_args()
     if args.install and args.no_install:
@@ -1448,4 +1468,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        warn("Kubernetes launch cancelled; inspect kind/Docker state before retrying.")
+        raise SystemExit(130)

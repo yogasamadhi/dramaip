@@ -15,11 +15,12 @@ The Helm chart lives in `../helm/dramaip-platform`.
 
 ## Current Scope
 
-The chart deploys the current Web BFF, synchronous auth/user/billing/quota/
-ai-gateway/notification services, plus the notification event consumer and the
-billing/quota maintenance jobs. `notification-job` has its own durable RabbitMQ
-queue, Inbox lease, retry limit, and dead-letter queue; it owns only
-user-facing notification effects.
+The chart deploys the four endpoint-specific BFFs (Web, Desktop, Mobile, and
+Admin), synchronous auth/user/billing/quota/ai-gateway/notification/
+inspiration/reporting services, their event consumers, and the
+billing/quota maintenance jobs. `notification-job` and `reporting-job` use
+their own durable queues, Inbox leases, retry limits, and dead-letter queues;
+they own only their respective asynchronous effects.
 
 Included:
 
@@ -30,70 +31,46 @@ Included:
 - migration `Job`
 - optional Kong Ingress Controller `Ingress`
 - optional Kong `KongPlugin` resources for CORS and rate limiting
-- optional `HorizontalPodAutoscaler`
-- optional `PodDisruptionBudget`
+- optional `HorizontalPodAutoscaler` and `PodDisruptionBudget` for all BFFs
 
 ## Build Images
 
-Build and push all service images before installing the chart. Each service is
-built from the same `Dockerfile.service` with a different `TARGET` build arg:
+Build all service images from the exact release source with the local,
+operator-invoked command. It does not push unless `PUSH_IMAGES=1` is explicit:
 
 ```bash
-cd dramaip-platform/services
-for svc in \
-  "web-bff ./app/bff/web/interface/cmd/server" \
-  "auth ./app/auth/service/cmd/server" \
-  "user ./app/user/service/cmd/server" \
-  "billing ./app/billing/service/cmd/server" \
-  "quota ./app/quota/service/cmd/server" \
-  "ai_gateway ./app/ai_gateway/service/cmd/server" \
-  "notification ./app/notification/service/cmd/server" \
-  "notification_job ./app/notification/job/cmd/server" \
-  "billing_job ./app/billing/job/cmd/server" \
-  "quota_job ./app/quota/job/cmd/server"; do
-  set -- $svc; name=$1; target=$2
-  docker build -f Dockerfile.service \
-    --build-arg TARGET=$target --build-arg OUTPUT=dramaip-$name \
-    -t ghcr.io/dramaip/dramaip-$name:0.1.0 .
-  docker push ghcr.io/dramaip/dramaip-$name:0.1.0
-done
+cd dramaip-platform
+IMAGE_REGISTRY=registry.example.invalid/dramaip \
+IMAGE_TAG=<immutable-git-sha> \
+  bash deploy/release/build-images.sh
+
+# After the registry operator has pushed the same immutable images:
+IMAGE_REGISTRY=registry.example.invalid/dramaip \
+IMAGE_TAG=<immutable-git-sha> \
+  bash deploy/release/scan-images.sh
 ```
 
-(Or use `python3 run-platform-k8s.py` from the repo root, which builds and
-loads all 10 images into a local kind/minikube cluster automatically.)
-
-For a local cluster such as kind or minikube, load the image into the cluster
-and override the repository/tag with `values-dev.yaml`.
+The scripts are release tools, not a hosted CI/CD pipeline. They never store
+registry, cluster, or Secret Manager credentials. For a local kind/minikube
+cluster, use `values-dev.yaml` and load development images separately.
 
 ## Install
 
-Create a namespace:
+Render development defaults without changing a cluster:
 
 ```bash
-kubectl create namespace dramaip
+helm template dramaip-platform ../helm/dramaip-platform \
+  -f ../helm/dramaip-platform/values-dev.yaml >/dev/null
 ```
 
-Install with development defaults:
+For staging or production, follow
+[`../../../docs/loop/LM3-32-无流水线发布准备.md`](../../../docs/loop/LM3-32-无流水线发布准备.md).
+The guarded release command requires explicit approval and an immutable image
+tag; it uses Helm `--atomic` and supports a revision-based rollback:
 
 ```bash
-helm upgrade --install dramaip-platform ../helm/dramaip-platform \
-  --namespace dramaip \
-  -f ../helm/dramaip-platform/values-dev.yaml
-```
-
-Install with production values:
-
-```bash
-helm upgrade --install dramaip-platform ../helm/dramaip-platform \
-  --namespace dramaip \
-  --set image.repository=ghcr.io/dramaip/dramaip-web-bff \
-  --set image.tag=0.1.0 \
-  --set secret.existingSecret=dramaip-platform-secret \
-  --set config.postgres.host=postgres.example.internal \
-  --set config.redis.addr=redis.example.internal:6379 \
-  --set config.rabbitmq.managementUrl=http://rabbitmq.example.internal:15672 \
-  --set ingress.enabled=true \
-  --set ingress.hosts[0].host=api.example.com
+DRAMAIP_RELEASE_AUTHORIZED=1 IMAGE_REGISTRY=<approved-registry/project> IMAGE_TAG=<immutable-git-sha> \
+  bash ../release/helm-release.sh staging apply
 ```
 
 ## Kong Ingress Controller
@@ -106,6 +83,12 @@ The chart can render Kong CRDs for edge concerns:
 
 - `KongPlugin` `cors`
 - `KongPlugin` `rate-limiting`
+
+`/v1/admin` is a separate Ingress to `admin-bff`, with an independently
+configured, stricter rate limit. It does not inherit the Web Cookie CORS policy.
+When the separately deployed Admin SPA uses a different origin, set an exact
+`adminIngress.cors.origins` value; cross-origin Admin access is disabled by
+default.
 
 They are enabled when `ingress.enabled=true` and `kong.plugins.enabled=true`.
 The Ingress is annotated with `konghq.com/plugins` automatically.
@@ -146,9 +129,11 @@ Production chart values enable mTLS by default. Before installation, create the
 operator-managed Secret named by `internalMTLS.existingSecret` (default
 `dramaip-internal-mtls`) with `ca.crt` plus one `*.crt` / `*.key` pair for every
 workload key in `internalMTLS.certKeys` and `internalMTLS.keyKeys`. Certificate
-CNs must be `web-bff`, `auth`, `user`, `billing-service`, `quota-service`,
-`ai-gateway-service`, `notification-service`, `notification-job`, `billing-job`, and `quota-job` as applicable; the current
-gRPC allowlists accept only the callers required by each service. Do not reuse a
+CNs must match their workload: `web-bff`, `desktop-bff`, `mobile-bff`,
+`admin-bff`, `auth`, `user`, `billing-service`, `quota-service`,
+`ai-gateway-service`, `notification-service`, `inspiration-service`,
+`reporting-service`, `notification-job`, `reporting-job`, `billing-job`, and
+`quota-job`. The gRPC allowlists accept only required callers. Do not reuse a
 single client certificate for all workloads.
 
 ## Secrets
@@ -195,7 +180,8 @@ Because the default migration Job is a Helm hook, it uses the namespace's
 `default` ServiceAccount unless `migrations.serviceAccountName` is set. Hook
 resources run before normal chart resources such as the app ServiceAccount.
 
-Disable the migration hook when migrations are handled by CI/CD:
+Disable the migration hook only when migrations are handled by an approved
+external release operation:
 
 ```bash
 helm upgrade --install dramaip-platform ../helm/dramaip-platform \
@@ -213,12 +199,15 @@ The BFF exposes:
 The chart uses a TCP liveness probe so transient database or queue outages do
 not force Kubernetes to restart otherwise healthy application processes.
 
-## Next Work
+## Release boundaries
 
-- Add charts or subcharts for PostgreSQL, Redis, RabbitMQ, OTel, and Kong for
-  ephemeral development clusters.
-- Add image build targets for `auth`, `user`, `billing`, `quota`, and
-  `ai-gateway` once those services move beyond scaffold code.
-- Replace placeholder secrets with External Secrets or a cloud KMS-backed
-  secret manager.
-- Add Kong JWT plugin wiring after auth-service issues production tokens.
+`values-staging.yaml` names only operator-managed Secrets: runtime credentials,
+auth and Admin keysets, internal mTLS, registry pull, and Ingress TLS. It
+intentionally contains no secret values. `values.yaml` is the production
+baseline and must receive the corresponding production Secrets from the
+platform's approved Secret Manager, Vault, External Secrets controller, or
+cloud KMS-backed equivalent.
+
+No release script performs a real payment. Provider payment paths remain
+disabled unless their dedicated credential Secret and a separate approved
+payment rollout are supplied.
