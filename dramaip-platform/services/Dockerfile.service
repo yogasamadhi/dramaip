@@ -29,7 +29,7 @@ RUN --mount=type=cache,id=dramaip-go-mod,target=/go/pkg/mod,sharing=locked \
     if [ -n "${GOMAXPROCS}" ]; then export GOMAXPROCS; fi; \
     CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" go build -o /out/${OUTPUT} ${TARGET}
 
-FROM --platform=$TARGETPLATFORM ${RUNTIME_IMAGE}
+FROM ${RUNTIME_IMAGE}
 
 ARG OUTPUT=dramaip-service
 
