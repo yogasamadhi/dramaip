@@ -15,6 +15,17 @@ if [[ "${DRAMAIP_DOCKER_SUDO:-0}" == "1" ]]; then
   docker_cmd=(sudo docker)
 fi
 build_base_args=()
+pull_args=(--pull)
+# Fresh manifest resolution is the safe default.  A controlled, disconnected
+# staging build host may explicitly reuse previously verified local bases.
+case "${DRAMAIP_DOCKER_PULL:-1}" in
+  1) ;;
+  0) pull_args=() ;;
+  *)
+    echo "DRAMAIP_DOCKER_PULL must be 0 or 1" >&2
+    exit 2
+    ;;
+esac
 if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
   # This is intentionally an image-prefix value, not arbitrary Docker flags.
   # It is useful for a controlled operator network whose Docker Hub route is
@@ -63,6 +74,6 @@ for item in "${targets[@]}"; do
   name="${item%%:*}"
   target="${item#*:}"
   image="$registry/$name:$tag"
-  "${docker_cmd[@]}" build --pull --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
+  "${docker_cmd[@]}" build "${pull_args[@]}" --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
   if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done
