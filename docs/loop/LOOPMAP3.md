@@ -612,6 +612,11 @@ make platform-down
 - **验收**：技术架构第 15 节所有适用于核心平台的门槛有证据；未完成 P2/P3 不影响本地模式；生产阻断项为零。
 - **验证**：两端完整测试；Compose/staging E2E；支付沙箱；真实 Provider 失败/超时；压测；PITR；人工安全 review。
 - **风险/回滚边界**：发布 Gate；任何核心门槛失败均不得标 done 或正式发布。
+- **当前进展（2026-07-14）**：本地平台 Go/Buf/Helm/Compose、Web/Mobile/Admin 客户端和 Desktop
+  format/typecheck/unit/DB/Electron E2E 均通过；staging 三 worker 入口与核心 healthz 正常。由于用户
+  明确跳过真实付款，且 staging `ENV=staging` 按安全逻辑强制关闭 simulated payment，核心 E2E 在付款确认
+  步骤按预期返回 `403 simulated payment is disabled`，未进行任何真实付款或 Provider 调用；真实 Provider
+  失败/超时、并发压测、生产等价 PITR 和安全联合 review 仍缺证据，状态保持 `todo`。
 
 ### LM3-35：本地优先云同步与冲突处理
 
