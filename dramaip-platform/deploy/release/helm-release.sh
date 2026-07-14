@@ -11,6 +11,7 @@ action="${2:?usage: helm-release.sh <staging|production> <apply|rollback> [revis
 namespace="${DRAMAIP_NAMESPACE:-dramaip-$environment}"
 release="${DRAMAIP_RELEASE:-dramaip-platform}"
 temporary_staging="${DRAMAIP_TEMPORARY_STAGING_INFRA:-0}"
+diagnostic_retain="${DRAMAIP_TEMPORARY_STAGING_DIAGNOSTIC_RETAIN:-0}"
 helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 kubectl_cmd=(kubectl)
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
@@ -37,8 +38,16 @@ if [[ "$temporary_staging" == "1" ]]; then
   [[ "$namespace" =~ ^dramaip-staging(-[a-z0-9]+)?$ ]] || { echo "temporary staging namespace must start with dramaip-staging" >&2; exit 2; }
   values_files=(-f "$values" -f "$chart/values-staging-temporary.yaml")
 else
+  [[ "$diagnostic_retain" == "0" ]] || {
+    echo "DRAMAIP_TEMPORARY_STAGING_DIAGNOSTIC_RETAIN is only permitted for isolated temporary staging" >&2
+    exit 2
+  }
   values_files=(-f "$values")
 fi
+[[ "$diagnostic_retain" == "0" || "$diagnostic_retain" == "1" ]] || {
+  echo "DRAMAIP_TEMPORARY_STAGING_DIAGNOSTIC_RETAIN must be 0 or 1" >&2
+  exit 2
+}
 "${helm_cmd[@]}" lint "$chart" "${values_files[@]}"
 if [[ "$action" == "apply" ]]; then
   case "$environment" in
@@ -120,8 +129,17 @@ if [[ "$action" == "apply" ]]; then
     image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
     image_overrides+=(--set-string "images.$key.tag=$image_tag")
   done
-  "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --wait-for-jobs --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
-  "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment --timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}" -l app.kubernetes.io/instance="$release"
+  if [[ "$diagnostic_retain" == "1" ]]; then
+    # This diagnostic escape hatch is deliberately limited to the explicitly
+    # authorized disposable staging namespace.  It lets an operator inspect
+    # worker logs after a failed startup without weakening production's atomic
+    # release semantics.  The caller must explicitly uninstall the release.
+    "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --history-max 10
+    echo "temporary staging diagnostic release submitted; inspect worker logs, then explicitly uninstall it"
+  else
+    "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --wait-for-jobs --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
+    "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment --timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}" -l app.kubernetes.io/instance="$release"
+  fi
 elif [[ "$action" == "rollback" ]]; then
   revision="${3:?rollback requires an audited Helm revision}"
   "${helm_cmd[@]}" rollback "$release" "$revision" --namespace "$namespace" --wait --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}"
