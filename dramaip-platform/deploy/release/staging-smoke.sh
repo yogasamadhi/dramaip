@@ -82,6 +82,9 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
   fi
 done
 [[ "$seen_limited" == "1" ]] || { echo "Kong rate limit was not observed" >&2; exit 1; }
-"${curl_common[@]}" --fail "$base_url/v1/healthz" >/dev/null
+# The probe intentionally exhausts the per-client Kong budget. A second
+# request from this same client can correctly be 429, so the health assertion
+# above must remain the reachability check rather than treating that expected
+# rate-limit response as an application failure.
 
 echo "$environment smoke passed: rollout, mTLS Secret mounts, health, and Kong rate limiting"
