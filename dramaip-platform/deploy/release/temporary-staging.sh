@@ -104,18 +104,49 @@ create_mtls_secret() {
     -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1
   local -a mtls_args=(--from-file="$tmp/ca.crt")
   for component in "${cert_components[@]}"; do
-    service_name="${release}-${component}"
     # The SAN is the Kubernetes Service DNS identity used by TLS hostname
     # verification. The CN is the logical workload principal evaluated by
     # GRPCPeerAuthorization, so service components use their explicit service
-    # principal rather than the Helm resource name.
+    # principal rather than the Helm resource name.  A certificate key may use
+    # the logical principal name (for example notification-service) while the
+    # Helm Service remains notification; keep those identities separate.
     case "$component" in
-      auth) principal="auth-service" ;;
-      user) principal="user-service" ;;
-      billing) principal="billing-service" ;;
-      quota) principal="quota-service" ;;
-      ai-gateway) principal="ai-gateway-service" ;;
-      *) principal="$component" ;;
+      auth)
+        principal="auth-service"
+        service_name="${release}-auth"
+        ;;
+      user)
+        principal="user-service"
+        service_name="${release}-user"
+        ;;
+      billing)
+        principal="billing-service"
+        service_name="${release}-billing"
+        ;;
+      quota)
+        principal="quota-service"
+        service_name="${release}-quota"
+        ;;
+      ai-gateway)
+        principal="ai-gateway-service"
+        service_name="${release}-ai-gateway"
+        ;;
+      notification-service)
+        principal="notification-service"
+        service_name="${release}-notification"
+        ;;
+      inspiration-service)
+        principal="inspiration-service"
+        service_name="${release}-inspiration"
+        ;;
+      reporting-service)
+        principal="reporting-service"
+        service_name="${release}-reporting"
+        ;;
+      *)
+        principal="$component"
+        service_name="${release}-${component}"
+        ;;
     esac
     san="DNS:${service_name},DNS:${service_name}.${namespace},DNS:${service_name}.${namespace}.svc"
     openssl genrsa -out "$tmp/${component}.key" 2048 >/dev/null 2>&1
