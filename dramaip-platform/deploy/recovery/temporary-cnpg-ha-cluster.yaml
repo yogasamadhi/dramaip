@@ -1,0 +1,36 @@
+# Applied only after CloudNativePG 1.30.0 has installed the Cluster CRD. This
+# cluster demonstrates three-instance streaming replication and failover on
+# workers. It deliberately has no production backup target: worker-local PVs
+# cannot satisfy LM3-33's independent-failure-domain requirement.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: dramaip-recovery-ha
+  namespace: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-minimal-trixie
+  imagePullPolicy: IfNotPresent
+  enableSuperuserAccess: true
+  storage:
+    storageClass: dramaip-recovery-local
+    size: 5Gi
+    resizeInUseVolumes: false
+  affinity:
+    nodeSelector:
+      node-role.kubernetes.io/worker: worker
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  monitoring:
+    disableDefaultQueries: false

@@ -1,0 +1,103 @@
+# Disposable worker-only storage for the LM3-33 HA rehearsal. These are not
+# production volumes: each hostPath is local to one worker and is intentionally
+# isolated under /var/lib/dramaip-recovery-staging. Before applying this
+# manifest, each directory must exist as numeric UID/GID 26:26 with mode 0700:
+# the PostgreSQL 18 CNPG container runs as UID/GID 26. `Directory` deliberately
+# refuses a root-owned kubelet-created directory instead of silently masking the
+# prerequisite with `DirectoryOrCreate`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: dramaip-recovery-local
+  labels:
+    dramaip.io/temporary: "true"
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dramaip-recovery-cnpg-worker01
+  labels:
+    dramaip.io/temporary: "true"
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: dramaip-recovery-local
+  volumeMode: Filesystem
+  hostPath:
+    path: /var/lib/dramaip-recovery-staging/cnpg-worker01
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker01
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dramaip-recovery-cnpg-worker02
+  labels:
+    dramaip.io/temporary: "true"
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: dramaip-recovery-local
+  volumeMode: Filesystem
+  hostPath:
+    path: /var/lib/dramaip-recovery-staging/cnpg-worker02
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker02
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dramaip-recovery-cnpg-worker03
+  labels:
+    dramaip.io/temporary: "true"
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: dramaip-recovery-local
+  volumeMode: Filesystem
+  hostPath:
+    path: /var/lib/dramaip-recovery-staging/cnpg-worker03
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker03
