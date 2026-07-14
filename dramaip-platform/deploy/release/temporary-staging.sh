@@ -205,7 +205,36 @@ install_kong() {
     --set "controller.ingressController.watchNamespaces[0]=$namespace" \
     --set controller.ingressController.ingressClass=kong \
     --set controller.ingressController.createIngressClass=true \
-    --wait --timeout "${DRAMAIP_KONG_TIMEOUT:-10m}" --history-max 3
+    --history-max 3
+  # Kong ingress chart 0.24.0 omits EndpointSlice access from the controller
+  # namespace Role. Kubernetes 1.36 requires it while the controller resolves
+  # the Gateway Admin Service. Keep the compatibility grant namespaced and
+  # read-only; the dedicated temporary namespace is deleted on teardown.
+  "${kubectl_cmd[@]}" -n "$kong_namespace" apply -f - <<EOF >/dev/null
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ${kong_release}-controller-endpointslices
+rules:
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ${kong_release}-controller-endpointslices
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${kong_release}-controller-endpointslices
+subjects:
+  - kind: ServiceAccount
+    name: ${kong_release}-controller
+    namespace: ${kong_namespace}
+EOF
+  "${kubectl_cmd[@]}" -n "$kong_namespace" rollout status "deployment/${kong_release}-controller" --timeout="${DRAMAIP_KONG_TIMEOUT:-10m}"
+  "${kubectl_cmd[@]}" -n "$kong_namespace" rollout status "deployment/${kong_release}-gateway" --timeout="${DRAMAIP_KONG_TIMEOUT:-10m}"
   "${kubectl_cmd[@]}" get ingressclass kong >/dev/null
   "${kubectl_cmd[@]}" get crd kongplugins.configuration.konghq.com >/dev/null
   echo "temporary Kong installed: NodePort ${http_port}/${https_port}; controller watches only ${namespace}"
