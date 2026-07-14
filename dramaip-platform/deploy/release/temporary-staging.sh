@@ -300,9 +300,11 @@ install_kong() {
     --set controller.ingressController.createIngressClass=true \
     --history-max 3
 # Kong ingress chart 0.24.0 omits read/list/watch access that KIC 3.5 needs
-# in its own namespace to discover the Gateway Admin Service. Keep this
-# Kubernetes 1.36 compatibility grant namespaced and read-only; the dedicated
-# temporary namespace is deleted on teardown.
+# in its own namespace to discover the Gateway Admin Service and cache the
+# namespaced Kong CRDs it starts informers for. Keep this Kubernetes 1.36
+# compatibility grant namespaced and read-only; the dedicated temporary
+# namespace is deleted on teardown. Cluster-scoped KongClusterPlugin is not
+# included here: the chart-managed ClusterRole retains that separate boundary.
   "${kubectl_cmd[@]}" -n "$kong_namespace" apply -f - <<EOF >/dev/null
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -317,6 +319,20 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["configuration.konghq.com"]
+    resources:
+      - ingressclassparameterses
+      - kongconsumergroups
+      - kongconsumers
+      - kongcustomentities
+      - kongingresses
+      - konglicenses
+      - kongplugins
+      - kongupstreampolicies
+      - kongvaults
+      - tcpingresses
+      - udpingresses
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
