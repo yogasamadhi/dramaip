@@ -600,7 +600,8 @@ make platform-down
 - **风险/回滚边界**：事故级数据；演练只在隔离环境执行，禁止以未验证备份覆盖权威库。
 - **当前进展（2026-07-14）**：已完成 worker-only CNPG HA、官方 Barman Cloud Plugin、plugin backup/WAL/
   ScheduledBackup 和独立 PITR 的临时机制演练；缺少生产等价存储、KMS、不可变保留、真实 RPO/RTO
-  与三方对账证据，状态保持 `todo`。详见 [LM3-33 进展记录](./LM3-33-PostgreSQL灾备与恢复.md)。
+  与三方对账证据，状态保持 `todo`。控制平面端点已由只读预检脚本按 master03→master02→master01
+  选择；详见 [LM3-33 进展记录](./LM3-33-PostgreSQL灾备与恢复.md)。
 
 ### LM3-34：核心平台生产就绪 Gate
 

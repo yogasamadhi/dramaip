@@ -31,6 +31,10 @@ workload 仅在 amd64 worker；master 仅执行 Kubernetes API 编排。API VIP 
 节点超时时，以 `/readyz` 选择 master03、master02、master01 中可用的直连端点，不重启或修改
 任何 control-plane 组件。
 
+本次继续验证时 master03 的 `/readyz` 已恢复为 `ok`，因此优先使用
+`https://192.168.2.203:6443`；`dramaip-platform/deploy/recovery/select-kube-api.sh` 已将该顺序
+固化为只读预检，并在 master03 失败时自动尝试 master02、master01。
+
 ## 仍阻断 LM3-33 完成的条件
 
 1. 由平台/安全团队提供生产等价的受支持 PV、跨故障域 S3 兼容对象存储、TLS CA、KMS/加密、

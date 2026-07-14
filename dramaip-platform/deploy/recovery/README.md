@@ -228,6 +228,20 @@ subscription、token 账本断言为 `1:1:1:0`。
 `DRAMAIP_KUBECTL_SERVER=https://192.168.2.202:6443`。这只是 kubectl 编排的故障绕过，不移动
 control-plane 工作负载，也不替代生产 VIP/etcd/容量治理。
 
+可用只读预检脚本自动选择第一个健康端点，并将结果传给后续脚本；默认顺序是
+`master03 → master02 → master01`：
+
+```bash
+export DRAMAIP_KUBECTL_SERVER="$(bash deploy/recovery/select-kube-api.sh)"
+echo "$DRAMAIP_KUBECTL_SERVER"
+export DRAMAIP_CNPG_PLUGIN_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-barman-plugin-staging.sh
+```
+
+预检只访问各控制平面的 `/readyz`，不创建或删除资源。若需临时覆盖候选列表，可设置逗号分隔的
+`DRAMAIP_KUBECTL_API_CANDIDATES`；端点必须是 `https://host:port`，仍按给定顺序检查。所有候选
+均失败时脚本返回非零，调用方不得退回 VIP 盲目重试。
+
 正式环境必须以受支持的持久卷方案、跨故障域对象存储和 Secret Manager 注入替换它们。
 
 生产演练还必须记录：备份 ID、目标时间、开始/结束时间、恢复数据校验、三方对账结果、
