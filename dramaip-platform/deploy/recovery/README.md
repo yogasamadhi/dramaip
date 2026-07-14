@@ -26,8 +26,10 @@ WAL/PITR 演练脚本。它不替代生产数据库运维平台，也不会生�
 4. 恢复只能在隔离 namespace/账户执行，先验证账本一致性，再经明确批准切换流量；禁止用
    未验证恢复库覆盖权威生产库。
 
-在当前集群中，`StorageClass`、PV/PVC 和对象存储均不存在，因此它只能运行本目录的
-隔离演练，不能作为生产 HA 或异地存储的证据。
+当前集群没有生产持久卷方案、独立故障域对象存储或 KMS/Secret Manager 集成；唯一的
+`dramaip-recovery-local` StorageClass 和 PV/PVC 是本目录创建的临时 worker-local hostPath。
+2026-07-14 按 Secret 名称进行的只读审计未发现对象存储、Barman、KMS 或备份凭据引用。
+因此它只能运行本目录的隔离演练，不能作为生产 HA 或异地存储的证据。
 
 ## 原生 PITR 演练
 
