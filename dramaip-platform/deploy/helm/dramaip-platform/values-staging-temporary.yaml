@@ -62,5 +62,11 @@ adminJWT:
 
 migrations:
   enabled: true
-  useHelmHook: true
+  # The temporary dependency deployments are created by this chart, so a
+  # pre-install hook would run before PostgreSQL exists. Keep the migration as
+  # a normal Job and let Helm wait for it with --wait-for-jobs.
+  useHelmHook: false
+  # Allow a fresh PostgreSQL image pull and readiness probe before declaring a
+  # migration failure; this overlay remains bounded by Helm's release timeout.
+  backoffLimit: 6
   bootstrapRuntimeRoles: true

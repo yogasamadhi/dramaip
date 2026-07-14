@@ -48,10 +48,10 @@ spec:
             - secretRef:
                 name: {{ include "dramaip-platform.secretName" . }}
           env:
-            # This Job is a pre-install/pre-upgrade hook. Helm executes hooks
-            # before ordinary chart resources such as platform-config exist,
-            # so its small, database-only runtime configuration must not rely
-            # on that ConfigMap.
+            # When configured as a pre-install/pre-upgrade hook, Helm runs it
+            # before ordinary chart resources such as platform-config exist.
+            # Keep its small database-only runtime configuration independent
+            # of that ConfigMap for both hook and ordinary Job modes.
             - name: MIGRATIONS_DIR
               value: {{ .Values.config.migrationsDir | quote }}
             - name: POSTGRES_HOST

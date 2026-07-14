@@ -120,7 +120,7 @@ if [[ "$action" == "apply" ]]; then
     image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
     image_overrides+=(--set-string "images.$key.tag=$image_tag")
   done
-  "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
+  "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --wait-for-jobs --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
   "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment --timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}" -l app.kubernetes.io/instance="$release"
 elif [[ "$action" == "rollback" ]]; then
   revision="${3:?rollback requires an audited Helm revision}"
