@@ -311,8 +311,11 @@ preload_images() {
   local server_pid="" loader_created=0
   cleanup_preload() {
     local status=$?
-    if [[ "$loader_created" == "1" ]]; then "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true; fi
-    if [[ -n "$server_pid" ]]; then kill "$server_pid" >/dev/null 2>&1 || true; wait "$server_pid" 2>/dev/null || true; fi
+    # EXIT traps run after function-local scope may already have been unwound
+    # by `set -e`; use defaults so a failed verification still removes the
+    # temporary Docker-socket DaemonSet and archive HTTP server.
+    if [[ "${loader_created:-0}" == "1" ]]; then "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true; fi
+    if [[ -n "${server_pid:-}" ]]; then kill "$server_pid" >/dev/null 2>&1 || true; wait "$server_pid" 2>/dev/null || true; fi
     trap - EXIT
     exit "$status"
   }
@@ -341,6 +344,11 @@ spec:
       labels:
         app.kubernetes.io/name: dramaip-staging-image-loader
     spec:
+      # The archive endpoint is deliberately bound to the private node LAN.
+      # Using the worker host network avoids relying on an unhealthy CNI path
+      # for this short-lived, node-local Docker-socket loader.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       nodeSelector:
         node-role.kubernetes.io/worker: worker
       containers:
