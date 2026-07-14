@@ -328,6 +328,10 @@ preload_images() {
   done
   curl --fail --silent --max-time 3 "$archive_url" --output /dev/null || { echo "temporary image archive server is unreachable" >&2; exit 1; }
 
+  local worker_count
+  worker_count="$("${kubectl_cmd[@]}" get nodes -l node-role.kubernetes.io/worker=worker --no-headers | wc -l | tr -d ' ')"
+  [[ "$worker_count" =~ ^[1-9][0-9]*$ ]] || { echo "no approved worker nodes are available for image preload" >&2; exit 1; }
+
   "${kubectl_cmd[@]}" -n "$namespace" apply -f - <<EOF >/dev/null
 apiVersion: apps/v1
 kind: DaemonSet
@@ -365,8 +369,18 @@ spec:
           args:
             - |
               archive=/tmp/dramaip-images.tar
-              wget -q -O "\$archive" '${archive_url}'
-              echo '${archive_sha}  '"\$archive" | sha256sum -c -
+              loaded=0
+              for attempt in 1 2 3 4 5 6 7 8 9 10; do
+                rm -f "\$archive"
+                if wget -q --timeout=30 --tries=1 -O "\$archive" '${archive_url}' && printf '%s  %s\n' '${archive_sha}' "\$archive" | sha256sum -c -; then
+                  loaded=1
+                  break
+                fi
+                echo "temporary archive fetch attempt \$attempt failed" >&2
+                rm -f "\$archive"
+                sleep 2
+              done
+              [ "\$loaded" = 1 ] || { echo "temporary archive download or checksum verification failed" >&2; exit 1; }
               docker load -i "\$archive" >/dev/null
               rm -f "\$archive"
               while true; do sleep 3600; done
@@ -380,9 +394,29 @@ spec:
             type: Socket
 EOF
   loader_created=1
-  "${kubectl_cmd[@]}" -n "$namespace" rollout status daemonset/dramaip-staging-image-loader --timeout="${DRAMAIP_IMAGE_PRELOAD_TIMEOUT:-20m}"
-  local worker_count
-  worker_count="$("${kubectl_cmd[@]}" get nodes -l node-role.kubernetes.io/worker=worker --no-headers | wc -l | tr -d ' ')"
+  # Kubernetes 1.36 can report a DaemonSet rollout complete after an early
+  # transient ready Pod even when other worker loaders are crash-looping.  Do
+  # not start image inspection until every approved worker is both updated and
+  # available according to the DaemonSet status counters.
+  local ready_attempts="${DRAMAIP_IMAGE_PRELOAD_READY_ATTEMPTS:-150}"
+  [[ "$ready_attempts" =~ ^[1-9][0-9]*$ ]] || { echo "DRAMAIP_IMAGE_PRELOAD_READY_ATTEMPTS must be a positive integer" >&2; exit 2; }
+  local attempt loader_status desired updated available
+  desired=0
+  updated=0
+  available=0
+  for ((attempt = 1; attempt <= ready_attempts; attempt++)); do
+    loader_status="$("${kubectl_cmd[@]}" -n "$namespace" get daemonset dramaip-staging-image-loader -o jsonpath='{.status.desiredNumberScheduled} {.status.updatedNumberScheduled} {.status.numberAvailable}')"
+    read -r desired updated available <<< "$loader_status"
+    desired="${desired:-0}"
+    updated="${updated:-0}"
+    available="${available:-0}"
+    if [[ "$desired" == "$worker_count" && "$updated" == "$worker_count" && "$available" == "$worker_count" ]]; then break; fi
+    sleep 2
+  done
+  [[ "$desired" == "$worker_count" && "$updated" == "$worker_count" && "$available" == "$worker_count" ]] || {
+    echo "image loader did not become available on every worker (desired=$desired updated=$updated available=$available expected=$worker_count)" >&2
+    exit 1
+  }
   local -a loader_pods=()
   mapfile -t loader_pods < <("${kubectl_cmd[@]}" -n "$namespace" get pods -l app.kubernetes.io/name=dramaip-staging-image-loader -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
   [[ "${#loader_pods[@]}" == "$worker_count" ]] || { echo "image loader did not run on every worker" >&2; exit 1; }
