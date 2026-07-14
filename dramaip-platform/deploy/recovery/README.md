@@ -244,6 +244,29 @@ bash deploy/recovery/temporary-cnpg-barman-plugin-staging.sh
 
 正式环境必须以受支持的持久卷方案、跨故障域对象存储和 Secret Manager 注入替换它们。
 
+正式资源接入前可运行只读准入检查；它拒绝 `dramaip-staging`/`dramaip-recovery-staging`，不打印
+Secret 内容，并检查 CNPG 至少三实例、生产 StorageClass/PVC、Barman Cloud Plugin、外部
+ObjectStore、KMS 引用、不可变保留和 RPO/RTO。所有生产资源名与 KMS 引用必须由批准的运维环境
+注入，不能写进 Git：
+
+```bash
+export DRAMAIP_CNPG_PRODUCTION_PREFLIGHT_AUTHORIZED=1
+export DRAMAIP_CNPG_PRODUCTION_NAMESPACE=dramaip-production
+export DRAMAIP_CNPG_PRODUCTION_CLUSTER=dramaip-postgres
+export DRAMAIP_CNPG_PRODUCTION_STORAGE_CLASS=<approved-storage-class>
+export DRAMAIP_CNPG_PRODUCTION_OBJECT_STORE=<object-store-name>
+export DRAMAIP_CNPG_PRODUCTION_OBJECT_STORE_SECRET=<secret-manager-secret-name>
+export DRAMAIP_CNPG_PRODUCTION_KMS_KEY_REF=<kms-key-reference>
+export DRAMAIP_CNPG_PRODUCTION_RETENTION_DAYS=30
+export DRAMAIP_CNPG_PRODUCTION_IMMUTABLE_RETENTION=true
+export DRAMAIP_CNPG_PRODUCTION_BACKUP_SCHEDULE='0 */6 * * *'
+export DRAMAIP_KUBECTL_SERVER="$(bash deploy/recovery/select-kube-api.sh)"
+bash deploy/recovery/production-cnpg-preflight.sh
+```
+
+该检查通过只是生产资源形态准入，不替代真实恢复、RPO/RTO、损坏备份告警和支付/billing/quota
+三方对账证据。
+
 生产演练还必须记录：备份 ID、目标时间、开始/结束时间、恢复数据校验、三方对账结果、
 告警状态和批准人。真实 bucket、KMS、HA endpoint 和生产恢复窗口未提供前，不得把本地
 演练称为异地备份或生产 PITR 验收。

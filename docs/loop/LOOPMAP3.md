@@ -601,7 +601,8 @@ make platform-down
 - **当前进展（2026-07-14）**：已完成 worker-only CNPG HA、官方 Barman Cloud Plugin、plugin backup/WAL/
   ScheduledBackup 和独立 PITR 的临时机制演练；缺少生产等价存储、KMS、不可变保留、真实 RPO/RTO
   与三方对账证据，状态保持 `todo`。控制平面端点已由只读预检脚本按 master03→master02→master01
-  选择；详见 [LM3-33 进展记录](./LM3-33-PostgreSQL灾备与恢复.md)。
+  选择；新增生产 CNPG 形态准入脚本（拒绝临时 staging、hostPath/local PV 和缺少 KMS/不可变保留的
+  配置），详见 [LM3-33 进展记录](./LM3-33-PostgreSQL灾备与恢复.md)。
 
 ### LM3-34：核心平台生产就绪 Gate
 

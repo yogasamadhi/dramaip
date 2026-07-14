@@ -47,5 +47,8 @@ workload 仅在 amd64 worker；master 仅执行 Kubernetes API 编排。API VIP 
 4. 经负责人批准后，完成一次不覆盖权威库的生产等价演练，再更新
    `LOOPMAP3.md` 中 LM3-33 状态为 `done`。在此前 LM3-34 生产 Gate 继续阻断。
 
+生产资源准备好后，先运行 [production-cnpg-preflight.sh](../../dramaip-platform/deploy/recovery/production-cnpg-preflight.sh)
+完成只读形态检查，再执行生产等价备份恢复和三方对账；预检本身不能替代恢复验收。
+
 具体脚本、固定镜像摘要、运行顺序及安全边界见
 [`dramaip-platform/deploy/recovery/README.md`](../../dramaip-platform/deploy/recovery/README.md)。
