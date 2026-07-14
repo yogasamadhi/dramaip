@@ -141,14 +141,26 @@ bootstrap() {
     -subj '/CN=dramaip-temporary-staging-ca' \
     -addext 'basicConstraints=critical,CA:TRUE' \
     -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1
-  local component service_name san
+  local component principal service_name san
   local -a mtls_args=(--from-file="$tmp/ca.crt")
   for component in "${cert_components[@]}"; do
     service_name="${release}-${component}"
+    # The SAN is the Kubernetes Service DNS identity used by TLS hostname
+    # verification. The CN is the logical workload principal evaluated by
+    # GRPCPeerAuthorization, so service components use their explicit service
+    # principal rather than the Helm resource name.
+    case "$component" in
+      auth) principal="auth-service" ;;
+      user) principal="user-service" ;;
+      billing) principal="billing-service" ;;
+      quota) principal="quota-service" ;;
+      ai-gateway) principal="ai-gateway-service" ;;
+      *) principal="$component" ;;
+    esac
     san="DNS:${service_name},DNS:${service_name}.${namespace},DNS:${service_name}.${namespace}.svc"
     openssl genrsa -out "$tmp/${component}.key" 2048 >/dev/null 2>&1
     openssl req -new -sha256 -key "$tmp/${component}.key" -out "$tmp/${component}.csr" \
-      -subj "/CN=${service_name}" >/dev/null 2>&1
+      -subj "/CN=${principal}" >/dev/null 2>&1
     openssl x509 -req -sha256 -in "$tmp/${component}.csr" -CA "$tmp/ca.crt" -CAkey "$tmp/ca.key" \
       -CAcreateserial -out "$tmp/${component}.crt" -days 2 \
       -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=%s\n' "$san") >/dev/null 2>&1
