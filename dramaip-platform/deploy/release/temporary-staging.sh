@@ -393,17 +393,20 @@ spec:
                 printf '%s\\n' "\$load_output" >&2
                 exit 1
               fi
+              printf '%s\\n' "\$load_output"
               rm -f "\$archive"
               # The readiness signal must mean this worker actually has the
               # immutable application tag.  Checking in the worker avoids a
               # false-positive DaemonSet rollout and keeps Docker work off
               # the control plane.
-              if ! docker image inspect '${image_registry}/web-bff:${image_tag}' >/dev/null 2>&1; then
-                echo "expected application image tag is absent after Docker load" >&2
-                printf '%s\\n' "\$load_output" >&2
-                docker image ls --format '{{.Repository}}:{{.Tag}}' >&2 || true
-                exit 1
-              fi
+              for expected_image in web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway notification inspiration reporting notification-job reporting-job billing-job quota-job migrate; do
+                if ! docker image inspect "${image_registry}/\$expected_image:${image_tag}" >/dev/null 2>&1; then
+                  echo "expected application image tag is absent after Docker load: \$expected_image" >&2
+                  docker image ls --format '{{.Repository}}:{{.Tag}}' >&2 || true
+                  exit 1
+                fi
+              done
+              echo "temporary staging application images verified on this worker"
               while true; do sleep 3600; done
           volumeMounts:
             - name: docker-socket
@@ -444,7 +447,11 @@ EOF
   local pod image
   for pod in "${loader_pods[@]}"; do
     for image in "${images[@]}"; do
-      "${kubectl_cmd[@]}" -n "$namespace" exec "$pod" -- docker image inspect "${image_registry}/${image}:${image_tag}" >/dev/null
+      if ! "${kubectl_cmd[@]}" -n "$namespace" exec "$pod" -- docker image inspect "${image_registry}/${image}:${image_tag}" >/dev/null; then
+        echo "image inspection failed on loader pod $pod for ${image_registry}/${image}:${image_tag}" >&2
+        "${kubectl_cmd[@]}" -n "$namespace" logs "$pod" --tail=80 >&2 || true
+        exit 1
+      fi
     done
   done
   "${kubectl_cmd[@]}" -n "$namespace" create configmap dramaip-staging-image-preload \
