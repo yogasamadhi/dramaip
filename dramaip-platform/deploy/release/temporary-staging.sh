@@ -57,6 +57,7 @@ cert_components=(
 # verification always removes the Docker-socket DaemonSet and archive server.
 DRAMAIP_PRELOAD_SERVER_PID=""
 DRAMAIP_PRELOAD_LOADER_CREATED=0
+DRAMAIP_PRELOAD_KEEP_LOADER=0
 
 require_command() {
   command -v "$1" >/dev/null || { echo "$1 is required" >&2; exit 127; }
@@ -315,9 +316,19 @@ preload_images() {
 
   DRAMAIP_PRELOAD_SERVER_PID=""
   DRAMAIP_PRELOAD_LOADER_CREATED=0
+  local debug_keep="${DRAMAIP_IMAGE_PRELOAD_DEBUG_KEEP:-0}"
+  [[ "$debug_keep" == "0" || "$debug_keep" == "1" ]] || {
+    echo "DRAMAIP_IMAGE_PRELOAD_DEBUG_KEEP must be 0 or 1" >&2
+    exit 2
+  }
+  DRAMAIP_PRELOAD_KEEP_LOADER="$debug_keep"
   cleanup_preload() {
     local status=$?
-    if [[ "$DRAMAIP_PRELOAD_LOADER_CREATED" == "1" ]]; then "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true; fi
+    if [[ "$DRAMAIP_PRELOAD_LOADER_CREATED" == "1" && "$DRAMAIP_PRELOAD_KEEP_LOADER" != "1" ]]; then
+      "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --ignore-not-found --wait=false >/dev/null 2>&1 || true
+    elif [[ "$DRAMAIP_PRELOAD_LOADER_CREATED" == "1" ]]; then
+      echo "temporary image loader retained for worker-only diagnostics; delete it explicitly before deployment" >&2
+    fi
     if [[ -n "$DRAMAIP_PRELOAD_SERVER_PID" ]]; then kill "$DRAMAIP_PRELOAD_SERVER_PID" >/dev/null 2>&1 || true; wait "$DRAMAIP_PRELOAD_SERVER_PID" 2>/dev/null || true; fi
     trap - EXIT
     exit "$status"
@@ -457,8 +468,12 @@ EOF
   "${kubectl_cmd[@]}" -n "$namespace" create configmap dramaip-staging-image-preload \
     --from-literal="image-tag=$image_tag" --from-literal="source-commit=$source_commit" \
     --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
-  "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --wait=true >/dev/null
-  DRAMAIP_PRELOAD_LOADER_CREATED=0
+  if [[ "$debug_keep" == "1" ]]; then
+    echo "temporary image loader retained for worker-only diagnostics; delete it explicitly before deployment"
+  else
+    "${kubectl_cmd[@]}" -n "$namespace" delete daemonset dramaip-staging-image-loader --wait=true >/dev/null
+    DRAMAIP_PRELOAD_LOADER_CREATED=0
+  fi
   echo "temporary staging images preloaded and verified on ${worker_count} worker nodes"
 }
 
