@@ -36,7 +36,7 @@ if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
     exit 2
   }
   build_base_args=(
-    --build-arg "GO_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/golang:1.24-alpine"
+    --build-arg "GO_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/golang:1.26-alpine"
     --build-arg "RUNTIME_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/alpine:3.20"
   )
 fi
