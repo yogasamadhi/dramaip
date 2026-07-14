@@ -292,7 +292,10 @@ preload_images() {
   [[ -f "$archive" ]] || { echo "DRAMAIP_IMAGE_ARCHIVE does not exist" >&2; exit 2; }
   local server_address="${DRAMAIP_IMAGE_SERVER_ADDRESS:?DRAMAIP_IMAGE_SERVER_ADDRESS must be this operator host's private IPv4 address}"
   [[ "$server_address" =~ ^192\.168\.2\.[0-9]{1,3}$ ]] || { echo "image server address must be in the approved 192.168.2.0/24 LAN" >&2; exit 2; }
-  local server_port="${DRAMAIP_IMAGE_SERVER_PORT:-18080}"
+  # Assign in a separate statement so nounset mode cannot observe an
+  # uninitialised local while constructing the private archive URL below.
+  local server_port
+  server_port="${DRAMAIP_IMAGE_SERVER_PORT:-18080}"
   [[ "$server_port" =~ ^[0-9]{4,5}$ && "$server_port" -ge 1024 && "$server_port" -le 65535 ]] || { echo "DRAMAIP_IMAGE_SERVER_PORT is invalid" >&2; exit 2; }
   local archive_name archive_sha archive_url source_commit
   archive_name="$(basename "$archive")"
