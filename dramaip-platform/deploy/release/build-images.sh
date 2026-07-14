@@ -14,14 +14,11 @@ docker_cmd=(docker)
 if [[ "${DRAMAIP_DOCKER_SUDO:-0}" == "1" ]]; then
   docker_cmd=(sudo docker)
 fi
-build_base_args=()
-pull_args=(--pull)
-platform_args=()
 # Fresh manifest resolution is the safe default.  A controlled, disconnected
 # staging build host may explicitly reuse previously verified local bases.
 case "${DRAMAIP_DOCKER_PULL:-1}" in
-  1) ;;
-  0) pull_args=() ;;
+  1) docker_pull=1 ;;
+  0) docker_pull=0 ;;
   *)
     echo "DRAMAIP_DOCKER_PULL must be 0 or 1" >&2
     exit 2
@@ -35,10 +32,9 @@ if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
     echo "DRAMAIP_DOCKER_MIRROR must be a registry authority" >&2
     exit 2
   }
-  build_base_args=(
-    --build-arg "GO_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/golang:1.26-alpine"
-    --build-arg "RUNTIME_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/alpine:3.20"
-  )
+  docker_mirror="$DRAMAIP_DOCKER_MIRROR"
+else
+  docker_mirror=""
 fi
 if [[ -n "${DRAMAIP_GO_PROXY:-}" ]]; then
   # The module proxy is build-only.  Restrict it to a HTTPS authority and the
@@ -48,7 +44,9 @@ if [[ -n "${DRAMAIP_GO_PROXY:-}" ]]; then
     echo "DRAMAIP_GO_PROXY must be an HTTPS Go module proxy, optionally followed by ,direct" >&2
     exit 2
   }
-  build_base_args+=(--build-arg "GOPROXY=$DRAMAIP_GO_PROXY")
+  go_proxy="$DRAMAIP_GO_PROXY"
+else
+  go_proxy=""
 fi
 if [[ -n "${DRAMAIP_GO_MAX_PROCS:-}" ]]; then
   [[ "$DRAMAIP_GO_MAX_PROCS" =~ ^[1-9][0-9]*$ ]] || {
@@ -57,7 +55,9 @@ if [[ -n "${DRAMAIP_GO_MAX_PROCS:-}" ]]; then
   }
   # Leave the Go default intact unless an operator explicitly constrains a
   # small, shared build host.  This setting exists only in the build stage.
-  build_base_args+=(--build-arg "GOMAXPROCS=$DRAMAIP_GO_MAX_PROCS")
+  go_max_procs="$DRAMAIP_GO_MAX_PROCS"
+else
+  go_max_procs=""
 fi
 if [[ -n "${DRAMAIP_DOCKER_PLATFORM:-}" ]]; then
   # Keep cross-platform release artifacts constrained to the Linux platforms
@@ -66,7 +66,9 @@ if [[ -n "${DRAMAIP_DOCKER_PLATFORM:-}" ]]; then
     echo "DRAMAIP_DOCKER_PLATFORM must be linux/amd64 or linux/arm64" >&2
     exit 2
   }
-  platform_args=(--platform "$DRAMAIP_DOCKER_PLATFORM")
+  docker_platform="$DRAMAIP_DOCKER_PLATFORM"
+else
+  docker_platform=""
 fi
 
 targets=(
@@ -93,6 +95,21 @@ for item in "${targets[@]}"; do
   name="${item%%:*}"
   target="${item#*:}"
   image="$registry/$name:$tag"
-  "${docker_cmd[@]}" build "${pull_args[@]}" "${platform_args[@]}" --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
+  # Build the command incrementally rather than expanding optional empty
+  # arrays. Bash 3 in some operator workstations treats an empty array as
+  # unset under `set -u`, which previously broke offline base-image reuse.
+  build_cmd=("${docker_cmd[@]}" build)
+  [[ "$docker_pull" == "1" ]] && build_cmd+=(--pull)
+  [[ -n "$docker_platform" ]] && build_cmd+=(--platform "$docker_platform")
+  if [[ -n "$docker_mirror" ]]; then
+    build_cmd+=(
+      --build-arg "GO_IMAGE=$docker_mirror/library/golang:1.26-alpine"
+      --build-arg "RUNTIME_IMAGE=$docker_mirror/library/alpine:3.20"
+    )
+  fi
+  [[ -n "$go_proxy" ]] && build_cmd+=(--build-arg "GOPROXY=$go_proxy")
+  [[ -n "$go_max_procs" ]] && build_cmd+=(--build-arg "GOMAXPROCS=$go_max_procs")
+  build_cmd+=(--file "$services/Dockerfile.service" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services")
+  "${build_cmd[@]}"
   if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done
