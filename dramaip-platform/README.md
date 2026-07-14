@@ -122,5 +122,7 @@ secret boundaries, image scan, staging deploy, and rollback requirements are in
 Before a staging release, run `IMAGE_REGISTRY=<approved-registry/project> bash
 deploy/release/staging-prerequisites.sh staging` to read-only validate the
 operator-managed namespace, release permissions, Kong, Secrets, and registry.
+Use `sync-release-workspace.sh` only for a dedicated release workspace: it
+deletes excluded runtime data and credential-shaped files from that directory.
 The release scripts require explicit approval for cluster changes and never
 perform a real payment.
