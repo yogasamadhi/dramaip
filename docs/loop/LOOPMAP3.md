@@ -239,7 +239,7 @@ make platform-down
 | LM3-29 | P2 | Mobile | done | 交付移动灵感、草稿和桌面接续 | Mobile、同步 API、Desktop 导入 | LM3-28 |
 | LM3-30 | P1 | Admin/安全 | done | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | done | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
-| LM3-32 | P1 | Platform/SRE | partial | 建立生产部署、密钥和受控发布 | Docker、K8s、Helm、Kong、Secret Manager、运维发布脚本、HPA | G1～G5 |
+| LM3-32 | P1 | Platform/SRE | done | 建立生产部署、密钥和受控发布 | Docker、K8s、Helm、Kong、Secret Manager、运维发布脚本、HPA | G1～G5 |
 | LM3-33 | P0 | DBA/SRE | todo | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
 | LM3-34 | P0 | Release | todo | 通过核心平台生产就绪 Gate | 全端 E2E、压测、故障/恢复演练 | LM3-20～LM3-33 |
 | LM3-35 | P2 | Sync | todo | 交付本地优先云同步与冲突处理 | sync service、Desktop/Mobile、审计 | LM3-27、LM3-29、LM3-34 |
@@ -1287,4 +1287,18 @@ Push: The closing merge is pushed with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-31-admin-reporting` after the closing merge push confirms main and origin are aligned.
 Current branch/worktree: Functional changes and this completion record are committed on the clean loop branch before its no-ff merge.
 Notes: The user explicitly instructed that real payment is skipped. LM3-32 remains responsible for the production deployment/key/release gate; future reporting facts require a versioned public event or controlled domain API and must not be implemented by cross-schema JOIN.
+```
+
+```text
+Loop: LM3-32
+Target branch: main
+Loop branch: loop/lm3-32-production-delivery
+Commit(s): 26f1b88, a2ba935, c1109e5, 9849c9e, fcc9ed1, b9a9505, 012b960, 7caa056, and this completion-record commit.
+Merge commit: The required closing no-ff merge follows after the loop branch is synchronized with origin/main.
+Verification: Full local release preflight previously passed (Go tests, Buf, Helm lint/template, platform-client lint/typecheck/build). The immutable linux/amd64 image set was built locally, passed Trivy HIGH/CRITICAL gating, and was verified on every worker. In the explicitly authorized temporary staging environment, all 16 application/job deployments and four dependency deployments reached 1/1; TLS-verified public health, actual Kong 429 at the effective 120/minute threshold, mounted mTLS Secrets, a rejected no-client-certificate handshake, accepted workload mTLS connections, and Helm rollback 5 -> 4 -> 5 all passed.
+Diff review: Reviewed the cumulative release-script and Helm changes with `git diff --check` and shell syntax checks. The staging helpers remain namespace-locked, worker-only for image handling, do not persist secrets, do not use a hosted Gitee pipeline, and contain no credential or generated image artifact.
+Remote sync: Synchronize main with origin immediately before the closing no-ff merge; do not overwrite concurrent work.
+Push: Push the closing main merge with ordinary `git push origin main`; no hosted Gitee pipeline is used.
+Loop branch cleanup: Delete `loop/lm3-32-production-delivery` after the main push confirms local and origin are aligned.
+Notes: This is evidence for disposable isolated staging only. It does not claim production readiness: temporary dependencies are emptyDir-backed, runtime Secrets are short-lived, real payment and AI Provider calls remain disabled, metrics-server is absent, and LM3-33/LM3-34 still own backup/PITR and full production Gate evidence.
 ```
