@@ -616,7 +616,8 @@ make platform-down
   format/typecheck/unit/DB/Electron E2E 均通过；staging 三 worker 入口与核心 healthz 正常。由于用户
   明确跳过真实付款，且 staging `ENV=staging` 按安全逻辑强制关闭 simulated payment，核心 E2E 在付款确认
   步骤按预期返回 `403 simulated payment is disabled`，未进行任何真实付款或 Provider 调用；真实 Provider
-  失败/超时、并发压测、生产等价 PITR 和安全联合 review 仍缺证据，状态保持 `todo`。
+  失败/超时、并发压测、生产等价 PITR 和安全联合 review 仍缺证据，状态保持 `todo`。详见
+  [LM3-34 Gate 记录](./LM3-34-核心平台生产就绪.md)。
 
 ### LM3-35：本地优先云同步与冲突处理
 
