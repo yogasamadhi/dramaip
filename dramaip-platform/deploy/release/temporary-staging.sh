@@ -187,7 +187,11 @@ install_kong() {
   }
   local used_ports
   used_ports="$("${kubectl_cmd[@]}" get services -A -o jsonpath='{range .items[*].spec.ports[*]}{.nodePort}{"\n"}{end}')"
-  if grep -qxF "$http_port" <<<"$used_ports" || grep -qxF "$https_port" <<<"$used_ports"; then
+  local own_proxy_ports
+  own_proxy_ports="$("${kubectl_cmd[@]}" -n "$kong_namespace" get service "${kong_release}-gateway-proxy" \
+    -o jsonpath='{range .spec.ports[*]}{.nodePort}{"\n"}{end}' 2>/dev/null || true)"
+  if { grep -qxF "$http_port" <<<"$used_ports" && ! grep -qxF "$http_port" <<<"$own_proxy_ports"; } || \
+     { grep -qxF "$https_port" <<<"$used_ports" && ! grep -qxF "$https_port" <<<"$own_proxy_ports"; }; then
     echo "chosen Kong NodePort is already allocated" >&2
     exit 1
   fi
