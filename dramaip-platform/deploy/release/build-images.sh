@@ -28,6 +28,16 @@ if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
     --build-arg "RUNTIME_IMAGE=$DRAMAIP_DOCKER_MIRROR/library/alpine:3.20"
   )
 fi
+if [[ -n "${DRAMAIP_GO_PROXY:-}" ]]; then
+  # The module proxy is build-only.  Restrict it to a HTTPS authority and the
+  # optional standard ",direct" fallback; it is never copied into runtime
+  # containers or written to host-wide Go configuration.
+  [[ "$DRAMAIP_GO_PROXY" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^,[:space:]]*)?(,direct)?$ ]] || {
+    echo "DRAMAIP_GO_PROXY must be an HTTPS Go module proxy, optionally followed by ,direct" >&2
+    exit 2
+  }
+  build_base_args+=(--build-arg "GOPROXY=$DRAMAIP_GO_PROXY")
+fi
 
 targets=(
   "web-bff:./app/bff/web/interface/cmd/server"

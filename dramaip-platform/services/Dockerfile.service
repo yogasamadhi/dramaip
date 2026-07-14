@@ -5,10 +5,13 @@ FROM ${GO_IMAGE} AS build
 
 ARG TARGET=./app/bff/web/interface/cmd/server
 ARG OUTPUT=dramaip-service
+ARG GOPROXY=https://proxy.golang.org,direct
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+# GOPROXY is a build-time setting only. Operators on controlled networks can
+# supply a reachable, approved proxy without changing the final runtime image.
+RUN GOPROXY="${GOPROXY}" go mod download
 
 ARG BUILD_CACHE_BUST=dev
 RUN echo "${BUILD_CACHE_BUST}" > /tmp/dramaip-build-cache-bust
