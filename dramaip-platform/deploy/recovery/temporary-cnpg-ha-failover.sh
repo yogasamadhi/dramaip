@@ -13,6 +13,19 @@ set -euo pipefail
 
 command -v kubectl >/dev/null || { echo "kubectl is required" >&2; exit 127; }
 
+kubectl_server="${DRAMAIP_KUBECTL_SERVER:-}"
+[[ -z "$kubectl_server" || "$kubectl_server" =~ ^https://[A-Za-z0-9.:-]+$ ]] || {
+  echo "DRAMAIP_KUBECTL_SERVER must be an https://host:port endpoint" >&2
+  exit 2
+}
+kube() {
+  if [[ -n "$kubectl_server" ]]; then
+    command kubectl --server="$kubectl_server" "$@"
+  else
+    command kubectl "$@"
+  fi
+}
+
 namespace="dramaip-recovery-staging"
 cluster="dramaip-recovery-ha"
 timeout_seconds="${DRAMAIP_CNPG_FAILOVER_TIMEOUT_SECONDS:-300}"
@@ -22,21 +35,21 @@ timeout_seconds="${DRAMAIP_CNPG_FAILOVER_TIMEOUT_SECONDS:-300}"
   exit 2
 }
 
-temporary_label="$(kubectl -n "$namespace" get cluster "$cluster" \
+temporary_label="$(kube -n "$namespace" get cluster "$cluster" \
   -o go-template='{{ index .metadata.labels "dramaip.io/temporary" }}')"
 [[ "$temporary_label" == "true" ]] || {
   echo "refusing to act: $namespace/$cluster is not labelled dramaip.io/temporary=true" >&2
   exit 1
 }
 
-primary_before="$(kubectl -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.currentPrimary}')"
+primary_before="$(kube -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.currentPrimary}')"
 [[ "$primary_before" =~ ^dramaip-recovery-ha-[1-3]$ ]] || {
   echo "refusing to act: unexpected current primary: ${primary_before:-<empty>}" >&2
   exit 1
 }
 
-primary_node="$(kubectl -n "$namespace" get pod "$primary_before" -o jsonpath='{.spec.nodeName}')"
-worker_label="$(kubectl get node "$primary_node" \
+primary_node="$(kube -n "$namespace" get pod "$primary_before" -o jsonpath='{.spec.nodeName}')"
+worker_label="$(kube get node "$primary_node" \
   -o go-template='{{ index .metadata.labels "node-role.kubernetes.io/worker" }}')"
 [[ "$worker_label" == "worker" ]] || {
   echo "refusing to act: primary $primary_before is not scheduled on a labeled worker" >&2
@@ -46,7 +59,7 @@ worker_label="$(kubectl get node "$primary_node" \
 psql_query() {
   local pod="$1"
   local query="$2"
-  kubectl -n "$namespace" exec "$pod" -- \
+  kube -n "$namespace" exec "$pod" -- \
     psql -v ON_ERROR_STOP=1 -U postgres -d app -Atqc "$query"
 }
 
@@ -86,12 +99,12 @@ done
 
 started_at="$SECONDS"
 echo "deleting temporary primary $primary_before on worker $primary_node after $streaming_replicas replicas streamed marker $drill_id"
-kubectl -n "$namespace" delete pod "$primary_before" --wait=false
+kube -n "$namespace" delete pod "$primary_before" --wait=false
 
 failover_deadline=$((SECONDS + timeout_seconds))
 primary_after=""
 while (( SECONDS < failover_deadline )); do
-  candidate="$(kubectl -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.currentPrimary}')"
+  candidate="$(kube -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.currentPrimary}')"
   if [[ "$candidate" =~ ^dramaip-recovery-ha-[1-3]$ ]] && [[ "$candidate" != "$primary_before" ]]; then
     writer_after="$(psql_query "$candidate" \
       "SELECT writer_pod FROM recovery_ha_drill.ledger WHERE drill_id = '$drill_id';" 2>/dev/null || true)"
@@ -109,12 +122,12 @@ done
 }
 
 elapsed=$((SECONDS - started_at))
-kubectl -n "$namespace" wait "cluster/$cluster" --for=condition=Ready --timeout="${timeout_seconds}s"
-ready_instances="$(kubectl -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.readyInstances}')"
+kube -n "$namespace" wait "cluster/$cluster" --for=condition=Ready --timeout="${timeout_seconds}s"
+ready_instances="$(kube -n "$namespace" get cluster "$cluster" -o jsonpath='{.status.readyInstances}')"
 [[ "$ready_instances" == "3" ]] || {
   echo "new primary preserved the marker, but the cluster did not return to three ready instances" >&2
   exit 1
 }
-kubectl -n "$namespace" get cluster "$cluster"
-kubectl -n "$namespace" get pods -l "cnpg.io/cluster=$cluster" -o wide
+kube -n "$namespace" get cluster "$cluster"
+kube -n "$namespace" get pods -l "cnpg.io/cluster=$cluster" -o wide
 echo "temporary CNPG failover passed: $primary_before -> $primary_after; replicated marker preserved; elapsed=${elapsed}s"

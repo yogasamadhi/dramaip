@@ -1,0 +1,58 @@
+# Full temporary Cluster configuration used only after the temporary MinIO
+# Secret, Service and bucket exist. It switches from the HA-only minimal image
+# to the 18.4 operand that includes barman-cli-cloud. Native Barman support is
+# a CNPG 1.30 compatibility rehearsal; production must use the Barman plugin.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: dramaip-recovery-ha
+  namespace: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4
+  imagePullPolicy: IfNotPresent
+  enableSuperuserAccess: true
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://dramaip-cnpg-recovery/backups
+      endpointURL: http://cnpg-recovery-minio:9000
+      serverName: dramaip-recovery-ha
+      s3Credentials:
+        accessKeyId:
+          name: cnpg-recovery-minio-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: cnpg-recovery-minio-credentials
+          key: SECRET_ACCESS_KEY
+        region:
+          name: cnpg-recovery-minio-credentials
+          key: AWS_REGION
+      data:
+        compression: gzip
+        jobs: 1
+      wal:
+        compression: gzip
+        maxParallel: 1
+    retentionPolicy: 7d
+  storage:
+    storageClass: dramaip-recovery-local
+    size: 5Gi
+    resizeInUseVolumes: false
+  affinity:
+    nodeSelector:
+      node-role.kubernetes.io/worker: worker
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  monitoring:
+    disableDefaultQueries: false

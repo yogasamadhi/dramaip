@@ -1,0 +1,28 @@
+# Dedicated one-instance restore volume for the temporary CNPG object-store
+# drill. Provision the directory on worker01 as numeric UID/GID 26:26 and mode
+# 0700 before applying this manifest; it is deliberately not auto-created.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dramaip-recovery-cnpg-restore-worker01
+  labels:
+    dramaip.io/temporary: "true"
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: dramaip-recovery-local
+  volumeMode: Filesystem
+  hostPath:
+    path: /var/lib/dramaip-recovery-staging/cnpg-restore-worker01
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - k8s-worker01

@@ -12,6 +12,8 @@ metadata:
     dramaip.io/temporary: "true"
 spec:
   instances: 3
+  # The HA-only rehearsal uses the smaller operand. The object-store overlay
+  # switches to the Barman-capable full image only when backup/PITR is tested.
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-minimal-trixie
   imagePullPolicy: IfNotPresent
   enableSuperuserAccess: true

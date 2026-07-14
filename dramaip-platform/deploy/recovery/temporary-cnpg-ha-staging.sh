@@ -13,6 +13,19 @@ set -euo pipefail
 command -v kubectl >/dev/null || { echo "kubectl is required" >&2; exit 127; }
 command -v curl >/dev/null || { echo "curl is required" >&2; exit 127; }
 
+kubectl_server="${DRAMAIP_KUBECTL_SERVER:-}"
+[[ -z "$kubectl_server" || "$kubectl_server" =~ ^https://[A-Za-z0-9.:-]+$ ]] || {
+  echo "DRAMAIP_KUBECTL_SERVER must be an https://host:port endpoint" >&2
+  exit 2
+}
+kube() {
+  if [[ -n "$kubectl_server" ]]; then
+    command kubectl --server="$kubectl_server" "$@"
+  else
+    command kubectl "$@"
+  fi
+}
+
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 infra_manifest="$script_dir/temporary-cnpg-ha-infra.yaml"
 cluster_manifest="$script_dir/temporary-cnpg-ha-cluster.yaml"
@@ -27,7 +40,7 @@ timeout="${DRAMAIP_CNPG_STAGING_TIMEOUT:-10m}"
 [[ -f "$infra_manifest" ]] || { echo "missing $infra_manifest" >&2; exit 2; }
 [[ -f "$cluster_manifest" ]] || { echo "missing $cluster_manifest" >&2; exit 2; }
 
-worker_count="$(kubectl get nodes -l node-role.kubernetes.io/worker=worker --no-headers | awk 'END { print NR }')"
+worker_count="$(kube get nodes -l node-role.kubernetes.io/worker=worker --no-headers | awk 'END { print NR }')"
 [[ "$worker_count" -ge 3 ]] || {
   echo "at least three labeled worker nodes are required; found $worker_count" >&2
   exit 1
@@ -62,14 +75,14 @@ grep -q '^        imagePullPolicy: IfNotPresent$' "$operator_manifest" || {
 }
 
 echo "applying temporary worker-local PV infrastructure"
-kubectl apply --server-side -f "$infra_manifest"
+kube apply --server-side -f "$infra_manifest"
 
 echo "installing CloudNativePG operator; masters are NoSchedule-tainted and cluster Pods select workers"
-kubectl apply --server-side -f "$operator_manifest"
-kubectl -n "$operator_namespace" rollout status "deployment/$operator_deployment" --timeout="$timeout"
+kube apply --server-side -f "$operator_manifest"
+kube -n "$operator_namespace" rollout status "deployment/$operator_deployment" --timeout="$timeout"
 
 echo "creating three-instance temporary HA cluster"
-kubectl apply -f "$cluster_manifest"
-kubectl -n "$namespace" wait "cluster/$cluster" --for=condition=Ready --timeout="$timeout"
-kubectl -n "$namespace" get cluster "$cluster"
-kubectl -n "$namespace" get pods -l "cnpg.io/cluster=$cluster" -o wide
+kube apply -f "$cluster_manifest"
+kube -n "$namespace" wait "cluster/$cluster" --for=condition=Ready --timeout="$timeout"
+kube -n "$namespace" get cluster "$cluster"
+kube -n "$namespace" get pods -l "cnpg.io/cluster=$cluster" -o wide

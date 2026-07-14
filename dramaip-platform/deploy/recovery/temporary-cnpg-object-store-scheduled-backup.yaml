@@ -1,0 +1,19 @@
+# The temporary schedule proves that the CNPG controller can dispatch an
+# automated object-store base backup. It is intentionally not a production
+# schedule or retention policy: the MinIO target is worker-local emptyDir.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: dramaip-recovery-ha-hourly
+  namespace: dramaip-recovery-staging
+  labels:
+    app.kubernetes.io/part-of: dramaip-recovery-rehearsal
+    dramaip.io/temporary: "true"
+spec:
+  cluster:
+    name: dramaip-recovery-ha
+  method: barmanObjectStore
+  target: primary
+  backupOwnerReference: self
+  immediate: true
+  schedule: "0 0 * * * *"

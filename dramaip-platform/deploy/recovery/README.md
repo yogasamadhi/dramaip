@@ -112,6 +112,57 @@ worker02 自动成为新 primary，且读取到了原 primary 写入的标记。
 当前临时 worker 环境中的流复制、自动提升、重新加入和已复制数据连续性；它不证明异地备份、加密、
 备份保留、目标 RPO/RTO 或生产 HA。
 
+## 临时 CNPG 对象存储与 PITR 演练
+
+在 HA 演练完成后，`temporary-cnpg-object-store-staging.sh` 仅在 worker01 创建一个 8Gi `emptyDir`
+MinIO、临时 bucket 和临时 S3 Secret。它使用预导入的 `dramaip-recovery-minio:amd64` 与
+`dramaip-recovery-mc:amd64`，并固定 `imagePullPolicy: Never`；因此不会从任一控制平面拉取或运行
+镜像。`temporary-cnpg-object-store-backup-cluster.yaml` 才会把 HA 集群切换到包含
+`barman-cloud-backup` 的 `ghcr.io/cloudnative-pg/postgresql:18.4` 完整 amd64 镜像，并启用 gzip
+base backup、gzip WAL、单并发上传和临时 `7d` 策略。
+
+完整镜像与 MinIO/MC 镜像均须先按 `linux/amd64` 导入相应 worker。恢复还需要在 worker01 预创建
+`/var/lib/dramaip-recovery-staging/cnpg-restore-worker01`，设为 `26:26`、`0700`；恢复脚本随后才会
+创建专用 PV。应先在 arm64 构建机运行 `prepare-cnpg-object-store-images.sh`，它固定 CNPG PostgreSQL
+18.4（digest `17760…6789f`）、MinIO（`14cea…8936e`）和 MC（`a7fe3…11727`），明确以 `linux/amd64`
+导出 tar；在每个需要的 worker 用 `docker load` 后，以容器运行 `uname -m` 确认 `x86_64`。三个步骤
+均要求独立的显式授权变量：
+
+```bash
+export DRAMAIP_CNPG_IMAGE_PREP_AUTHORIZED=1
+bash deploy/recovery/prepare-cnpg-object-store-images.sh
+```
+
+随后执行：
+
+```bash
+export DRAMAIP_CNPG_OBJECT_STORE_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-object-store-staging.sh
+
+export DRAMAIP_CNPG_OBJECT_STORE_BACKUP_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-object-store-backup.sh
+
+export DRAMAIP_CNPG_PITR_AUTHORIZED=1
+bash deploy/recovery/temporary-cnpg-object-store-pitr.sh
+```
+
+当前 2Gi 控制平面的 VIP 曾将 `kubectl` 请求转至高负载节点而出现 TLS 握手超时。脚本可选接收
+`DRAMAIP_KUBECTL_SERVER=https://<已验证且在 API 证书 SAN 中的控制平面>:6443`，只在已验证本机
+API 直连正常、VIP 不可用时绕过 VIP 执行编排；这不会把任何工作负载移到 master，也不是生产
+控制平面拓扑的替代方案。
+
+2026-07-14 的本次临时验证结果：Barman base backup `20260714T100031` 完成，命名恢复点
+`cnpg-pitr-20260714t10001784023230z-777` 的 WAL 已归档（`archived_count=22`）。独立的
+`dramaip-recovery-restore` 集群从该 backup ID 恢复到命名点，支付、订阅和 token 三张临时账本表
+断言为 `1:1:1:0`（保留事务完整、目标点后事务缺失）。随后 `ScheduledBackup` 的 `immediate: true`
+自动创建并完成了 owner 为该调度对象的 `dramaip-recovery-ha-hourly-20260714100630` Backup，证明
+CNPG 控制器能调度后续 base backup。
+
+CNPG 1.30 已在本次运行中警告原生 `barmanObjectStore` 将在 1.31 移除；它仅用于这次 1.30
+兼容性演练。生产实施必须迁移至 Barman Cloud Plugin，并连接独立故障域、TLS、KMS 加密、版本化/
+不可变和真实保留策略的对象存储。worker01 `emptyDir` MinIO、临时 Secret、测试 `7d` 策略以及本次
+on-demand Backup 都不构成异地、加密、自动计划备份、损坏告警或生产 RPO/RTO 的证据。
+
 正式环境必须以受支持的持久卷方案、跨故障域对象存储和 Secret Manager 注入替换它们。
 
 生产演练还必须记录：备份 ID、目标时间、开始/结束时间、恢复数据校验、三方对账结果、
