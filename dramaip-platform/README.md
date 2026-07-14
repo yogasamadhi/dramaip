@@ -119,5 +119,8 @@ Production delivery is intentionally operator-invoked rather than a hosted
 pipeline. Start with `bash deploy/release/preflight.sh`; the release procedure,
 secret boundaries, image scan, staging deploy, and rollback requirements are in
 [`../docs/loop/LM3-32-无流水线发布准备.md`](../docs/loop/LM3-32-无流水线发布准备.md).
+Before a staging release, run `IMAGE_REGISTRY=<approved-registry/project> bash
+deploy/release/staging-prerequisites.sh staging` to read-only validate the
+operator-managed namespace, release permissions, Kong, Secrets, and registry.
 The release scripts require explicit approval for cluster changes and never
 perform a real payment.

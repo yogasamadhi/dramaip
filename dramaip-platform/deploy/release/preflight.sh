@@ -23,7 +23,7 @@ if [[ -n "$tracked_secret_files" ]]; then
 fi
 
 git -C "$repo" diff --check
-bash -n "$platform/deploy/release/build-images.sh" "$platform/deploy/release/scan-images.sh" "$platform/deploy/release/helm-release.sh" "$platform/deploy/release/staging-smoke.sh" "$platform/deploy/release/preflight.sh"
+bash -n "$platform/deploy/release/build-images.sh" "$platform/deploy/release/scan-images.sh" "$platform/deploy/release/helm-release.sh" "$platform/deploy/release/staging-prerequisites.sh" "$platform/deploy/release/staging-smoke.sh" "$platform/deploy/release/preflight.sh"
 docker compose -f "$platform/deploy/docker-drama/docker-compose.yaml" config --quiet
 helm lint "$chart" -f "$chart/values-dev.yaml" --set-string devInfra.persistence.hostPathBase=/tmp/dramaip-helm-preflight
 helm lint "$chart" -f "$chart/values-staging.yaml"
