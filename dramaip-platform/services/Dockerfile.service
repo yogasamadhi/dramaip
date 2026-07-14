@@ -6,6 +6,7 @@ FROM ${GO_IMAGE} AS build
 ARG TARGET=./app/bff/web/interface/cmd/server
 ARG OUTPUT=dramaip-service
 ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOMAXPROCS=
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -20,6 +21,7 @@ RUN echo "${BUILD_CACHE_BUST}" > /tmp/dramaip-build-cache-bust
 COPY . .
 RUN --mount=type=cache,id=dramaip-go-mod,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,id=dramaip-go-build,target=/root/.cache/go-build,sharing=locked \
+    if [ -n "${GOMAXPROCS}" ]; then export GOMAXPROCS; fi; \
     CGO_ENABLED=0 GOOS=linux go build -o /out/${OUTPUT} ${TARGET}
 
 FROM ${RUNTIME_IMAGE}

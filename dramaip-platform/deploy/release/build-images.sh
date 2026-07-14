@@ -49,6 +49,15 @@ if [[ -n "${DRAMAIP_GO_PROXY:-}" ]]; then
   }
   build_base_args+=(--build-arg "GOPROXY=$DRAMAIP_GO_PROXY")
 fi
+if [[ -n "${DRAMAIP_GO_MAX_PROCS:-}" ]]; then
+  [[ "$DRAMAIP_GO_MAX_PROCS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "DRAMAIP_GO_MAX_PROCS must be a positive integer" >&2
+    exit 2
+  }
+  # Leave the Go default intact unless an operator explicitly constrains a
+  # small, shared build host.  This setting exists only in the build stage.
+  build_base_args+=(--build-arg "GOMAXPROCS=$DRAMAIP_GO_MAX_PROCS")
+fi
 
 targets=(
   "web-bff:./app/bff/web/interface/cmd/server"
