@@ -237,6 +237,10 @@ subjects:
     name: ${kong_release}-controller
     namespace: ${kong_namespace}
 EOF
+  # A previous failed attempt may be in CrashLoopBackOff when the compatibility
+  # RoleBinding appears. Restart only this temporary controller so it retries
+  # immediately with the newly verified read-only permission.
+  "${kubectl_cmd[@]}" -n "$kong_namespace" rollout restart "deployment/${kong_release}-controller" >/dev/null
   "${kubectl_cmd[@]}" -n "$kong_namespace" rollout status "deployment/${kong_release}-controller" --timeout="${DRAMAIP_KONG_TIMEOUT:-10m}"
   "${kubectl_cmd[@]}" -n "$kong_namespace" rollout status "deployment/${kong_release}-gateway" --timeout="${DRAMAIP_KONG_TIMEOUT:-10m}"
   "${kubectl_cmd[@]}" get ingressclass kong >/dev/null
