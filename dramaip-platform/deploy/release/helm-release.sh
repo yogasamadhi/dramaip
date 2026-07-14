@@ -10,6 +10,7 @@ environment="${1:?usage: helm-release.sh <staging|production> <apply|rollback> [
 action="${2:?usage: helm-release.sh <staging|production> <apply|rollback> [revision]}"
 namespace="${DRAMAIP_NAMESPACE:-dramaip-$environment}"
 release="${DRAMAIP_RELEASE:-dramaip-platform}"
+temporary_staging="${DRAMAIP_TEMPORARY_STAGING_INFRA:-0}"
 helm_cmd=(helm)
 kubectl_cmd=(kubectl)
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
@@ -30,16 +31,29 @@ case "$environment" in
   *) echo "environment must be staging or production" >&2; exit 2 ;;
 esac
 [[ "${DRAMAIP_RELEASE_AUTHORIZED:-}" == "1" ]] || { echo "set DRAMAIP_RELEASE_AUTHORIZED=1 after change approval" >&2; exit 2; }
-"${helm_cmd[@]}" lint "$chart" -f "$values"
+if [[ "$temporary_staging" == "1" ]]; then
+  [[ "$environment" == "staging" ]] || { echo "temporary staging infrastructure is only available for staging" >&2; exit 2; }
+  [[ "${DRAMAIP_TEMPORARY_STAGING_AUTHORIZED:-}" == "1" ]] || { echo "set DRAMAIP_TEMPORARY_STAGING_AUTHORIZED=1 for isolated temporary staging" >&2; exit 2; }
+  [[ "$namespace" =~ ^dramaip-staging(-[a-z0-9]+)?$ ]] || { echo "temporary staging namespace must start with dramaip-staging" >&2; exit 2; }
+  values_files=(-f "$values" -f "$chart/values-staging-temporary.yaml")
+else
+  values_files=(-f "$values")
+fi
+"${helm_cmd[@]}" lint "$chart" "${values_files[@]}"
 if [[ "$action" == "apply" ]]; then
   case "$environment" in
     staging)
       runtime_secret="${DRAMAIP_RUNTIME_SECRET:-dramaip-staging-runtime}"
-      auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:-dramaip-staging-auth-jwt}"
-      admin_jwt_secret="${DRAMAIP_ADMIN_JWT_SECRET:-dramaip-staging-admin-jwt}"
       mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
       image_pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:-dramaip-staging-registry}"
       ingress_tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
+      if [[ "$temporary_staging" == "1" ]]; then
+        auth_jwt_secret=""
+        admin_jwt_secret=""
+      else
+        auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:-dramaip-staging-auth-jwt}"
+        admin_jwt_secret="${DRAMAIP_ADMIN_JWT_SECRET:-dramaip-staging-admin-jwt}"
+      fi
       ;;
     production)
       runtime_secret="${DRAMAIP_RUNTIME_SECRET:?DRAMAIP_RUNTIME_SECRET is required for production apply}"
@@ -52,16 +66,31 @@ if [[ "$action" == "apply" ]]; then
   esac
   image_registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required for apply, e.g. registry.example/dramaip}"
   image_tag="${IMAGE_TAG:?IMAGE_TAG is required for apply and must be an immutable release tag}"
-  postgres_host="${DRAMAIP_POSTGRES_HOST:?DRAMAIP_POSTGRES_HOST is required for apply}"
-  redis_addr="${DRAMAIP_REDIS_ADDR:?DRAMAIP_REDIS_ADDR is required for apply}"
-  rabbitmq_host="${DRAMAIP_RABBITMQ_HOST:?DRAMAIP_RABBITMQ_HOST is required for apply}"
-  rabbitmq_port="${DRAMAIP_RABBITMQ_PORT:?DRAMAIP_RABBITMQ_PORT is required for apply}"
-  otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:?DRAMAIP_OTEL_ENDPOINT is required for apply}"
-  ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:?DRAMAIP_PUBLIC_INGRESS_HOST is required for apply}"
-  web_origin="${DRAMAIP_WEB_ORIGIN:?DRAMAIP_WEB_ORIGIN is required for apply}"
-  admin_origin="${DRAMAIP_ADMIN_ORIGIN:?DRAMAIP_ADMIN_ORIGIN is required for apply}"
+  if [[ "$temporary_staging" == "1" ]]; then
+    [[ "$image_registry" == "dramaip-staging.local" ]] || { echo "temporary staging requires IMAGE_REGISTRY=dramaip-staging.local (node-local images only)" >&2; exit 2; }
+    postgres_host="${DRAMAIP_POSTGRES_HOST:-postgres}"
+    redis_addr="${DRAMAIP_REDIS_ADDR:-redis:6379}"
+    rabbitmq_host="${DRAMAIP_RABBITMQ_HOST:-rabbitmq}"
+    rabbitmq_port="${DRAMAIP_RABBITMQ_PORT:-5672}"
+    otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:-http://otel-collector:4318}"
+    ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
+    web_origin="${DRAMAIP_WEB_ORIGIN:-https://app.staging.internal}"
+    admin_origin="${DRAMAIP_ADMIN_ORIGIN:-https://admin.staging.internal}"
+  else
+    postgres_host="${DRAMAIP_POSTGRES_HOST:?DRAMAIP_POSTGRES_HOST is required for apply}"
+    redis_addr="${DRAMAIP_REDIS_ADDR:?DRAMAIP_REDIS_ADDR is required for apply}"
+    rabbitmq_host="${DRAMAIP_RABBITMQ_HOST:?DRAMAIP_RABBITMQ_HOST is required for apply}"
+    rabbitmq_port="${DRAMAIP_RABBITMQ_PORT:?DRAMAIP_RABBITMQ_PORT is required for apply}"
+    otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:?DRAMAIP_OTEL_ENDPOINT is required for apply}"
+    ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:?DRAMAIP_PUBLIC_INGRESS_HOST is required for apply}"
+    web_origin="${DRAMAIP_WEB_ORIGIN:?DRAMAIP_WEB_ORIGIN is required for apply}"
+    admin_origin="${DRAMAIP_ADMIN_ORIGIN:?DRAMAIP_ADMIN_ORIGIN is required for apply}"
+  fi
 
-  for secret in "$runtime_secret" "$auth_jwt_secret" "$admin_jwt_secret" "$mtls_secret" "$image_pull_secret" "$ingress_tls_secret"; do
+  required_secrets=("$runtime_secret" "$mtls_secret" "$image_pull_secret" "$ingress_tls_secret")
+  if [[ -n "$auth_jwt_secret" ]]; then required_secrets+=("$auth_jwt_secret"); fi
+  if [[ -n "$admin_jwt_secret" ]]; then required_secrets+=("$admin_jwt_secret"); fi
+  for secret in "${required_secrets[@]}"; do
     "${kubectl_cmd[@]}" -n "$namespace" get secret "$secret" >/dev/null
   done
 
@@ -91,7 +120,7 @@ if [[ "$action" == "apply" ]]; then
     image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
     image_overrides+=(--set-string "images.$key.tag=$image_tag")
   done
-  "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace -f "$values" "${image_overrides[@]}" --atomic --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
+  "${helm_cmd[@]}" upgrade --install "$release" "$chart" --namespace "$namespace" --create-namespace "${values_files[@]}" "${image_overrides[@]}" --atomic --timeout "${DRAMAIP_HELM_TIMEOUT:-10m}" --history-max 10
   "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment --timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}" -l app.kubernetes.io/instance="$release"
 elif [[ "$action" == "rollback" ]]; then
   revision="${3:?rollback requires an audited Helm revision}"

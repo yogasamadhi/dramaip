@@ -7,6 +7,13 @@ root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 services="$root/services"
 registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required, e.g. registry.example/dramaip}"
 tag="${IMAGE_TAG:?IMAGE_TAG is required, e.g. git SHA or immutable release tag}"
+docker_cmd=(docker)
+# The isolated staging operator host deliberately grants Docker access through
+# sudo rather than permanently adding the operator account to the docker group.
+# Keep that elevation opt-in and use a fixed command, never a shell fragment.
+if [[ "${DRAMAIP_DOCKER_SUDO:-0}" == "1" ]]; then
+  docker_cmd=(sudo docker)
+fi
 
 targets=(
   "web-bff:./app/bff/web/interface/cmd/server"
@@ -32,6 +39,6 @@ for item in "${targets[@]}"; do
   name="${item%%:*}"
   target="${item#*:}"
   image="$registry/$name:$tag"
-  docker build --pull --file "$services/Dockerfile.service" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
-  if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then docker push "$image"; fi
+  "${docker_cmd[@]}" build --pull --file "$services/Dockerfile.service" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
+  if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done

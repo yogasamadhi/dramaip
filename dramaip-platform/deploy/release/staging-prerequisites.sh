@@ -14,6 +14,8 @@ environment="${1:-staging}"
 namespace="${DRAMAIP_NAMESPACE:-dramaip-staging}"
 ingress_class="${DRAMAIP_INGRESS_CLASS:-kong}"
 registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required, e.g. registry.example/dramaip}"
+temporary_staging="${DRAMAIP_TEMPORARY_STAGING_INFRA:-0}"
+image_distribution="${DRAMAIP_STAGING_IMAGE_DISTRIBUTION:-registry}"
 
 runtime_secret="${DRAMAIP_RUNTIME_SECRET:-dramaip-staging-runtime}"
 auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:-dramaip-staging-auth-jwt}"
@@ -31,10 +33,18 @@ command -v kubectl >/dev/null || {
   echo "kubectl is required" >&2
   exit 127
 }
-command -v curl >/dev/null || {
-  echo "curl is required for the registry reachability check" >&2
-  exit 127
-}
+if [[ "$image_distribution" == "registry" ]]; then
+  command -v curl >/dev/null || {
+    echo "curl is required for the registry reachability check" >&2
+    exit 127
+  }
+fi
+if [[ "$temporary_staging" == "1" ]]; then
+  [[ "${DRAMAIP_TEMPORARY_STAGING_AUTHORIZED:-}" == "1" ]] || { echo "set DRAMAIP_TEMPORARY_STAGING_AUTHORIZED=1 for isolated temporary staging" >&2; exit 2; }
+  [[ "$namespace" =~ ^dramaip-staging(-[a-z0-9]+)?$ ]] || { echo "temporary staging namespace must start with dramaip-staging" >&2; exit 2; }
+  [[ "$registry" == "dramaip-staging.local" ]] || { echo "temporary staging requires IMAGE_REGISTRY=dramaip-staging.local" >&2; exit 2; }
+  [[ "$image_distribution" == "preloaded" ]] || { echo "temporary staging requires DRAMAIP_STAGING_IMAGE_DISTRIBUTION=preloaded" >&2; exit 2; }
+fi
 
 require_permission() {
   local verb="$1"
@@ -89,7 +99,11 @@ done
   exit 1
 }
 
-for secret in "$runtime_secret" "$auth_jwt_secret" "$admin_jwt_secret" "$mtls_secret"; do
+required_secrets=("$runtime_secret" "$mtls_secret")
+if [[ "$temporary_staging" != "1" ]]; then
+  required_secrets+=("$auth_jwt_secret" "$admin_jwt_secret")
+fi
+for secret in "${required_secrets[@]}"; do
   "${kubectl_cmd[@]}" --namespace "$namespace" get secret "$secret" >/dev/null || {
     echo "required operator-managed Secret does not exist: $secret" >&2
     exit 1
@@ -112,17 +126,26 @@ tls_type="$("${kubectl_cmd[@]}" --namespace "$namespace" get secret "$ingress_tl
 # authority accepted by OCI clients, e.g. registry.example:5000 in
 # registry.example:5000/dramaip. A 401 response means the registry is reachable
 # and correctly requires operator credentials; no credential is supplied here.
-registry_authority="${registry%%/*}"
-registry_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-  --connect-timeout "${DRAMAIP_REGISTRY_CONNECT_TIMEOUT_SECONDS:-5}" \
-  --max-time "${DRAMAIP_REGISTRY_TIMEOUT_SECONDS:-10}" \
-  "https://$registry_authority/v2/" || true)"
-case "$registry_status" in
-  200|401) ;;
-  *)
-    echo "OCI registry is not reachable over HTTPS at $registry_authority/v2/ (HTTP ${registry_status:-000})" >&2
+if [[ "$image_distribution" == "preloaded" ]]; then
+  image_tag="${IMAGE_TAG:?IMAGE_TAG is required to verify preloaded staging images}"
+  marker_tag="$("${kubectl_cmd[@]}" -n "$namespace" get configmap dramaip-staging-image-preload -o jsonpath='{.data.image-tag}' 2>/dev/null || true)"
+  [[ "$marker_tag" == "$image_tag" ]] || {
+    echo "node-local image preload marker is absent or does not match IMAGE_TAG" >&2
     exit 1
-    ;;
-esac
+  }
+else
+  registry_authority="${registry%%/*}"
+  registry_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --connect-timeout "${DRAMAIP_REGISTRY_CONNECT_TIMEOUT_SECONDS:-5}" \
+    --max-time "${DRAMAIP_REGISTRY_TIMEOUT_SECONDS:-10}" \
+    "https://$registry_authority/v2/" || true)"
+  case "$registry_status" in
+    200|401) ;;
+    *)
+      echo "OCI registry is not reachable over HTTPS at $registry_authority/v2/ (HTTP ${registry_status:-000})" >&2
+      exit 1
+      ;;
+  esac
+fi
 
-echo "staging prerequisites passed: namespace, release permissions, Kong ingress, operator-managed Secrets, and OCI registry reachability"
+echo "staging prerequisites passed: namespace, release permissions, Kong ingress, operator-managed Secrets, and image distribution"

@@ -45,7 +45,19 @@ done
 
 base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required, e.g. https://api.staging.example.com}"
 base_url="${base_url%/}"
-curl --fail --show-error --silent --max-time "${SMOKE_HTTP_TIMEOUT_SECONDS:-10}" "$base_url/v1/healthz" >/dev/null
+curl_common=(curl --show-error --silent --max-time "${SMOKE_HTTP_TIMEOUT_SECONDS:-10}")
+if [[ -n "${SMOKE_CA_FILE:-}" ]]; then
+  [[ -f "$SMOKE_CA_FILE" ]] || { echo "SMOKE_CA_FILE must identify a readable CA certificate file" >&2; exit 2; }
+  curl_common+=(--cacert "$SMOKE_CA_FILE")
+fi
+if [[ -n "${SMOKE_CURL_RESOLVE:-}" ]]; then
+  [[ "$SMOKE_CURL_RESOLVE" =~ ^[A-Za-z0-9.-]+:[0-9]{1,5}:[0-9A-Fa-f:.]+$ ]] || {
+    echo "SMOKE_CURL_RESOLVE must be host:port:address" >&2
+    exit 2
+  }
+  curl_common+=(--resolve "$SMOKE_CURL_RESOLVE")
+fi
+"${curl_common[@]}" --fail "$base_url/v1/healthz" >/dev/null
 
 [[ "${SMOKE_RATE_LIMIT_TEST:-0}" == "1" ]] || {
   echo "set SMOKE_RATE_LIMIT_TEST=1 for the approved Kong rate-limit probe" >&2
@@ -59,7 +71,7 @@ attempts="${SMOKE_RATE_LIMIT_ATTEMPTS:?SMOKE_RATE_LIMIT_ATTEMPTS must exceed the
 rate_url="${SMOKE_RATE_LIMIT_URL:-$base_url/v1/plans}"
 seen_limited=0
 for ((attempt = 1; attempt <= attempts; attempt++)); do
-  status="$(curl --output /dev/null --silent --max-time "${SMOKE_HTTP_TIMEOUT_SECONDS:-10}" --write-out '%{http_code}' "$rate_url")"
+  status="$("${curl_common[@]}" --output /dev/null --write-out '%{http_code}' "$rate_url")"
   if [[ "$status" == "429" ]]; then
     seen_limited=1
     break
@@ -70,6 +82,6 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
   fi
 done
 [[ "$seen_limited" == "1" ]] || { echo "Kong rate limit was not observed" >&2; exit 1; }
-curl --fail --show-error --silent --max-time "${SMOKE_HTTP_TIMEOUT_SECONDS:-10}" "$base_url/v1/healthz" >/dev/null
+"${curl_common[@]}" --fail "$base_url/v1/healthz" >/dev/null
 
 echo "$environment smoke passed: rollout, mTLS Secret mounts, health, and Kong rate limiting"
