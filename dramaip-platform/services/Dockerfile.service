@@ -11,13 +11,16 @@ WORKDIR /src
 COPY go.mod go.sum ./
 # GOPROXY is a build-time setting only. Operators on controlled networks can
 # supply a reachable, approved proxy without changing the final runtime image.
-RUN GOPROXY="${GOPROXY}" go mod download
+RUN --mount=type=cache,id=dramaip-go-mod,target=/go/pkg/mod,sharing=locked \
+    GOPROXY="${GOPROXY}" go mod download
 
 ARG BUILD_CACHE_BUST=dev
 RUN echo "${BUILD_CACHE_BUST}" > /tmp/dramaip-build-cache-bust
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/${OUTPUT} ${TARGET}
+RUN --mount=type=cache,id=dramaip-go-mod,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,id=dramaip-go-build,target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux go build -o /out/${OUTPUT} ${TARGET}
 
 FROM ${RUNTIME_IMAGE}
 
