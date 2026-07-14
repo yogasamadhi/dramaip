@@ -11,7 +11,7 @@ action="${2:?usage: helm-release.sh <staging|production> <apply|rollback> [revis
 namespace="${DRAMAIP_NAMESPACE:-dramaip-$environment}"
 release="${DRAMAIP_RELEASE:-dramaip-platform}"
 temporary_staging="${DRAMAIP_TEMPORARY_STAGING_INFRA:-0}"
-helm_cmd=(helm)
+helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 kubectl_cmd=(kubectl)
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
   helm_cmd+=(--kube-context "$DRAMAIP_KUBE_CONTEXT")

@@ -18,7 +18,7 @@ kong_release="${DRAMAIP_KONG_RELEASE:-dramaip-staging-kong}"
 image_registry="${IMAGE_REGISTRY:-dramaip-staging.local}"
 image_tag="${IMAGE_TAG:-}"
 kubectl_cmd=(kubectl)
-helm_cmd=(helm)
+helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
   kubectl_cmd+=(--context "$DRAMAIP_KUBE_CONTEXT")
   helm_cmd+=(--kube-context "$DRAMAIP_KUBE_CONTEXT")
@@ -148,7 +148,7 @@ bootstrap() {
 }
 
 install_kong() {
-  require_command helm
+  "${helm_cmd[@]}" version --short >/dev/null || { echo "a working Helm binary is required" >&2; exit 127; }
   require_command sha256sum
   "${kubectl_cmd[@]}" get namespace "$namespace" >/dev/null || {
     echo "run bootstrap before install-kong" >&2

@@ -18,7 +18,7 @@ release="${DRAMAIP_RELEASE:-dramaip-platform}"
 mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-$default_mtls_secret}"
 timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}"
 kubectl_cmd=(kubectl)
-helm_cmd=(helm)
+helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
   kubectl_cmd+=(--context "$DRAMAIP_KUBE_CONTEXT")
   helm_cmd+=(--kube-context "$DRAMAIP_KUBE_CONTEXT")
