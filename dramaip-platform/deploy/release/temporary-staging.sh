@@ -288,9 +288,13 @@ preload_images() {
   require_command curl
   require_command sha256sum
   "${kubectl_cmd[@]}" get namespace "$namespace" >/dev/null || { echo "run bootstrap before preload-images" >&2; exit 1; }
-  local archive="${DRAMAIP_IMAGE_ARCHIVE:?DRAMAIP_IMAGE_ARCHIVE must point to the Docker archive on this operator host}"
+  local archive
+  archive="${DRAMAIP_IMAGE_ARCHIVE:-}"
+  [[ -n "$archive" ]] || { echo "DRAMAIP_IMAGE_ARCHIVE must point to the Docker archive on this operator host" >&2; exit 2; }
   [[ -f "$archive" ]] || { echo "DRAMAIP_IMAGE_ARCHIVE does not exist" >&2; exit 2; }
-  local server_address="${DRAMAIP_IMAGE_SERVER_ADDRESS:?DRAMAIP_IMAGE_SERVER_ADDRESS must be this operator host's private IPv4 address}"
+  local server_address
+  server_address="${DRAMAIP_IMAGE_SERVER_ADDRESS:-}"
+  [[ -n "$server_address" ]] || { echo "DRAMAIP_IMAGE_SERVER_ADDRESS must be this operator host private IPv4 address" >&2; exit 2; }
   [[ "$server_address" =~ ^192\.168\.2\.[0-9]{1,3}$ ]] || { echo "image server address must be in the approved 192.168.2.0/24 LAN" >&2; exit 2; }
   # Assign in a separate statement so nounset mode cannot observe an
   # uninitialised local while constructing the private archive URL below.
