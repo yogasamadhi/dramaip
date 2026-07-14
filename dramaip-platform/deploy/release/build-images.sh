@@ -16,6 +16,7 @@ if [[ "${DRAMAIP_DOCKER_SUDO:-0}" == "1" ]]; then
 fi
 build_base_args=()
 pull_args=(--pull)
+platform_args=()
 # Fresh manifest resolution is the safe default.  A controlled, disconnected
 # staging build host may explicitly reuse previously verified local bases.
 case "${DRAMAIP_DOCKER_PULL:-1}" in
@@ -58,6 +59,15 @@ if [[ -n "${DRAMAIP_GO_MAX_PROCS:-}" ]]; then
   # small, shared build host.  This setting exists only in the build stage.
   build_base_args+=(--build-arg "GOMAXPROCS=$DRAMAIP_GO_MAX_PROCS")
 fi
+if [[ -n "${DRAMAIP_DOCKER_PLATFORM:-}" ]]; then
+  # Keep cross-platform release artifacts constrained to the Linux platforms
+  # supported by this project; do not accept arbitrary Docker build flags.
+  [[ "$DRAMAIP_DOCKER_PLATFORM" =~ ^linux/(amd64|arm64)$ ]] || {
+    echo "DRAMAIP_DOCKER_PLATFORM must be linux/amd64 or linux/arm64" >&2
+    exit 2
+  }
+  platform_args=(--platform "$DRAMAIP_DOCKER_PLATFORM")
+fi
 
 targets=(
   "web-bff:./app/bff/web/interface/cmd/server"
@@ -83,6 +93,6 @@ for item in "${targets[@]}"; do
   name="${item%%:*}"
   target="${item#*:}"
   image="$registry/$name:$tag"
-  "${docker_cmd[@]}" build "${pull_args[@]}" --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
+  "${docker_cmd[@]}" build "${pull_args[@]}" "${platform_args[@]}" --file "$services/Dockerfile.service" "${build_base_args[@]}" --build-arg "TARGET=$target" --build-arg "OUTPUT=dramaip-$name" --tag "$image" "$services"
   if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done
