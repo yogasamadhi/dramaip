@@ -58,6 +58,19 @@ images:
     repository: ghcr.io/dramaip/dramaip-migrate
     tag: "0.1.0"
 
+# The browser-facing Next.js UI is deliberately separate from the Web BFF.
+# When both are routed through the same Gateway host, leave apiBaseURL empty
+# so the emitted browser bundle calls relative /v1 endpoints on that origin.
+web:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/dramaip/dramaip-web
+    tag: "0.1.0"
+  port: 3000
+  apiBaseURL: ""
+  paymentMode: simulated
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
@@ -96,7 +109,7 @@ ingress:
   hosts:
     - host: api.example.com
       paths:
-        - path: /
+        - path: /v1
           pathType: Prefix
   tls: []
 
@@ -311,6 +324,9 @@ config:
   ai:
     providers: openai-compatible
     defaultProvider: openai-compatible
+    # Only the isolated temporary-staging overlay may turn this on. Normal
+    # environments must use a reviewed external provider configuration.
+    testProviderEnabled: "false"
     providerBaseUrl: https://api.openai.com/v1
     defaultModel: gpt-4o-mini
     timeoutSeconds: "90"
@@ -424,6 +440,10 @@ internalMTLS:
 migrations:
   enabled: true
   useHelmHook: true
+  # A chart whose temporary database is installed in the same release cannot
+  # use a pre-install hook, but may opt into hook semantics on later upgrades
+  # so an immutable completed Job never blocks a new application image tag.
+  useHelmHookOnUpgrade: false
   # Requires the migration identity to have CREATEROLE. Set false only after
   # the eight runtime roles have been pre-provisioned by the database operator.
   bootstrapRuntimeRoles: true

@@ -213,13 +213,26 @@ func (u *BFFUsecase) AccountReport(ctx context.Context, userID string) (map[stri
 			unread++
 		}
 	}
+	// A protobuf repeated field is nil when an account has no usage rows. Do
+	// not expose that Go implementation detail as JSON null: the browser API
+	// contract deliberately represents an empty trend as an empty array.
+	usageTrend := make([]map[string]any, 0)
+	if trend != nil {
+		usageTrend = make([]map[string]any, 0, len(trend.GetPoints()))
+		for _, point := range trend.GetPoints() {
+			usageTrend = append(usageTrend, map[string]any{
+				"date":         point.GetDate(),
+				"total_tokens": point.GetTotalTokens(),
+			})
+		}
+	}
 	report := map[string]any{
 		"generated_at":         time.Now().UTC().Format(time.RFC3339),
 		"subscription":         sub,
 		"token_balance":        balance,
 		"order_summary":        map[string]any{"paid": paidOrders, "pending": pendingOrders, "total": len(orders.GetOrders())},
 		"usage_summary":        map[string]any{"total_tokens": totalTokens, "requests": len(usage.GetUsage())},
-		"usage_trend":          trend.GetPoints(),
+		"usage_trend":          usageTrend,
 		"notification_summary": map[string]any{"unread": unread, "total": len(notifications)},
 	}
 	return report, nil

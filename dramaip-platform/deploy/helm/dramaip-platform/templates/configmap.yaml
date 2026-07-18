@@ -112,6 +112,7 @@ data:
   REPORTING_GRPC_ENDPOINT: {{ .Values.config.downstream.reportingGrpcEndpoint | quote }}
   AI_PROVIDERS: {{ .Values.config.ai.providers | quote }}
   AI_PROVIDER_DEFAULT: {{ .Values.config.ai.defaultProvider | quote }}
+  AI_TEST_PROVIDER_ENABLED: {{ .Values.config.ai.testProviderEnabled | quote }}
   AI_PROVIDER_BASE_URL: {{ .Values.config.ai.providerBaseUrl | quote }}
   AI_DEFAULT_MODEL: {{ .Values.config.ai.defaultModel | quote }}
   AI_PROVIDER_TIMEOUT_SECONDS: {{ .Values.config.ai.timeoutSeconds | quote }}

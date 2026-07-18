@@ -237,7 +237,7 @@ def client_modules_resolve() -> bool:
 
 
 def ensure_stack_running() -> None:
-    """Bring up the full docker compose stack (10 Go services + Kong + dev infra).
+    """Bring up the full Compose business stack, Kong, and required dev infra.
 
     Kong depends on `web-bff`, which (transitively) depends on postgres/redis/etc.,
     so `up kong` pulls the whole stack. We `--build` so Go code changes are
@@ -249,7 +249,19 @@ def ensure_stack_running() -> None:
         compose_cmd("up", "-d", "--build", "kong")
     )
     if up.returncode != 0:
-        err("Stack failed to start. Free ports 8000/8001 or pass --no-stack to bypass.")
+        err(
+            "Stack failed to start. Review the Docker Compose error above; common "
+            "conflicts include ports 5432, 5672, 6379, 8000/8001, 15672, and 16686."
+        )
+        sys.exit(1)
+    # Rebuilt Compose services can receive new container IPs while an existing
+    # DB-less Kong process still holds the previous Docker DNS result. Restart
+    # Kong after the dependency graph is up so its first proxy request resolves
+    # the current BFF addresses instead of returning a stale-upstream 502.
+    info("Restarting Kong to refresh upstream Docker DNS after service rebuilds")
+    refresh = subprocess.run(compose_cmd("restart", "kong"))
+    if refresh.returncode != 0:
+        err("Kong failed to restart after the service rebuild.")
         sys.exit(1)
     health_url = f"http://localhost:{KONG_PROXY_PORT}/v1/healthz"
     info(f"Waiting for Kong/BFF health: {health_url}")

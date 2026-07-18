@@ -43,7 +43,7 @@ fi
 }
 
 images=(
-  web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
+  web web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
   notification inspiration reporting notification-job reporting-job billing-job
   quota-job migrate
 )

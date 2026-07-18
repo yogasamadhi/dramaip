@@ -265,15 +265,15 @@ func (d *Data) RecordProviderCost(ctx context.Context, input ProviderCostInput) 
 	}
 	if err := tx.Exec(`
 		INSERT INTO ai_gateway.provider_cost_logs (
-			id, audit_id, user_id, request_id, reservation_id, provider, model,
+			id, audit_id, user_id, client_ip, request_id, reservation_id, provider, model,
 			prompt_tokens, completion_tokens, total_tokens, usage_known,
 			input_unit_price, output_unit_price, price_unit_tokens, currency, exchange_rate_to_cny,
 			cost_amount, cost_cny_amount, pricing_source, cost_status
 		) VALUES (
-			?::uuid, ?::uuid, ?::uuid, ?, NULLIF(?, '')::uuid, ?, ?, ?, ?, ?, ?,
+			?::uuid, ?::uuid, ?::uuid, ?, ?, NULLIF(?, '')::uuid, ?, ?, ?, ?, ?, ?,
 			?::numeric, ?::numeric, ?, ?, ?::numeric, ?::numeric, ?::numeric, ?, ?
 		) ON CONFLICT (audit_id) DO NOTHING
-	`, platform.NewUUID(), input.AuditID, input.UserID, input.RequestID, input.ReservationID, input.Provider, input.Model,
+	`, platform.NewUUID(), input.AuditID, input.UserID, input.ClientIP, input.RequestID, input.ReservationID, input.Provider, input.Model,
 		input.Quote.PromptTokens, input.Quote.CompletionTokens, input.Quote.TotalTokens, input.UsageKnown,
 		input.Quote.InputUnitPrice, input.Quote.OutputUnitPrice, priceUnitTokens, input.Quote.Currency, input.Quote.ExchangeRateToCNY,
 		input.Quote.CostAmount, input.Quote.CostCNYAmount, input.Quote.PricingSource, input.CostStatus).Error; err != nil {

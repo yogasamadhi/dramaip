@@ -443,6 +443,7 @@ services:
       BILLING_RECONCILIATION_INTERVAL: ${BILLING_RECONCILIATION_INTERVAL:-1h}
       BILLING_RECONCILIATION_BATCH_SIZE: ${BILLING_RECONCILIATION_BATCH_SIZE:-100}
       RECONCILIATION_OPERATOR_TOKEN: ${RECONCILIATION_OPERATOR_TOKEN:-}
+      QUOTA_GRPC_ENDPOINT: quota:9104
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_USER:-dramaip}
@@ -459,6 +460,8 @@ services:
       rabbitmq:
         condition: service_healthy
       otel-collector:
+        condition: service_started
+      quota:
         condition: service_started
 
   quota-job:
@@ -507,6 +510,13 @@ services:
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
       NOTIFICATION_GRPC_ENDPOINT: notification:9106
       OTEL_SERVICE_NAME: dramaip-web-bff
+    depends_on:
+      - auth
+      - user
+      - billing
+      - quota
+      - ai-gateway
+      - notification
 
   # Desktop BFF is a separate public adapter. It owns only desktop token
   # exchange/session/context routes; browser cookies stay in web-bff.
@@ -534,6 +544,12 @@ services:
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
       INSPIRATION_GRPC_ENDPOINT: inspiration:9107
       OTEL_SERVICE_NAME: dramaip-desktop-bff
+    depends_on:
+      - auth
+      - billing
+      - quota
+      - ai-gateway
+      - inspiration
 
   # Mobile BFF is an independent token/session adapter. It has no database,
   # payment or AI credential and exposes only /v1/mobile through Kong.
@@ -561,6 +577,12 @@ services:
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
       INSPIRATION_GRPC_ENDPOINT: inspiration:9107
       OTEL_SERVICE_NAME: dramaip-mobile-bff
+    depends_on:
+      - auth
+      - billing
+      - quota
+      - ai-gateway
+      - inspiration
 
   # Admin owns its privileged identity/audit metadata in an independent schema
   # and validates a separate JWT key set. It never accepts Web C-end cookies.
@@ -588,6 +610,15 @@ services:
       REPORTING_GRPC_ENDPOINT: reporting:9108
       ADMIN_BFF_GRPC_DIAL_TIMEOUT: ${ADMIN_BFF_GRPC_DIAL_TIMEOUT:-15s}
       OTEL_SERVICE_NAME: dramaip-admin-bff
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      otel-collector:
+        condition: service_started
+      reporting:
+        condition: service_started
 
   # Application external entry — the ONLY API service clients may reach from outside.
   # (postgres/redis/rabbitmq/prometheus/grafana/jaeger below are dev-time
@@ -614,6 +645,10 @@ services:
       - desktop-bff
       - mobile-bff
       - admin-bff
+      - billing-job
+      - notification-job
+      - quota-job
+      - reporting-job
 
   # ─────────────────── 可观测性 ───────────────────
   # 三大支柱（10 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，

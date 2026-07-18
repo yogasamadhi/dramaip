@@ -59,7 +59,7 @@ ingress:
   hosts:
     - host: api.staging.example.invalid
       paths:
-        - path: /
+        - path: /v1
           pathType: Prefix
   tls:
     - secretName: dramaip-staging-ingress-tls

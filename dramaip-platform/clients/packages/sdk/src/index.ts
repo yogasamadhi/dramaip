@@ -219,7 +219,10 @@ export const AccountReportSchema = z.object({
   token_balance: TokenBalanceSchema.nullish(),
   order_summary: z.object({ paid: z.number(), pending: z.number(), total: z.number() }),
   usage_summary: z.object({ total_tokens: z.number(), requests: z.number() }),
-  usage_trend: z.array(UsageTrendPointSchema),
+  // Older temporary-staging BFFs emitted null for a protobuf empty repeated
+  // field. Normalize it at the client boundary so an empty history remains a
+  // valid account report while the server-side contract is being upgraded.
+  usage_trend: z.array(UsageTrendPointSchema).nullish().transform((points) => points ?? []),
   notification_summary: z.object({ unread: z.number(), total: z.number() }),
 })
 

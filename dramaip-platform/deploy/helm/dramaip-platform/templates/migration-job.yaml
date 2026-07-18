@@ -1,4 +1,5 @@
 {{- if .Values.migrations.enabled -}}
+{{- $useHelmHook := or .Values.migrations.useHelmHook (and .Release.IsUpgrade .Values.migrations.useHelmHookOnUpgrade) -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -6,7 +7,7 @@ metadata:
   labels:
     {{- include "dramaip-platform.labels" . | nindent 4 }}
     app.kubernetes.io/component: migration
-  {{- if .Values.migrations.useHelmHook }}
+  {{- if $useHelmHook }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
@@ -35,7 +36,7 @@ spec:
       {{- end }}
       {{- if .Values.migrations.serviceAccountName }}
       serviceAccountName: {{ .Values.migrations.serviceAccountName }}
-      {{- else if .Values.migrations.useHelmHook }}
+      {{- else if $useHelmHook }}
       serviceAccountName: default
       {{- else }}
       serviceAccountName: {{ include "dramaip-platform.serviceAccountName" . }}

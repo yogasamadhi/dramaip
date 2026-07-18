@@ -113,3 +113,34 @@ for item in "${targets[@]}"; do
   "${build_cmd[@]}"
   if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$image"; fi
 done
+
+# The browser UI is a separately deployed Next.js service, not a BFF. Its
+# public API base is intentionally an empty string by default so a Gateway
+# serving the UI and /v1 uses a same-origin browser connection. This is a
+# build-time value because NEXT_PUBLIC_* variables are embedded in the bundle.
+web_api_base_url="${DRAMAIP_WEB_API_BASE_URL:-}"
+[[ -z "$web_api_base_url" || "$web_api_base_url" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?(/[^[:space:]]*)?$ ]] || {
+  echo "DRAMAIP_WEB_API_BASE_URL must be empty or an HTTP(S) URL" >&2
+  exit 2
+}
+web_payment_mode="${DRAMAIP_WEB_PAYMENT_MODE:-simulated}"
+[[ "$web_payment_mode" =~ ^[A-Za-z0-9._-]+$ ]] || {
+  echo "DRAMAIP_WEB_PAYMENT_MODE contains unsupported characters" >&2
+  exit 2
+}
+web_image="$registry/web:$tag"
+web_build_cmd=("${docker_cmd[@]}" build)
+[[ "$docker_pull" == "1" ]] && web_build_cmd+=(--pull)
+[[ -n "$docker_platform" ]] && web_build_cmd+=(--platform "$docker_platform")
+if [[ -n "$docker_mirror" ]]; then
+  web_build_cmd+=(--build-arg "NODE_IMAGE=$docker_mirror/library/node:24-alpine")
+fi
+web_build_cmd+=(
+  --file "$root/clients/Dockerfile.web"
+  --build-arg "NEXT_PUBLIC_API_BASE_URL=$web_api_base_url"
+  --build-arg "NEXT_PUBLIC_PAYMENT_MODE=$web_payment_mode"
+  --tag "$web_image"
+  "$root/clients"
+)
+"${web_build_cmd[@]}"
+if [[ "${PUSH_IMAGES:-0}" == "1" ]]; then "${docker_cmd[@]}" push "$web_image"; fi

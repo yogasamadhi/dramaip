@@ -111,6 +111,11 @@ if [[ "$action" == "apply" ]]; then
     --set-string "imagePullSecrets[0].name=$image_pull_secret"
     --set "ingress.enabled=true"
     --set-string "ingress.hosts[0].host=$ingress_host"
+    # Helm's indexed --set for the host creates an overlay list item. Set the
+    # API path explicitly as well so that overlay cannot discard the /v1 path
+    # from values-staging.yaml and accidentally claim the browser UI's root.
+    --set-string "ingress.hosts[0].paths[0].path=/v1"
+    --set-string "ingress.hosts[0].paths[0].pathType=Prefix"
     --set-string "ingress.tls[0].secretName=$ingress_tls_secret"
     --set-string "ingress.tls[0].hosts[0]=$ingress_host"
     --set-string "kong.plugins.cors.origins[0]=$web_origin"
@@ -129,6 +134,8 @@ if [[ "$action" == "apply" ]]; then
     image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
     image_overrides+=(--set-string "images.$key.tag=$image_tag")
   done
+  image_overrides+=(--set-string "web.image.repository=$image_registry/web")
+  image_overrides+=(--set-string "web.image.tag=$image_tag")
   if [[ "$diagnostic_retain" == "1" ]]; then
     # This diagnostic escape hatch is deliberately limited to the explicitly
     # authorized disposable staging namespace.  It lets an operator inspect

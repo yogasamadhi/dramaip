@@ -14,7 +14,7 @@ export default function ChatPage() {
   const [prompt, setPrompt] = useState('请给我一个关于创作者重建事业的短剧故事前提。')
   const [provider, setProvider] = useState(() => (isSimulatedPaymentEnabled() ? 'test' : 'openai-compatible'))
   const [model, setModel] = useState('')
-  const [requestID, setRequestID] = useState(() => crypto.randomUUID())
+  const [requestID, setRequestID] = useState(newRequestID)
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const tokenBalance = useQuery({
@@ -105,7 +105,7 @@ export default function ChatPage() {
                     value={requestID}
                     onChange={(event) => setRequestID(event.target.value)}
                   />
-                  <Button type="button" onClick={() => setRequestID(crypto.randomUUID())}>
+                  <Button type="button" onClick={() => setRequestID(newRequestID())}>
                     生成
                   </Button>
                 </div>
@@ -167,4 +167,11 @@ function statusLabel(value?: string) {
     canceled: '已取消',
   }
   return value ? labels[value] ?? value.replaceAll('_', ' ') : '-'
+}
+
+// randomUUID is not exposed by all browsers on a plaintext HTTP origin. The
+// temporary LAN endpoint is intentionally HTTP, so retain a unique local
+// idempotency key without preventing the entire client component from loading.
+function newRequestID() {
+  return globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
