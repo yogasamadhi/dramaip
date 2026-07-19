@@ -19,6 +19,7 @@ import {
 import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload, VideoAssetDraftResult } from '@sdns/core'
 import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { promptAction } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -718,10 +719,16 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     size="sm"
                     variant="ghost"
                     disabled={busy2 !== null}
-                    onClick={() => {
-                      const platform = window.prompt('目标视频平台（如 即梦/可灵/Runway/海螺/Pika，可留空）', '')
+                    onClick={async () => {
+                      const platform = await promptAction({
+                        title: '优化视频平台 Prompt',
+                        description: '选择目标平台会调整当前镜头的生成提示词；留空则使用通用视频生成建议，原 Prompt 仍可从版本记录恢复。',
+                        inputLabel: '目标视频平台（可选）',
+                        placeholder: '例如：即梦、可灵、Runway、海螺或 Pika',
+                        confirmLabel: '生成优化建议',
+                      })
                       if (platform === null) return
-                      runShotTask(activeShot, 'optimize_prompt_for_video_platform', platform || undefined)
+                      await runShotTask(activeShot, 'optimize_prompt_for_video_platform', platform || undefined)
                     }}
                   >
                     <Sparkles className="h-3.5 w-3.5" /> {TASK_TYPE_LABELS.optimize_prompt_for_video_platform}

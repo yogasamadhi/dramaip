@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Character } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,7 +63,7 @@ export function CharactersSection({ projectId, version, onGenerate, generating }
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该人物？')) return
+    if (!(await confirmAction(deleteConfirmation('该人物')))) return
     await ipc.character.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }

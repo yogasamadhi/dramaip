@@ -11,6 +11,7 @@ import {
   type ProjectSkillCategory,
 } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -125,7 +126,7 @@ export function ProjectSkillsSection({ projectId, version, onChanged }: Props) {
   }
 
   async function remove(skill: ProjectSkill) {
-    if (!window.confirm(`删除创作规范「${skill.name}」？`)) return
+    if (!(await confirmAction(deleteConfirmation(`创作规范「${skill.name}」`)))) return
     await ipc.projectSkill.remove(skill.id)
     setSkills((prev) => prev.filter((item) => item.id !== skill.id))
     if (form.id === skill.id) setForm({ ...EMPTY })

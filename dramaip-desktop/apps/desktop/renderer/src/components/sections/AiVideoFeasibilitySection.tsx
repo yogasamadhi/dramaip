@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Sparkles, Trash2 } from 'lucide-react'
 import type { AiVideoFeasibilityReport, Chapter } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -59,7 +60,7 @@ export function AiVideoFeasibilitySection({ projectId, chapter, version }: { pro
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该可行性报告？')) return
+    if (!(await confirmAction(deleteConfirmation('该可行性报告')))) return
     await ipc.feasibility.remove(id)
     setList((p) => p.filter((f) => f.id !== id))
   }

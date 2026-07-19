@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, Ban, Bot, Clapperboard, ListChecks, Loader2, RefreshCw, TimerReset } from 'lucide-react'
 import type { BatchTaskProgress, LongTask, LongTaskStatus } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -79,7 +80,7 @@ export function TaskMonitorPage() {
   }, [reload])
 
   async function cancelTask(task: LongTask) {
-    if (!window.confirm(`取消任务「${task.title}」？`)) return
+    if (!(await confirmAction({ title: `取消任务「${task.title}」？`, description: '任务会收到取消请求；已写入的创作结果会保留，可在任务中心查看并按支持情况重试。', confirmLabel: '取消任务', destructive: true }))) return
     setBusy(task.id)
     try {
       const result = await ipc.longTask.cancel(task.id)

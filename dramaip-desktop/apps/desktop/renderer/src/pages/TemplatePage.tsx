@@ -10,6 +10,7 @@ import {
   TEMPLATE_TYPE_LABELS,
 } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -132,7 +133,7 @@ export function TemplatePage() {
       toast.error('内置模板不可删除')
       return
     }
-    if (!window.confirm(`删除模板「${t.name}」？`)) return
+    if (!(await confirmAction(deleteConfirmation(`模板「${t.name}」`)))) return
     await ipc.template.remove(t.id)
     toast.success('已删除')
     if (form.id === t.id) setForm({ ...EMPTY })

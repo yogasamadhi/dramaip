@@ -6,6 +6,7 @@ import { ArrowLeft, Bot, Plus, Save, Trash2 } from 'lucide-react'
 import type { AgentProfile } from '@sdns/core'
 import { AGENT_ROLE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -81,7 +82,7 @@ export function AgentSettingsPage() {
       toast.error('内置 Agent 不可删除')
       return
     }
-    if (!window.confirm(`删除 Agent「${a.name}」？`)) return
+    if (!(await confirmAction(deleteConfirmation(`Agent「${a.name}」`)))) return
     await ipc.agent.remove(a.id)
     toast.success('已删除')
     if (form.id === a.id) setForm({ ...EMPTY })

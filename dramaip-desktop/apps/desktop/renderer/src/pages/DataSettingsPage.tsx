@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, DatabaseBackup, HardDrive, Loader2, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react'
 import type { DatabaseBackupInfo } from '@/lib/ipc'
 import { ipc } from '@/lib/ipc'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -74,9 +75,12 @@ export function DataSettingsPage() {
   }
 
   async function handleRestore(backup: DatabaseBackupInfo) {
-    const confirmed = window.confirm(
-      `确定恢复备份 ${backup.fileName}？\n恢复前会自动创建一份当前数据库备份，恢复成功后应用会刷新。`,
-    )
+    const confirmed = await confirmAction({
+      title: `恢复备份「${backup.fileName}」？`,
+      description: '恢复前会自动创建当前数据库备份。恢复会替换当前本地数据并刷新应用，可通过新备份再次恢复。',
+      confirmLabel: '恢复备份',
+      destructive: true,
+    })
     if (!confirmed) return
 
     setBusy(`restore:${backup.path}`)

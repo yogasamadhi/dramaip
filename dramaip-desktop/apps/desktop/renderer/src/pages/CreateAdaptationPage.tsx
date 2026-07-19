@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, Sparkles } from 'lucide-react'
 import type { Project } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { Button } from '@/components/ui/button'
@@ -106,9 +107,11 @@ export function CreateAdaptationPage() {
     }
     const unresolvedCount = readiness ? readiness.warningCount + readiness.riskCount : 0
     if (unresolvedCount > 0) {
-      const shouldContinue = window.confirm(
-        `小说就绪检查仍有 ${readiness?.riskCount ?? 0} 个风险、${readiness?.warningCount ?? 0} 个提醒。继续创建改编项目？`,
-      )
+      const shouldContinue = await confirmAction({
+        title: '带风险创建改编项目？',
+        description: `小说就绪检查仍有 ${readiness?.riskCount ?? 0} 个风险、${readiness?.warningCount ?? 0} 个提醒。项目可以继续创建，但这些问题会在后续质量闸门中保留。`,
+        confirmLabel: '仍要创建',
+      })
       if (!shouldContinue) return
     }
     setSubmitting(true)

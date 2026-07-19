@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Outline } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -117,7 +118,7 @@ function OutlineList({
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该大纲？')) return
+    if (!(await confirmAction(deleteConfirmation('该大纲')))) return
     await ipc.outline.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }

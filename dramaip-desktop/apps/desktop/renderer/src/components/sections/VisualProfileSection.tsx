@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { AlertTriangle, FilePlus2, ImagePlus, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Character, CharacterVisualProfile, ProjectAsset } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -136,7 +137,7 @@ export function VisualProfileSection({ projectId, version, onGenerate, generatin
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该视觉档案？')) return
+    if (!(await confirmAction(deleteConfirmation('该视觉档案')))) return
     await ipc.visualProfile.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }

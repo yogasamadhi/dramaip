@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Play, Send, Sparkles, Wand2 } from 'lucide-react'
 import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES, type AiContextControls, type TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import {
   buildAgentCommandPlan,
   type AgentCommandContext,
@@ -246,7 +247,11 @@ export function ChatSection({
   async function executeCommand(plan: AgentCommandPlan, assistantIndex: number) {
     if (plan.status !== 'ready' || !plan.input || commandRunningIndex !== null) return
     if (plan.confirmBeforeRun) {
-      const shouldRun = window.confirm(`${plan.title}会${plan.warnings.join('；')}。继续执行？`)
+      const shouldRun = await confirmAction({
+        title: `执行「${plan.title}」？`,
+        description: `${plan.warnings.join('；')}。执行会按计划写入或创建任务，结果可在对应工作区和任务中心追踪。`,
+        confirmLabel: '继续执行',
+      })
       if (!shouldRun) return
     }
 

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Sparkles, Trash2 } from 'lucide-react'
 import type { DramaTrendReport, Evaluation } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TrendChart, type TrendSeries } from '@/components/charts/TrendChart'
@@ -86,7 +87,7 @@ export function AiDashboardSection({ projectId }: { projectId: string }) {
               variant="ghost"
               title="删除趋势报告"
               onClick={async () => {
-                if (window.confirm('删除趋势报告？')) {
+                if (await confirmAction(deleteConfirmation('趋势报告'))) {
                   await ipc.dramaTrend.remove(report.id)
                   setReport(undefined)
                 }
