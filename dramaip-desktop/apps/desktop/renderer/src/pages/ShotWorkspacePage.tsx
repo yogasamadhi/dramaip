@@ -500,12 +500,11 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     toast.success('已保存 Prompt 检查点')
   }
 
-  async function handleTextAdopt() {
-    if (!textPreview) return
+  async function handleTextAdopt(candidate: TextDiffPreviewPayload) {
     const res = await ipc.ai.applyResult({
       projectId: sourceProjectId,
-      taskType: textPreview.taskType,
-      data: textPreview,
+      taskType: candidate.taskType,
+      data: candidate,
     })
     if (res.ok) {
       toast.success('已保存 Prompt')

@@ -152,12 +152,12 @@ export function ScriptWorkspacePage() {
     )
   }
 
-  async function handleTextAdopt() {
-    if (!adaptation || !textPreview) return
+  async function handleTextAdopt(candidate: TextDiffPreviewPayload) {
+    if (!adaptation) return
     const res = await ipc.ai.applyResult({
       projectId: adaptation.sourceProjectId,
-      taskType: textPreview.taskType,
-      data: textPreview,
+      taskType: candidate.taskType,
+      data: candidate,
     })
     if (res.ok) {
       toast.success('已保存剧本')

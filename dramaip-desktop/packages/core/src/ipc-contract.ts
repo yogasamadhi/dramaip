@@ -272,6 +272,7 @@ const aiTaskInput = objectPayload.extend({
   chapterId: maybeId,
   characterId: maybeId,
   adaptationProjectId: maybeId,
+  partialAdopt: z.boolean().optional(),
   episodeId: maybeId,
   sceneId: maybeId,
   shotId: maybeId,
@@ -447,6 +448,24 @@ const revisionTaskInput = z
   })
   .passthrough()
 const revisionTaskPatch = revisionTaskInput.partial().passthrough()
+const textDiffPreviewInput = z
+  .object({
+    targetKind: z.enum(['chapter', 'script', 'shot']),
+    targetId: maybeId,
+    taskType: novelTaskType,
+    currentContent: z.string(),
+    nextContent: z.string(),
+    projectId: maybeId,
+    adaptationProjectId: maybeId,
+    episodeId: maybeId,
+    sceneId: maybeId,
+    shotId: maybeId,
+    title: z.string().optional(),
+    note: z.string().optional(),
+    script: z.record(z.unknown()).optional(),
+    shotPatch: z.record(z.string()).optional(),
+  })
+  .passthrough()
 
 const contentVersionInput = z
   .object({
@@ -649,6 +668,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'revisionTask:create': [revisionTaskInput],
   'revisionTask:update': [id, revisionTaskPatch],
   'revisionTask:preview': [id],
+  'revisionTask:updatePreview': [id, textDiffPreviewInput],
   'revisionTask:adopt': [id],
   'revisionTask:undo': [id],
   'revisionTask:complete': [id],

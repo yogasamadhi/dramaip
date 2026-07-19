@@ -558,18 +558,31 @@ async function verifyRevisionTaskAdoptionIpc(win: BrowserWindow, fixture: P0Fixt
   try {
     const task = fixture.revisionTask
     if (!task) throw new Error('revision task fixture missing')
-    const result = await win.webContents.executeJavaScript(
+    const undone = await win.webContents.executeJavaScript(
       `window.api.revisionTask.undo(${JSON.stringify(task.id)})`,
       true,
     ) as { ok?: boolean; error?: string; task?: { status?: string } }
-    if (!result.ok || result.task?.status !== 'undone') throw new Error(result.error ?? 'renderer undo did not complete')
+    if (!undone.ok || undone.task?.status !== 'undone') throw new Error(undone.error ?? 'renderer undo did not complete')
     const repos = getRepos()
     const restored = repos.chapter.getChapter(repos.db, fixture.chapter.id)
     if (restored?.content !== fixture.chapter.content) throw new Error('renderer undo did not restore pre-adopt chapter content')
-    return { name: 'revision-task-atomic-adopt-and-undo-ipc', ok: true, durationMs: Date.now() - startedAt }
+    const editedCandidate = `${fixture.chapter.content}\n\n只从预览中采用这一段倒计时。`
+    const updated = await win.webContents.executeJavaScript(
+      `window.api.revisionTask.updatePreview(${JSON.stringify(task.id)}, ${JSON.stringify({
+        targetKind: 'chapter', targetId: fixture.chapter.id, taskType: 'rewrite_chapter',
+        currentContent: fixture.chapter.content, nextContent: editedCandidate, projectId: fixture.project.id,
+      })})`,
+      true,
+    ) as { ok?: boolean; error?: string; task?: { status?: string } }
+    if (!updated.ok || updated.task?.status !== 'preview_ready') throw new Error(updated.error ?? 'renderer did not save edited revision candidate')
+    const adopted = await win.webContents.executeJavaScript(`window.api.revisionTask.adopt(${JSON.stringify(task.id)})`, true) as { ok?: boolean; error?: string }
+    if (!adopted.ok || repos.chapter.getChapter(repos.db, fixture.chapter.id)?.content !== editedCandidate) throw new Error(adopted.error ?? 'renderer did not atomically adopt edited candidate')
+    const undoneAgain = await win.webContents.executeJavaScript(`window.api.revisionTask.undo(${JSON.stringify(task.id)})`, true) as { ok?: boolean; error?: string }
+    if (!undoneAgain.ok || repos.chapter.getChapter(repos.db, fixture.chapter.id)?.content !== fixture.chapter.content) throw new Error(undoneAgain.error ?? 'renderer did not undo edited candidate')
+    return { name: 'revision-task-edited-preview-adopt-and-undo-ipc', ok: true, durationMs: Date.now() - startedAt }
   } catch (error) {
     return {
-      name: 'revision-task-atomic-adopt-and-undo-ipc',
+      name: 'revision-task-edited-preview-adopt-and-undo-ipc',
       ok: false,
       durationMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),

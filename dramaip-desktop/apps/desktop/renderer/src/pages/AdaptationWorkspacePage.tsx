@@ -121,12 +121,13 @@ export function AdaptationWorkspacePage() {
     }
   }
 
-  async function handleAdopt() {
+  async function handleAdopt(data: unknown, options: { partialAdopt: boolean }) {
     if (!adaptation) return
     const res = await ipc.ai.applyResult({
       projectId: adaptation.sourceProjectId ?? adaptation.id,
       taskType: preview.taskType,
-      data: preview.data,
+      data,
+      partialAdopt: options.partialAdopt,
       adaptationProjectId: adaptation.id,
     })
     if (res.ok) {

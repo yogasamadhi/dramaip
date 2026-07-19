@@ -14,13 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-
-type DiffKind = 'same' | 'add' | 'remove'
-
-interface DiffLine {
-  kind: DiffKind
-  text: string
-}
+import { buildSegmentedTextDiff } from '@/lib/segmentedTextDiff'
 
 interface Props {
   projectId?: string
@@ -87,11 +81,11 @@ export function ContentVersionPanel({
 
   const selected = versions.find((version) => version.id === selectedId)
   const diff = useMemo(
-    () => buildLineDiff(selected?.content ?? '', currentContent),
+    () => buildSegmentedTextDiff(selected?.content ?? '', currentContent),
     [selected?.content, currentContent],
   )
-  const added = diff.filter((line) => line.kind === 'add').length
-  const removed = diff.filter((line) => line.kind === 'remove').length
+  const added = diff.filter((block) => block.kind === 'add' || block.kind === 'replace').length
+  const removed = diff.filter((block) => block.kind === 'remove' || block.kind === 'replace').length
 
   async function restoreSelected() {
     if (!selected) return
@@ -170,20 +164,20 @@ export function ContentVersionPanel({
                   {diff.length === 0 ? (
                     <div className="px-3 py-5 text-center font-sans text-muted-foreground">当前内容与所选版本一致</div>
                   ) : (
-                    diff.map((line, index) => (
+                    diff.map((block) => (
                       <div
-                        key={`${index}:${line.kind}`}
+                        key={block.id}
                         className={cn(
                           'grid grid-cols-[1.75rem_1fr] gap-2 px-2 py-1',
-                          line.kind === 'add' && 'bg-emerald-50 text-emerald-900',
-                          line.kind === 'remove' && 'bg-red-50 text-red-900',
-                          line.kind === 'same' && 'text-muted-foreground',
+                          (block.kind === 'add' || block.kind === 'replace') && 'bg-emerald-500/10',
+                          block.kind === 'remove' && 'bg-destructive/10 text-destructive',
+                          block.kind === 'same' && 'text-muted-foreground',
                         )}
                       >
                         <span className="select-none text-center">
-                          {line.kind === 'add' ? '+' : line.kind === 'remove' ? '-' : ''}
+                          {block.kind === 'add' ? '+' : block.kind === 'remove' ? '-' : block.kind === 'replace' ? '±' : ''}
                         </span>
-                        <span className="whitespace-pre-wrap break-words">{line.text || ' '}</span>
+                        <span className="whitespace-pre-wrap break-words">{block.kind === 'replace' ? `${block.before}\n→ ${block.after}` : (block.after || block.before || ' ')}</span>
                       </div>
                     ))
                   )}
@@ -218,48 +212,4 @@ function matchesVersionScope(version: ContentVersion, scope: Props['versionScope
   if (scope === 'all') return true
   const structure = typeof version.meta?.structureSnapshot === 'string'
   return scope === 'structure' ? structure : !structure
-}
-
-function buildLineDiff(previous: string, next: string): DiffLine[] {
-  if (previous === next) return []
-  const oldLines = splitLines(previous)
-  const newLines = splitLines(next)
-  if (oldLines.length * newLines.length > 40_000) {
-    return [
-      ...oldLines.map((text) => ({ kind: 'remove' as const, text })),
-      ...newLines.map((text) => ({ kind: 'add' as const, text })),
-    ]
-  }
-
-  const dp = Array.from({ length: oldLines.length + 1 }, () => Array<number>(newLines.length + 1).fill(0))
-  for (let i = oldLines.length - 1; i >= 0; i--) {
-    for (let j = newLines.length - 1; j >= 0; j--) {
-      dp[i][j] = oldLines[i] === newLines[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
-    }
-  }
-
-  const out: DiffLine[] = []
-  let i = 0
-  let j = 0
-  while (i < oldLines.length && j < newLines.length) {
-    if (oldLines[i] === newLines[j]) {
-      out.push({ kind: 'same', text: oldLines[i] })
-      i++
-      j++
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      out.push({ kind: 'remove', text: oldLines[i] })
-      i++
-    } else {
-      out.push({ kind: 'add', text: newLines[j] })
-      j++
-    }
-  }
-  while (i < oldLines.length) out.push({ kind: 'remove', text: oldLines[i++] })
-  while (j < newLines.length) out.push({ kind: 'add', text: newLines[j++] })
-  return out
-}
-
-function splitLines(value: string): string[] {
-  if (!value) return []
-  return value.replace(/\r\n/g, '\n').split('\n')
 }

@@ -25,6 +25,7 @@ interface UiBaselineSpec {
   reducedMotion: boolean
   openAiCommandPalette?: boolean
   openAiContextPreview?: boolean
+  openTextDiffPreview?: boolean
 }
 
 interface UiFixture {
@@ -195,6 +196,42 @@ export async function runDesktopUiBaseline(
       openAiContextPreview: true,
     },
     {
+      name: 'ai-segmented-diff-1320-light',
+      hash: `#/projects/${fixture.projectId}?section=creative-diagnosis`,
+      expectedText: '段落级修稿预览',
+      readyText: '修稿任务单',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+      openTextDiffPreview: true,
+    },
+    {
+      name: 'ai-segmented-diff-1320-dark',
+      hash: `#/projects/${fixture.projectId}?section=creative-diagnosis`,
+      expectedText: '段落级修稿预览',
+      readyText: '修稿任务单',
+      viewport: { width: 1320, height: 860 },
+      theme: 'dark',
+      themePreference: 'dark',
+      density: 'comfortable',
+      reducedMotion: false,
+      openTextDiffPreview: true,
+    },
+    {
+      name: 'ai-segmented-diff-1320-reduced',
+      hash: `#/projects/${fixture.projectId}?section=creative-diagnosis`,
+      expectedText: '段落级修稿预览',
+      readyText: '修稿任务单',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: true,
+      openTextDiffPreview: true,
+    },
+    {
       name: 'chapter-tree-1060-light',
       hash: `#/projects/${fixture.longChapterProjectId}?section=chapters`,
       expectedText: 'UI 长篇章节树项目',
@@ -299,6 +336,7 @@ export async function runDesktopUiBaseline(
         reducedMotion: spec.reducedMotion,
         openAiCommandPalette: spec.openAiCommandPalette,
         openAiContextPreview: spec.openAiContextPreview,
+        openTextDiffPreview: spec.openTextDiffPreview,
       })})`,
       true,
     ) as string[]
@@ -340,6 +378,23 @@ function seedUiFixture(): UiFixture {
     synopsis: '仅用于桌面端视觉、交互与无障碍回归的隔离数据。',
   })
   const p0 = seedP0Fixture(project.id)
+  const diffTask = repos.creative.createRevisionTask(repos.db, {
+    projectId: project.id,
+    targetKind: 'chapter',
+    targetId: p0.chapter.id,
+    title: '段落级修稿预览',
+    description: '以段落为单位审阅 AI 对雨夜对峙和结尾钩子的修改。',
+    suggestedAction: '保留开场事实，强化第二段动作，并新增段尾倒计时。',
+  })
+  repos.revisionAdoption.saveRevisionTaskPreview(repos.db, diffTask.id, {
+    targetKind: 'chapter',
+    targetId: p0.chapter.id,
+    taskType: 'rewrite_chapter',
+    currentContent: p0.chapter.content,
+    nextContent: `${p0.chapter.content}\n\n大屏的倒计时亮起，她终于抬头说：“署名是谁的，马上就知道。”`,
+    projectId: project.id,
+    title: diffTask.title,
+  })
   const shot = repos.shot.createShot(repos.db, {
     sceneId: p0.scene.id,
     episodeId: p0.episode.id,
@@ -520,6 +575,7 @@ async function prepareRendererForUiBaseline(input: {
   reducedMotion: boolean
   openAiCommandPalette?: boolean
   openAiContextPreview?: boolean
+  openTextDiffPreview?: boolean
 }): Promise<string[]> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
   const waitFor = async (label: string, probe: () => boolean, timeoutMs = 8000): Promise<void> => {
@@ -563,6 +619,16 @@ async function prepareRendererForUiBaseline(input: {
     await waitFor('AI 紧凑上下文摘要', () => {
       const bodyText = document.body.textContent ?? ''
       return bodyText.includes('AI 执行前确认') && bodyText.includes('查看详情')
+    })
+  }
+  if (input.openTextDiffPreview) {
+    const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => (button.textContent ?? '').includes('查看预览'))
+    if (!trigger) throw new Error('UI 基线未找到修稿预览入口')
+    trigger.click()
+    await waitFor('AI 变更预览', () => {
+      const bodyText = document.body.textContent ?? ''
+      return bodyText.includes('AI 变更预览') && bodyText.includes('采用已选内容并保存')
     })
   }
   await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))

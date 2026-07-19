@@ -233,8 +233,13 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
     }
   }
 
-  async function adoptRevisionPreview() {
-    if (!textPreview || !pendingRevisionTask) return
+  async function adoptRevisionPreview(candidate: TextDiffPreviewPayload) {
+    if (!pendingRevisionTask) return
+    const saved = await ipc.revisionTask.updatePreview(pendingRevisionTask.id, candidate)
+    if (!saved.ok) {
+      toast.error('保存修稿候选失败：' + (saved.error ?? '未知错误'))
+      return
+    }
     const res = await ipc.revisionTask.adopt(pendingRevisionTask.id)
     if (!res.ok) {
       toast.error('采用失败：' + (res.error ?? '未知错误'))
