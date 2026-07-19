@@ -107,5 +107,8 @@ func (u *QuotaUsecase) GetUsageTrend(ctx context.Context, userID string, days in
 	if userID == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing user id")
 	}
+	if days < 1 || days > 365 {
+		return nil, status.Error(codes.InvalidArgument, "usage trend days must be between 1 and 365")
+	}
 	return u.repo.GetUsageTrend(ctx, userID, days)
 }

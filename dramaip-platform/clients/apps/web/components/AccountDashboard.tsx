@@ -30,16 +30,23 @@ export function AccountDashboard() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<AccountTab>('profile')
   const [nextPlanID, setNextPlanID] = useState('')
-  const profile = useQuery({ queryKey: ['profile'], queryFn: () => apiClient.getProfile(), retry: false })
-  const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: () => apiClient.getDashboard(), retry: false })
-  const tokenBalance = useQuery({ queryKey: ['token-balance'], queryFn: () => apiClient.getTokenBalance(), retry: false })
-  const subscription = useQuery({ queryKey: ['subscription'], queryFn: () => apiClient.getSubscription(), retry: false })
-  const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans(), retry: false })
-  const orders = useQuery({ queryKey: ['orders'], queryFn: () => apiClient.getOrders(), retry: false })
-  const usage = useQuery({ queryKey: ['token-usage'], queryFn: () => apiClient.getTokenUsage({ limit: 50 }), retry: false })
-  const usageTrend = useQuery({ queryKey: ['usage-trend'], queryFn: () => apiClient.getUsageTrend({ days: 30 }), retry: false })
-  const notifications = useQuery({ queryKey: ['notifications'], queryFn: () => apiClient.getNotifications(), retry: false })
-  const report = useQuery({ queryKey: ['account-report'], queryFn: () => apiClient.getAccountReport(), retry: false })
+  const account = useQuery({
+    queryKey: ['account-bootstrap', { usage_limit: 50, trend_days: 30 }],
+    queryFn: () => apiClient.getAccountBootstrap({ usage_limit: 50, trend_days: 30 }),
+    retry: false,
+    staleTime: 30_000,
+  })
+  // Plans are not part of a user's account read model. Load them only when
+  // the subscription UI needs to offer a change, rather than on every visit.
+  const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans(), retry: false, enabled: tab === 'subscription' })
+  const sections = account.data?.sections
+  const profile = sections?.profile.data
+  const subscription = sections?.subscription.data
+  const balance = sections?.token_balance.data
+  const orders = sections?.orders.data
+  const usage = sections?.usage.data
+  const usageTrend = sections?.usage_trend.data
+  const notifications = sections?.notifications.data
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
@@ -47,21 +54,20 @@ export function AccountDashboard() {
   })
 
   useEffect(() => {
-    if (!profile.data) return
+    if (!profile) return
     profileForm.reset({
-      display_name: displayNameLabel(profile.data.display_name),
-      phone: profile.data.phone,
-      avatar_url: profile.data.avatar_url,
-      locale: profile.data.locale || 'zh-CN',
-      timezone: profile.data.timezone || 'Asia/Shanghai',
+      display_name: displayNameLabel(profile.display_name),
+      phone: profile.phone,
+      avatar_url: profile.avatar_url,
+      locale: profile.locale || 'zh-CN',
+      timezone: profile.timezone || 'Asia/Shanghai',
     })
-  }, [profile.data, profileForm])
+  }, [profile, profileForm])
 
   const updateProfile = useMutation({
     mutationFn: (input: ProfileForm) => apiClient.updateProfile(input),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['profile'] })
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
     },
   })
 
@@ -69,17 +75,13 @@ export function AccountDashboard() {
     mutationFn: (immediate: boolean) => apiClient.cancelSubscription({ immediate }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['subscription'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-        queryClient.invalidateQueries({ queryKey: ['token-balance'] }),
-        queryClient.invalidateQueries({ queryKey: ['notifications'] }),
-        queryClient.invalidateQueries({ queryKey: ['account-report'] }),
+        queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] }),
       ])
     },
   })
 
   const resumeSubscription = useMutation({
-    mutationFn: () => apiClient.resumeSubscription({ subscription_id: activeSubscriptionID(subscription.data), idempotency_key: lifecycleKey('web-resume') }),
+    mutationFn: () => apiClient.resumeSubscription({ subscription_id: activeSubscriptionID(subscription), idempotency_key: lifecycleKey('web-resume') }),
     onSuccess: async () => {
       await invalidateSubscriptionQueries(queryClient)
     },
@@ -87,7 +89,7 @@ export function AccountDashboard() {
 
   const changeSubscriptionPlan = useMutation({
     mutationFn: () => apiClient.changeSubscriptionPlan({
-      subscription_id: activeSubscriptionID(subscription.data),
+      subscription_id: activeSubscriptionID(subscription),
       plan_id: nextPlanID,
       idempotency_key: lifecycleKey('web-plan-change'),
     }),
@@ -99,7 +101,7 @@ export function AccountDashboard() {
 
   const requestRefund = useMutation({
     mutationFn: () => apiClient.requestRefund({
-      subscription_id: activeSubscriptionID(subscription.data),
+      subscription_id: activeSubscriptionID(subscription),
       reason: 'web_account_request',
       idempotency_key: lifecycleKey('web-refund'),
     }),
@@ -111,23 +113,22 @@ export function AccountDashboard() {
   const markNotificationRead = useMutation({
     mutationFn: (notificationID: string) => apiClient.markNotificationRead(notificationID),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      await queryClient.invalidateQueries({ queryKey: ['account-report'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
     },
   })
 
   const orderTable = useReactTable({
-    data: orders.data?.orders ?? [],
+    data: orders?.orders ?? [],
     columns: orderColumns,
     getCoreRowModel: getCoreRowModel(),
   })
   const usageTable = useReactTable({
-    data: usage.data?.usage ?? [],
+    data: usage?.usage ?? [],
     columns: usageColumns,
     getCoreRowModel: getCoreRowModel(),
   })
   const notificationTable = useReactTable({
-    data: notifications.data?.notifications ?? [],
+    data: notifications?.notifications ?? [],
     columns: useMemo<ColumnDef<Notification>[]>(
       () => [
         { header: '标题', accessorKey: 'title' },
@@ -157,31 +158,29 @@ export function AccountDashboard() {
     chart.setOption({
       tooltip: {},
       grid: { left: 32, right: 16, top: 24, bottom: 28 },
-      xAxis: { type: 'category', data: (usageTrend.data?.points ?? []).map((point) => point.date) },
+      xAxis: { type: 'category', data: (usageTrend?.points ?? []).map((point) => point.date) },
       yAxis: { type: 'value' },
-      series: [{ type: 'bar', data: (usageTrend.data?.points ?? []).map((point) => point.total_tokens), itemStyle: { color: '#2563eb' } }],
+      series: [{ type: 'bar', data: (usageTrend?.points ?? []).map((point) => point.total_tokens), itemStyle: { color: '#2563eb' } }],
     })
     return () => chart.dispose()
-  }, [tab, usageTrend.data?.points])
+  }, [tab, usageTrend?.points])
 
-  if (dashboard.isLoading || tokenBalance.isLoading || profile.isLoading) {
+  if (account.isLoading) {
     return <Panel><p className="text-sm text-slate-600">正在加载账号数据...</p></Panel>
   }
 
-  const firstError = profile.error || dashboard.error || tokenBalance.error
-  if (firstError) {
-    return <Panel tone="danger">{formatApiError(firstError, '账号数据暂不可用。')}</Panel>
+  if (account.error) {
+    return <Panel tone="danger">{formatApiError(account.error, '账号数据暂不可用。')}</Panel>
   }
 
-  const balance = tokenBalance.data
-  const activeSubscription = subscription.data
+  const activeSubscription = subscription
   const subscriptionActionError = cancelSubscription.error || resumeSubscription.error || changeSubscriptionPlan.error || requestRefund.error
   const tabs: Array<{ id: AccountTab; label: string }> = [
     { id: 'profile', label: '资料' },
     { id: 'subscription', label: '订阅' },
     { id: 'orders', label: '订单' },
     { id: 'usage', label: '用量' },
-    { id: 'notifications', label: `通知${notifications.data?.unread_count ? ` ${notifications.data.unread_count}` : ''}` },
+    { id: 'notifications', label: `通知${notifications?.unread_count ? ` ${notifications.unread_count}` : ''}` },
     { id: 'report', label: '报表' },
   ]
 
@@ -202,8 +201,8 @@ export function AccountDashboard() {
 
       {tab === 'profile' ? (
         <Panel>
-          <form className="grid gap-4" onSubmit={profileForm.handleSubmit((values) => updateProfile.mutate(values))}>
-            <h2 className="text-xl font-semibold text-slate-950">{displayNameLabel(profile.data?.display_name)}</h2>
+          {sections?.profile.status === 'unavailable' ? <SectionUnavailable section="账号资料" traceID={sections.profile.trace_id} updatedAt={sections.profile.last_updated} /> : <form className="grid gap-4" onSubmit={profileForm.handleSubmit((values) => updateProfile.mutate(values))}>
+            <h2 className="text-xl font-semibold text-slate-950">{displayNameLabel(profile?.display_name)}</h2>
             <Field label="昵称" error={profileForm.formState.errors.display_name?.message}>
               <input className="h-10 rounded-md border border-slate-300 px-3" {...profileForm.register('display_name')} />
             </Field>
@@ -228,24 +227,25 @@ export function AccountDashboard() {
               </Field>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <div className="grid gap-1 text-sm text-slate-500"><span>{profile.data?.email}</span><Link href="/verify-email" className="font-medium text-brand-700">验证邮箱</Link></div>
-              <Button type="submit" disabled={updateProfile.isPending}>{updateProfile.isPending ? '保存中...' : '保存资料'}</Button>
+              <div className="grid gap-1 text-sm text-slate-500"><span>{profile?.email}</span><Link href="/verify-email" className="font-medium text-brand-700">验证邮箱</Link></div>
+              <Button type="submit" disabled={updateProfile.isPending || !profile}>{updateProfile.isPending ? '保存中...' : '保存资料'}</Button>
             </div>
             {updateProfile.error ? <p className="text-sm text-rose-600">{formatApiError(updateProfile.error, '资料保存暂不可用。')}</p> : null}
-          </form>
+          </form>}
         </Panel>
       ) : null}
 
       {tab === 'subscription' ? (
         <Panel>
+          {sections?.subscription.status === 'unavailable' || sections?.token_balance.status === 'unavailable' ? <SectionUnavailable section="订阅或额度" traceID={sections.subscription.trace_id || sections.token_balance.trace_id} updatedAt={sections.subscription.last_updated || sections.token_balance.last_updated} /> : null}
           <div className="grid gap-4 md:grid-cols-2">
-            <Metric title="当前套餐" value={planCodeLabel(activeSubscription?.plan_code ?? dashboard.data?.plan)} />
+            <Metric title="当前套餐" value={planCodeLabel(activeSubscription?.plan_code)} />
             <Metric title="剩余额度" value={balance?.remaining_tokens.toLocaleString()} />
             <Metric title="已使用" value={balance?.used_tokens.toLocaleString()} />
             <Metric title="月度额度" value={balance?.quota_tokens.toLocaleString()} />
           </div>
           <div className="mt-5 grid gap-3 text-sm text-slate-700">
-            <Row label="订阅状态" value={statusLabel(activeSubscription?.status ?? dashboard.data?.subscription_status)} />
+            <Row label="订阅状态" value={statusLabel(activeSubscription?.status)} />
             <Row label="周期" value={`${formatDate(activeSubscription?.current_period_start)} - ${formatDate(activeSubscription?.current_period_end)}`} />
             {activeSubscription?.scheduled_plan_code ? <Row label="计划变更" value={`${planCodeLabel(activeSubscription.scheduled_plan_code)}（${formatDate(activeSubscription.scheduled_change_at)} 生效）`} /> : null}
             {subscriptionNotice(activeSubscription?.status, activeSubscription?.cancel_at_period_end)}
@@ -305,18 +305,23 @@ export function AccountDashboard() {
         </Panel>
       ) : null}
 
-      {tab === 'orders' ? <Panel><DataTable table={orderTable} empty="暂无订单。" /></Panel> : null}
-      {tab === 'usage' ? <Panel><DataTable table={usageTable} empty="暂无用量记录。" /></Panel> : null}
-      {tab === 'notifications' ? <Panel><DataTable table={notificationTable} empty="暂无通知。" /></Panel> : null}
+      {tab === 'orders' ? <Panel>{sections?.orders.status === 'unavailable' ? <SectionUnavailable section="订单" traceID={sections.orders.trace_id} updatedAt={sections.orders.last_updated} /> : <DataTable table={orderTable} empty="暂无订单。" />}</Panel> : null}
+      {tab === 'usage' ? <Panel>{sections?.usage.status === 'unavailable' ? <SectionUnavailable section="用量" traceID={sections.usage.trace_id} updatedAt={sections.usage.last_updated} /> : <DataTable table={usageTable} empty="暂无用量记录。" />}</Panel> : null}
+      {tab === 'notifications' ? <Panel>{sections?.notifications.status === 'unavailable' ? <SectionUnavailable section="通知" traceID={sections.notifications.trace_id} updatedAt={sections.notifications.last_updated} /> : <DataTable table={notificationTable} empty="暂无通知。" />}</Panel> : null}
       {tab === 'report' ? (
         <Panel>
           <div className="grid gap-4 md:grid-cols-4">
-            <Metric title="订单总数" value={String(report.data?.order_summary.total ?? 0)} />
-            <Metric title="已支付订单" value={String(report.data?.order_summary.paid ?? 0)} />
-            <Metric title="消耗 token" value={(report.data?.usage_summary.total_tokens ?? 0).toLocaleString()} />
-            <Metric title="未读通知" value={String(report.data?.notification_summary.unread ?? 0)} />
+            <Metric title="订单总数" value={orders ? String(orders.orders.length) : undefined} />
+            <Metric title="已支付订单" value={orders ? String(orders.orders.filter((order) => order.status === 'paid').length) : undefined} />
+            <Metric title="消耗 token" value={usage ? usage.usage.reduce((total, item) => total + item.total_tokens, 0).toLocaleString() : undefined} />
+            <Metric title="未读通知" value={notifications ? String(notifications.unread_count) : undefined} />
           </div>
-          <div ref={chartRef} className="mt-6 h-64 w-full" />
+          <div className="mt-4 grid gap-2">
+            {sections?.orders.status === 'unavailable' ? <SectionUnavailable section="订单汇总" traceID={sections.orders.trace_id} updatedAt={sections.orders.last_updated} /> : null}
+            {sections?.usage.status === 'unavailable' ? <SectionUnavailable section="用量汇总" traceID={sections.usage.trace_id} updatedAt={sections.usage.last_updated} /> : null}
+            {sections?.notifications.status === 'unavailable' ? <SectionUnavailable section="通知汇总" traceID={sections.notifications.trace_id} updatedAt={sections.notifications.last_updated} /> : null}
+          </div>
+          {sections?.usage_trend.status === 'unavailable' ? <SectionUnavailable section="30 天用量趋势" traceID={sections.usage_trend.trace_id} updatedAt={sections.usage_trend.last_updated} /> : <div ref={chartRef} className="mt-6 h-64 w-full" />}
         </Panel>
       ) : null}
     </div>
@@ -412,6 +417,14 @@ function ErrorNotice({ error, fallback }: { error: unknown; fallback: string }) 
   return <div className="rounded-md bg-rose-50 p-3 text-sm text-rose-700">{formatApiError(error, fallback)}</div>
 }
 
+function SectionUnavailable({ section, traceID, updatedAt }: { section: string; traceID?: string; updatedAt?: string }) {
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+      {section}暂时不可用，未以零值替代。{updatedAt ? `最近检查：${formatTimestamp(updatedAt)}。` : ''}{traceID ? `追踪号：${traceID}` : ''}
+    </div>
+  )
+}
+
 function lifecycleKey(prefix: string) {
   const id = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
   return `${prefix}-${id}`
@@ -423,12 +436,7 @@ function activeSubscriptionID(subscription?: { id?: string }) {
 
 async function invalidateSubscriptionQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['subscription'] }),
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
-    queryClient.invalidateQueries({ queryKey: ['token-balance'] }),
-    queryClient.invalidateQueries({ queryKey: ['orders'] }),
-    queryClient.invalidateQueries({ queryKey: ['notifications'] }),
-    queryClient.invalidateQueries({ queryKey: ['account-report'] }),
+    queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] }),
   ])
 }
 
@@ -452,6 +460,11 @@ function statusLabel(value?: string) {
 function formatDate(value?: string) {
   if (!value) return '-'
   return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: '2-digit' }).format(new Date(value))
+}
+
+function formatTimestamp(value?: string) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
 function formatAmount(amount?: string, currency?: string) {

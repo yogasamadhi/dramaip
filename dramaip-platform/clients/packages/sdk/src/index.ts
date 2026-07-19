@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from 'axios'
 import { z } from 'zod'
-import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, ListQuerySchema, UsageTrendQuerySchema } from './contracts'
+import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, AccountBootstrapQuerySchema, ListQuerySchema, UsageTrendQuerySchema, type AccountBootstrapQuery } from './contracts'
 
 export * from './contracts'
 
@@ -236,6 +236,32 @@ export const AccountReportSchema = z.object({
 
 export type AccountReport = z.infer<typeof AccountReportSchema>
 
+const AccountSectionSchema = <T extends z.ZodTypeAny>(data: T) => z.object({
+  status: z.enum(['ready', 'unavailable']),
+  last_updated: z.string(),
+  trace_id: z.string().default(''),
+  error_code: z.string().default(''),
+  data: data.optional(),
+})
+
+export const AccountBootstrapSchema = z.object({
+  generated_at: z.string(),
+  cache_ttl_seconds: z.number().int().positive(),
+  usage_limit: z.number().int().positive(),
+  trend_days: z.number().int().positive(),
+  sections: z.object({
+    profile: AccountSectionSchema(ProfileSchema),
+    subscription: AccountSectionSchema(SubscriptionSchema),
+    token_balance: AccountSectionSchema(TokenBalanceSchema),
+    orders: AccountSectionSchema(OrdersResponseSchema),
+    usage: AccountSectionSchema(TokenUsageResponseSchema),
+    usage_trend: AccountSectionSchema(UsageTrendResponseSchema),
+    notifications: AccountSectionSchema(NotificationsResponseSchema),
+  }),
+})
+
+export type AccountBootstrap = z.infer<typeof AccountBootstrapSchema>
+
 export const LogoutResponseSchema = z.object({
   ok: z.boolean(),
 })
@@ -294,6 +320,7 @@ export interface DramaIpApiClient {
   getUsageTrend(input?: { days?: number }): Promise<UsageTrendResponse>
   getNotifications(): Promise<NotificationsResponse>
   markNotificationRead(notificationID: string): Promise<Notification>
+  getAccountBootstrap(input?: Partial<AccountBootstrapQuery>): Promise<AccountBootstrap>
   getAccountReport(): Promise<AccountReport>
 	createCheckout(input: { plan_id: string; channel: PaymentProvider }): Promise<CheckoutResponse>
   confirmSimulatedPayment(input: { checkout_id: string }): Promise<PaymentConfirmationResponse>
@@ -402,6 +429,10 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     async markNotificationRead(notificationID) {
       const res = await http.post(`/v1/me/notifications/${encodeURIComponent(notificationID)}/read`)
       return NotificationSchema.parse(res.data)
+    },
+    async getAccountBootstrap(input = {}) {
+      const res = await http.get('/v1/me/account-bootstrap', { params: AccountBootstrapQuerySchema.parse(input) })
+      return AccountBootstrapSchema.parse(res.data)
     },
     async getAccountReport() {
       const res = await http.get('/v1/me/account-report')

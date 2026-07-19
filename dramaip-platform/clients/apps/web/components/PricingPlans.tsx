@@ -54,6 +54,7 @@ export function PricingPlans() {
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
       await queryClient.invalidateQueries({ queryKey: ['account-report'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
     },
   })
 

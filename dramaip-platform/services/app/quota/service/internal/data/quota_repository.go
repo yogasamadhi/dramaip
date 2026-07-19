@@ -580,17 +580,21 @@ func (r *QuotaRepo) ListTokenUsage(ctx context.Context, userID string, limit int
 }
 
 func (r *QuotaRepo) GetUsageTrend(ctx context.Context, userID string, days int32) ([]UsageTrendPoint, error) {
-	if days <= 0 || days > 90 {
-		days = 14
-	}
 	var rows []UsageTrendPoint
 	err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT created_at::date::text AS date, COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
-		FROM quota.token_usage_logs
-		WHERE user_id = ?::uuid AND created_at >= now() - (?::int * interval '1 day')
-		GROUP BY created_at::date
-		ORDER BY created_at::date ASC
-	`, userID, days).Scan(&rows).Error
+		WITH requested_days AS (
+			SELECT day::date AS day
+			FROM generate_series(current_date - (?::int - 1), current_date, interval '1 day') AS day
+		)
+		SELECT requested_days.day::text AS date, COALESCE(SUM(usage.total_tokens), 0)::bigint AS total_tokens
+		FROM requested_days
+		LEFT JOIN quota.token_usage_logs usage
+			ON usage.user_id = ?::uuid
+			AND usage.created_at >= requested_days.day
+			AND usage.created_at < requested_days.day + interval '1 day'
+		GROUP BY requested_days.day
+		ORDER BY requested_days.day ASC
+	`, days, userID).Scan(&rows).Error
 	return rows, err
 }
 

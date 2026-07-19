@@ -159,6 +159,61 @@ func TestUsageQueryParametersReachBFFDependenciesAndRemainBounded(t *testing.T) 
 	if invalidRecorder.Code != http.StatusBadRequest || !bytes.Contains(invalidRecorder.Body.Bytes(), []byte(`"trace_id"`)) {
 		t.Fatalf("invalid usage limit = %d: %s", invalidRecorder.Code, invalidRecorder.Body.String())
 	}
+
+	bootstrap := httptest.NewRequest(http.MethodGet, "/v1/me/account-bootstrap?usage_limit=29&trend_days=30", nil)
+	bootstrap.Header.Set("Authorization", "Bearer token")
+	bootstrapRecorder := httptest.NewRecorder()
+	router.ServeHTTP(bootstrapRecorder, bootstrap)
+	if bootstrapRecorder.Code != http.StatusOK || quota.tokenUsageLimit != 29 || quota.usageTrendDays != 30 {
+		t.Fatalf("bootstrap parameter forwarding = status=%d limit=%d days=%d: %s", bootstrapRecorder.Code, quota.tokenUsageLimit, quota.usageTrendDays, bootstrapRecorder.Body.String())
+	}
+	var bootstrapBody map[string]any
+	if err := json.NewDecoder(bootstrapRecorder.Body).Decode(&bootstrapBody); err != nil {
+		t.Fatal(err)
+	}
+	if bootstrapBody["usage_limit"] != float64(29) || bootstrapBody["trend_days"] != float64(30) {
+		t.Fatalf("bootstrap response windows = %#v", bootstrapBody)
+	}
+}
+
+func TestAccountBootstrapKeepsPartialFailureExplicit(t *testing.T) {
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: unavailableBalanceQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+	req := httptest.NewRequest(http.MethodGet, "/v1/me/account-bootstrap", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bootstrap status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var got struct {
+		Sections map[string]struct {
+			Status      string `json:"status"`
+			LastUpdated string `json:"last_updated"`
+			TraceID     string `json:"trace_id"`
+			ErrorCode   string `json:"error_code"`
+			Data        any    `json:"data"`
+		} `json:"sections"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	balance := got.Sections["token_balance"]
+	if balance.Status != "unavailable" || balance.ErrorCode != "upstream_unavailable" || balance.TraceID == "" || balance.LastUpdated == "" || balance.Data != nil {
+		t.Fatalf("token balance section = %#v", balance)
+	}
+	if orders := got.Sections["orders"]; orders.Status != "ready" || orders.Data == nil {
+		t.Fatalf("available orders were blocked by quota failure: %#v", orders)
+	}
+	legacy := httptest.NewRequest(http.MethodGet, "/v1/me/account-report", nil)
+	legacy.Header.Set("Authorization", "Bearer token")
+	legacyRecorder := httptest.NewRecorder()
+	router.ServeHTTP(legacyRecorder, legacy)
+	if legacyRecorder.Code != http.StatusServiceUnavailable || !bytes.Contains(legacyRecorder.Body.Bytes(), []byte(`trace_id`)) {
+		t.Fatalf("legacy aggregate must not fabricate a zero report = %d: %s", legacyRecorder.Code, legacyRecorder.Body.String())
+	}
 }
 
 func TestPaymentConfirmationDefersNotificationToEventConsumer(t *testing.T) {
@@ -677,6 +732,12 @@ func (fakeBilling) RequestRefund(context.Context, *billingv1.RequestRefundReques
 }
 
 type fakeQuota struct{}
+
+type unavailableBalanceQuota struct{ fakeQuota }
+
+func (unavailableBalanceQuota) GetTokenBalance(context.Context, *quotav1.GetTokenBalanceRequest, ...grpc.CallOption) (*quotav1.TokenBalance, error) {
+	return nil, status.Error(codes.Unavailable, "quota temporarily unavailable")
+}
 
 func (fakeQuota) GetTokenBalance(context.Context, *quotav1.GetTokenBalanceRequest, ...grpc.CallOption) (*quotav1.TokenBalance, error) {
 	return &quotav1.TokenBalance{Plan: "pro", QuotaTokens: 2000000, UsedTokens: 380000, RemainingTokens: 1620000}, nil

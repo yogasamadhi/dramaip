@@ -77,6 +77,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/me/token-balance", s.handleTokenBalance)
 	mux.HandleFunc("/v1/me/token-usage", s.handleTokenUsage)
 	mux.HandleFunc("/v1/me/usage-trend", s.handleUsageTrend)
+	mux.HandleFunc("/v1/me/account-bootstrap", s.handleAccountBootstrap)
 	mux.HandleFunc("/v1/me/account-report", s.handleAccountReport)
 	mux.HandleFunc("/v1/me/notifications/", s.handleNotificationAction)
 	mux.HandleFunc("/v1/me/notifications", s.handleNotifications)
@@ -561,6 +562,26 @@ func (s *HTTPService) handleAccountReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, report)
+}
+
+func (s *HTTPService) handleAccountBootstrap(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	usageLimit, ok := parseContractPositiveQuery(w, r, "usage_limit", 50, 100)
+	if !ok {
+		return
+	}
+	trendDays, ok := parseContractPositiveQuery(w, r, "trend_days", 30, 365)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, accountBootstrapResponse(s.uc.AccountBootstrap(r.Context(), auth.UserId, usageLimit, trendDays)))
 }
 
 func (s *HTTPService) handleNotifications(w http.ResponseWriter, r *http.Request) {
@@ -1169,6 +1190,48 @@ func usageTrendResponse(reply *quotav1.GetUsageTrendReply) map[string]any {
 		}
 	}
 	return map[string]any{"points": points}
+}
+
+func accountBootstrapResponse(bootstrap biz.AccountBootstrap) map[string]any {
+	sections := make(map[string]any, len(bootstrap.Sections))
+	for name, section := range bootstrap.Sections {
+		item := map[string]any{
+			"status":       section.Status,
+			"last_updated": section.LastUpdated.UTC().Format(time.RFC3339),
+			"trace_id":     section.TraceID,
+			"error_code":   section.ErrorCode,
+		}
+		if section.Status == "ready" {
+			switch value := section.Data.(type) {
+			case *userv1.UserProfile:
+				item["data"] = profileResponse(value)
+			case *billingv1.Subscription:
+				item["data"] = subscriptionResponse(value)
+			case *quotav1.TokenBalance:
+				item["data"] = tokenBalanceResponse(value)
+			case *billingv1.ListOrdersReply:
+				item["data"] = ordersResponse(value)
+			case *quotav1.ListTokenUsageReply:
+				item["data"] = tokenUsageResponse(value)
+			case *quotav1.GetUsageTrendReply:
+				item["data"] = usageTrendResponse(value)
+			case []data.NotificationRow:
+				item["data"] = notificationsResponse(value)
+			default:
+				item["status"] = "unavailable"
+				item["error_code"] = "read_model_encoding_failed"
+				item["trace_id"] = section.TraceID
+			}
+		}
+		sections[name] = item
+	}
+	return map[string]any{
+		"generated_at":      bootstrap.GeneratedAt.UTC().Format(time.RFC3339),
+		"cache_ttl_seconds": 30,
+		"usage_limit":       bootstrap.UsageLimit,
+		"trend_days":        bootstrap.TrendDays,
+		"sections":          sections,
+	}
 }
 
 func notificationsResponse(rows []data.NotificationRow) map[string]any {
