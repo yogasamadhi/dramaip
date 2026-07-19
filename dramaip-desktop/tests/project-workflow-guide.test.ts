@@ -12,8 +12,11 @@ import type {
   Script,
   Shot,
   VideoGenerationTask,
+  VideoResult,
 } from '@sdns/core'
+import { buildQualityGateSourceFingerprint } from '@sdns/core'
 import {
+  buildVideoDeliveryTruth,
   buildProjectWorkflowStages,
   type ProjectWorkflowSnapshot,
 } from '../apps/desktop/renderer/src/lib/projectWorkflowGuide'
@@ -39,6 +42,7 @@ function snapshot(patch: Partial<ProjectWorkflowSnapshot> = {}): ProjectWorkflow
     scenes: [],
     shots: [],
     videoTasks: [],
+    videoResults: [],
     ...patch,
   }
 }
@@ -52,24 +56,31 @@ test('marks setup as the active first step for an empty project', () => {
 })
 
 test('advances through novel and adaptation production stages', () => {
-  const stages = buildProjectWorkflowStages(snapshot({
-    project: { ...baseProject, coreHook: '复仇钩子', synopsis: '女主重生反击。' },
-    characters: [{ id: 'c1', projectId: 'p1', name: '女主', role: '主角', createdAt: '', updatedAt: '' } as Character],
-    outlines: [{ id: 'o1', projectId: 'p1', type: 'book', title: '全书', content: '三幕结构', orderIndex: 0, createdAt: '', updatedAt: '' } as Outline],
-    chapters: [{ id: 'ch1', projectId: 'p1', title: '第一章', orderIndex: 0, content: '正文', createdAt: '', updatedAt: '' } as Chapter],
-    qualityReports: [{
+  const project = { ...baseProject, coreHook: '复仇钩子', synopsis: '女主重生反击。' }
+  const characters = [{ id: 'c1', projectId: 'p1', name: '女主', role: '主角', createdAt: '', updatedAt: '' } as Character]
+  const outlines = [{ id: 'o1', projectId: 'p1', type: 'book', title: '全书', content: '三幕结构', orderIndex: 0, createdAt: '', updatedAt: '' } as Outline]
+  const chapters = [{ id: 'ch1', projectId: 'p1', title: '第一章', orderIndex: 0, content: '正文', createdAt: '', updatedAt: '' } as Chapter]
+  const qualityReports = [{
       id: 'q1',
       projectId: 'p1',
       targetKind: 'project',
-      stage: 'novel',
+      targetId: 'p1',
+      stage: 'novel_to_adaptation',
       score: 88,
       verdict: 'pass',
       blockingIssues: [],
       warnings: [],
       suggestions: [],
+      sourceFingerprint: buildQualityGateSourceFingerprint({ stage: 'novel_to_adaptation', project, chapters, characters, outlines }),
       createdAt: '',
       updatedAt: '',
-    } as QualityGateReport],
+    } as QualityGateReport]
+  const stages = buildProjectWorkflowStages(snapshot({
+    project,
+    characters,
+    outlines,
+    chapters,
+    qualityReports,
     adaptations: [{ id: 'a1', sourceProjectId: 'p1', title: '改编', targetEpisodeCount: 24, adaptationStyle: '爽剧', createdAt: '', updatedAt: '' } as AdaptationProject],
     episodes: [{
       id: 'e1',
@@ -102,14 +113,49 @@ test('advances through novel and adaptation production stages', () => {
   ])
 })
 
-test('reports video task progress as the final stage', () => {
+test('requires a usable result before video delivery is complete', () => {
   const stages = buildProjectWorkflowStages(snapshot({
     videoTasks: [
       { id: 'v1', provider: 'mock', model: 'mock', prompt: 'p', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask,
     ],
+    videoResults: [{ id: 'r1', taskId: 'v1', resultVideoUrl: 'https://example.test/video.mp4', isBest: true, createdAt: '' } as VideoResult],
   }))
   const video = stages.find((stage) => stage.key === 'video')
 
   assert.equal(video?.complete, true)
-  assert.equal(video?.detail, '视频任务 1 个，成功 1 个')
+  assert.equal(video?.detail, '成功任务 1 个，可用视频结果 1 个')
+})
+
+test('uses the latest matching quality report and marks changed sources stale', () => {
+  const project = { ...baseProject, coreHook: '复仇钩子', synopsis: '女主重生反击。' }
+  const chapters = [{ id: 'ch1', projectId: 'p1', title: '第一章', orderIndex: 0, content: '正文 A', createdAt: '', updatedAt: '' } as Chapter]
+  const sourceFingerprint = buildQualityGateSourceFingerprint({ stage: 'novel_to_adaptation', project, chapters, characters: [], outlines: [] })
+  const reports: QualityGateReport[] = [
+    { id: 'old-block', projectId: 'p1', targetKind: 'project', targetId: 'p1', stage: 'novel_to_adaptation', score: 40, verdict: 'block', blockingIssues: ['旧问题'], warnings: [], suggestions: [], sourceFingerprint, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+    { id: 'latest-pass', projectId: 'p1', targetKind: 'project', targetId: 'p1', stage: 'novel_to_adaptation', score: 90, verdict: 'pass', blockingIssues: [], warnings: [], suggestions: [], sourceFingerprint, createdAt: '2026-01-02T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z' },
+  ]
+  const current = buildProjectWorkflowStages(snapshot({ project, chapters, qualityReports: reports }))
+  assert.equal(current.find((stage) => stage.key === 'quality')?.complete, true)
+
+  const changed = buildProjectWorkflowStages(snapshot({
+    project,
+    chapters: [{ ...chapters[0], content: '正文 B' }],
+    qualityReports: reports,
+  }))
+  const quality = changed.find((stage) => stage.key === 'quality')
+  assert.equal(quality?.complete, false)
+  assert.match(quality?.detail ?? '', /已过期/)
+})
+
+test('does not treat pending, failed, or result-less video tasks as delivery complete', () => {
+  const pending = buildVideoDeliveryTruth([
+    { id: 'p', provider: 'mock', model: 'mock', prompt: '', referenceImageUrls: [], status: 'pending', createdAt: '', updatedAt: '' } as VideoGenerationTask,
+    { id: 'f', provider: 'mock', model: 'mock', prompt: '', referenceImageUrls: [], status: 'failed', createdAt: '', updatedAt: '' } as VideoGenerationTask,
+  ], [])
+  assert.equal(pending.complete, false)
+
+  const noResult = buildVideoDeliveryTruth([
+    { id: 's', provider: 'mock', model: 'mock', prompt: '', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask,
+  ], [])
+  assert.equal(noResult.complete, false)
 })

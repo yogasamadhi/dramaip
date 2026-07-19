@@ -28,6 +28,7 @@ import type {
   VideoCostRiskResult,
 } from '@sdns/core'
 import { renderSceneStructureSnapshot, renderShotStructureSnapshot, snapshotScene, snapshotShot } from '@sdns/core'
+import { buildQualityGateSourceFingerprint } from '@sdns/core'
 import { effectiveTaskType, isTextChapterTask } from '../prompts/task-types'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
@@ -593,8 +594,8 @@ export function createSaveResultNode(deps: NodeDeps) {
 
     if (taskType === 'run_quality_gate') {
       const r = state.parsedOutput as QualityGateResult
-      const target = inferCreativeTarget(state)
-      const stage = r.stage ?? inferQualityGateStage(state)
+      const stage = inferQualityGateStage(state)
+      const target = inferQualityGateTarget(state)
       const verdict = r.blockingIssues.length > 0 ? 'block' : r.verdict
       const created = repos.creative.createQualityGateReport(db, {
         projectId: state.projectId,
@@ -607,6 +608,18 @@ export function createSaveResultNode(deps: NodeDeps) {
         blockingIssues: r.blockingIssues,
         warnings: r.warnings,
         suggestions: r.suggestions,
+        sourceFingerprint: buildQualityGateSourceFingerprint({
+          stage,
+          project: state.project,
+          chapters: state.chapters,
+          characters: state.characters,
+          outlines: state.outlines,
+          adaptation: state.adaptationProject,
+          episodes: state.episodes,
+          scripts: state.currentScript ? [state.currentScript] : state.scripts,
+          scenes: state.currentScene ? [state.currentScene] : state.scenes,
+          shots: state.currentShot ? [state.currentShot] : state.shots,
+        }),
       })
       return { result: { kind: 'quality_gate', data: created } }
     }
@@ -645,6 +658,10 @@ export function createSaveResultNode(deps: NodeDeps) {
         blockingIssues: r.blockingIssues,
         warnings: [...r.risks, ...r.simplifications],
         suggestions: r.suggestions,
+        sourceFingerprint: buildQualityGateSourceFingerprint({
+          stage: 'shots_to_video',
+          shots: state.currentShot ? [state.currentShot] : state.shots,
+        }),
       })
       return { result: { kind: 'video_cost_risk', data: created } }
     }
@@ -694,4 +711,13 @@ function inferQualityGateStage(state: NovelGraphStateType): 'novel_to_adaptation
   if (state.currentScript) return 'scripts_to_shots'
   if (state.currentEpisode || state.adaptationProject) return 'episodes_to_scripts'
   return 'novel_to_adaptation'
+}
+
+function inferQualityGateTarget(state: NovelGraphStateType): { kind: 'project' | 'adaptation' | 'script' | 'scene' | 'shot'; id?: string; title?: string } {
+  if (state.currentShot) return { kind: 'shot', id: state.currentShot.id, title: `镜头 ${state.currentShot.shotNumber}` }
+  if (state.currentScene) return { kind: 'scene', id: state.currentScene.id, title: state.currentScene.title }
+  if (state.currentScript) return { kind: 'script', id: state.currentScript.id, title: state.currentScript.title }
+  if (state.adaptationProject) return { kind: 'adaptation', id: state.adaptationProject.id, title: state.adaptationProject.title }
+  if (state.project) return { kind: 'project', id: state.project.id, title: state.project.title }
+  return { kind: 'project', id: state.projectId }
 }

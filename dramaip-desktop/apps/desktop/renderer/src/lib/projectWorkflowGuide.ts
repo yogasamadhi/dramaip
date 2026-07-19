@@ -10,7 +10,9 @@ import type {
   Script,
   Shot,
   VideoGenerationTask,
+  VideoResult,
 } from '@sdns/core'
+import { buildProjectQualityGateTruth } from './qualityGateTruth'
 
 export type ProjectWorkflowStageKey =
   | 'setup'
@@ -37,6 +39,7 @@ export interface ProjectWorkflowSnapshot {
   scenes: Scene[]
   shots: Shot[]
   videoTasks: VideoGenerationTask[]
+  videoResults: VideoResult[]
 }
 
 export interface ProjectWorkflowStage {
@@ -46,6 +49,15 @@ export interface ProjectWorkflowStage {
   complete: boolean
   status: ProjectWorkflowStageStatus
   actionLabel: string
+}
+
+export interface VideoDeliveryTruth {
+  complete: boolean
+  successfulTaskCount: number
+  usableResultCount: number
+  pendingTaskCount: number
+  failedTaskCount: number
+  detail: string
 }
 
 function hasText(value?: string): boolean {
@@ -73,14 +85,20 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     scenes,
     shots,
     videoTasks,
+    videoResults,
   } = snapshot
 
   const chaptersWithContent = chapters.filter((chapter) => hasText(chapter.content))
   const bookOutlineCount = outlines.filter((outline) => outline.type === 'book' && hasText(outline.content)).length
   const chapterOutlineCount = outlines.filter((outline) => outline.type === 'chapter' && hasText(outline.content)).length
-  const latestQualityGate = qualityReports[0]
-  const blockingIssueCount = qualityReports.reduce((sum, report) => sum + report.blockingIssues.length, 0)
-  const successfulVideoTasks = videoTasks.filter((task) => task.status === 'success').length
+  const qualityTruth = buildProjectQualityGateTruth({
+    project,
+    chapters,
+    characters,
+    outlines,
+    reports: qualityReports,
+  })
+  const videoTruth = buildVideoDeliveryTruth(videoTasks, videoResults)
 
   return withStatus([
     {
@@ -120,10 +138,8 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     {
       key: 'quality',
       title: '质量闸门',
-      complete: qualityReports.length > 0 && blockingIssueCount === 0,
-      detail: qualityReports.length > 0
-        ? `${latestQualityGate?.verdict ?? '已检查'}，阻塞项 ${blockingIssueCount} 个`
-        : '运行质量闸门检查',
+      complete: qualityTruth.state === 'current' && qualityTruth.report?.verdict !== 'block',
+      detail: qualityTruth.detail,
       actionLabel: '查质量',
     },
     {
@@ -152,11 +168,59 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     {
       key: 'video',
       title: '视频',
-      complete: videoTasks.length > 0,
-      detail: videoTasks.length > 0
-        ? `视频任务 ${videoTasks.length} 个，成功 ${successfulVideoTasks} 个`
-        : '创建视频生成任务',
+      complete: videoTruth.complete,
+      detail: videoTruth.detail,
       actionLabel: '做视频',
     },
   ])
+}
+
+export function buildVideoDeliveryTruth(videoTasks: VideoGenerationTask[], videoResults: VideoResult[]): VideoDeliveryTruth {
+  const successfulTaskIds = new Set(videoTasks.filter((task) => task.status === 'success').map((task) => task.id))
+  const usableResultCount = videoResults.filter((result) => {
+    if (!successfulTaskIds.has(result.taskId)) return false
+    return Boolean(result.localVideoPath?.trim() || result.resultVideoUrl.trim() || result.remoteVideoUrl?.trim())
+  }).length
+  const successfulTaskCount = successfulTaskIds.size
+  const pendingTaskCount = videoTasks.filter((task) => task.status === 'pending' || task.status === 'running').length
+  const failedTaskCount = videoTasks.filter((task) => task.status === 'failed' || task.status === 'canceled').length
+  if (usableResultCount > 0) {
+    const suffix = pendingTaskCount || failedTaskCount ? `；另有进行中 ${pendingTaskCount} 个、失败/取消 ${failedTaskCount} 个` : ''
+    return {
+      complete: true,
+      successfulTaskCount,
+      usableResultCount,
+      pendingTaskCount,
+      failedTaskCount,
+      detail: `成功任务 ${successfulTaskCount} 个，可用视频结果 ${usableResultCount} 个${suffix}`,
+    }
+  }
+  if (successfulTaskCount > 0) {
+    return {
+      complete: false,
+      successfulTaskCount,
+      usableResultCount,
+      pendingTaskCount,
+      failedTaskCount,
+      detail: `成功任务 ${successfulTaskCount} 个，但没有可用视频结果`,
+    }
+  }
+  if (videoTasks.length > 0) {
+    return {
+      complete: false,
+      successfulTaskCount,
+      usableResultCount,
+      pendingTaskCount,
+      failedTaskCount,
+      detail: `视频任务 ${videoTasks.length} 个，进行中 ${pendingTaskCount} 个，失败/取消 ${failedTaskCount} 个`,
+    }
+  }
+  return {
+    complete: false,
+    successfulTaskCount,
+    usableResultCount,
+    pendingTaskCount,
+    failedTaskCount,
+    detail: '创建视频生成任务并产出可用结果',
+  }
 }

@@ -11,6 +11,7 @@ import type {
   Scene,
   Script,
 } from '@sdns/core'
+import { buildQualityGateSourceFingerprint } from '@sdns/core'
 import {
   collectProjectPackage,
   exportNovelSubmissionJson,
@@ -298,6 +299,13 @@ export function seedP0Fixture(projectId: string): P0Fixture {
     blockingIssues: [],
     warnings: ['反派动机还可继续加深'],
     suggestions: ['投稿前补齐前三章尾钩'],
+    sourceFingerprint: buildQualityGateSourceFingerprint({
+      stage: 'novel_to_adaptation',
+      project,
+      chapters: repos.chapter.listChapters(repos.db, projectId),
+      characters: repos.character.listCharacters(repos.db, projectId),
+      outlines: repos.outline.listOutlines(repos.db, projectId),
+    }),
   })
   const adaptation = repos.adaptationProject.createAdaptationProject(repos.db, {
     sourceProjectId: projectId,
@@ -365,6 +373,7 @@ function verifyMainWorkflowGuide(fixture: P0Fixture): void {
     scenes: repos.scene.listScenesByScript(repos.db, fixture.script.id),
     shots: [],
     videoTasks: [],
+    videoResults: [],
   })
   const done = new Set(stages.filter((stage) => stage.complete).map((stage) => stage.key))
   const requiredStages = ['setup', 'characters', 'outline', 'chapters', 'quality', 'adaptation', 'scripts'] as const

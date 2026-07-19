@@ -1,9 +1,11 @@
-import type { Chapter, ChapterMemory, Character, Outline, QualityGateReport } from '@sdns/core'
+import type { Chapter, ChapterMemory, Character, Outline, Project, QualityGateReport } from '@sdns/core'
+import { buildProjectQualityGateTruth } from './qualityGateTruth'
 
 export type AdaptationReadinessSeverity = 'ready' | 'warning' | 'risk'
 export type AdaptationReadinessKey = 'chapters' | 'characters' | 'outline' | 'memory' | 'quality'
 
 export interface AdaptationReadinessSnapshot {
+  project: Project
   chapters: Chapter[]
   characters: Character[]
   outlines: Outline[]
@@ -29,16 +31,18 @@ function hasText(value?: string): boolean {
   return Boolean(value?.trim())
 }
 
-function countBlockingIssues(reports: QualityGateReport[]): number {
-  return reports.reduce((sum, report) => sum + report.blockingIssues.length, 0)
-}
-
 export function buildAdaptationReadiness(snapshot: AdaptationReadinessSnapshot): AdaptationReadinessSummary {
   const chaptersWithContent = snapshot.chapters.filter((chapter) => hasText(chapter.content))
   const outlinesWithContent = snapshot.outlines.filter((outline) => hasText(outline.content))
   const memoryChapterIds = new Set(snapshot.chapterMemories.map((memory) => memory.chapterId))
   const rememberedChapters = chaptersWithContent.filter((chapter) => memoryChapterIds.has(chapter.id)).length
-  const blockingIssueCount = countBlockingIssues(snapshot.qualityReports)
+  const qualityTruth = buildProjectQualityGateTruth({
+    project: snapshot.project,
+    chapters: snapshot.chapters,
+    characters: snapshot.characters,
+    outlines: snapshot.outlines,
+    reports: snapshot.qualityReports,
+  })
 
   const items: AdaptationReadinessItem[] = [
     {
@@ -74,10 +78,10 @@ export function buildAdaptationReadiness(snapshot: AdaptationReadinessSnapshot):
     {
       key: 'quality',
       title: '质量闸门',
-      severity: blockingIssueCount > 0 ? 'risk' : snapshot.qualityReports.length > 0 ? 'ready' : 'warning',
-      detail: snapshot.qualityReports.length > 0
-        ? `已有 ${snapshot.qualityReports.length} 份报告，阻塞项 ${blockingIssueCount} 个`
-        : '尚未运行质量闸门',
+      severity: qualityTruth.state !== 'current'
+        ? 'warning'
+        : qualityTruth.report?.verdict === 'block' ? 'risk' : 'ready',
+      detail: qualityTruth.detail,
     },
   ]
 

@@ -1157,6 +1157,8 @@ export interface QualityGateReport {
   blockingIssues: string[]
   warnings: string[]
   suggestions: string[]
+  /** 生成报告时参与判断的源内容指纹；缺失表示旧版历史报告，不能作为当前通过/阻塞真值。 */
+  sourceFingerprint?: string
   createdAt: string
   updatedAt: string
 }

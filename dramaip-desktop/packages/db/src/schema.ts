@@ -841,6 +841,7 @@ export const qualityGateReports = sqliteTable('quality_gate_reports', {
   blockingIssues: text('blocking_issues').notNull().default('[]'),
   warnings: text('warnings').notNull().default('[]'),
   suggestions: text('suggestions').notNull().default('[]'),
+  sourceFingerprint: text('source_fingerprint'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

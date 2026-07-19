@@ -269,6 +269,7 @@ function qualityGateFromRow(row: QualityGateRow): QualityGateReport {
     blockingIssues: parseJsonArray(row.blockingIssues),
     warnings: parseJsonArray(row.warnings),
     suggestions: parseJsonArray(row.suggestions),
+    sourceFingerprint: row.sourceFingerprint ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -650,6 +651,7 @@ export function createQualityGateReport(
     blockingIssues: stringifyArray(data.blockingIssues),
     warnings: stringifyArray(data.warnings),
     suggestions: stringifyArray(data.suggestions),
+    sourceFingerprint: data.sourceFingerprint ?? null,
     createdAt: ts,
     updatedAt: ts,
   }

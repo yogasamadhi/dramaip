@@ -29,6 +29,7 @@ interface UiFixture {
   shotId: string
   emptyProjectId: string
   longTitleProjectId: string
+  staleQualityProjectId: string
 }
 
 export interface UiAccessibilityIssue {
@@ -96,6 +97,15 @@ export async function runDesktopUiBaseline(
       readyText: '新建章节',
       viewport: { width: 1320, height: 860 },
       theme: 'dark',
+      reducedMotion: false,
+    },
+    {
+      name: 'workflow-stale-quality-1320-light',
+      hash: `#/projects/${fixture.staleQualityProjectId}?section=overview`,
+      expectedText: '源内容已变化，报告已过期，请重新检查',
+      readyText: '主流程',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
       reducedMotion: false,
     },
     {
@@ -240,6 +250,13 @@ function seedUiFixture(): UiFixture {
     shortDramaType: '悬疑反转',
     synopsis: '用于窄窗口和长文本视觉回归的脱敏固定内容。',
   })
+  const staleQualityProject = repos.project.createProject(repos.db, {
+    title: 'UI 过期报告项目',
+    shortDramaType: '悬疑反转',
+    synopsis: '用于验证源内容变化后质量报告必须失效的固定数据。',
+  })
+  const staleP0 = seedP0Fixture(staleQualityProject.id)
+  repos.chapter.updateChapterContent(repos.db, staleP0.chapter.id, `${staleP0.chapter.content}\n\n新增正文会让此前质量报告失效。`)
   return {
     projectId: project.id,
     adaptationId: p0.adaptation.id,
@@ -248,6 +265,7 @@ function seedUiFixture(): UiFixture {
     shotId: shot.id,
     emptyProjectId: emptyProject.id,
     longTitleProjectId: longTitleProject.id,
+    staleQualityProjectId: staleQualityProject.id,
   }
 }
 
