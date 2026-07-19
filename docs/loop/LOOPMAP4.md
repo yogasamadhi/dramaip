@@ -354,7 +354,7 @@ make platform-e2e
 | LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | done | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
 | LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
-| LM4-22 | P2 | Desktop/改编产品 | doing | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
+| LM4-22 | P2 | Desktop/改编产品 | done | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | todo | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
 | LM4-25 | P2 | Desktop/视频产品 | todo | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
@@ -1321,4 +1321,20 @@ Push: 6cbbae2 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-21-core-experience-gate-rerun and the previously retained audit branch loop/lm4-21-core-experience-gate were deleted after the main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
 Notes: The first LM4-21 attempt truthfully remains recorded above as partial: it exposed the Web Cloud AI binding defect, which was repaired as LM4-12R under the same Gate's block-P2 rule. This rerun closes that blocker; P2 may now start with LM4-22.
+```
+
+```text
+Loop: LM4-22
+Target branch: main
+Loop branch: loop/lm4-22-production-shell-planning
+Commit(s): a5ad80a feat: add adaptation production shell
+Merge commit: b694135 merge: LM4-22 adaptation production shell
+Verification: Before merge, Desktop `pnpm format:check`; `pnpm test` (typecheck, 146 unit tests, DB migrations/repository smoke); `pnpm test:ui` (23 screenshots, 0 accessibility observations); `pnpm test:e2e`; full `pnpm package:smoke` (DMG, ZIP and packaged-app smoke); and a final-source `pnpm package:smoke:dir` all passed. After merge, `pnpm test:e2e:skip-build`, `pnpm test:unit` (146/146), and `git diff --check` all passed. The full package build intentionally skipped code signing and notarization because no Apple identity/notarization environment is configured; the packaged app itself initialized its smoke database successfully.
+UI/manual evidence: Retained UI output at `dramaip-desktop/artifacts/lm4-22/` includes production-planning 1024px light and 1320px dark plus a 1600px script workspace review. Manual review found the shell, stage stepper, toolbar, planner density and primary actions readable with no critical horizontal overflow. The screenshot matrix covers 23 cases with zero fixed-fixture accessibility observations. Electron E2E covers episode-to-script-to-shots-to-video stage navigation and preserves the selected episode context.
+Diff review: Reviewed the shared production shell, breadcrumbs, stage navigation, unified export menu, responsive planner views/filters/bulk script generation, and route-context preservation. Stage summaries are renderer-local read models and do not mutate LM4-02 workflow truth: scripts complete only from the full adaptation script list, while shots and video deliberately remain in progress or blocked rather than deriving false completion from a page-local slice. The active connector has restrained flow animation and the existing global reduced-motion preference disables it. No user content, credentials, local database, retained screenshot, package artifact or other ignored output was committed; tracked secret-name scan found no .env, PEM, key or id_rsa file.
+Remote sync: Fetched and fast-forward checked origin/main at 37966d8 before branch creation and again before merge; main had no intervening remote commits.
+Push: b694135 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-22-production-shell-planning deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
+Notes: This loop establishes the shared production navigation/context layer only. Structured script internals, Storyboard editing and video production behavior remain isolated to LM4-23, LM4-24 and LM4-25 respectively.
 ```
