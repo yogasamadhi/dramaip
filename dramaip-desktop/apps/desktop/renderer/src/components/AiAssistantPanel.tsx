@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Command, Sparkles, Loader2 } from 'lucide-react'
 import type { AiContextControls, Chapter, NovelTaskType, TextDiffPreviewPayload } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES } from '@sdns/core'
@@ -40,12 +40,20 @@ const ACTIONS: { taskType: NovelTaskType; label: string; desc: string; variant: 
   { taskType: 'rewrite_as_ai_drama_novel', label: 'AI 短剧化改写', desc: '更视觉化、更短剧化', variant: 'outline' },
 ]
 
+function recommendedActions(chapter: Chapter | null) {
+  const taskTypes: NovelTaskType[] = chapter?.content.trim()
+    ? ['continue_chapter', 'polish_chapter', 'enhance_conflict']
+    : ['generate_chapter', 'enhance_hook', 'rewrite_as_ai_drama_novel']
+  return taskTypes.map((taskType) => ACTIONS.find((action) => action.taskType === taskType)).filter((action): action is typeof ACTIONS[number] => Boolean(action))
+}
+
 export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextPreview, contextData }: AiAssistantPanelProps) {
   const [running, setRunning] = useState<NovelTaskType | null>(null)
   const [instruction, setInstruction] = useState('')
   const [contextControls, setContextControls] = useState<AiContextControls>({})
   const [pendingTask, setPendingTask] = useState<NovelTaskType | null>(null)
   const [preflightRunning, setPreflightRunning] = useState(false)
+  const actions = recommendedActions(chapter)
   const preflight = pendingTask && contextData ? buildAiPreflightContext(pendingTask, contextData, contextControls) : null
 
   async function runAction(taskType: NovelTaskType) {
@@ -129,16 +137,16 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-2">
-        {ACTIONS.map((a) => (
+      <div className="grid grid-cols-1 gap-2" aria-busy={running !== null}>
+        {actions.map((a, index) => (
           <Button
             key={a.taskType}
-            variant={a.variant}
+            variant={index === 0 ? 'default' : a.variant === 'default' ? 'outline' : a.variant}
             disabled={running !== null}
             onClick={() => runAction(a.taskType)}
             className="justify-start"
           >
-            {running === a.taskType ? <Loader2 className="animate-spin" /> : null}
+            {running === a.taskType ? <Loader2 className="animate-spin motion-reduce:animate-none" /> : null}
             <span className="font-medium">{a.label}</span>
             <span className="ml-auto max-w-[58%] truncate text-xs font-normal text-muted-foreground">
               {a.desc} · {TASK_WRITE_POLICIES[a.taskType].label}
@@ -147,7 +155,24 @@ export function AiAssistantPanel({ projectId, chapter, onChapterUpdated, onTextP
         ))}
       </div>
 
-      {!chapter && <p className="text-xs text-muted-foreground">新建或选择章节后即可使用 AI 功能。</p>}
+      {running && (
+        <div className="studio-ai-surface studio-ai-pulse rounded-md px-3 py-2 text-xs text-ai motion-reduce:animate-none" role="status" aria-live="polite">
+          正在生成「{TASK_TYPE_LABELS[running]}」；完成后会展示真实结果或失败原因。
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="justify-start text-xs"
+        onClick={() => window.dispatchEvent(new Event('sdns:open-ai-command-palette'))}
+      >
+        <Command className="h-3.5 w-3.5" />
+        浏览全部 AI 命令、收藏与最近使用
+      </Button>
+
+      {!chapter && <p className="rounded-md border border-warn/40 bg-warn-soft/50 p-2 text-xs text-warn">先选择或新建章节后再运行章节类 AI 命令；完整任务目录仍可浏览。</p>}
       <AiContextPreviewDialog
         open={pendingTask !== null}
         preview={preflight?.preview ?? null}

@@ -23,6 +23,8 @@ interface UiBaselineSpec {
   themePreference: UiThemePreference
   density: UiDensity
   reducedMotion: boolean
+  openAiCommandPalette?: boolean
+  openAiContextPreview?: boolean
 }
 
 interface UiFixture {
@@ -168,6 +170,31 @@ export async function runDesktopUiBaseline(
       reducedMotion: false,
     },
     {
+      name: 'ai-command-palette-1320-light',
+      hash: `#/projects/${fixture.projectId}`,
+      expectedText: 'UI 基线项目',
+      readyText: '新建章节',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+      openAiCommandPalette: true,
+    },
+    {
+      name: 'ai-context-summary-1320-light',
+      hash: `#/projects/${fixture.projectId}`,
+      expectedText: 'UI 基线项目',
+      readyText: '新建章节',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+      openAiCommandPalette: true,
+      openAiContextPreview: true,
+    },
+    {
       name: 'chapter-tree-1060-light',
       hash: `#/projects/${fixture.longChapterProjectId}?section=chapters`,
       expectedText: 'UI 长篇章节树项目',
@@ -259,6 +286,8 @@ export async function runDesktopUiBaseline(
         themePreference: spec.themePreference,
         density: spec.density,
         reducedMotion: spec.reducedMotion,
+        openAiCommandPalette: spec.openAiCommandPalette,
+        openAiContextPreview: spec.openAiContextPreview,
       })})`,
       true,
     ) as string[]
@@ -478,6 +507,8 @@ async function prepareRendererForUiBaseline(input: {
   themePreference: UiThemePreference
   density: UiDensity
   reducedMotion: boolean
+  openAiCommandPalette?: boolean
+  openAiContextPreview?: boolean
 }): Promise<string[]> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
   const waitFor = async (label: string, probe: () => boolean, timeoutMs = 8000): Promise<void> => {
@@ -504,6 +535,25 @@ async function prepareRendererForUiBaseline(input: {
     const bodyText = document.body.textContent ?? ''
     return window.location.hash === input.hash && bodyText.includes(input.expectedText) && bodyText.includes(input.readyText)
   })
+  if (input.openAiCommandPalette) {
+    const trigger = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .find((button) => (button.textContent ?? '').includes('AI 命令'))
+    if (!trigger) throw new Error('UI 基线未找到 AI 命令入口')
+    trigger.click()
+    await waitFor('AI 命令面板', () => (document.body.textContent ?? '').includes('AI 命令面板'))
+  }
+  if (input.openAiContextPreview) {
+    const commandDialog = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => (dialog.textContent ?? '').includes('AI 命令面板'))
+    const commandButton = Array.from(commandDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => (button.textContent ?? '').includes('续写章节'))
+    if (!commandButton) throw new Error('UI 基线未找到续写章节命令')
+    commandButton.click()
+    await waitFor('AI 紧凑上下文摘要', () => {
+      const bodyText = document.body.textContent ?? ''
+      return bodyText.includes('AI 执行前确认') && bodyText.includes('查看详情')
+    })
+  }
   await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
   return Array.from(document.querySelectorAll<HTMLElement>(
     'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="button"]:not([aria-disabled="true"])',

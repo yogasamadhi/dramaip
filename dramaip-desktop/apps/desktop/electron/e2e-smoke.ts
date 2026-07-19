@@ -662,6 +662,62 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
   })
 
+  await step('ai-command-palette-search-policy-and-shortcut', async () => {
+    const commandButton = buttonByText('AI 命令')
+    if (!commandButton) throw new Error('未找到 AI 命令面板入口')
+    commandButton.click()
+    const commandDialog = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => normalize(dialog.textContent).includes('AI 命令面板'))
+    await waitFor('AI 命令面板', () => commandDialog())
+    const commandSearch = commandDialog()?.querySelector('input[aria-label="搜索 AI 命令"]') as HTMLInputElement | null
+    if (!commandSearch) throw new Error('AI 命令面板缺少可访问搜索框')
+    setInputValue(commandSearch, '润色')
+    await waitFor('AI 命令搜索与写入策略', () => {
+      const textValue = normalize(commandDialog()?.textContent)
+      return textValue.includes('润色章节') && textValue.includes('预览后采用')
+    })
+    const favoriteButton = commandDialog()?.querySelector('button[aria-label="收藏 润色章节"]') as HTMLButtonElement | null
+    if (!favoriteButton) throw new Error('AI 命令缺少收藏入口')
+    favoriteButton.click()
+    await waitFor('AI 命令收藏状态', () => Boolean(commandDialog()?.querySelector('button[aria-label="取消收藏 润色章节"]')))
+
+    const polishCommand = Array.from(commandDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent).startsWith('润色章节'))
+    if (!polishCommand) throw new Error('AI 命令缺少章节执行入口')
+    polishCommand.click()
+    const preflightDialog = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => normalize(dialog.textContent).includes('AI 执行前确认'))
+    await waitFor('AI 紧凑预检摘要', () => normalize(preflightDialog()?.textContent).includes('查看详情'))
+    clickButton('查看详情')
+    await waitFor('AI 预检详情', () => normalize(preflightDialog()?.textContent).includes('收起详情'))
+    const closePreflight = Array.from(preflightDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent) === '关闭')
+    if (!closePreflight) throw new Error('AI 预检缺少关闭入口')
+    closePreflight.click()
+    await waitFor('关闭 AI 预检', () => !preflightDialog())
+
+    commandButton.click()
+    await waitFor('再次打开 AI 命令面板', () => commandDialog())
+    const catalogSearch = commandDialog()?.querySelector('input[aria-label="搜索 AI 命令"]') as HTMLInputElement | null
+    if (!catalogSearch) throw new Error('AI 命令面板缺少第二次搜索框')
+    setInputValue(catalogSearch, '人物卡')
+    await waitFor('人物卡命令', () => normalize(commandDialog()?.textContent).includes('生成人物卡'))
+    const characterCommand = Array.from(commandDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent).startsWith('生成人物卡'))
+    if (!characterCommand) throw new Error('AI 命令缺少人物卡入口')
+    characterCommand.click()
+    await waitFor('人物卡原工作区', () => window.location.hash.includes('section=characters'))
+
+    const overviewButton = document.querySelector('button[title="项目概览"]') as HTMLButtonElement | null
+    if (!overviewButton) throw new Error('未找到项目概览导航入口')
+    overviewButton.click()
+    await waitFor('命令面板快捷键前的项目概览', () => window.location.hash.includes('section=overview'))
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'k', metaKey: true }))
+    await waitFor('Cmd K 打开 AI 命令面板', () => commandDialog())
+    clickButton('关闭')
+    await waitFor('Cmd K 命令面板关闭', () => !commandDialog())
+  })
+
   await step('chapter-tree-300-performance-order-and-keyboard', async () => {
     const api = (window as unknown as {
       api: {

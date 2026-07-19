@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { AiContextPreview } from '@sdns/core'
 import type { AiContextControlGroup, AiContextControlKey, AiContextControlMode } from '@/lib/aiPreflightContext'
 import { Badge } from '@/components/ui/badge'
@@ -34,11 +35,20 @@ export function AiContextPreviewDialog({
   runLabel = '执行 AI',
   running = false,
 }: Props) {
+  const hasRunAction = Boolean(onRun)
+  const [detailsOpen, setDetailsOpen] = useState(!hasRunAction)
+
+  useEffect(() => {
+    if (open) setDetailsOpen(!hasRunAction)
+  }, [hasRunAction, open])
+
+  const sectionCount = preview?.sections.length ?? 0
+
   return (
     <Dialog open={open} onOpenChange={(value) => { if (!value) onClose() }}>
       <DialogContent className="flex max-h-[88vh] max-w-4xl flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle>上下文预览</DialogTitle>
+          <DialogTitle>{onRun ? 'AI 执行前确认' : '上下文预览'}</DialogTitle>
         </DialogHeader>
         {preview && (
           <div className="flex flex-wrap gap-2 text-xs">
@@ -51,7 +61,15 @@ export function AiContextPreviewDialog({
             {preview.redacted && <Badge variant="secondary">已脱敏</Badge>}
           </div>
         )}
-        {controlGroups?.length ? (
+        {onRun && (
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            已准备 {sectionCount} 段上下文；可先执行，或展开确认包含内容与范围。
+            <Button type="button" variant="link" size="sm" className="ml-1 h-auto p-0 text-xs" onClick={() => setDetailsOpen((value) => !value)} aria-expanded={detailsOpen}>
+              {detailsOpen ? '收起详情' : '查看详情'}
+            </Button>
+          </div>
+        )}
+        {detailsOpen && controlGroups?.length ? (
           <ScrollArea className="max-h-52 rounded-md border">
             <div className="space-y-3 p-3">
               {controlGroups.map((group) => (
@@ -81,27 +99,29 @@ export function AiContextPreviewDialog({
             </div>
           </ScrollArea>
         ) : null}
-        <ScrollArea className="min-h-0 flex-1 rounded-md border">
-          <div className="space-y-4 p-4">
-            {preview?.sections.length ? (
-              preview.sections.map((section) => (
-                <div key={section.title} className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{section.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {section.charCount.toLocaleString()} 字符 · 约 {section.estimatedTokens.toLocaleString()} tokens
-                    </span>
+        {detailsOpen && (
+          <ScrollArea className="min-h-0 flex-1 rounded-md border">
+            <div className="space-y-4 p-4">
+              {preview?.sections.length ? (
+                preview.sections.map((section) => (
+                  <div key={section.title} className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{section.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {section.charCount.toLocaleString()} 字符 · 约 {section.estimatedTokens.toLocaleString()} tokens
+                      </span>
+                    </div>
+                    <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-3 text-xs leading-5">
+                      {section.excerpt || '（空）'}
+                    </pre>
                   </div>
-                  <pre className="max-h-44 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-3 text-xs leading-5">
-                    {section.excerpt || '（空）'}
-                  </pre>
-                </div>
-              ))
-            ) : (
-              <p className="p-4 text-sm text-muted-foreground">暂无上下文。</p>
-            )}
-          </div>
-        </ScrollArea>
+                ))
+              ) : (
+                <p className="p-4 text-sm text-muted-foreground">暂无上下文。</p>
+              )}
+            </div>
+          </ScrollArea>
+        )}
         <DialogFooter>
           {onExport && (
             <Button variant="outline" onClick={onExport}>
@@ -113,7 +133,7 @@ export function AiContextPreviewDialog({
               {running ? '执行中…' : runLabel}
             </Button>
           )}
-          <Button onClick={onClose}>关闭</Button>
+          <Button variant="outline" onClick={onClose}>关闭</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
