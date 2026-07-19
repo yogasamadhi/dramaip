@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
   synopsis TEXT,
   style_guide TEXT,
   visual_style_direction TEXT,
+  deleted_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

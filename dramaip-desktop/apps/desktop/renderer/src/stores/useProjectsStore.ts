@@ -8,7 +8,7 @@ interface ProjectsState {
   loading: boolean
   fetch: () => Promise<void>
   create: (data: OptionalId<Project> & { title: string; shortDramaType: string }) => Promise<Project>
-  remove: (id: string) => Promise<void>
+  trash: (id: string) => Promise<void>
 }
 
 export const useProjectsStore = create<ProjectsState>((set, get) => ({
@@ -29,8 +29,8 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
     set({ projects: [project, ...get().projects] })
     return project
   },
-  remove: async (id) => {
-    await ipc.project.remove(id)
+  trash: async (id) => {
+    await ipc.project.trash(id)
     set({
       projects: get().projects.filter((p) => p.id !== id),
       summaries: get().summaries.filter((summary) => summary.project.id !== id),

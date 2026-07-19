@@ -1,7 +1,7 @@
-import { desc, eq, like, or } from 'drizzle-orm'
+import { and, desc, eq, isNull, like, or } from 'drizzle-orm'
 import type { GlobalSearchResponse, GlobalSearchResult, GlobalSearchResultKind } from '@sdns/core'
 import type { DB } from '../client'
-import { aiRuns, characters, chapters, projects, scenes, scripts, shots } from '../schema'
+import { adaptationProjects, aiRuns, characters, chapters, projects, scenes, scripts, shots } from '../schema'
 
 interface SearchInput {
   query: string
@@ -18,6 +18,7 @@ export function globalSearch(db: DB, input: SearchInput): GlobalSearchResponse {
 
   const limit = clampLimit(input.limit)
   const term = `%${query}%`
+  const activeProjectIds = new Set(db.select({ id: projects.id }).from(projects).where(isNull(projects.deletedAt)).all().map((row) => row.id))
   const results: GlobalSearchResult[] = [
     ...searchProjects(db, query, term, limit),
     ...searchCharacters(db, query, term, limit),
@@ -26,7 +27,7 @@ export function globalSearch(db: DB, input: SearchInput): GlobalSearchResponse {
     ...searchScenes(db, query, term, limit),
     ...searchShots(db, query, term, limit),
     ...searchAiRuns(db, query, term, limit),
-  ]
+  ].filter((result) => !result.projectId || activeProjectIds.has(result.projectId))
 
   return { query, results, total: results.length }
 }
@@ -35,12 +36,15 @@ function searchProjects(db: DB, query: string, term: string, limit: number): Glo
   return db
     .select()
     .from(projects)
-    .where(or(
-      like(projects.title, term),
-      like(projects.shortDramaType, term),
-      like(projects.coreHook, term),
-      like(projects.synopsis, term),
-      like(projects.visualStyleDirection, term),
+    .where(and(
+      isNull(projects.deletedAt),
+      or(
+        like(projects.title, term),
+        like(projects.shortDramaType, term),
+        like(projects.coreHook, term),
+        like(projects.synopsis, term),
+        like(projects.visualStyleDirection, term),
+      ),
     ))
     .orderBy(desc(projects.updatedAt))
     .limit(limit)
@@ -128,15 +132,19 @@ function searchScripts(db: DB, query: string, term: string, limit: number): Glob
     .orderBy(desc(scripts.updatedAt))
     .limit(limit)
     .all()
-    .map((row) => ({
-      id: row.id,
-      kind: 'script',
-      title: row.title,
-      subtitle: `第 ${row.episodeNumber} 集剧本`,
-      snippet: snippet(query, row.content, row.hook, row.mainConflict, row.cliffhanger),
-      route: `/adaptations/${row.adaptationProjectId}/scripts?script=${row.id}`,
-      updatedAt: row.updatedAt,
-    }))
+    .flatMap((row) => {
+      const projectId = getAdaptationProjectId(db, row.adaptationProjectId)
+      return [{
+        id: row.id,
+        kind: 'script' as GlobalSearchResultKind,
+        title: row.title,
+        subtitle: `第 ${row.episodeNumber} 集剧本`,
+        snippet: snippet(query, row.content, row.hook, row.mainConflict, row.cliffhanger),
+        route: `/adaptations/${row.adaptationProjectId}/scripts?script=${row.id}`,
+        projectId,
+        updatedAt: row.updatedAt,
+      }]
+    })
 }
 
 function searchScenes(db: DB, query: string, term: string, limit: number): GlobalSearchResult[] {
@@ -163,6 +171,7 @@ function searchScenes(db: DB, query: string, term: string, limit: number): Globa
         subtitle: `${script.title} / 第 ${row.sceneNumber} 场`,
         snippet: snippet(query, row.location, row.visualDescription, row.summary, row.characters),
         route: `/adaptations/${script.adaptationProjectId}/shots?episode=${row.episodeId}&scene=${row.id}`,
+        projectId: script.projectId,
         updatedAt: row.updatedAt,
       }]
     })
@@ -198,6 +207,7 @@ function searchShots(db: DB, query: string, term: string, limit: number): Global
         subtitle: `${script.title} / ${scene.title}`,
         snippet: snippet(query, row.visualDescription, row.dialogue, row.narration, row.subtitleDraft, row.videoPrompt, row.negativePrompt, row.imagePrompt, row.coverPrompt, row.consistencyNotes),
         route: `/adaptations/${script.adaptationProjectId}/shots?episode=${row.episodeId}&scene=${row.sceneId}&shot=${row.id}`,
+        projectId: script.projectId,
         updatedAt: row.updatedAt,
       }]
     })
@@ -230,13 +240,23 @@ function searchAiRuns(db: DB, query: string, term: string, limit: number): Globa
     }))
 }
 
-function getScriptRouteContext(db: DB, scriptId: string): { title: string; adaptationProjectId: string } | undefined {
+function getScriptRouteContext(db: DB, scriptId: string): { title: string; adaptationProjectId: string; projectId?: string } | undefined {
   const row = db
     .select({ title: scripts.title, adaptationProjectId: scripts.adaptationProjectId })
     .from(scripts)
     .where(eq(scripts.id, scriptId))
     .get()
-  return row ?? undefined
+  if (!row) return undefined
+  return { ...row, projectId: getAdaptationProjectId(db, row.adaptationProjectId) }
+}
+
+function getAdaptationProjectId(db: DB, adaptationProjectId: string): string | undefined {
+  return db
+    .select({ projectId: adaptationProjects.sourceProjectId })
+    .from(adaptationProjects)
+    .where(eq(adaptationProjects.id, adaptationProjectId))
+    .get()
+    ?.projectId ?? undefined
 }
 
 function normalizeQuery(query: string): string {

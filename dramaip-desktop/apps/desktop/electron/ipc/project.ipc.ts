@@ -11,15 +11,22 @@ export function registerProjectIpc(): void {
   // ---------- 项目 ----------
   ipcMain.handle('project:list', () => repos().project.listProjects(repos().db))
   ipcMain.handle('project:listHomeSummaries', () => repos().project.listProjectHomeSummaries(repos().db))
+  ipcMain.handle('project:listTrash', () => repos().project.listTrashedProjects(repos().db))
   ipcMain.handle('project:get', (_e, id: string) => repos().project.getProject(repos().db, id))
   ipcMain.handle('project:create', (_e, data: unknown) => repos().project.createProject(repos().db, data as never))
   ipcMain.handle('project:update', (_e, id: string, patch: unknown) =>
     repos().project.updateProject(repos().db, id, patch as never),
   )
   ipcMain.handle('project:delete', (_e, id: string) => {
-    repos().project.deleteProject(repos().db, id)
-    return true
+    // 兼容旧 renderer；删除永远只会移入废纸篓，不能绕过最终清理确认。
+    return Boolean(repos().project.trashProject(repos().db, id))
   })
+  ipcMain.handle('project:trash', (_e, id: string) => repos().project.trashProject(repos().db, id))
+  ipcMain.handle('project:restore', (_e, id: string) => repos().project.restoreProject(repos().db, id))
+  ipcMain.handle('project:deletionPreview', (_e, id: string) => repos().project.getProjectDeletionPreview(repos().db, id))
+  ipcMain.handle('project:purge', (_e, id: string, confirmationTitle: string) =>
+    repos().project.purgeProject(repos().db, id, confirmationTitle),
+  )
 
   // ---------- 章节 ----------
   ipcMain.handle('chapter:list', (_e, projectId: string) =>

@@ -71,6 +71,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
       '旧库项目',
     )
     assert.ok(columns(raw, 'projects').includes('visual_style_direction'))
+    assert.ok(columns(raw, 'projects').includes('deleted_at'))
     assert.ok(columns(raw, 'characters').includes('appearance_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('casting_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))

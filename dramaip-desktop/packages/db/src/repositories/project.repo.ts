@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { DB } from '../client'
 import {
   projects,
@@ -34,19 +34,27 @@ import {
   videoGenerationTasks,
   videoResults,
   projectAssets,
+  templateRuns,
   qualityGateReports,
+  freshnessReports,
+  antiTropeVariants,
+  revisionTasks,
+  contentVersions,
+  audienceSimulations,
+  narrativeCurveReports,
+  workflowRuns,
 } from '../schema'
-import type { OptionalId, Project, ProjectHomeSummary } from '@sdns/core'
+import type { OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
 
 export function listProjects(db: DB): Project[] {
-  return db.select().from(projects).orderBy(projects.updatedAt).all() as unknown as Project[]
+  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all() as unknown as Project[]
 }
 
 export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
-  return db.select().from(projects).orderBy(desc(projects.updatedAt)).all().map((row) => {
+  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all().map((row) => {
     const project = row as unknown as Project
     const projectChapters = db.select().from(chapters).where(eq(chapters.projectId, project.id)).orderBy(desc(chapters.updatedAt)).all()
     const adaptation = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).orderBy(desc(adaptationProjects.updatedAt)).get()
@@ -77,7 +85,7 @@ export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
 }
 
 export function getProject(db: DB, id: string): Project | undefined {
-  const row = db.select().from(projects).where(eq(projects.id, id)).get()
+  const row = db.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))).get()
   return (row as unknown as Project) ?? undefined
 }
 
@@ -98,6 +106,7 @@ export function createProject(db: DB, data: OptionalId<Project>): Project {
     synopsis: data.synopsis ?? null,
     styleGuide: data.styleGuide ?? null,
     visualStyleDirection: data.visualStyleDirection ?? null,
+    deletedAt: null,
   }
   const [row] = insertRow(db, projects, value)
   return row as unknown as Project
@@ -108,17 +117,85 @@ export function updateProject(
   id: string,
   patch: Partial<OptionalId<Project>>,
 ): Project | undefined {
-  const [row] = updateRows(db, projects, { ...patch, updatedAt: now() })
-    .where(eq(projects.id, id))
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, ...safePatch } = patch as Partial<OptionalId<Project>> & {
+    id?: string
+    createdAt?: string
+    updatedAt?: string
+    deletedAt?: string
+  }
+  const [row] = updateRows(db, projects, { ...safePatch, updatedAt: now() })
+    .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
     .returning()
     .all()
   return (row as unknown as Project) ?? undefined
 }
 
-export function deleteProject(db: DB, id: string): void {
+/** 移入废纸篓不会触碰任何关联记录，恢复后所有内容保持原样。 */
+export function trashProject(db: DB, id: string): TrashedProject | undefined {
+  const deletedAt = now()
+  const [row] = updateRows(db, projects, { deletedAt, updatedAt: deletedAt })
+    .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
+    .returning()
+    .all()
+  return row ? row as unknown as TrashedProject : undefined
+}
+
+export function listTrashedProjects(db: DB): TrashedProject[] {
+  return db.select().from(projects).where(isNotNull(projects.deletedAt)).orderBy(desc(projects.deletedAt)).all() as unknown as TrashedProject[]
+}
+
+export function restoreProject(db: DB, id: string): Project | undefined {
+  const [row] = updateRows(db, projects, { deletedAt: null, updatedAt: now() })
+    .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)))
+    .returning()
+    .all()
+  return (row as unknown as Project) ?? undefined
+}
+
+/**
+ * 最终清理前的可见影响范围。保留策略：废纸篓默认长期保留，绝不后台静默清空；
+ * 只有用户在界面完成项目名强确认后才会调用 purgeProject。
+ */
+export function getProjectDeletionPreview(db: DB, id: string): ProjectDeletionPreview | undefined {
+  const project = listTrashedProjects(db).find((item) => item.id === id)
+  if (!project) return undefined
+  // 这里保留显式计数，既便于 UI 解释，也让后续扩展时不遗漏最终清理范围。
+  const chaptersCount = db.select({ id: chapters.id }).from(chapters).where(eq(chapters.projectId, id)).all().length
+  const charactersCount = db.select({ id: characters.id }).from(characters).where(eq(characters.projectId, id)).all().length
+  const outlinesCount = db.select({ id: outlines.id }).from(outlines).where(eq(outlines.projectId, id)).all().length
+  const storyArcsCount = db.select({ id: storyArcs.id }).from(storyArcs).where(eq(storyArcs.projectId, id)).all().length
+  const adaptationsCount = db.select({ id: adaptationProjects.id }).from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, id)).all().length
+  const assetsCount = db.select({ id: projectAssets.id }).from(projectAssets).where(eq(projectAssets.projectId, id)).all().length
+  const versionsCount = db.select({ id: contentVersions.id }).from(contentVersions).where(eq(contentVersions.projectId, id)).all().length
+  const creativeReports =
+    db.select({ id: freshnessReports.id }).from(freshnessReports).where(eq(freshnessReports.projectId, id)).all().length +
+    db.select({ id: antiTropeVariants.id }).from(antiTropeVariants).where(eq(antiTropeVariants.projectId, id)).all().length +
+    db.select({ id: revisionTasks.id }).from(revisionTasks).where(eq(revisionTasks.projectId, id)).all().length +
+    db.select({ id: qualityGateReports.id }).from(qualityGateReports).where(eq(qualityGateReports.projectId, id)).all().length +
+    db.select({ id: audienceSimulations.id }).from(audienceSimulations).where(eq(audienceSimulations.projectId, id)).all().length +
+    db.select({ id: narrativeCurveReports.id }).from(narrativeCurveReports).where(eq(narrativeCurveReports.projectId, id)).all().length +
+    db.select({ id: workflowRuns.id }).from(workflowRuns).where(eq(workflowRuns.projectId, id)).all().length
+  const dependencies = {
+    chapters: chaptersCount,
+    characters: charactersCount,
+    outlines: outlinesCount,
+    storyArcs: storyArcsCount,
+    adaptations: adaptationsCount,
+    assets: assetsCount,
+    contentVersions: versionsCount,
+    creativeReports,
+  }
+  return { project, dependencies, totalRecords: 1 + Object.values(dependencies).reduce((total, value) => total + value, 0) }
+}
+
+/** 仅允许清理已在废纸篓中的项目，避免任何调用方绕过可恢复删除。 */
+export function purgeProject(db: DB, id: string, confirmationTitle: string): boolean {
+  const trashed = db.select({ id: projects.id, title: projects.title }).from(projects).where(and(eq(projects.id, id), isNotNull(projects.deletedAt))).get()
+  if (!trashed || confirmationTitle !== trashed.title) return false
   db.transaction((tx) => {
     deleteProjectRows(tx as DB, id)
   })
+  return true
 }
 
 function deleteProjectRows(db: DB, id: string): void {
@@ -130,6 +207,7 @@ function deleteProjectRows(db: DB, id: string): void {
     .map((r) => r.id)
 
   for (const adaptationId of adaptationIds) deleteAdaptationChildren(db, adaptationId)
+  deleteVideoTasksByProject(db, id)
 
   db.delete(chapters).where(eq(chapters.projectId, id)).run()
   db.delete(characters).where(eq(characters.projectId, id)).run()
@@ -142,6 +220,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(aiRuns).where(eq(aiRuns.projectId, id)).run()
   db.delete(longTasks).where(eq(longTasks.projectId, id)).run()
   db.delete(projectAssets).where(eq(projectAssets.projectId, id)).run()
+  db.delete(templateRuns).where(eq(templateRuns.projectId, id)).run()
   db.delete(chapterMemories).where(eq(chapterMemories.projectId, id)).run()
   db.delete(characterStates).where(eq(characterStates.projectId, id)).run()
   db.delete(characterVisualProfiles).where(eq(characterVisualProfiles.projectId, id)).run()
@@ -152,6 +231,14 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(highlightAnalyses).where(eq(highlightAnalyses.projectId, id)).run()
   db.delete(aiVideoFeasibilityReports).where(eq(aiVideoFeasibilityReports.projectId, id)).run()
   db.delete(dramaTrendReports).where(eq(dramaTrendReports.projectId, id)).run()
+  db.delete(freshnessReports).where(eq(freshnessReports.projectId, id)).run()
+  db.delete(antiTropeVariants).where(eq(antiTropeVariants.projectId, id)).run()
+  db.delete(revisionTasks).where(eq(revisionTasks.projectId, id)).run()
+  db.delete(contentVersions).where(eq(contentVersions.projectId, id)).run()
+  db.delete(qualityGateReports).where(eq(qualityGateReports.projectId, id)).run()
+  db.delete(audienceSimulations).where(eq(audienceSimulations.projectId, id)).run()
+  db.delete(narrativeCurveReports).where(eq(narrativeCurveReports.projectId, id)).run()
+  db.delete(workflowRuns).where(eq(workflowRuns.projectId, id)).run()
   db.delete(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, id)).run()
   db.delete(projects).where(eq(projects.id, id)).run()
 }
@@ -172,6 +259,12 @@ function deleteAdaptationChildren(db: DB, adaptationId: string): void {
 
   for (const scriptId of scriptIds) deleteScriptChildren(db, scriptId)
   for (const episodeId of episodeIds) deleteVideoTasksByEpisode(db, episodeId)
+
+  // 部分报告/任务只记录改编 ID，最终清理也必须覆盖这些记录。
+  db.delete(longTasks).where(eq(longTasks.adaptationProjectId, adaptationId)).run()
+  db.delete(qualityGateReports).where(eq(qualityGateReports.adaptationProjectId, adaptationId)).run()
+  db.delete(narrativeCurveReports).where(eq(narrativeCurveReports.adaptationProjectId, adaptationId)).run()
+  db.delete(workflowRuns).where(eq(workflowRuns.adaptationProjectId, adaptationId)).run()
 
   db.delete(scripts).where(eq(scripts.adaptationProjectId, adaptationId)).run()
   db.delete(episodes).where(eq(episodes.adaptationProjectId, adaptationId)).run()
@@ -217,6 +310,16 @@ function deleteVideoTasksByEpisode(db: DB, episodeId: string): void {
     .select({ id: videoGenerationTasks.id })
     .from(videoGenerationTasks)
     .where(eq(videoGenerationTasks.episodeId, episodeId))
+    .all()
+    .map((r) => r.id)
+  for (const taskId of taskIds) deleteVideoTaskWithResults(db, taskId)
+}
+
+function deleteVideoTasksByProject(db: DB, projectId: string): void {
+  const taskIds = db
+    .select({ id: videoGenerationTasks.id })
+    .from(videoGenerationTasks)
+    .where(eq(videoGenerationTasks.projectId, projectId))
     .all()
     .map((r) => r.id)
   for (const taskId of taskIds) deleteVideoTaskWithResults(db, taskId)
