@@ -332,7 +332,7 @@ make platform-e2e
 | Loop | P | Owner | 状态 | 单一目标 | 主要范围 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- |
 | LM4-00 | P0 | QA/产品体验 | done | 建立可重复的 UI、无障碍和状态基线 Gate | Desktop UI harness、fixtures、截图、审计文档 | 无 |
-| LM4-01 | P0 | Desktop/数据可靠性 | todo | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
+| LM4-01 | P0 | Desktop/数据可靠性 | done | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
 | LM4-02 | P0 | Desktop/工作流 | todo | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
 | LM4-03 | P0 | Web/Billing | todo | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
 | LM4-04 | P0 | Release/QA | todo | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
@@ -940,4 +940,20 @@ Push: cf2d97e pushed to origin/main successfully on 2026-07-19.
 Loop branch cleanup: Local loop/lm4-00-ui-baseline deleted after successful main push.
 Current branch/worktree: main; clean at record creation (ignored local UI artifacts excluded).
 Notes: 11 existing missing accessible-name observations are recorded as baseline evidence, not waived; LM4-19 owns corrective a11y gates.
+```
+
+```text
+Loop: LM4-01
+Target branch: main
+Loop branch: loop/lm4-01-content-persistence
+Commit(s): 8289809 loop: protect core editor drafts
+Merge commit: 1b11dcc merge: LM4-01 core editor draft persistence
+Verification: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (121/121); pnpm test:db; pnpm test:e2e (includes draft-autosave-on-immediate-route-leave); pnpm test:ui (5 screenshots, 11 recorded a11y observations); git diff --check origin/main...HEAD.
+UI/manual evidence: Reviewed the script editor saved-state badge in the LM4-01 UI baseline run. Production Electron E2E typed into Script and Shot editors and immediately navigated away; restricted IPC reads confirmed the latest content had reached SQLite. docs/loop/LM4-01-内容持久化.md records the local recovery and close-flush behavior.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, or runtime artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 878af64 before branch creation and again before merge.
+Push: 1b11dcc pushed to origin/main successfully on 2026-07-19; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-01-content-persistence deleted after successful main push.
+Current branch/worktree: main; clean before completion-record commit (ignored local UI artifacts excluded).
+Notes: Recovery data stays only in renderer localStorage and is cleared after a confirmed SQLite save. Native close waits for registered renderer flushes; the existing preview/adopt path continues to protect unsaved manual text from AI overwrite.
 ```
