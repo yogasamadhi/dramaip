@@ -19,16 +19,15 @@ export interface VideoProductionEstimate {
 const PENDING_REAL_ADAPTERS = new Set<VideoProviderConfig['kind']>([
   'jimeng',
   'kling',
-  'hailuo',
   'runway',
   'pika',
 ])
 
 /**
- * Do not let a config-only adapter look usable. Real domestic providers remain disabled until
+ * Do not let a config-only adapter look usable. Pending domestic providers remain disabled until
  * their dedicated adapter loops provide an official request mapping and sandbox evidence.
  */
-export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'kind' | 'baseUrl' | 'apiKey'>): VideoProviderCapability {
+export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'kind' | 'baseUrl' | 'apiKey' | 'defaultParams'>): VideoProviderCapability {
   if (PENDING_REAL_ADAPTERS.has(config.kind)) {
     return {
       canSubmit: false,
@@ -53,6 +52,24 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
       reason: 'OpenAI Sora 缺少 API Key，不能提交任务。',
     }
   }
+  if (config.kind === 'hailuo') {
+    if (!config.apiKey?.trim()) {
+      return {
+        canSubmit: false,
+        supportsReferenceImages: true,
+        supportsRemoteCancel: false,
+        reason: 'MiniMax Hailuo 缺少 API Key，不能提交任务。',
+      }
+    }
+    if (!isVideoProviderFeatureEnabled(config)) {
+      return {
+        canSubmit: false,
+        supportsReferenceImages: true,
+        supportsRemoteCancel: false,
+        reason: 'MiniMax Hailuo 生产渠道开关尚未开启，不能提交任务。',
+      }
+    }
+  }
   return {
     canSubmit: true,
     supportsReferenceImages: true,
@@ -60,6 +77,18 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
     // stop local tracking through the persisted LongTask boundary.
     supportsRemoteCancel: false,
   }
+}
+
+/**
+ * A provider-local, persisted release switch. It is intentionally opt-in so adding an API key
+ * cannot accidentally create a billable external task. The flag is not a secret and is stored
+ * alongside the provider defaults; the key itself remains in the operating-system keychain.
+ */
+export function isVideoProviderFeatureEnabled(
+  config: Pick<VideoProviderConfig, 'kind' | 'defaultParams'>,
+): boolean {
+  if (config.kind !== 'hailuo') return true
+  return parseParams(config.defaultParams).featureEnabled === true
 }
 
 /** Builds a bounded local estimate from optional provider defaults without claiming an external quote. */

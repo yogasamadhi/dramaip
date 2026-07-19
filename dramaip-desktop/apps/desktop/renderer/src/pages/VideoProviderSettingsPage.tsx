@@ -42,12 +42,38 @@ const EMPTY: FormState = {
 }
 
 const PROVIDER_DEFAULTS: Record<string, Partial<Pick<FormState, 'name' | 'baseUrl' | 'model' | 'defaultParams'>>> = {
+  hailuo: {
+    name: 'MiniMax Hailuo',
+    baseUrl: 'https://api.minimaxi.com',
+    model: 'MiniMax-Hailuo-2.3',
+    // A real-provider default must be non-billable until the user explicitly enables it.
+    defaultParams: '{"duration":6,"resolution":"768P","prompt_optimizer":true,"featureEnabled":false}',
+  },
   openai_sora: {
     name: 'OpenAI Sora',
     baseUrl: 'https://api.openai.com/v1',
     model: 'sora-2',
     defaultParams: '{"size":"720x1280","seconds":"8"}',
   },
+}
+
+function hailuoFeatureEnabled(defaultParams: string): boolean {
+  try {
+    const params = JSON.parse(defaultParams) as unknown
+    return Boolean(params && typeof params === 'object' && !Array.isArray(params) && (params as Record<string, unknown>).featureEnabled === true)
+  } catch {
+    return false
+  }
+}
+
+function setHailuoFeatureEnabled(defaultParams: string, enabled: boolean): string {
+  try {
+    const parsed = JSON.parse(defaultParams) as unknown
+    const params = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+    return JSON.stringify({ ...params, featureEnabled: enabled })
+  } catch {
+    return JSON.stringify({ duration: 6, resolution: '768P', prompt_optimizer: true, featureEnabled: enabled })
+  }
 }
 
 function isKnownDefault(field: keyof typeof PROVIDER_DEFAULTS['openai_sora'], value: string): boolean {
@@ -122,7 +148,7 @@ export function VideoProviderSettingsPage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} aria-label="返回设置">
           <ArrowLeft />
         </Button>
         <h1 className="text-lg font-semibold">视频生成设置</h1>
@@ -140,13 +166,13 @@ export function VideoProviderSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-2">
-                  <Label>名称</Label>
-                  <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例如：默认视频生成" />
+                  <Label htmlFor="video-provider-name">名称</Label>
+                  <Input id="video-provider-name" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例如：默认视频生成" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Provider 种类</Label>
+                  <Label htmlFor="video-provider-kind">Provider 种类</Label>
                   <Select value={form.kind} onValueChange={handleKindChange}>
-                    <SelectTrigger>
+                    <SelectTrigger id="video-provider-kind" aria-label="Provider 种类">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -159,21 +185,27 @@ export function VideoProviderSettingsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Base URL</Label>
+                  <Label htmlFor="video-provider-base-url">Base URL</Label>
                   <Input
+                    id="video-provider-base-url"
                     value={form.baseUrl}
                     onChange={(e) => set('baseUrl', e.target.value)}
-                    placeholder={form.kind === 'openai_sora' ? 'https://api.openai.com/v1' : 'https://open.volcengineapi.com/...（mock 可留空）'}
+                    placeholder={form.kind === 'openai_sora'
+                      ? 'https://api.openai.com/v1'
+                      : form.kind === 'hailuo'
+                        ? 'https://api.minimaxi.com'
+                        : 'https://open.volcengineapi.com/...（mock 可留空）'}
                     disabled={form.kind === 'mock'}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>API Key</Label>
+                  <Label htmlFor="video-provider-api-key">API Key</Label>
                   <Input
+                    id="video-provider-api-key"
                     type="password"
                     value={form.apiKey}
                     onChange={(e) => set('apiKey', e.target.value)}
-                    placeholder="sk-...（mock 可留空）"
+                    placeholder={form.kind === 'hailuo' ? 'MiniMax API Key（Mock 可留空）' : 'sk-...（Mock 可留空）'}
                     disabled={form.kind === 'mock'}
                   />
                 </div>
@@ -189,21 +221,47 @@ export function VideoProviderSettingsPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label>默认模型</Label>
+                  <Label htmlFor="video-provider-model">默认模型</Label>
                   <Input
+                    id="video-provider-model"
                     value={form.model}
                     onChange={(e) => set('model', e.target.value)}
-                    placeholder={form.kind === 'openai_sora' ? 'sora-2' : '如 kling-v2 / runway-gen4（mock 可留空）'}
+                    placeholder={form.kind === 'openai_sora'
+                      ? 'sora-2'
+                      : form.kind === 'hailuo'
+                        ? 'MiniMax-Hailuo-2.3'
+                        : '如 kling-v2 / runway-gen4（Mock 可留空）'}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>默认参数（JSON，可选）</Label>
+                  <Label htmlFor="video-provider-default-params">默认参数（JSON，可选）</Label>
                   <Input
+                    id="video-provider-default-params"
                     value={form.defaultParams}
                     onChange={(e) => set('defaultParams', e.target.value)}
-                    placeholder={form.kind === 'openai_sora' ? '{"size":"720x1280","seconds":"8"}' : '{"aspect_ratio":"9:16","duration":5}'}
+                    placeholder={form.kind === 'openai_sora'
+                      ? '{"size":"720x1280","seconds":"8"}'
+                      : form.kind === 'hailuo'
+                        ? '{"duration":6,"resolution":"768P","featureEnabled":false}'
+                        : '{"aspect_ratio":"9:16","duration":5}'}
                   />
                 </div>
+                {form.kind === 'hailuo' && (
+                  <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+                    <label className="flex cursor-pointer items-start gap-2 text-sm font-medium">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={hailuoFeatureEnabled(form.defaultParams)}
+                        onChange={(e) => set('defaultParams', setHailuoFeatureEnabled(form.defaultParams, e.target.checked))}
+                      />
+                      启用 MiniMax Hailuo 生产渠道
+                    </label>
+                    <p className="text-muted-foreground">
+                      默认关闭。开启后才允许提交会计费的真实任务；API Key 只保存在系统钥匙串，平台当前不提供远端取消接口。
+                    </p>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -217,7 +275,7 @@ export function VideoProviderSettingsPage() {
                   添加
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；OpenAI Sora 已内置提交与轮询映射，其他真实平台仍需按开放接口补齐。
+                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；OpenAI Sora 与 MiniMax Hailuo 已内置官方提交/轮询映射。即梦、可灵、Runway、Pika 仍需按开放接口补齐。
                 </p>
               </CardContent>
             </Card>
@@ -259,6 +317,7 @@ export function VideoProviderSettingsPage() {
                           <Button
                             size="icon"
                             variant="ghost"
+                            aria-label={`删除视频 Provider ${c.name}`}
                             onClick={async () => {
                               await ipc.videoProvider.remove(c.id)
                               toast.success('已删除')

@@ -2,13 +2,14 @@
 //
 // 这是操作性服务（不经过 LangGraph LLM 流水线）：create/check/retry/compare/select 都是
 // 对 Provider 的网络调用 + DB 记账，因此单独成模块而非注册成 NovelTaskType。
-import type {
-  VideoGenerationInput,
-  VideoGenerationTask,
-  VideoProvider,
-  VideoProviderConfig,
-  VideoProviderResult,
-  VideoResult,
+import {
+  getVideoProviderCapability,
+  type VideoGenerationInput,
+  type VideoGenerationTask,
+  type VideoProvider,
+  type VideoProviderConfig,
+  type VideoProviderResult,
+  type VideoResult,
 } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 import { videoProviderFromConfig } from './factory'
@@ -57,6 +58,8 @@ export async function createVideoGenerationTask(
   const db = repos.db
   const config = repos.videoProviderConfig.getVideoProviderConfig(db, input.providerConfigId)
   if (!config) throw new Error(`未找到视频 Provider 配置 ${input.providerConfigId}`)
+  const capability = getVideoProviderCapability(config)
+  if (!capability.canSubmit) throw new Error(capability.reason ?? '当前视频 Provider 不可提交')
 
   const provider = createProvider(deps, config)
   const providerInput: VideoGenerationInput = {

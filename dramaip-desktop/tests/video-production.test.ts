@@ -40,6 +40,21 @@ test('production console only enables providers with a usable submission path', 
 
   const configuredSora = getVideoProviderCapability(providerConfig('openai_sora', { apiKey: 'masked:v1:configured' }))
   assert.equal(configuredSora.canSubmit, true)
+
+  const disabledHailuo = getVideoProviderCapability(providerConfig('hailuo', {
+    apiKey: 'masked:v1:configured',
+    defaultParams: '{"featureEnabled":false}',
+  }))
+  assert.equal(disabledHailuo.canSubmit, false)
+  assert.match(disabledHailuo.reason ?? '', /生产渠道开关/)
+
+  const enabledHailuo = getVideoProviderCapability(providerConfig('hailuo', {
+    apiKey: 'masked:v1:configured',
+    defaultParams: '{"featureEnabled":true}',
+  }))
+  assert.equal(enabledHailuo.canSubmit, true)
+  assert.equal(enabledHailuo.supportsReferenceImages, true)
+  assert.equal(enabledHailuo.supportsRemoteCancel, false)
 })
 
 test('production preflight uses bounded local provider defaults for time and cost estimates', () => {

@@ -12,6 +12,7 @@
     "package:smoke:dir": "node scripts/package-smoke.mjs --dir",
     "test:e2e": "node scripts/e2e-smoke.mjs",
     "test:e2e:skip-build": "node scripts/e2e-smoke.mjs --skip-build",
+    "test:hailuo:sandbox": "node --import tsx scripts/hailuo-sandbox-smoke.ts",
     "test:ui": "node scripts/ui-baseline.mjs",
     "test:ui:skip-build": "node scripts/ui-baseline.mjs --skip-build",
     "db:generate": "pnpm --filter @sdns/db generate",

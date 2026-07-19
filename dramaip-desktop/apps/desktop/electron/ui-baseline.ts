@@ -27,6 +27,7 @@ interface UiBaselineSpec {
   openAiContextPreview?: boolean
   openTextDiffPreview?: boolean
   openVideoComparison?: boolean
+  openHailuoProviderForm?: boolean
 }
 
 interface UiFixture {
@@ -377,6 +378,18 @@ export async function runDesktopUiBaseline(
       reducedMotion: true,
     },
     {
+      name: 'hailuo-settings-1024-light',
+      hash: '#/settings/video',
+      expectedText: '视频生成设置',
+      readyText: '新增视频 Provider',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+      openHailuoProviderForm: true,
+    },
+    {
       name: 'task-monitor-recovery-1320-light',
       hash: '#/settings/tasks',
       expectedText: 'UI 基线失败任务',
@@ -417,6 +430,7 @@ export async function runDesktopUiBaseline(
         openAiContextPreview: spec.openAiContextPreview,
         openTextDiffPreview: spec.openTextDiffPreview,
         openVideoComparison: spec.openVideoComparison,
+        openHailuoProviderForm: spec.openHailuoProviderForm,
       })})`,
       true,
     ) as string[]
@@ -494,6 +508,14 @@ function seedUiFixture(): UiFixture {
     model: 'mock-v1',
     defaultParams: '{"seconds":4,"estimatedCost":0,"currency":"CNY"}',
     isDefault: true,
+  })
+  repos.videoProviderConfig.createVideoProviderConfig(repos.db, {
+    name: 'UI 基线 MiniMax Hailuo（默认关闭）',
+    kind: 'hailuo',
+    baseUrl: 'https://api.minimaxi.com',
+    model: 'MiniMax-Hailuo-2.3',
+    defaultParams: '{"duration":6,"resolution":"768P","prompt_optimizer":true,"featureEnabled":false}',
+    isDefault: false,
   })
   repos.videoTask.createVideoTask(repos.db, {
     projectId: project.id,
@@ -671,6 +693,7 @@ async function prepareRendererForUiBaseline(input: {
   openAiContextPreview?: boolean
   openTextDiffPreview?: boolean
   openVideoComparison?: boolean
+  openHailuoProviderForm?: boolean
 }): Promise<string[]> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
   const waitFor = async (label: string, probe: () => boolean, timeoutMs = 8000): Promise<void> => {
@@ -739,6 +762,23 @@ async function prepareRendererForUiBaseline(input: {
       .forEach((button) => button.click())
     await waitFor('清除视频对比选择', () => !document.querySelector('[data-video-comparison]'))
     document.querySelector('[data-video-preflight]')?.scrollIntoView({ block: 'start' })
+  }
+  if (input.openHailuoProviderForm) {
+    const providerTrigger = Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]'))
+      .find((element) => (element.textContent ?? '').includes('Mock'))
+    if (!providerTrigger) throw new Error('UI 基线未找到视频 Provider 种类选择器')
+    providerTrigger.click()
+    await waitFor('海螺 Hailuo 选项', () => (document.body.textContent ?? '').includes('海螺 Hailuo'))
+    const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+      .find((element) => (element.textContent ?? '').includes('海螺 Hailuo'))
+    if (!option) throw new Error('UI 基线未找到海螺 Hailuo 选项')
+    option.click()
+    await waitFor('Hailuo 生产渠道开关', () => (document.body.textContent ?? '').includes('启用 MiniMax Hailuo 生产渠道'))
+    await waitFor('Provider 下拉菜单关闭', () => !document.querySelector('[role="listbox"]'))
+    const featureToggle = Array.from(document.querySelectorAll<HTMLElement>('label'))
+      .find((element) => (element.textContent ?? '').includes('启用 MiniMax Hailuo 生产渠道'))
+    featureToggle?.scrollIntoView({ block: 'center' })
+    await sleep(120)
   }
   await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
   return Array.from(document.querySelectorAll<HTMLElement>(

@@ -135,11 +135,100 @@ export const openAiSoraVideoProviderAdapter: VideoProviderAdapter = {
   },
 }
 
+/**
+ * MiniMax Hailuo's official API is deliberately modeled as three separate steps:
+ * create task, query task, and retrieve the completed file's download URL.  The shared HTTP
+ * provider executes the final retrieval through this adapter instead of leaking the MiniMax
+ * file API into renderer, IPC, or persistence code.
+ */
+export const hailuoVideoProviderAdapter: VideoProviderAdapter = {
+  kind: 'hailuo',
+  label: VIDEO_PROVIDER_KIND_LABELS['hailuo'] ?? '海螺 Hailuo',
+  authHeaders,
+  createTaskRequest(input, config) {
+    const baseUrl = baseUrlOrDefault(config, MINIMAX_DEFAULT_BASE_URL)
+    const params = objectParams(input.defaultParams ?? config.defaultParams)
+    const referenceImage = stringOrUndefined(input.referenceImageUrls?.[0])
+    const duration = hailuoDuration(params.duration ?? params.seconds)
+    const model = stringParam(input.model ?? config.model ?? params.model, 'MiniMax-Hailuo-2.3')
+    const firstFrameImage = referenceImage ?? stringOrUndefined(params.first_frame_image)
+    const lastFrameImage = model === 'MiniMax-Hailuo-02' ? stringOrUndefined(params.last_frame_image) : undefined
+    if (firstFrameImage && !isHailuoImageReference(firstFrameImage)) {
+      throw new Error('MiniMax Hailuo 参考图必须是可公开访问的 HTTPS URL 或 data:image Base64；本地文件不会自动上传')
+    }
+    if (lastFrameImage && !isHailuoImageReference(lastFrameImage)) {
+      throw new Error('MiniMax Hailuo 尾帧必须是可公开访问的 HTTPS URL 或 data:image Base64；本地文件不会自动上传')
+    }
+    const body = pruneUndefined({
+      model,
+      prompt: input.prompt,
+      // Hailuo does not accept a separate negative prompt. Do not concatenate it into the
+      // authored prompt, which would silently change its semantics.
+      first_frame_image: firstFrameImage,
+      // The documented start/end-frame mode belongs to Hailuo-02. Do not silently submit an
+      // unsupported parameter to the newer default model.
+      last_frame_image: lastFrameImage,
+      duration,
+      resolution: hailuoResolution(params.resolution, duration),
+      prompt_optimizer: booleanParam(params.prompt_optimizer, true),
+      fast_pretreatment: booleanOrUndefined(params.fast_pretreatment),
+      aigc_watermark: booleanOrUndefined(params.aigc_watermark),
+    })
+    return {
+      method: 'POST',
+      url: `${baseUrl}/v1/video_generation`,
+      headers: jsonHeaders(this.authHeaders(config)),
+      body,
+      timeoutMs: 120_000,
+      retries: 1,
+    }
+  },
+  getTaskStatusRequest(remoteTaskId, config) {
+    const baseUrl = baseUrlOrDefault(config, MINIMAX_DEFAULT_BASE_URL)
+    return {
+      method: 'GET',
+      url: `${baseUrl}/v1/query/video_generation?task_id=${encodeURIComponent(remoteTaskId)}`,
+      headers: jsonHeaders(this.authHeaders(config)),
+      timeoutMs: 60_000,
+      retries: 2,
+    }
+  },
+  mapTaskState(raw) {
+    return mapHailuoTaskState(raw)
+  },
+  getResultRequest(taskResponse, config) {
+    const fileId = hailuoFileId(taskResponse)
+    if (!fileId) return undefined
+    const baseUrl = baseUrlOrDefault(config, MINIMAX_DEFAULT_BASE_URL)
+    return {
+      method: 'GET',
+      url: `${baseUrl}/v1/files/retrieve?file_id=${encodeURIComponent(fileId)}`,
+      headers: jsonHeaders(this.authHeaders(config)),
+      timeoutMs: 60_000,
+      retries: 2,
+    }
+  },
+  mapTaskResults(taskResponse, resultResponse) {
+    const response = resultResponse as HailuoFileResponse
+    const error = hailuoErrorMessage(response.base_resp?.status_code, response.base_resp?.status_msg)
+    if (error) throw new Error(error)
+    const downloadUrl = stringOrUndefined(response.file?.download_url)
+    if (!downloadUrl) return []
+    return [{
+      resultVideoUrl: downloadUrl,
+      rawMeta: safeStringify({ task: taskResponse, file: resultResponse }),
+    }]
+  },
+  normalizeError(error, phase) {
+    return normalizeVideoProviderError(this.label, phase, error)
+  },
+}
+
 export const VIDEO_PROVIDER_ADAPTERS: Record<Exclude<VideoProviderKind, 'mock'>, VideoProviderAdapter> = {
   custom: customVideoProviderAdapter,
   jimeng: notImplementedRealPlatformAdapter('jimeng'),
   kling: notImplementedRealPlatformAdapter('kling'),
-  hailuo: notImplementedRealPlatformAdapter('hailuo'),
+  hailuo: hailuoVideoProviderAdapter,
   runway: notImplementedRealPlatformAdapter('runway'),
   pika: notImplementedRealPlatformAdapter('pika'),
   openai_sora: openAiSoraVideoProviderAdapter,
@@ -211,6 +300,59 @@ export function mapOpenAiSoraTaskState(raw: unknown): VideoProviderTaskState {
   }
 }
 
+interface HailuoTaskResponse {
+  task_id?: string | number
+  status?: string
+  file_id?: string | number
+  error_message?: string
+  base_resp?: {
+    status_code?: number
+    status_msg?: string
+  }
+}
+
+interface HailuoFileResponse {
+  file?: {
+    file_id?: string | number
+    download_url?: string
+  }
+  base_resp?: {
+    status_code?: number
+    status_msg?: string
+  }
+}
+
+/** Map documented MiniMax task and business-error responses to the shared task vocabulary. */
+export function mapHailuoTaskState(raw: unknown): VideoProviderTaskState {
+  const response = raw as HailuoTaskResponse
+  const code = response.base_resp?.status_code
+  const message = hailuoErrorMessage(code, response.base_resp?.status_msg)
+    ?? (code === undefined ? stringOrUndefined(response.error_message) : undefined)
+  if (code !== undefined && code !== 0) {
+    return {
+      status: 'failed',
+      remoteTaskId: valueToString(response.task_id),
+      errorMessage: message,
+      results: [],
+    }
+  }
+
+  const rawStatus = (response.status ?? '').trim().toLowerCase()
+  const status: VideoTaskStatus = rawStatus === 'success'
+    ? 'success'
+    : rawStatus === 'fail' || rawStatus === 'failed'
+      ? 'failed'
+      : rawStatus === 'processing'
+        ? 'running'
+        : 'pending'
+  return {
+    status,
+    remoteTaskId: valueToString(response.task_id),
+    errorMessage: status === 'failed' ? message ?? 'MiniMax Hailuo 返回任务失败' : undefined,
+    results: [],
+  }
+}
+
 export function normalizeVideoProviderError(label: string, phase: VideoProviderRequestPhase, error: unknown): Error {
   const action = phase === 'create' ? '提交' : '查询'
   if (error instanceof HttpRequestError) return new Error(`${label} 视频任务${action}失败：${error.message}`)
@@ -251,6 +393,7 @@ function requireBaseUrl(config: VideoProviderRuntimeConfig, label: string): stri
 }
 
 const OPENAI_SORA_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
+const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimaxi.com'
 
 function baseUrlOrDefault(config: VideoProviderRuntimeConfig, defaultBaseUrl: string): string {
   return config.baseUrl?.trim().replace(/\/+$/, '') || defaultBaseUrl
@@ -304,6 +447,51 @@ function omitOpenAiSoraAliases(params: Record<string, unknown>): Record<string, 
 
 function stringOrUndefined(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function valueToString(value: unknown): string | undefined {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : undefined
+}
+
+function hailuoFileId(raw: unknown): string | undefined {
+  return valueToString((raw as HailuoTaskResponse).file_id)
+}
+
+function isHailuoImageReference(value: string): boolean {
+  return /^https:\/\//i.test(value) || /^data:image\/(?:jpeg|jpg|png|webp);base64,/i.test(value)
+}
+
+function hailuoDuration(value: unknown): number {
+  const parsed = typeof value === 'string' ? Number(value) : value
+  return parsed === 10 ? 10 : 6
+}
+
+function hailuoResolution(value: unknown, duration: number): string {
+  const normalized = stringOrUndefined(value)?.toUpperCase()
+  if (duration === 10 && normalized === '1080P') return '768P'
+  return normalized === '512P' || normalized === '1080P' ? normalized : '768P'
+}
+
+function booleanParam(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function booleanOrUndefined(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function hailuoErrorMessage(code: number | undefined, detail?: string): string | undefined {
+  if (code === undefined || code === 0) return undefined
+  const category = new Map<number, string>([
+    [1002, '请求被限流，请稍后重试'],
+    [1004, 'API Key 鉴权失败，请检查钥匙串中的凭据'],
+    [1008, '账户额度不足，请检查 MiniMax 账户余额'],
+    [1026, '输入内容未通过平台内容审核，请调整镜头描述'],
+    [1027, '生成结果未通过平台内容审核，请调整镜头描述'],
+    [2013, '请求参数无效，请检查模型、时长、分辨率与参考图'],
+    [2049, 'API Key 无效，请检查钥匙串中的凭据'],
+  ]).get(code) ?? `平台业务错误（${code}）`
+  return detail && detail !== 'success' ? `${category}：${detail}` : category
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {

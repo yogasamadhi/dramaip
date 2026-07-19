@@ -114,6 +114,32 @@ test('video generation create preserves provider failed status', async () => {
   assert.equal(result.results.length, 0)
 })
 
+test('video generation service enforces a real-provider feature gate outside the renderer', async () => {
+  const config = {
+    ...providerConfig(),
+    kind: 'hailuo' as const,
+    apiKey: 'keychain:configured',
+    defaultParams: '{"featureEnabled":false}',
+  }
+  const { repos } = createVideoServiceRepos(config)
+  let providerCreated = false
+
+  await assert.rejects(
+    () => createVideoGenerationTask({
+      repos,
+      videoProviderFactory: () => {
+        providerCreated = true
+        throw new Error('must not construct a disabled provider')
+      },
+    }, {
+      providerConfigId: 'provider-1',
+      prompt: 'safe prompt',
+    }),
+    /生产渠道开关/,
+  )
+  assert.equal(providerCreated, false)
+})
+
 test('video generation create stores archived local asset paths', async () => {
   const { repos } = createVideoServiceRepos(providerConfig())
   const result = await createVideoGenerationTask({

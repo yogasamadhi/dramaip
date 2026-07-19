@@ -76,7 +76,15 @@ export class HttpVideoProvider implements VideoProvider {
     try {
       const request = this.adapter.getTaskStatusRequest(remoteTaskId, this.config)
       const raw = await this.transport.request(request)
-      return this.adapter.mapTaskState(raw, 'status')
+      const state = this.adapter.mapTaskState(raw, 'status')
+      const resultRequest = state.status === 'success'
+        ? this.adapter.getResultRequest?.(raw, this.config)
+        : undefined
+      if (!resultRequest || !this.adapter.mapTaskResults) return state
+      const resultResponse = await this.transport.request(resultRequest)
+      const results = this.adapter.mapTaskResults(raw, resultResponse)
+      if (!results.length) throw new Error(`${this.adapter.label} 已完成任务但未返回可下载的视频结果`)
+      return { ...state, results }
     } catch (error) {
       throw this.adapter.normalizeError(error, 'status')
     }
