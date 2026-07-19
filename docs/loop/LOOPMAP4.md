@@ -363,7 +363,7 @@ make platform-e2e
 | LM4-28 | P2 | Web/AI 产品 | partial | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
 | LM4-29 | P2 | Admin/运营 | partial | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
 | LM4-30 | P2 | Sync/隐私 | partial | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
-| LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
+| LM4-31 | P2 | Release | partial | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
 
 ## 8. Loop 详细定义
 
@@ -1459,4 +1459,19 @@ Push: The retained loop branch is pushed after this record; it is not merged int
 Loop branch cleanup: Retained at `loop/lm4-30-encrypted-snapshots` because the implementation requires a future owner-domain snapshot service/store before it can be completed. Cleanup owner: the later parent-to-main sync after all partial blockers are resolved.
 Current branch/worktree: loop/lm4-30-encrypted-snapshots; clean before this completion-record commit (ignored local build output excluded).
 Notes: No Snapshot service/API/store, retention worker, approved production object storage/KMS configuration or LM3-34 production disaster-recovery gate is available in the current environment. The client crypto foundation is therefore safe but intentionally not exposed as a fake upload button, and no project plaintext is sent to the existing Desktop BFF. The required next action is to define and implement a dedicated mTLS owner-domain ciphertext-only Snapshot API with authenticated list/download/delete, bounded resumable upload, retention and deletion proof; then connect the Electron main process and UI using a recovery key held only by Keychain/user. This loop remains `partial`.
+```
+
+```text
+Loop: LM4-31 (partial)
+Target branch: loop/lm4-30-encrypted-snapshots
+Loop branch: loop/lm4-31-release-gate
+Commit(s): pending audit record
+Verification: Desktop `pnpm test` passed (typecheck, 161 unit tests and 9 migration/DB tests); `pnpm test:e2e` passed; `pnpm test:ui:skip-build -- --output=artifacts/lm4-31` produced 30 screenshots with 0 accessibility observations; `pnpm package:smoke:dir` packaged and initialized the macOS arm64 app successfully. Platform `buf lint`, `make test`, `make platform-e2e`, `make observability-smoke`, client `pnpm lint`, `pnpm build:web`, `pnpm build:admin`, Compose E2E and contract/route smoke all passed. Admin's production bundle still warns at 670.94 kB, but this is a performance follow-up, not a test failure.
+Release decision: BLOCKED. LM4-26 requires approved, billable MiniMax Hailuo sandbox evidence; LM4-27 requires approved Alibaba Wan sandbox evidence; LM4-28 remains retained until that parent chain can merge; LM4-29 needs Billing/Notification owner-domain reconciliation/delivery retry APIs; LM4-30 needs the dedicated ciphertext-only Snapshot API/store, retention/deletion proof, production object storage/KMS and LM3-34 disaster-recovery admission. These are not waived by local mocks or builds.
+Diff review: Reviewed the cumulative retained branch lineage through LM4-30, the gate matrix, encryption audit, Admin audit, generated contracts and UI artifacts. `git diff --check` is clean. No secrets, plaintext project packages, recovery keys, local databases, package output or retained visual artifacts are committed.
+Remote sync: The target is retained LM4-30. Parent-to-main sync and post-merge validation are deliberately deferred because the preceding loops are partial.
+Push: The retained gate branch is pushed after this record; no main/release branch is pushed or tagged.
+Loop branch cleanup: Retained at `loop/lm4-31-release-gate` as the audit baseline. Cleanup owner: the final parent-to-main sync after every listed blocker obtains its own evidence and becomes done.
+Current branch/worktree: loop/lm4-31-release-gate; clean before this audit-record commit (ignored local build and UI artifacts excluded).
+Notes: Unsigned/notarization-skipped macOS directory packaging is a local smoke only; no signed distributable is claimed. The full P0/P1/P2 release is not complete.
 ```
