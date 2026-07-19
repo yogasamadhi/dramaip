@@ -34,7 +34,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/mobile/me/brief", s.handleBrief)
 	mux.HandleFunc("/v1/mobile/drafts", s.handleDrafts)
 	mux.HandleFunc("/v1/mobile/ai/expand", s.handleExpand)
-	return platform.TraceMiddleware("mobile-bff-interface", s.metricsMiddleware(mux))
+	return platform.TraceMiddleware("mobile-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
 func (s *HTTPService) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +282,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 }
 
 func writeError(w http.ResponseWriter, statusCode int, code string) {
-	writeJSON(w, statusCode, map[string]string{"error": code})
+	writeJSON(w, statusCode, map[string]any{"error": platform.ContractErrorBody(w, code)})
 }
 
 func (s *HTTPService) writeGRPCError(w http.ResponseWriter, err error, fallback string) {

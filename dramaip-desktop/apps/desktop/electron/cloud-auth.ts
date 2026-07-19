@@ -10,6 +10,7 @@ import {
   parseDesktopCallback,
   type CloudAuthEndpoints,
 } from './cloud-auth-protocol'
+import { DESKTOP_CONTRACT_HEADER, DESKTOP_CONTRACT_VERSION } from './cloud-contract'
 
 const CLOUD_SESSION_SERVICE = 'com.sdns.studio.cloud-session'
 const CLOUD_SESSION_ACCOUNT = 'current'
@@ -267,7 +268,7 @@ async function fetchJSON(url: string, init: RequestInit): Promise<unknown> {
     const response = await fetch(url, {
       ...init,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      headers: { 'Content-Type': 'application/json', [DESKTOP_CONTRACT_HEADER]: DESKTOP_CONTRACT_VERSION, ...(init.headers ?? {}) },
     })
     if (!response.ok) throw new Error(`云端请求失败（${response.status}）`)
     return await response.json()

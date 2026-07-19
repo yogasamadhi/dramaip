@@ -39,7 +39,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/desktop/ai/chat", s.handleCloudChat)
 	mux.HandleFunc("/v1/desktop/mobile-handoff", s.handleMobileHandoff)
 	mux.HandleFunc("/v1/desktop/mobile-handoff/adopt", s.handleAdoptMobileHandoff)
-	return platform.TraceMiddleware("desktop-bff-interface", s.metricsMiddleware(mux))
+	return platform.TraceMiddleware("desktop-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
 func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -383,7 +383,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 }
 
 func writeError(w http.ResponseWriter, statusCode int, code string) {
-	writeJSON(w, statusCode, map[string]any{"error": map[string]string{"code": code}})
+	writeJSON(w, statusCode, map[string]any{"error": platform.ContractErrorBody(w, code)})
 }
 
 func (s *HTTPService) writeGRPCError(w http.ResponseWriter, err error, fallback string) {

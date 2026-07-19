@@ -12,6 +12,7 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@dramaip/sdk": "workspace:*",
     "echarts": "^5.5.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

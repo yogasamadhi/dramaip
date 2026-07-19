@@ -128,6 +128,39 @@ func TestChatUsesIdempotencyHeader(t *testing.T) {
 	}
 }
 
+func TestUsageQueryParametersReachBFFDependenciesAndRemainBounded(t *testing.T) {
+	quota := &captureUsageQuota{}
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: quota, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+
+	usage := httptest.NewRequest(http.MethodGet, "/v1/me/token-usage?limit=23", nil)
+	usage.Header.Set("Authorization", "Bearer token")
+	usage.Header.Set(platform.ContractVersionHeader, platform.PublicContractVersion)
+	usageRecorder := httptest.NewRecorder()
+	router.ServeHTTP(usageRecorder, usage)
+	if usageRecorder.Code != http.StatusOK || quota.tokenUsageLimit != 23 || usageRecorder.Header().Get(platform.ContractVersionHeader) != platform.PublicContractVersion {
+		t.Fatalf("usage parameter forwarding = status=%d limit=%d headers=%v", usageRecorder.Code, quota.tokenUsageLimit, usageRecorder.Header())
+	}
+
+	trend := httptest.NewRequest(http.MethodGet, "/v1/me/usage-trend?days=31", nil)
+	trend.Header.Set("Authorization", "Bearer token")
+	trendRecorder := httptest.NewRecorder()
+	router.ServeHTTP(trendRecorder, trend)
+	if trendRecorder.Code != http.StatusOK || quota.usageTrendDays != 31 {
+		t.Fatalf("trend parameter forwarding = status=%d days=%d", trendRecorder.Code, quota.usageTrendDays)
+	}
+
+	invalid := httptest.NewRequest(http.MethodGet, "/v1/me/token-usage?limit=101", nil)
+	invalid.Header.Set("Authorization", "Bearer token")
+	invalidRecorder := httptest.NewRecorder()
+	router.ServeHTTP(invalidRecorder, invalid)
+	if invalidRecorder.Code != http.StatusBadRequest || !bytes.Contains(invalidRecorder.Body.Bytes(), []byte(`"trace_id"`)) {
+		t.Fatalf("invalid usage limit = %d: %s", invalidRecorder.Code, invalidRecorder.Body.String())
+	}
+}
+
 func TestPaymentConfirmationDefersNotificationToEventConsumer(t *testing.T) {
 	notification := &fakeNotification{rows: map[string]*notificationv1.Notification{}}
 	uc := biz.NewBFFUsecase(&data.Data{
@@ -674,6 +707,22 @@ func (fakeQuota) ListTokenUsage(context.Context, *quotav1.ListTokenUsageRequest,
 }
 func (fakeQuota) GetUsageTrend(context.Context, *quotav1.GetUsageTrendRequest, ...grpc.CallOption) (*quotav1.GetUsageTrendReply, error) {
 	return &quotav1.GetUsageTrendReply{Points: []*quotav1.UsageTrendPoint{{Date: "2026-07-07", TotalTokens: 2}}}, nil
+}
+
+type captureUsageQuota struct {
+	fakeQuota
+	tokenUsageLimit int32
+	usageTrendDays  int32
+}
+
+func (f *captureUsageQuota) ListTokenUsage(ctx context.Context, req *quotav1.ListTokenUsageRequest, options ...grpc.CallOption) (*quotav1.ListTokenUsageReply, error) {
+	f.tokenUsageLimit = req.GetLimit()
+	return f.fakeQuota.ListTokenUsage(ctx, req, options...)
+}
+
+func (f *captureUsageQuota) GetUsageTrend(ctx context.Context, req *quotav1.GetUsageTrendRequest, options ...grpc.CallOption) (*quotav1.GetUsageTrendReply, error) {
+	f.usageTrendDays = req.GetDays()
+	return f.fakeQuota.GetUsageTrend(ctx, req, options...)
 }
 
 type fakeAI struct{}

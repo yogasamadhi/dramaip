@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store'
+import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, MobileBriefSchema, MobileSessionSchema, contractErrorCode } from '@dramaip/sdk/contracts'
 
 const REFRESH_TOKEN_KEY = 'com.dramaip.mobile.refresh-token.v1'
 const DEVICE_ID_KEY = 'com.dramaip.mobile.device-id.v1'
@@ -59,12 +60,9 @@ export async function getBrief(): Promise<MobileBrief> {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
-  const payload = record(response)
-  const displayName = string(payload.display_name)
-  const plan = string(payload.plan)
-  const remainingTokens = nonnegativeInteger(payload.remaining_tokens)
-  if (!displayName || !plan || remainingTokens === undefined) throw new Error('移动端账户响应无效')
-  return { displayName, plan, remainingTokens }
+  const payload = MobileBriefSchema.safeParse(response)
+  if (!payload.success) throw new Error('移动端账户响应无效')
+  return { displayName: payload.data.display_name, plan: payload.data.plan, remainingTokens: payload.data.remaining_tokens }
 }
 
 export async function signOut(): Promise<void> {
@@ -102,16 +100,9 @@ export async function authorizedMobileRequest(path: string, init: RequestInit): 
 
 async function requestSession(path: string, body: Record<string, string>): Promise<SessionReply> {
   const response = await requestJSON(path, { method: 'POST', body: JSON.stringify(body) })
-  const payload = record(response)
-  const access = string(payload.access_token)
-  const refresh = string(payload.refresh_token)
-  const expiresIn = positiveInteger(payload.expires_in)
-  const tokenType = string(payload.token_type)
-  const user = record(payload.user)
-  const userID = string(user.id)
-  const name = string(user.name)
-  if (!access || !refresh || !expiresIn || tokenType !== 'Bearer' || !userID || !name) throw new Error('移动端会话响应无效')
-  return { access, refresh, expiresIn, user: { id: userID, name } }
+  const payload = MobileSessionSchema.safeParse(response)
+  if (!payload.success) throw new Error('移动端会话响应无效')
+  return { access: payload.data.access_token, refresh: payload.data.refresh_token, expiresIn: payload.data.expires_in, user: payload.data.user }
 }
 
 async function persistSession(session: SessionReply): Promise<void> {
@@ -147,10 +138,10 @@ async function requestJSON(path: string, init: RequestInit): Promise<unknown> {
     const response = await fetch(`${mobileBFFOrigin()}${path}`, {
       ...init,
       signal: controller.signal,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', [API_CONTRACT_HEADER]: API_CONTRACT_VERSION, ...(init.headers ?? {}) },
     })
     const body = await response.json().catch(() => undefined)
-    if (!response.ok) throw new MobileRequestError(response.status)
+    if (!response.ok) throw new MobileRequestError(response.status, contractErrorCode(body))
     return body
   } finally {
     clearTimeout(timeout)
@@ -171,8 +162,8 @@ function requireAccessToken(): string {
 }
 
 class MobileRequestError extends Error {
-  constructor(readonly status: number) {
-    super(`移动端请求失败（${status}）`)
+  constructor(readonly status: number, readonly code?: string) {
+    super(code ? `移动端请求失败：${code}` : `移动端请求失败（${status}）`)
   }
 }
 
@@ -181,20 +172,4 @@ interface SessionReply {
   refresh: string
   expiresIn: number
   user: { id: string; name: string }
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? value as Record<string, unknown> : {}
-}
-
-function string(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value : undefined
-}
-
-function positiveInteger(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined
-}
-
-function nonnegativeInteger(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
 }

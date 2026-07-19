@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow } from 'electron'
 import type { ChatInput, ChatOutput, LLMProvider, ModelConfig } from '@sdns/core'
 import { withCloudAccessToken } from './cloud-auth'
+import { DESKTOP_CONTRACT_HEADER, DESKTOP_CONTRACT_VERSION } from './cloud-contract'
 import {
   CLOUD_AI_PROVIDER_ID,
   cloudBaseUrl,
@@ -149,7 +150,7 @@ async function cloudRequest(path: string, init: RequestInit): Promise<unknown> {
       const response = await fetch(`${bffOrigin}${path}`, {
         ...init,
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, [DESKTOP_CONTRACT_HEADER]: DESKTOP_CONTRACT_VERSION, ...(init.headers ?? {}) },
       })
       const payload = await response.json().catch(() => undefined)
       if (!response.ok) throw new Error(cloudRequestError(response.status, payload))

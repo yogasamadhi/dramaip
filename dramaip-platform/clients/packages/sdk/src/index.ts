@@ -1,5 +1,8 @@
 import axios, { type AxiosInstance } from 'axios'
 import { z } from 'zod'
+import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, ListQuerySchema, UsageTrendQuerySchema } from './contracts'
+
+export * from './contracts'
 
 export const TokenBalanceSchema = z.object({
   plan: z.string().default(''),
@@ -308,6 +311,7 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
   const http = axios.create({ baseURL: options.baseURL, withCredentials: options.withCredentials ?? false })
 
   http.interceptors.request.use(async (config) => {
+    config.headers[API_CONTRACT_HEADER] = API_CONTRACT_VERSION
     const token = await options.getAccessToken?.()
     if (token) config.headers.Authorization = `Bearer ${token}`
     const deviceID = await options.getDeviceID?.()
@@ -384,11 +388,11 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       return OrderSchema.parse(res.data)
     },
     async getTokenUsage(input = {}) {
-      const res = await http.get('/v1/me/token-usage', { params: input })
+      const res = await http.get('/v1/me/token-usage', { params: ListQuerySchema.parse(input) })
       return TokenUsageResponseSchema.parse(res.data)
     },
     async getUsageTrend(input = {}) {
-      const res = await http.get('/v1/me/usage-trend', { params: input })
+      const res = await http.get('/v1/me/usage-trend', { params: UsageTrendQuerySchema.parse(input) })
       return UsageTrendResponseSchema.parse(res.data)
     },
     async getNotifications() {
