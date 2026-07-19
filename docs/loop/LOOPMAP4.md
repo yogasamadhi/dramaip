@@ -339,7 +339,7 @@ make platform-e2e
 | LM4-05 | P1 | Design System/前端 | done | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
 | LM4-06 | P1 | Desktop/产品体验 | done | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
 | LM4-07 | P1 | Desktop/项目体验 | done | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
-| LM4-08 | P1 | Desktop/数据生命周期 | todo | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
+| LM4-08 | P1 | Desktop/数据生命周期 | done | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
 | LM4-09 | P1 | Desktop/编辑器 | todo | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
 | LM4-10 | P1 | Desktop/AI 产品 | todo | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
 | LM4-11 | P1 | Desktop/任务可靠性 | todo | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
@@ -1052,4 +1052,20 @@ Push: eed5960 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-07-project-home-creation deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: Project summaries are read-only local aggregates exposed through a narrow IPC route; list rendering does not alter project content. Soft deletion and replacement of native delete confirmation remain LM4-08 and LM4-17 work.
+```
+
+```text
+Loop: LM4-08
+Target branch: main
+Loop branch: loop/lm4-08-project-trash
+Commit(s): 485906d loop: add recoverable project trash
+Merge commit: cead911 merge: LM4-08 recoverable project trash
+Verification: dramaip-desktop pnpm test (127 unit tests plus DB migration v20 replay and soft-delete/restore/purge/search/export smoke); pnpm test:ui (12 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e (includes project-trash-undo-restore-and-strong-purge); pnpm format:check; git diff --check origin/main...HEAD. All passed again after merge.
+UI/manual evidence: The project list has an accessible direct project-trash control. Moving a project to the trash offers Undo; the trash dialog explicitly states that no background automatic purge occurs, and provides restore. Permanent deletion presents direct dependency counts and keeps the destructive action disabled until the exact project title is entered. Electron E2E creates an isolated project and executes Undo, restore, and final typed confirmation.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, local project data, or temporary UI artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 158d148 before merge.
+Push: cead911 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-08-project-trash deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
+Notes: Migration v20 adds nullable project deleted_at without dropping data. Active project reads, search, and export exclude trashed projects; the legacy project delete IPC now maps only to trash. There is no silent time-based purge. Final purge requires the exact title and cleans direct project content plus adaptation video task/result records.
 ```
