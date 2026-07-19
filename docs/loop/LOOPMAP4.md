@@ -344,7 +344,7 @@ make platform-e2e
 | LM4-10 | P1 | Desktop/AI 产品 | done | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
 | LM4-11 | P1 | Desktop/任务可靠性 | done | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
 | LM4-12 | P1 | Desktop/Cloud AI | done | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
-| LM4-13 | P1 | Desktop/AI 数据安全 | todo | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
+| LM4-13 | P1 | Desktop/AI 数据安全 | done | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
 | LM4-14 | P1 | Desktop/AI 体验 | todo | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
 | LM4-15 | P1 | Desktop/改编上下文 | todo | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
 | LM4-16 | P1 | Desktop/质量体验 | todo | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
@@ -1132,4 +1132,20 @@ Push: d763599 pushed to origin/main successfully on 2026-07-20.
 Loop branch cleanup: Local loop/lm4-12-cloud-ai-preflight deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record commit.
 Notes: Every Cloud provider chat now preflights the exact final messages/model/token cap, binds the response to a request hash, and rechecks it server-side before calling a provider. Insufficient balance is rejected by Desktop BFF before Chat; Gateway pre-reservation remains final truth for the preflight-to-execution race. Local/BYOK providers retain their existing local estimate behavior.
+```
+
+```text
+Loop: LM4-13
+Target branch: main
+Loop branch: loop/lm4-13-atomic-revision-adoption
+Commit(s): 44b5838 feat: adopt revision tasks atomically
+Merge commit: 6d17917 merge: LM4-13 atomic revision adoption
+Verification: Before and after merge: dramaip-desktop pnpm format:check; pnpm test (typecheck, 136 unit tests, migration replay and DB smoke); pnpm test:ui (18 screenshots, 0 accessibility observations); pnpm test:e2e (including revision-task-atomic-adopt-and-undo-ipc); pnpm package:smoke; git diff --check. All passed.
+UI/manual evidence: The diagnosis panel exposes a persisted “查看预览” state, a single adopt action, and “撤销采用” after success. The renderer IPC smoke verifies that the one-step undo entry remains available from the packaged Electron bridge; UI fixtures completed in light, dark and reduced-motion variants with no accessibility findings.
+Diff review: Reviewed the v21 migration, persisted preview fingerprint, transactional target revision check, before/after content-version audit, task-state transition and conservative undo guard. No prompt bodies, user content, credentials, database files or build artifacts were committed. Failed/stale candidates roll back entirely, repeated adopt is idempotent, and post-adoption manual edits prevent silent undo overwrite.
+Remote sync: Fetched and fast-forward checked origin/main at 67372ae before the loop branch and again before merge; main had no intervening remote commits.
+Push: 6d17917 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-13-atomic-revision-adoption deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: The legacy separate complete/apply IPC channels now delegate to the same atomic adoption command for compatibility. One-step undo restores the precise pre-adoption snapshot for chapter, script and all three shot prompt fields, while retaining immutable audit evidence.
 ```
