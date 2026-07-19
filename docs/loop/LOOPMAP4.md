@@ -1401,3 +1401,18 @@ Push: The loop branch is retained and pushed after this audit record so an autho
 Current branch/worktree: loop/lm4-26-seedance-provider; clean before this audit-record creation (ignored local build and retained UI artifacts excluded).
 Blocking next action: Run `HAILUO_SANDBOX_ALLOW_BILLING=1 HAILUO_SANDBOX_API_KEY=<securely-injected-key> pnpm test:hailuo:sandbox` only in an approved, billable MiniMax sandbox. Record the redacted result, then complete the mandatory sync/merge/post-merge verification and branch cleanup. Until then LM4-26 remains `partial`, LM4-27 must not start, and no P0/P1/P2 full-completion claim is valid.
 ```
+
+```text
+Loop: LM4-27 (partial)
+Target branch: loop/lm4-26-seedance-provider
+Loop branch: loop/lm4-27-wan-provider
+Commit(s): 8bfee4f feat: add Wan video provider adapter
+Verification: Desktop `pnpm typecheck`; `pnpm test:unit` (159/159); `pnpm format:check`; `pnpm test:e2e`; `pnpm test:ui:skip-build -- --output=artifacts/lm4-27` (30 screenshots, 0 accessibility observations); and `git diff --check` all passed. The final E2E rebuild exercised the existing production video batch, polling, restart/requery and cancellation paths with the exact adapter source committed here.
+UI/manual evidence: The retained 1024px Wan settings baseline shows a distinct Alibaba Cloud Model Studio provider, official base endpoint and model defaults, Keychain-only credential boundary, default-off production switch and explicit queue-only remote-cancel wording. The global 30-scenario baseline includes light/dark/reduced-motion production views and reported no fixed-fixture accessibility observations.
+Sandbox evidence: Full official sandbox E2E is NOT RUN. `pnpm test:wan:sandbox` stopped before network because `WAN_SANDBOX_ALLOW_BILLING=1` was absent. Re-running with only that explicit billing guard stopped before network because the authorized secret-injection environment did not supply `WAN_SANDBOX_API_KEY`. No key, task id, prompt, result URL, downloaded file or billable external request is claimed.
+Diff review: Reviewed the isolated `wan` provider kind, default-off server-side feature flag, request/query/cancel adapter boundaries, documented queued-task cancellation semantics, HTTPS-only reference frames, normalized task/error states, feature/capability preflight and test-double coverage. The adapter sends only documented Alibaba DashScope endpoints, retains no credential in metadata and treats remote-cancel failure as a running/pollable task rather than falsely marking it canceled. No credential, user content, local database, retained screenshot, build output or ignored artifact was committed.
+Remote sync: This branch was created from the fetched, retained LM4-26 partial branch so the independent provider adapter can be reviewed and sandbox-tested without pretending the unresolved parent is merged. Mandatory parent/target sync, merge, target-branch post-merge validation and cleanup remain deferred until both provider sandboxes have redacted official evidence.
+Push: This loop branch is retained and pushed after this audit record. It is not merged into main.
+Current branch/worktree: loop/lm4-27-wan-provider; clean before this audit-record creation (ignored local build and retained UI artifacts excluded).
+Blocking next action: Run `WAN_SANDBOX_ALLOW_BILLING=1 WAN_SANDBOX_API_KEY=<securely-injected-key> pnpm test:wan:sandbox` only in an approved, billable Alibaba Cloud Model Studio sandbox; record the redacted create/query/result/cancel evidence and then complete the parent-to-main sync chain. In accordance with the requested loop policy, proceed to LM4-28 on this retained branch while this blocker remains explicitly recorded.
+```
