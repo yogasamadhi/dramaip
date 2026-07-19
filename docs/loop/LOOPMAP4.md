@@ -343,7 +343,7 @@ make platform-e2e
 | LM4-09 | P1 | Desktop/编辑器 | done | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
 | LM4-10 | P1 | Desktop/AI 产品 | done | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
 | LM4-11 | P1 | Desktop/任务可靠性 | done | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
-| LM4-12 | P1 | Desktop/Cloud AI | todo | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
+| LM4-12 | P1 | Desktop/Cloud AI | done | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
 | LM4-13 | P1 | Desktop/AI 数据安全 | todo | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
 | LM4-14 | P1 | Desktop/AI 体验 | todo | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
 | LM4-15 | P1 | Desktop/改编上下文 | todo | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
@@ -1116,4 +1116,20 @@ Push: 22c9ee9 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-11-task-recovery deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: Startup reconciliation only restores polling for video tasks that already have a persisted remote-task record. Pending/running local AI and batch work, and video work without a recoverable remote record, are conservatively marked failed with a safe retry path; no prompt or write operation is blindly replayed. A per-task in-memory retry claim rejects concurrent duplicate retry submissions.
+```
+
+```text
+Loop: LM4-12
+Target branch: main
+Loop branch: loop/lm4-12-cloud-ai-preflight
+Commit(s): 0d17d62 feat: preflight cloud AI generation authoritatively
+Merge commit: d763599 merge: LM4-12 cloud AI authoritative preflight
+Verification: Before and after merge: dramaip-desktop pnpm format:check; pnpm test (typecheck, 136 unit tests and DB checks); pnpm test:ui (18 screenshots, 0 a11y observations); pnpm test:e2e; pnpm package:smoke; dramaip-platform/services GOCACHE=/tmp/dramaip-go-build go test ./...; git diff --check. All passed.
+UI/manual evidence: The global task dock and task monitor display the authoritative provider/model, estimated tokens and remaining balance after preflight, without persisting prompt content. The isolated 1320px task-monitor recovery fixture and the full light/dark/reduced-motion UI matrix completed with no accessibility findings.
+Diff review: Reviewed the Desktop final-prompt hash, BFF summary recheck, Gateway hash validation, balance guard and quota reservation path. Cross-runtime fixed-vector tests verify Desktop and Go compute the same SHA-256 base64url request hash. No prompt body, credential, or build artifact is written by the new metadata/log path.
+Remote sync: Fetched and fast-forward checked origin/main at 44f447e before the loop branch and again before merge; main had no intervening remote commits.
+Push: d763599 pushed to origin/main successfully on 2026-07-20.
+Loop branch cleanup: Local loop/lm4-12-cloud-ai-preflight deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record commit.
+Notes: Every Cloud provider chat now preflights the exact final messages/model/token cap, binds the response to a request hash, and rechecks it server-side before calling a provider. Insufficient balance is rejected by Desktop BFF before Chat; Gateway pre-reservation remains final truth for the preflight-to-execution race. Local/BYOK providers retain their existing local estimate behavior.
 ```
