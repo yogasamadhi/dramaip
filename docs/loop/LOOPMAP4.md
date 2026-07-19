@@ -352,14 +352,15 @@ make platform-e2e
 | LM4-18 | P1 | 契约治理 | done | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | done | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
-| LM4-21 | P1 | QA/Release | todo | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20 |
-| LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21 |
+| LM4-21 | P1 | QA/Release | partial | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
+| LM4-12R | P1 | Web/Cloud AI | todo | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
+| LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | todo | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
 | LM4-25 | P2 | Desktop/视频产品 | todo | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
 | LM4-26 | P2 | Video Provider | todo | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
 | LM4-27 | P2 | Video Provider | todo | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
-| LM4-28 | P2 | Web/AI 产品 | todo | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12、LM4-18、LM4-21 |
+| LM4-28 | P2 | Web/AI 产品 | todo | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
 | LM4-29 | P2 | Admin/运营 | todo | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
 | LM4-30 | P2 | Sync/隐私 | todo | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
 | LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
@@ -679,6 +680,16 @@ make platform-e2e
   截图和人工 checklist；累计 diff 审查。
 - **风险/回滚边界**：发布 Gate；失败回到对应 LM4-05～20 loop，不在 Gate 直接实现修复。
 
+### LM4-12R：Web Cloud AI 预检绑定兼容修复
+
+- **目标**：恢复既有 Web 同步 Chat 与 LM4-12 权威预检契约的兼容性，使其在调用 Provider 前完成同一最终请求的额度和模型预检。
+- **主要范围**：Web BFF 的同步 preflight/chat 边界、复用的 Go 请求 hash helper、Web SDK 和现有 Chat 页面；与 HTTP/SDK/健康栈回归。
+- **不在范围**：模型目录重构、作者任务 starter、会话历史、stream/cancel/reconnect 或新的计费规则；这些仍归 LM4-28。
+- **内部 checklist**：将 canonical request hash 抽成 Gateway/Web BFF 共用实现；提供受认证、无日志正文的 Web preflight；预检返回估算、余额和请求绑定；SDK 先预检再提交同一 hash；Chat 继续由 Gateway 做最终 hash、幂等和 quota 预扣校验；补齐 HTTP、SDK 和健康栈断言。
+- **验收**：原有 Web Chat 不再返回 `cloud_preflight_request_mismatch`；模型不可用或额度不足在 Provider 调用前可复现地失败；改变 provider/model/messages/max tokens 后旧 hash 不能执行；prompt 和凭据不进入新日志或持久化。
+- **验证**：Gateway/Web BFF hash vector、preflight/chat HTTP tests、SDK/Web Chat tests、`pnpm lint`、`pnpm typecheck`、`pnpm build:web`、`GOCACHE=/tmp/dramaip-go-build go test ./...`、`make platform-e2e`；修复后重跑 LM4-21 Gate。
+- **风险/回滚边界**：Cloud AI 商业路径和共享 hash 协议；可整体回退本兼容层，但不得恢复裸 Chat 或绕过 AI Gateway 的 hash、幂等、预扣和脱敏边界。
+
 ### LM4-22：统一改编生产壳与分集规划
 
 - **目标**：让用户在一个连续上下文中从改编策略推进到分集、剧本、分镜、视频和交付。
@@ -841,9 +852,11 @@ make platform-e2e
 1. LM4-18：版本化客户端契约。
 2. LM4-19：移动草稿生命周期。
 3. LM4-20：账户 read model。
-4. LM4-21：P1 Core Gate。
+4. LM4-21：P1 Core Gate（当前 `partial`，已完成的检查见第 12 节）。
+5. LM4-12R：仅修复 Gate 暴露的 Web Chat 预检兼容性。
+6. 重跑并完成 LM4-21：P1 Core Gate。
 
-阻塞条件：LM4-18 未完成，Mobile/Account 不应继续新增手写协议；LM4-21 未通过，不进入制片工作区正式切换。
+阻塞条件：LM4-18 未完成，Mobile/Account 不应继续新增手写协议；LM4-12R 和 LM4-21 未通过，不进入制片工作区正式切换。LM4-12R 是已完成 LM4-12 的范围受限回归修复，不提前交付 LM4-28 的作者化功能。
 
 ### Batch E：制片体验
 
@@ -924,6 +937,22 @@ Push:
 Loop branch cleanup:
 Current branch/worktree:
 Notes:
+```
+
+### Gate 阻断与续做审计
+
+```text
+Loop: LM4-21 (partial)
+Target branch: main
+Loop branch: loop/lm4-21-core-experience-gate
+Verification: Desktop pnpm format:check; pnpm test (typecheck, 144 unit tests and DB checks); pnpm test:ui (21 screenshots, 0 axe observations); pnpm test:e2e; pnpm package:smoke:dir; and the retained lm4-21 UI baseline matrix all passed. Platform clients pnpm lint; pnpm typecheck; pnpm build:web; pnpm build:admin; pnpm contracts:check and services GOCACHE=/tmp/dramaip-go-build go test ./... all passed. make platform-e2e reached and passed its account-bootstrap assertions, then failed only at the existing Web Chat request with HTTP 409 / cloud_preflight_request_mismatch.
+UI/manual evidence: Retained light/dark/reduced-motion screenshots cover 1024, 1320 and 1600 widths; visual inspection found no critical shell overflow. Keyboard, 300-chapter, task recovery, autosave and package smoke paths passed through Desktop E2E. The Web Chat provider call remains blocked rather than fabricating success.
+Diff review: Gate branch has no product-code diff. Reviewed cumulative LM4-05–20 evidence and confirmed the failing path is the Web BFF/SDK's bare Chat request after LM4-12 made the AI Gateway require a matching preflight hash. Sensitive-file scan found no tracked .env, PEM, key or id_rsa file.
+Remote sync: Started from and remains aligned with origin/main at 9b7f464; no remote divergence observed.
+Push: Not applicable: LM4-21 is not complete and is deliberately not marked done.
+Loop branch cleanup: Deferred while the Gate's documented repair (LM4-12R) is completed and this same Gate is rerun.
+Current branch/worktree: loop/lm4-21-core-experience-gate; tracked worktree contains only this audit/map adjustment.
+Notes: This is a real P1 release blocker. The repair is split from LM4-28 because restoring an already shipped synchronous Web Chat contract has an independent acceptance path and a smaller rollback boundary than model catalog, author UX and streaming. LM4-22–30 remain blocked until LM4-12R succeeds and LM4-21 is rerun.
 ```
 
 ```text
