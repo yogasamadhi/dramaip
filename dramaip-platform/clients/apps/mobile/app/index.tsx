@@ -6,8 +6,10 @@ import {
   expandMobileDraft,
   exportLocalDrafts,
   listLocalDrafts,
+  markLocalDraftForDeletion,
   queueDraft,
   syncQueuedDrafts,
+  updateLocalDraft,
   type MobileCaptureMode,
   type MobileDraftKind,
 } from '../src/mobile-drafts'
@@ -28,10 +30,12 @@ export default function HomeScreen() {
   const [content, setContent] = useState('')
   const [expansion, setExpansion] = useState('')
   const [localCount, setLocalCount] = useState(0)
+  const [drafts, setDrafts] = useState<Awaited<ReturnType<typeof listLocalDrafts>>>([])
+  const [editingClientID, setEditingClientID] = useState<string>()
   const [busy, setBusy] = useState<'save' | 'expand' | 'sync' | 'export'>()
   const [notice, setNotice] = useState<string>()
 
-  const refreshLocalCount = useCallback(async () => setLocalCount((await listLocalDrafts()).length), [])
+  const refreshLocalCount = useCallback(async () => { const items = await listLocalDrafts(); setDrafts(items.filter((item) => !item.pendingDelete)); setLocalCount(items.length) }, [])
 
   const load = useCallback(async () => {
     setState('loading')
@@ -66,18 +70,30 @@ export default function HomeScreen() {
     setBusy('save')
     setNotice(undefined)
     try {
-      await queueDraft({ kind, captureMode, title, content, aiExpansion: expansion })
+      if (editingClientID) await updateLocalDraft(editingClientID, { kind, captureMode, title, content, aiExpansion: expansion })
+      else await queueDraft({ kind, captureMode, title, content, aiExpansion: expansion })
       const result = await syncQueuedDrafts()
       await refreshLocalCount()
       setTitle('')
       setContent('')
       setExpansion('')
+      setEditingClientID(undefined)
       setNotice(result.pending ? `草稿已安全保存在本机，待网络恢复后同步（${result.pending} 条待发）` : '草稿已同步，可在桌面端灵感台显式采用')
     } catch (reason) {
       setNotice(reason instanceof Error ? reason.message : '保存草稿失败')
     } finally {
       setBusy(undefined)
     }
+  }
+
+  const editDraft = (draft: typeof drafts[number]) => {
+    setEditingClientID(draft.clientId); setKind(draft.kind); setCaptureMode(draft.captureMode); setTitle(draft.title); setContent(draft.content); setExpansion(draft.aiExpansion)
+    setNotice('正在编辑草稿；保存后会重新同步。')
+  }
+
+  const removeDraft = async (clientId: string) => {
+    await markLocalDraftForDeletion(clientId); const result = await syncQueuedDrafts(); await refreshLocalCount()
+    setNotice(result.pending ? '删除已标记，网络恢复后会清理云端记录。' : '草稿已删除。')
   }
 
   const expand = async () => {
@@ -160,13 +176,14 @@ export default function HomeScreen() {
           </Pressable>
           {expansion ? <TextInput className="min-h-24 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 align-top text-slate-800" multiline value={expansion} onChangeText={setExpansion} /> : null}
           <Pressable className="h-12 items-center justify-center rounded-md bg-slate-900" onPress={() => void saveDraft()} disabled={busy !== undefined || !title.trim() || !content.trim()}>
-            {busy === 'save' ? <ActivityIndicator color="#ffffff" /> : <Text className="font-medium text-white">保存并尝试同步</Text>}
+            {busy === 'save' ? <ActivityIndicator color="#ffffff" /> : <Text className="font-medium text-white">{editingClientID ? '保存修改并同步' : '保存并尝试同步'}</Text>}
           </Pressable>
           <View className="flex-row gap-2">
             <Pressable className="h-10 flex-1 items-center justify-center rounded-md border border-slate-300" onPress={() => void replay()} disabled={busy !== undefined}><Text className="font-medium text-slate-800">重放队列（{localCount}）</Text></Pressable>
             <Pressable className="h-10 flex-1 items-center justify-center rounded-md border border-slate-300" onPress={() => void exportDrafts()} disabled={busy !== undefined}><Text className="font-medium text-slate-800">导出交接包</Text></Pressable>
           </View>
           {notice ? <Text className="text-sm leading-5 text-slate-600">{notice}</Text> : null}
+          {drafts.length ? <View className="gap-2 border-t border-slate-200 pt-3"><Text className="font-medium text-slate-900">我的草稿（{drafts.length}）</Text>{drafts.map((draft) => <View key={draft.clientId} className="rounded-md border border-slate-200 p-2"><Text className="font-medium text-slate-900">{draft.title}</Text><Text className="text-xs text-slate-500">{draft.syncedAt ? '已同步' : draft.syncError ? `同步失败：${draft.syncError}` : '待同步'}</Text><View className="mt-1 flex-row gap-3"><Pressable onPress={() => editDraft(draft)}><Text className="text-blue-700">编辑</Text></Pressable><Pressable onPress={() => void removeDraft(draft.clientId)}><Text className="text-red-700">删除</Text></Pressable></View></View>)}</View> : null}
         </View>
       ) : null}
 

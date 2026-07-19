@@ -46,7 +46,7 @@ const api = {
     },
   },
   cloudHandoff: {
-    list: () => invoke('cloudHandoff:list'),
+    list: (input: { projectId: string }) => invoke('cloudHandoff:list', input),
     adopt: (input: { projectId: string; draftId: string }) => invoke('cloudHandoff:adopt', input),
   },
   dataBackup: {

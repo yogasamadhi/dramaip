@@ -69,16 +69,27 @@ func (u *BFFUsecase) UpsertDraft(ctx context.Context, accessToken, clientID, kin
 	return reply.Draft, nil
 }
 
-func (u *BFFUsecase) ListDrafts(ctx context.Context, accessToken string, limit int32) ([]*inspirationv1.MobileDraft, error) {
+func (u *BFFUsecase) ListDrafts(ctx context.Context, accessToken string, limit int32, cursor string) ([]*inspirationv1.MobileDraft, string, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, "", err
+	}
+	reply, err := u.data.Inspiration.ListMobileDrafts(ctx, &inspirationv1.ListMobileDraftsRequest{UserId: identity.UserId, Limit: limit, Cursor: strings.TrimSpace(cursor)})
+	if err != nil {
+		return nil, "", err
+	}
+	return reply.Drafts, reply.NextCursor, nil
+}
+
+func (u *BFFUsecase) DeleteDraft(ctx context.Context, accessToken, draftID string) (*inspirationv1.DeleteMobileDraftResponse, error) {
 	identity, ctx, err := u.authenticate(ctx, accessToken)
 	if err != nil {
 		return nil, err
 	}
-	reply, err := u.data.Inspiration.ListMobileDrafts(ctx, &inspirationv1.ListMobileDraftsRequest{UserId: identity.UserId, Limit: limit})
-	if err != nil {
-		return nil, err
+	if strings.TrimSpace(draftID) == "" {
+		return nil, status.Error(codes.InvalidArgument, "invalid_mobile_draft_delete")
 	}
-	return reply.Drafts, nil
+	return u.data.Inspiration.DeleteMobileDraft(ctx, &inspirationv1.DeleteMobileDraftRequest{UserId: identity.UserId, DraftId: strings.TrimSpace(draftID)})
 }
 
 // Expand uses the existing gateway, which keeps quota, idempotency and the

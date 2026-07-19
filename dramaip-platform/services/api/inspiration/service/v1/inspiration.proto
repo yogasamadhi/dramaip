@@ -10,6 +10,7 @@ service InspirationService {
   rpc UpsertMobileDraft(UpsertMobileDraftRequest) returns (UpsertMobileDraftResponse);
   rpc ListMobileDrafts(ListMobileDraftsRequest) returns (ListMobileDraftsResponse);
   rpc RecordMobileDraftAdoption(RecordMobileDraftAdoptionRequest) returns (RecordMobileDraftAdoptionResponse);
+  rpc DeleteMobileDraft(DeleteMobileDraftRequest) returns (DeleteMobileDraftResponse);
 }
 
 message MobileDraft {
@@ -22,6 +23,8 @@ message MobileDraft {
   string ai_expansion = 7;
   string created_at = 8;
   string updated_at = 9;
+  int32 adoption_count = 10;
+  string last_adopted_at = 11;
 }
 
 message UpsertMobileDraftRequest {
@@ -41,10 +44,12 @@ message UpsertMobileDraftResponse {
 message ListMobileDraftsRequest {
   string user_id = 1;
   int32 limit = 2;
+  string cursor = 3;
 }
 
 message ListMobileDraftsResponse {
   repeated MobileDraft drafts = 1;
+  string next_cursor = 2;
 }
 
 message RecordMobileDraftAdoptionRequest {
@@ -55,4 +60,14 @@ message RecordMobileDraftAdoptionRequest {
 
 message RecordMobileDraftAdoptionResponse {
   MobileDraft draft = 1;
+}
+
+message DeleteMobileDraftRequest {
+  string user_id = 1;
+  string draft_id = 2;
+}
+
+message DeleteMobileDraftResponse {
+  string draft_id = 1;
+  string deleted_at = 2;
 }

@@ -32,15 +32,26 @@ func (s *InspirationService) ListMobileDrafts(ctx context.Context, req *inspirat
 	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
 		return nil, err
 	}
-	drafts, err := s.uc.List(ctx, req.UserId, req.Limit)
+	page, err := s.uc.List(ctx, req.UserId, req.Limit, req.Cursor)
 	if err != nil {
 		return nil, err
 	}
-	response := &inspirationv1.ListMobileDraftsResponse{Drafts: make([]*inspirationv1.MobileDraft, 0, len(drafts))}
-	for _, draft := range drafts {
+	response := &inspirationv1.ListMobileDraftsResponse{Drafts: make([]*inspirationv1.MobileDraft, 0, len(page.Drafts)), NextCursor: page.NextCursor}
+	for _, draft := range page.Drafts {
 		response.Drafts = append(response.Drafts, reply(draft))
 	}
 	return response, nil
+}
+
+func (s *InspirationService) DeleteMobileDraft(ctx context.Context, req *inspirationv1.DeleteMobileDraftRequest) (*inspirationv1.DeleteMobileDraftResponse, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	draft, err := s.uc.Delete(ctx, req.UserId, req.DraftId)
+	if err != nil {
+		return nil, err
+	}
+	return &inspirationv1.DeleteMobileDraftResponse{DraftId: draft.ID, DeletedAt: draft.UpdatedAt}, nil
 }
 
 func (s *InspirationService) RecordMobileDraftAdoption(ctx context.Context, req *inspirationv1.RecordMobileDraftAdoptionRequest) (*inspirationv1.RecordMobileDraftAdoptionResponse, error) {
@@ -55,5 +66,5 @@ func (s *InspirationService) RecordMobileDraftAdoption(ctx context.Context, req 
 }
 
 func reply(draft biz.MobileDraft) *inspirationv1.MobileDraft {
-	return &inspirationv1.MobileDraft{Id: draft.ID, ClientId: draft.ClientID, Kind: draft.Kind, CaptureMode: draft.CaptureMode, Title: draft.Title, Content: draft.Content, AiExpansion: draft.AIExpansion, CreatedAt: draft.CreatedAt, UpdatedAt: draft.UpdatedAt}
+	return &inspirationv1.MobileDraft{Id: draft.ID, ClientId: draft.ClientID, Kind: draft.Kind, CaptureMode: draft.CaptureMode, Title: draft.Title, Content: draft.Content, AiExpansion: draft.AIExpansion, CreatedAt: draft.CreatedAt, UpdatedAt: draft.UpdatedAt, AdoptionCount: draft.AdoptionCount, LastAdoptedAt: draft.LastAdoptedAt}
 }

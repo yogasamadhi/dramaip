@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
+	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
@@ -110,7 +110,9 @@ func TestMobileExpansionUsesBoundedAuthenticatedGatewayRequest(t *testing.T) {
 	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte(`"expansion":"一个短梗概"`)) {
 		t.Fatalf("mobile expansion = %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if recorder.Header().Get("Idempotency-Key") != "mobile-expand-0001" { t.Fatalf("missing expansion idempotency header") }
+	if recorder.Header().Get("Idempotency-Key") != "mobile-expand-0001" {
+		t.Fatalf("missing expansion idempotency header")
+	}
 }
 
 func newTestHTTPService() *HTTPService {
@@ -182,6 +184,13 @@ func (fakeInspiration) ListMobileDrafts(ctx context.Context, req *inspirationv1.
 	return &inspirationv1.ListMobileDraftsResponse{Drafts: []*inspirationv1.MobileDraft{fakeDraft()}}, nil
 }
 
+func (fakeInspiration) DeleteMobileDraft(ctx context.Context, req *inspirationv1.DeleteMobileDraftRequest, _ ...grpc.CallOption) (*inspirationv1.DeleteMobileDraftResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.DraftId != "draft-1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &inspirationv1.DeleteMobileDraftResponse{DraftId: "draft-1", DeletedAt: "2026-07-20T00:00:00Z"}, nil
+}
+
 func fakeDraft() *inspirationv1.MobileDraft {
 	return &inspirationv1.MobileDraft{Id: "draft-1", ClientId: "mobile-draft-0001", Kind: "inspiration", CaptureMode: "voice", Title: "雨夜反转", Content: "雨夜里主角发现旧手机。"}
 }
@@ -189,11 +198,15 @@ func fakeDraft() *inspirationv1.MobileDraft {
 type fakeAI struct{}
 
 func (fakeAI) ListModels(ctx context.Context, req *aiv1.ListModelsRequest, _ ...grpc.CallOption) (*aiv1.ListModelsReply, error) {
-	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
 	return &aiv1.ListModelsReply{Models: []*aiv1.CloudModel{{Provider: "test", Model: "test-mobile", IsDefault: true}}}, nil
 }
 
 func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
-	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.IdempotencyKey != "mobile-expand-0001" || len(req.Messages) != 2 || req.MaxTokens != 400 { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.IdempotencyKey != "mobile-expand-0001" || len(req.Messages) != 2 || req.MaxTokens != 400 {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
 	return &aiv1.ChatReply{Content: "一个短梗概", Provider: "test", Model: "test-mobile", RemainingTokens: 1_619_900}, nil
 }

@@ -10,6 +10,7 @@ export * as storyArcRepo from './repositories/story-arc.repo'
 export * as projectSkillRepo from './repositories/project-skill.repo'
 export * as projectAgentSchemeRepo from './repositories/project-agent-scheme.repo'
 export * as inspirationFavoriteRepo from './repositories/inspiration-favorite.repo'
+export * as cloudMobileDraftAdoptionRepo from './repositories/cloud-mobile-draft-adoption.repo'
 export * as chapterRepo from './repositories/chapter.repo'
 export * as evaluationRepo from './repositories/evaluation.repo'
 export * as aiRunRepo from './repositories/ai-run.repo'
@@ -65,6 +66,7 @@ import * as storyArcRepo from './repositories/story-arc.repo'
 import * as projectSkillRepo from './repositories/project-skill.repo'
 import * as projectAgentSchemeRepo from './repositories/project-agent-scheme.repo'
 import * as inspirationFavoriteRepo from './repositories/inspiration-favorite.repo'
+import * as cloudMobileDraftAdoptionRepo from './repositories/cloud-mobile-draft-adoption.repo'
 import * as chapterRepo from './repositories/chapter.repo'
 import * as evaluationRepo from './repositories/evaluation.repo'
 import * as aiRunRepo from './repositories/ai-run.repo'
@@ -111,6 +113,7 @@ export function createRepositories(db: DB) {
     projectSkill: { ...projectSkillRepo },
     projectAgentScheme: { ...projectAgentSchemeRepo },
     inspirationFavorite: { ...inspirationFavoriteRepo },
+    cloudMobileDraftAdoption: { ...cloudMobileDraftAdoptionRepo },
     chapter: { ...chapterRepo },
     evaluation: { ...evaluationRepo },
     aiRun: { ...aiRunRepo },

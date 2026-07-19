@@ -13,6 +13,10 @@ export interface CloudMobileDraft {
   aiExpansion: string
   createdAt: string
   updatedAt: string
+  adoptionCount: number
+  lastAdoptedAt: string
+  currentProjectAdopted?: boolean
+  adoptedInOtherProject?: boolean
 }
 
 export async function listCloudMobileDrafts(): Promise<CloudMobileDraft[]> {
@@ -57,10 +61,12 @@ function parseDraft(value: unknown): CloudMobileDraft {
   const aiExpansion = typeof draft.ai_expansion === 'string' ? draft.ai_expansion : ''
   const createdAt = typeof draft.created_at === 'string' ? draft.created_at : ''
   const updatedAt = typeof draft.updated_at === 'string' ? draft.updated_at : ''
+  const adoptionCount = typeof draft.adoption_count === 'number' && Number.isSafeInteger(draft.adoption_count) && draft.adoption_count >= 0 ? draft.adoption_count : 0
+  const lastAdoptedAt = typeof draft.last_adopted_at === 'string' ? draft.last_adopted_at : ''
   if (!id || !clientId || !title || !content || (kind !== 'inspiration' && kind !== 'character' && kind !== 'project') || (captureMode !== 'text' && captureMode !== 'voice')) {
     throw new Error('移动交接草稿数据无效')
   }
-  return { id, clientId, kind, captureMode, title, content, aiExpansion, createdAt, updatedAt }
+  return { id, clientId, kind, captureMode, title, content, aiExpansion, createdAt, updatedAt, adoptionCount, lastAdoptedAt }
 }
 
 function text(value: unknown): string | undefined { return typeof value === 'string' && value.trim() ? value : undefined }

@@ -1,5 +1,5 @@
 // Drizzle ORM schema —— 对应 SQLite 七张表（PROJECT_BRIEF.md §8）
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
@@ -118,6 +118,12 @@ export const inspirationFavorites = sqliteTable('inspiration_favorites', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
+
+export const cloudMobileDraftAdoptions = sqliteTable('cloud_mobile_draft_adoptions', {
+  cloudDraftId: text('cloud_draft_id').notNull(),
+  projectId: text('project_id').notNull(),
+  adoptedAt: text('adopted_at').notNull(),
+}, (table) => ({ primary: primaryKey({ columns: [table.cloudDraftId, table.projectId] }) }))
 
 export const chapters = sqliteTable('chapters', {
   id: text('id').primaryKey(),

@@ -249,7 +249,7 @@ func (s *HTTPService) handleMobileHandoff(w http.ResponseWriter, r *http.Request
 		s.writeGRPCError(w, err, "desktop_mobile_handoff_unavailable")
 		return
 	}
-	items := make([]map[string]string, 0, len(drafts))
+	items := make([]map[string]any, 0, len(drafts))
 	for _, draft := range drafts {
 		items = append(items, mobileDraftJSON(draft))
 	}
@@ -279,13 +279,14 @@ func (s *HTTPService) handleAdoptMobileHandoff(w http.ResponseWriter, r *http.Re
 	writeJSON(w, http.StatusOK, map[string]any{"draft": mobileDraftJSON(draft)})
 }
 
-func mobileDraftJSON(draft *inspirationv1.MobileDraft) map[string]string {
+func mobileDraftJSON(draft *inspirationv1.MobileDraft) map[string]any {
 	if draft == nil {
-		return map[string]string{}
+		return map[string]any{}
 	}
-	return map[string]string{
+	return map[string]any{
 		"id": draft.Id, "client_id": draft.ClientId, "kind": draft.Kind, "capture_mode": draft.CaptureMode, "title": draft.Title,
 		"content": draft.Content, "ai_expansion": draft.AiExpansion, "created_at": draft.CreatedAt, "updated_at": draft.UpdatedAt,
+		"adoption_count": draft.AdoptionCount, "last_adopted_at": draft.LastAdoptedAt,
 	}
 }
 

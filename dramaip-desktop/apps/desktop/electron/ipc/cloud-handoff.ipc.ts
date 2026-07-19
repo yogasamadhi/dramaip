@@ -8,7 +8,11 @@ import { getRepos } from '../db'
 // explicit local action: it writes an inspiration favorite only, never a
 // chapter/body overwrite or an automatic project merge.
 export function registerCloudHandoffIpc(): void {
-  ipcMain.handle('cloudHandoff:list', () => listCloudMobileDrafts())
+  ipcMain.handle('cloudHandoff:list', async (_event, input: { projectId: string }) => {
+    const drafts = await listCloudMobileDrafts()
+    const statuses = getRepos().cloudMobileDraftAdoption.adoptionStatusForCloudDrafts(getRepos().db, input.projectId, drafts.map((draft) => draft.id))
+    return drafts.map((draft) => ({ ...draft, currentProjectAdopted: statuses.get(draft.id)?.currentProject ?? false, adoptedInOtherProject: statuses.get(draft.id)?.otherProjects ?? false }))
+  })
   ipcMain.handle('cloudHandoff:adopt', async (_event, input: { projectId: string; draftId: string }) => {
     const draft = await adoptCloudMobileDraft(input.draftId, randomUUID())
     const content = JSON.stringify({
@@ -23,6 +27,7 @@ export function registerCloudHandoffIpc(): void {
     const parsed = parseMobileInspirationImport({ projectId: input.projectId, content, fileName: `cloud-${draft.id}.json` })
     const repos = getRepos()
     const favorites = parsed.items.map((item) => repos.inspirationFavorite.upsertInspirationFavorite(repos.db, item))
+    repos.cloudMobileDraftAdoption.recordCloudMobileDraftAdoption(repos.db, draft.id, input.projectId)
     return { draft, imported: favorites.length, skipped: parsed.skipped }
   })
 }

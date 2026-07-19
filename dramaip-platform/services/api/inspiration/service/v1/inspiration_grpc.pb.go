@@ -22,6 +22,7 @@ const (
 	InspirationService_UpsertMobileDraft_FullMethodName         = "/dramaip.inspiration.service.v1.InspirationService/UpsertMobileDraft"
 	InspirationService_ListMobileDrafts_FullMethodName          = "/dramaip.inspiration.service.v1.InspirationService/ListMobileDrafts"
 	InspirationService_RecordMobileDraftAdoption_FullMethodName = "/dramaip.inspiration.service.v1.InspirationService/RecordMobileDraftAdoption"
+	InspirationService_DeleteMobileDraft_FullMethodName         = "/dramaip.inspiration.service.v1.InspirationService/DeleteMobileDraft"
 )
 
 // InspirationServiceClient is the client API for InspirationService service.
@@ -34,6 +35,7 @@ type InspirationServiceClient interface {
 	UpsertMobileDraft(ctx context.Context, in *UpsertMobileDraftRequest, opts ...grpc.CallOption) (*UpsertMobileDraftResponse, error)
 	ListMobileDrafts(ctx context.Context, in *ListMobileDraftsRequest, opts ...grpc.CallOption) (*ListMobileDraftsResponse, error)
 	RecordMobileDraftAdoption(ctx context.Context, in *RecordMobileDraftAdoptionRequest, opts ...grpc.CallOption) (*RecordMobileDraftAdoptionResponse, error)
+	DeleteMobileDraft(ctx context.Context, in *DeleteMobileDraftRequest, opts ...grpc.CallOption) (*DeleteMobileDraftResponse, error)
 }
 
 type inspirationServiceClient struct {
@@ -74,6 +76,16 @@ func (c *inspirationServiceClient) RecordMobileDraftAdoption(ctx context.Context
 	return out, nil
 }
 
+func (c *inspirationServiceClient) DeleteMobileDraft(ctx context.Context, in *DeleteMobileDraftRequest, opts ...grpc.CallOption) (*DeleteMobileDraftResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMobileDraftResponse)
+	err := c.cc.Invoke(ctx, InspirationService_DeleteMobileDraft_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InspirationServiceServer is the server API for InspirationService service.
 // All implementations must embed UnimplementedInspirationServiceServer
 // for forward compatibility.
@@ -84,6 +96,7 @@ type InspirationServiceServer interface {
 	UpsertMobileDraft(context.Context, *UpsertMobileDraftRequest) (*UpsertMobileDraftResponse, error)
 	ListMobileDrafts(context.Context, *ListMobileDraftsRequest) (*ListMobileDraftsResponse, error)
 	RecordMobileDraftAdoption(context.Context, *RecordMobileDraftAdoptionRequest) (*RecordMobileDraftAdoptionResponse, error)
+	DeleteMobileDraft(context.Context, *DeleteMobileDraftRequest) (*DeleteMobileDraftResponse, error)
 	mustEmbedUnimplementedInspirationServiceServer()
 }
 
@@ -102,6 +115,9 @@ func (UnimplementedInspirationServiceServer) ListMobileDrafts(context.Context, *
 }
 func (UnimplementedInspirationServiceServer) RecordMobileDraftAdoption(context.Context, *RecordMobileDraftAdoptionRequest) (*RecordMobileDraftAdoptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordMobileDraftAdoption not implemented")
+}
+func (UnimplementedInspirationServiceServer) DeleteMobileDraft(context.Context, *DeleteMobileDraftRequest) (*DeleteMobileDraftResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteMobileDraft not implemented")
 }
 func (UnimplementedInspirationServiceServer) mustEmbedUnimplementedInspirationServiceServer() {}
 func (UnimplementedInspirationServiceServer) testEmbeddedByValue()                            {}
@@ -178,6 +194,24 @@ func _InspirationService_RecordMobileDraftAdoption_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InspirationService_DeleteMobileDraft_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMobileDraftRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InspirationServiceServer).DeleteMobileDraft(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InspirationService_DeleteMobileDraft_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InspirationServiceServer).DeleteMobileDraft(ctx, req.(*DeleteMobileDraftRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // InspirationService_ServiceDesc is the grpc.ServiceDesc for InspirationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -196,6 +230,10 @@ var InspirationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordMobileDraftAdoption",
 			Handler:    _InspirationService_RecordMobileDraftAdoption_Handler,
+		},
+		{
+			MethodName: "DeleteMobileDraft",
+			Handler:    _InspirationService_DeleteMobileDraft_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

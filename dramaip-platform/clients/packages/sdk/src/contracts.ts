@@ -63,9 +63,13 @@ export const MobileDraftSchema = z.object({
   ai_expansion: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
+  adoption_count: NonnegativeIntegerSchema,
+  last_adopted_at: z.string(),
 })
 export const MobileDraftsResponseSchema = z.object({ drafts: z.array(MobileDraftSchema) })
 export const MobileDraftResponseSchema = z.object({ draft: MobileDraftSchema })
+export const MobileDraftPageSchema = z.object({ drafts: z.array(MobileDraftSchema), next_cursor: z.string() })
+export const MobileDraftDeleteResponseSchema = z.object({ draft_id: IdentifierSchema, deleted_at: z.string() })
 export const MobileExpansionResponseSchema = z.object({ expansion: IdentifierSchema })
 export type MobileSession = z.infer<typeof MobileSessionSchema>
 export type MobileBrief = z.infer<typeof MobileBriefSchema>
