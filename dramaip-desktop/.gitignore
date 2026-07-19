@@ -50,6 +50,7 @@ yarn-error.log*
 _tmp_*
 tmp/
 temp/
+artifacts/
 
 # Environment files
 .env

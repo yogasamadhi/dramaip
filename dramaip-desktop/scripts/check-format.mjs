@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 const ROOT = process.cwd()
 const INCLUDE = new Set(['.ts', '.tsx', '.js', '.json', '.md', '.css', '.yml', '.yaml'])
-const SKIP = new Set(['.git', 'node_modules', 'dist', 'out'])
+const SKIP = new Set(['.git', 'node_modules', 'dist', 'out', 'artifacts'])
 
 function extname(file) {
   const i = file.lastIndexOf('.')

@@ -145,7 +145,7 @@ async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmok
   }
 }
 
-interface P0Fixture {
+export interface P0Fixture {
   project: Project
   chapter: Chapter
   chapters: Chapter[]
@@ -200,7 +200,7 @@ function runP0ProductionPathSmoke(projectId: string): E2eSmokeStep[] {
   return steps
 }
 
-function seedP0Fixture(projectId: string): P0Fixture {
+export function seedP0Fixture(projectId: string): P0Fixture {
   const repos = getRepos()
   const project = repos.project.updateProject(repos.db, projectId, {
     coreHook: '她重回开机当天，用未来爆款公式逆转全网嘲笑。',
