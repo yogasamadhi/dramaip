@@ -3,7 +3,14 @@ import { getRepos } from '../db'
 import { retryVideoTask } from '@sdns/ai'
 import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
-import { beginLongTaskRun, cancelLongTaskRun, finishLongTaskRun, isLongTaskRunActive } from '../task-runtime'
+import {
+  beginLongTaskRetry,
+  beginLongTaskRun,
+  cancelLongTaskRun,
+  finishLongTaskRetry,
+  finishLongTaskRun,
+  isLongTaskRunActive,
+} from '../task-runtime'
 import {
   createBatchProgress,
   isBatchProgress,
@@ -47,27 +54,39 @@ export function registerTaskIpc(): void {
     return { ok: true, task: updated }
   })
   ipcMain.handle('longTask:retry', async (_e, id: string) => {
-    const r = repos()
-    const task = r.longTask.getLongTask(r.db, id)
-    if (!task) return { ok: false, error: '未找到任务' }
-    if (task.kind === 'batch') {
-      if (task.status === 'success') return { ok: false, error: '批量任务已完成，无需重跑' }
-      if (task.status === 'running' && isLongTaskRunActive(task.id)) return { ok: false, error: '批量任务正在运行' }
-      return resumeBatchLongTask(r, task.id)
+    if (!beginLongTaskRetry(id)) return { ok: false, error: '该任务正在重试，请勿重复提交。' }
+    try {
+      return await retryLongTask(repos(), id, videoAssetArchiver)
+    } finally {
+      finishLongTaskRetry(id)
     }
-    if (task.status !== 'failed') return { ok: false, error: '只有失败任务可以重试' }
-    if (task.kind === 'ai') {
-      const retryInput = toAiRetryInput(task.input?.retryInput)
-      if (!retryInput) return { ok: false, error: '该 AI 任务缺少可重试输入，请回到原页面重新发起。' }
-      const result = await runAiTask(retryInput)
-      return { ok: result.ok, error: result.error, longTaskId: result.longTaskId, task: r.longTask.getLongTask(r.db, result.longTaskId) }
-    }
-    if (!task.relatedEntityId) return { ok: false, error: '该视频任务缺少关联任务，无法重试' }
-    return retryVideoLongTask(r, task.relatedEntityId, videoAssetArchiver)
   })
   ipcMain.handle('batchTask:run', async (_e, input: BatchTaskRunInput) => {
     return startBatchLongTask(repos(), input)
   })
+}
+
+async function retryLongTask(
+  r: ReturnType<typeof getRepos>,
+  id: string,
+  videoAssetArchiver: ReturnType<typeof createVideoAssetArchiver>,
+): Promise<LongTaskOpResult> {
+  const task = r.longTask.getLongTask(r.db, id)
+  if (!task) return { ok: false, error: '未找到任务' }
+  if (task.kind === 'batch') {
+    if (task.status === 'success') return { ok: false, error: '批量任务已完成，无需重跑' }
+    if (task.status === 'running' && isLongTaskRunActive(task.id)) return { ok: false, error: '批量任务正在运行' }
+    return resumeBatchLongTask(r, task.id)
+  }
+  if (task.status !== 'failed') return { ok: false, error: '只有失败任务可以重试' }
+  if (task.kind === 'ai') {
+    const retryInput = toAiRetryInput(task.input?.retryInput)
+    if (!retryInput) return { ok: false, error: '该 AI 任务缺少可重试输入，请回到原页面重新发起。' }
+    const result = await runAiTask(retryInput)
+    return { ok: result.ok, error: result.error, longTaskId: result.longTaskId, task: r.longTask.getLongTask(r.db, result.longTaskId) }
+  }
+  if (!task.relatedEntityId) return { ok: false, error: '该视频任务缺少关联任务，无法重试' }
+  return retryVideoLongTask(r, task.relatedEntityId, videoAssetArchiver)
 }
 
 export async function startBatchLongTask(
@@ -292,7 +311,7 @@ async function retryVideoLongTask(
   repos: ReturnType<typeof getRepos>,
   videoTaskId: string,
   videoAssetArchiver: ReturnType<typeof createVideoAssetArchiver>,
-): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: unknown }> {
+): Promise<LongTaskOpResult> {
   const original = repos.videoTask.getVideoTask(repos.db, videoTaskId)
   if (!original) return { ok: false, error: '未找到视频任务' }
   const longTask = repos.longTask.createLongTask(repos.db, {

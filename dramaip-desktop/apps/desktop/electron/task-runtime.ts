@@ -12,6 +12,7 @@ const DEFAULT_LIMITS: Record<LongTaskKind, number> = {
 }
 
 const running = new Map<string, RuntimeEntry>()
+const retrying = new Set<string>()
 
 export interface BeginLongTaskRunResult {
   ok: boolean
@@ -43,6 +44,20 @@ export function finishLongTaskRun(id: string): void {
 
 export function isLongTaskRunActive(id: string): boolean {
   return running.has(id)
+}
+
+/**
+ * Claims the single retry slot for a persisted task. This closes the race where
+ * two renderer clicks submit two independent retry jobs before either starts.
+ */
+export function beginLongTaskRetry(id: string): boolean {
+  if (retrying.has(id)) return false
+  retrying.add(id)
+  return true
+}
+
+export function finishLongTaskRetry(id: string): void {
+  retrying.delete(id)
 }
 
 export function longTaskConcurrencyLimit(kind: LongTaskKind): number {

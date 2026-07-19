@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   beginLongTaskRun,
+  beginLongTaskRetry,
   cancelLongTaskRun,
+  finishLongTaskRetry,
   finishLongTaskRun,
   longTaskConcurrencyLimit,
 } from '../apps/desktop/electron/task-runtime'
@@ -25,4 +27,12 @@ test('long task runtime enforces per-kind concurrency and aborts cancelable runs
   const second = beginLongTaskRun('ai', 'ai-runtime-2')
   assert.equal(second.ok, true)
   finishLongTaskRun('ai-runtime-2')
+})
+
+test('long task retry claim prevents duplicate submissions and releases after completion', () => {
+  assert.equal(beginLongTaskRetry('retry-runtime-1'), true)
+  assert.equal(beginLongTaskRetry('retry-runtime-1'), false)
+  finishLongTaskRetry('retry-runtime-1')
+  assert.equal(beginLongTaskRetry('retry-runtime-1'), true)
+  finishLongTaskRetry('retry-runtime-1')
 })

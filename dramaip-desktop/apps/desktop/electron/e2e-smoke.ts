@@ -26,6 +26,7 @@ import { buildAgentCommandPlan } from '../renderer/src/lib/agentCommandPlanner'
 import { buildProjectWorkflowStages } from '../renderer/src/lib/projectWorkflowGuide'
 import { getRepos } from './db'
 import { deleteModelConfigWithSecret, migrateLegacySecretsToKeychain } from './secrets'
+import { reconcileLongTasks } from './task-recovery'
 
 export interface E2eSmokeStep {
   name: string
@@ -56,12 +57,89 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
+  const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
   if (!projectPackageStep.ok) throw new Error(projectPackageStep.error ?? '项目包往返失败')
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, draftPersistenceStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+  }
+}
+
+function verifyTaskRecoveryAfterSimulatedRestart(projectId: string): E2eSmokeStep {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const localAi = repos.longTask.createLongTask(repos.db, {
+      kind: 'ai',
+      status: 'running',
+      title: 'E2E 崩溃前 AI 任务',
+      projectId,
+      input: { retryInput: { projectId, taskType: 'polish_chapter' } },
+    })
+    const localBatch = repos.longTask.createLongTask(repos.db, {
+      kind: 'batch',
+      status: 'pending',
+      title: 'E2E 崩溃前批量任务',
+      projectId,
+    })
+    const remoteVideo = repos.videoTask.createVideoTask(repos.db, {
+      projectId,
+      provider: 'e2e',
+      model: 'e2e',
+      prompt: '恢复远端视频状态',
+      referenceImageUrls: [],
+      status: 'running',
+      remoteTaskId: 'remote-e2e-recovery',
+    })
+    const videoLongTask = repos.longTask.createLongTask(repos.db, {
+      kind: 'video',
+      status: 'running',
+      title: 'E2E 崩溃前远端视频任务',
+      projectId,
+      relatedEntityId: remoteVideo.id,
+    })
+
+    const restarted = reconcileLongTasks(repos)
+    const recoveredAi = repos.longTask.getLongTask(repos.db, localAi.id)
+    const recoveredBatch = repos.longTask.getLongTask(repos.db, localBatch.id)
+    const recoveredVideo = repos.longTask.getLongTask(repos.db, videoLongTask.id)
+    const recoveryMode = (task: typeof recoveredAi) => {
+      const recovery = task?.output?.recovery
+      return recovery && typeof recovery === 'object' ? (recovery as { mode?: string }).mode : undefined
+    }
+    if (
+      restarted.interrupted < 2 ||
+      restarted.remotePolling < 1 ||
+      recoveredAi?.status !== 'failed' ||
+      recoveredBatch?.status !== 'failed' ||
+      recoveredVideo?.status !== 'pending' ||
+      recoveryMode(recoveredAi) !== 'interrupted' ||
+      recoveryMode(recoveredVideo) !== 'remote_polling'
+    ) {
+      throw new Error('重启后任务恢复没有把本地任务安全中断或恢复远端轮询')
+    }
+
+    repos.videoTask.updateVideoTask(repos.db, remoteVideo.id, { status: 'success' })
+    const polledAfterRestart = reconcileLongTasks(repos)
+    const completedVideo = repos.longTask.getLongTask(repos.db, videoLongTask.id)
+    if (polledAfterRestart.remoteFinished < 1 || completedVideo?.status !== 'success') {
+      throw new Error('恢复后的远端视频任务未能重新确认最终状态')
+    }
+    return {
+      name: 'long-task-crash-restart-recovery-and-remote-requery',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: { interrupted: restarted.interrupted, remotePolling: restarted.remotePolling },
+    }
+  } catch (error) {
+    return {
+      name: 'long-task-crash-restart-recovery-and-remote-requery',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 
@@ -660,6 +738,15 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     if (!exitFocusButton) throw new Error('未找到退出专注模式入口')
     exitFocusButton.click()
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
+  })
+
+  await step('global-task-dock-is-available-across-workspace', async () => {
+    const dock = document.querySelector('button[aria-label^="任务状态"]') as HTMLButtonElement | null
+    if (!dock) throw new Error('未找到全局任务状态入口')
+    dock.click()
+    await waitFor('展开全局任务状态', () => Boolean(document.querySelector('[aria-label="任务状态详情"]')))
+    dock.click()
+    await waitFor('收起全局任务状态', () => !document.querySelector('[aria-label="任务状态详情"]'))
   })
 
   await step('ai-command-palette-search-policy-and-shortcut', async () => {
