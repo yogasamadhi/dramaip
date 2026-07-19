@@ -342,7 +342,7 @@ make platform-e2e
 | LM4-08 | P1 | Desktop/数据生命周期 | done | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
 | LM4-09 | P1 | Desktop/编辑器 | done | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
 | LM4-10 | P1 | Desktop/AI 产品 | done | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
-| LM4-11 | P1 | Desktop/任务可靠性 | todo | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
+| LM4-11 | P1 | Desktop/任务可靠性 | done | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
 | LM4-12 | P1 | Desktop/Cloud AI | todo | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
 | LM4-13 | P1 | Desktop/AI 数据安全 | todo | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
 | LM4-14 | P1 | Desktop/AI 体验 | todo | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
@@ -1100,4 +1100,20 @@ Push: b0b47a4 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-10-ai-command-palette deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: The catalog is generated from every TASK_WRITE_POLICIES entry, preserving all existing task reachability and write-policy semantics. Direct chapter actions retain their preflight confirmation; non-chapter entries deep-link to the exact existing workspace, while tasks requiring an adaptation direct to adaptation creation if none exists. Cmd/Ctrl+K intentionally keeps chapter-tree search on the writing page and opens the global command palette elsewhere to avoid a shortcut conflict.
+```
+
+```text
+Loop: LM4-11
+Target branch: main
+Loop branch: loop/lm4-11-task-recovery
+Commit(s): a4e7a04 feat: recover interrupted long tasks
+Merge commit: 22c9ee9 merge: LM4-11 task recovery
+Verification: dramaip-desktop pnpm format:check; pnpm test (135 unit tests plus DB migration replay/SQLite smoke); pnpm test:ui (18 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e (includes global-task-dock-is-available-across-workspace and long-task-crash-restart-recovery-and-remote-requery); pnpm package:smoke; git diff --check. All passed again after merge.
+UI/manual evidence: Reviewed the isolated 1320px Task Monitor recovery fixture and the 1320px workspace fixture. The task center retains failure/retry evidence instead of relying on Toast, while the fixed task dock remains available without reducing the writing canvas. The dock exposes current/recent tasks, direct cancellation, remote-video polling, and one-shot completion/failure feedback; the new task-monitor baseline preserves this state under visual and accessibility checks.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, local database files, or temporary screenshots committed.
+Remote sync: Fetched and fast-forward checked origin/main at d70aa35 before branch creation and again before merge.
+Push: 22c9ee9 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-11-task-recovery deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: Startup reconciliation only restores polling for video tasks that already have a persisted remote-task record. Pending/running local AI and batch work, and video work without a recoverable remote record, are conservatively marked failed with a safe retry path; no prompt or write operation is blindly replayed. A per-task in-memory retry claim rejects concurrent duplicate retry submissions.
 ```
