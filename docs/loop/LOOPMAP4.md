@@ -335,7 +335,7 @@ make platform-e2e
 | LM4-01 | P0 | Desktop/数据可靠性 | done | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
 | LM4-02 | P0 | Desktop/工作流 | done | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
 | LM4-03 | P0 | Web/Billing | done | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
-| LM4-04 | P0 | Release/QA | todo | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
+| LM4-04 | P0 | Release/QA | done | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
 | LM4-05 | P1 | Design System/前端 | todo | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
 | LM4-06 | P1 | Desktop/产品体验 | todo | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
 | LM4-07 | P1 | Desktop/项目体验 | todo | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
@@ -988,4 +988,20 @@ Push: 8e0d1b5 pushed to origin/main successfully on 2026-07-19; this completion 
 Loop branch cleanup: Local loop/lm4-03-payment-checkout deleted after successful main push.
 Current branch/worktree: main; clean before completion-record creation (local health-stack state and ignored build output excluded).
 Notes: Migration 036 persists real provider payment URLs and expiry; pending orders become expired only after their configured provider-validity window. WeChat/Alipay signature fixtures, BFF forwarding, simulated E2E, and false-client-activation prevention passed. Official-channel release remains blocked: no isolated PostgreSQL DSN (webhook integration resets cluster-wide role passwords) and no authorized official sandbox merchant/callback evidence were supplied. Provider Feature Flags therefore stay disabled; this is not claimed as real-money channel validation.
+```
+
+```text
+Loop: LM4-04
+Target branch: main
+Loop branch: loop/lm4-04-p0-release-gate
+Commit(s): pending loop commit
+Merge commit: pending merge
+Verification: Desktop pnpm format:check; pnpm test (123 unit tests plus DB migration replay); pnpm test:e2e; pnpm test:ui (6 screenshots, 13 baseline a11y observations); pnpm package:smoke; Platform make test; clients pnpm lint && pnpm build:web; make platform-e2e; cumulative git diff --check. All executed checks passed.
+UI/manual evidence: Reviewed stale-quality and reduced-motion failed-video screenshots from an isolated UI fixture. The stale warning and failed-task retry state were visible. The dark workspace contrast/loading-state weakness and 13 unnamed controls remain documented P1 inputs for LM4-05/LM4-19, not waived accessibility claims. docs/loop/LM4-04-P0-Gate.md records the evidence and release boundary.
+Diff review: Cumulative LM4-00～04 diff reviewed; no whitespace errors, secrets, build outputs, or runtime artifacts committed.
+Remote sync: pending final target-branch sync before merge.
+Push: pending merge and verification.
+Loop branch cleanup: pending merge/push, then delete local loop branch; no remote loop branch was created.
+Current branch/worktree: loop/lm4-04-p0-release-gate; documentation-only Gate change pending commit.
+Notes: WeChat/Alipay webhook integrations correctly refused to run without dedicated fresh PostgreSQL DSNs. No authorized official sandbox merchant/callback evidence or signed/notarized macOS release environment exists. Provider Feature Flags remain disabled; real payment and external macOS distribution are explicitly not declared complete.
 ```
