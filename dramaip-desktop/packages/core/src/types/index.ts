@@ -1033,7 +1033,7 @@ export interface LLMProvider {
 
 export type CreativeTargetKind = 'project' | 'chapter' | 'adaptation' | 'episode' | 'script' | 'scene' | 'shot'
 export type AntiTropeMode = 'conservative' | 'balanced' | 'wild'
-export type RevisionTaskStatus = 'open' | 'accepted' | 'applied' | 'dismissed'
+export type RevisionTaskStatus = 'open' | 'accepted' | 'preview_ready' | 'applied' | 'undone' | 'dismissed'
 export type RevisionTaskPriority = 'must' | 'should' | 'could'
 export type QualityGateStage = 'novel_to_adaptation' | 'episodes_to_scripts' | 'scripts_to_shots' | 'shots_to_video'
 export type QualityGateVerdict = 'pass' | 'warn' | 'block'
@@ -1161,7 +1161,13 @@ export interface RevisionTask {
   status: RevisionTaskStatus
   suggestedAction: string
   expectedBenefit: RevisionTaskBenefit
+  /** 持久化的、尚未写入目标的 AI 修稿候选。 */
+  preview?: TextDiffPreviewPayload
+  /** 生成预览时目标内容的不可逆指纹，用于采用前并发检查。 */
+  previewFingerprint?: string
   appliedVersionId?: string
+  /** 采用前快照；一步撤销只恢复这个版本，不删除审计记录。 */
+  undoVersionId?: string
   createdAt: string
   updatedAt: string
 }
@@ -1176,6 +1182,22 @@ export interface ContentVersion {
   content: string
   meta?: Record<string, unknown>
   createdAt: string
+}
+
+export interface RevisionTaskAdoptResult {
+  ok: boolean
+  error?: string
+  task?: RevisionTask
+  beforeVersion?: ContentVersion
+  appliedVersion?: ContentVersion
+  alreadyApplied?: boolean
+}
+
+export interface RevisionTaskUndoResult {
+  ok: boolean
+  error?: string
+  task?: RevisionTask
+  result?: ContentVersion
 }
 
 export interface QualityGateReport {

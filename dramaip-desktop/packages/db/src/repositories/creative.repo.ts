@@ -30,6 +30,7 @@ import type {
   QualityGateReport,
   RevisionTask,
   RevisionTaskBenefit,
+  TextDiffPreviewPayload,
   WorkflowRun,
   WorkflowRunStep,
 } from '@sdns/core'
@@ -236,7 +237,12 @@ function revisionTaskFromRow(row: RevisionTaskRow): RevisionTask {
     status: row.status as RevisionTask['status'],
     suggestedAction: row.suggestedAction,
     expectedBenefit: parseJsonObject<Record<string, unknown>>(row.expectedBenefit, emptyBenefit as unknown as Record<string, unknown>) as unknown as RevisionTaskBenefit,
+    preview: row.previewPayload
+      ? parseJsonObject<Record<string, unknown>>(row.previewPayload, {}, 'revision-preview') as unknown as TextDiffPreviewPayload
+      : undefined,
+    previewFingerprint: row.previewFingerprint ?? undefined,
     appliedVersionId: row.appliedVersionId ?? undefined,
+    undoVersionId: row.undoVersionId ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -568,6 +574,11 @@ export function listRevisionTasksByTarget(db: DB, targetKind: string, targetId?:
     .map((r) => revisionTaskFromRow(r as RevisionTaskRow))
 }
 
+export function getRevisionTask(db: DB, id: string): RevisionTask | undefined {
+  const [row] = db.select().from(revisionTasks).where(eq(revisionTasks.id, id)).limit(1).all()
+  return row ? revisionTaskFromRow(row as RevisionTaskRow) : undefined
+}
+
 export function createRevisionTask(
   db: DB,
   data: Partial<OptionalId<RevisionTask>> & { targetKind: RevisionTask['targetKind']; title: string; description: string; suggestedAction: string },
@@ -585,7 +596,10 @@ export function createRevisionTask(
     status: data.status ?? 'open',
     suggestedAction: data.suggestedAction,
     expectedBenefit: stringifyJson(data.expectedBenefit ?? emptyBenefit),
+    previewPayload: data.preview ? stringifyJson(data.preview) : null,
+    previewFingerprint: data.previewFingerprint ?? null,
     appliedVersionId: data.appliedVersionId ?? null,
+    undoVersionId: data.undoVersionId ?? null,
     createdAt: ts,
     updatedAt: ts,
   }
@@ -594,8 +608,12 @@ export function createRevisionTask(
 }
 
 export function updateRevisionTask(db: DB, id: string, patch: Partial<RevisionTask>): RevisionTask | undefined {
-  const fields: Record<string, unknown> = { ...patch, updatedAt: now() }
+  const { preview, ...rest } = patch
+  const fields: Record<string, unknown> = { ...rest, updatedAt: now() }
   if (fields.expectedBenefit) fields.expectedBenefit = stringifyJson(fields.expectedBenefit)
+  if ('preview' in patch) fields.previewPayload = preview ? stringifyJson(preview) : null
+  if ('previewFingerprint' in patch && fields.previewFingerprint === undefined) fields.previewFingerprint = null
+  if ('undoVersionId' in patch && fields.undoVersionId === undefined) fields.undoVersionId = null
   const [row] = updateRows(db, revisionTasks, fields).where(eq(revisionTasks.id, id)).returning().all()
   return row ? revisionTaskFromRow(row as RevisionTaskRow) : undefined
 }

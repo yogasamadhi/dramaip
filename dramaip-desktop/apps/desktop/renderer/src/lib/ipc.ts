@@ -46,6 +46,8 @@ import type {
   PromptVersion,
   QualityGateReport,
   RevisionTask,
+  RevisionTaskAdoptResult,
+  RevisionTaskUndoResult,
   Scene,
   Script,
   ScriptReview,
@@ -794,8 +796,12 @@ export interface StudioApi {
     create(data: Partial<RevisionTask> & { targetKind: RevisionTask['targetKind']; title: string; description: string; suggestedAction: string }): Promise<RevisionTask>
     update(id: string, patch: Partial<RevisionTask>): Promise<RevisionTask | undefined>
     preview(id: string): Promise<RevisionTaskPreviewResult>
-    complete(id: string): Promise<RevisionTaskCompleteResult>
-    apply(id: string): Promise<RevisionTaskPreviewResult>
+    adopt(id: string): Promise<RevisionTaskAdoptResult>
+    undo(id: string): Promise<RevisionTaskUndoResult>
+    /** @deprecated 兼容旧调用，等同于 adopt。 */
+    complete(id: string): Promise<RevisionTaskAdoptResult>
+    /** @deprecated 兼容旧调用，等同于 adopt。 */
+    apply(id: string): Promise<RevisionTaskAdoptResult>
   }
   contentVersion: {
     listByTarget(targetKind: string, targetId: string): Promise<ContentVersion[]>

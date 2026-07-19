@@ -1,7 +1,7 @@
 import type { RevisionTask } from '@sdns/core'
 
 export function supportsRevisionTaskPreview(task: RevisionTask): boolean {
-  return Boolean(task.targetId && ['chapter', 'script', 'shot'].includes(task.targetKind) && task.status !== 'applied')
+  return Boolean(task.targetId && ['chapter', 'script', 'shot'].includes(task.targetKind) && !['applied', 'dismissed'].includes(task.status))
 }
 
 export function revisionTaskReviewInstruction(task: RevisionTask): string {
