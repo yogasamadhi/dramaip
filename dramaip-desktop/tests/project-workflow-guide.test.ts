@@ -75,13 +75,15 @@ test('advances through novel and adaptation production stages', () => {
       createdAt: '',
       updatedAt: '',
     } as QualityGateReport]
+  const adaptation = { id: 'a1', sourceProjectId: 'p1', title: '改编', targetEpisodeCount: 24, adaptationStyle: '爽剧', createdAt: '', updatedAt: '' } as AdaptationProject
   const stages = buildProjectWorkflowStages(snapshot({
     project,
     characters,
     outlines,
     chapters,
     qualityReports,
-    adaptations: [{ id: 'a1', sourceProjectId: 'p1', title: '改编', targetEpisodeCount: 24, adaptationStyle: '爽剧', createdAt: '', updatedAt: '' } as AdaptationProject],
+    adaptations: [adaptation],
+    activeAdaptation: adaptation,
     episodes: [{
       id: 'e1',
       adaptationProjectId: 'a1',
@@ -111,6 +113,19 @@ test('advances through novel and adaptation production stages', () => {
     'done',
     'active',
   ])
+})
+
+test('does not combine another adaptation into the current workflow progress', () => {
+  const active = { id: 'active', sourceProjectId: 'p1', title: '第一季', targetEpisodeCount: 12, adaptationStyle: '爽剧', createdAt: '', updatedAt: '' } as AdaptationProject
+  const other = { id: 'other', sourceProjectId: 'p1', title: '第二季', targetEpisodeCount: 12, adaptationStyle: '悬疑', createdAt: '', updatedAt: '' } as AdaptationProject
+  const stages = buildProjectWorkflowStages(snapshot({
+    adaptations: [active, other],
+    activeAdaptation: active,
+    episodes: [{ id: 'episode-other', adaptationProjectId: other.id, episodeNumber: 1, title: '第二季第1集', summary: '', hook: '', mainConflict: '', cliffhanger: '', keyVisuals: [], createdAt: '', updatedAt: '' } as Episode],
+  }))
+
+  assert.equal(stages.find((stage) => stage.key === 'adaptation')?.complete, false)
+  assert.match(stages.find((stage) => stage.key === 'adaptation')?.detail ?? '', /第一季/)
 })
 
 test('requires a usable result before video delivery is complete', () => {

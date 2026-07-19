@@ -62,6 +62,7 @@ export function AdaptationWorkspacePage() {
       ipc.episodeAnalysis.get(id),
     ])
     setAdaptation(a ?? null)
+    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
     setEpisodes(eps)
     setAnalysis(an)
   }, [id])

@@ -705,8 +705,7 @@ function resolveWorkflowAdaptationProjectId(
 ): string | undefined {
   if (context?.adaptationProjectId) return context.adaptationProjectId
   if (!context?.projectId) return undefined
-  const adaptations = r.adaptationProject.listAdaptationsByProject(r.db, context.projectId)
-  return adaptations[adaptations.length - 1]?.id
+  return r.project.resolveActiveAdaptation(r.db, context.projectId).adaptation?.id
 }
 
 function collectWorkflowShots(

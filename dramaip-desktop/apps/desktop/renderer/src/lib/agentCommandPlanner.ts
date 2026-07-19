@@ -40,6 +40,8 @@ export interface AgentCommandContext {
   caseStudies: CreativeCaseStudy[]
   visualProfiles: CharacterVisualProfile[]
   adaptations: AdaptationProject[]
+  /** 由项目上下文解析得到，不能再依据列表顺序猜测。 */
+  activeAdaptationId?: string
   episodes: Episode[]
   scripts: Script[]
   scenes: Scene[]
@@ -110,7 +112,7 @@ function buildChapterPlan(command: string, context: AgentCommandContext): AgentC
 }
 
 function buildEpisodePlan(command: string, context: AgentCommandContext): AgentCommandPlan {
-  const adaptation = context.adaptations[0]
+  const adaptation = activeAdaptation(context)
   const blockedReasons = adaptation ? [] : ['当前项目还没有改编项目，请先创建 AI 短剧改编项目。']
   return {
     id: `episodes:${adaptation?.id ?? 'missing'}`,
@@ -135,6 +137,7 @@ function buildEpisodePlan(command: string, context: AgentCommandContext): AgentC
 }
 
 function buildShotPlan(command: string, context: AgentCommandContext): AgentCommandPlan {
+  const adaptation = activeAdaptation(context)
   const scene = resolveSceneForShotSplit(context)
   const blockedReasons = scene ? [] : ['未找到可拆分的剧本场景，请先生成剧本并拆分场景。']
   return {
@@ -148,8 +151,8 @@ function buildShotPlan(command: string, context: AgentCommandContext): AgentComm
     resultMode: 'auto_write',
     input: scene
       ? {
-          projectId: context.adaptations[0]?.sourceProjectId ?? context.projectId,
-          adaptationProjectId: context.adaptations[0]?.id,
+          projectId: adaptation?.sourceProjectId ?? context.projectId,
+          adaptationProjectId: adaptation?.id,
           episodeId: scene.episodeId,
           sceneId: scene.id,
           taskType: 'split_scene_to_shots',
@@ -160,6 +163,12 @@ function buildShotPlan(command: string, context: AgentCommandContext): AgentComm
     blockedReasons,
     confirmBeforeRun: true,
   }
+}
+
+function activeAdaptation(context: AgentCommandContext): AdaptationProject | undefined {
+  return context.activeAdaptationId
+    ? context.adaptations.find((adaptation) => adaptation.id === context.activeAdaptationId)
+    : undefined
 }
 
 function isChapterCommand(text: string): boolean {

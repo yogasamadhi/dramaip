@@ -105,6 +105,7 @@ export function ShotWorkspacePage() {
       ipc.script.list(id),
     ])
     setAdaptation(a ?? null)
+    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
     setEpisodes(eps)
     setScripts(scs)
     // 自动选中第一集（若无）

@@ -91,6 +91,7 @@ export function VideoGenerationPage() {
       ipc.videoProvider.list(),
     ])
     setAdaptation(a ?? null)
+    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
     setEpisodes(eps)
     setScripts(scs)
     setProviders(provs)

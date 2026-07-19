@@ -128,6 +128,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     )
     assert.ok(columns(raw, 'projects').includes('visual_style_direction'))
     assert.ok(columns(raw, 'projects').includes('deleted_at'))
+    assert.ok(columns(raw, 'projects').includes('active_adaptation_id'))
     assert.ok(columns(raw, 'characters').includes('appearance_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('casting_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))
@@ -206,6 +207,45 @@ test('rolls back a failed pending migration without recording its version', () =
     const index = MIGRATIONS.indexOf(failingMigration)
     if (index >= 0) MIGRATIONS.splice(index, 1)
     closeAndRemove(raw, dir)
+  }
+})
+
+test('persists a validated active adaptation and safely falls back after deletion', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation } = fixture
+    const seasonTwo = repos.adaptationProject.createAdaptationProject(db, {
+      sourceProjectId: project.id,
+      title: '第二季',
+      targetEpisodeCount: 12,
+      adaptationStyle: '悬疑',
+      seasonNumber: 2,
+    })
+    const otherProject = repos.project.createProject(db, { title: '其他项目', shortDramaType: '都市' } as never)
+    const otherAdaptation = repos.adaptationProject.createAdaptationProject(db, {
+      sourceProjectId: otherProject.id,
+      title: '其他项目第一季',
+      targetEpisodeCount: 8,
+      adaptationStyle: '都市',
+    })
+
+    assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, seasonTwo.id)
+    assert.equal(repos.project.setActiveAdaptation(db, project.id, adaptation.id)?.activeAdaptationId, adaptation.id)
+    assert.equal(repos.project.setActiveAdaptation(db, project.id, otherAdaptation.id), undefined)
+
+    const deepLink = repos.project.resolveActiveAdaptation(db, project.id, seasonTwo.id)
+    assert.equal(deepLink.reason, 'requested')
+    assert.equal(deepLink.adaptation?.id, seasonTwo.id)
+    const invalidDeepLink = repos.project.resolveActiveAdaptation(db, project.id, otherAdaptation.id)
+    assert.equal(invalidDeepLink.reason, 'persisted')
+    assert.equal(invalidDeepLink.adaptation?.id, seasonTwo.id)
+
+    repos.adaptationProject.deleteAdaptationProject(db, seasonTwo.id)
+    assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, adaptation.id)
+    repos.adaptationProject.deleteAdaptationProject(db, adaptation.id)
+    assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, null)
+  } finally {
+    closeRepositoryFixture(fixture)
   }
 })
 

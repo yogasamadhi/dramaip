@@ -67,6 +67,10 @@ const api = {
     list: () => invoke('project:list'),
     listHomeSummaries: () => invoke('project:listHomeSummaries'),
     get: (id: string) => invoke('project:get', id),
+    resolveActiveAdaptation: (projectId: string, requestedAdaptationId?: string) =>
+      invoke('project:resolveActiveAdaptation', projectId, requestedAdaptationId),
+    setActiveAdaptation: (projectId: string, adaptationId?: string) =>
+      invoke('project:setActiveAdaptation', projectId, adaptationId),
     create: (data: unknown) => invoke('project:create', data),
     update: (id: string, patch: unknown) => invoke('project:update', id, patch),
     trash: (id: string) => invoke('project:trash', id),

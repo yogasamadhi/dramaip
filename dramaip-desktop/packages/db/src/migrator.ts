@@ -599,6 +599,18 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 22,
+    name: 'project-active-adaptation-context',
+    up(raw) {
+      // 旧项目不在迁移时猜测当前季；首次打开时由仓库按明确规则回填，避免批量写入改变项目排序。
+      addColumnIfMissing(raw, 'projects', 'active_adaptation_id', 'active_adaptation_id TEXT')
+      raw.exec(`
+        CREATE INDEX IF NOT EXISTS idx_projects_active_adaptation
+          ON projects(active_adaptation_id);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
