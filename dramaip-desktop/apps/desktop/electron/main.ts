@@ -7,6 +7,7 @@ import { initDatabase, safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
 import { runDesktopE2eSmoke } from './e2e-smoke'
+import { runDesktopUiBaseline } from './ui-baseline'
 import { canOpenExternalUrl, createContentSecurityPolicy } from './security-policy'
 import { initializeCloudAuth } from './cloud-auth'
 
@@ -16,6 +17,10 @@ const PACKAGE_SMOKE_USER_DATA_ENV = 'SDNS_PACKAGE_SMOKE_USER_DATA'
 const E2E_SMOKE_ENV = 'SDNS_E2E_SMOKE'
 const E2E_SMOKE_RESULT_ENV = 'SDNS_E2E_SMOKE_RESULT'
 const E2E_SMOKE_USER_DATA_ENV = 'SDNS_E2E_SMOKE_USER_DATA'
+const UI_BASELINE_ENV = 'SDNS_UI_BASELINE'
+const UI_BASELINE_RESULT_ENV = 'SDNS_UI_BASELINE_RESULT'
+const UI_BASELINE_USER_DATA_ENV = 'SDNS_UI_BASELINE_USER_DATA'
+const UI_BASELINE_OUTPUT_ENV = 'SDNS_UI_BASELINE_OUTPUT'
 
 function isDevRuntime(): boolean {
   return Boolean(process.env['ELECTRON_RENDERER_URL'])
@@ -47,7 +52,9 @@ function configurePackageSmokeUserData(): void {
     process.env[PACKAGE_SMOKE_USER_DATA_ENV] ??
     getSmokeArg('sdns-package-smoke-user-data') ??
     process.env[E2E_SMOKE_USER_DATA_ENV] ??
-    getSmokeArg('sdns-e2e-smoke-user-data')
+    getSmokeArg('sdns-e2e-smoke-user-data') ??
+    process.env[UI_BASELINE_USER_DATA_ENV] ??
+    getSmokeArg('sdns-ui-baseline-user-data')
   if (userData) app.setPath('userData', userData)
 }
 
@@ -90,6 +97,10 @@ async function runPackageSmoke(): Promise<void> {
 
 function isE2eSmoke(): boolean {
   return process.env[E2E_SMOKE_ENV] === '1' || process.argv.includes('--sdns-e2e-smoke')
+}
+
+function isUiBaseline(): boolean {
+  return process.env[UI_BASELINE_ENV] === '1' || process.argv.includes('--sdns-ui-baseline')
 }
 
 function writeE2eSmokeResult(payload: Record<string, unknown>): void {
@@ -143,6 +154,46 @@ async function runE2eSmoke(): Promise<void> {
     app.exit(0)
   } catch (error) {
     writeE2eSmokeResult({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    app.exit(1)
+  }
+}
+
+function writeUiBaselineResult(payload: Record<string, unknown>): void {
+  const resultPath =
+    process.env[UI_BASELINE_RESULT_ENV] ?? getSmokeArg('sdns-ui-baseline-result')
+  if (!resultPath) return
+  mkdirSync(dirname(resultPath), { recursive: true })
+  writeFileSync(
+    resultPath,
+    JSON.stringify(
+      {
+        ...payload,
+        version: app.getVersion(),
+        platform: process.platform,
+        userData: app.getPath('userData'),
+      },
+      null,
+      2,
+    ),
+  )
+}
+
+async function runUiBaseline(): Promise<void> {
+  try {
+    const outputDir = process.env[UI_BASELINE_OUTPUT_ENV] ?? getSmokeArg('sdns-ui-baseline-output')
+    if (!outputDir) throw new Error('UI 基线缺少输出目录')
+    await initDatabase()
+    registerAllIpc()
+    const mainWindow = createWindow({ show: false })
+    await waitForWindowLoaded(mainWindow)
+    const result = await runDesktopUiBaseline(mainWindow, outputDir)
+    writeUiBaselineResult({ ok: true, ...result })
+    app.exit(0)
+  } catch (error) {
+    writeUiBaselineResult({
       ok: false,
       error: error instanceof Error ? error.message : String(error),
     })
@@ -211,6 +262,10 @@ app.whenReady().then(async () => {
   }
   if (isE2eSmoke()) {
     void runE2eSmoke()
+    return
+  }
+  if (isUiBaseline()) {
+    void runUiBaseline()
     return
   }
   await safeInitDatabase()
