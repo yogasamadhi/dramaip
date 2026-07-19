@@ -337,7 +337,7 @@ make platform-e2e
 | LM4-03 | P0 | Web/Billing | done | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
 | LM4-04 | P0 | Release/QA | done | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
 | LM4-05 | P1 | Design System/前端 | done | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
-| LM4-06 | P1 | Desktop/产品体验 | todo | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
+| LM4-06 | P1 | Desktop/产品体验 | done | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
 | LM4-07 | P1 | Desktop/项目体验 | todo | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
 | LM4-08 | P1 | Desktop/数据生命周期 | todo | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
 | LM4-09 | P1 | Desktop/编辑器 | todo | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
@@ -1020,4 +1020,20 @@ Push: 5db6954 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-05-design-foundation deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: Zero AX observations apply only to the seven fixed baseline pages. Theme-toggle placement and page-level information architecture intentionally remain for LM4-06+; native confirm/prompt replacement remains LM4-17.
+```
+
+```text
+Loop: LM4-06
+Target branch: main
+Loop branch: loop/lm4-06-app-shell-deep-links
+Commit(s): 8d60968 loop: add responsive desktop app shell
+Merge commit: eb37df0 merge: LM4-06 responsive desktop app shell
+Verification: dramaip-desktop pnpm typecheck; pnpm format:check; pnpm test (127 unit tests plus DB migration replay); pnpm test:ui (11 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e (includes workspace-shell-deep-link-history-and-panels); git diff --check origin/main...HEAD. All passed again after merge.
+UI/manual evidence: Reviewed isolated 1024 light compact shell and 1320 dark full shell screenshots. At 1024 the inspector is absent and the context panel becomes an accessible compact stage menu; at 1320 the resizable context, 680px+ authoring canvas and inspector coexist. The screenshot matrix covers 1024/1179/1320 in light/dark, including a reduced-motion desktop fixture. The shell smoke creates a chapter, verifies section/chapter deep-link writing, browser-back restoration, keyboard splitter persistence, and focus-mode panel restoration.
+Diff review: Cumulative LM4-06 diff reviewed; no whitespace errors, secrets, build outputs, local preference data, or temporary screenshots committed.
+Remote sync: Fetched and fast-forward checked origin/main at ec870f4 before branch creation and again before merge.
+Push: eb37df0 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-06-app-shell-deep-links deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
+Notes: The shared WorkspaceShell persists panel widths/collapse/focus state locally; legacy project/adaptation paths remain valid while chapter, section, episode, scene and shot selections are URL-addressable. App-wide project-home redesign, complete chapter-tree work, and replacement of native confirm/prompt remain assigned to later loops LM4-07/09/17.
 ```
