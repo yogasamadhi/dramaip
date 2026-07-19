@@ -231,7 +231,7 @@ export function ShotWorkspacePage() {
           </Button>
           <Select
             value={episodeId}
-            onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); return p }, { replace: true })}
+            onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p })}
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="选择集数" />
@@ -269,7 +269,7 @@ export function ShotWorkspacePage() {
                 {scenes.map((sc, i) => (
                   <button
                     key={sc.id}
-                    onClick={() => setParams((p) => { p.set('scene', sc.id); return p }, { replace: true })}
+                    onClick={() => setParams((p) => { p.set('scene', sc.id); p.delete('shot'); return p })}
                     className={cn(
                       'mb-0.5 w-full rounded px-2.5 py-1.5 text-left text-sm',
                       sceneId === sc.id ? 'bg-accent font-medium' : 'hover:bg-accent/60',
@@ -328,7 +328,8 @@ interface PanelProps {
 
 function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, busy, index, onSplit, onChanged }: PanelProps) {
   const navigate = useNavigate()
-  const [activeShotId, setActiveShotId] = useState<string | null>(null)
+  const [params, setParams] = useSearchParams()
+  const activeShotId = params.get('shot')
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
@@ -336,8 +337,13 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const [baseDraft, setBaseDraft] = useState<ShotDraft>(EMPTY_SHOT_DRAFT)
 
   useEffect(() => {
-    setActiveShotId((cur) => cur ?? shots[0]?.id ?? null)
-  }, [scene.id, shots])
+    if (!shots.length || (activeShotId && shots.some((shot) => shot.id === activeShotId))) return
+    setParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('shot', shots[0].id)
+      return next
+    }, { replace: true })
+  }, [activeShotId, scene.id, setParams, shots])
 
   const activeShot = useMemo(() => shots.find((s) => s.id === activeShotId) ?? null, [shots, activeShotId])
 
@@ -652,7 +658,11 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
               {shots.map((s, i) => (
                 <button
                   key={s.id}
-                  onClick={() => setActiveShotId(s.id)}
+                  onClick={() => setParams((current) => {
+                    const next = new URLSearchParams(current)
+                    next.set('shot', s.id)
+                    return next
+                  })}
                   className={cn(
                     'w-full rounded-md border p-2 text-left text-xs',
                     activeShotId === s.id ? 'border-primary bg-accent' : 'hover:bg-accent/60',

@@ -279,7 +279,7 @@ export function VideoGenerationPage() {
         <div className="ml-auto flex items-center gap-2">
           <Select
             value={episodeId}
-            onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p }, { replace: true })}
+            onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p })}
           >
             <SelectTrigger aria-label="选择集数" className="w-40">
               <SelectValue placeholder="选择集数" />
@@ -313,7 +313,7 @@ export function VideoGenerationPage() {
                     scenes.map((sc, i) => (
                       <button
                         key={sc.id}
-                        onClick={() => setParams((p) => { p.set('scene', sc.id); p.delete('shot'); return p }, { replace: true })}
+                        onClick={() => setParams((p) => { p.set('scene', sc.id); p.delete('shot'); return p })}
                         className={cn(
                           'mb-0.5 w-full rounded px-2 py-1 text-left text-xs',
                           sceneId === sc.id ? 'bg-accent font-medium' : 'hover:bg-accent/60',
@@ -333,7 +333,7 @@ export function VideoGenerationPage() {
                       shots.map((s, i) => (
                         <button
                           key={s.id}
-                          onClick={() => setParams((p) => { p.set('shot', s.id); return p }, { replace: true })}
+                          onClick={() => setParams((p) => { p.set('shot', s.id); return p })}
                           className={cn(
                             'mb-0.5 w-full rounded px-2 py-1 text-left text-xs',
                             shotId === s.id ? 'bg-accent font-medium' : 'hover:bg-accent/60',

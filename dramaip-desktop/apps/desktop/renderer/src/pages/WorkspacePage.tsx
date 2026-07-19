@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronRight, Download, FilePlus2, Loader2, Settings, Sparkles, Trash2 } from 'lucide-react'
+import { ChevronRight, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
 import type { AiContextControls, AiRun, Chapter, CharacterVisualProfile, CreativeCaseStudy, Project, ProjectSkill, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
@@ -58,6 +58,7 @@ import { AiDashboardSection } from '@/components/sections/AiDashboardSection'
 import { BeatSection } from '@/components/sections/BeatSection'
 import { HighlightSection } from '@/components/sections/HighlightSection'
 import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibilitySection'
+import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/WorkspaceShell'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
 import { cn } from '@/lib/utils'
@@ -65,6 +66,8 @@ import { cn } from '@/lib/utils'
 const ChapterEditor = lazy(() =>
   import('@/components/editor/ChapterEditor').then((m) => ({ default: m.ChapterEditor })),
 )
+
+const WORKSPACE_SECTION_KEYS = new Set(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.key)))
 
 function formatTime(iso: string): string {
   try {
@@ -77,7 +80,7 @@ function formatTime(iso: string): string {
 export function WorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [project, setProject] = useState<Project | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -231,13 +234,25 @@ export function WorkspacePage() {
   }, [loadProject])
   useEffect(() => {
     const requestedSection = searchParams.get('section')
-    if (requestedSection) setSection(requestedSection)
+    setSection(requestedSection && WORKSPACE_SECTION_KEYS.has(requestedSection) ? requestedSection : 'chapters')
     const requestedChapter = searchParams.get('chapter')
     if (requestedChapter) setSelectedId(requestedChapter)
   }, [searchParams])
   useEffect(() => {
     if (section === 'ai-runs') void loadAiRuns()
   }, [section, loadAiRuns])
+
+  const openWorkspaceTarget = useCallback((nextSection: string, chapterId?: string | null) => {
+    setSection(nextSection)
+    if (chapterId !== undefined) setSelectedId(chapterId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('section', nextSection)
+      if (chapterId) next.set('chapter', chapterId)
+      else if (chapterId !== undefined || nextSection !== 'chapters') next.delete('chapter')
+      return next
+    })
+  }, [setSearchParams])
 
   const selected = chapters.find((c) => c.id === selectedId) ?? null
   const pendingGeneratePreflight = pendingGenerate ? buildAiPreflightContext(
@@ -258,19 +273,16 @@ export function WorkspacePage() {
     if (!id) return
     const c = await ipc.chapter.create({ projectId: id, title: `第 ${chapters.length + 1} 章` })
     setChapters((prev) => [...prev, c])
-    setSelectedId(c.id)
-    setSection('chapters')
+    openWorkspaceTarget('chapters', c.id)
     setEditorNonce((n) => n + 1)
   }
 
   async function deleteChapter(chapterId: string) {
     if (!window.confirm('删除该章节？')) return
     await ipc.chapter.remove(chapterId)
-    setChapters((prev) => {
-      const next = prev.filter((c) => c.id !== chapterId)
-      if (selectedId === chapterId) setSelectedId(next[0]?.id ?? null)
-      return next
-    })
+    const next = chapters.filter((chapter) => chapter.id !== chapterId)
+    setChapters(next)
+    if (selectedId === chapterId) openWorkspaceTarget('chapters', next[0]?.id ?? null)
   }
 
   async function renameChapter(title: string) {
@@ -456,15 +468,15 @@ export function WorkspacePage() {
   function handleWorkflowStageAction(stageKey: ProjectWorkflowStageKey) {
     if (!project) return
     if (stageKey === 'setup') {
-      setSection('overview')
+      openWorkspaceTarget('overview')
     } else if (stageKey === 'characters') {
-      setSection('characters')
+      openWorkspaceTarget('characters')
     } else if (stageKey === 'outline') {
-      setSection('outline')
+      openWorkspaceTarget('outline')
     } else if (stageKey === 'chapters') {
-      setSection('chapters')
+      openWorkspaceTarget('chapters', selectedId)
     } else if (stageKey === 'quality') {
-      setSection('quality-gates')
+      openWorkspaceTarget('quality-gates')
     } else if (stageKey === 'adaptation') {
       openAdaptationPath('overview')
     } else if (stageKey === 'scripts') {
@@ -477,18 +489,16 @@ export function WorkspacePage() {
   }
 
   if (!project) {
-    return <div className="p-8 text-sm text-muted-foreground">加载项目…</div>
+    return <WorkspaceShellState title="正在打开项目">加载项目内容，请稍候…</WorkspaceShellState>
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b px-4 py-2.5">
-        <Button variant="ghost" size="icon" aria-label="返回项目列表" onClick={() => navigate('/')}>
-          <ArrowLeft />
-        </Button>
-        <h1 className="text-base font-semibold">{project.title}</h1>
-        <Badge variant="secondary">{project.shortDramaType}</Badge>
-        <div className="ml-auto flex items-center gap-2">
+    <>
+      <WorkspaceShell
+        title={project.title}
+        breadcrumbs={['项目', '创作工作台', section === 'chapters' && selected ? selected.title : section]}
+        badge={<Badge variant="secondary">{project.shortDramaType}</Badge>}
+        actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -510,68 +520,138 @@ export function WorkspacePage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" aria-label="打开设置" onClick={() => navigate('/settings')}>
-            <Settings />
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左：项目导航 */}
-        <nav className="flex w-56 shrink-0 flex-col border-r">
-          <ScrollArea className="flex-1">
-            <div className="space-y-3 p-2">
-              {WORKSPACE_NAV_GROUPS.map((group) => (
-                <div key={group.key} className="space-y-1">
-                  <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
-                    {group.label}
-                  </div>
-                  {group.items.map((item) => {
-                    const active = section === item.key
-                    const isChapterEntry = item.key === 'chapters'
-                    return (
-                      <button
+        }
+        context={(mode) => mode === 'compact' ? (
+          <nav className="flex h-full min-w-0 flex-col items-center gap-2 p-2" aria-label="项目阶段导航">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="secondary" aria-label="打开项目阶段菜单" title="打开项目阶段菜单">
+                  <Menu />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
+                {WORKSPACE_NAV_GROUPS.map((group) => (
+                  <div key={group.key} className="py-1">
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                    {group.items.map((item) => (
+                      <DropdownMenuItem
                         key={item.key}
-                        onClick={() => {
-                          // v0.8：编剧室是独立页面
-                          if (item.key === 'writing-room') {
-                            void navigate(`/projects/${project.id}/writing-room`)
-                            return
-                          }
-                          setSection(item.key)
-                        }}
-                        aria-current={active ? 'page' : undefined}
-                        className={cn(
-                          'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                          active
-                            ? 'bg-accent font-medium text-accent-foreground'
-                            : 'hover:bg-accent/60',
-                          isChapterEntry && 'font-medium',
-                        )}
+                        onClick={() => item.key === 'writing-room'
+                          ? navigate(`/projects/${project.id}/writing-room`)
+                          : openWorkspaceTarget(item.key)}
                       >
                         {item.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="rounded-md bg-accent px-1.5 py-2 text-center text-xs font-medium text-accent-foreground" title="当前工作区">
+              {(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.key === section)?.label ?? '当前').slice(0, 2)}
             </div>
-          </ScrollArea>
-          <div className="border-t p-2">
-            <Button variant="outline" size="sm" className="w-full" onClick={createChapter}>
-              <FilePlus2 />
-              新建章节
-            </Button>
-          </div>
-        </nav>
+            <div className="mt-auto">
+              <Button variant="outline" size="icon" aria-label="新建章节" title="新建章节" onClick={createChapter}>
+                <FilePlus2 />
+                <span className="sr-only">新建章节</span>
+              </Button>
+            </div>
+          </nav>
+        ) : (
+          <nav className="flex h-full min-w-0 flex-col" aria-label="项目阶段导航">
+            <ScrollArea className="flex-1">
+              <div className="space-y-3 p-2">
+                {WORKSPACE_NAV_GROUPS.map((group) => (
+                  <div key={group.key} className="space-y-1">
+                    <div className="px-3 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                    {group.items.map((item) => {
+                      const active = section === item.key
+                      const isChapterEntry = item.key === 'chapters'
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => {
+                            if (item.key === 'writing-room') {
+                              void navigate(`/projects/${project.id}/writing-room`)
+                              return
+                            }
+                            openWorkspaceTarget(item.key)
+                          }}
+                          aria-label={item.label}
+                          title={item.label}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            active
+                              ? 'bg-accent font-medium text-accent-foreground'
+                              : 'text-foreground hover:bg-accent/60 dark:!text-slate-200',
+                            isChapterEntry && 'font-medium',
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+            <div className="border-t p-2">
+              <Button variant="outline" size="sm" className="w-full" title="新建章节" onClick={createChapter}>
+                <FilePlus2 />
+                新建章节
+              </Button>
+            </div>
+          </nav>
+        )}
+        inspector={
+          section === 'chapters' ? (
+            <ScrollArea className="h-full bg-muted/20">
+              <div className="space-y-3 p-3">
+                {selected && (
+                  <ContentVersionPanel
+                    targetKind="chapter"
+                    targetId={selected.id}
+                    currentContent={selected.content}
+                    title="章节版本"
+                    onRestored={onChapterUpdated}
+                  />
+                )}
+                <AiAssistantPanel
+                  projectId={project.id}
+                  chapter={selected}
+                  onChapterUpdated={onChapterUpdated}
+                  onTextPreview={setTextPreview}
+                  contextData={{
+                    project,
+                    chapters,
+                    characters: workflowSnapshot?.characters ?? [],
+                    storyArcs,
+                    projectSkills,
+                    caseStudies,
+                    visualProfiles,
+                  }}
+                />
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="h-full bg-muted/20 p-4 text-sm text-muted-foreground">
+              在「章节」中使用 AI 写作助手（生成 / 续写 / 润色 / 扩写 / 增强冲突与爽点与 AI 短剧感）。
+              <br />
+              <br />
+              通过记忆、人物状态、视觉档案、时间线、伏笔与一致性检查，保持长篇设定统一。
+            </div>
+          )
+        }
+      >
 
         {/* 中：主区 */}
-        <section className="flex flex-1 flex-col overflow-hidden border-r">
+        <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {section === 'chapters' && (
             <>
               <div className="flex items-center gap-2 border-b px-3 py-2">
                 {chapters.length > 0 ? (
-                  <Select value={selectedId ?? undefined} onValueChange={(v) => { setSelectedId(v); setEditorNonce((n) => n + 1) }}>
+                  <Select value={selectedId ?? undefined} onValueChange={(v) => { openWorkspaceTarget('chapters', v); setEditorNonce((n) => n + 1) }}>
                     <SelectTrigger aria-label="选择章节" className="w-64">
                       <SelectValue placeholder="选择章节" />
                     </SelectTrigger>
@@ -703,8 +783,7 @@ export function WorkspacePage() {
               chapters={chapters}
               qualityTruth={projectQualityTruth}
               onOpenWorkspaceTarget={(nextSection, chapterId) => {
-                if (chapterId) setSelectedId(chapterId)
-                setSection(nextSection)
+                openWorkspaceTarget(nextSection, chapterId)
               }}
             />
           )}
@@ -797,8 +876,7 @@ export function WorkspacePage() {
               }}
               onChapterUpdated={applyChapterUpdate}
               onOpenChapter={(chapterId) => {
-                setSelectedId(chapterId)
-                setSection('chapters')
+                openWorkspaceTarget('chapters', chapterId)
                 setEditorNonce((n) => n + 1)
               }}
               onCreateProject={openProjectCreationFromInspiration}
@@ -887,48 +965,7 @@ export function WorkspacePage() {
             <AiVideoFeasibilitySection projectId={project.id} chapter={selected} version={dataVersion} />
           )}
         </section>
-
-        {/* 右：AI 助手 / 信息 */}
-        <aside className="w-80 shrink-0 overflow-hidden border-l bg-muted/20">
-          {section === 'chapters' ? (
-            <ScrollArea className="h-full">
-              <div className="space-y-3 p-3">
-                {selected && (
-                  <ContentVersionPanel
-                    targetKind="chapter"
-                    targetId={selected.id}
-                    currentContent={selected.content}
-                    title="章节版本"
-                    onRestored={onChapterUpdated}
-                  />
-                )}
-                <AiAssistantPanel
-                  projectId={project.id}
-                  chapter={selected}
-                  onChapterUpdated={onChapterUpdated}
-                  onTextPreview={setTextPreview}
-                  contextData={{
-                    project,
-                    chapters,
-                    characters: workflowSnapshot?.characters ?? [],
-                    storyArcs,
-                    projectSkills,
-                    caseStudies,
-                    visualProfiles,
-                  }}
-                />
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="p-4 text-sm text-muted-foreground">
-              在「章节」中使用 AI 写作助手（生成 / 续写 / 润色 / 扩写 / 增强冲突与爽点与 AI 短剧感）。
-              <br />
-              <br />
-              v0.2 新增「长篇一致性」能力：记忆面板、人物状态、人物视觉档案、视觉设定、事件时间线、伏笔、一致性检查，帮助长篇创作保持设定统一。
-            </div>
-          )}
-        </aside>
-      </div>
+      </WorkspaceShell>
 
       <GeneratePreviewDialog
         open={preview.open}
@@ -954,7 +991,7 @@ export function WorkspacePage() {
         running={preflightRunning}
         onClose={() => setPendingGenerate(null)}
       />
-    </div>
+    </>
   )
 }
 

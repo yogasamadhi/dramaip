@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Download, FileJson, Loader2, Pencil, Sparkles, Wand2 } from 'lucide-react'
 import type { AdaptationProject, Episode, EpisodeAnalysis } from '@sdns/core'
@@ -25,11 +25,23 @@ const NAV: { key: NavKey; label: string }[] = [
 export function AdaptationWorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [analysis, setAnalysis] = useState<EpisodeAnalysis | undefined>(undefined)
-  const [nav, setNav] = useState<NavKey>('overview')
   const [version, setVersion] = useState(0)
+  const requestedNav = searchParams.get('section')
+  const nav: NavKey = requestedNav === 'episodes' || requestedNav === 'first10' || requestedNav === 'overview'
+    ? requestedNav
+    : 'overview'
+
+  function openAdaptationSection(nextNav: NavKey) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('section', nextNav)
+      return next
+    })
+  }
 
   // 预览流
   const [preview, setPreview] = useState<{ open: boolean; taskType: PreviewTaskType; data: unknown }>({
@@ -217,7 +229,13 @@ export function AdaptationWorkspacePage() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-base font-semibold">{adaptation.title}</h1>
+        <div className="min-w-0">
+          <nav aria-label="面包屑" className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>项目</span><span aria-hidden>›</span><span>改编</span><span aria-hidden>›</span>
+            <span>{NAV.find((item) => item.key === nav)?.label}</span>
+          </nav>
+          <h1 className="truncate text-base font-semibold">{adaptation.title}</h1>
+        </div>
         <Badge variant="secondary">{adaptation.targetEpisodeCount} 集</Badge>
         <Badge variant="outline">{adaptation.adaptationStyle}</Badge>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -242,7 +260,7 @@ export function AdaptationWorkspacePage() {
           {NAV.map((item) => (
             <button
               key={item.key}
-              onClick={() => setNav(item.key)}
+              onClick={() => openAdaptationSection(item.key)}
               className={cn(
                 'mb-0.5 w-full rounded px-3 py-1.5 text-left text-sm',
                 nav === item.key ? 'bg-accent font-medium' : 'hover:bg-accent/60',
@@ -288,7 +306,7 @@ export function AdaptationWorkspacePage() {
                       <Sparkles />
                       新鲜度诊断
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setNav('episodes')}>
+                    <Button size="sm" variant="outline" onClick={() => openAdaptationSection('episodes')}>
                       生成分集大纲 →
                     </Button>
                   </div>
