@@ -350,7 +350,7 @@ make platform-e2e
 | LM4-16 | P1 | Desktop/质量体验 | done | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
 | LM4-17 | P1 | Desktop/交互一致性 | done | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
 | LM4-18 | P1 | 契约治理 | done | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
-| LM4-19 | P1 | Mobile/Desktop 接续 | todo | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
+| LM4-19 | P1 | Mobile/Desktop 接续 | done | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | todo | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | todo | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20 |
 | LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21 |
@@ -1228,4 +1228,20 @@ Push: 4e1ab2a pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-18-versioned-client-contracts deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
 Notes: v1 retains headerless requests during the migration window. Explicit unsupported versions receive HTTP 426. Any future published schema change against origin/main must change the contract version; v1 is documented to remain for two released Desktop/Mobile versions and at least 90 days after v2 production release.
+```
+
+```text
+Loop: LM4-19
+Target branch: main
+Loop branch: loop/lm4-19-mobile-draft-lifecycle
+Commit(s): a65e48c feat: complete mobile draft lifecycle
+Merge commit: a9008d0 merge: LM4-19 mobile draft lifecycle
+Verification: Before and after merge: services buf lint/generate; GOCACHE=/tmp/dramaip-go-build go test ./...; clients pnpm contracts:check and pnpm typecheck; dramaip-desktop pnpm typecheck and pnpm test:unit (144/144); git diff --check. All executed checks passed.
+UI/manual evidence: Mobile now exposes every retained local draft with edit/delete and synchronized/pending/failed status rather than silently slicing at 100 records. Desktop shows not adopted/current-project adopted/other-project adopted after reload. No Desktop project id is sent to the platform; project-specific adoption is stored only in local SQLite.
+Diff review: Reviewed append-only server adoption audit, soft cloud deletion migration 037, cursor pagination, idempotent upsert/adoption behavior, queue retry/deletion retention, narrow Desktop BFF models, local adoption projection and generated proto diff. No user content, credentials, local database or build output was committed.
+Remote sync: Fetched and fast-forward checked origin/main at f21759d before branch creation and again before merge; main had no intervening remote commits.
+Push: a9008d0 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-19-mobile-draft-lifecycle deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
+Notes: Cloud deletion is a soft delete so adoption evidence remains auditable. Retention cleanup is intentionally deferred to a guarded future job; no automatic purge or cascading adoption deletion is performed.
 ```
