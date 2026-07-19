@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -48,7 +49,8 @@ func TestBFFHTTPFlow(t *testing.T) {
 	patchJSON(t, router, "/v1/me/profile", token, `{"display_name":"Updated Creator","locale":"zh-CN","timezone":"Asia/Shanghai"}`, http.StatusOK)
 	postJSON(t, router, "/v1/billing/checkout", token, `{"plan_id":"pro","channel":"alipay"}`, http.StatusOK)
 	postJSON(t, router, "/v1/billing/sandbox/confirm-payment", token, `{"checkout_id":"order"}`, http.StatusOK)
-	postJSON(t, router, "/v1/ai/chat", token, `{"request_id":"req_1","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`, http.StatusOK)
+	preflightHash := preflightChatHash(t, router, token, `{"provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`)
+	postJSON(t, router, "/v1/ai/chat", token, fmt.Sprintf(`{"request_id":"req_1","provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16,"preflight_request_hash":"%s"}`, preflightHash), http.StatusOK)
 	getJSON(t, router, http.MethodGet, "/v1/me/notifications", token, http.StatusOK, func(got map[string]any) {
 		if _, ok := got["notifications"].([]any); !ok {
 			t.Fatalf("notifications = %+v", got)
@@ -111,7 +113,8 @@ func TestChatUsesIdempotencyHeader(t *testing.T) {
 		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: ai, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
 	})
 	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
-	req := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(`{"request_id":"trace-42","messages":[{"role":"user","content":"hi"}]}`))
+	preflightHash := preflightChatHash(t, router, "token", `{"provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(fmt.Sprintf(`{"request_id":"trace-42","provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16,"preflight_request_hash":"%s"}`, preflightHash)))
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("Idempotency-Key", "header-key-42")
 	req.Header.Set("X-Forwarded-For", "198.51.100.10, 203.0.113.42")
@@ -120,11 +123,30 @@ func TestChatUsesIdempotencyHeader(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("chat status = %d: %s", rec.Code, rec.Body.String())
 	}
-	if ai.request == nil || ai.request.RequestId != "trace-42" || ai.request.IdempotencyKey != "header-key-42" || ai.request.ClientIp != "203.0.113.42" {
+	if ai.request == nil || ai.request.RequestId != "trace-42" || ai.request.IdempotencyKey != "header-key-42" || ai.request.ClientIp != "203.0.113.42" || ai.request.PreflightRequestHash != preflightHash {
 		t.Fatalf("forwarded chat request = %#v", ai.request)
 	}
 	if got := rec.Header().Get("Idempotency-Key"); got != "header-key-42" {
 		t.Fatalf("response Idempotency-Key = %q", got)
+	}
+}
+
+func TestChatRejectsMissingPreflightBinding(t *testing.T) {
+	router := newTestHTTPService().Router()
+	req := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(`{"request_id":"trace-42","provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16}`))
+	req.Header.Set("Authorization", "Bearer token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_preflight_request_hash") {
+		t.Fatalf("missing preflight binding = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	mismatch := httptest.NewRequest(http.MethodPost, "/v1/ai/chat", bytes.NewBufferString(`{"request_id":"trace-42","provider":"test","messages":[{"role":"user","content":"hi"}],"max_tokens":16,"preflight_request_hash":"`+strings.Repeat("a", 43)+`"}`))
+	mismatch.Header.Set("Authorization", "Bearer token")
+	mismatchRecorder := httptest.NewRecorder()
+	router.ServeHTTP(mismatchRecorder, mismatch)
+	if mismatchRecorder.Code != http.StatusConflict || !strings.Contains(mismatchRecorder.Body.String(), "cloud_preflight_request_mismatch") {
+		t.Fatalf("mismatched preflight binding = %d: %s", mismatchRecorder.Code, mismatchRecorder.Body.String())
 	}
 }
 
@@ -585,6 +607,27 @@ func postJSON(t *testing.T, router http.Handler, path, token, body string, want 
 	}
 }
 
+func preflightChatHash(t *testing.T, router http.Handler, token, body string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/ai/preflight", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat preflight status = %d: %s", rec.Code, rec.Body.String())
+	}
+	var response struct {
+		RequestHash string `json:"request_hash"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if !platform.ValidCloudAIRequestHash(response.RequestHash) {
+		t.Fatalf("chat preflight returned invalid request hash %q", response.RequestHash)
+	}
+	return response.RequestHash
+}
+
 func patchJSON(t *testing.T, router http.Handler, path, token, body string, want int) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPatch, path, bytes.NewBufferString(body))
@@ -788,12 +831,28 @@ func (f *captureUsageQuota) GetUsageTrend(ctx context.Context, req *quotav1.GetU
 
 type fakeAI struct{}
 
+func (fakeAI) Preflight(_ context.Context, req *aiv1.PreflightRequest, _ ...grpc.CallOption) (*aiv1.PreflightReply, error) {
+	provider := req.Provider
+	if provider == "" {
+		provider = "test"
+	}
+	model := req.Model
+	if model == "" {
+		model = "test"
+	}
+	return &aiv1.PreflightReply{Model: &aiv1.CloudModel{Provider: provider, Model: model, IsDefault: req.Model == ""}, EstimatedTokens: req.ContextCharacters/4 + req.MessageCount + req.MaxTokens, RequestHash: req.RequestHash}, nil
+}
+
 func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error) {
 	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100}, nil
 }
 
 type captureAI struct {
 	request *aiv1.ChatRequest
+}
+
+func (f *captureAI) Preflight(ctx context.Context, req *aiv1.PreflightRequest, options ...grpc.CallOption) (*aiv1.PreflightReply, error) {
+	return fakeAI{}.Preflight(ctx, req, options...)
 }
 
 func (f *captureAI) Chat(_ context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {

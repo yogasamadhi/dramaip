@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
@@ -90,6 +91,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/subscription/resume", s.handleResumeSubscription)
 	mux.HandleFunc("/v1/subscription/change-plan", s.handleChangeSubscriptionPlan)
 	mux.HandleFunc("/v1/subscription/refund", s.handleRequestRefund)
+	mux.HandleFunc("/v1/ai/preflight", s.handleChatPreflight)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
 	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(s.csrfMiddleware(mux))))
 }
@@ -808,6 +810,53 @@ func (s *HTTPService) handleRequestRefund(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, refundResponse(refund))
 }
 
+type cloudChatMessageRequest struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type cloudChatPreflightRequest struct {
+	Provider  string                    `json:"provider"`
+	Model     string                    `json:"model"`
+	Messages  []cloudChatMessageRequest `json:"messages"`
+	MaxTokens int64                     `json:"max_tokens"`
+}
+
+func (s *HTTPService) handleChatPreflight(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req cloudChatPreflightRequest
+	if !decodeJSONLimit(w, r, &req, 32<<10) {
+		return
+	}
+	messages, contextCharacters, valid := validateCloudChatMessages(req.Messages, req.MaxTokens)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "invalid_cloud_context")
+		return
+	}
+	preflight, balance, err := s.uc.PreflightChat(r.Context(), auth.UserId, req.Provider, req.Model, messages, contextCharacters, req.MaxTokens)
+	if err != nil {
+		writeGRPCError(w, err, "chat_preflight_unavailable")
+		return
+	}
+	model := preflight.GetModel()
+	if model == nil || !platform.ValidCloudAIRequestHash(preflight.GetRequestHash()) {
+		writeError(w, http.StatusServiceUnavailable, "chat_preflight_invalid")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"model":            map[string]any{"provider": model.GetProvider(), "model": model.GetModel(), "is_default": model.GetIsDefault()},
+		"estimated_tokens": preflight.GetEstimatedTokens(), "remaining_tokens": balance.GetRemainingTokens(), "request_hash": preflight.GetRequestHash(),
+	})
+}
+
 func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -818,23 +867,37 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RequestID      string `json:"request_id"`
-		IdempotencyKey string `json:"idempotency_key"`
-		Provider       string `json:"provider"`
-		Model          string `json:"model"`
-		Messages       []struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"messages"`
-		MaxTokens int64 `json:"max_tokens"`
+		RequestID            string                    `json:"request_id"`
+		IdempotencyKey       string                    `json:"idempotency_key"`
+		Provider             string                    `json:"provider"`
+		Model                string                    `json:"model"`
+		Messages             []cloudChatMessageRequest `json:"messages"`
+		MaxTokens            int64                     `json:"max_tokens"`
+		PreflightRequestHash string                    `json:"preflight_request_hash"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json")
+	if !decodeJSONLimit(w, r, &req, 32<<10) {
 		return
 	}
-	messages := make([]*aiv1.ChatMessage, 0, len(req.Messages))
-	for _, message := range req.Messages {
-		messages = append(messages, &aiv1.ChatMessage{Role: message.Role, Content: message.Content})
+	if !platform.ValidCloudAIRequestHash(req.PreflightRequestHash) {
+		writeError(w, http.StatusBadRequest, "invalid_preflight_request_hash")
+		return
+	}
+	messages, contextCharacters, valid := validateCloudChatMessages(req.Messages, req.MaxTokens)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "invalid_cloud_context")
+		return
+	}
+	// A client can only execute the exact payload that passed the authoritative
+	// preflight. Recheck here as Desktop BFF does: the initial preflight is for
+	// user feedback, while this one closes the race before Gateway reservation.
+	preflight, _, err := s.uc.PreflightChat(r.Context(), auth.UserId, req.Provider, req.Model, messages, contextCharacters, req.MaxTokens)
+	if err != nil {
+		writeGRPCError(w, err, "chat_preflight_unavailable")
+		return
+	}
+	if preflight.GetRequestHash() != req.PreflightRequestHash {
+		writeError(w, http.StatusConflict, "cloud_preflight_request_mismatch")
+		return
 	}
 	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idempotencyKey == "" {
@@ -852,13 +915,33 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		requestID = idempotencyKey
 	}
 	w.Header().Set("Idempotency-Key", idempotencyKey)
-	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens)
+	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens, req.PreflightRequestHash)
 	if err != nil {
 		writeGRPCError(w, err, "chat_unavailable")
 		return
 	}
 	atomic.AddUint64(&s.chatsTotal, 1)
 	writeJSON(w, http.StatusOK, chatResponse(reply))
+}
+
+func validateCloudChatMessages(input []cloudChatMessageRequest, maxTokens int64) ([]*aiv1.ChatMessage, int64, bool) {
+	if len(input) == 0 || len(input) > 8 || maxTokens < 1 || maxTokens > 8_192 {
+		return nil, 0, false
+	}
+	contextCharacters := int64(0)
+	messages := make([]*aiv1.ChatMessage, 0, len(input))
+	for _, message := range input {
+		role := strings.TrimSpace(message.Role)
+		if role != "system" && role != "user" && role != "assistant" || strings.TrimSpace(message.Content) == "" {
+			return nil, 0, false
+		}
+		contextCharacters += int64(utf8.RuneCountInString(message.Content))
+		if contextCharacters > 24_000 {
+			return nil, 0, false
+		}
+		messages = append(messages, &aiv1.ChatMessage{Role: role, Content: message.Content})
+	}
+	return messages, contextCharacters, true
 }
 
 func (s *HTTPService) authenticate(w http.ResponseWriter, r *http.Request) (*authv1.AuthReply, bool) {
@@ -1273,6 +1356,21 @@ func chatResponse(reply *aiv1.ChatReply) map[string]any {
 		"prompt_tokens": reply.PromptTokens, "completion_tokens": reply.CompletionTokens, "total_tokens": reply.TotalTokens,
 		"reservation_id": reply.ReservationId, "remaining_tokens": reply.RemainingTokens, "status": reply.Status,
 	}
+}
+
+func decodeJSONLimit(w http.ResponseWriter, r *http.Request, destination any, limit int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return false
+	}
+	return true
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, value any) {

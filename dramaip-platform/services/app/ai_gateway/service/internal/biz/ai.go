@@ -2,10 +2,7 @@ package biz
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -373,38 +370,15 @@ func hasDefaultModel(models []CloudModel) bool {
 }
 
 func chatRequestHash(provider string, model string, messages []ChatMessage, maxTokens int64) (string, error) {
-	hash := sha256.New()
-	for _, part := range []string{provider, model, strconv.FormatInt(maxTokens, 10)} {
-		if _, err := hash.Write([]byte(part)); err != nil {
-			return "", err
-		}
-		if _, err := hash.Write([]byte{0}); err != nil {
-			return "", err
-		}
-	}
+	hashMessages := make([]platform.CloudAIHashMessage, 0, len(messages))
 	for _, message := range messages {
-		for _, part := range []string{message.Role, message.Content} {
-			if _, err := hash.Write([]byte(part)); err != nil {
-				return "", err
-			}
-			if _, err := hash.Write([]byte{0}); err != nil {
-				return "", err
-			}
-		}
+		hashMessages = append(hashMessages, platform.CloudAIHashMessage{Role: message.Role, Content: message.Content})
 	}
-	return base64.RawURLEncoding.EncodeToString(hash.Sum(nil)), nil
+	return platform.CloudAIRequestHash(provider, model, maxTokens, hashMessages)
 }
 
 func validRequestHash(value string) bool {
-	if len(value) != 43 { // base64.RawURLEncoding SHA-256 digest
-		return false
-	}
-	for _, char := range value {
-		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_') {
-			return false
-		}
-	}
-	return true
+	return platform.ValidCloudAIRequestHash(value)
 }
 
 func estimateReservedTokens(messages []ChatMessage, maxTokens int64) int64 {

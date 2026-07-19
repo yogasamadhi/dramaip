@@ -381,10 +381,55 @@ func (u *BFFUsecase) RequestRefund(ctx context.Context, userID, subscriptionID, 
 	})
 }
 
-func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64) (*aiv1.ChatReply, error) {
+func (u *BFFUsecase) PreflightChat(ctx context.Context, userID, provider, model string, messages []*aiv1.ChatMessage, contextCharacters, maxTokens int64) (*aiv1.PreflightReply, *quotav1.TokenBalance, error) {
+	// The browser may omit the model to select a provider default. Resolve it
+	// first with a syntactically valid throwaway binding, then bind the exact
+	// resolved provider/model/messages before returning anything to the client.
+	resolved, err := u.data.AI.Preflight(ctx, &aiv1.PreflightRequest{
+		UserId: userID, Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model), ContextCharacters: contextCharacters,
+		MessageCount: int64(len(messages)), MaxTokens: maxTokens, RequestHash: strings.Repeat("a", 43),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if resolved.GetModel() == nil {
+		return nil, nil, status.Error(codes.Unavailable, "cloud_preflight_model_missing")
+	}
+	hashMessages := make([]platform.CloudAIHashMessage, 0, len(messages))
+	for _, message := range messages {
+		if message == nil {
+			return nil, nil, status.Error(codes.InvalidArgument, "invalid_cloud_context")
+		}
+		hashMessages = append(hashMessages, platform.CloudAIHashMessage{Role: message.Role, Content: message.Content})
+	}
+	requestHash, err := platform.CloudAIRequestHash(resolved.GetModel().GetProvider(), resolved.GetModel().GetModel(), maxTokens, hashMessages)
+	if err != nil {
+		return nil, nil, status.Error(codes.Internal, "cloud_preflight_hash_failed")
+	}
+	preflight, err := u.data.AI.Preflight(ctx, &aiv1.PreflightRequest{
+		UserId: userID, Provider: resolved.GetModel().GetProvider(), Model: resolved.GetModel().GetModel(), ContextCharacters: contextCharacters,
+		MessageCount: int64(len(messages)), MaxTokens: maxTokens, RequestHash: requestHash,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	if preflight.GetRequestHash() != requestHash {
+		return nil, nil, status.Error(codes.FailedPrecondition, "cloud_preflight_request_mismatch")
+	}
+	balance, err := u.data.Quota.GetTokenBalance(ctx, &quotav1.GetTokenBalanceRequest{UserId: userID})
+	if err != nil {
+		return nil, nil, err
+	}
+	if balance.GetRemainingTokens() < preflight.GetEstimatedTokens() {
+		return nil, nil, status.Error(codes.ResourceExhausted, "cloud_quota_insufficient")
+	}
+	return preflight, balance, nil
+}
+
+func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64, preflightRequestHash string) (*aiv1.ChatReply, error) {
 	return u.data.AI.Chat(ctx, &aiv1.ChatRequest{
 		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, ClientIp: clientIP, Provider: provider,
-		Model: model, Messages: messages, MaxTokens: maxTokens,
+		Model: model, Messages: messages, MaxTokens: maxTokens, PreflightRequestHash: preflightRequestHash,
 	})
 }
 
