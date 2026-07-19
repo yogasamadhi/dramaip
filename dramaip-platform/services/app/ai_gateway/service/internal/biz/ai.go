@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,14 +20,15 @@ import (
 type ChatMessage = data.ChatMessage
 
 type ChatInput struct {
-	UserID         string
-	RequestID      string
-	IdempotencyKey string
-	ClientIP       string
-	Provider       string
-	Model          string
-	Messages       []ChatMessage
-	MaxTokens      int64
+	UserID               string
+	RequestID            string
+	IdempotencyKey       string
+	ClientIP             string
+	Provider             string
+	Model                string
+	Messages             []ChatMessage
+	MaxTokens            int64
+	PreflightRequestHash string
 }
 
 type ChatResult struct {
@@ -58,11 +59,13 @@ type PreflightInput struct {
 	ContextCharacters int64
 	MessageCount      int64
 	MaxTokens         int64
+	RequestHash       string
 }
 
 type PreflightResult struct {
 	Model           CloudModel
 	EstimatedTokens int64
+	RequestHash     string
 }
 
 const (
@@ -143,6 +146,9 @@ func (u *AiGatewayUsecase) Preflight(input PreflightInput) (PreflightResult, err
 	if input.MaxTokens < 1 || input.MaxTokens > maxDesktopCompletionTokens {
 		return PreflightResult{}, status.Error(codes.InvalidArgument, "desktop max tokens exceeds limit")
 	}
+	if !validRequestHash(input.RequestHash) {
+		return PreflightResult{}, status.Error(codes.InvalidArgument, "invalid desktop request hash")
+	}
 	model, err := u.resolveCloudModel(input.Provider, input.Model)
 	if err != nil {
 		return PreflightResult{}, err
@@ -150,6 +156,7 @@ func (u *AiGatewayUsecase) Preflight(input PreflightInput) (PreflightResult, err
 	return PreflightResult{
 		Model:           model,
 		EstimatedTokens: input.ContextCharacters/4 + input.MessageCount + input.MaxTokens,
+		RequestHash:     input.RequestHash,
 	}, nil
 }
 
@@ -180,6 +187,9 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	requestHash, err := chatRequestHash(provider.Name, model, input.Messages, input.MaxTokens)
 	if err != nil {
 		return ChatResult{}, err
+	}
+	if !validRequestHash(input.PreflightRequestHash) || input.PreflightRequestHash != requestHash {
+		return ChatResult{}, status.Error(codes.FailedPrecondition, "cloud_preflight_request_mismatch")
 	}
 	cached, cachedOK := u.data.GetCachedAudit(ctx, input.UserID, input.IdempotencyKey)
 	audit, created, err := u.data.ClaimAudit(ctx, data.AuditRecord{
@@ -363,17 +373,38 @@ func hasDefaultModel(models []CloudModel) bool {
 }
 
 func chatRequestHash(provider string, model string, messages []ChatMessage, maxTokens int64) (string, error) {
-	raw, err := json.Marshal(struct {
-		Provider  string
-		Model     string
-		Messages  []ChatMessage
-		MaxTokens int64
-	}{Provider: provider, Model: model, Messages: messages, MaxTokens: maxTokens})
-	if err != nil {
-		return "", err
+	hash := sha256.New()
+	for _, part := range []string{provider, model, strconv.FormatInt(maxTokens, 10)} {
+		if _, err := hash.Write([]byte(part)); err != nil {
+			return "", err
+		}
+		if _, err := hash.Write([]byte{0}); err != nil {
+			return "", err
+		}
 	}
-	sum := sha256.Sum256(raw)
-	return base64.RawURLEncoding.EncodeToString(sum[:]), nil
+	for _, message := range messages {
+		for _, part := range []string{message.Role, message.Content} {
+			if _, err := hash.Write([]byte(part)); err != nil {
+				return "", err
+			}
+			if _, err := hash.Write([]byte{0}); err != nil {
+				return "", err
+			}
+		}
+	}
+	return base64.RawURLEncoding.EncodeToString(hash.Sum(nil)), nil
+}
+
+func validRequestHash(value string) bool {
+	if len(value) != 43 { // base64.RawURLEncoding SHA-256 digest
+		return false
+	}
+	for _, char := range value {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func estimateReservedTokens(messages []ChatMessage, maxTokens int64) int64 {

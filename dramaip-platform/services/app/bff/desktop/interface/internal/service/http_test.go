@@ -75,7 +75,8 @@ func TestDesktopCloudAIUsesAuthenticatedIdentityAndBoundedContext(t *testing.T) 
 		t.Fatalf("models = %d: %s", modelsRecorder.Code, modelsRecorder.Body.String())
 	}
 
-	preflight := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/preflight", bytes.NewBufferString(`{"provider":"test","model":"test-dramaip-chat","context_characters":42,"message_count":2,"max_tokens":32}`))
+	const requestHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	preflight := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/preflight", bytes.NewBufferString(`{"provider":"test","model":"test-dramaip-chat","context_characters":42,"message_count":2,"max_tokens":32,"request_hash":"`+requestHash+`"}`))
 	preflight.Header.Set("Authorization", "Bearer desktop-access")
 	preflightRecorder := httptest.NewRecorder()
 	router.ServeHTTP(preflightRecorder, preflight)
@@ -83,7 +84,7 @@ func TestDesktopCloudAIUsesAuthenticatedIdentityAndBoundedContext(t *testing.T) 
 		t.Fatalf("preflight = %d: %s", preflightRecorder.Code, preflightRecorder.Body.String())
 	}
 
-	chat := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(`{"request_id":"desktop-call-1","idempotency_key":"desktop-call-1","provider":"test","model":"test-dramaip-chat","max_tokens":32,"messages":[{"role":"system","content":"short instruction"},{"role":"user","content":"write one line"}]}`))
+	chat := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(`{"request_id":"desktop-call-1","idempotency_key":"desktop-call-1","provider":"test","model":"test-dramaip-chat","max_tokens":32,"preflight_request_hash":"`+requestHash+`","messages":[{"role":"system","content":"short instruction"},{"role":"user","content":"write one line"}]}`))
 	chat.Header.Set("Authorization", "Bearer desktop-access")
 	chat.Header.Set("X-Forwarded-For", "198.51.100.42")
 	chatRecorder := httptest.NewRecorder()
@@ -115,7 +116,7 @@ func TestDesktopCloudAIMapsGatewayFailuresWithoutRetry(t *testing.T) {
 		{name: "unavailable", model: "unavailable", wantStatus: http.StatusServiceUnavailable},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			body := `{"request_id":"desktop-` + test.name + `","idempotency_key":"desktop-` + test.name + `","provider":"test","model":"` + test.model + `","max_tokens":32,"messages":[{"role":"user","content":"single bounded prompt"}]}`
+			body := `{"request_id":"desktop-` + test.name + `","idempotency_key":"desktop-` + test.name + `","provider":"test","model":"` + test.model + `","max_tokens":32,"preflight_request_hash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","messages":[{"role":"user","content":"single bounded prompt"}]}`
 			request := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(body))
 			request.Header.Set("Authorization", "Bearer desktop-access")
 			recorder := httptest.NewRecorder()
@@ -124,6 +125,23 @@ func TestDesktopCloudAIMapsGatewayFailuresWithoutRetry(t *testing.T) {
 				t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestDesktopCloudAIStopsBeforeProviderWhenQuotaIsInsufficient(t *testing.T) {
+	chatCalls := 0
+	router := newTestHTTPServiceWith(fakeQuota{remainingTokens: 1}, fakeAI{chatCalls: &chatCalls}).Router()
+	const requestHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	body := `{"request_id":"desktop-low-quota","idempotency_key":"desktop-low-quota","provider":"test","model":"test-dramaip-chat","max_tokens":32,"preflight_request_hash":"` + requestHash + `","messages":[{"role":"user","content":"single bounded prompt"}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/desktop/ai/chat", bytes.NewBufferString(body))
+	request.Header.Set("Authorization", "Bearer desktop-access")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusTooManyRequests || !bytes.Contains(recorder.Body.Bytes(), []byte("cloud_quota_insufficient")) {
+		t.Fatalf("low quota status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if chatCalls != 0 {
+		t.Fatalf("provider chat calls = %d, want 0", chatCalls)
 	}
 }
 
@@ -147,7 +165,11 @@ func TestDesktopMobileHandoffRequiresIdentityAndRecordsExplicitAdoption(t *testi
 }
 
 func newTestHTTPService() *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Inspiration: fakeInspiration{}}))
+	return newTestHTTPServiceWith(fakeQuota{}, fakeAI{})
+}
+
+func newTestHTTPServiceWith(quota fakeQuota, ai fakeAI) *HTTPService {
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: quota, AI: ai, Inspiration: fakeInspiration{}}))
 }
 
 type fakeAuth struct{}
@@ -187,16 +209,20 @@ func (fakeBilling) GetSubscription(ctx context.Context, req *billingv1.GetSubscr
 	return &billingv1.Subscription{Id: "sub-1", UserId: "u1", PlanCode: "pro", Status: "active"}, nil
 }
 
-type fakeQuota struct{}
+type fakeQuota struct{ remainingTokens int64 }
 
-func (fakeQuota) GetTokenBalance(ctx context.Context, req *quotav1.GetTokenBalanceRequest, _ ...grpc.CallOption) (*quotav1.TokenBalance, error) {
+func (f fakeQuota) GetTokenBalance(ctx context.Context, req *quotav1.GetTokenBalanceRequest, _ ...grpc.CallOption) (*quotav1.TokenBalance, error) {
 	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
-	return &quotav1.TokenBalance{Plan: "pro", QuotaTokens: 2_000_000, UsedTokens: 380_000, RemainingTokens: 1_620_000}, nil
+	remainingTokens := f.remainingTokens
+	if remainingTokens == 0 {
+		remainingTokens = 1_620_000
+	}
+	return &quotav1.TokenBalance{Plan: "pro", QuotaTokens: 2_000_000, UsedTokens: 2_000_000 - remainingTokens, RemainingTokens: remainingTokens}, nil
 }
 
-type fakeAI struct{}
+type fakeAI struct{ chatCalls *int }
 
 func (fakeAI) ListModels(ctx context.Context, req *aiv1.ListModelsRequest, _ ...grpc.CallOption) (*aiv1.ListModelsReply, error) {
 	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
@@ -209,10 +235,13 @@ func (fakeAI) Preflight(ctx context.Context, req *aiv1.PreflightRequest, _ ...gr
 	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" || req.ContextCharacters < 1 || req.MessageCount < 1 || req.MaxTokens < 1 {
 		return nil, status.Error(codes.InvalidArgument, "invalid preflight")
 	}
-	return &aiv1.PreflightReply{Model: &aiv1.CloudModel{Provider: "test", Model: "test-dramaip-chat", IsDefault: true}, EstimatedTokens: req.ContextCharacters/4 + req.MaxTokens}, nil
+	return &aiv1.PreflightReply{Model: &aiv1.CloudModel{Provider: "test", Model: "test-dramaip-chat", IsDefault: true}, EstimatedTokens: req.ContextCharacters/4 + req.MaxTokens, RequestHash: req.RequestHash}, nil
 }
 
-func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
+func (f fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOption) (*aiv1.ChatReply, error) {
+	if f.chatCalls != nil {
+		(*f.chatCalls)++
+	}
 	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
@@ -222,7 +251,7 @@ func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOpt
 	if req.Model == "unavailable" {
 		return nil, status.Error(codes.Unavailable, "provider unavailable")
 	}
-	if req.IdempotencyKey != "desktop-call-1" || req.ClientIp != "198.51.100.42" {
+	if req.IdempotencyKey != "desktop-call-1" || req.ClientIp != "198.51.100.42" || req.PreflightRequestHash != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
 	return &aiv1.ChatReply{Content: "cloud result", Provider: "test", Model: "test-dramaip-chat", RequestId: req.RequestId, TotalTokens: 12, RemainingTokens: 1_619_988, Status: "succeeded"}, nil
@@ -231,12 +260,16 @@ func (fakeAI) Chat(ctx context.Context, req *aiv1.ChatRequest, _ ...grpc.CallOpt
 type fakeInspiration struct{}
 
 func (fakeInspiration) ListMobileDrafts(ctx context.Context, req *inspirationv1.ListMobileDraftsRequest, _ ...grpc.CallOption) (*inspirationv1.ListMobileDraftsResponse, error) {
-	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
 	return &inspirationv1.ListMobileDraftsResponse{Drafts: []*inspirationv1.MobileDraft{fakeMobileDraft()}}, nil
 }
 
 func (fakeInspiration) RecordMobileDraftAdoption(ctx context.Context, req *inspirationv1.RecordMobileDraftAdoptionRequest, _ ...grpc.CallOption) (*inspirationv1.RecordMobileDraftAdoptionResponse, error) {
-	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.DraftId != "draft-1" || req.IdempotencyKey != "desktop-adopt-0001" { return nil, status.Error(codes.PermissionDenied, "identity mismatch") }
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.DraftId != "draft-1" || req.IdempotencyKey != "desktop-adopt-0001" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
 	return &inspirationv1.RecordMobileDraftAdoptionResponse{Draft: fakeMobileDraft()}, nil
 }
 

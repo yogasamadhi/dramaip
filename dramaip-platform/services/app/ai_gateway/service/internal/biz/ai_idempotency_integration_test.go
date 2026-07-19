@@ -76,6 +76,10 @@ func TestAIRequestIdempotencyIntegration(t *testing.T) {
 		UserID: userID, RequestID: "trace-1", IdempotencyKey: "retry-key-1", Provider: "test", MaxTokens: 16,
 		Messages: []ChatMessage{{Role: "user", Content: "unique input that must not be persisted"}},
 	}
+	input.PreflightRequestHash, err = chatRequestHash("test", "test-model", input.Messages, input.MaxTokens)
+	if err != nil {
+		t.Fatalf("request hash: %v", err)
+	}
 
 	first := make(chan error, 1)
 	go func() {
@@ -181,10 +185,15 @@ func TestAIRequestIdempotencyIntegration(t *testing.T) {
 		t.Fatalf("close test db: %v", err)
 	}
 	before := atomic.LoadInt64(&providerCalls)
-	_, err = uc.Chat(context.Background(), ChatInput{
+	databaseDown := ChatInput{
 		UserID: platform.NewUUID(), IdempotencyKey: "database-down", Provider: "test",
 		Messages: []ChatMessage{{Role: "user", Content: "must not reach provider"}},
-	})
+	}
+	databaseDown.PreflightRequestHash, err = chatRequestHash("test", "test-model", databaseDown.Messages, databaseDown.MaxTokens)
+	if err != nil {
+		t.Fatalf("database-down request hash: %v", err)
+	}
+	_, err = uc.Chat(context.Background(), databaseDown)
 	if err == nil {
 		t.Fatal("database outage chat unexpectedly succeeded")
 	}

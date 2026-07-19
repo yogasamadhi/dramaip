@@ -159,11 +159,12 @@ func (s *HTTPService) handleCloudPreflight(w http.ResponseWriter, r *http.Reques
 		ContextCharacters int64  `json:"context_characters"`
 		MessageCount      int64  `json:"message_count"`
 		MaxTokens         int64  `json:"max_tokens"`
+		RequestHash       string `json:"request_hash"`
 	}
 	if !decodeJSONLimit(w, r, &req, 8<<10) {
 		return
 	}
-	preflight, balance, err := s.uc.PreflightCloudAI(r.Context(), r.Header.Get("Authorization"), req.Provider, req.Model, req.ContextCharacters, req.MessageCount, req.MaxTokens)
+	preflight, balance, err := s.uc.PreflightCloudAI(r.Context(), r.Header.Get("Authorization"), req.Provider, req.Model, req.ContextCharacters, req.MessageCount, req.MaxTokens, req.RequestHash)
 	if err != nil {
 		s.writeGRPCError(w, err, "desktop_ai_preflight_unavailable")
 		return
@@ -176,6 +177,7 @@ func (s *HTTPService) handleCloudPreflight(w http.ResponseWriter, r *http.Reques
 		"model":            map[string]any{"provider": preflight.Model.Provider, "model": preflight.Model.Model, "is_default": preflight.Model.IsDefault},
 		"estimated_tokens": preflight.EstimatedTokens,
 		"remaining_tokens": balance.RemainingTokens,
+		"request_hash":     preflight.RequestHash,
 	})
 }
 
@@ -193,12 +195,13 @@ func (s *HTTPService) handleCloudChat(w http.ResponseWriter, r *http.Request) {
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"messages"`
-		MaxTokens int64 `json:"max_tokens"`
+		MaxTokens            int64  `json:"max_tokens"`
+		PreflightRequestHash string `json:"preflight_request_hash"`
 	}
 	if !decodeJSONLimit(w, r, &req, 32<<10) {
 		return
 	}
-	if !validCloudRequestID(req.RequestID) || !validCloudRequestID(req.IdempotencyKey) {
+	if !validCloudRequestID(req.RequestID) || !validCloudRequestID(req.IdempotencyKey) || !validCloudRequestHash(req.PreflightRequestHash) {
 		writeError(w, http.StatusBadRequest, "invalid_idempotency_key")
 		return
 	}
@@ -209,11 +212,16 @@ func (s *HTTPService) handleCloudChat(w http.ResponseWriter, r *http.Request) {
 	}
 	// Recheck the bounded summary in the gateway before any quota reservation or
 	// Provider request. The raw creative context is never logged at this layer.
-	if _, _, err := s.uc.PreflightCloudAI(r.Context(), r.Header.Get("Authorization"), req.Provider, req.Model, contextCharacters, int64(len(messages)), req.MaxTokens); err != nil {
+	preflight, _, err := s.uc.PreflightCloudAI(r.Context(), r.Header.Get("Authorization"), req.Provider, req.Model, contextCharacters, int64(len(messages)), req.MaxTokens, req.PreflightRequestHash)
+	if err != nil {
 		s.writeGRPCError(w, err, "desktop_ai_preflight_unavailable")
 		return
 	}
-	reply, err := s.uc.ChatCloudAI(r.Context(), r.Header.Get("Authorization"), req.RequestID, req.IdempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens)
+	if preflight.RequestHash != req.PreflightRequestHash {
+		writeError(w, http.StatusConflict, "cloud_preflight_request_mismatch")
+		return
+	}
+	reply, err := s.uc.ChatCloudAI(r.Context(), r.Header.Get("Authorization"), req.RequestID, req.IdempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens, req.PreflightRequestHash)
 	if err != nil {
 		s.writeGRPCError(w, err, "desktop_ai_chat_unavailable")
 		return
@@ -299,6 +307,19 @@ func decodeJSONLimit(w http.ResponseWriter, r *http.Request, destination any, ma
 func validCloudRequestID(value string) bool {
 	value = strings.TrimSpace(value)
 	return value != "" && len(value) <= 128
+}
+
+func validCloudRequestHash(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 43 {
+		return false
+	}
+	for _, char := range value {
+		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func validateCloudMessages(input []struct {

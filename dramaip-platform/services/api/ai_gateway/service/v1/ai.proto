@@ -35,11 +35,15 @@ message PreflightRequest {
   int64 context_characters = 4;
   int64 message_count = 5;
   int64 max_tokens = 6;
+  // SHA-256 base64url digest over provider/model/final messages/max_tokens.
+  // This binds the content-free preflight to the later Chat payload.
+  string request_hash = 7;
 }
 
 message PreflightReply {
   CloudModel model = 1;
   int64 estimated_tokens = 2;
+  string request_hash = 3;
 }
 
 message ChatRequest {
@@ -54,6 +58,9 @@ message ChatRequest {
   string idempotency_key = 7;
   // Trusted Web BFF network observation for cost guardrails; never used as identity.
   string client_ip = 8;
+  // Must equal the hash accepted by Preflight and the gateway's recomputation
+  // from this exact Chat payload.
+  string preflight_request_hash = 9;
 }
 
 message ChatMessage {

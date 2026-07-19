@@ -4,6 +4,7 @@ import {
   CLOUD_AI_BASE_URL_PREFIX,
   CLOUD_AI_PROVIDER_ID,
   cloudBaseUrl,
+  cloudRequestHash,
   isCloudModelConfig,
   parseCloudProvider,
   summarizeCloudContext,
@@ -28,4 +29,22 @@ test('cloud AI sends only a bounded active prompt context', () => {
   assert.deepEqual(summary.messages.map((message) => message.role), ['system', 'user'])
   assert.throws(() => summarizeCloudContext([{ role: 'user', content: 'x'.repeat(24_001) }], 128), /24,000/)
   assert.throws(() => summarizeCloudContext([{ role: 'tool' as 'user', content: 'no' }], 128), /无效消息/)
+})
+
+test('cloud AI binds the final provider, model, token limit, and messages to one request hash', () => {
+  const input = {
+    messages: [{ role: 'user' as const, content: '保留这条最终创作指令。' }],
+    maxTokens: 256,
+  }
+  const hash = cloudRequestHash('test', 'model-a', input)
+  assert.match(hash, /^[A-Za-z0-9_-]{43}$/)
+  assert.notEqual(hash, cloudRequestHash('test', 'model-b', input))
+  assert.notEqual(hash, cloudRequestHash('test', 'model-a', { ...input, messages: [{ role: 'user', content: '另一条指令。' }] }))
+  assert.equal(cloudRequestHash('test', 'test-dramaip-chat', {
+    messages: [
+      { role: 'system', content: 'short instruction' },
+      { role: 'user', content: 'write one line' },
+    ],
+    maxTokens: 32,
+  }), '1t8IT5Nm0U1hmv99OBhz4jNMkOT1MbflE_xD6URWdO8')
 })

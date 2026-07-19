@@ -7,6 +7,7 @@ import {
   cloudBaseUrl,
   isCloudModelConfig,
   parseCloudProvider,
+  cloudRequestHash,
   summarizeCloudContext,
   type CloudAIModel,
 } from './cloud-ai-protocol'
@@ -20,6 +21,7 @@ export interface CloudAIPreflight {
   model: CloudAIModel
   estimatedTokens: number
   remainingTokens: number
+  requestHash: string
 }
 
 interface CloudAIChatReply {
@@ -40,6 +42,7 @@ export async function listCloudAIModels(): Promise<CloudAIModel[]> {
 
 export async function preflightCloudAI(provider: string, model: string, input: ChatInput): Promise<CloudAIPreflight> {
   const summary = summarizeCloudContext(input.messages, input.maxTokens ?? 1_024)
+  const requestHash = cloudRequestHash(provider, model, input)
   const response = await cloudRequest('/v1/desktop/ai/preflight', {
     method: 'POST',
     body: JSON.stringify({
@@ -48,13 +51,17 @@ export async function preflightCloudAI(provider: string, model: string, input: C
       context_characters: summary.contextCharacters,
       message_count: summary.messages.length,
       max_tokens: input.maxTokens ?? 1_024,
+      request_hash: requestHash,
     }),
     signal: input.signal,
-  }) as { model?: unknown; estimated_tokens?: unknown; remaining_tokens?: unknown }
+  }) as { model?: unknown; estimated_tokens?: unknown; remaining_tokens?: unknown; request_hash?: unknown }
   const estimatedTokens = integer(response.estimated_tokens)
   const remainingTokens = integer(response.remaining_tokens)
-  if (estimatedTokens === undefined || remainingTokens === undefined) throw new Error('云端预检响应无效')
-  return { model: parseCloudModel(response.model), estimatedTokens, remainingTokens }
+  if (estimatedTokens === undefined || remainingTokens === undefined || response.request_hash !== requestHash) {
+    throw new Error('云端预检响应无效')
+  }
+  if (remainingTokens < estimatedTokens) throw new Error('云端额度不足，无法开始本次生成。')
+  return { model: parseCloudModel(response.model), estimatedTokens, remainingTokens, requestHash }
 }
 
 export async function preflightCloudModelConfig(config: ModelConfig, input: ChatInput): Promise<CloudAIPreflight> {
@@ -63,14 +70,19 @@ export async function preflightCloudModelConfig(config: ModelConfig, input: Chat
   return preflightCloudAI(provider, config.model, input)
 }
 
-export function cloudProviderFromModelConfig(config: ModelConfig): LLMProvider {
+export function cloudProviderFromModelConfig(
+  config: ModelConfig,
+  options: { onPreflight?: (preflight: CloudAIPreflight) => void | Promise<void> } = {},
+): LLMProvider {
   const provider = parseCloudProvider(config.baseUrl)
   if (!isCloudModelConfig(config) || !provider) throw new Error('云端模型配置无效')
   return {
     name: CLOUD_AI_PROVIDER_ID,
     model: config.model,
     chat: async (input) => {
-      const reply = await chatCloudAI(provider, config.model, input)
+      const preflight = await preflightCloudModelConfig(config, input)
+      await options.onPreflight?.(preflight)
+      const reply = await chatCloudAI(provider, config.model, input, preflight.requestHash)
       return {
         content: reply.content,
         tokenUsage: reply.totalTokens,
@@ -86,8 +98,16 @@ export function cloudProviderFromModelConfig(config: ModelConfig): LLMProvider {
   }
 }
 
-async function chatCloudAI(provider: string, model: string, input: ChatInput): Promise<CloudAIChatReply> {
+async function chatCloudAI(
+  provider: string,
+  model: string,
+  input: ChatInput,
+  preflightRequestHash: string,
+): Promise<CloudAIChatReply> {
   const summary = summarizeCloudContext(input.messages, input.maxTokens ?? 1_024)
+  if (cloudRequestHash(provider, model, input) !== preflightRequestHash) {
+    throw new Error('云端预检与生成请求不一致，请重新执行。')
+  }
   const requestID = randomUUID()
   const response = await cloudRequest('/v1/desktop/ai/chat', {
     method: 'POST',
@@ -98,6 +118,7 @@ async function chatCloudAI(provider: string, model: string, input: ChatInput): P
       model,
       messages: summary.messages,
       max_tokens: input.maxTokens ?? 1_024,
+      preflight_request_hash: preflightRequestHash,
     }),
     signal: input.signal,
   }) as Record<string, unknown>
@@ -130,13 +151,24 @@ async function cloudRequest(path: string, init: RequestInit): Promise<unknown> {
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) },
       })
-      if (!response.ok) throw new Error(`云端 AI 请求失败（${response.status}）`)
-      return await response.json()
+      const payload = await response.json().catch(() => undefined)
+      if (!response.ok) throw new Error(cloudRequestError(response.status, payload))
+      return payload
     } finally {
       clearTimeout(timeout)
       sourceSignal?.removeEventListener('abort', abort)
     }
   })
+}
+
+function cloudRequestError(status: number, payload: unknown): string {
+  const code = payload && typeof payload === 'object'
+    ? (payload as { error?: { code?: unknown } }).error?.code
+    : undefined
+  if (code === 'cloud_quota_insufficient') return '云端额度不足，无法开始本次生成。'
+  if (code === 'cloud_preflight_request_mismatch') return '云端预检与生成请求不一致，请重新执行。'
+  if (typeof code === 'string' && code) return `云端 AI 请求失败：${code}`
+  return `云端 AI 请求失败（${status}）`
 }
 
 function parseCloudModel(value: unknown): CloudAIModel {
