@@ -13,6 +13,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -164,12 +165,50 @@ func TestDesktopMobileHandoffRequiresIdentityAndRecordsExplicitAdoption(t *testi
 	}
 }
 
+func TestDesktopProjectSnapshotsStayOpaqueAndUseAuthenticatedIdentity(t *testing.T) {
+	router := newTestHTTPService().Router()
+	create := httptest.NewRequest(http.MethodPost, "/v1/desktop/project-snapshots", bytes.NewBufferString(`{"idempotency_key":"snapshot-upload-0001","encrypted_envelope":"ZW5jcnlwdGVkLWVudmVsb3Bl"}`))
+	create.Header.Set("Authorization", "Bearer desktop-access")
+	createRecorder := httptest.NewRecorder()
+	router.ServeHTTP(createRecorder, create)
+	if createRecorder.Code != http.StatusCreated || !bytes.Contains(createRecorder.Body.Bytes(), []byte(`"encrypted_sha256"`)) || bytes.Contains(createRecorder.Body.Bytes(), []byte(`encrypted-envelope`)) {
+		t.Fatalf("snapshot create = %d: %s", createRecorder.Code, createRecorder.Body.String())
+	}
+	if got := createRecorder.Header().Get("Idempotency-Key"); got != "snapshot-upload-0001" {
+		t.Fatalf("idempotency header = %q", got)
+	}
+
+	list := httptest.NewRequest(http.MethodGet, "/v1/desktop/project-snapshots", nil)
+	list.Header.Set("Authorization", "Bearer desktop-access")
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, list)
+	if listRecorder.Code != http.StatusOK || !bytes.Contains(listRecorder.Body.Bytes(), []byte(`"id":"snapshot-1"`)) || bytes.Contains(listRecorder.Body.Bytes(), []byte(`encrypted_envelope`)) {
+		t.Fatalf("snapshot list = %d: %s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	download := httptest.NewRequest(http.MethodGet, "/v1/desktop/project-snapshots/download?id=snapshot-1", nil)
+	download.Header.Set("Authorization", "Bearer desktop-access")
+	downloadRecorder := httptest.NewRecorder()
+	router.ServeHTTP(downloadRecorder, download)
+	if downloadRecorder.Code != http.StatusOK || !bytes.Contains(downloadRecorder.Body.Bytes(), []byte(`"encrypted_envelope":"ZW5jcnlwdGVkLWVudmVsb3Bl"`)) {
+		t.Fatalf("snapshot download = %d: %s", downloadRecorder.Code, downloadRecorder.Body.String())
+	}
+
+	deleted := httptest.NewRequest(http.MethodDelete, "/v1/desktop/project-snapshots?id=snapshot-1", nil)
+	deleted.Header.Set("Authorization", "Bearer desktop-access")
+	deletedRecorder := httptest.NewRecorder()
+	router.ServeHTTP(deletedRecorder, deleted)
+	if deletedRecorder.Code != http.StatusOK || !bytes.Contains(deletedRecorder.Body.Bytes(), []byte(`"snapshot_id":"snapshot-1"`)) {
+		t.Fatalf("snapshot delete = %d: %s", deletedRecorder.Code, deletedRecorder.Body.String())
+	}
+}
+
 func newTestHTTPService() *HTTPService {
 	return newTestHTTPServiceWith(fakeQuota{}, fakeAI{})
 }
 
 func newTestHTTPServiceWith(quota fakeQuota, ai fakeAI) *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: quota, AI: ai, Inspiration: fakeInspiration{}}))
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: quota, AI: ai, Inspiration: fakeInspiration{}, Snapshot: fakeSnapshot{}}))
 }
 
 type fakeAuth struct{}
@@ -275,4 +314,38 @@ func (fakeInspiration) RecordMobileDraftAdoption(ctx context.Context, req *inspi
 
 func fakeMobileDraft() *inspirationv1.MobileDraft {
 	return &inspirationv1.MobileDraft{Id: "draft-1", ClientId: "mobile-draft-0001", Kind: "inspiration", CaptureMode: "voice", Title: "雨夜反转", Content: "雨夜里主角发现旧手机。"}
+}
+
+type fakeSnapshot struct{}
+
+func (fakeSnapshot) CreateProjectSnapshot(ctx context.Context, req *snapshotv1.CreateProjectSnapshotRequest, _ ...grpc.CallOption) (*snapshotv1.CreateProjectSnapshotResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.IdempotencyKey != "snapshot-upload-0001" || string(req.EncryptedEnvelope) != "encrypted-envelope" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.CreateProjectSnapshotResponse{Snapshot: fakeProjectSnapshot()}, nil
+}
+
+func (fakeSnapshot) ListProjectSnapshots(ctx context.Context, req *snapshotv1.ListProjectSnapshotsRequest, _ ...grpc.CallOption) (*snapshotv1.ListProjectSnapshotsResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.ListProjectSnapshotsResponse{Snapshots: []*snapshotv1.ProjectSnapshot{fakeProjectSnapshot()}}, nil
+}
+
+func (fakeSnapshot) GetProjectSnapshot(ctx context.Context, req *snapshotv1.GetProjectSnapshotRequest, _ ...grpc.CallOption) (*snapshotv1.GetProjectSnapshotResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.SnapshotId != "snapshot-1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.GetProjectSnapshotResponse{Snapshot: fakeProjectSnapshot(), EncryptedEnvelope: []byte("encrypted-envelope")}, nil
+}
+
+func (fakeSnapshot) DeleteProjectSnapshot(ctx context.Context, req *snapshotv1.DeleteProjectSnapshotRequest, _ ...grpc.CallOption) (*snapshotv1.DeleteProjectSnapshotResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.SnapshotId != "snapshot-1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.DeleteProjectSnapshotResponse{SnapshotId: req.SnapshotId, DeletedAt: "2026-07-20T00:00:00Z"}, nil
+}
+
+func fakeProjectSnapshot() *snapshotv1.ProjectSnapshot {
+	return &snapshotv1.ProjectSnapshot{Id: "snapshot-1", EncryptedBytes: 18, EncryptedSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", CreatedAt: "2026-07-20T00:00:00Z", ExpiresAt: "2026-08-19T00:00:00Z"}
 }

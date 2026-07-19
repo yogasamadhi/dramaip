@@ -10,6 +10,7 @@
   (dict "component" "ai-gateway" "http" 8105 "grpc" 9105)
   (dict "component" "notification" "http" 8108 "grpc" 9106)
   (dict "component" "inspiration" "http" 8111 "grpc" 9107)
+  (dict "component" "snapshot" "http" 8114 "grpc" 9109)
   (dict "component" "reporting" "http" 8112 "grpc" 9108)
   (dict "component" "notification-job" "http" 8109 "grpc" 9111)
   (dict "component" "billing-job" "http" 8106 "grpc" 9110)

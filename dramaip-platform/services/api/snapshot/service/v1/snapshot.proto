@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package dramaip.snapshot.service.v1;
+
+option go_package = "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1;snapshotv1";
+
+// SnapshotService owns opaque, client-encrypted project snapshot envelopes.
+// It never accepts a recovery key or interprets project-package plaintext.
+service SnapshotService {
+  rpc CreateProjectSnapshot(CreateProjectSnapshotRequest) returns (CreateProjectSnapshotResponse);
+  rpc ListProjectSnapshots(ListProjectSnapshotsRequest) returns (ListProjectSnapshotsResponse);
+  rpc GetProjectSnapshot(GetProjectSnapshotRequest) returns (GetProjectSnapshotResponse);
+  rpc DeleteProjectSnapshot(DeleteProjectSnapshotRequest) returns (DeleteProjectSnapshotResponse);
+}
+
+message ProjectSnapshot {
+  string id = 1;
+  int64 encrypted_bytes = 2;
+  string encrypted_sha256 = 3;
+  string created_at = 4;
+  string expires_at = 5;
+}
+
+message CreateProjectSnapshotRequest {
+  string user_id = 1;
+  // A client-generated, retry-stable identifier. The same key may only name
+  // the same encrypted envelope for one user.
+  string idempotency_key = 2;
+  bytes encrypted_envelope = 3;
+}
+
+message CreateProjectSnapshotResponse {
+  ProjectSnapshot snapshot = 1;
+}
+
+message ListProjectSnapshotsRequest {
+  string user_id = 1;
+}
+
+message ListProjectSnapshotsResponse {
+  repeated ProjectSnapshot snapshots = 1;
+}
+
+message GetProjectSnapshotRequest {
+  string user_id = 1;
+  string snapshot_id = 2;
+}
+
+message GetProjectSnapshotResponse {
+  ProjectSnapshot snapshot = 1;
+  bytes encrypted_envelope = 2;
+}
+
+message DeleteProjectSnapshotRequest {
+  string user_id = 1;
+  string snapshot_id = 2;
+}
+
+message DeleteProjectSnapshotResponse {
+  string snapshot_id = 1;
+  string deleted_at = 2;
+}

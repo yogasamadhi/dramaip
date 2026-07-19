@@ -17,7 +17,7 @@ The Helm chart lives in `../helm/dramaip-platform`.
 
 The chart deploys the four endpoint-specific BFFs (Web, Desktop, Mobile, and
 Admin), synchronous auth/user/billing/quota/ai-gateway/notification/
-inspiration/reporting services, their event consumers, and the
+inspiration/reporting services, the ciphertext-only snapshot service, and their event consumers, and the
 billing/quota maintenance jobs. `notification-job` and `reporting-job` use
 their own durable queues, Inbox leases, retry limits, and dead-letter queues;
 they own only their respective asynchronous effects.
@@ -132,7 +132,7 @@ workload key in `internalMTLS.certKeys` and `internalMTLS.keyKeys`. Certificate
 CNs must match their workload: `web-bff`, `desktop-bff`, `mobile-bff`,
 `admin-bff`, `auth`, `user`, `billing-service`, `quota-service`,
 `ai-gateway-service`, `notification-service`, `inspiration-service`,
-`reporting-service`, `notification-job`, `reporting-job`, `billing-job`, and
+`reporting-service`, `snapshot-service`, `notification-job`, `reporting-job`, `billing-job`, and
 `quota-job`. The gRPC allowlists accept only required callers. Do not reuse a
 single client certificate for all workloads.
 
