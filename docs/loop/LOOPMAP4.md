@@ -361,7 +361,7 @@ make platform-e2e
 | LM4-26 | P2 | Video Provider | partial | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
 | LM4-27 | P2 | Video Provider | partial | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
 | LM4-28 | P2 | Web/AI 产品 | partial | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
-| LM4-29 | P2 | Admin/运营 | todo | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
+| LM4-29 | P2 | Admin/运营 | partial | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
 | LM4-30 | P2 | Sync/隐私 | todo | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
 | LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
 
@@ -1430,4 +1430,19 @@ Remote sync: This branch starts from the fetched, retained LM4-27 branch. The no
 Push: This loop branch is retained and pushed after this audit record. It is not merged into main.
 Current branch/worktree: loop/lm4-28-web-ai-authoring; clean before this audit-record creation (ignored local build output excluded).
 Blocking next action: Complete the redacted Hailuo and Wan official sandbox evidence, then fast-forward/revalidate the retained branch chain before merging to main. In accordance with the requested loop policy, proceed now to LM4-29 instead of waiting on that external dependency.
+```
+
+```text
+Loop: LM4-29 (partial)
+Target branch: loop/lm4-28-web-ai-authoring
+Loop branch: loop/lm4-29-admin-operations
+Commit(s): 53dd248 feat: add audited admin operations console
+Verification: `buf generate`, `buf lint`, targeted proto `buf format -d`, Compose config, Admin business/HTTP tests, full `GOCACHE=/tmp/dramaip-go-build go test ./...`, clients `pnpm lint`, `pnpm typecheck`, `pnpm --filter @dramaip/admin build`, `pnpm --filter @dramaip/admin test`, `pnpm contracts:check`, rebuilt `make platform-up`, and rerun `make platform-e2e` all passed. The platform E2E validated the rebuilt Web BFF/Gateway stream path, authenticated preflight/chat, idempotency and quota consumption; Admin HTTP tests validate customer status only after an authorized one-time confirmation.
+UI/manual evidence: Admin UI now has server-side user-id/plan filtering, visible cursor-based “load more”, deep-linked customer drawers, permission-hidden write actions and a second-confirmation dialog that requires a reason (and operation-specific fields) before any domain call. Production Admin build and its API-boundary test passed. A live destructive Admin-operation smoke was intentionally not run against the shared Compose fixture: it would need a provisioned privileged account and would mutate owner-domain data; the authenticated HTTP fixture verifies the complete confirmation → Auth/User status path instead.
+Diff review: Reviewed the opaque confirmation allow-list, permission matrix, immutable audit consumption, retry ordering, mTLS-only domain gateway, Auth-first/User-mirror saga, owner-domain idempotency ledgers, reporting cursor bounds, AI cost-alert projection and response redaction. Admin has no domain database handle. Generated stream RPC code uses a separate field-compatible `ChatStreamRequest`, so the full protobuf lint gate now passes. No credential, user content, prompt body, private key, local database or build artifact was committed.
+Remote sync: This loop intentionally starts from retained LM4-28 rather than main, because LM4-26 and LM4-27 still await authorized provider-sandbox evidence. Normal parent/main merge is therefore deferred; no branch is represented as merged.
+Push: The retained loop branch is pushed after this record; it is not merged into its partial target.
+Loop branch cleanup: Retained at `loop/lm4-29-admin-operations` so LM4-30 can be based on this auditable state while the inherited provider chain remains blocked. Cleanup owner: the later parent-to-main sync after LM4-26/27 sandbox evidence.
+Current branch/worktree: loop/lm4-29-admin-operations; clean before this completion-record commit (ignored local build output excluded).
+Notes: The safe customer, refund, resume, quota, notification and cost-alert paths are implemented. The overall loop remains partial because Billing Job exposes reconciliation through a static-token boundary only, and Notification exposes no delivery-attempt/retry operation. Routing either through Admin BFF would violate the required mTLS/RBAC/operator/reason/idempotency/audit boundary. A future Billing/Notification owner-domain API must supply the controlled operation before this loop can become done. Per requested policy, continue with LM4-30 rather than bypassing this security blocker.
 ```
