@@ -356,7 +356,7 @@ make platform-e2e
 | LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
 | LM4-22 | P2 | Desktop/改编产品 | done | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | done | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
-| LM4-24 | P2 | Desktop/分镜产品 | doing | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
+| LM4-24 | P2 | Desktop/分镜产品 | done | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
 | LM4-25 | P2 | Desktop/视频产品 | todo | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
 | LM4-26 | P2 | Video Provider | todo | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
 | LM4-27 | P2 | Video Provider | todo | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
@@ -1353,4 +1353,20 @@ Push: cdb2461 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-23-structured-script-editor deleted after the main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build, package and retained UI artifacts excluded).
 Notes: This is a compatibility-first structure layer, not a new database format. It preserves the old plain-text exit hatch and avoids changing Storyboard, provider or collaboration semantics, which remain LM4-24–27 work.
+```
+
+```text
+Loop: LM4-24
+Target branch: main
+Loop branch: loop/lm4-24-storyboard-asset-inspector
+Commit(s): bf597e1 feat: add storyboard asset inspector
+Merge commit: f4fe7e8 merge: LM4-24 storyboard asset inspector
+Verification: Before merge: Desktop `pnpm typecheck`; `pnpm format:check`; `pnpm test:unit` (151/151); targeted IPC, Storyboard ordering and delivery export tests; Electron-runtime DB migration replay (9/9) and DB smoke; `pnpm test:e2e`; `pnpm test:ui` (27 screenshots, including Storyboard at 1024px light and 1320px dark, 0 accessibility observations); and `git diff --check`. After merge: `pnpm typecheck`; `pnpm test:unit` (151/151); Electron-runtime DB migration replay (9/9) and DB smoke; `pnpm test:e2e`; and `git diff --check`. All listed checks passed. The aggregate `pnpm test` wrapper was attempted but its Node 22 native rebuild could not download headers because the execution environment rejected HTTPS protocol handling; the same migration and DB smoke tests passed under the Electron runtime after its native modules rebuilt successfully.
+UI/manual evidence: The Shot workspace now presents a card-grid Storyboard with source-asset thumbnail/fallback visual, sequence, camera, motion, duration, risk and status cues. Native drag/drop, visible nudge buttons and Alt+Left/Right support reordering; a short FLIP transition is disabled by reduced-motion preference. The Inspector uses named Info, Prompt, Assets, Review and Versions tab panels. Asset cards support HTTPS/local-reference input, safe local-file selection or local-file drop, reference-only save, status/missing visibility and image previews; the interface explicitly states it never uploads, copies or deletes source files. Manual review of retained light 1024px and dark 1320px Storyboard screenshots found no critical overflow or unreadable primary action.
+Diff review: Reviewed the validated IPC additions, complete-sequence transactional reorder validation, persisted `shotNumber` as the existing export/video ordering truth, duplicate-action lock, shared IPC contract, reference-only asset persistence, and delivery JSON/CSV sorting regression. No new migration or provider/video queue behavior was introduced. No user content, credentials, local databases, retained screenshots, package output or other ignored artifacts were committed.
+Remote sync: Fetched and fast-forward checked origin/main at 0b8d231 before branch creation and again before merge; main had no intervening remote commits.
+Push: f4fe7e8 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-24-storyboard-asset-inspector deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build, package and retained UI artifacts excluded).
+Notes: Asset selection is deliberately a reference boundary only. Video generation queues and real provider submission remain LM4-25–27 work.
 ```
