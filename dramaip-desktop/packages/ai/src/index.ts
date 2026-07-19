@@ -55,7 +55,10 @@ export {
   REAL_VIDEO_PROVIDER_KINDS,
   adapterForVideoProviderKind,
   customVideoProviderAdapter,
+  hailuoVideoProviderAdapter,
+  wanVideoProviderAdapter,
   mapOpenAiCompatibleTaskState,
+  mapWanTaskState,
   normalizeVideoProviderError,
   type RealVideoProviderKind,
 } from './providers/video/adapters'
@@ -63,6 +66,7 @@ export { videoProviderFromConfig } from './providers/video/factory'
 export {
   createVideoGenerationTask,
   checkVideoTaskStatus,
+  cancelVideoGenerationTask,
   retryVideoTask,
   compareVideoResults,
   selectBestVideoResult,

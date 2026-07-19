@@ -820,6 +820,7 @@ export type VideoProviderKind =
   | 'jimeng'
   | 'kling'
   | 'hailuo'
+  | 'wan'
   | 'runway'
   | 'pika'
   | 'openai_sora'
@@ -933,10 +934,14 @@ export interface VideoProviderResult {
 export interface VideoProvider {
   readonly kind: string
   readonly name: string
+  /** Whether this concrete adapter has a documented provider-side cancellation endpoint. */
+  readonly supportsRemoteCancel?: boolean
   /** 提交生成任务，返回平台任务 id 与初始状态 */
   createTask(input: VideoGenerationInput): Promise<VideoProviderTaskState>
   /** 查询任务状态（成功时带 results） */
   getTaskStatus(remoteTaskId: string): Promise<VideoProviderTaskState>
+  /** 在 Provider 明确支持时取消远端任务；不支持的 Provider 不实现此方法。 */
+  cancelTask?(remoteTaskId: string): Promise<void>
 }
 
 // ---------------------------------------------------------------------------

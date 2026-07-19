@@ -6,7 +6,7 @@ import type {
   VideoProviderTaskState,
 } from '@sdns/core'
 
-export type VideoProviderRequestPhase = 'create' | 'status'
+export type VideoProviderRequestPhase = 'create' | 'status' | 'cancel'
 
 export interface VideoProviderRuntimeConfig
   extends Pick<VideoProviderConfig, 'name' | 'kind' | 'baseUrl' | 'apiKey' | 'model' | 'defaultParams'> {}
@@ -26,6 +26,8 @@ export interface VideoProviderAdapter {
   authHeaders(config: VideoProviderRuntimeConfig): Record<string, string>
   createTaskRequest(input: VideoGenerationInput, config: VideoProviderRuntimeConfig): VideoProviderHttpRequest
   getTaskStatusRequest(remoteTaskId: string, config: VideoProviderRuntimeConfig): VideoProviderHttpRequest
+  /** Omit this when the provider has no documented remote-cancel operation. */
+  cancelTaskRequest?(remoteTaskId: string, config: VideoProviderRuntimeConfig): VideoProviderHttpRequest
   mapTaskState(raw: unknown, phase: VideoProviderRequestPhase): VideoProviderTaskState
   /**
    * Some providers expose a file identifier rather than a playable URL in the terminal task

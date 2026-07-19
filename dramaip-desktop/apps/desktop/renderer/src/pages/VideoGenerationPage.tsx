@@ -551,7 +551,7 @@ export function VideoGenerationPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                       <span>预计费用：{providerEstimate?.estimatedCost === undefined ? 'Provider 未提供本地估值' : `${providerEstimate.currency ?? 'USD'} ${providerEstimate.estimatedCost.toFixed(2)}`}</span>
-                      <span>取消：{providerCapability?.supportsRemoteCancel ? '支持远端取消' : '可停止本地跟踪；当前适配器不发送远端取消'}</span>
+                      <span>取消：{providerCapability?.supportsRemoteCancel ? '支持队列态远端取消；运行后保留可查询状态' : '可停止本地跟踪；当前适配器不发送远端取消'}</span>
                       {!providerCapability?.canSubmit && <span className="text-destructive">{providerCapability?.reason ?? '请先配置可用 Provider'}</span>}
                     </div>
                   </section>

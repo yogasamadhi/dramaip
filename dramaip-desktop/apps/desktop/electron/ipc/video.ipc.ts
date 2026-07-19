@@ -6,6 +6,7 @@ import { getRepos } from '../db'
 import {
   createVideoGenerationTask,
   checkVideoTaskStatus,
+  cancelVideoGenerationTask,
   retryVideoTask,
   compareVideoResults,
   selectBestVideoResult,
@@ -166,21 +167,29 @@ export function registerVideoIpc(): void {
     }
   })
 
-  // Current adapters do not expose provider-side cancellation. This safely aborts any local
-  // submission/polling run and marks the persisted task as no longer tracked.
-  ipcMain.handle('videoTask:cancel', (_e, id: string) => {
+  // Provider-aware cancellation. A supported remote cancellation must succeed before the local
+  // task becomes canceled; otherwise the task remains pollable instead of hiding a billable run.
+  ipcMain.handle('videoTask:cancel', async (_e, id: string) => {
     const r = repos()
-    const task = r.videoTask.getVideoTask(r.db, id)
-    if (!task) return { ok: false, error: '未找到视频任务' }
-    if (task.status !== 'pending' && task.status !== 'running') return { ok: false, error: '任务已结束，不能取消' }
-    const longTask = r.longTask.getLongTaskByRelatedEntity(r.db, 'video', id)
-    if (longTask && (longTask.status === 'pending' || longTask.status === 'running')) {
-      cancelLongTaskRun(longTask.id)
-      r.longTask.finishLongTask(r.db, longTask.id, 'canceled', { errorMessage: '已停止本地视频任务跟踪' })
+    try {
+      const result = await cancelVideoGenerationTask({ repos: r }, id)
+      const longTask = r.longTask.getLongTaskByRelatedEntity(r.db, 'video', id)
+      if (longTask && (longTask.status === 'pending' || longTask.status === 'running')) {
+        cancelLongTaskRun(longTask.id)
+        r.longTask.finishLongTask(r.db, longTask.id, 'canceled', {
+          errorMessage: result.remoteCanceled ? '已取消远端视频任务' : '已停止本地视频任务跟踪',
+        })
+      }
+      logger.info('video', result.remoteCanceled ? 'task remotely canceled' : 'task locally canceled', {
+        videoTaskId: id,
+        longTaskId: longTask?.id,
+      })
+      return { ok: true, task: result.task, remoteCanceled: result.remoteCanceled }
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      logger.error('video', 'task cancel failed', { videoTaskId: id, error })
+      return { ok: false, error }
     }
-    const updated = r.videoTask.updateVideoTask(r.db, id, { status: 'canceled', errorMessage: '已停止本地跟踪；当前 Provider 未提供远端取消能力' })
-    logger.info('video', 'task locally canceled', { videoTaskId: id, longTaskId: longTask?.id })
-    return { ok: Boolean(updated), task: updated, remoteCanceled: false }
   })
 
   ipcMain.handle('videoTask:update', (_e, id: string, patch: unknown) =>

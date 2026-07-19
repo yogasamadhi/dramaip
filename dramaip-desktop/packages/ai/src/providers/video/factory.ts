@@ -8,7 +8,7 @@ import { adapterForVideoProviderKind } from './adapters'
  * 根据 Provider 配置构造 VideoProvider。
  * - mock：不调用任何真实 API，立即返回合成结果，用于无账号场景的全链路验证。
  * - custom：走 OpenAI-compatible 风格的 HTTP adapter。
- * - hailuo/openai_sora：使用各自已验证的官方 API 映射。
+ * - hailuo/wan/openai_sora：使用各自已验证的官方 API 映射。
  * - jimeng/kling/runway/pika：保留独立 adapter 槽位，未启用时绝不误走 Custom 端点。
  */
 export function videoProviderFromConfig(config: VideoProviderConfig): VideoProvider {
@@ -18,6 +18,7 @@ export function videoProviderFromConfig(config: VideoProviderConfig): VideoProvi
     case 'jimeng':
     case 'kling':
     case 'hailuo':
+    case 'wan':
     case 'runway':
     case 'pika':
     case 'openai_sora':

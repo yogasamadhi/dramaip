@@ -49,6 +49,12 @@ const PROVIDER_DEFAULTS: Record<string, Partial<Pick<FormState, 'name' | 'baseUr
     // A real-provider default must be non-billable until the user explicitly enables it.
     defaultParams: '{"duration":6,"resolution":"768P","prompt_optimizer":true,"featureEnabled":false}',
   },
+  wan: {
+    name: '阿里云百炼 Wan',
+    baseUrl: 'https://dashscope.aliyuncs.com/api/v1',
+    model: 'wan2.7-t2v-2026-06-12',
+    defaultParams: '{"duration":10,"resolution":"720P","ratio":"9:16","prompt_extend":true,"watermark":true,"imageModel":"wan2.7-i2v-2026-04-25","featureEnabled":false}',
+  },
   openai_sora: {
     name: 'OpenAI Sora',
     baseUrl: 'https://api.openai.com/v1',
@@ -57,7 +63,7 @@ const PROVIDER_DEFAULTS: Record<string, Partial<Pick<FormState, 'name' | 'baseUr
   },
 }
 
-function hailuoFeatureEnabled(defaultParams: string): boolean {
+function productionFeatureEnabled(defaultParams: string): boolean {
   try {
     const params = JSON.parse(defaultParams) as unknown
     return Boolean(params && typeof params === 'object' && !Array.isArray(params) && (params as Record<string, unknown>).featureEnabled === true)
@@ -66,14 +72,24 @@ function hailuoFeatureEnabled(defaultParams: string): boolean {
   }
 }
 
-function setHailuoFeatureEnabled(defaultParams: string, enabled: boolean): string {
+function setProductionFeatureEnabled(kind: string, defaultParams: string, enabled: boolean): string {
   try {
     const parsed = JSON.parse(defaultParams) as unknown
     const params = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
     return JSON.stringify({ ...params, featureEnabled: enabled })
   } catch {
-    return JSON.stringify({ duration: 6, resolution: '768P', prompt_optimizer: true, featureEnabled: enabled })
+    return kind === 'wan'
+      ? JSON.stringify({ duration: 10, resolution: '720P', ratio: '9:16', prompt_extend: true, watermark: true, imageModel: 'wan2.7-i2v-2026-04-25', featureEnabled: enabled })
+      : JSON.stringify({ duration: 6, resolution: '768P', prompt_optimizer: true, featureEnabled: enabled })
   }
+}
+
+function isFeatureGatedProvider(kind: string): kind is 'hailuo' | 'wan' {
+  return kind === 'hailuo' || kind === 'wan'
+}
+
+function productionProviderLabel(kind: 'hailuo' | 'wan'): string {
+  return kind === 'wan' ? '阿里云百炼 Wan' : 'MiniMax Hailuo'
 }
 
 function isKnownDefault(field: keyof typeof PROVIDER_DEFAULTS['openai_sora'], value: string): boolean {
@@ -194,7 +210,9 @@ export function VideoProviderSettingsPage() {
                       ? 'https://api.openai.com/v1'
                       : form.kind === 'hailuo'
                         ? 'https://api.minimaxi.com'
-                        : 'https://open.volcengineapi.com/...（mock 可留空）'}
+                        : form.kind === 'wan'
+                          ? 'https://dashscope.aliyuncs.com/api/v1'
+                          : 'https://open.volcengineapi.com/...（mock 可留空）'}
                     disabled={form.kind === 'mock'}
                   />
                 </div>
@@ -205,7 +223,11 @@ export function VideoProviderSettingsPage() {
                     type="password"
                     value={form.apiKey}
                     onChange={(e) => set('apiKey', e.target.value)}
-                    placeholder={form.kind === 'hailuo' ? 'MiniMax API Key（Mock 可留空）' : 'sk-...（Mock 可留空）'}
+                    placeholder={form.kind === 'hailuo'
+                      ? 'MiniMax API Key（Mock 可留空）'
+                      : form.kind === 'wan'
+                        ? '百炼 DASHSCOPE_API_KEY（Mock 可留空）'
+                        : 'sk-...（Mock 可留空）'}
                     disabled={form.kind === 'mock'}
                   />
                 </div>
@@ -230,7 +252,9 @@ export function VideoProviderSettingsPage() {
                       ? 'sora-2'
                       : form.kind === 'hailuo'
                         ? 'MiniMax-Hailuo-2.3'
-                        : '如 kling-v2 / runway-gen4（Mock 可留空）'}
+                        : form.kind === 'wan'
+                          ? 'wan2.7-t2v-2026-06-12'
+                          : '如 kling-v2 / runway-gen4（Mock 可留空）'}
                   />
                 </div>
                 <div className="space-y-2">
@@ -243,22 +267,24 @@ export function VideoProviderSettingsPage() {
                       ? '{"size":"720x1280","seconds":"8"}'
                       : form.kind === 'hailuo'
                         ? '{"duration":6,"resolution":"768P","featureEnabled":false}'
-                        : '{"aspect_ratio":"9:16","duration":5}'}
+                        : form.kind === 'wan'
+                          ? '{"duration":10,"resolution":"720P","ratio":"9:16","featureEnabled":false}'
+                          : '{"aspect_ratio":"9:16","duration":5}'}
                   />
                 </div>
-                {form.kind === 'hailuo' && (
+                {isFeatureGatedProvider(form.kind) && (
                   <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
                     <label className="flex cursor-pointer items-start gap-2 text-sm font-medium">
                       <input
                         type="checkbox"
                         className="mt-0.5"
-                        checked={hailuoFeatureEnabled(form.defaultParams)}
-                        onChange={(e) => set('defaultParams', setHailuoFeatureEnabled(form.defaultParams, e.target.checked))}
+                        checked={productionFeatureEnabled(form.defaultParams)}
+                        onChange={(e) => set('defaultParams', setProductionFeatureEnabled(form.kind, form.defaultParams, e.target.checked))}
                       />
-                      启用 MiniMax Hailuo 生产渠道
+                      启用 {productionProviderLabel(form.kind)} 生产渠道
                     </label>
                     <p className="text-muted-foreground">
-                      默认关闭。开启后才允许提交会计费的真实任务；API Key 只保存在系统钥匙串，平台当前不提供远端取消接口。
+                      默认关闭。开启后才允许提交会计费的真实任务；API Key 只保存在系统钥匙串，{form.kind === 'wan' ? '仅排队中的任务可远端取消。' : '平台当前不提供远端取消接口。'}
                     </p>
                   </div>
                 )}
@@ -275,7 +301,7 @@ export function VideoProviderSettingsPage() {
                   添加
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；OpenAI Sora 与 MiniMax Hailuo 已内置官方提交/轮询映射。即梦、可灵、Runway、Pika 仍需按开放接口补齐。
+                  提示：选「Mock」可在无账号时跑通提交/轮询/保存结果全链路；OpenAI Sora、MiniMax Hailuo 与阿里云百炼 Wan 已内置官方提交/轮询映射。即梦、可灵、Runway、Pika 仍需按开放接口补齐。
                 </p>
               </CardContent>
             </Card>

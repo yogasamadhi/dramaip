@@ -55,6 +55,21 @@ test('production console only enables providers with a usable submission path', 
   assert.equal(enabledHailuo.canSubmit, true)
   assert.equal(enabledHailuo.supportsReferenceImages, true)
   assert.equal(enabledHailuo.supportsRemoteCancel, false)
+
+  const disabledWan = getVideoProviderCapability(providerConfig('wan', {
+    apiKey: 'masked:v1:configured',
+    defaultParams: '{"featureEnabled":false}',
+  }))
+  assert.equal(disabledWan.canSubmit, false)
+  assert.match(disabledWan.reason ?? '', /生产渠道开关/)
+
+  const enabledWan = getVideoProviderCapability(providerConfig('wan', {
+    apiKey: 'masked:v1:configured',
+    defaultParams: '{"featureEnabled":true}',
+  }))
+  assert.equal(enabledWan.canSubmit, true)
+  assert.equal(enabledWan.supportsReferenceImages, true)
+  assert.equal(enabledWan.supportsRemoteCancel, true)
 })
 
 test('production preflight uses bounded local provider defaults for time and cost estimates', () => {

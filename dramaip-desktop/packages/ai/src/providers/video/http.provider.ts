@@ -43,6 +43,7 @@ export class FetchVideoHttpTransport implements VideoHttpTransport {
 export class HttpVideoProvider implements VideoProvider {
   readonly kind: string
   readonly name: string
+  readonly supportsRemoteCancel: boolean
   private readonly config: VideoProviderRuntimeConfig
   private readonly adapter: VideoProviderAdapter
   private readonly transport: VideoHttpTransport
@@ -60,6 +61,7 @@ export class HttpVideoProvider implements VideoProvider {
     }
     this.adapter = opts.adapter ?? customVideoProviderAdapter
     this.transport = opts.transport ?? new FetchVideoHttpTransport()
+    this.supportsRemoteCancel = Boolean(this.adapter.cancelTaskRequest)
   }
 
   async createTask(input: VideoGenerationInput): Promise<VideoProviderTaskState> {
@@ -87,6 +89,18 @@ export class HttpVideoProvider implements VideoProvider {
       return { ...state, results }
     } catch (error) {
       throw this.adapter.normalizeError(error, 'status')
+    }
+  }
+
+  async cancelTask(remoteTaskId: string): Promise<void> {
+    if (!this.adapter.cancelTaskRequest) {
+      throw new Error(`${this.adapter.label} 未提供已验证的远端取消接口`)
+    }
+    try {
+      const request = this.adapter.cancelTaskRequest(remoteTaskId, this.config)
+      await this.transport.request(request)
+    } catch (error) {
+      throw this.adapter.normalizeError(error, 'cancel')
     }
   }
 }

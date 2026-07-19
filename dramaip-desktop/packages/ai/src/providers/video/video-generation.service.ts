@@ -137,6 +137,40 @@ export async function checkVideoTaskStatus(
   return { task: updated ?? task, results }
 }
 
+/**
+ * Cancel a video task without fabricating a remote outcome. When an adapter exposes a documented
+ * cancellation request, it is completed before the local task is marked canceled. Otherwise the
+ * local task stops being tracked while the unknown remote outcome remains explicitly documented.
+ */
+export async function cancelVideoGenerationTask(
+  deps: VideoServiceDeps,
+  taskId: string,
+): Promise<{ task: VideoGenerationTask; remoteCanceled: boolean }> {
+  const { repos } = deps
+  const db = repos.db
+  const task = repos.videoTask.getVideoTask(db, taskId)
+  if (!task) throw new Error('未找到视频任务')
+  if (task.status !== 'pending' && task.status !== 'running') throw new Error('任务已结束，不能取消')
+
+  let remoteCanceled = false
+  const config = task.remoteTaskId ? resolveProviderConfig(repos, task.provider) : undefined
+  if (config && task.remoteTaskId) {
+    const provider = createProvider(deps, config)
+    if (provider.supportsRemoteCancel && provider.cancelTask) {
+      // A provider-side failure intentionally leaves the local task active for polling. It would
+      // be unsafe to label it canceled when the provider may still finish and bill the task.
+      await provider.cancelTask(task.remoteTaskId)
+      remoteCanceled = true
+    }
+  }
+
+  const updated = repos.videoTask.updateVideoTask(db, taskId, {
+    status: 'canceled',
+    errorMessage: remoteCanceled ? undefined : '已停止本地跟踪；当前 Provider 未提供远端取消能力',
+  })
+  return { task: updated ?? task, remoteCanceled }
+}
+
 /** 失败重试（acceptance #3）：用原任务的 Prompt 重新提交一个新任务 */
 export async function retryVideoTask(
   deps: VideoServiceDeps,

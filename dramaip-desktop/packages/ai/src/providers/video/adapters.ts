@@ -14,6 +14,7 @@ export const REAL_VIDEO_PROVIDER_KINDS: RealVideoProviderKind[] = [
   'jimeng',
   'kling',
   'hailuo',
+  'wan',
   'runway',
   'pika',
   'openai_sora',
@@ -224,11 +225,91 @@ export const hailuoVideoProviderAdapter: VideoProviderAdapter = {
   },
 }
 
+/**
+ * Alibaba Cloud Model Studio Wan uses the DashScope asynchronous task protocol. The task result
+ * contains a time-limited HTTPS video URL, which the shared video archiver persists locally.
+ * The platform documents a remote cancel endpoint, but only while the task is still queued.
+ */
+export const wanVideoProviderAdapter: VideoProviderAdapter = {
+  kind: 'wan',
+  label: VIDEO_PROVIDER_KIND_LABELS.wan ?? '阿里云百炼 Wan',
+  authHeaders,
+  createTaskRequest(input, config) {
+    const baseUrl = baseUrlOrDefault(config, DASHSCOPE_DEFAULT_BASE_URL)
+    const params = objectParams(input.defaultParams ?? config.defaultParams)
+    const referenceImageUrls = input.referenceImageUrls ?? []
+    if (referenceImageUrls.length > 2) {
+      throw new Error('阿里云百炼 Wan 2.7 仅接受首帧或首尾帧；一次最多提交 2 张参考图')
+    }
+    for (const reference of referenceImageUrls) {
+      if (!isWanImageReference(reference)) {
+        throw new Error('阿里云百炼 Wan 参考图必须是可公开访问的 HTTPS URL；本地文件不会自动上传')
+      }
+    }
+    const model = wanModel(input.model ?? config.model ?? params.model, params, referenceImageUrls.length > 0)
+    const imageToVideo = isWanImageToVideoModel(model)
+    if (imageToVideo && referenceImageUrls.length === 0) {
+      throw new Error('当前 Wan 图生视频模型需要至少一张 HTTPS 首帧参考图')
+    }
+    const media = referenceImageUrls.length
+      ? referenceImageUrls.map((url, index) => ({ type: index === 0 ? 'first_frame' : 'last_frame', url }))
+      : undefined
+    const parameters = pruneUndefined({
+      resolution: wanResolution(params.resolution),
+      duration: wanDuration(params.duration ?? params.seconds),
+      prompt_extend: booleanParam(params.prompt_extend, true),
+      watermark: booleanParam(params.watermark, true),
+      // The current Wan text-to-video API documents ratio; Wan image-to-video documents the
+      // media list instead, so do not send a speculative ratio field in that mode.
+      ratio: imageToVideo ? undefined : wanRatio(params.ratio ?? params.aspect_ratio),
+    })
+    return {
+      method: 'POST',
+      url: `${baseUrl}/services/aigc/video-generation/video-synthesis`,
+      headers: jsonHeaders({ ...this.authHeaders(config), 'X-DashScope-Async': 'enable' }),
+      body: {
+        model,
+        input: pruneUndefined({ prompt: input.prompt, media }),
+        parameters,
+      },
+      timeoutMs: 120_000,
+      retries: 1,
+    }
+  },
+  getTaskStatusRequest(remoteTaskId, config) {
+    const baseUrl = baseUrlOrDefault(config, DASHSCOPE_DEFAULT_BASE_URL)
+    return {
+      method: 'GET',
+      url: `${baseUrl}/tasks/${encodeURIComponent(remoteTaskId)}`,
+      headers: this.authHeaders(config),
+      timeoutMs: 60_000,
+      retries: 2,
+    }
+  },
+  cancelTaskRequest(remoteTaskId, config) {
+    const baseUrl = baseUrlOrDefault(config, DASHSCOPE_DEFAULT_BASE_URL)
+    return {
+      method: 'POST',
+      url: `${baseUrl}/tasks/${encodeURIComponent(remoteTaskId)}/cancel`,
+      headers: this.authHeaders(config),
+      timeoutMs: 30_000,
+      retries: 1,
+    }
+  },
+  mapTaskState(raw) {
+    return mapWanTaskState(raw)
+  },
+  normalizeError(error, phase) {
+    return normalizeWanProviderError(phase, error)
+  },
+}
+
 export const VIDEO_PROVIDER_ADAPTERS: Record<Exclude<VideoProviderKind, 'mock'>, VideoProviderAdapter> = {
   custom: customVideoProviderAdapter,
   jimeng: notImplementedRealPlatformAdapter('jimeng'),
   kling: notImplementedRealPlatformAdapter('kling'),
   hailuo: hailuoVideoProviderAdapter,
+  wan: wanVideoProviderAdapter,
   runway: notImplementedRealPlatformAdapter('runway'),
   pika: notImplementedRealPlatformAdapter('pika'),
   openai_sora: openAiSoraVideoProviderAdapter,
@@ -322,6 +403,19 @@ interface HailuoFileResponse {
   }
 }
 
+interface WanTaskResponse {
+  request_id?: string
+  code?: string
+  message?: string
+  output?: {
+    task_id?: string
+    task_status?: string
+    video_url?: string
+    code?: string
+    message?: string
+  }
+}
+
 /** Map documented MiniMax task and business-error responses to the shared task vocabulary. */
 export function mapHailuoTaskState(raw: unknown): VideoProviderTaskState {
   const response = raw as HailuoTaskResponse
@@ -353,11 +447,55 @@ export function mapHailuoTaskState(raw: unknown): VideoProviderTaskState {
   }
 }
 
+/** Map DashScope's documented PENDING/RUNNING/SUCCEEDED/FAILED/CANCELED vocabulary. */
+export function mapWanTaskState(raw: unknown): VideoProviderTaskState {
+  const response = raw as WanTaskResponse
+  const output = response.output ?? {}
+  const rawStatus = (output.task_status ?? '').trim().toUpperCase()
+  const videoUrl = stringOrUndefined(output.video_url)
+  const normalizedError = wanErrorMessage(output.code ?? response.code, output.message ?? response.message)
+
+  const status: VideoTaskStatus = rawStatus === 'SUCCEEDED'
+    ? videoUrl ? 'success' : 'failed'
+    : rawStatus === 'FAILED' || rawStatus === 'UNKNOWN'
+      ? 'failed'
+      : rawStatus === 'CANCELED'
+        ? 'canceled'
+        : rawStatus === 'RUNNING'
+          ? 'running'
+          : 'pending'
+
+  return {
+    status,
+    remoteTaskId: stringOrUndefined(output.task_id),
+    errorMessage: status === 'failed'
+      ? normalizedError ?? (rawStatus === 'SUCCEEDED' ? '阿里云百炼 Wan 已成功但未返回可下载的视频 URL' : '阿里云百炼 Wan 返回任务失败')
+      : undefined,
+    results: status === 'success' && videoUrl
+      ? [{ resultVideoUrl: videoUrl, rawMeta: safeStringify(raw) }]
+      : [],
+  }
+}
+
 export function normalizeVideoProviderError(label: string, phase: VideoProviderRequestPhase, error: unknown): Error {
-  const action = phase === 'create' ? '提交' : '查询'
+  const action = phase === 'create' ? '提交' : phase === 'cancel' ? '取消' : '查询'
   if (error instanceof HttpRequestError) return new Error(`${label} 视频任务${action}失败：${error.message}`)
   if (error instanceof Error) return new Error(`${label} 视频任务${action}失败：${error.message}`)
   return new Error(`${label} 视频任务${action}失败：${String(error)}`)
+}
+
+function normalizeWanProviderError(phase: VideoProviderRequestPhase, error: unknown): Error {
+  const action = phase === 'create' ? '提交' : phase === 'cancel' ? '取消' : '查询'
+  if (error instanceof HttpRequestError) {
+    const detail = safeJson(error.detail)
+    const source = detail && typeof detail === 'object' && !Array.isArray(detail)
+      ? detail as { code?: unknown; message?: unknown }
+      : undefined
+    const code = stringOrUndefined(source?.code)
+    const message = stringOrUndefined(source?.message)
+    return new Error(`阿里云百炼 Wan 视频任务${action}失败：${wanErrorMessage(code, message) ?? error.message}`)
+  }
+  return normalizeVideoProviderError('阿里云百炼 Wan', phase, error)
 }
 
 function notImplementedRealPlatformAdapter(kind: RealVideoProviderKind): VideoProviderAdapter {
@@ -394,6 +532,9 @@ function requireBaseUrl(config: VideoProviderRuntimeConfig, label: string): stri
 
 const OPENAI_SORA_DEFAULT_BASE_URL = 'https://api.openai.com/v1'
 const MINIMAX_DEFAULT_BASE_URL = 'https://api.minimaxi.com'
+const DASHSCOPE_DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/api/v1'
+const WAN_TEXT_TO_VIDEO_DEFAULT_MODEL = 'wan2.7-t2v-2026-06-12'
+const WAN_IMAGE_TO_VIDEO_DEFAULT_MODEL = 'wan2.7-i2v-2026-04-25'
 
 function baseUrlOrDefault(config: VideoProviderRuntimeConfig, defaultBaseUrl: string): string {
   return config.baseUrl?.trim().replace(/\/+$/, '') || defaultBaseUrl
@@ -472,6 +613,37 @@ function hailuoResolution(value: unknown, duration: number): string {
   return normalized === '512P' || normalized === '1080P' ? normalized : '768P'
 }
 
+function wanModel(value: unknown, params: Record<string, unknown>, hasReferenceImages: boolean): string {
+  const configured = stringParam(value, WAN_TEXT_TO_VIDEO_DEFAULT_MODEL)
+  if (!hasReferenceImages) return configured
+  if (isWanImageToVideoModel(configured)) return configured
+  return stringParam(params.imageModel ?? params.image_model, WAN_IMAGE_TO_VIDEO_DEFAULT_MODEL)
+}
+
+function isWanImageToVideoModel(model: string): boolean {
+  return /(?:^|-)i2v(?:-|$)|(?:^|-)kf2v(?:-|$)/i.test(model)
+}
+
+function isWanImageReference(value: string): boolean {
+  return /^https:\/\//i.test(value)
+}
+
+function wanResolution(value: unknown): string {
+  const resolution = stringOrUndefined(value)?.toUpperCase()
+  return resolution === '480P' || resolution === '1080P' || resolution === '4K' ? resolution : '720P'
+}
+
+function wanDuration(value: unknown): number {
+  const parsed = typeof value === 'string' ? Number(value) : value
+  if (typeof parsed !== 'number' || !Number.isFinite(parsed)) return 10
+  return Math.min(15, Math.max(3, Math.round(parsed)))
+}
+
+function wanRatio(value: unknown): string {
+  const ratio = stringOrUndefined(value)
+  return ratio === '16:9' || ratio === '1:1' ? ratio : '9:16'
+}
+
 function booleanParam(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
@@ -492,6 +664,19 @@ function hailuoErrorMessage(code: number | undefined, detail?: string): string |
     [2049, 'API Key 无效，请检查钥匙串中的凭据'],
   ]).get(code) ?? `平台业务错误（${code}）`
   return detail && detail !== 'success' ? `${category}：${detail}` : category
+}
+
+function wanErrorMessage(code: string | undefined, detail?: string): string | undefined {
+  if (!code && !detail) return undefined
+  const category = new Map<string, string>([
+    ['InvalidApiKey', 'API Key 鉴权失败，请检查系统钥匙串与地域'],
+    ['Throttling.RateQuota', '请求被限流，请稍后重试'],
+    ['QuotaExhausted', '账户额度不足，请检查百炼账户余额'],
+    ['DataInspectionFailed', '输入或生成结果未通过平台内容审核，请调整镜头描述'],
+    ['InvalidParameter', '请求参数无效，请检查模型、时长、分辨率与参考图'],
+    ['UnsupportedOperation', '远端取消失败：任务可能已开始执行；百炼仅允许取消排队中的任务'],
+  ]).get(code ?? '') ?? (code ? `平台业务错误（${code}）` : '平台业务错误')
+  return detail ? `${category}：${detail}` : category
 }
 
 function pruneUndefined<T extends Record<string, unknown>>(value: T): T {

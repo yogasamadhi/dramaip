@@ -8,10 +8,12 @@ import {
   customVideoProviderAdapter,
   hailuoVideoProviderAdapter,
   openAiSoraVideoProviderAdapter,
+  wanVideoProviderAdapter,
 } from '../packages/ai/src/providers/video/adapters'
 import { HttpVideoProvider, type VideoHttpTransport } from '../packages/ai/src/providers/video/http.provider'
 import { MockVideoProvider } from '../packages/ai/src/providers/video/mock.provider'
 import { videoProviderFromConfig } from '../packages/ai/src/providers/video/factory'
+import { HttpRequestError } from '../packages/ai/src/providers/http-client'
 
 function providerConfig(kind: VideoProviderConfig['kind'], patch: Partial<VideoProviderConfig> = {}): VideoProviderConfig {
   return {
@@ -36,7 +38,7 @@ test('declares independent adapter slots for every real video provider kind', ()
     const adapter = VIDEO_PROVIDER_ADAPTERS[kind]
     assert.equal(adapter.kind, kind)
     assert.equal(adapterForVideoProviderKind(kind), adapter)
-    if (kind === 'openai_sora' || kind === 'hailuo') continue
+    if (kind === 'openai_sora' || kind === 'hailuo' || kind === 'wan') continue
     assert.throws(
       () =>
         adapter.createTaskRequest(
@@ -129,6 +131,12 @@ test('MiniMax Hailuo adapter follows create, query, and file-retrieval lifecycle
   }, 'create')
   assert.equal(limited.status, 'failed')
   assert.match(limited.errorMessage ?? '', /限流/)
+
+  const requestLimited = wanVideoProviderAdapter.normalizeError(
+    new HttpRequestError(429, '{"code":"Throttling.RateQuota","message":"too many requests"}'),
+    'create',
+  )
+  assert.match(requestLimited.message, /限流/)
 })
 
 test('openai sora adapter builds official video requests and maps lifecycle states', async () => {
@@ -198,6 +206,98 @@ test('openai sora adapter builds official video requests and maps lifecycle stat
   }, 'status')
   assert.equal(failed.status, 'failed')
   assert.equal(failed.errorMessage, 'content policy rejection')
+})
+
+test('Alibaba Cloud Wan adapter supports create, query, result archive URL, and queued remote cancellation', async () => {
+  const requests: unknown[] = []
+  const transport: VideoHttpTransport = {
+    async request(request) {
+      requests.push(request)
+      if (request.url.includes('/cancel')) return { request_id: 'wan-cancel-request' }
+      if (request.method === 'POST') {
+        return { output: { task_id: 'wan-task-1', task_status: 'PENDING' }, request_id: 'wan-create-request' }
+      }
+      return {
+        output: {
+          task_id: 'wan-task-1',
+          task_status: 'SUCCEEDED',
+          video_url: 'https://dashscope-result.example.test/wan-task-1.mp4?Expires=123',
+        },
+        usage: { duration: 10, video_count: 1 },
+      }
+    },
+  }
+  const provider = new HttpVideoProvider({
+    ...providerConfig('wan', {
+      baseUrl: '',
+      model: 'wan2.7-t2v-2026-06-12',
+      defaultParams: '{"duration":10,"resolution":"720P","ratio":"9:16","prompt_extend":true,"watermark":true,"imageModel":"wan2.7-i2v-2026-04-25"}',
+    }),
+    adapter: wanVideoProviderAdapter,
+    transport,
+  })
+
+  const created = await provider.createTask({
+    prompt: 'vertical drama close-up',
+    negativePrompt: 'blur',
+    referenceImageUrls: ['https://assets.example.test/first.png', 'https://assets.example.test/last.png'],
+  })
+  assert.equal(created.status, 'pending')
+  assert.equal(created.remoteTaskId, 'wan-task-1')
+  assert.equal(provider.supportsRemoteCancel, true)
+
+  const createRequest = requests[0] as {
+    method: string
+    url: string
+    headers: Record<string, string>
+    body: { model: string; input: { prompt: string; media: Array<{ type: string; url: string }> }; parameters: Record<string, unknown> }
+  }
+  assert.equal(createRequest.method, 'POST')
+  assert.equal(createRequest.url, 'https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis')
+  assert.equal(createRequest.headers.Authorization, 'Bearer test-key')
+  assert.equal(createRequest.headers['X-DashScope-Async'], 'enable')
+  assert.equal(createRequest.body.model, 'wan2.7-i2v-2026-04-25')
+  assert.equal(createRequest.body.input.prompt, 'vertical drama close-up')
+  assert.deepEqual(createRequest.body.input.media, [
+    { type: 'first_frame', url: 'https://assets.example.test/first.png' },
+    { type: 'last_frame', url: 'https://assets.example.test/last.png' },
+  ])
+  assert.deepEqual(createRequest.body.parameters, {
+    resolution: '720P',
+    duration: 10,
+    prompt_extend: true,
+    watermark: true,
+  })
+
+  const checked = await provider.getTaskStatus('wan-task-1')
+  assert.equal(checked.status, 'success')
+  assert.equal(checked.results[0].resultVideoUrl, 'https://dashscope-result.example.test/wan-task-1.mp4?Expires=123')
+  assert.match(checked.results[0].rawMeta ?? '', /wan-task-1/)
+
+  const statusRequest = requests[1] as { method: string; url: string; headers: Record<string, string> }
+  assert.equal(statusRequest.method, 'GET')
+  assert.equal(statusRequest.url, 'https://dashscope.aliyuncs.com/api/v1/tasks/wan-task-1')
+  assert.equal(statusRequest.headers.Authorization, 'Bearer test-key')
+
+  await provider.cancelTask('wan-task-1')
+  const cancelRequest = requests[2] as { method: string; url: string; headers: Record<string, string> }
+  assert.equal(cancelRequest.method, 'POST')
+  assert.equal(cancelRequest.url, 'https://dashscope.aliyuncs.com/api/v1/tasks/wan-task-1/cancel')
+  assert.equal(cancelRequest.headers.Authorization, 'Bearer test-key')
+
+  assert.throws(
+    () => wanVideoProviderAdapter.createTaskRequest(
+      { model: 'wan2.7-i2v-2026-04-25', prompt: 'close-up', referenceImageUrls: ['file:///private/reference.png'] },
+      providerConfig('wan'),
+    ),
+    /本地文件不会自动上传/,
+  )
+
+  const limited = wanVideoProviderAdapter.mapTaskState({
+    output: { task_id: 'wan-task-2', task_status: 'FAILED', code: 'Throttling.RateQuota', message: 'too many requests' },
+  }, 'status')
+  assert.equal(limited.status, 'failed')
+  assert.match(limited.errorMessage ?? '', /限流/)
 })
 
 test('custom adapter builds OpenAI-compatible requests and maps task states', async () => {
@@ -273,4 +373,8 @@ test('factory keeps mock, custom, and real provider routing separated', async ()
 
   const sora = videoProviderFromConfig(providerConfig('openai_sora', { baseUrl: '' }))
   assert.equal(sora.kind, 'openai_sora')
+
+  const wan = videoProviderFromConfig(providerConfig('wan', { baseUrl: '' }))
+  assert.equal(wan.kind, 'wan')
+  assert.equal(wan.supportsRemoteCancel, true)
 })

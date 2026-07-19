@@ -52,13 +52,14 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
       reason: 'OpenAI Sora 缺少 API Key，不能提交任务。',
     }
   }
-  if (config.kind === 'hailuo') {
+  if (config.kind === 'hailuo' || config.kind === 'wan') {
+    const label = config.kind === 'wan' ? '阿里云百炼 Wan' : 'MiniMax Hailuo'
     if (!config.apiKey?.trim()) {
       return {
         canSubmit: false,
         supportsReferenceImages: true,
         supportsRemoteCancel: false,
-        reason: 'MiniMax Hailuo 缺少 API Key，不能提交任务。',
+        reason: `${label} 缺少 API Key，不能提交任务。`,
       }
     }
     if (!isVideoProviderFeatureEnabled(config)) {
@@ -66,16 +67,16 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
         canSubmit: false,
         supportsReferenceImages: true,
         supportsRemoteCancel: false,
-        reason: 'MiniMax Hailuo 生产渠道开关尚未开启，不能提交任务。',
+        reason: `${label} 生产渠道开关尚未开启，不能提交任务。`,
       }
     }
   }
   return {
     canSubmit: true,
     supportsReferenceImages: true,
-    // Existing adapters intentionally expose no remote-cancel endpoint. The console may still
-    // stop local tracking through the persisted LongTask boundary.
-    supportsRemoteCancel: false,
+    // Model Studio documents remote cancellation for queued tasks only. All other adapters
+    // retain honest local stop-tracking semantics through the persisted LongTask boundary.
+    supportsRemoteCancel: config.kind === 'wan',
   }
 }
 
@@ -87,7 +88,7 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
 export function isVideoProviderFeatureEnabled(
   config: Pick<VideoProviderConfig, 'kind' | 'defaultParams'>,
 ): boolean {
-  if (config.kind !== 'hailuo') return true
+  if (config.kind !== 'hailuo' && config.kind !== 'wan') return true
   return parseParams(config.defaultParams).featureEnabled === true
 }
 

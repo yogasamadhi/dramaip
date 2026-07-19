@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { VideoGenerationTask, VideoProviderConfig, VideoResult } from '../packages/core/src'
-import { createVideoGenerationTask } from '../packages/ai/src/providers/video/video-generation.service'
+import { cancelVideoGenerationTask, createVideoGenerationTask } from '../packages/ai/src/providers/video/video-generation.service'
 
 function providerConfig(): VideoProviderConfig {
   return {
@@ -25,8 +25,11 @@ function createVideoServiceRepos(config: VideoProviderConfig) {
       db: {},
       videoProviderConfig: {
         getVideoProviderConfig: (_db: unknown, id: string) => id === config.id ? config : undefined,
+        listVideoProviderConfigs: () => [config],
+        getDefaultVideoProviderConfig: () => config,
       },
       videoTask: {
+        getVideoTask: (_db: unknown, id: string) => task?.id === id ? task : undefined,
         createVideoTask: (_db: unknown, data: Partial<VideoGenerationTask> & { provider: string; model: string }) => {
           task = {
             id: 'task-1',
@@ -138,6 +141,89 @@ test('video generation service enforces a real-provider feature gate outside the
     /生产渠道开关/,
   )
   assert.equal(providerCreated, false)
+})
+
+test('video generation cancellation only records a remote cancel after the adapter accepts it', async () => {
+  const config = {
+    ...providerConfig(),
+    kind: 'wan' as const,
+    name: 'Alibaba Wan',
+    apiKey: 'keychain:configured',
+    defaultParams: '{"featureEnabled":true}',
+  }
+  const fixture = createVideoServiceRepos(config)
+  let canceledRemoteTaskId: string | undefined
+  const provider = {
+    kind: 'wan',
+    name: 'Alibaba Wan',
+    supportsRemoteCancel: true,
+    async createTask() {
+      return { status: 'pending' as const, remoteTaskId: 'wan-remote-1', results: [] }
+    },
+    async getTaskStatus() {
+      throw new Error('not used')
+    },
+    async cancelTask(remoteTaskId: string) {
+      canceledRemoteTaskId = remoteTaskId
+    },
+  }
+
+  const created = await createVideoGenerationTask({
+    repos: fixture.repos,
+    videoProviderFactory: () => provider,
+  }, {
+    providerConfigId: 'provider-1',
+    prompt: 'safe prompt',
+  })
+  const canceled = await cancelVideoGenerationTask({
+    repos: fixture.repos,
+    videoProviderFactory: () => provider,
+  }, created.task.id)
+
+  assert.equal(canceledRemoteTaskId, 'wan-remote-1')
+  assert.equal(canceled.remoteCanceled, true)
+  assert.equal(canceled.task.status, 'canceled')
+  assert.equal(canceled.task.errorMessage, undefined)
+})
+
+test('remote cancel refusal leaves a real-provider task pollable instead of fabricating cancellation', async () => {
+  const config = {
+    ...providerConfig(),
+    kind: 'wan' as const,
+    name: 'Alibaba Wan',
+    apiKey: 'keychain:configured',
+    defaultParams: '{"featureEnabled":true}',
+  }
+  const fixture = createVideoServiceRepos(config)
+  const provider = {
+    kind: 'wan',
+    name: 'Alibaba Wan',
+    supportsRemoteCancel: true,
+    async createTask() {
+      return { status: 'running' as const, remoteTaskId: 'wan-running-1', results: [] }
+    },
+    async getTaskStatus() {
+      throw new Error('not used')
+    },
+    async cancelTask() {
+      throw new Error('远端任务已开始执行')
+    },
+  }
+
+  const created = await createVideoGenerationTask({
+    repos: fixture.repos,
+    videoProviderFactory: () => provider,
+  }, {
+    providerConfigId: 'provider-1',
+    prompt: 'safe prompt',
+  })
+
+  await assert.rejects(
+    () => cancelVideoGenerationTask({ repos: fixture.repos, videoProviderFactory: () => provider }, created.task.id),
+    /已开始执行/,
+  )
+  assert.equal(fixture.task?.status, 'running')
+  assert.equal(fixture.task?.remoteTaskId, 'wan-running-1')
 })
 
 test('video generation create stores archived local asset paths', async () => {
