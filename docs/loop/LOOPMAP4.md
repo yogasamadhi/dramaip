@@ -1461,6 +1461,9 @@ Push: c87c475 and 8a3bde8 were pushed successfully to origin/loop/lm4-29-admin-o
 Loop branch cleanup: Retain loop/lm4-29-owner-operations temporarily because the target branch remains part of the retained LM4-26/27/28 chain; cleanup owner is the later approved parent-to-main sync. It is not presented as merged into main.
 Current branch/worktree: loop/lm4-29-admin-operations; clean before this completion-record creation (ignored build output excluded).
 Notes: The prior LM4-29 partial blocker is closed. LM4-26, LM4-27, LM4-28, LM4-30 and LM4-31 retain their own documented completion conditions; this record does not claim all P0/P1/P2 work is complete.
+```
+
+```text
 Loop: LM4-30 (partial)
 Target branch: loop/lm4-29-admin-operations
 Loop branch: loop/lm4-30-encrypted-snapshots
@@ -1487,4 +1490,17 @@ Remote sync: The target branch was fetched and checked against `origin/loop/lm4-
 Push: This retained continuation branch is pushed after this record; it is not represented as merged into its partial target.
 Current branch/worktree: loop/lm4-30-snapshot-service; clean before this continuation-record commit (ignored build/UI artifacts excluded).
 Remaining blocker: A production admission still needs an approved deployment of the migration and mTLS certificate/key pair, a real Desktop cloud-account upload/list/download/delete recovery exercise, a reviewed production storage/KMS/backup-retention decision, resumable upload design for packages above the safe 8 MiB request bound, and LM3-34 disaster-recovery evidence. Those are not substituted with local fixtures, so LM4-30 remains `partial`.
+```
+
+```text
+Loop: LM4-30 integration (partial)
+Target branch: loop/lm4-29-admin-operations
+Loop branch: loop/lm4-30-integration
+Commit(s): 675cc3d merge: integrate LM4-30 encrypted snapshots
+Merge commit: f64f39b merge: complete LM4-30 snapshot integration
+Verification: On the conflict-resolved integration tree, Platform `buf lint` and `GOCACHE=/tmp/dramaip-go-build go test ./...` passed; Desktop `pnpm typecheck`, `pnpm format:check`, `pnpm test:unit` (162/162) and `pnpm build` passed; Compose config and Helm lint/template passed. On the merged target, `pnpm test:ui:skip-build -- --output=artifacts/lm4-30-integration-final` produced all 31 baselines, including encrypted snapshots, with 0 accessibility observations. `git diff --check origin/loop/lm4-29-admin-operations...HEAD` is clean.
+Integration review: Resolved the only overlap in LOOPMAP4 by retaining LM4-29's completed owner-domain operations record, marking LM4-30 accurately `partial`, and preserving both prior partial snapshot records. The merged implementation adds no recovery key, plaintext project package, access token, database, screenshot, build output or credential to version control.
+Remote sync: The LM4-29 target was fetched and fast-forward checked before the no-ff merge. This record is committed and pushed immediately after the merged-tree verification.
+Branch cleanup: `loop/lm4-30-integration` is merged and can be deleted after the target push. Retain the historical LM4-30 feature branches until the inherited partial chain reaches main.
+Remaining blocker: The next local continuation will implement the missing bounded resumable-upload path. Production admission additionally still requires approved migration/mTLS deployment evidence, a real cloud-account recovery exercise, reviewed production storage/KMS/backup-retention decisions, and LM3-34 disaster-recovery evidence.
 ```
