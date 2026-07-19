@@ -994,14 +994,14 @@ Notes: Migration 036 persists real provider payment URLs and expiry; pending ord
 Loop: LM4-04
 Target branch: main
 Loop branch: loop/lm4-04-p0-release-gate
-Commit(s): pending loop commit
-Merge commit: pending merge
+Commit(s): bcf57d1 loop: record P0 reliability release gate
+Merge commit: b4c9748 merge: LM4-04 P0 reliability release gate
 Verification: Desktop pnpm format:check; pnpm test (123 unit tests plus DB migration replay); pnpm test:e2e; pnpm test:ui (6 screenshots, 13 baseline a11y observations); pnpm package:smoke; Platform make test; clients pnpm lint && pnpm build:web; make platform-e2e; cumulative git diff --check. All executed checks passed.
 UI/manual evidence: Reviewed stale-quality and reduced-motion failed-video screenshots from an isolated UI fixture. The stale warning and failed-task retry state were visible. The dark workspace contrast/loading-state weakness and 13 unnamed controls remain documented P1 inputs for LM4-05/LM4-19, not waived accessibility claims. docs/loop/LM4-04-P0-Gate.md records the evidence and release boundary.
 Diff review: Cumulative LM4-00～04 diff reviewed; no whitespace errors, secrets, build outputs, or runtime artifacts committed.
-Remote sync: pending final target-branch sync before merge.
-Push: pending merge and verification.
-Loop branch cleanup: pending merge/push, then delete local loop branch; no remote loop branch was created.
-Current branch/worktree: loop/lm4-04-p0-release-gate; documentation-only Gate change pending commit.
+Remote sync: Fetched and fast-forward checked origin/main at 1723118 before branch creation and again before merge.
+Push: b4c9748 pushed to origin/main successfully on 2026-07-19; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-04-p0-release-gate deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: WeChat/Alipay webhook integrations correctly refused to run without dedicated fresh PostgreSQL DSNs. No authorized official sandbox merchant/callback evidence or signed/notarized macOS release environment exists. Provider Feature Flags remain disabled; real payment and external macOS distribution are explicitly not declared complete.
 ```
