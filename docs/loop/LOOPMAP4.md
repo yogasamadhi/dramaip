@@ -348,7 +348,7 @@ make platform-e2e
 | LM4-14 | P1 | Desktop/AI 体验 | done | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
 | LM4-15 | P1 | Desktop/改编上下文 | done | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
 | LM4-16 | P1 | Desktop/质量体验 | done | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
-| LM4-17 | P1 | Desktop/交互一致性 | todo | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
+| LM4-17 | P1 | Desktop/交互一致性 | done | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
 | LM4-18 | P1 | 契约治理 | todo | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | todo | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | todo | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
@@ -1196,4 +1196,20 @@ Push: 3418a24 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-16-quality-action-center deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: Issue dispositions are immutable audit rows; the latest row changes the displayed action state but historic decisions remain reviewable. Reverting the UI does not alter LM4-02 quality truth semantics or remove audit evidence.
+```
+
+```text
+Loop: LM4-17
+Target branch: main
+Loop branch: loop/lm4-17-accessible-dialogs
+Commit(s): c0985ef feat: unify accessible action dialogs
+Merge commit: c32f545 merge: LM4-17 accessible action dialogs
+Verification: Before merge: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (144 tests); pnpm test:ui (21 screenshots, 0 accessibility observations); pnpm test:e2e. After merge: pnpm format:check; pnpm typecheck; pnpm test:unit (144 tests); pnpm test:ui (21 screenshots, 0 accessibility observations); pnpm test:e2e; git diff --check. All passed.
+UI/manual evidence: A single global ConfirmActionDialog now uses Radix focus trapping, labelled descriptions, Escape and keyboard navigation for confirmations and single-field forms. All 23 renderer window.confirm/window.prompt call sites were replaced, including destructive delete, task cancel, backup restore, AI command execution and video-platform input. Existing project-trash Undo toast remains available. Electron E2E verifies deletion confirmation receives focus, has an impact description, closes with Escape and leaves the chapter unchanged.
+Diff review: Reviewed provider initialization and cancellation behavior, concurrent-dialog cancellation, destructive copy, all renderer call-site migrations, strong project deletion confirmation retention and the static guard against native blocking calls. No data model, IPC authorization, content, credentials, database files, screenshots or build artifacts were changed or committed.
+Remote sync: Fetched and fast-forward checked origin/main at a7b8b0b before the loop branch and again before merge; main had no intervening remote commits.
+Push: c32f545 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-17-accessible-dialogs deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: The confirmation provider intentionally rejects calls before app initialization instead of falling back to native dialogs. Destructive permanent project purge retains its stronger project-name confirmation from LM4-08.
 ```
