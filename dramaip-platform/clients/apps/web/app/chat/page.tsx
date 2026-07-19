@@ -24,15 +24,21 @@ export default function ChatPage() {
   })
 
   const chat = useMutation({
-    mutationFn: () =>
-      apiClient.chat({
-        request_id: requestID,
-        idempotency_key: requestID,
+    mutationFn: async () => {
+      const preflightInput = {
         provider,
         model: model || undefined,
         max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+        messages: [{ role: 'user' as const, content: prompt }],
+      }
+      const preflight = await apiClient.preflightChat(preflightInput)
+      return apiClient.chat({
+        ...preflightInput,
+        request_id: requestID,
+        idempotency_key: requestID,
+        preflight_request_hash: preflight.request_hash,
+      })
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
       await queryClient.invalidateQueries({ queryKey: ['token-usage'] })

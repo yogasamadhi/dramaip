@@ -154,10 +154,9 @@ assert(subscription.status === 'active', 'subscription is not active')
 const orders = await request('GET', '/v1/me/orders')
 assert(Array.isArray(orders.orders) && orders.orders.length > 0, 'orders list is empty')
 
-const noKey = await request('POST', '/v1/ai/chat', {
+const noKey = await request('POST', '/v1/ai/preflight', {
   expect: 409,
   body: {
-    request_id: `e2e-no-key-${Date.now()}`,
     provider: 'openai-compatible',
     messages: [{ role: 'user', content: 'This should fail without a provider key.' }],
     max_tokens: 32,
@@ -174,6 +173,11 @@ const aiRequest = {
   messages: [{ role: 'user', content: 'Generate an end-to-end premise.' }],
   max_tokens: 32,
 }
+const aiPreflight = await request('POST', '/v1/ai/preflight', {
+  body: { provider: aiRequest.provider, messages: aiRequest.messages, max_tokens: aiRequest.max_tokens },
+})
+assert(aiPreflight.request_hash && aiPreflight.estimated_tokens > 0, 'test AI preflight did not bind the request')
+aiRequest.preflight_request_hash = aiPreflight.request_hash
 const testProviderReply = await request('POST', '/v1/ai/chat', {
   body: aiRequest,
   headers: { 'Idempotency-Key': aiIdempotencyKey },

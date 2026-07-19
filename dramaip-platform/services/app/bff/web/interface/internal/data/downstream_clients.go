@@ -16,10 +16,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-// AIClient deliberately contains only the Web BFF capability. Keeping the
-// adapter narrow prevents unrelated AI Gateway contract additions from
-// expanding this BFF's surface or invalidating its focused tests.
+// AIClient deliberately contains only the Web BFF's synchronous Cloud AI
+// capability. The preflight is required to bind the final Chat payload before
+// a quota-reserving generation can reach the Gateway.
 type AIClient interface {
+	Preflight(context.Context, *aiv1.PreflightRequest, ...grpc.CallOption) (*aiv1.PreflightReply, error)
 	Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error)
 }
 

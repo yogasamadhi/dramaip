@@ -290,6 +290,24 @@ export const ChatResponseSchema = z.object({
 
 export type ChatResponse = z.infer<typeof ChatResponseSchema>
 
+export const ChatPreflightResponseSchema = z.object({
+  model: z.object({ provider: z.string().min(1), model: z.string().min(1), is_default: z.boolean() }),
+  estimated_tokens: z.number().int().nonnegative(),
+  remaining_tokens: z.number().int().nonnegative(),
+  request_hash: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+})
+
+export type ChatPreflightResponse = z.infer<typeof ChatPreflightResponseSchema>
+
+export type ChatInput = {
+  request_id?: string
+  idempotency_key?: string
+  provider?: string
+  model?: string
+  messages: ChatMessage[]
+  max_tokens?: number
+}
+
 export interface ApiClientOptions {
   baseURL: string
   getAccessToken?: () => string | undefined | Promise<string | undefined>
@@ -331,7 +349,8 @@ export interface DramaIpApiClient {
   requestRefund(input?: { subscription_id?: string; reason?: string; idempotency_key?: string }): Promise<Refund>
   refresh(): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
-  chat(input: { request_id?: string; idempotency_key?: string; provider?: string; model?: string; messages: ChatMessage[]; max_tokens?: number }): Promise<ChatResponse>
+  preflightChat(input: Omit<ChatInput, 'request_id' | 'idempotency_key'>): Promise<ChatPreflightResponse>
+  chat(input: ChatInput & { preflight_request_hash: string }): Promise<ChatResponse>
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
@@ -472,6 +491,10 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     async logout() {
       const res = await http.post('/v1/auth/logout')
       return LogoutResponseSchema.parse(res.data)
+    },
+    async preflightChat(input) {
+      const res = await http.post('/v1/ai/preflight', input)
+      return ChatPreflightResponseSchema.parse(res.data)
     },
     async chat(input) {
       const { idempotency_key, ...body } = input
