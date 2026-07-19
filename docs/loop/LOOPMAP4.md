@@ -340,7 +340,7 @@ make platform-e2e
 | LM4-06 | P1 | Desktop/产品体验 | done | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
 | LM4-07 | P1 | Desktop/项目体验 | done | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
 | LM4-08 | P1 | Desktop/数据生命周期 | done | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
-| LM4-09 | P1 | Desktop/编辑器 | todo | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
+| LM4-09 | P1 | Desktop/编辑器 | done | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
 | LM4-10 | P1 | Desktop/AI 产品 | todo | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
 | LM4-11 | P1 | Desktop/任务可靠性 | todo | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
 | LM4-12 | P1 | Desktop/Cloud AI | todo | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
@@ -1068,4 +1068,20 @@ Push: cead911 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-08-project-trash deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: Migration v20 adds nullable project deleted_at without dropping data. Active project reads, search, and export exclude trashed projects; the legacy project delete IPC now maps only to trash. There is no silent time-based purge. Final purge requires the exact title and cleans direct project content plus adaptation video task/result records.
+```
+
+```text
+Loop: LM4-09
+Target branch: main
+Loop branch: loop/lm4-09-chapter-tree
+Commit(s): 4ae85d3 loop: build long-form chapter tree editor
+Merge commit: de06f44 merge: LM4-09 chapter tree editor
+Verification: dramaip-desktop pnpm test (130 unit tests plus DB migration replay and transactional chapter-reorder smoke); pnpm test:ui (15 screenshots, 0 fixed-fixture AX observations, including 300-chapter tree at 1060/1179/1320 widths); pnpm test:e2e (includes chapter-tree-300-performance-order-and-keyboard); pnpm format:check; git diff --check origin/main...HEAD. All passed again after merge.
+UI/manual evidence: Reviewed the 1060 light and 1320 reduced-motion 300-chapter fixtures. The context sidebar presents a searchable volume/unit/chapter tree with compact status signals, batch selection and visible sort affordances; only visible rows are mounted. The authoring canvas keeps 18px text by default and exposes font size, line height, content width, chapter goal/progress, typewriter scrolling, save truth and a selected-text AI entry. The inspector disappears at the narrower desktop width without compressing the writing canvas.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, local project data, or temporary UI artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 7455717 before merge.
+Push: de06f44 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-09-chapter-tree deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
+Notes: No new long-form business model or migration was added. The existing chapter orderIndex remains authoritative; chapter:reorder accepts the complete, unique project id set only and rewrites it in one SQLite transaction. Existing volume/unit/stage ranges are a display projection, so the UI can revert to a plain list without losing order. Cmd/Ctrl+N creates, Cmd/Ctrl+S uses LM4-01 draft-save truth, Cmd/Ctrl+K focuses tree search, and Alt+Up/Down changes chapters without taking ordinary cursor arrows from the editor.
 ```
