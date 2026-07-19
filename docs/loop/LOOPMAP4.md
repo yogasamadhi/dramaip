@@ -347,7 +347,7 @@ make platform-e2e
 | LM4-13 | P1 | Desktop/AI 数据安全 | done | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
 | LM4-14 | P1 | Desktop/AI 体验 | done | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
 | LM4-15 | P1 | Desktop/改编上下文 | done | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
-| LM4-16 | P1 | Desktop/质量体验 | todo | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
+| LM4-16 | P1 | Desktop/质量体验 | done | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
 | LM4-17 | P1 | Desktop/交互一致性 | todo | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
 | LM4-18 | P1 | 契约治理 | todo | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | todo | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
@@ -1180,4 +1180,20 @@ Push: 5e712b4 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-15-active-adaptation-context deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: Existing projects choose a default only on first contextual access rather than mass-writing during migration. The generic project update path cannot set activeAdaptationId; only the validated context APIs can do so.
+```
+
+```text
+Loop: LM4-16
+Target branch: main
+Loop branch: loop/lm4-16-quality-action-center
+Commit(s): 9783a7e feat: add quality gate action center
+Merge commit: 3418a24 merge: LM4-16 quality gate action center
+Verification: Before merge: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (142 tests); pnpm test:db (9 migration/transaction tests plus DB smoke); pnpm test:ui (21 screenshots, 0 accessibility observations); pnpm test:e2e. After merge: pnpm typecheck; pnpm test:unit (142 tests); pnpm test:db; pnpm test:ui (21 screenshots, 0 accessibility observations); pnpm test:e2e; git diff --check. All passed.
+UI/manual evidence: The quality action center groups issues by production stage and filters by stage, target entity, severity and disposition. Each card explains the blocking or stale condition and deep-links to its chapter, episode script, scene/shot or task target. Successful quality-gate reruns refresh the Workspace truth. Trend and radar charts expose keyboard-focusable data points, an announced reading, legend filtering where applicable and an expandable data table; chart labels are at least 10px. Reduced-motion users receive no motion-dependent result.
+Diff review: Reviewed v23 append-only quality_issue_acknowledgements migration, exact IPC schema, audited local actor/timestamp/note behavior, project purge cleanup, stale-report treatment, active-adaptation scoping, route query selection and accessible chart alternatives. Risk acceptance never changes or deletes the original report. No prompts, content, credentials, database files, screenshots or build artifacts were committed.
+Remote sync: Fetched and fast-forward checked origin/main at ae5ce54 before the loop branch and again before merge; main had no intervening remote commits.
+Push: 3418a24 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-16-quality-action-center deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: Issue dispositions are immutable audit rows; the latest row changes the displayed action state but historic decisions remain reviewable. Reverting the UI does not alter LM4-02 quality truth semantics or remove audit evidence.
 ```
