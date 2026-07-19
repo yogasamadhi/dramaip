@@ -346,7 +346,7 @@ make platform-e2e
 | LM4-12 | P1 | Desktop/Cloud AI | done | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
 | LM4-13 | P1 | Desktop/AI 数据安全 | done | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
 | LM4-14 | P1 | Desktop/AI 体验 | done | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
-| LM4-15 | P1 | Desktop/改编上下文 | todo | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
+| LM4-15 | P1 | Desktop/改编上下文 | done | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
 | LM4-16 | P1 | Desktop/质量体验 | todo | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
 | LM4-17 | P1 | Desktop/交互一致性 | todo | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
 | LM4-18 | P1 | 契约治理 | todo | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
@@ -1164,4 +1164,20 @@ Push: 00770e2 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-14-segmented-diff-adoption deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: Large text uses a Worker-backed, bounded paragraph diff rather than a line-by-line dynamic-programming matrix. For revision tasks the chosen/edited candidate is persisted through revisionTask:updatePreview and then applied only through LM4-13’s atomic command; generic preview writes retain their existing content-version audit path.
+```
+
+```text
+Loop: LM4-15
+Target branch: main
+Loop branch: loop/lm4-15-active-adaptation-context
+Commit(s): 358a46f feat: persist active adaptation context
+Merge commit: 5e712b4 merge: LM4-15 active adaptation context
+Verification: Before merge: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (141 tests); pnpm test:db (8 migration/transaction tests plus DB smoke); pnpm test:ui (21 screenshots, 0 accessibility observations); pnpm test:e2e. After merge: pnpm typecheck; pnpm test:unit (141 tests); pnpm test:db; git diff --check. All passed.
+UI/manual evidence: Workspace header now exposes the current-season selector and breadcrumb. Switching it updates the project preference and refreshes only that season’s episodes, scripts, scenes, shots, video tasks, workflow progress, AI command targets, creative workflows and quality issues. Opening any adaptation/script/shot/video deep link persists that route’s adaptation as the active project context; the Electron E2E route/restart smoke passed.
+Diff review: Reviewed v22 active_adaptation_id migration, validated project-scoped IPC, deterministic compatibility fallback (highest season, then latest update), transactional deletion fallback, renderer query scoping and the guards against mixed-season workflow progress. Invalid cross-project deep-link IDs are ignored. No prompts, content, credentials, database files, screenshots or build artifacts were committed.
+Remote sync: Fetched and fast-forward checked origin/main at d4c0482 before the loop branch and again before merge; main had no intervening remote commits.
+Push: 5e712b4 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-15-active-adaptation-context deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: Existing projects choose a default only on first contextual access rather than mass-writing during migration. The generic project update path cannot set activeAdaptationId; only the validated context APIs can do so.
 ```
