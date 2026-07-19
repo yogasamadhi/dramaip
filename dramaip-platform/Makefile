@@ -1,7 +1,7 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
 COMPOSE_ENV ?= services/.env
 
-.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke test
+.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
 
 platform-up:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
@@ -27,7 +27,11 @@ observability-rule-test:
 web-route-smoke:
 	node scripts/web-route-smoke.mjs
 
+client-contracts:
+	cd clients && pnpm contracts:check
+
 test:
 	$(MAKE) -C services test
 	cd clients && pnpm typecheck
+	$(MAKE) client-contracts
 	$(MAKE) web-route-smoke

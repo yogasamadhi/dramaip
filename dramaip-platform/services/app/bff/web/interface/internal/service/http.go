@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -89,7 +90,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/subscription/change-plan", s.handleChangeSubscriptionPlan)
 	mux.HandleFunc("/v1/subscription/refund", s.handleRequestRefund)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
-	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(s.csrfMiddleware(mux)))
+	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(s.csrfMiddleware(mux))))
 }
 
 func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -512,7 +513,11 @@ func (s *HTTPService) handleTokenUsage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	usage, err := s.uc.TokenUsage(r.Context(), auth.UserId, 50)
+	limit, ok := parseContractPositiveQuery(w, r, "limit", 50, 100)
+	if !ok {
+		return
+	}
+	usage, err := s.uc.TokenUsage(r.Context(), auth.UserId, int32(limit))
 	if err != nil {
 		writeGRPCError(w, err, "token_usage_unavailable")
 		return
@@ -529,7 +534,11 @@ func (s *HTTPService) handleUsageTrend(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	trend, err := s.uc.UsageTrend(r.Context(), auth.UserId, 14)
+	days, ok := parseContractPositiveQuery(w, r, "days", 14, 365)
+	if !ok {
+		return
+	}
+	trend, err := s.uc.UsageTrend(r.Context(), auth.UserId, int32(days))
 	if err != nil {
 		writeGRPCError(w, err, "usage_trend_unavailable")
 		return
@@ -1036,6 +1045,19 @@ func traceIDFromWriter(w http.ResponseWriter) string {
 	return ""
 }
 
+func parseContractPositiveQuery(w http.ResponseWriter, r *http.Request, key string, fallback, maximum int) (int, bool) {
+	value := fallback
+	if raw := r.URL.Query().Get(key); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > maximum {
+			writeError(w, http.StatusBadRequest, "invalid_"+key)
+			return 0, false
+		}
+		value = parsed
+	}
+	return value, true
+}
+
 func webSessionResponse(session *authv1.AuthReply) map[string]any {
 	return map[string]any{
 		"user": map[string]any{"id": session.UserId, "email": session.Email, "name": session.Name},
@@ -1199,7 +1221,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 }
 
 func writeError(w http.ResponseWriter, statusCode int, code string) {
-	writeJSON(w, statusCode, map[string]any{"error": map[string]string{"code": code, "message": code, "trace_id": traceIDFromWriter(w)}})
+	writeJSON(w, statusCode, map[string]any{"error": platform.ContractErrorBody(w, code)})
 }
 
 func writeGRPCError(w http.ResponseWriter, err error, fallback string) {
@@ -1225,10 +1247,10 @@ func writeGRPCError(w http.ResponseWriter, err error, fallback string) {
 			code = http.StatusGatewayTimeout
 			w.Header().Set("Retry-After", "1")
 		}
-		writeJSON(w, code, map[string]any{"error": map[string]string{"code": st.Message(), "message": st.Message(), "trace_id": traceIDFromWriter(w)}})
+		writeJSON(w, code, map[string]any{"error": platform.ContractErrorBody(w, st.Message())})
 		return
 	}
-	writeJSON(w, code, map[string]any{"error": map[string]string{"code": fallback, "message": fallback, "trace_id": traceIDFromWriter(w)}})
+	writeJSON(w, code, map[string]any{"error": platform.ContractErrorBody(w, fallback)})
 }
 
 func planDescription(quotaTokens int64, rpm int64, modelLevel string) string {

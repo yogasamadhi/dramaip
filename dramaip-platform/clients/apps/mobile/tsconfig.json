@@ -3,7 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@dramaip/sdk": ["../../packages/sdk/src/index.ts"]
+      "@dramaip/sdk": ["../../packages/sdk/src/index.ts"],
+      "@dramaip/sdk/contracts": ["../../packages/sdk/src/contracts.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]

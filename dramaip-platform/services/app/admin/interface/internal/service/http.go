@@ -39,7 +39,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/admin/reporting/subscriptions", s.handleReportingSubscriptions)
 	mux.HandleFunc("/v1/admin/reporting/exceptions", s.handleReportingExceptions)
 	mux.HandleFunc("/v1/admin/reporting/exceptions/resolve", s.handleResolveReportingException)
-	return platform.TraceMiddleware("admin-bff-interface", s.metricsMiddleware(mux))
+	return platform.TraceMiddleware("admin-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
 func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +361,7 @@ func writeJSON(w http.ResponseWriter, statusCode int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func writeError(w http.ResponseWriter, statusCode int, code string) {
-	writeJSON(w, statusCode, map[string]any{"error": map[string]string{"code": code}})
+	writeJSON(w, statusCode, map[string]any{"error": platform.ContractErrorBody(w, code)})
 }
 func (s *HTTPService) writeGRPCError(w http.ResponseWriter, err error, fallback string) {
 	atomic.AddUint64(&s.errorsTotal, 1)

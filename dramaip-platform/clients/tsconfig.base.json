@@ -12,7 +12,8 @@
     "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@dramaip/sdk": ["packages/sdk/src/index.ts"]
+      "@dramaip/sdk": ["packages/sdk/src/index.ts"],
+      "@dramaip/sdk/contracts": ["packages/sdk/src/contracts.ts"]
     }
   }
 }

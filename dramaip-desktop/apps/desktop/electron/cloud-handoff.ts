@@ -1,4 +1,5 @@
 import { withCloudAccessToken } from './cloud-auth'
+import { DESKTOP_CONTRACT_HEADER, DESKTOP_CONTRACT_VERSION } from './cloud-contract'
 
 const HANDOFF_TIMEOUT_MS = 15_000
 
@@ -35,7 +36,7 @@ async function cloudRequest(path: string, init: RequestInit): Promise<unknown> {
       const response = await fetch(`${bffOrigin}${path}`, {
         ...init,
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, ...(init.headers ?? {}) },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, [DESKTOP_CONTRACT_HEADER]: DESKTOP_CONTRACT_VERSION, ...(init.headers ?? {}) },
       })
       if (!response.ok) throw new Error(`移动交接请求失败（${response.status}）`)
       return await response.json()

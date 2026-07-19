@@ -9,6 +9,7 @@
     "dev:admin": "pnpm --filter @dramaip/admin dev",
     "build:admin": "pnpm --filter @dramaip/admin build",
     "dev:mobile": "pnpm --filter @dramaip/mobile start",
+    "contracts:check": "node scripts/check-client-contracts.mjs",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint"
   },

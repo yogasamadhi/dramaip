@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.dramaip.local/http/v1.schema.json",
+  "title": "DramaIP public BFF HTTP contract v1",
+  "description": "The published baseline shared by Web, Mobile, Admin and Desktop. Breaking changes require a new schema/version.",
+  "type": "object",
+  "required": ["contract_version", "limits", "error"],
+  "properties": {
+    "contract_version": { "const": "1" },
+    "limits": {
+      "type": "object",
+      "required": ["list_limit_max", "usage_trend_days_max"],
+      "properties": {
+        "list_limit_max": { "const": 100 },
+        "usage_trend_days_max": { "const": 365 }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message", "trace_id"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "trace_id": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
+import { MobileDraftResponseSchema, MobileExpansionResponseSchema } from '@dramaip/sdk/contracts'
 import { authorizedMobileRequest } from './mobile-session'
 
 const DRAFT_QUEUE_KEY = 'com.dramaip.mobile.draft-outbox.v1'
@@ -69,13 +70,14 @@ export async function syncQueuedDrafts(): Promise<{ synced: number; pending: num
       continue
     }
     try {
-      await authorizedMobileRequest('/v1/mobile/drafts', {
+      const response = await authorizedMobileRequest('/v1/mobile/drafts', {
         method: 'POST',
         body: JSON.stringify({
           client_id: draft.clientId, kind: draft.kind, capture_mode: draft.captureMode,
           title: draft.title, content: draft.content, ai_expansion: draft.aiExpansion,
         }),
       })
+      MobileDraftResponseSchema.parse(response)
       next.push({ ...draft, syncedAt: new Date().toISOString() })
       synced += 1
     } catch {
@@ -92,9 +94,9 @@ export async function expandMobileDraft(kind: MobileDraftKind, content: string):
   const response = await authorizedMobileRequest('/v1/mobile/ai/expand', {
     method: 'POST', body: JSON.stringify({ idempotency_key: newClientID(), kind, content: text }),
   })
-  const payload = record(response)
-  if (typeof payload.expansion !== 'string' || !payload.expansion.trim()) throw new Error('扩写响应无效')
-  return payload.expansion.trim()
+  const payload = MobileExpansionResponseSchema.safeParse(response)
+  if (!payload.success) throw new Error('扩写响应无效')
+  return payload.data.expansion.trim()
 }
 
 export async function exportLocalDrafts(): Promise<{ uri: string; shared: boolean }> {
