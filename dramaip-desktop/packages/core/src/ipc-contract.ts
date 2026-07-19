@@ -570,6 +570,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'asset:listByProject': [id],
   'asset:listBySource': [projectAssetSourceKind, id],
   'asset:delete': [id],
+  'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file'])],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.
@@ -607,6 +608,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'chapter:create': [chapterInput],
   'chapter:update': [id, chapterPatch],
   'chapter:reorder': [id, stringArray],
+  'shot:reorder': [id, stringArray],
   'character:list': [id],
   'character:create': [characterInput],
   'character:update': [id, characterPatch],

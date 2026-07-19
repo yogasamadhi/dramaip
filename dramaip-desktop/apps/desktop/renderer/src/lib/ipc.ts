@@ -420,6 +420,7 @@ export interface StudioApi {
     create(data: Partial<ProjectAsset> & { projectId: string; kind: ProjectAsset['kind']; title: string }): Promise<ProjectAsset>
     update(id: string, patch: Partial<ProjectAsset>): Promise<ProjectAsset | undefined>
     remove(id: string): Promise<boolean>
+    chooseLocalFile(kind: ProjectAsset['kind']): Promise<{ ok: boolean; canceled?: boolean; path?: string; name?: string; error?: string }>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
@@ -675,6 +676,7 @@ export interface StudioApi {
     get(id: string): Promise<Shot | undefined>
     create(data: unknown): Promise<Shot>
     update(id: string, patch: unknown): Promise<Shot | undefined>
+    reorder(sceneId: string, orderedIds: string[]): Promise<Shot[]>
     remove(id: string): Promise<boolean>
   }
   shotReview: {

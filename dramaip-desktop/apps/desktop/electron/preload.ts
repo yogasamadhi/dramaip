@@ -19,6 +19,7 @@ const api = {
     create: (data: unknown) => invoke('asset:create', data),
     update: (id: string, patch: unknown) => invoke('asset:update', id, patch),
     remove: (id: string) => invoke('asset:delete', id),
+    chooseLocalFile: (kind: string) => invoke('asset:chooseLocalFile', kind),
   },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
@@ -316,6 +317,7 @@ const api = {
     get: (id: string) => invoke('shot:get', id),
     create: (data: unknown) => invoke('shot:create', data),
     update: (id: string, patch: unknown) => invoke('shot:update', id, patch),
+    reorder: (sceneId: string, orderedIds: string[]) => invoke('shot:reorder', sceneId, orderedIds),
     remove: (id: string) => invoke('shot:delete', id),
   },
   shotReview: {

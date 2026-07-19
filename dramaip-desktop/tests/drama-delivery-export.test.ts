@@ -274,6 +274,15 @@ test('exports shot delivery json and csv for video production handoff', () => {
   assert.match(csv, /雨夜和推镜头叠加/)
 })
 
+test('keeps shot delivery exports in persisted storyboard order', () => {
+  const reorderedInput: DramaDeliveryExportData = { ...data, shots: [shots[1], shots[0]] }
+  const json = JSON.parse(exportDramaShotDeliveryJson(reorderedInput, { episodeLimit: 1 })) as { scenes: Array<{ shots: Array<{ shot: Shot }> }> }
+  assert.deepEqual(json.scenes[0].shots.map((item) => item.shot.id), ['shot-1', 'shot-2'])
+
+  const csv = exportDramaShotDeliveryCsv(reorderedInput, { episodeLimit: 1 })
+  assert.ok(csv.indexOf('女主手按剧本封面') < csv.indexOf('反派制片后退'))
+})
+
 function episode(episodeNumber: number, title: string, summary: string, aiVideoNote: string): Episode {
   return {
     id: `e${episodeNumber}`,

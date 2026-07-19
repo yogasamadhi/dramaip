@@ -19,6 +19,9 @@ export function registerShotIpc(): void {
   ipcMain.handle('shot:update', (_e, id: string, patch: unknown) =>
     repos().shot.updateShot(repos().db, id, patch as never),
   )
+  ipcMain.handle('shot:reorder', (_e, sceneId: string, orderedIds: string[]) =>
+    repos().shot.reorderShots(repos().db, sceneId, orderedIds),
+  )
   ipcMain.handle('shot:delete', (_e, id: string) => {
     repos().shot.deleteShot(repos().db, id)
     return true

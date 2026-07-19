@@ -106,6 +106,32 @@ export function updateShot(db: DB, id: string, patch: Partial<OptionalId<Shot>>)
   return row ? rowToEntity(row as ShotRow) : undefined
 }
 
+/**
+ * 用完整镜头序列事务化重排场景 Storyboard。shotNumber 是既有交付、CSV 和视频
+ * 流程使用的排序真相，因此不引入平行的 UI 排序字段。
+ */
+export function reorderShots(db: DB, sceneId: string, orderedIds: string[]): Shot[] {
+  const current = listShotsByScene(db, sceneId)
+  const currentIds = new Set(current.map((shot) => shot.id))
+  const submittedIds = new Set(orderedIds)
+  if (
+    orderedIds.length !== current.length ||
+    submittedIds.size !== orderedIds.length ||
+    orderedIds.some((id) => !currentIds.has(id))
+  ) {
+    throw new Error('镜头重排请求必须包含该场景全部且不重复的镜头')
+  }
+
+  db.transaction((tx) => {
+    orderedIds.forEach((id, index) => {
+      updateRows(tx as DB, shots, { shotNumber: index + 1, updatedAt: now() })
+        .where(eq(shots.id, id))
+        .run()
+    })
+  })
+  return listShotsByScene(db, sceneId)
+}
+
 /** 删除某场景下的所有镜头（重新拆分前清空） */
 export function deleteShotsByScene(db: DB, sceneId: string): void {
   // 同时清掉这些镜头的 prompt 版本快照

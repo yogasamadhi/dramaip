@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 import type { ProjectAsset } from '@sdns/core'
 import { getRepos } from '../db'
 
@@ -30,6 +30,22 @@ export function registerAssetIpc(): void {
     r.asset.deleteAsset(r.db, id)
     return true
   })
+  ipcMain.handle('asset:chooseLocalFile', async (_e, kind: ProjectAsset['kind']) => {
+    const filters = assetFileFilters(kind)
+    const win = BrowserWindow.getFocusedWindow() ?? undefined
+    const result = win
+      ? await dialog.showOpenDialog(win, { title: '选择本地素材引用', filters, properties: ['openFile'] })
+      : await dialog.showOpenDialog({ title: '选择本地素材引用', filters, properties: ['openFile'] })
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
+    const path = result.filePaths[0]
+    return { ok: true, path, name: path.split(/[\\/]/).at(-1) }
+  })
+}
+
+function assetFileFilters(kind: ProjectAsset['kind']) {
+  if (kind === 'narration_audio') return [{ name: '音频文件', extensions: ['mp3', 'wav', 'm4a', 'aac', 'flac'] }]
+  if (kind === 'subtitle_file') return [{ name: '字幕文件', extensions: ['srt', 'vtt', 'ass', 'ssa'] }]
+  return [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'] }]
 }
 
 function normalizeAssetPayload<T extends Partial<ProjectAsset>>(input: T): T {
