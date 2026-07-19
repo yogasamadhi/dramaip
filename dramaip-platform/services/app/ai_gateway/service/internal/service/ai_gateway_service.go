@@ -62,10 +62,63 @@ func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*ai
 	if err != nil {
 		return nil, err
 	}
+	return chatReply(reply), nil
+}
+
+func (s *AiGatewayService) ChatStream(req *aiv1.ChatRequest, stream aiv1.AiGatewayService_ChatStreamServer) error {
+	ctx := stream.Context()
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return err
+	}
+	if err := stream.Send(&aiv1.ChatStreamEvent{Type: "started", RequestId: req.RequestId}); err != nil {
+		return err
+	}
+	messages := make([]biz.ChatMessage, 0, len(req.Messages))
+	for _, message := range req.Messages {
+		if message == nil {
+			continue
+		}
+		messages = append(messages, biz.ChatMessage{Role: message.Role, Content: message.Content})
+	}
+	reply, err := s.uc.ChatStream(ctx, biz.ChatInput{
+		UserID: req.UserId, RequestID: req.RequestId, IdempotencyKey: req.IdempotencyKey, ClientIP: req.ClientIp, Provider: req.Provider,
+		Model: req.Model, Messages: messages, MaxTokens: req.MaxTokens, PreflightRequestHash: req.PreflightRequestHash,
+	}, func(delta string) error {
+		return stream.Send(&aiv1.ChatStreamEvent{Type: "delta", RequestId: req.RequestId, Delta: delta})
+	})
+	if err != nil {
+		return err
+	}
+	return stream.Send(&aiv1.ChatStreamEvent{Type: "completed", RequestId: reply.RequestID, Reply: chatReply(reply)})
+}
+
+func (s *AiGatewayService) CancelChat(ctx context.Context, req *aiv1.CancelChatRequest) (*aiv1.CancelChatReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	result, err := s.uc.CancelChat(ctx, req.UserId, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return &aiv1.CancelChatReply{Status: result}, nil
+}
+
+func (s *AiGatewayService) GetChatStatus(ctx context.Context, req *aiv1.GetChatStatusRequest) (*aiv1.GetChatStatusReply, error) {
+	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
+		return nil, err
+	}
+	reply, err := s.uc.ChatStatus(ctx, req.UserId, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return &aiv1.GetChatStatusReply{Reply: chatReply(reply)}, nil
+}
+
+func chatReply(reply biz.ChatResult) *aiv1.ChatReply {
 	return &aiv1.ChatReply{
 		Content: reply.Content, Provider: reply.Provider, Model: reply.Model,
 		PromptTokens: reply.PromptTokens, CompletionTokens: reply.CompletionTokens, TotalTokens: reply.TotalTokens,
 		ReservationId: reply.ReservationID, RemainingTokens: reply.RemainingTokens,
 		RequestId: reply.RequestID, Status: reply.Status,
-	}, nil
+	}
 }

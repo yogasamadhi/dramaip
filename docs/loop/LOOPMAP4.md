@@ -360,7 +360,7 @@ make platform-e2e
 | LM4-25 | P2 | Desktop/视频产品 | done | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
 | LM4-26 | P2 | Video Provider | partial | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
 | LM4-27 | P2 | Video Provider | partial | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
-| LM4-28 | P2 | Web/AI 产品 | todo | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
+| LM4-28 | P2 | Web/AI 产品 | partial | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
 | LM4-29 | P2 | Admin/运营 | todo | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
 | LM4-30 | P2 | Sync/隐私 | todo | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
 | LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |

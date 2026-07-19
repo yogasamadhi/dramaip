@@ -72,7 +72,12 @@ network and is reached by Kong through `http://web-bff:8100`.
 | `POST` | `/v1/me/notifications/{id}/read` | Mark a current-user notification read |
 | `GET` | `/v1/me/dashboard` | Profile and subscription state |
 | `GET` | `/v1/me/token-balance` | Monthly token quota state |
-| `POST` | `/v1/ai/chat` | Cloud AI gateway chat with quota reservation/settlement |
+| `GET` | `/v1/ai/models` | Authenticated, billable model catalog; no provider secrets |
+| `POST` | `/v1/ai/preflight` | Bind the exact author request and verify model/remaining quota before execution |
+| `POST` | `/v1/ai/chat/stream` | SSE authoring output with durable idempotency, reservation/settlement and reconnect-safe completion |
+| `POST` | `/v1/ai/chat/cancel` | Request cancellation of the current author generation and release its reservation |
+| `GET` | `/v1/ai/chat/status` | Owner-scoped recovery of an existing request; excludes input prompts |
+| `POST` | `/v1/ai/chat` | Backward-compatible synchronous Cloud AI chat with quota reservation/settlement |
 
 ## Web Routes
 

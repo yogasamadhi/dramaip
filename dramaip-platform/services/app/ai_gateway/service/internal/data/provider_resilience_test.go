@@ -2,6 +2,9 @@ package data
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +25,44 @@ func TestCallProviderTimeoutIsBounded(t *testing.T) {
 	_, err := d.CallProvider(context.Background(), Provider{Name: "slow"}, "test", nil, 0)
 	if status.Code(err) != codes.DeadlineExceeded {
 		t.Fatalf("CallProvider() code = %s, want DeadlineExceeded: %v", status.Code(err), err)
+	}
+}
+
+func TestCallProviderStreamForwardsActualSSEDeltasAndUsage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/chat/completions" || r.Header.Get("Authorization") != "Bearer secret" {
+			t.Fatalf("provider request = path=%q auth=%q", r.URL.Path, r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"创作\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"完成\"}}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":4,\"total_tokens\":7}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+	d := &Data{HTTP: server.Client()}
+	var deltas strings.Builder
+	reply, err := d.CallProviderStream(context.Background(), Provider{Name: "stream", BaseURL: server.URL, APIKey: "secret"}, "writer", []ChatMessage{{Role: "user", Content: "do not persist me"}}, 32, func(delta string) error {
+		deltas.WriteString(delta)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("CallProviderStream: %v", err)
+	}
+	if deltas.String() != "创作完成" || reply.Content != "创作完成" || reply.TotalTokens != 7 || !reply.UsageKnown {
+		t.Fatalf("stream reply = %#v, deltas=%q", reply, deltas.String())
+	}
+}
+
+func TestCallProviderStreamCancellationPropagates(t *testing.T) {
+	d := &Data{ProviderStreamCaller: func(ctx context.Context, _ Provider, _ string, _ []ChatMessage, _ int64, _ func(string) error) (ProviderReply, error) {
+		<-ctx.Done()
+		return ProviderReply{}, ctx.Err()
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := d.CallProviderStream(ctx, Provider{Name: "stream"}, "writer", nil, 1, nil)
+	if err == nil || !strings.Contains(err.Error(), "canceled") {
+		t.Fatalf("canceled stream error = %v", err)
 	}
 }
 

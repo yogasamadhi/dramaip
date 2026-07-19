@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -65,18 +66,22 @@ type AuditRecord struct {
 }
 
 type Data struct {
-	DB               *gorm.DB
-	Redis            *platform.Redis
-	Quota            quotav1.QuotaServiceClient
-	QuotaConnClose   func() error
-	Providers        map[string]Provider
-	DefaultProvider  string
-	HTTP             *http.Client
-	ProviderCaller   func(context.Context, Provider, string, []ChatMessage, int64) (ProviderReply, error)
-	providerOnce     sync.Once
-	providerTimeout  time.Duration
-	providerBulkhead *platform.KeyedBulkhead
-	providerCircuits *platform.CircuitBreakerPool
+	DB              *gorm.DB
+	Redis           *platform.Redis
+	Quota           quotav1.QuotaServiceClient
+	QuotaConnClose  func() error
+	Providers       map[string]Provider
+	DefaultProvider string
+	HTTP            *http.Client
+	ProviderCaller  func(context.Context, Provider, string, []ChatMessage, int64) (ProviderReply, error)
+	// ProviderStreamCaller is an explicit test/adapter seam. Production calls
+	// use the documented OpenAI-compatible SSE response directly; no prompt is
+	// copied to logs or audit storage while it is streamed.
+	ProviderStreamCaller func(context.Context, Provider, string, []ChatMessage, int64, func(string) error) (ProviderReply, error)
+	providerOnce         sync.Once
+	providerTimeout      time.Duration
+	providerBulkhead     *platform.KeyedBulkhead
+	providerCircuits     *platform.CircuitBreakerPool
 }
 
 func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
@@ -192,6 +197,21 @@ func (d *Data) FailAudit(ctx context.Context, id string, reason string) error {
 		UPDATE ai_gateway.request_audits
 		SET status = 'failed', error = ?, finished_at = now(), updated_at = now()
 		WHERE id = ?::uuid
+	`, reason, id).Error
+}
+
+// CancelAudit is distinct from FailAudit so reconnect/status clients can
+// explain an intentional author cancellation without treating it as a billing
+// or provider outage. Input prompts are never written by either transition.
+func (d *Data) CancelAudit(ctx context.Context, id string, reason string) error {
+	if id == "" {
+		return nil
+	}
+	reason = compactAuditError(reason)
+	return d.DB.WithContext(ctx).Exec(`
+		UPDATE ai_gateway.request_audits
+		SET status = 'canceled', error = ?, finished_at = now(), updated_at = now()
+		WHERE id = ?::uuid AND status = 'in_progress'
 	`, reason, id).Error
 }
 
@@ -335,6 +355,42 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	return reply, err
 }
 
+// CallProviderStream preserves the same timeout, bulkhead and circuit-breaker
+// boundary as CallProvider while delivering only actual upstream deltas to the
+// caller. The callback must not persist creative input or raw provider events.
+func (d *Data) CallProviderStream(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64, emit func(string) error) (reply ProviderReply, err error) {
+	started := time.Now()
+	defer func() {
+		outcome := "succeeded"
+		if err != nil {
+			outcome = "failed"
+		}
+		platform.ObserveProvider(p.Name, outcome, time.Since(started))
+	}()
+	bulkhead, circuits, timeout := d.providerResilience()
+	callCtx, cancel := platform.WithDefaultDeadline(ctx, timeout)
+	defer cancel()
+	resilienceKey := p.Name + "\x00" + model
+	release, acquireErr := bulkhead.Acquire(callCtx, resilienceKey)
+	if acquireErr != nil {
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider is busy; retry later")
+	}
+	defer release()
+	if err := circuits.Allow(resilienceKey); err != nil {
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider circuit is open")
+	}
+	if d.ProviderStreamCaller != nil {
+		reply, err = d.ProviderStreamCaller(callCtx, p, model, messages, maxTokens, emit)
+	} else {
+		reply, err = d.callProviderStream(callCtx, p, model, messages, maxTokens, emit)
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(callCtx.Err(), context.DeadlineExceeded) {
+		err = status.Error(codes.DeadlineExceeded, "provider request timed out")
+	}
+	circuits.Record(resilienceKey, err)
+	return reply, err
+}
+
 func (d *Data) providerResilience() (*platform.KeyedBulkhead, *platform.CircuitBreakerPool, time.Duration) {
 	d.providerOnce.Do(func() {
 		if d.providerTimeout <= 0 {
@@ -418,6 +474,123 @@ func (d *Data) callProvider(ctx context.Context, p Provider, model string, messa
 		CompletionTokens: out.Usage.CompletionTokens, TotalTokens: total,
 		UsageKnown: out.Usage.TotalTokens > 0 || out.Usage.PromptTokens > 0 || out.Usage.CompletionTokens > 0,
 	}, nil
+}
+
+// callProviderStream forwards an OpenAI-compatible SSE response. Test and
+// non-streaming adapters deliberately fall back to a single verified result,
+// rather than simulating character-by-character typing in the client.
+func (d *Data) callProviderStream(ctx context.Context, p Provider, model string, messages []ChatMessage, maxTokens int64, emit func(string) error) (ProviderReply, error) {
+	if d.ProviderCaller != nil || p.Name == "test" || p.Name == "test-openai-compatible" {
+		reply, err := d.callProvider(ctx, p, model, messages, maxTokens)
+		if err != nil || reply.Content == "" || emit == nil {
+			return reply, err
+		}
+		if err := emit(reply.Content); err != nil {
+			return ProviderReply{}, err
+		}
+		return reply, nil
+	}
+	if p.APIKey == "" || strings.Contains(p.APIKey, "replace-me") {
+		return ProviderReply{}, status.Errorf(codes.FailedPrecondition, "provider %s api key is not configured", p.Name)
+	}
+	body := map[string]any{"model": model, "messages": messages, "stream": true, "stream_options": map[string]bool{"include_usage": true}}
+	if maxTokens > 0 {
+		body["max_tokens"] = maxTokens
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return ProviderReply{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.BaseURL, "/")+"/chat/completions", bytes.NewReader(raw))
+	if err != nil {
+		return ProviderReply{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	res, err := d.HTTP.Do(req)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			return ProviderReply{}, context.Canceled
+		}
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return ProviderReply{}, status.Error(codes.DeadlineExceeded, "provider request timed out")
+		}
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider request failed")
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(res.Body, 2<<20))
+		platform.StructuredLog(ctx, "ai-gateway-service", "error", "provider_stream_status_failed", map[string]any{"provider": p.Name, "model": model, "status": res.StatusCode, "response_bytes": len(data)})
+		return ProviderReply{}, status.Errorf(codes.Unavailable, "provider status %d", res.StatusCode)
+	}
+	if !strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "text/event-stream") {
+		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 2<<20))
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider did not return an event stream")
+	}
+
+	var content strings.Builder
+	var usage struct {
+		PromptTokens     int64 `json:"prompt_tokens"`
+		CompletionTokens int64 `json:"completion_tokens"`
+		TotalTokens      int64 `json:"total_tokens"`
+	}
+	scanner := bufio.NewScanner(io.LimitReader(res.Body, 2<<20))
+	scanner.Buffer(make([]byte, 1024), 256<<10)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
+			break
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+			} `json:"choices"`
+			Usage struct {
+				PromptTokens     int64 `json:"prompt_tokens"`
+				CompletionTokens int64 `json:"completion_tokens"`
+				TotalTokens      int64 `json:"total_tokens"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			return ProviderReply{}, status.Error(codes.Unavailable, "provider stream payload is invalid")
+		}
+		if chunk.Usage.TotalTokens > 0 || chunk.Usage.PromptTokens > 0 || chunk.Usage.CompletionTokens > 0 {
+			usage = chunk.Usage
+		}
+		for _, choice := range chunk.Choices {
+			delta := choice.Delta.Content
+			if delta == "" {
+				continue
+			}
+			content.WriteString(delta)
+			if emit != nil {
+				if err := emit(delta); err != nil {
+					return ProviderReply{}, err
+				}
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			return ProviderReply{}, context.Canceled
+		}
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider stream interrupted")
+	}
+	if content.Len() == 0 {
+		return ProviderReply{}, status.Error(codes.Unavailable, "provider returned no stream content")
+	}
+	total := usage.TotalTokens
+	if total == 0 {
+		total = usage.PromptTokens + usage.CompletionTokens
+	}
+	return ProviderReply{Content: content.String(), PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens, TotalTokens: total, UsageKnown: total > 0 || usage.PromptTokens > 0 || usage.CompletionTokens > 0}, nil
 }
 
 func (d *Data) ValidateProvider(p Provider) error {

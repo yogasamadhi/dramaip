@@ -19,9 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AiGatewayService_ListModels_FullMethodName = "/dramaip.ai_gateway.service.v1.AiGatewayService/ListModels"
-	AiGatewayService_Preflight_FullMethodName  = "/dramaip.ai_gateway.service.v1.AiGatewayService/Preflight"
-	AiGatewayService_Chat_FullMethodName       = "/dramaip.ai_gateway.service.v1.AiGatewayService/Chat"
+	AiGatewayService_ListModels_FullMethodName    = "/dramaip.ai_gateway.service.v1.AiGatewayService/ListModels"
+	AiGatewayService_Preflight_FullMethodName     = "/dramaip.ai_gateway.service.v1.AiGatewayService/Preflight"
+	AiGatewayService_Chat_FullMethodName          = "/dramaip.ai_gateway.service.v1.AiGatewayService/Chat"
+	AiGatewayService_ChatStream_FullMethodName    = "/dramaip.ai_gateway.service.v1.AiGatewayService/ChatStream"
+	AiGatewayService_CancelChat_FullMethodName    = "/dramaip.ai_gateway.service.v1.AiGatewayService/CancelChat"
+	AiGatewayService_GetChatStatus_FullMethodName = "/dramaip.ai_gateway.service.v1.AiGatewayService/GetChatStatus"
 )
 
 // AiGatewayServiceClient is the client API for AiGatewayService service.
@@ -35,6 +38,16 @@ type AiGatewayServiceClient interface {
 	// request intentionally contains only counts, never creative content.
 	Preflight(ctx context.Context, in *PreflightRequest, opts ...grpc.CallOption) (*PreflightReply, error)
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatReply, error)
+	// Streams provider output only after the same preflight-bound request has
+	// claimed durable idempotency and reserved quota. A reconnect with the same
+	// key replays the final audited result rather than invoking a provider again.
+	ChatStream(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatStreamEvent], error)
+	// Requests cancellation for a currently streaming generation. Cancellation
+	// releases the reservation before its audit is marked canceled.
+	CancelChat(ctx context.Context, in *CancelChatRequest, opts ...grpc.CallOption) (*CancelChatReply, error)
+	// Returns the caller-owned audit state for reconnect/status recovery. It
+	// never returns input prompts or provider credentials.
+	GetChatStatus(ctx context.Context, in *GetChatStatusRequest, opts ...grpc.CallOption) (*GetChatStatusReply, error)
 }
 
 type aiGatewayServiceClient struct {
@@ -75,6 +88,45 @@ func (c *aiGatewayServiceClient) Chat(ctx context.Context, in *ChatRequest, opts
 	return out, nil
 }
 
+func (c *aiGatewayServiceClient) ChatStream(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ChatStreamEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AiGatewayService_ServiceDesc.Streams[0], AiGatewayService_ChatStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ChatRequest, ChatStreamEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AiGatewayService_ChatStreamClient = grpc.ServerStreamingClient[ChatStreamEvent]
+
+func (c *aiGatewayServiceClient) CancelChat(ctx context.Context, in *CancelChatRequest, opts ...grpc.CallOption) (*CancelChatReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelChatReply)
+	err := c.cc.Invoke(ctx, AiGatewayService_CancelChat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aiGatewayServiceClient) GetChatStatus(ctx context.Context, in *GetChatStatusRequest, opts ...grpc.CallOption) (*GetChatStatusReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetChatStatusReply)
+	err := c.cc.Invoke(ctx, AiGatewayService_GetChatStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AiGatewayServiceServer is the server API for AiGatewayService service.
 // All implementations must embed UnimplementedAiGatewayServiceServer
 // for forward compatibility.
@@ -86,6 +138,16 @@ type AiGatewayServiceServer interface {
 	// request intentionally contains only counts, never creative content.
 	Preflight(context.Context, *PreflightRequest) (*PreflightReply, error)
 	Chat(context.Context, *ChatRequest) (*ChatReply, error)
+	// Streams provider output only after the same preflight-bound request has
+	// claimed durable idempotency and reserved quota. A reconnect with the same
+	// key replays the final audited result rather than invoking a provider again.
+	ChatStream(*ChatRequest, grpc.ServerStreamingServer[ChatStreamEvent]) error
+	// Requests cancellation for a currently streaming generation. Cancellation
+	// releases the reservation before its audit is marked canceled.
+	CancelChat(context.Context, *CancelChatRequest) (*CancelChatReply, error)
+	// Returns the caller-owned audit state for reconnect/status recovery. It
+	// never returns input prompts or provider credentials.
+	GetChatStatus(context.Context, *GetChatStatusRequest) (*GetChatStatusReply, error)
 	mustEmbedUnimplementedAiGatewayServiceServer()
 }
 
@@ -104,6 +166,15 @@ func (UnimplementedAiGatewayServiceServer) Preflight(context.Context, *Preflight
 }
 func (UnimplementedAiGatewayServiceServer) Chat(context.Context, *ChatRequest) (*ChatReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method Chat not implemented")
+}
+func (UnimplementedAiGatewayServiceServer) ChatStream(*ChatRequest, grpc.ServerStreamingServer[ChatStreamEvent]) error {
+	return status.Error(codes.Unimplemented, "method ChatStream not implemented")
+}
+func (UnimplementedAiGatewayServiceServer) CancelChat(context.Context, *CancelChatRequest) (*CancelChatReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelChat not implemented")
+}
+func (UnimplementedAiGatewayServiceServer) GetChatStatus(context.Context, *GetChatStatusRequest) (*GetChatStatusReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetChatStatus not implemented")
 }
 func (UnimplementedAiGatewayServiceServer) mustEmbedUnimplementedAiGatewayServiceServer() {}
 func (UnimplementedAiGatewayServiceServer) testEmbeddedByValue()                          {}
@@ -180,6 +251,53 @@ func _AiGatewayService_Chat_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AiGatewayService_ChatStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ChatRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AiGatewayServiceServer).ChatStream(m, &grpc.GenericServerStream[ChatRequest, ChatStreamEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AiGatewayService_ChatStreamServer = grpc.ServerStreamingServer[ChatStreamEvent]
+
+func _AiGatewayService_CancelChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiGatewayServiceServer).CancelChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiGatewayService_CancelChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiGatewayServiceServer).CancelChat(ctx, req.(*CancelChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AiGatewayService_GetChatStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetChatStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AiGatewayServiceServer).GetChatStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AiGatewayService_GetChatStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AiGatewayServiceServer).GetChatStatus(ctx, req.(*GetChatStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AiGatewayService_ServiceDesc is the grpc.ServiceDesc for AiGatewayService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -199,7 +317,21 @@ var AiGatewayService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Chat",
 			Handler:    _AiGatewayService_Chat_Handler,
 		},
+		{
+			MethodName: "CancelChat",
+			Handler:    _AiGatewayService_CancelChat_Handler,
+		},
+		{
+			MethodName: "GetChatStatus",
+			Handler:    _AiGatewayService_GetChatStatus_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ChatStream",
+			Handler:       _AiGatewayService_ChatStream_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/ai_gateway/service/v1/ai.proto",
 }

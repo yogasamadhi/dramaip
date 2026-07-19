@@ -433,6 +433,25 @@ func (u *BFFUsecase) Chat(ctx context.Context, userID string, requestID string, 
 	})
 }
 
+func (u *BFFUsecase) ChatModels(ctx context.Context, userID string) (*aiv1.ListModelsReply, error) {
+	return u.data.AI.ListModels(ctx, &aiv1.ListModelsRequest{UserId: userID})
+}
+
+func (u *BFFUsecase) ChatStream(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64, preflightRequestHash string) (aiv1.AiGatewayService_ChatStreamClient, error) {
+	return u.data.AI.ChatStream(ctx, &aiv1.ChatRequest{
+		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, ClientIp: clientIP, Provider: provider,
+		Model: model, Messages: messages, MaxTokens: maxTokens, PreflightRequestHash: preflightRequestHash,
+	})
+}
+
+func (u *BFFUsecase) CancelChat(ctx context.Context, userID, idempotencyKey string) (*aiv1.CancelChatReply, error) {
+	return u.data.AI.CancelChat(ctx, &aiv1.CancelChatRequest{UserId: userID, IdempotencyKey: idempotencyKey})
+}
+
+func (u *BFFUsecase) ChatStatus(ctx context.Context, userID, idempotencyKey string) (*aiv1.GetChatStatusReply, error) {
+	return u.data.AI.GetChatStatus(ctx, &aiv1.GetChatStatusRequest{UserId: userID, IdempotencyKey: idempotencyKey})
+}
+
 func (u *BFFUsecase) Authenticate(ctx context.Context, authorization string) (*authv1.AuthReply, error) {
 	if !strings.HasPrefix(authorization, "Bearer ") {
 		return nil, status.Error(codes.Unauthenticated, "missing_bearer_token")

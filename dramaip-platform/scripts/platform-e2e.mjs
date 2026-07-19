@@ -69,6 +69,31 @@ async function request(method, path, { body, headers = {}, expect = 200, require
   return data
 }
 
+async function requestSSE(path, { body, headers = {}, expect = 200 } = {}) {
+  const csrfToken = cookieJar.get(csrfCookieName)?.value
+  const cookies = cookieHeader(path)
+  const res = await fetch(new URL(path, baseURL), {
+    method: 'POST',
+    headers: {
+      ...(cookies ? { Cookie: cookies } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      Accept: 'text/event-stream',
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  storeCookies(res)
+  const text = await res.text()
+  if (res.status !== expect) {
+    throw new Error(`POST ${path} expected ${expect}, got ${res.status}: ${text}`)
+  }
+  if (!res.headers.get('x-trace-id')) {
+    throw new Error(`POST ${path} did not return X-Trace-Id`)
+  }
+  return text
+}
+
 function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
@@ -164,6 +189,9 @@ const noKey = await request('POST', '/v1/ai/preflight', {
 })
 assert(String(noKey.error?.message ?? noKey.error ?? '').includes('api key'), 'no-key AI error was not explicit')
 
+const authorModels = await request('GET', '/v1/ai/models')
+assert(Array.isArray(authorModels.models) && authorModels.models.some((item) => item.is_default), 'author model catalog is missing a default model')
+
 const balanceBeforeTestProvider = await request('GET', '/v1/me/token-balance')
 const aiRequestID = `e2e-test-provider-${Date.now()}`
 const aiIdempotencyKey = `e2e-idempotency-${Date.now()}`
@@ -206,6 +234,28 @@ await request('POST', '/v1/ai/chat', {
   body: { ...aiRequest, messages: [{ role: 'user', content: 'Different payload must conflict.' }] },
   headers: { 'Idempotency-Key': aiIdempotencyKey },
 })
+
+const streamRequestID = `e2e-stream-provider-${Date.now()}`
+const streamIdempotencyKey = `e2e-stream-idempotency-${Date.now()}`
+const streamRequest = {
+  request_id: streamRequestID,
+  provider: 'test',
+  messages: [{ role: 'user', content: 'Stream an end-to-end authoring beat.' }],
+  max_tokens: 32,
+}
+const streamPreflight = await request('POST', '/v1/ai/preflight', {
+  body: { provider: streamRequest.provider, messages: streamRequest.messages, max_tokens: streamRequest.max_tokens },
+})
+streamRequest.preflight_request_hash = streamPreflight.request_hash
+const streamBody = await requestSSE('/v1/ai/chat/stream', {
+  body: streamRequest,
+  headers: { 'Idempotency-Key': streamIdempotencyKey },
+})
+assert(streamBody.includes('event: delta') && streamBody.includes('event: completed'), 'author stream did not emit delta and completion events')
+const streamStatus = await request('GET', `/v1/ai/chat/status?idempotency_key=${encodeURIComponent(streamIdempotencyKey)}`)
+assert(streamStatus.status === 'succeeded' && streamStatus.request_id === streamRequestID, 'stream status did not recover the original request')
+const cancelCompleted = await request('POST', '/v1/ai/chat/cancel', { body: { idempotency_key: streamIdempotencyKey } })
+assert(cancelCompleted.status === 'succeeded', 'completed stream cancel was not safely idempotent')
 
 const usage = await request('GET', '/v1/me/token-usage')
 assert(Array.isArray(usage.usage) && usage.usage.length > 0, 'token usage list is empty')

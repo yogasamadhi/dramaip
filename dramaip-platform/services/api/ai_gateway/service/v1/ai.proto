@@ -12,6 +12,16 @@ service AiGatewayService {
   // request intentionally contains only counts, never creative content.
   rpc Preflight(PreflightRequest) returns (PreflightReply);
   rpc Chat(ChatRequest) returns (ChatReply);
+  // Streams provider output only after the same preflight-bound request has
+  // claimed durable idempotency and reserved quota. A reconnect with the same
+  // key replays the final audited result rather than invoking a provider again.
+  rpc ChatStream(ChatRequest) returns (stream ChatStreamEvent);
+  // Requests cancellation for a currently streaming generation. Cancellation
+  // releases the reservation before its audit is marked canceled.
+  rpc CancelChat(CancelChatRequest) returns (CancelChatReply);
+  // Returns the caller-owned audit state for reconnect/status recovery. It
+  // never returns input prompts or provider credentials.
+  rpc GetChatStatus(GetChatStatusRequest) returns (GetChatStatusReply);
 }
 
 message ListModelsRequest {
@@ -79,4 +89,31 @@ message ChatReply {
   int64 remaining_tokens = 8;
   string request_id = 9;
   string status = 10;
+}
+
+message ChatStreamEvent {
+  // started, delta, completed, canceled, or failed.
+  string type = 1;
+  string request_id = 2;
+  string delta = 3;
+  ChatReply reply = 4;
+}
+
+message CancelChatRequest {
+  string user_id = 1;
+  string idempotency_key = 2;
+}
+
+message CancelChatReply {
+  // cancellation_requested, succeeded, canceled, or not_found.
+  string status = 1;
+}
+
+message GetChatStatusRequest {
+  string user_id = 1;
+  string idempotency_key = 2;
+}
+
+message GetChatStatusReply {
+  ChatReply reply = 1;
 }

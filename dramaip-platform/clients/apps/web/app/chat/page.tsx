@@ -1,184 +1,354 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import type { ChatMessage, ChatModel, ChatResponse } from '@dramaip/sdk'
 import { RequireAuth } from '../../components/RequireAuth'
 import { Button } from '../../components/ui/Button'
 import { parseApiError } from '../../lib/api-error'
 import { apiClient } from '../../lib/api-client'
-import { aiProviderLabel } from '../../lib/display'
-import { isSimulatedPaymentEnabled } from '../../lib/runtime'
+
+type ConversationMessage = ChatMessage & {
+  id: string
+  requestID?: string
+  state?: 'streaming' | 'completed' | 'failed' | 'canceled'
+}
+
+type ActiveRequest = {
+  idempotencyKey: string
+  requestID: string
+  assistantID: string
+}
+
+const starters = [
+  { title: '故事前提', prompt: '请为“创作者重建事业”写一个具有冲突与反转的短剧故事前提。' },
+  { title: '角色关系', prompt: '请根据我的故事前提，设计 3 位主角的目标、秘密、冲突和关系张力。' },
+  { title: '第一集节拍', prompt: '请将这个故事拆成第一集的 8 个短剧节拍，结尾设置强钩子。' },
+]
 
 export default function ChatPage() {
   const queryClient = useQueryClient()
-  const [prompt, setPrompt] = useState('请给我一个关于创作者重建事业的短剧故事前提。')
-  const [provider, setProvider] = useState(() => (isSimulatedPaymentEnabled() ? 'test' : 'openai-compatible'))
-  const [model, setModel] = useState('')
-  const [requestID, setRequestID] = useState(newRequestID)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const controllerRef = useRef<AbortController | null>(null)
+  const historyLoadedRef = useRef(false)
+  const [prompt, setPrompt] = useState('')
+  const [selectedModelID, setSelectedModelID] = useState('')
+  const [messages, setMessages] = useState<ConversationMessage[]>([])
+  const [active, setActive] = useState<ActiveRequest | null>(null)
+  const [preflight, setPreflight] = useState<{ estimated: number; remaining: number } | null>(null)
+  const [notice, setNotice] = useState('')
 
-  const tokenBalance = useQuery({
-    queryKey: ['token-balance'],
-    queryFn: () => apiClient.getTokenBalance(),
-    retry: false,
-  })
+  const session = useQuery({ queryKey: ['session'], queryFn: () => apiClient.getSession(), retry: false })
+  const models = useQuery({ queryKey: ['chat-models'], queryFn: () => apiClient.getChatModels(), retry: false, staleTime: 60_000 })
+  const tokenBalance = useQuery({ queryKey: ['token-balance'], queryFn: () => apiClient.getTokenBalance(), retry: false })
+  const selectedModel = useMemo(
+    () => models.data?.models.find((item) => item.id === selectedModelID) ?? models.data?.models.find((item) => item.is_default),
+    [models.data?.models, selectedModelID],
+  )
 
-  const chat = useMutation({
-    mutationFn: async () => {
-      const preflightInput = {
-        provider,
-        model: model || undefined,
+  useEffect(() => {
+    const preferred = models.data?.models.find((item) => item.is_default) ?? models.data?.models[0]
+    if (preferred && !selectedModelID) setSelectedModelID(preferred.id)
+  }, [models.data?.models, selectedModelID])
+
+  useEffect(() => {
+    const userID = session.data?.user.id
+    if (!userID) return
+    historyLoadedRef.current = false
+    setMessages(readLocalHistory(userID))
+    historyLoadedRef.current = true
+  }, [session.data?.user.id])
+
+  useEffect(() => {
+    const userID = session.data?.user.id
+    if (!userID || !historyLoadedRef.current) return
+    writeLocalHistory(userID, messages)
+  }, [messages, session.data?.user.id])
+
+  const runAuthorTask = async () => {
+    const text = prompt.trim()
+    if (!text || !selectedModel || active) return
+    const requestID = newRequestID()
+    const assistantID = `${requestID}-assistant`
+    const userMessage: ConversationMessage = { id: `${requestID}-user`, role: 'user', content: text, requestID }
+    const assistantMessage: ConversationMessage = { id: assistantID, role: 'assistant', content: '', requestID, state: 'streaming' }
+    const outbound = [...messages, userMessage].slice(-8).map(toChatMessage)
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setMessages((current) => [...current, userMessage, assistantMessage])
+    setPrompt('')
+    setNotice('正在进行额度预检…')
+    setActive({ idempotencyKey: requestID, requestID, assistantID })
+    setPreflight(null)
+
+    try {
+      const checked = await apiClient.preflightChat({
+        provider: selectedModel.provider,
+        model: selectedModel.model,
+        messages: outbound,
         max_tokens: 512,
-        messages: [{ role: 'user' as const, content: prompt }],
-      }
-      const preflight = await apiClient.preflightChat(preflightInput)
-      return apiClient.chat({
-        ...preflightInput,
+      })
+      setPreflight({ estimated: checked.estimated_tokens, remaining: checked.remaining_tokens })
+      setNotice('已通过预检，正在接收模型输出…')
+      await apiClient.streamChat({
+        provider: checked.model.provider,
+        model: checked.model.model,
+        messages: outbound,
+        max_tokens: 512,
         request_id: requestID,
         idempotency_key: requestID,
-        preflight_request_hash: preflight.request_hash,
+        preflight_request_hash: checked.request_hash,
+      }, {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.type === 'delta') {
+            setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, content: message.content + event.delta })))
+          }
+          if (event.type === 'completed' && event.reply) finishAssistant(setMessages, assistantID, event.reply)
+          if (event.type === 'failed') {
+            setNotice(`生成未完成，可使用“恢复最近请求”查询结果。关联编号：${event.request_id || requestID}`)
+            setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, state: 'failed' })))
+          }
+        },
       })
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
-      await queryClient.invalidateQueries({ queryKey: ['token-usage'] })
-      await queryClient.invalidateQueries({ queryKey: ['usage-trend'] })
-      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
-    },
-  })
+      setNotice('生成完成。')
+      await invalidateUsage(queryClient)
+    } catch (error) {
+      if (controller.signal.aborted) {
+        setNotice('已请求取消，额度会在网关确认后释放。')
+        setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, state: 'canceled' })))
+      } else {
+        setNotice(classifyChatError(error))
+        setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, state: 'failed' })))
+      }
+    } finally {
+      controllerRef.current = null
+      setActive(null)
+    }
+  }
 
-  const spentTokens = chat.data
-    ? Math.max(0, (tokenBalance.data?.remaining_tokens ?? chat.data.remaining_tokens) - chat.data.remaining_tokens)
-    : 0
+  const cancelActiveTask = async () => {
+    if (!active) return
+    controllerRef.current?.abort()
+    setNotice('正在向网关请求取消…')
+    try {
+      const result = await apiClient.cancelChat({ idempotency_key: active.idempotencyKey })
+      setNotice(result.status === 'cancellation_requested' ? '取消已受理，正在释放额度。' : `请求状态：${statusLabel(result.status)}`)
+    } catch (error) {
+      setNotice(classifyChatError(error))
+    }
+  }
+
+  const recoverLatest = async () => {
+    const request = active ?? latestRequest(messages)
+    if (!request) return
+    setNotice('正在查询网关中的原请求，不会再次调用模型。')
+    try {
+      const result = await apiClient.getChatStatus({ idempotency_key: request.idempotencyKey })
+      const assistantID = request.assistantID ?? `${result.request_id}-assistant`
+	  const resultStatus = result.status ?? 'in_progress'
+      setMessages((current) => {
+        const exists = current.some((message) => message.id === assistantID)
+		const next = { id: assistantID, role: 'assistant' as const, content: result.content, requestID: result.request_id, state: stateFromStatus(resultStatus) }
+        return exists ? updateMessage(current, assistantID, () => next) : [...current, next]
+      })
+	  setNotice(`已恢复请求状态：${statusLabel(resultStatus)}。`)
+	  if (resultStatus === 'succeeded') await invalidateUsage(queryClient)
+    } catch (error) {
+      setNotice(classifyChatError(error))
+    }
+  }
+
+  const clearConversation = () => {
+    if (active) return
+    setMessages([])
+    setPreflight(null)
+    setNotice('已仅清除此浏览器中当前账号的会话记录。')
+  }
 
   return (
     <RequireAuth>
-      <main className="mx-auto max-w-4xl px-6 py-10">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold text-slate-950">智能对话</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              通过平台云端智能网关调用模型，不需要在客户端暴露上游服务商密钥。
-            </p>
-            <p className="mt-2 text-sm text-slate-500">
-              剩余额度：{tokenBalance.data ? tokenBalance.data.remaining_tokens.toLocaleString() : '加载中...'}
-            </p>
-          </div>
-        </div>
-
-        <section className="mt-8 grid gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-          <label className="grid gap-2 text-sm">
-            提示词
-            <textarea
-              className="min-h-36 rounded-md border border-slate-300 p-3"
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="w-fit text-sm font-medium text-brand-700"
-            onClick={() => setAdvancedOpen((open) => !open)}
-          >
-            {advancedOpen ? '收起高级设置' : '显示高级设置'}
-          </button>
-          {advancedOpen ? (
-            <div className="grid gap-4 rounded-md bg-slate-50 p-4 md:grid-cols-2">
-              <label className="grid gap-2 text-sm">
-                服务商
-                <select
-                  className="h-10 rounded-md border border-slate-300 px-3"
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+        <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-6 lg:h-fit">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">创作助手</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">从灵感到下一稿</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">选择一个作者任务，平台会先核验模型与额度，再开始生成。</p>
+            <div className="mt-6 grid gap-2" aria-label="作者任务">
+              {starters.map((starter) => (
+                <button
+                  key={starter.title}
+                  type="button"
+                  className="rounded-xl border border-slate-200 px-3 py-3 text-left text-sm font-medium text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                  onClick={() => setPrompt(starter.prompt)}
+                  disabled={Boolean(active)}
                 >
-                  <option value="test">测试服务商</option>
-                  <option value="openai-compatible">兼容协议服务商</option>
+                  {starter.title}
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 border-t border-slate-100 pt-5">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                创作模型
+                <select
+                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100"
+                  value={selectedModel?.id ?? ''}
+                  onChange={(event) => setSelectedModelID(event.target.value)}
+                  disabled={models.isLoading || Boolean(active) || !models.data?.models.length}
+                  aria-label="创作模型"
+                >
+                  {models.data?.models.map((model) => <option key={model.id} value={model.id}>{model.model}{model.is_default ? '（推荐）' : ''}</option>)}
                 </select>
               </label>
-              <label className="grid gap-2 text-sm">
-                模型
-                <input
-                  className="h-10 rounded-md border border-slate-300 px-3"
-                  placeholder="使用服务商默认模型"
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
-                />
-              </label>
-              <label className="grid gap-2 text-sm md:col-span-2">
-                幂等键（请求编号）
-                <div className="flex gap-2">
-                  <input
-                    className="h-10 flex-1 rounded-md border border-slate-300 px-3"
-                    value={requestID}
-                    onChange={(event) => setRequestID(event.target.value)}
-                  />
-                  <Button type="button" onClick={() => setRequestID(newRequestID())}>
-                    生成
-                  </Button>
-                </div>
-              </label>
+              {models.isError || !models.data?.models.length ? <p className="mt-2 text-xs leading-5 text-rose-700">当前没有可用的创作模型，请稍后重试。</p> : null}
+              <p className="mt-4 text-xs leading-5 text-slate-500">剩余额度：{tokenBalance.data ? tokenBalance.data.remaining_tokens.toLocaleString() : '加载中…'}</p>
+              {preflight ? <p className="mt-1 text-xs leading-5 text-emerald-700">本次预计使用 {preflight.estimated.toLocaleString()} tokens，预检后可用 {preflight.remaining.toLocaleString()} tokens。</p> : null}
             </div>
-          ) : null}
-          <Button onClick={() => chat.mutate()} disabled={chat.isPending || prompt.trim().length === 0}>
-            {chat.isPending ? '生成中...' : '生成'}
-          </Button>
-        </section>
+          </aside>
 
-        {chat.error ? (
-          <section className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
-            {classifyChatError(chat.error)}
-          </section>
-        ) : null}
-
-        {chat.data ? (
-          <section className="mt-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="text-sm font-medium text-slate-500">
-              {aiProviderLabel(chat.data.provider)} / {chat.data.model}
-            </div>
-            <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-800">{chat.data.content}</p>
-            <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
-              <div>总消耗：{chat.data.total_tokens}</div>
-              <div>提示词：{chat.data.prompt_tokens}</div>
-              <div>生成内容：{chat.data.completion_tokens}</div>
-              <div>剩余额度：{chat.data.remaining_tokens.toLocaleString()}</div>
-              <div>本次扣减：{spentTokens.toLocaleString()}</div>
-              <div>状态：{statusLabel(chat.data.status ?? 'succeeded')}</div>
-            </div>
-            {advancedOpen ? (
-              <div className="mt-4 grid gap-2 text-xs text-slate-500">
-                <div>请求：{chat.data.request_id}</div>
-                <div>预留：{chat.data.reservation_id}</div>
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-7">
+              <div>
+                <h2 className="font-semibold text-slate-950">创作会话</h2>
+                <p className="mt-1 text-xs text-slate-500">会话仅保存在此浏览器并按当前账号隔离；服务端审计不保存提示词。</p>
               </div>
-            ) : null}
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" className="h-9 px-3" onClick={() => void recoverLatest()} disabled={Boolean(active) || messages.length === 0}>恢复最近请求</Button>
+                <Button type="button" variant="secondary" className="h-9 px-3" onClick={clearConversation} disabled={Boolean(active) || messages.length === 0}>新会话</Button>
+              </div>
+            </header>
+
+            <div className="min-h-[26rem] space-y-5 px-5 py-6 sm:px-7" aria-live="polite" aria-busy={Boolean(active)}>
+              {messages.length === 0 ? <EmptyConversation onStarter={(value) => setPrompt(value)} /> : messages.map((message) => <MessageBubble key={message.id} message={message} />)}
+            </div>
+
+            <div className="border-t border-slate-100 bg-slate-50/70 p-4 sm:p-5">
+              {notice ? <p className="mb-3 text-sm text-slate-600" role="status">{notice}</p> : null}
+              <label className="sr-only" htmlFor="author-prompt">本次创作要求</label>
+              <textarea
+                id="author-prompt"
+                className="min-h-28 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-sm leading-6 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-100"
+                placeholder="描述你想推进的故事、角色或片段…"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                disabled={Boolean(active)}
+              />
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">生成期间可取消；断线后可安全查询原请求，不会重复调用模型。</p>
+                {active ? (
+                  <Button type="button" variant="secondary" onClick={() => void cancelActiveTask()}>取消生成</Button>
+                ) : (
+                  <Button type="button" onClick={() => void runAuthorTask()} disabled={!prompt.trim() || !selectedModel}>开始创作</Button>
+                )}
+              </div>
+            </div>
           </section>
-        ) : null}
+        </div>
       </main>
     </RequireAuth>
   )
 }
 
+function EmptyConversation({ onStarter }: { onStarter: (prompt: string) => void }) {
+  return (
+    <div className="mx-auto flex max-w-lg flex-col items-center justify-center py-20 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-100 text-xl text-brand-700" aria-hidden="true">✦</div>
+      <h3 className="mt-5 text-lg font-semibold text-slate-900">从一个清晰的创作动作开始</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">可以选择左侧任务，也可以直接写下你现在最想解决的问题。</p>
+      <button type="button" className="mt-5 text-sm font-medium text-brand-700 hover:text-brand-800" onClick={() => onStarter(starters[0].prompt)}>尝试“故事前提”</button>
+    </div>
+  )
+}
+
+function MessageBubble({ message }: { message: ConversationMessage }) {
+  const isAuthor = message.role === 'user'
+  return (
+    <article className={`flex gap-3 ${isAuthor ? 'justify-end' : 'justify-start'}`}>
+      {!isAuthor ? <div className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700" aria-hidden="true">AI</div> : null}
+      <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm ${isAuthor ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-800'}`}>
+        {message.content ? <p className="whitespace-pre-wrap">{message.content}</p> : message.state === 'streaming' ? <span className="inline-flex items-center gap-1 text-slate-500"><i className="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-pulse motion-reduce:animate-none" /><i className="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-pulse motion-reduce:animate-none" /><i className="h-1.5 w-1.5 rounded-full bg-brand-500 motion-safe:animate-pulse motion-reduce:animate-none" /><span className="ml-1">正在接收模型输出</span></span> : null}
+        {message.state && message.state !== 'completed' && message.state !== 'streaming' ? <p className="mt-2 text-xs text-rose-700">{message.state === 'canceled' ? '已取消' : '生成未完成'}</p> : null}
+      </div>
+    </article>
+  )
+}
+
+function toChatMessage(message: ConversationMessage): ChatMessage {
+  return { role: message.role, content: message.content }
+}
+
+function updateMessage(messages: ConversationMessage[], id: string, update: (message: ConversationMessage) => ConversationMessage) {
+  return messages.map((message) => message.id === id ? update(message) : message)
+}
+
+function finishAssistant(setMessages: Dispatch<SetStateAction<ConversationMessage[]>>, assistantID: string, reply: ChatResponse) {
+  setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, content: reply.content, requestID: reply.request_id, state: 'completed' })))
+}
+
+function latestRequest(messages: ConversationMessage[]): ActiveRequest | null {
+  const latest = [...messages].reverse().find((message) => message.requestID)
+  if (!latest?.requestID) return null
+  return { idempotencyKey: latest.requestID, requestID: latest.requestID, assistantID: `${latest.requestID}-assistant` }
+}
+
+function stateFromStatus(status: string): ConversationMessage['state'] {
+  if (status === 'succeeded') return 'completed'
+  if (status === 'canceled') return 'canceled'
+  return 'failed'
+}
+
+function statusLabel(status: string) {
+  return ({ succeeded: '已完成', canceled: '已取消', cancellation_requested: '取消已受理', in_progress: '生成中', not_found: '未找到' } as Record<string, string>)[status] ?? status
+}
+
 function classifyChatError(error: unknown) {
-  const apiError = parseApiError(error, '智能请求失败。')
+  const apiError = parseApiError(error, '智能请求暂时不可用。')
   const text = `${apiError.code} ${apiError.message}`.toLowerCase()
-  if (apiError.status === 402 || text.includes('quota')) return '模型额度不足。请升级套餐，或等待下个周期额度刷新。'
+  if (apiError.status === 402 || text.includes('quota')) return '模型额度不足，已在调用模型前停止请求。'
   if (apiError.status === 429 || text.includes('rate')) return '请求频率已达上限，请稍后再试。'
-  if (text.includes('api key') || text.includes('provider')) return '当前环境尚未配置智能服务商。'
-  if (text.includes('upstream')) return '上游智能服务商调用失败，未生成有效响应。'
+  if (text.includes('preflight') || text.includes('model')) return '当前模型不可用或请求已变更，请重新发起预检。'
   return apiError.message
 }
 
-function statusLabel(value?: string) {
-  const labels: Record<string, string> = {
-    succeeded: '成功',
-    failed: '失败',
-    canceled: '已取消',
-  }
-  return value ? labels[value] ?? value.replaceAll('_', ' ') : '-'
+async function invalidateUsage(queryClient: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['token-balance'] }),
+    queryClient.invalidateQueries({ queryKey: ['token-usage'] }),
+    queryClient.invalidateQueries({ queryKey: ['usage-trend'] }),
+    queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] }),
+  ])
 }
 
-// randomUUID is not exposed by all browsers on a plaintext HTTP origin. The
-// temporary LAN endpoint is intentionally HTTP, so retain a unique local
-// idempotency key without preventing the entire client component from loading.
 function newRequestID() {
   return globalThis.crypto?.randomUUID?.() ?? `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function historyKey(userID: string) {
+  return `dramaip.author-chat.v1.${userID}`
+}
+
+function readLocalHistory(userID: string): ConversationMessage[] {
+  try {
+    const raw = window.localStorage.getItem(historyKey(userID))
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isConversationMessage).slice(-32)
+  } catch {
+    return []
+  }
+}
+
+function writeLocalHistory(userID: string, messages: ConversationMessage[]) {
+  try {
+    window.localStorage.setItem(historyKey(userID), JSON.stringify(messages.slice(-32)))
+  } catch {
+    // Local history is a convenience layer. A storage quota failure must not
+    // prevent the secure gateway request from completing.
+  }
+}
+
+function isConversationMessage(value: unknown): value is ConversationMessage {
+  if (!value || typeof value !== 'object') return false
+  const message = value as Record<string, unknown>
+  return typeof message.id === 'string' && (message.role === 'user' || message.role === 'assistant' || message.role === 'system') && typeof message.content === 'string'
 }

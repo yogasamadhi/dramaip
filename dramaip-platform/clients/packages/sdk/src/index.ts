@@ -299,6 +299,31 @@ export const ChatPreflightResponseSchema = z.object({
 
 export type ChatPreflightResponse = z.infer<typeof ChatPreflightResponseSchema>
 
+export const ChatModelSchema = z.object({
+  id: z.string().min(3),
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  is_default: z.boolean(),
+})
+
+export const ChatModelsResponseSchema = z.object({
+  models: z.array(ChatModelSchema),
+})
+
+export type ChatModel = z.infer<typeof ChatModelSchema>
+export type ChatModelsResponse = z.infer<typeof ChatModelsResponseSchema>
+
+export const ChatStreamEventSchema = z.object({
+  type: z.enum(['started', 'delta', 'completed', 'failed', 'canceled']),
+  request_id: z.string().default(''),
+  delta: z.string().default(''),
+  reply: ChatResponseSchema.optional(),
+  code: z.string().optional(),
+  trace_id: z.string().optional(),
+})
+
+export type ChatStreamEvent = z.infer<typeof ChatStreamEventSchema>
+
 export type ChatInput = {
   request_id?: string
   idempotency_key?: string
@@ -307,6 +332,8 @@ export type ChatInput = {
   messages: ChatMessage[]
   max_tokens?: number
 }
+
+export type ChatStreamInput = ChatInput & { preflight_request_hash: string }
 
 export interface ApiClientOptions {
   baseURL: string
@@ -349,8 +376,12 @@ export interface DramaIpApiClient {
   requestRefund(input?: { subscription_id?: string; reason?: string; idempotency_key?: string }): Promise<Refund>
   refresh(): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
+  getChatModels(): Promise<ChatModelsResponse>
   preflightChat(input: Omit<ChatInput, 'request_id' | 'idempotency_key'>): Promise<ChatPreflightResponse>
   chat(input: ChatInput & { preflight_request_hash: string }): Promise<ChatResponse>
+  streamChat(input: ChatStreamInput, options?: { signal?: AbortSignal; onEvent?: (event: ChatStreamEvent) => void }): Promise<void>
+  cancelChat(input: { idempotency_key: string }): Promise<{ status: string }>
+  getChatStatus(input: { idempotency_key: string }): Promise<ChatResponse>
 }
 
 export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
@@ -492,6 +523,10 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       const res = await http.post('/v1/auth/logout')
       return LogoutResponseSchema.parse(res.data)
     },
+    async getChatModels() {
+      const res = await http.get('/v1/ai/models')
+      return ChatModelsResponseSchema.parse(res.data)
+    },
     async preflightChat(input) {
       const res = await http.post('/v1/ai/preflight', input)
       return ChatPreflightResponseSchema.parse(res.data)
@@ -504,5 +539,61 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       })
       return ChatResponseSchema.parse(res.data)
     },
+    async streamChat(input, streamOptions = {}) {
+      const { idempotency_key, ...body } = input
+      const idempotencyKey = idempotency_key ?? input.request_id
+      const headers: Record<string, string> = {
+        [API_CONTRACT_HEADER]: API_CONTRACT_VERSION,
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      }
+      if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
+      const token = await options.getAccessToken?.()
+      if (token) headers.Authorization = `Bearer ${token}`
+      const deviceID = await options.getDeviceID?.()
+      if (deviceID) headers['X-Device-Id'] = deviceID
+      const csrfToken = await options.getCSRFToken?.()
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken
+      const response = await fetch(new URL('/v1/ai/chat/stream', options.baseURL).toString(), {
+        method: 'POST', headers, body: JSON.stringify(body), signal: streamOptions.signal,
+        credentials: options.withCredentials === false ? 'omit' : 'include',
+      })
+      if (!response.ok || !response.body) {
+        throw new Error((await response.text()).slice(0, 512) || 'chat_stream_unavailable')
+      }
+      await readSSE(response.body, (event) => streamOptions.onEvent?.(ChatStreamEventSchema.parse(event)))
+    },
+    async cancelChat(input) {
+      const res = await http.post('/v1/ai/chat/cancel', input)
+      return z.object({ status: z.string() }).parse(res.data)
+    },
+    async getChatStatus(input) {
+      const res = await http.get('/v1/ai/chat/status', { params: input })
+      return ChatResponseSchema.parse(res.data)
+    },
+  }
+}
+
+async function readSSE(stream: ReadableStream<Uint8Array>, onEvent: (event: unknown) => void) {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      pending += decoder.decode(value, { stream: !done })
+      let boundary = pending.indexOf('\n\n')
+      while (boundary >= 0) {
+        const block = pending.slice(0, boundary)
+        pending = pending.slice(boundary + 2)
+        const data = block.split('\n').find((line) => line.startsWith('data:'))?.slice(5).trim()
+        const type = block.split('\n').find((line) => line.startsWith('event:'))?.slice(6).trim()
+        if (data && type) onEvent({ type, ...JSON.parse(data) })
+        boundary = pending.indexOf('\n\n')
+      }
+      if (done) return
+    }
+  } finally {
+    reader.releaseLock()
   }
 }

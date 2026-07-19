@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -128,6 +129,42 @@ func TestChatUsesIdempotencyHeader(t *testing.T) {
 	}
 	if got := rec.Header().Get("Idempotency-Key"); got != "header-key-42" {
 		t.Fatalf("response Idempotency-Key = %q", got)
+	}
+}
+
+func TestAuthorChatCatalogStreamStatusAndCancelRemainAuthenticated(t *testing.T) {
+	router := newTestHTTPService().Router()
+	models := httptest.NewRequest(http.MethodGet, "/v1/ai/models", nil)
+	models.Header.Set("Authorization", "Bearer token")
+	modelsRecorder := httptest.NewRecorder()
+	router.ServeHTTP(modelsRecorder, models)
+	if modelsRecorder.Code != http.StatusOK || !strings.Contains(modelsRecorder.Body.String(), `"models"`) || strings.Contains(modelsRecorder.Body.String(), "api_key") {
+		t.Fatalf("model catalog = %d: %s", modelsRecorder.Code, modelsRecorder.Body.String())
+	}
+
+	preflightHash := preflightChatHash(t, router, "token", `{"provider":"test","messages":[{"role":"user","content":"write a safe beat"}],"max_tokens":16}`)
+	stream := httptest.NewRequest(http.MethodPost, "/v1/ai/chat/stream", bytes.NewBufferString(fmt.Sprintf(`{"request_id":"stream-42","provider":"test","messages":[{"role":"user","content":"write a safe beat"}],"max_tokens":16,"preflight_request_hash":"%s"}`, preflightHash)))
+	stream.Header.Set("Authorization", "Bearer token")
+	streamRecorder := httptest.NewRecorder()
+	router.ServeHTTP(streamRecorder, stream)
+	if streamRecorder.Code != http.StatusOK || !strings.Contains(streamRecorder.Body.String(), "event: delta") || !strings.Contains(streamRecorder.Body.String(), "event: completed") {
+		t.Fatalf("stream = %d: %s", streamRecorder.Code, streamRecorder.Body.String())
+	}
+
+	statusRequest := httptest.NewRequest(http.MethodGet, "/v1/ai/chat/status?idempotency_key=stream-42", nil)
+	statusRequest.Header.Set("Authorization", "Bearer token")
+	statusRecorder := httptest.NewRecorder()
+	router.ServeHTTP(statusRecorder, statusRequest)
+	if statusRecorder.Code != http.StatusOK || !strings.Contains(statusRecorder.Body.String(), `"status":"succeeded"`) {
+		t.Fatalf("status = %d: %s", statusRecorder.Code, statusRecorder.Body.String())
+	}
+
+	cancel := httptest.NewRequest(http.MethodPost, "/v1/ai/chat/cancel", bytes.NewBufferString(`{"idempotency_key":"stream-42"}`))
+	cancel.Header.Set("Authorization", "Bearer token")
+	cancelRecorder := httptest.NewRecorder()
+	router.ServeHTTP(cancelRecorder, cancel)
+	if cancelRecorder.Code != http.StatusOK || !strings.Contains(cancelRecorder.Body.String(), `"status":"canceled"`) {
+		t.Fatalf("cancel = %d: %s", cancelRecorder.Code, cancelRecorder.Body.String())
 	}
 }
 
@@ -831,6 +868,10 @@ func (f *captureUsageQuota) GetUsageTrend(ctx context.Context, req *quotav1.GetU
 
 type fakeAI struct{}
 
+func (fakeAI) ListModels(context.Context, *aiv1.ListModelsRequest, ...grpc.CallOption) (*aiv1.ListModelsReply, error) {
+	return &aiv1.ListModelsReply{Models: []*aiv1.CloudModel{{Provider: "test", Model: "test", IsDefault: true}}}, nil
+}
+
 func (fakeAI) Preflight(_ context.Context, req *aiv1.PreflightRequest, _ ...grpc.CallOption) (*aiv1.PreflightReply, error) {
 	provider := req.Provider
 	if provider == "" {
@@ -847,7 +888,38 @@ func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv
 	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100}, nil
 }
 
+func (fakeAI) ChatStream(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error) {
+	return &fakeChatStream{events: []*aiv1.ChatStreamEvent{
+		{Type: "delta", RequestId: "stream-42", Delta: "hello"},
+		{Type: "completed", RequestId: "stream-42", Reply: &aiv1.ChatReply{RequestId: "stream-42", Content: "hello", Provider: "test", Model: "test", Status: "succeeded"}},
+	}}, nil
+}
+
+func (fakeAI) CancelChat(context.Context, *aiv1.CancelChatRequest, ...grpc.CallOption) (*aiv1.CancelChatReply, error) {
+	return &aiv1.CancelChatReply{Status: "canceled"}, nil
+}
+
+func (fakeAI) GetChatStatus(_ context.Context, req *aiv1.GetChatStatusRequest, _ ...grpc.CallOption) (*aiv1.GetChatStatusReply, error) {
+	return &aiv1.GetChatStatusReply{Reply: &aiv1.ChatReply{RequestId: req.IdempotencyKey, Status: "succeeded", Content: "hello", Provider: "test", Model: "test"}}, nil
+}
+
+type fakeChatStream struct {
+	grpc.ClientStream
+	events []*aiv1.ChatStreamEvent
+	index  int
+}
+
+func (f *fakeChatStream) Recv() (*aiv1.ChatStreamEvent, error) {
+	if f.index >= len(f.events) {
+		return nil, io.EOF
+	}
+	event := f.events[f.index]
+	f.index++
+	return event, nil
+}
+
 type captureAI struct {
+	fakeAI
 	request *aiv1.ChatRequest
 }
 

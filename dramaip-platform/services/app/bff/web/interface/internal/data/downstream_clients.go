@@ -16,12 +16,16 @@ import (
 	"google.golang.org/grpc"
 )
 
-// AIClient deliberately contains only the Web BFF's synchronous Cloud AI
-// capability. The preflight is required to bind the final Chat payload before
-// a quota-reserving generation can reach the Gateway.
+// AIClient exposes only the authenticated authoring surface. The preflight is
+// required to bind the final Chat payload before a quota-reserving generation
+// reaches the Gateway; status and cancellation remain owner-scoped there.
 type AIClient interface {
+	ListModels(context.Context, *aiv1.ListModelsRequest, ...grpc.CallOption) (*aiv1.ListModelsReply, error)
 	Preflight(context.Context, *aiv1.PreflightRequest, ...grpc.CallOption) (*aiv1.PreflightReply, error)
 	Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error)
+	ChatStream(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error)
+	CancelChat(context.Context, *aiv1.CancelChatRequest, ...grpc.CallOption) (*aiv1.CancelChatReply, error)
+	GetChatStatus(context.Context, *aiv1.GetChatStatusRequest, ...grpc.CallOption) (*aiv1.GetChatStatusReply, error)
 }
 
 type Data struct {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -91,7 +92,11 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/subscription/resume", s.handleResumeSubscription)
 	mux.HandleFunc("/v1/subscription/change-plan", s.handleChangeSubscriptionPlan)
 	mux.HandleFunc("/v1/subscription/refund", s.handleRequestRefund)
+	mux.HandleFunc("/v1/ai/models", s.handleChatModels)
 	mux.HandleFunc("/v1/ai/preflight", s.handleChatPreflight)
+	mux.HandleFunc("/v1/ai/chat/stream", s.handleChatStream)
+	mux.HandleFunc("/v1/ai/chat/cancel", s.handleChatCancel)
+	mux.HandleFunc("/v1/ai/chat/status", s.handleChatStatus)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
 	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(s.csrfMiddleware(mux))))
 }
@@ -822,6 +827,44 @@ type cloudChatPreflightRequest struct {
 	MaxTokens int64                     `json:"max_tokens"`
 }
 
+type cloudChatRequest struct {
+	RequestID            string                    `json:"request_id"`
+	IdempotencyKey       string                    `json:"idempotency_key"`
+	Provider             string                    `json:"provider"`
+	Model                string                    `json:"model"`
+	Messages             []cloudChatMessageRequest `json:"messages"`
+	MaxTokens            int64                     `json:"max_tokens"`
+	PreflightRequestHash string                    `json:"preflight_request_hash"`
+}
+
+func (s *HTTPService) handleChatModels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	reply, err := s.uc.ChatModels(r.Context(), auth.UserId)
+	if err != nil {
+		writeGRPCError(w, err, "chat_models_unavailable")
+		return
+	}
+	models := make([]map[string]any, 0, len(reply.GetModels()))
+	for _, model := range reply.GetModels() {
+		if model == nil || strings.TrimSpace(model.GetProvider()) == "" || strings.TrimSpace(model.GetModel()) == "" {
+			continue
+		}
+		models = append(models, map[string]any{
+			"id": model.GetProvider() + "/" + model.GetModel(), "provider": model.GetProvider(),
+			"model": model.GetModel(), "is_default": model.GetIsDefault(),
+		})
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"models": models})
+}
+
 func (s *HTTPService) handleChatPreflight(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -857,7 +900,85 @@ func (s *HTTPService) handleChatPreflight(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPService) handleChatStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req cloudChatRequest
+	if !decodeJSONLimit(w, r, &req, 32<<10) {
+		return
+	}
+	if !platform.ValidCloudAIRequestHash(req.PreflightRequestHash) {
+		writeError(w, http.StatusBadRequest, "invalid_preflight_request_hash")
+		return
+	}
+	messages, contextCharacters, valid := validateCloudChatMessages(req.Messages, req.MaxTokens)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "invalid_cloud_context")
+		return
+	}
+	preflight, _, err := s.uc.PreflightChat(r.Context(), auth.UserId, req.Provider, req.Model, messages, contextCharacters, req.MaxTokens)
+	if err != nil {
+		writeGRPCError(w, err, "chat_preflight_unavailable")
+		return
+	}
+	if preflight.GetRequestHash() != req.PreflightRequestHash {
+		writeError(w, http.StatusConflict, "cloud_preflight_request_mismatch")
+		return
+	}
+	requestID, idempotencyKey := chatRequestIdentity(r, req)
+	w.Header().Set("Idempotency-Key", idempotencyKey)
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store, no-transform")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	if !flushSSE(w) {
+		return
+	}
+	// A network disconnect must not double-call an upstream provider on a
+	// reconnect. The Gateway owns the active request by idempotency key until
+	// it completes or the explicit cancel endpoint is called.
+	streamCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 100*time.Second)
+	defer cancel()
+	stream, err := s.uc.ChatStream(streamCtx, auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens, req.PreflightRequestHash)
+	if err != nil {
+		writeSSEError(w, r.Context(), requestID, err)
+		return
+	}
+	clientConnected := true
+	for {
+		event, recvErr := stream.Recv()
+		if recvErr == io.EOF {
+			return
+		}
+		if recvErr != nil {
+			if clientConnected {
+				writeSSEError(w, r.Context(), requestID, recvErr)
+			}
+			return
+		}
+		if event == nil {
+			continue
+		}
+		body := map[string]any{"request_id": event.GetRequestId(), "delta": event.GetDelta()}
+		if event.GetReply() != nil {
+			body["reply"] = chatResponse(event.GetReply())
+		}
+		if clientConnected && (!writeSSE(w, event.GetType(), body) || !flushSSE(w)) {
+			// Keep draining the authenticated Gateway stream after a browser
+			// disconnect. The durable idempotency key then lets a reconnect query
+			// the same completed audit instead of issuing another provider call.
+			clientConnected = false
+		}
+	}
+}
+
+func (s *HTTPService) handleChatCancel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
@@ -867,14 +988,57 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		RequestID            string                    `json:"request_id"`
-		IdempotencyKey       string                    `json:"idempotency_key"`
-		Provider             string                    `json:"provider"`
-		Model                string                    `json:"model"`
-		Messages             []cloudChatMessageRequest `json:"messages"`
-		MaxTokens            int64                     `json:"max_tokens"`
-		PreflightRequestHash string                    `json:"preflight_request_hash"`
+		IdempotencyKey string `json:"idempotency_key"`
 	}
+	if !decodeJSONLimit(w, r, &req, 1024) {
+		return
+	}
+	reply, err := s.uc.CancelChat(r.Context(), auth.UserId, strings.TrimSpace(req.IdempotencyKey))
+	if err != nil {
+		writeGRPCError(w, err, "chat_cancel_unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]string{"status": reply.GetStatus()})
+}
+
+func (s *HTTPService) handleChatStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	idempotencyKey := strings.TrimSpace(r.URL.Query().Get("idempotency_key"))
+	if idempotencyKey == "" || len(idempotencyKey) > 256 {
+		writeError(w, http.StatusBadRequest, "invalid_idempotency_key")
+		return
+	}
+	reply, err := s.uc.ChatStatus(r.Context(), auth.UserId, idempotencyKey)
+	if err != nil {
+		writeGRPCError(w, err, "chat_status_unavailable")
+		return
+	}
+	if reply.GetReply() == nil {
+		writeError(w, http.StatusServiceUnavailable, "chat_status_invalid")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, chatResponse(reply.GetReply()))
+}
+
+func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req cloudChatRequest
 	if !decodeJSONLimit(w, r, &req, 32<<10) {
 		return
 	}
@@ -899,6 +1063,18 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "cloud_preflight_request_mismatch")
 		return
 	}
+	requestID, idempotencyKey := chatRequestIdentity(r, req)
+	w.Header().Set("Idempotency-Key", idempotencyKey)
+	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens, req.PreflightRequestHash)
+	if err != nil {
+		writeGRPCError(w, err, "chat_unavailable")
+		return
+	}
+	atomic.AddUint64(&s.chatsTotal, 1)
+	writeJSON(w, http.StatusOK, chatResponse(reply))
+}
+
+func chatRequestIdentity(r *http.Request, req cloudChatRequest) (string, string) {
 	idempotencyKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idempotencyKey == "" {
 		idempotencyKey = strings.TrimSpace(req.IdempotencyKey)
@@ -914,14 +1090,31 @@ func (s *HTTPService) handleChat(w http.ResponseWriter, r *http.Request) {
 	if requestID == "" {
 		requestID = idempotencyKey
 	}
-	w.Header().Set("Idempotency-Key", idempotencyKey)
-	reply, err := s.uc.Chat(r.Context(), auth.UserId, requestID, idempotencyKey, clientIP(r), req.Provider, req.Model, messages, req.MaxTokens, req.PreflightRequestHash)
+	return requestID, idempotencyKey
+}
+
+func writeSSE(w http.ResponseWriter, event string, value any) bool {
+	raw, err := json.Marshal(value)
 	if err != nil {
-		writeGRPCError(w, err, "chat_unavailable")
-		return
+		return false
 	}
-	atomic.AddUint64(&s.chatsTotal, 1)
-	writeJSON(w, http.StatusOK, chatResponse(reply))
+	_, err = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", strings.TrimSpace(event), raw)
+	return err == nil
+}
+
+func flushSSE(w http.ResponseWriter) bool {
+	return http.NewResponseController(w).Flush() == nil
+}
+
+func writeSSEError(w http.ResponseWriter, ctx context.Context, requestID string, err error) {
+	message := "chat_stream_unavailable"
+	if st, ok := status.FromError(err); ok && strings.TrimSpace(st.Message()) != "" {
+		message = st.Message()
+	}
+	_ = writeSSE(w, "failed", map[string]string{
+		"request_id": requestID, "code": message, "trace_id": platform.TraceID(ctx),
+	})
+	_ = flushSSE(w)
 }
 
 func validateCloudChatMessages(input []cloudChatMessageRequest, maxTokens int64) ([]*aiv1.ChatMessage, int64, bool) {
@@ -1131,6 +1324,10 @@ type traceResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
 	traceID    string
+}
+
+func (w *traceResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 func (w *traceResponseWriter) WriteHeader(statusCode int) {

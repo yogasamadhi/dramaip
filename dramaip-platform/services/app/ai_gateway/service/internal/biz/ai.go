@@ -2,8 +2,10 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
@@ -79,6 +81,8 @@ type AiGatewayUsecase struct {
 	userCostLimit   string
 	ipCostLimit     string
 	costAlertLimit  string
+	activeMu        sync.Mutex
+	activeCalls     map[string]context.CancelFunc
 }
 
 func NewAiGatewayUsecase(data *data.Data) *AiGatewayUsecase {
@@ -90,6 +94,7 @@ func NewAiGatewayUsecase(data *data.Data) *AiGatewayUsecase {
 		userCostLimit:   kratosx.Env("AI_USER_COST_LIMIT_CNY", "5"),
 		ipCostLimit:     kratosx.Env("AI_IP_COST_LIMIT_CNY", "20"),
 		costAlertLimit:  kratosx.Env("AI_REQUEST_COST_ALERT_CNY", "1"),
+		activeCalls:     make(map[string]context.CancelFunc),
 	}
 }
 
@@ -158,23 +163,81 @@ func (u *AiGatewayUsecase) Preflight(input PreflightInput) (PreflightResult, err
 }
 
 func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResult, error) {
+	return u.chat(ctx, input, nil)
+}
+
+// ChatStream executes the same durable claim, preflight binding, quota
+// reservation and settlement as Chat. The only difference is that real
+// provider deltas are surfaced through emit while the request is active.
+func (u *AiGatewayUsecase) ChatStream(ctx context.Context, input ChatInput, emit func(string) error) (ChatResult, error) {
+	input = normalizeChatInput(input)
+	key := activeChatKey(input.UserID, input.IdempotencyKey)
+	streamCtx, cancel := context.WithCancel(ctx)
+	if !u.registerActiveCall(key, cancel) {
+		cancel()
+		return u.chat(ctx, input, emit)
+	}
+	defer func() {
+		u.unregisterActiveCall(key)
+		cancel()
+	}()
+	return u.chat(streamCtx, input, emit)
+}
+
+// CancelChat is intentionally idempotent. An active call receives a context
+// cancellation; its stream path then releases quota/cost reservations before
+// the durable audit becomes canceled. Finished calls only report their stored
+// state and never re-invoke a provider.
+func (u *AiGatewayUsecase) CancelChat(ctx context.Context, userID, idempotencyKey string) (string, error) {
+	userID = strings.TrimSpace(userID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if userID == "" || idempotencyKey == "" {
+		return "", status.Error(codes.InvalidArgument, "missing chat cancellation identity")
+	}
+	key := activeChatKey(userID, idempotencyKey)
+	u.activeMu.Lock()
+	cancel := u.activeCalls[key]
+	u.activeMu.Unlock()
+	if cancel != nil {
+		cancel()
+		return "cancellation_requested", nil
+	}
+	audit, ok, err := u.data.GetAudit(ctx, userID, idempotencyKey)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "not_found", nil
+	}
+	return audit.Status, nil
+}
+
+// ChatStatus is owner-scoped by the service/auth identity and contains only
+// the already-audited output summary. Request prompts are deliberately absent.
+func (u *AiGatewayUsecase) ChatStatus(ctx context.Context, userID, idempotencyKey string) (ChatResult, error) {
+	userID = strings.TrimSpace(userID)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
+	if userID == "" || idempotencyKey == "" {
+		return ChatResult{}, status.Error(codes.InvalidArgument, "missing chat status identity")
+	}
+	audit, ok, err := u.data.GetAudit(ctx, userID, idempotencyKey)
+	if err != nil {
+		return ChatResult{}, err
+	}
+	if !ok {
+		return ChatResult{}, status.Error(codes.NotFound, "chat request not found")
+	}
+	return chatResultFromAudit(audit), nil
+}
+
+func (u *AiGatewayUsecase) chat(ctx context.Context, input ChatInput, emit func(string) error) (ChatResult, error) {
 	if input.UserID == "" {
 		return ChatResult{}, status.Error(codes.InvalidArgument, "missing user id")
 	}
 	if len(input.Messages) == 0 {
 		return ChatResult{}, status.Error(codes.InvalidArgument, "messages are required")
 	}
-	input.RequestID = strings.TrimSpace(input.RequestID)
-	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
-	if input.IdempotencyKey == "" {
-		input.IdempotencyKey = input.RequestID
-	}
-	if input.IdempotencyKey == "" {
-		input.IdempotencyKey = platform.NewUUID()
-	}
-	if input.RequestID == "" {
-		input.RequestID = input.IdempotencyKey
-	}
+	input = normalizeChatInput(input)
 	selected, err := u.resolveCloudModel(input.Provider, input.Model)
 	if err != nil {
 		return ChatResult{}, err
@@ -251,15 +314,26 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
-	reply, err := u.data.CallProvider(ctx, provider, model, input.Messages, input.MaxTokens)
+	var reply data.ProviderReply
+	if emit != nil {
+		reply, err = u.data.CallProviderStream(ctx, provider, model, input.Messages, input.MaxTokens, emit)
+	} else {
+		reply, err = u.data.CallProvider(ctx, provider, model, input.Messages, input.MaxTokens)
+	}
 	if err != nil {
-		_, _ = u.data.Quota.CancelReservation(ctx, &quotav1.CancelReservationRequest{ReservationId: reservation.Id})
+		cleanupCtx, cleanup := cancellationCleanupContext(ctx)
+		defer cleanup()
+		_, _ = u.data.Quota.CancelReservation(cleanupCtx, &quotav1.CancelReservationRequest{ReservationId: reservation.Id})
 		// A timed-out/failed Provider must not retain either the user quota
 		// reservation or the short-window cost guard. Both operations are
 		// idempotent, preserving an auditable failed attempt without blocking a
 		// later, newly keyed request.
-		_ = u.data.ReleaseCostBudget(ctx, audit.ID)
-		_ = u.data.FailAudit(ctx, audit.ID, err.Error())
+		_ = u.data.ReleaseCostBudget(cleanupCtx, audit.ID)
+		if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
+			_ = u.data.CancelAudit(cleanupCtx, audit.ID, "author canceled generation")
+			return ChatResult{}, status.Error(codes.Canceled, "chat generation canceled")
+		}
+		_ = u.data.FailAudit(cleanupCtx, audit.ID, err.Error())
 		return ChatResult{}, err
 	}
 	usageKnown := reply.UsageKnown
@@ -320,6 +394,45 @@ func (u *AiGatewayUsecase) Chat(ctx context.Context, input ChatInput) (ChatResul
 	}
 	u.data.CacheAudit(ctx, input.UserID, input.IdempotencyKey, completedAudit)
 	return chatResultFromAudit(completedAudit), nil
+}
+
+func normalizeChatInput(input ChatInput) ChatInput {
+	input.RequestID = strings.TrimSpace(input.RequestID)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.IdempotencyKey == "" {
+		input.IdempotencyKey = input.RequestID
+	}
+	if input.IdempotencyKey == "" {
+		input.IdempotencyKey = platform.NewUUID()
+	}
+	if input.RequestID == "" {
+		input.RequestID = input.IdempotencyKey
+	}
+	return input
+}
+
+func activeChatKey(userID, idempotencyKey string) string {
+	return userID + "\x00" + idempotencyKey
+}
+
+func (u *AiGatewayUsecase) registerActiveCall(key string, cancel context.CancelFunc) bool {
+	u.activeMu.Lock()
+	defer u.activeMu.Unlock()
+	if _, exists := u.activeCalls[key]; exists {
+		return false
+	}
+	u.activeCalls[key] = cancel
+	return true
+}
+
+func (u *AiGatewayUsecase) unregisterActiveCall(key string) {
+	u.activeMu.Lock()
+	delete(u.activeCalls, key)
+	u.activeMu.Unlock()
+}
+
+func cancellationCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 }
 
 func chatResultFromAudit(audit data.AuditRecord) ChatResult {

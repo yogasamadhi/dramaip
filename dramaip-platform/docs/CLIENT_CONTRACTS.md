@@ -18,6 +18,13 @@ returns the supported version in the same header.
   `X-DramaIP-Trace-Id` for support correlation.
 - Desktop receives only cloud account, models, preflight, chat and mobile
   handoff models. It must not depend on platform internal/core domain types.
+- Web authoring uses the server model catalog, then calls preflight for the
+  final messages before opening `/v1/ai/chat/stream`. `Idempotency-Key` is an
+  opaque recovery key: it is never shown as product UI. A disconnect may query
+  `/v1/ai/chat/status` with that same key and must not submit a second model
+  request. `/cancel` releases a reserved generation before it is persisted as
+  canceled. SSE failures carry a `trace_id`; prompts and provider credentials
+  never appear in the catalog, status or audit response.
 
 ## Compatibility and deprecation
 

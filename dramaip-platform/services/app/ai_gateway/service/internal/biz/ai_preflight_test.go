@@ -73,3 +73,23 @@ func TestDesktopCloudRequestHashHasStableWireFormat(t *testing.T) {
 		t.Fatalf("request hash = %q", hash)
 	}
 }
+
+func TestChatCancelSignalsOnlyTheOwnedActiveRequest(t *testing.T) {
+	uc := NewAiGatewayUsecase(&data.Data{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	key := activeChatKey("user-1", "request-1")
+	if !uc.registerActiveCall(key, cancel) {
+		t.Fatal("register active call")
+	}
+	defer uc.unregisterActiveCall(key)
+	result, err := uc.CancelChat(context.Background(), "user-1", "request-1")
+	if err != nil || result != "cancellation_requested" {
+		t.Fatalf("CancelChat() = %q, %v", result, err)
+	}
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("active request context was not canceled")
+	}
+}

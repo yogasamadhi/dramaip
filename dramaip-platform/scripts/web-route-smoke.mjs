@@ -20,7 +20,8 @@ const checks = [
   },
   {
     file: 'clients/apps/web/app/chat/page.tsx',
-    patterns: ['<RequireAuth>', 'setAdvancedOpen', "queryKey: ['usage-trend']"],
+    patterns: ['<RequireAuth>', 'apiClient.getChatModels', 'apiClient.preflightChat', 'apiClient.streamChat', 'apiClient.cancelChat', 'apiClient.getChatStatus', 'historyKey(userID)', 'motion-reduce:animate-none'],
+    forbidden: ['setAdvancedOpen', '服务商', '幂等键（请求编号）'],
   },
   {
     file: 'clients/apps/web/app/login/page.tsx',

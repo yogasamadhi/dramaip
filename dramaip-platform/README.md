@@ -90,7 +90,8 @@ The platform path is:
    are collected by Fluent Bit into OpenSearch.
 7. Simulated payment confirmation turns a pending checkout into an active
    subscription and token account in dev/test environments.
-8. AI chat through provider `test` exercises the same quota reservation and
+8. AI authoring through provider `test` exercises the same model catalog,
+   preflight, SSE stream, cancellation/recovery, quota reservation and
    settlement path without a real upstream API key.
 
 Open `http://localhost:3009`, then use the seeded development account:
