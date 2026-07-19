@@ -333,7 +333,7 @@ make platform-e2e
 | --- | --- | --- | --- | --- | --- | --- |
 | LM4-00 | P0 | QA/产品体验 | done | 建立可重复的 UI、无障碍和状态基线 Gate | Desktop UI harness、fixtures、截图、审计文档 | 无 |
 | LM4-01 | P0 | Desktop/数据可靠性 | done | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
-| LM4-02 | P0 | Desktop/工作流 | todo | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
+| LM4-02 | P0 | Desktop/工作流 | done | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
 | LM4-03 | P0 | Web/Billing | todo | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
 | LM4-04 | P0 | Release/QA | todo | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
 | LM4-05 | P1 | Design System/前端 | todo | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
@@ -956,4 +956,20 @@ Push: 1b11dcc pushed to origin/main successfully on 2026-07-19; this completion 
 Loop branch cleanup: Local loop/lm4-01-content-persistence deleted after successful main push.
 Current branch/worktree: main; clean before completion-record commit (ignored local UI artifacts excluded).
 Notes: Recovery data stays only in renderer localStorage and is cleared after a confirmed SQLite save. Native close waits for registered renderer flushes; the existing preview/adopt path continues to protect unsaved manual text from AI overwrite.
+```
+
+```text
+Loop: LM4-02
+Target branch: main
+Loop branch: loop/lm4-02-workflow-freshness
+Commit(s): b05ebaa loop: make workflow status reflect current outputs
+Merge commit: a8fa612 merge: LM4-02 workflow truth
+Verification: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (123/123); pnpm test:db (migration v19 replay and SQLite smoke); pnpm test:e2e; pnpm test:ui (6 screenshots, 13 recorded a11y observations); git diff --check origin/main...HEAD.
+UI/manual evidence: Reviewed the light 1320px stale-quality fixture at #/projects/<fixture>?section=overview. After changing source chapter content, the workflow card displayed “源内容已变化，报告已过期，请重新检查” without clipping or layout breakage. The fixture matrix also keeps current-quality, failed-video, reduced-motion and dark-mode paths under UI baseline coverage; details are in docs/loop/LM4-02-工作流真值.md.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, or runtime artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at c408c32 before branch creation and again before merge.
+Push: a8fa612 pushed to origin/main successfully on 2026-07-19; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-02-workflow-freshness deleted after successful main push.
+Current branch/worktree: main; clean before completion-record creation (ignored local UI artifacts excluded).
+Notes: Quality reports now carry a deterministic source fingerprint (schema migration v19). Legacy reports lacking one are deliberately shown as needing recheck. A video stage only completes when a successful task has a usable local or remote output; a successful task alone is not delivery proof.
 ```
