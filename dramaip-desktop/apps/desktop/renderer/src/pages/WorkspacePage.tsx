@@ -262,11 +262,12 @@ export function WorkspacePage() {
     if (updated) setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
   }
 
-  async function onContentChange(md: string) {
-    if (!selected) return
-    await ipc.chapter.updateContent(selected.id, md)
+  async function onContentChange(chapterId: string, md: string) {
+    const updated = await ipc.chapter.updateContent(chapterId, md)
+    if (!updated) return false
     // 静默更新本地，不触发 nonce（避免编辑器重载导致光标丢失）
-    setChapters((prev) => prev.map((c) => (c.id === selected.id ? { ...c, content: md } : c)))
+    setChapters((prev) => prev.map((c) => (c.id === chapterId ? { ...c, content: md } : c)))
+    return true
   }
 
   async function onChapterUpdated() {
@@ -585,7 +586,7 @@ export function WorkspacePage() {
                       <ChapterEditor
                         key={selected.id + ':' + editorNonce}
                         chapter={selected}
-                        onContentChange={onContentChange}
+                        onContentChange={(markdown) => onContentChange(selected.id, markdown)}
                       />
                     </Suspense>
                   </div>

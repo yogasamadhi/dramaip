@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -7,10 +7,11 @@ import { Bold, Eraser, Heading2, Italic, List, Quote } from 'lucide-react'
 import type { Chapter } from '@sdns/core'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 
 interface ChapterEditorProps {
   chapter: Chapter
-  onContentChange: (markdown: string) => void
+  onContentChange: (markdown: string) => Promise<boolean>
 }
 
 function ToolbarButton({
@@ -38,9 +39,19 @@ function ToolbarButton({
 }
 
 export function ChapterEditor({ chapter, onContentChange }: ChapterEditorProps) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const onChangeRef = useRef(onContentChange)
-  onChangeRef.current = onContentChange
+  const {
+    value: draftContent,
+    updateValue: updateDraftContent,
+    flush,
+    discardRecovery,
+    status,
+  } = useAutosaveDraft({
+    targetKey: `chapter:${chapter.id}`,
+    initialValue: chapter.content || '',
+    serialize: (value) => value,
+    deserialize: (value) => value,
+    save: onContentChange,
+  })
 
   const editor = useEditor({
     extensions: [
@@ -60,17 +71,15 @@ export function ChapterEditor({ chapter, onContentChange }: ChapterEditorProps) 
     },
     onUpdate: ({ editor }) => {
       const md = editor.storage.markdown?.getMarkdown?.() ?? editor.getText()
-      if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(() => onChangeRef.current(md), 700)
+      updateDraftContent(md)
     },
   })
 
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current)
-    },
-    [],
-  )
+  useEffect(() => {
+    if (!editor) return
+    const current = editor.storage.markdown?.getMarkdown?.() ?? editor.getText()
+    if (current !== draftContent) editor.commands.setContent(draftContent, false)
+  }, [draftContent, editor])
 
   if (!editor) {
     return <div className="p-8 text-sm text-muted-foreground">编辑器加载中…</div>
@@ -95,6 +104,13 @@ export function ChapterEditor({ chapter, onContentChange }: ChapterEditorProps) 
           <List />
         </ToolbarButton>
         <div className="ml-auto" />
+        <DraftStateBadge status={status} />
+        {status === 'recovered' && (
+          <Button type="button" size="sm" variant="ghost" onClick={discardRecovery}>放弃恢复草稿</Button>
+        )}
+        <Button type="button" size="sm" variant="ghost" onClick={() => void flush()} disabled={status === 'clean' || status === 'saved'}>
+          保存
+        </Button>
         <ToolbarButton isActive={false} onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="清除格式">
           <Eraser />
         </ToolbarButton>
@@ -104,4 +120,16 @@ export function ChapterEditor({ chapter, onContentChange }: ChapterEditorProps) 
       </div>
     </div>
   )
+}
+
+function DraftStateBadge({ status }: { status: DraftSaveState }) {
+  const label: Record<DraftSaveState, string> = {
+    clean: '已保存',
+    dirty: '待保存',
+    saving: '保存中',
+    saved: '已保存',
+    error: '保存失败',
+    recovered: '已恢复草稿',
+  }
+  return <span className={cn('px-2 text-xs', status === 'error' ? 'text-destructive' : 'text-muted-foreground')}>{label[status]}</span>
 }

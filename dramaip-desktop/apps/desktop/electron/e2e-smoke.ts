@@ -53,13 +53,14 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   ) as RendererSmokeResult
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
-  const p0Steps = runP0ProductionPathSmoke(renderer.projectId)
+  const p0 = runP0ProductionPathSmoke(renderer.projectId)
+  const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
   if (!projectPackageStep.ok) throw new Error(projectPackageStep.error ?? '项目包往返失败')
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0Steps, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, draftPersistenceStep, projectPackageStep],
   }
 }
 
@@ -189,7 +190,7 @@ function pushStep<T>(steps: E2eSmokeStep[], result: { step: E2eSmokeStep; value?
   return result.value as T
 }
 
-function runP0ProductionPathSmoke(projectId: string): E2eSmokeStep[] {
+function runP0ProductionPathSmoke(projectId: string): { fixture: P0Fixture; steps: E2eSmokeStep[] } {
   const steps: E2eSmokeStep[] = []
   const fixture = pushStep(steps, smokeStep('p0-fixture-project', () => seedP0Fixture(projectId)))
   pushStep(steps, smokeStep('p0-main-workflow-guide', () => verifyMainWorkflowGuide(fixture)))
@@ -197,7 +198,48 @@ function runP0ProductionPathSmoke(projectId: string): E2eSmokeStep[] {
   pushStep(steps, smokeStep('p0-case-study-card-path', () => verifyCaseStudyCardPath(fixture)))
   pushStep(steps, smokeStep('p0-revision-task-adoption', () => verifyRevisionTaskAdoption(fixture)))
   pushStep(steps, smokeStep('p0-novel-submission-export', () => verifyNovelSubmissionExport(fixture.project.id)))
-  return steps
+  return { fixture, steps }
+}
+
+async function verifyDraftPersistenceRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const shot = repos.shot.createShot(repos.db, {
+      sceneId: fixture.scene.id,
+      episodeId: fixture.episode.id,
+      shotNumber: 1,
+      visualDescription: 'E2E 草稿持久化镜头',
+      videoPrompt: '原始镜头 Prompt',
+    })
+    const result = await win.webContents.executeJavaScript(
+      `(${rendererDraftPersistenceMain.toString()})(${JSON.stringify({
+        projectId: fixture.project.id,
+        adaptationId: fixture.adaptation.id,
+        episodeId: fixture.episode.id,
+        sceneId: fixture.scene.id,
+        scriptId: fixture.script.id,
+        shotId: shot.id,
+      })})`,
+      true,
+    ) as { scriptContent: string; shotPrompt: string }
+    if (!result.scriptContent.includes('E2E immediate script draft') || !result.shotPrompt.includes('E2E immediate shot draft')) {
+      throw new Error('编辑器立即切换后的草稿没有持久化')
+    }
+    return {
+      name: 'draft-autosave-on-immediate-route-leave',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: { scriptId: fixture.script.id, shotId: shot.id },
+    }
+  } catch (error) {
+    return {
+      name: 'draft-autosave-on-immediate-route-leave',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 export function seedP0Fixture(projectId: string): P0Fixture {
@@ -602,4 +644,58 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
   })
 
   return { projectId, modelConfigId, steps }
+}
+
+async function rendererDraftPersistenceMain(input: {
+  projectId: string
+  adaptationId: string
+  episodeId: string
+  sceneId: string
+  scriptId: string
+  shotId: string
+}): Promise<{ scriptContent: string; shotPrompt: string }> {
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+  const waitFor = async (label: string, probe: () => boolean | Promise<boolean>, timeoutMs = 8000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await probe()) return
+      await sleep(50)
+    }
+    throw new Error(`草稿持久化 smoke 等待超时：${label}`)
+  }
+  const setValue = (element: HTMLTextAreaElement, value: string) => {
+    const descriptor = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
+    descriptor?.set?.call(element, value)
+    element.dispatchEvent(new Event('input', { bubbles: true }))
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  }
+  const api = (window as unknown as {
+    api: {
+      script: { get: (id: string) => Promise<{ content: string } | undefined> }
+      shot: { get: (id: string) => Promise<{ videoPrompt: string } | undefined> }
+    }
+  }).api
+
+  window.location.hash = `#/adaptations/${input.adaptationId}/scripts`
+  await waitFor('剧本编辑器', () => Boolean(document.querySelector('textarea[placeholder*="剧本正文"]')))
+  const scriptDraft = 'E2E immediate script draft'
+  setValue(document.querySelector('textarea[placeholder*="剧本正文"]') as HTMLTextAreaElement, scriptDraft)
+  window.location.hash = '#/'
+  await waitFor('项目列表', () => (document.body.textContent ?? '').includes('短剧 IP 小说写作工作台'))
+  await waitFor('剧本持久化', async () => (await api.script.get(input.scriptId))?.content.includes(scriptDraft) === true)
+
+  window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}`
+  await waitFor('镜头编辑器', () => (document.body.textContent ?? '').includes('镜头 Prompt 编辑器'))
+  const shotDraft = 'E2E immediate shot draft'
+  const shotTextarea = document.querySelectorAll('textarea')[0] as HTMLTextAreaElement | undefined
+  if (!shotTextarea) throw new Error('未找到镜头 Prompt 输入框')
+  setValue(shotTextarea, shotDraft)
+  window.location.hash = '#/'
+  await waitFor('返回项目列表', () => (document.body.textContent ?? '').includes('短剧 IP 小说写作工作台'))
+  await waitFor('镜头持久化', async () => (await api.shot.get(input.shotId))?.videoPrompt.includes(shotDraft) === true)
+
+  return {
+    scriptContent: (await api.script.get(input.scriptId))?.content ?? '',
+    shotPrompt: (await api.shot.get(input.shotId))?.videoPrompt ?? '',
+  }
 }
