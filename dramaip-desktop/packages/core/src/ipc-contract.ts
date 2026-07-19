@@ -49,7 +49,7 @@ const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
 const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
-const revisionTaskStatus = z.enum(['open', 'accepted', 'applied', 'dismissed'])
+const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
 const logLevel = z.enum(['debug', 'info', 'warn', 'error'])
 const diagnosticExportOptions = z
@@ -649,6 +649,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'revisionTask:create': [revisionTaskInput],
   'revisionTask:update': [id, revisionTaskPatch],
   'revisionTask:preview': [id],
+  'revisionTask:adopt': [id],
+  'revisionTask:undo': [id],
   'revisionTask:complete': [id],
   'revisionTask:apply': [id],
   'contentVersion:create': [contentVersionInput],

@@ -56,6 +56,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
+  const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -63,7 +64,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -534,23 +535,46 @@ function verifyRevisionTaskAdoption(fixture: P0Fixture): void {
     expectedBenefit: { retention: 2, freshness: 1, visual: 2, cost: 0 },
   })
   const revised = `${before}\n\n大屏倒计时归零前，她说：“署名是谁的，马上就知道。”`
-  const version = repos.creative.createContentVersion(repos.db, {
-    projectId: fixture.project.id,
+  repos.revisionAdoption.saveRevisionTaskPreview(repos.db, task.id, {
     targetKind: 'chapter',
     targetId: fixture.chapter.id,
-    label: 'E2E 修稿任务采用',
-    source: 'revision_task',
-    content: before,
-    meta: { revisionTaskId: task.id },
+    taskType: 'rewrite_chapter',
+    currentContent: before,
+    nextContent: revised,
+    projectId: fixture.project.id,
   })
-  const updatedChapter = repos.chapter.updateChapterContent(repos.db, fixture.chapter.id, revised)
-  const updatedTask = repos.creative.updateRevisionTask(repos.db, task.id, {
-    status: 'applied',
-    appliedVersionId: version.id,
-  })
-  fixture.revisionTask = updatedTask
-  if (!updatedChapter?.content.includes('署名是谁的')) throw new Error('revision adoption did not update chapter content')
-  if (updatedTask?.status !== 'applied' || updatedTask.appliedVersionId !== version.id) throw new Error('revision task was not marked applied')
+  const adopted = repos.revisionAdoption.adoptRevisionTask(repos.db, task.id)
+  const repeated = repos.revisionAdoption.adoptRevisionTask(repos.db, task.id)
+  fixture.revisionTask = adopted.task
+  const updatedChapter = repos.chapter.getChapter(repos.db, fixture.chapter.id)
+  if (!adopted.ok || !updatedChapter?.content.includes('署名是谁的')) throw new Error('revision adoption did not update chapter content')
+  if (adopted.task?.status !== 'applied' || !adopted.appliedVersion?.id || !adopted.beforeVersion?.id || !repeated.alreadyApplied) {
+    throw new Error('revision adoption was not atomic or idempotent')
+  }
+}
+
+async function verifyRevisionTaskAdoptionIpc(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const task = fixture.revisionTask
+    if (!task) throw new Error('revision task fixture missing')
+    const result = await win.webContents.executeJavaScript(
+      `window.api.revisionTask.undo(${JSON.stringify(task.id)})`,
+      true,
+    ) as { ok?: boolean; error?: string; task?: { status?: string } }
+    if (!result.ok || result.task?.status !== 'undone') throw new Error(result.error ?? 'renderer undo did not complete')
+    const repos = getRepos()
+    const restored = repos.chapter.getChapter(repos.db, fixture.chapter.id)
+    if (restored?.content !== fixture.chapter.content) throw new Error('renderer undo did not restore pre-adopt chapter content')
+    return { name: 'revision-task-atomic-adopt-and-undo-ipc', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'revision-task-atomic-adopt-and-undo-ipc',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 function verifyNovelSubmissionExport(projectId: string): void {

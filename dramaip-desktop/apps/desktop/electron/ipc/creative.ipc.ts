@@ -7,7 +7,6 @@ import {
   TASK_TYPE_LABELS,
   type CreativeWorkflowTemplateStep,
   type ContentVersion,
-  type RevisionTask,
   type TextDiffPreviewPayload,
   type VideoGenerationTask,
   type WorkflowRunStep,
@@ -41,8 +40,6 @@ type WorkflowRetryStepInput = {
   stepKey: string
   pauseAfterStep?: boolean
 }
-
-type ContentVersionCreateInput = Parameters<ReturnType<typeof getRepos>['creative']['createContentVersion']>[1]
 
 export function registerCreativeIpc(): void {
   const repos = () => getRepos()
@@ -101,8 +98,11 @@ export function registerCreativeIpc(): void {
     repos().creative.updateRevisionTask(repos().db, id, patch as never),
   )
   ipcMain.handle('revisionTask:preview', async (_e, id: string) => previewRevisionTask(id))
-  ipcMain.handle('revisionTask:complete', async (_e, id: string) => completeRevisionTask(id))
-  ipcMain.handle('revisionTask:apply', async (_e, id: string) => applyRevisionTask(id))
+  ipcMain.handle('revisionTask:adopt', (_e, id: string) => repos().revisionAdoption.adoptRevisionTask(repos().db, id))
+  ipcMain.handle('revisionTask:undo', (_e, id: string) => repos().revisionAdoption.undoRevisionTask(repos().db, id))
+  // 兼容旧 renderer：两条旧命令均进入同一原子采用事务，不能再单独写正文或标任务完成。
+  ipcMain.handle('revisionTask:complete', (_e, id: string) => repos().revisionAdoption.adoptRevisionTask(repos().db, id))
+  ipcMain.handle('revisionTask:apply', (_e, id: string) => repos().revisionAdoption.adoptRevisionTask(repos().db, id))
 
   ipcMain.handle('contentVersion:listByTarget', (_e, targetKind: string, targetId: string) =>
     repos().creative.listContentVersionsByTarget(repos().db, targetKind, targetId),
@@ -378,16 +378,13 @@ function decodeXml(value: string): string {
     .replace(/&amp;/g, '&')
 }
 
-async function applyRevisionTask(id: string) {
-  return previewRevisionTask(id)
-}
-
 async function previewRevisionTask(id: string) {
   const r = getRepos()
   const db = r.db
   const task = r.creative.listRevisionTasks(db).find((it) => it.id === id)
   if (!task) return { ok: false, error: '未找到修稿任务' }
   if (task.status === 'applied') return { ok: false, error: '修稿任务已应用' }
+  if (task.status === 'preview_ready' && task.preview) return { ok: true, preview: task.preview }
 
   try {
     if (task.targetKind === 'chapter' && task.targetId) {
@@ -442,74 +439,13 @@ function revisionTaskPreviewResult(
     return { ok: false, error: '修稿任务未生成可采用的文本预览' }
   }
   const r = getRepos()
-  r.creative.updateRevisionTask(r.db, taskId, { status: 'accepted' })
-  return { ok: true, preview: res.result.data as TextDiffPreviewPayload, aiRunId: res.aiRunId }
-}
-
-async function completeRevisionTask(id: string) {
-  const r = getRepos()
-  const db = r.db
-  const task = r.creative.listRevisionTasks(db).find((it) => it.id === id)
-  if (!task) return { ok: false, error: '未找到修稿任务' }
-
   try {
-    const versionInput = currentRevisionTaskVersionInput(r, task)
-    if (!versionInput) return { ok: false, error: '当前任务目标暂不支持标记采用' }
-    const version = r.creative.createContentVersion(db, versionInput)
-    r.creative.updateRevisionTask(db, task.id, { status: 'applied', appliedVersionId: version.id })
-    return { ok: true, result: version }
+    const preview = res.result.data as TextDiffPreviewPayload
+    r.revisionAdoption.saveRevisionTaskPreview(r.db, taskId, preview)
+    return { ok: true, preview, aiRunId: res.aiRunId }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
-}
-
-function currentRevisionTaskVersionInput(
-  r: ReturnType<typeof getRepos>,
-  task: RevisionTask,
-): ContentVersionCreateInput | undefined {
-  if (task.targetKind === 'chapter' && task.targetId) {
-    const chapter = r.chapter.getChapter(r.db, task.targetId)
-    if (!chapter) throw new Error('未找到章节')
-    return {
-      projectId: task.projectId ?? chapter.projectId,
-      targetKind: 'chapter',
-      targetId: chapter.id,
-      label: `修稿采用：${task.title}`,
-      source: 'revision_task',
-      content: chapter.content,
-      meta: { taskId: task.id, phase: 'after_adopt' },
-    }
-  }
-
-  if (task.targetKind === 'script' && task.targetId) {
-    const script = r.script.getScript(r.db, task.targetId)
-    if (!script) throw new Error('未找到剧本')
-    return {
-      projectId: task.projectId,
-      targetKind: 'script',
-      targetId: script.id,
-      label: `修稿采用：${task.title}`,
-      source: 'revision_task',
-      content: script.content,
-      meta: { taskId: task.id, phase: 'after_adopt', episodeId: script.episodeId },
-    }
-  }
-
-  if (task.targetKind === 'shot' && task.targetId) {
-    const shot = r.shot.getShot(r.db, task.targetId)
-    if (!shot) throw new Error('未找到镜头')
-    return {
-      projectId: task.projectId,
-      targetKind: 'shot',
-      targetId: shot.id,
-      label: `修稿采用：${task.title}`,
-      source: 'revision_task',
-      content: shot.videoPrompt,
-      meta: { taskId: task.id, phase: 'after_adopt', negativePrompt: shot.negativePrompt, imagePrompt: shot.imagePrompt },
-    }
-  }
-
-  return undefined
 }
 
 async function runCreativeWorkflow(input: WorkflowInput) {

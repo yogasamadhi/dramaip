@@ -433,6 +433,8 @@ const api = {
     create: (data: unknown) => invoke('revisionTask:create', data),
     update: (id: string, patch: unknown) => invoke('revisionTask:update', id, patch),
     preview: (id: string) => invoke('revisionTask:preview', id),
+    adopt: (id: string) => invoke('revisionTask:adopt', id),
+    undo: (id: string) => invoke('revisionTask:undo', id),
     complete: (id: string) => invoke('revisionTask:complete', id),
     apply: (id: string) => invoke('revisionTask:apply', id),
   },

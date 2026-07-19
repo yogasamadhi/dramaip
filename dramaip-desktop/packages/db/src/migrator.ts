@@ -586,6 +586,19 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 21,
+    name: 'atomic-revision-adoption',
+    up(raw) {
+      addColumnIfMissing(raw, 'revision_tasks', 'preview_payload', 'preview_payload TEXT')
+      addColumnIfMissing(raw, 'revision_tasks', 'preview_fingerprint', 'preview_fingerprint TEXT')
+      addColumnIfMissing(raw, 'revision_tasks', 'undo_version_id', 'undo_version_id TEXT')
+      raw.exec(`
+        CREATE INDEX IF NOT EXISTS idx_revision_tasks_status_updated
+          ON revision_tasks(status, updated_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
