@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
@@ -35,6 +35,7 @@ type ScriptTaskType =
 export function ScriptWorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
@@ -42,6 +43,7 @@ export function ScriptWorkspacePage() {
   const [version, setVersion] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
+  const requestedEpisodeId = searchParams.get('episode')
 
   const reload = useCallback(async () => {
     if (!id) return
@@ -53,12 +55,24 @@ export function ScriptWorkspacePage() {
     setAdaptation(a ?? null)
     setEpisodes(eps)
     setScripts(scs)
-    setActiveEpisodeId((cur) => cur ?? eps[0]?.id ?? null)
-  }, [id])
+    setActiveEpisodeId((cur) => {
+      if (requestedEpisodeId && eps.some((episode) => episode.id === requestedEpisodeId)) return requestedEpisodeId
+      return cur && eps.some((episode) => episode.id === cur) ? cur : (eps[0]?.id ?? null)
+    })
+  }, [id, requestedEpisodeId])
 
   useEffect(() => {
     void reload()
   }, [reload, version])
+
+  function selectEpisode(episodeId: string) {
+    setActiveEpisodeId(episodeId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('episode', episodeId)
+      return next
+    })
+  }
 
   const activeEpisode = useMemo(
     () => episodes.find((e) => e.id === activeEpisodeId) ?? null,
@@ -160,7 +174,13 @@ export function ScriptWorkspacePage() {
         <Button variant="ghost" size="icon" aria-label="返回改编工作台" onClick={() => navigate(`/adaptations/${adaptation.id}`)}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-base font-semibold">{adaptation.title} · AI 短剧剧本</h1>
+        <div className="min-w-0">
+          <nav aria-label="面包屑" className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span>项目</span><span aria-hidden>›</span><span>改编</span><span aria-hidden>›</span><span>剧本</span>
+            {activeEpisode && <><span aria-hidden>›</span><span>第 {activeEpisode.episodeNumber} 集</span></>}
+          </nav>
+          <h1 className="truncate text-base font-semibold">{adaptation.title} · AI 短剧剧本</h1>
+        </div>
         <Badge variant="secondary">{scripts.length} / {episodes.length} 集剧本</Badge>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button
@@ -203,7 +223,7 @@ export function ScriptWorkspacePage() {
                   return (
                     <button
                       key={ep.id}
-                      onClick={() => setActiveEpisodeId(ep.id)}
+                      onClick={() => selectEpisode(ep.id)}
                       className={cn(
                         'mb-0.5 w-full rounded px-2.5 py-1.5 text-left text-sm',
                         activeEpisodeId === ep.id ? 'bg-accent font-medium' : 'hover:bg-accent/60',

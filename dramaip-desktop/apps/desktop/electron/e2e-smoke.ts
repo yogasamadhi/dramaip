@@ -629,6 +629,38 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('章节标题输入框', () => hasInputValue('第 1 章'))
   })
 
+  await step('workspace-shell-deep-link-history-and-panels', async () => {
+    const chapterHash = window.location.hash
+    if (!chapterHash.includes('section=chapters') || !chapterHash.includes('chapter=')) {
+      throw new Error(`新建章节未写入可恢复深链：${chapterHash}`)
+    }
+    const overviewButton = document.querySelector('button[title="项目概览"]') as HTMLButtonElement | null
+    if (!overviewButton) throw new Error('未找到项目概览导航入口')
+    overviewButton.click()
+    await waitFor('项目概览深链', () => window.location.hash.includes('section=overview'))
+    window.history.back()
+    await waitFor('章节深链历史恢复', () => window.location.hash === chapterHash)
+
+    const resizeHandle = document.querySelector('[role="separator"][aria-label="调整上下文侧栏宽度"]') as HTMLElement | null
+    if (!resizeHandle) throw new Error('未找到上下文侧栏键盘调宽控件')
+    const before = JSON.parse(window.localStorage.getItem('sdns-workspace-shell-v1') ?? '{}') as { contextWidth?: number }
+    resizeHandle.focus()
+    resizeHandle.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowRight' }))
+    await waitFor('侧栏宽度持久化', () => {
+      const after = JSON.parse(window.localStorage.getItem('sdns-workspace-shell-v1') ?? '{}') as { contextWidth?: number }
+      return typeof after.contextWidth === 'number' && after.contextWidth === (before.contextWidth ?? 232) + 16
+    })
+
+    const focusButton = document.querySelector('button[aria-label="进入专注模式"]') as HTMLButtonElement | null
+    if (!focusButton) throw new Error('未找到专注模式入口')
+    focusButton.click()
+    await waitFor('专注模式隐藏两侧面板', () => !document.querySelector('[data-context-mode]') && !document.querySelector('[role="separator"]'))
+    const exitFocusButton = document.querySelector('button[aria-label="退出专注模式"]') as HTMLButtonElement | null
+    if (!exitFocusButton) throw new Error('未找到退出专注模式入口')
+    exitFocusButton.click()
+    await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
+  })
+
   await step('open-model-settings-page', async () => {
     window.location.hash = '#/settings/models'
     await waitFor('模型设置页面', () => text().includes('模型设置') && text().includes('新增模型配置'))
