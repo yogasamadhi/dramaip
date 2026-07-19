@@ -747,6 +747,22 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('章节标题输入框', () => hasInputValue('第 1 章'))
   })
 
+  await step('accessible-confirm-dialog-cancel', async () => {
+    const deleteButton = document.querySelector('button[aria-label="删除章节"]') as HTMLButtonElement | null
+    if (!deleteButton) throw new Error('未找到章节删除确认入口')
+    deleteButton.click()
+    const confirmationDialog = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => normalize(dialog.textContent).includes('删除该章节'))
+    await waitFor('可访问删除确认对话框', () => confirmationDialog())
+    const dialog = confirmationDialog()
+    if (!dialog?.querySelector('#confirm-action-description') || !dialog.contains(document.activeElement)) {
+      throw new Error('确认对话框缺少说明或未接管键盘焦点')
+    }
+    document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }))
+    await waitFor('Escape 关闭确认对话框', () => !confirmationDialog())
+    if (!(document.body.textContent ?? '').includes('第 1 章')) throw new Error('取消确认后章节被意外删除')
+  })
+
   await step('workspace-shell-deep-link-history-and-panels', async () => {
     const chapterHash = window.location.hash
     if (!chapterHash.includes('section=chapters') || !chapterHash.includes('chapter=')) {

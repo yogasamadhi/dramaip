@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Sparkles, Trash2 } from 'lucide-react'
 import type { Beat, Chapter } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -46,7 +47,7 @@ export function BeatSection({ projectId, chapter, version }: { projectId: string
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该节拍？')) return
+    if (!(await confirmAction(deleteConfirmation('该节拍')))) return
     await ipc.beat.remove(id)
     setList((p) => p.filter((b) => b.id !== id))
   }

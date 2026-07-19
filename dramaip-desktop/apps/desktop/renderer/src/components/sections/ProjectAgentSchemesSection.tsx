@@ -11,6 +11,7 @@ import {
   type ProjectSkill,
 } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -187,7 +188,7 @@ export function ProjectAgentSchemesSection({ projectId, version, onChanged }: Pr
   }
 
   async function remove(scheme: ProjectAgentScheme) {
-    if (!window.confirm(`删除 Agent 方案「${scheme.name}」？`)) return
+    if (!(await confirmAction(deleteConfirmation(`Agent 方案「${scheme.name}」`)))) return
     await ipc.projectAgentScheme.remove(scheme.id)
     await reload()
     if (form.id === scheme.id) openNew()

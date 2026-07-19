@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Chapter, StoryArc, StoryArcKind } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { cn } from '@/lib/utils'
 import type { PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { Badge } from '@/components/ui/badge'
@@ -108,7 +109,7 @@ export function StoryPlanningSection({ projectId, version, chapters, onGenerate,
   }
 
   async function remove(arc: StoryArc) {
-    if (!window.confirm(`删除「${arc.title}」及其子层级？`)) return
+    if (!(await confirmAction({ ...deleteConfirmation(`「${arc.title}」及其子层级`), description: '将永久删除该规划及其全部子层级，当前操作不可撤销。' }))) return
     await ipc.storyArc.remove(arc.id)
     await reload()
     toast.success('已删除')

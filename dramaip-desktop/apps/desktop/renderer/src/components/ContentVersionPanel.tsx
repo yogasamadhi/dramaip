@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { GitCompare, History, Loader2, Minus, Plus, RefreshCw, RotateCcw } from 'lucide-react'
 import type { ContentVersion } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -90,7 +91,11 @@ export function ContentVersionPanel({
   async function restoreSelected() {
     if (!selected) return
     if (restoreDisabled) return
-    const confirmed = window.confirm(`确定恢复版本「${selected.label}」？恢复前会自动保存当前内容。`)
+    const confirmed = await confirmAction({
+      title: `恢复版本「${selected.label}」？`,
+      description: '恢复前会自动保存当前内容为新版本。恢复会覆盖当前编辑区内容，但可继续从版本记录查看或再次恢复。',
+      confirmLabel: '恢复版本',
+    })
     if (!confirmed) return
 
     setRestoring(true)

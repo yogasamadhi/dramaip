@@ -5,6 +5,7 @@ import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Tr
 import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import {
   buildProjectWorkflowStages,
   type ProjectWorkflowSnapshot,
@@ -354,7 +355,7 @@ export function WorkspacePage() {
   }, [id])
 
   async function deleteChapter(chapterId: string) {
-    if (!window.confirm('删除该章节？')) return
+    if (!(await confirmAction(deleteConfirmation('该章节')))) return
     await ipc.chapter.remove(chapterId)
     const next = chapters.filter((chapter) => chapter.id !== chapterId)
     setChapters(next)

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Chapter, Foreshadowing, OptionalId } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -100,7 +101,7 @@ export function ForeshadowingSection({ projectId, chapter, version }: Props) {
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该伏笔？')) return
+    if (!(await confirmAction(deleteConfirmation('该伏笔')))) return
     await ipc.foreshadowing.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }

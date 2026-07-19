@@ -5,6 +5,7 @@ import App from './App'
 import { Toaster } from '@/components/ui/sonner'
 import { RendererErrorBoundary } from '@/components/RendererErrorBoundary'
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { ConfirmActionProvider } from '@/components/ConfirmActionDialog'
 import { createRendererErrorMeta } from '@/lib/runtime-errors'
 import './styles/globals.css'
 
@@ -26,10 +27,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ThemeProvider>
       <HashRouter>
-        <RendererErrorBoundary>
-          <App />
-        </RendererErrorBoundary>
-        <Toaster />
+        <ConfirmActionProvider>
+          <RendererErrorBoundary>
+            <App />
+          </RendererErrorBoundary>
+          <Toaster />
+        </ConfirmActionProvider>
       </HashRouter>
     </ThemeProvider>
   </React.StrictMode>,

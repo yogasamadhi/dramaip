@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Sparkles, Trash2 } from 'lucide-react'
 import type { Chapter, HighlightAnalysis } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -53,7 +54,7 @@ export function HighlightSection({ projectId, chapter, version }: { projectId: s
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该爽点分析？')) return
+    if (!(await confirmAction(deleteConfirmation('该爽点分析')))) return
     await ipc.highlight.remove(id)
     setList((p) => p.filter((h) => h.id !== id))
   }

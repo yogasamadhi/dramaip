@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Chapter, OptionalId, StoryEvent } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -98,7 +99,7 @@ export function TimelineSection({ projectId, chapter, version }: Props) {
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该事件？')) return
+    if (!(await confirmAction(deleteConfirmation('该事件')))) return
     await ipc.storyEvent.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }

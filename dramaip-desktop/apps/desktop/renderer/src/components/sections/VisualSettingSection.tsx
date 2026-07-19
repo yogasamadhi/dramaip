@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { FilePlus2, Loader2, Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { OptionalId, VisualSetting } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -80,7 +81,7 @@ export function VisualSettingSection({ projectId, version, onGenerate, generatin
   }
 
   async function remove(id: string) {
-    if (!window.confirm('删除该视觉设定？')) return
+    if (!(await confirmAction(deleteConfirmation('该视觉设定')))) return
     await ipc.visualSetting.remove(id)
     setList((p) => p.filter((x) => x.id !== id))
   }
