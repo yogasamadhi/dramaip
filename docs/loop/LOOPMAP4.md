@@ -362,7 +362,7 @@ make platform-e2e
 | LM4-27 | P2 | Video Provider | partial | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
 | LM4-28 | P2 | Web/AI 产品 | partial | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
 | LM4-29 | P2 | Admin/运营 | partial | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
-| LM4-30 | P2 | Sync/隐私 | todo | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
+| LM4-30 | P2 | Sync/隐私 | partial | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
 | LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
 
 ## 8. Loop 详细定义
@@ -1445,4 +1445,18 @@ Push: The retained loop branch is pushed after this record; it is not merged int
 Loop branch cleanup: Retained at `loop/lm4-29-admin-operations` so LM4-30 can be based on this auditable state while the inherited provider chain remains blocked. Cleanup owner: the later parent-to-main sync after LM4-26/27 sandbox evidence.
 Current branch/worktree: loop/lm4-29-admin-operations; clean before this completion-record commit (ignored local build output excluded).
 Notes: The safe customer, refund, resume, quota, notification and cost-alert paths are implemented. The overall loop remains partial because Billing Job exposes reconciliation through a static-token boundary only, and Notification exposes no delivery-attempt/retry operation. Routing either through Admin BFF would violate the required mTLS/RBAC/operator/reason/idempotency/audit boundary. A future Billing/Notification owner-domain API must supply the controlled operation before this loop can become done. Per requested policy, continue with LM4-30 rather than bypassing this security blocker.
+```
+
+```text
+Loop: LM4-30 (partial)
+Target branch: loop/lm4-29-admin-operations
+Loop branch: loop/lm4-30-encrypted-snapshots
+Commit(s): 25c4854 feat: add encrypted project snapshot envelope
+Verification: Desktop `pnpm test:unit` passed (161/161, including deterministic encryption vector, wrong-key and tamper cases), `pnpm typecheck`, `pnpm format:check`, and `git diff --check` passed.
+Diff review: The new Electron-main-only crypto module uses AES-256-GCM with a 32-byte recovery key, 96-bit nonce, fixed format/version additional authenticated data and a SHA-256 integrity digest. It does not log, persist or return the recovery key. Decryption deliberately maps wrong keys and ciphertext tampering to the same error. The existing project-package parser remains the only plaintext format boundary. No cloud request, user project, key, binary artifact or test fixture content was added.
+Remote sync: This loop begins from retained LM4-29; inherited LM4-26/27 external provider blockers still prevent normal parent/main merge.
+Push: The retained loop branch is pushed after this record; it is not merged into its partial target.
+Loop branch cleanup: Retained at `loop/lm4-30-encrypted-snapshots` because the implementation requires a future owner-domain snapshot service/store before it can be completed. Cleanup owner: the later parent-to-main sync after all partial blockers are resolved.
+Current branch/worktree: loop/lm4-30-encrypted-snapshots; clean before this completion-record commit (ignored local build output excluded).
+Notes: No Snapshot service/API/store, retention worker, approved production object storage/KMS configuration or LM3-34 production disaster-recovery gate is available in the current environment. The client crypto foundation is therefore safe but intentionally not exposed as a fake upload button, and no project plaintext is sent to the existing Desktop BFF. The required next action is to define and implement a dedicated mTLS owner-domain ciphertext-only Snapshot API with authenticated list/download/delete, bounded resumable upload, retention and deletion proof; then connect the Electron main process and UI using a recovery key held only by Keychain/user. This loop remains `partial`.
 ```
