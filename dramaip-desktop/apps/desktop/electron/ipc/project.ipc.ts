@@ -10,6 +10,7 @@ export function registerProjectIpc(): void {
 
   // ---------- 项目 ----------
   ipcMain.handle('project:list', () => repos().project.listProjects(repos().db))
+  ipcMain.handle('project:listHomeSummaries', () => repos().project.listProjectHomeSummaries(repos().db))
   ipcMain.handle('project:get', (_e, id: string) => repos().project.getProject(repos().db, id))
   ipcMain.handle('project:create', (_e, data: unknown) => repos().project.createProject(repos().db, data as never))
   ipcMain.handle('project:update', (_e, id: string, patch: unknown) =>

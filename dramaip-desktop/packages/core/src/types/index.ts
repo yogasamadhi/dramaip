@@ -19,6 +19,18 @@ export interface Project {
   updatedAt: string
 }
 
+/** 项目首页只读摘要：由本地数据库聚合，避免列表页 N×多次 IPC 请求。 */
+export interface ProjectHomeSummary {
+  project: Project
+  chapterCount: number
+  wordCount: number
+  latestChapter?: { id: string; title: string; updatedAt: string }
+  adaptation?: { id: string; title: string; episodeCount: number }
+  blockerCount: number
+  stage: 'setup' | 'writing' | 'adaptation'
+  nextAction: { label: string; path: string }
+}
+
 /** 人物卡 */
 export interface Character {
   id: string

@@ -722,7 +722,7 @@ async function rendererDraftPersistenceMain(input: {
   const scriptDraft = 'E2E immediate script draft'
   setValue(document.querySelector('textarea[placeholder*="剧本正文"]') as HTMLTextAreaElement, scriptDraft)
   window.location.hash = '#/'
-  await waitFor('项目列表', () => (document.body.textContent ?? '').includes('短剧 IP 小说写作工作台'))
+  await waitFor('项目列表', () => (document.body.textContent ?? '').includes('项目工作台'))
   await waitFor('剧本持久化', async () => (await api.script.get(input.scriptId))?.content.includes(scriptDraft) === true)
 
   window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}`
@@ -732,7 +732,7 @@ async function rendererDraftPersistenceMain(input: {
   if (!shotTextarea) throw new Error('未找到镜头 Prompt 输入框')
   setValue(shotTextarea, shotDraft)
   window.location.hash = '#/'
-  await waitFor('返回项目列表', () => (document.body.textContent ?? '').includes('短剧 IP 小说写作工作台'))
+  await waitFor('返回项目列表', () => (document.body.textContent ?? '').includes('项目工作台'))
   await waitFor('镜头持久化', async () => (await api.shot.get(input.shotId))?.videoPrompt.includes(shotDraft) === true)
 
   return {

@@ -37,6 +37,7 @@ import type {
   NovelTaskType,
   Outline,
   Project,
+  ProjectHomeSummary,
   ProjectAsset,
   ProjectAssetSourceKind,
   ProjectAgentScheme,
@@ -447,6 +448,7 @@ export interface StudioApi {
   }
   project: {
     list(): Promise<Project[]>
+    listHomeSummaries(): Promise<ProjectHomeSummary[]>
     get(id: string): Promise<Project | undefined>
     create(data: Partial<Project> & { title: string; shortDramaType: string }): Promise<Project>
     update(id: string, patch: Partial<Project>): Promise<Project | undefined>
