@@ -345,7 +345,7 @@ make platform-e2e
 | LM4-11 | P1 | Desktop/任务可靠性 | done | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
 | LM4-12 | P1 | Desktop/Cloud AI | done | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
 | LM4-13 | P1 | Desktop/AI 数据安全 | done | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
-| LM4-14 | P1 | Desktop/AI 体验 | todo | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
+| LM4-14 | P1 | Desktop/AI 体验 | done | 支持分段比较、编辑和部分采用 AI 结果 | diff/preview/version UI、apply contracts | LM4-05、LM4-13 |
 | LM4-15 | P1 | Desktop/改编上下文 | todo | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
 | LM4-16 | P1 | Desktop/质量体验 | todo | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
 | LM4-17 | P1 | Desktop/交互一致性 | todo | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
@@ -1148,4 +1148,20 @@ Push: 6d17917 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-13-atomic-revision-adoption deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: The legacy separate complete/apply IPC channels now delegate to the same atomic adoption command for compatibility. One-step undo restores the precise pre-adoption snapshot for chapter, script and all three shot prompt fields, while retaining immutable audit evidence.
+```
+
+```text
+Loop: LM4-14
+Target branch: main
+Loop branch: loop/lm4-14-segmented-diff-adoption
+Commit(s): 0a4eab4 feat: add segmented AI preview adoption
+Merge commit: 00770e2 merge: LM4-14 segmented AI preview adoption
+Verification: Before and after merge: dramaip-desktop pnpm format:check; pnpm test (typecheck, 139 unit tests, 7 migration/transaction tests and DB smoke); pnpm test:ui (21 screenshots, including segmented diff in light/dark/reduced-motion, 0 accessibility observations); pnpm test:e2e (including revision-task-edited-preview-adopt-and-undo-ipc); pnpm package:smoke; git diff --check. All passed.
+UI/manual evidence: Text previews now use paragraph-level inline, side-by-side and result/editor views. Users can select or reject individual changes, jump with Alt+Up/Down, edit the final candidate and retain non-colour text labels for additions/removals. Characters, chapter outlines, story arcs and episodes expose item selection; partial episode adoption preserves unselected existing episodes. The version panel also uses paragraph-level comparison instead of the quadratic line matrix.
+Diff review: Reviewed the bounded paragraph-anchor diff and Worker handoff for large previews, structured script/shot candidate normalization, the validated updatePreview IPC boundary, LM4-13 atomic adoption handoff, and partial episode upsert semantics. No prompt bodies, user content, credentials, databases, screenshots or build artifacts were committed. Edited revision candidates retain the original baseline fingerprint, so stale content remains rejected before the transaction writes.
+Remote sync: Fetched and fast-forward checked origin/main at 9bcbffe before the loop branch and again before merge; main had no intervening remote commits.
+Push: 00770e2 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-14-segmented-diff-adoption deleted after main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
+Notes: Large text uses a Worker-backed, bounded paragraph diff rather than a line-by-line dynamic-programming matrix. For revision tasks the chosen/edited candidate is persisted through revisionTask:updatePreview and then applied only through LM4-13’s atomic command; generic preview writes retain their existing content-version audit path.
 ```
