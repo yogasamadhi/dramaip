@@ -14,6 +14,7 @@ export const projects = sqliteTable('projects', {
   synopsis: text('synopsis'),
   styleGuide: text('style_guide'),
   visualStyleDirection: text('visual_style_direction'),
+  activeAdaptationId: text('active_adaptation_id'),
   /** 移入废纸篓的时间；为空表示项目正常可用。 */
   deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),

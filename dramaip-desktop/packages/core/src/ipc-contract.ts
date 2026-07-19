@@ -585,6 +585,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'project:listTrash': [],
   'project:create': [projectInput],
   'project:update': [id, projectPatch],
+  'project:resolveActiveAdaptation': [id, maybeId],
+  'project:setActiveAdaptation': [id, maybeId],
   'project:trash': [id],
   'project:restore': [id],
   'project:deletionPreview': [id],

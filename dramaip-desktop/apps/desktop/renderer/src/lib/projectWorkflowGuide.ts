@@ -34,6 +34,8 @@ export interface ProjectWorkflowSnapshot {
   outlines: Outline[]
   qualityReports: QualityGateReport[]
   adaptations: AdaptationProject[]
+  /** 当前项目明确选择的改编；其下游数组只包含这一项的数据。 */
+  activeAdaptation?: AdaptationProject
   episodes: Episode[]
   scripts: Script[]
   scenes: Scene[]
@@ -79,7 +81,7 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     characters,
     outlines,
     qualityReports,
-    adaptations,
+    activeAdaptation,
     episodes,
     scripts,
     scenes,
@@ -91,6 +93,34 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
   const chaptersWithContent = chapters.filter((chapter) => hasText(chapter.content))
   const bookOutlineCount = outlines.filter((outline) => outline.type === 'book' && hasText(outline.content)).length
   const chapterOutlineCount = outlines.filter((outline) => outline.type === 'chapter' && hasText(outline.content)).length
+  // 即使调用方误把多季数组传入，也只用当前改编的完整下游链路计算进度。
+  const scopedEpisodes = activeAdaptation
+    ? episodes.filter((episode) => episode.adaptationProjectId === activeAdaptation.id)
+    : episodes
+  const scopedEpisodeIds = new Set(scopedEpisodes.map((episode) => episode.id))
+  const scopedScripts = activeAdaptation
+    ? scripts.filter((script) => script.adaptationProjectId === activeAdaptation.id)
+    : scripts
+  const scopedScriptIds = new Set(scopedScripts.map((script) => script.id))
+  const scopedScenes = activeAdaptation
+    ? scenes.filter((scene) => scopedScriptIds.has(scene.scriptId))
+    : scenes
+  const scopedSceneIds = new Set(scopedScenes.map((scene) => scene.id))
+  const scopedShots = activeAdaptation
+    ? shots.filter((shot) => scopedSceneIds.has(shot.sceneId) || scopedEpisodeIds.has(shot.episodeId))
+    : shots
+  const scopedShotIds = new Set(scopedShots.map((shot) => shot.id))
+  const scopedVideoTasks = activeAdaptation
+    ? videoTasks.filter((task) =>
+      (task.episodeId && scopedEpisodeIds.has(task.episodeId)) ||
+      (task.sceneId && scopedSceneIds.has(task.sceneId)) ||
+      (task.shotId && scopedShotIds.has(task.shotId)),
+    )
+    : videoTasks
+  const scopedVideoTaskIds = new Set(scopedVideoTasks.map((task) => task.id))
+  const scopedVideoResults = activeAdaptation
+    ? videoResults.filter((result) => scopedVideoTaskIds.has(result.taskId))
+    : videoResults
   const qualityTruth = buildProjectQualityGateTruth({
     project,
     chapters,
@@ -98,7 +128,7 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     outlines,
     reports: qualityReports,
   })
-  const videoTruth = buildVideoDeliveryTruth(videoTasks, videoResults)
+  const videoTruth = buildVideoDeliveryTruth(scopedVideoTasks, scopedVideoResults)
 
   return withStatus([
     {
@@ -145,24 +175,24 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     {
       key: 'adaptation',
       title: '改编',
-      complete: adaptations.length > 0 && episodes.length > 0,
-      detail: adaptations.length > 0
-        ? `改编项目 ${adaptations.length} 个，分集 ${episodes.length} 集`
+      complete: Boolean(activeAdaptation && scopedEpisodes.length > 0),
+      detail: activeAdaptation
+        ? `当前第 ${activeAdaptation.seasonNumber ?? 1} 季「${activeAdaptation.title}」，分集 ${scopedEpisodes.length} 集`
         : '创建短剧改编项目',
-      actionLabel: adaptations.length > 0 ? '看分集' : '建改编',
+      actionLabel: activeAdaptation ? '看分集' : '建改编',
     },
     {
       key: 'scripts',
       title: '剧本',
-      complete: scripts.length > 0,
-      detail: scripts.length > 0 ? `已有 ${scripts.length} 集剧本` : '生成或编写分集剧本',
+      complete: scopedScripts.length > 0,
+      detail: scopedScripts.length > 0 ? `已有 ${scopedScripts.length} 集剧本` : '生成或编写分集剧本',
       actionLabel: '写剧本',
     },
     {
       key: 'shots',
       title: '分镜',
-      complete: scenes.length > 0 && shots.length > 0,
-      detail: shots.length > 0 ? `场景 ${scenes.length} 个，镜头 ${shots.length} 个` : '拆分场景和镜头',
+      complete: scopedScenes.length > 0 && scopedShots.length > 0,
+      detail: scopedShots.length > 0 ? `场景 ${scopedScenes.length} 个，镜头 ${scopedShots.length} 个` : '拆分场景和镜头',
       actionLabel: '拆分镜',
     },
     {

@@ -264,6 +264,8 @@ test('keeps high-risk channels in the shared contract', () => {
     'aiRun:summarizeUsage',
     'project:create',
     'project:update',
+    'project:resolveActiveAdaptation',
+    'project:setActiveAdaptation',
     'ai:run',
     'ai:runStream',
     'ai:applyResult',

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import type { DB } from '../client'
 import {
   adaptationProjects,
+  projects,
   episodes,
   episodeAnalyses,
   scripts,
@@ -85,6 +86,13 @@ export function createAdaptationProject(
     strategy: data.strategy ?? null,
   }
   const [row] = insertRow(db, adaptationProjects, value)
+  // 新建改编就是用户刚刚选择工作的上下文；仅更新仍有效的源项目。
+  if (value.sourceProjectId) {
+    db.update(projects)
+      .set({ activeAdaptationId: value.id, updatedAt: ts })
+      .where(eq(projects.id, value.sourceProjectId))
+      .run()
+  }
   return rowToEntity(row as AdaptationRow)
 }
 
@@ -105,6 +113,27 @@ export function updateAdaptationProject(
 
 /** 删除改编项目 + 级联其分集、分析、剧本（含场景→镜头→审查/Prompt 版本）、剧本审稿 */
 export function deleteAdaptationProject(db: DB, id: string): void {
+  db.transaction((tx) => {
+    deleteAdaptationProjectRows(tx as DB, id)
+  })
+}
+
+function deleteAdaptationProjectRows(db: DB, id: string): void {
+  const adaptation = getAdaptationProject(db, id)
+  if (adaptation?.sourceProjectId) {
+    const remaining = listAdaptationsByProject(db, adaptation.sourceProjectId).filter((item) => item.id !== id)
+    const fallback = [...remaining].sort((left, right) => {
+      const seasonDiff = (right.seasonNumber ?? 1) - (left.seasonNumber ?? 1)
+      if (seasonDiff !== 0) return seasonDiff
+      const updatedDiff = right.updatedAt.localeCompare(left.updatedAt)
+      return updatedDiff || left.id.localeCompare(right.id)
+    })[0]
+    // 与级联删除处在同一事务中：外界不会看到一个指向已删除项目的当前上下文。
+    db.update(projects)
+      .set({ activeAdaptationId: fallback?.id ?? null, updatedAt: now() })
+      .where(eq(projects.id, adaptation.sourceProjectId))
+      .run()
+  }
   // 先清空该改编项目下的剧本（剧本下的场景 → 镜头 → 审查/Prompt 版本 逐级清理）
   const scriptRows = db
     .select({ id: scripts.id })

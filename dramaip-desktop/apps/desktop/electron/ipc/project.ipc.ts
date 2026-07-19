@@ -13,6 +13,12 @@ export function registerProjectIpc(): void {
   ipcMain.handle('project:listHomeSummaries', () => repos().project.listProjectHomeSummaries(repos().db))
   ipcMain.handle('project:listTrash', () => repos().project.listTrashedProjects(repos().db))
   ipcMain.handle('project:get', (_e, id: string) => repos().project.getProject(repos().db, id))
+  ipcMain.handle('project:resolveActiveAdaptation', (_e, projectId: string, requestedAdaptationId?: string) =>
+    repos().project.resolveActiveAdaptation(repos().db, projectId, requestedAdaptationId),
+  )
+  ipcMain.handle('project:setActiveAdaptation', (_e, projectId: string, adaptationId?: string) =>
+    repos().project.setActiveAdaptation(repos().db, projectId, adaptationId),
+  )
   ipcMain.handle('project:create', (_e, data: unknown) => repos().project.createProject(repos().db, data as never))
   ipcMain.handle('project:update', (_e, id: string, patch: unknown) =>
     repos().project.updateProject(repos().db, id, patch as never),

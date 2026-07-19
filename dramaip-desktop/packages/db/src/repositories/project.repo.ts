@@ -44,10 +44,27 @@ import {
   narrativeCurveReports,
   workflowRuns,
 } from '../schema'
-import type { OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
+import type { AdaptationProject, OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
+
+export interface ActiveAdaptationResolution {
+  adaptation?: AdaptationProject
+  reason: 'requested' | 'persisted' | 'fallback' | 'none'
+}
+
+function preferredAdaptation(adaptations: AdaptationProject[]): AdaptationProject | undefined {
+  return [...adaptations].sort((left, right) => {
+    const seasonDiff = (right.seasonNumber ?? 1) - (left.seasonNumber ?? 1)
+    if (seasonDiff !== 0) return seasonDiff
+    const updatedDiff = right.updatedAt.localeCompare(left.updatedAt)
+    if (updatedDiff !== 0) return updatedDiff
+    const createdDiff = right.createdAt.localeCompare(left.createdAt)
+    if (createdDiff !== 0) return createdDiff
+    return left.id.localeCompare(right.id)
+  })[0]
+}
 
 export function listProjects(db: DB): Project[] {
   return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all() as unknown as Project[]
@@ -57,7 +74,10 @@ export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
   return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all().map((row) => {
     const project = row as unknown as Project
     const projectChapters = db.select().from(chapters).where(eq(chapters.projectId, project.id)).orderBy(desc(chapters.updatedAt)).all()
-    const adaptation = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).orderBy(desc(adaptationProjects.updatedAt)).get()
+    const projectAdaptations = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).all()
+    const adaptation = project.activeAdaptationId
+      ? projectAdaptations.find((item) => item.id === project.activeAdaptationId)
+      : preferredAdaptation(projectAdaptations as unknown as AdaptationProject[])
     const blockerCount = db.select().from(qualityGateReports)
       .where(eq(qualityGateReports.projectId, project.id))
       .all()
@@ -82,6 +102,61 @@ export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
       nextAction,
     }
   })
+}
+
+/**
+ * 当前改编的唯一解析规则：深链指定项 > 已保存选择 > 最高季号且最近更新的兼容默认项。
+ * 无效的跨项目 id 永远不会被采用，从而不会让一个项目读取另一个项目的分集数据。
+ */
+export function resolveActiveAdaptation(
+  db: DB,
+  projectId: string,
+  requestedAdaptationId?: string,
+): ActiveAdaptationResolution {
+  const project = getProject(db, projectId)
+  if (!project) return { reason: 'none' }
+
+  const adaptations = db.select().from(adaptationProjects)
+    .where(eq(adaptationProjects.sourceProjectId, projectId))
+    .all() as unknown as AdaptationProject[]
+  const requested = requestedAdaptationId ? adaptations.find((item) => item.id === requestedAdaptationId) : undefined
+  const persisted = project.activeAdaptationId ? adaptations.find((item) => item.id === project.activeAdaptationId) : undefined
+  const adaptation = requested ?? persisted ?? preferredAdaptation(adaptations)
+  const reason: ActiveAdaptationResolution['reason'] = requested
+    ? 'requested'
+    : persisted
+      ? 'persisted'
+      : adaptation
+        ? 'fallback'
+        : 'none'
+
+  if (adaptation && project.activeAdaptationId !== adaptation.id) {
+    db.update(projects)
+      .set({ activeAdaptationId: adaptation.id, updatedAt: now() })
+      .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+      .run()
+  }
+  return { adaptation, reason }
+}
+
+/** 只允许把属于该项目的改编设为当前项；传空值用于清除当前上下文。 */
+export function setActiveAdaptation(
+  db: DB,
+  projectId: string,
+  adaptationId?: string,
+): Project | undefined {
+  if (adaptationId) {
+    const adaptation = db.select({ id: adaptationProjects.id })
+      .from(adaptationProjects)
+      .where(and(eq(adaptationProjects.id, adaptationId), eq(adaptationProjects.sourceProjectId, projectId)))
+      .get()
+    if (!adaptation) return undefined
+  }
+  const [row] = updateRows(db, projects, { activeAdaptationId: adaptationId ?? null, updatedAt: now() })
+    .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
+    .returning()
+    .all()
+  return (row as unknown as Project) ?? undefined
 }
 
 export function getProject(db: DB, id: string): Project | undefined {
@@ -117,11 +192,12 @@ export function updateProject(
   id: string,
   patch: Partial<OptionalId<Project>>,
 ): Project | undefined {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, ...safePatch } = patch as Partial<OptionalId<Project>> & {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, ...safePatch } = patch as Partial<OptionalId<Project>> & {
     id?: string
     createdAt?: string
     updatedAt?: string
     deletedAt?: string
+    activeAdaptationId?: string
   }
   const [row] = updateRows(db, projects, { ...safePatch, updatedAt: now() })
     .where(and(eq(projects.id, id), isNull(projects.deletedAt)))

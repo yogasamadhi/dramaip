@@ -64,6 +64,7 @@ function context(patch: Partial<AgentCommandContext> = {}): AgentCommandContext 
     caseStudies: [{ id: 'case1', title: '爆款样本', relationshipPatterns: [], openingHooks: [], highlightBeats: [], reversalMechanisms: [], cliffhangers: [], visualPatterns: [], riskTags: [], createdAt: '', updatedAt: '' } as CreativeCaseStudy],
     visualProfiles: [{ id: 'vp1', projectId: 'p1', characterId: 'char1', appearancePrompt: '红裙', createdAt: '', updatedAt: '' } as CharacterVisualProfile],
     adaptations: [adaptation],
+    activeAdaptationId: adaptation.id,
     episodes: [episode],
     scripts: [script],
     scenes: [scene],
@@ -82,7 +83,7 @@ test('plans chapter rewrite commands with a text preview target', () => {
   assert.equal(plan?.input?.chapterId, 'c1')
 })
 
-test('plans episode generation commands against the primary adaptation', () => {
+test('plans episode generation commands against the active adaptation', () => {
   const plan = buildAgentCommandPlan('根据这本小说生成分集大纲', context())
 
   assert.equal(plan?.kind, 'episodes')
@@ -90,6 +91,13 @@ test('plans episode generation commands against the primary adaptation', () => {
   assert.equal(plan?.taskType, 'convert_novel_to_episodes')
   assert.equal(plan?.resultMode, 'artifact_preview')
   assert.equal(plan?.input?.adaptationProjectId, 'a1')
+})
+
+test('does not fall back to list order when the active adaptation is absent', () => {
+  const plan = buildAgentCommandPlan('根据这本小说生成分集大纲', context({ activeAdaptationId: undefined }))
+
+  assert.equal(plan?.status, 'blocked')
+  assert.match(plan?.blockedReasons.join(' ') ?? '', /没有改编项目/)
 })
 
 test('plans shot split commands with an explicit confirmation warning', () => {

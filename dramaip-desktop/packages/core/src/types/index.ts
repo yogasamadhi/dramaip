@@ -15,6 +15,8 @@ export interface Project {
   styleGuide?: string
   /** 视觉风格方向（PROJECT_BRIEF.md §5.2 / §7），面向 AI 短剧视频生成 */
   visualStyleDirection?: string
+  /** 当前工作的改编项目；为空时由仓库按季号和更新时间确定兼容默认值。 */
+  activeAdaptationId?: string
   createdAt: string
   updatedAt: string
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCcw } from 'lucide-react'
-import type { Chapter } from '@sdns/core'
+import type { AdaptationProject, Chapter } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import type { QualityGateTruth } from '@/lib/qualityGateTruth'
 import {
@@ -29,11 +29,13 @@ export function QualityGateDashboardSection({
   projectId,
   chapters,
   qualityTruth,
+  activeAdaptation,
   onOpenWorkspaceTarget,
 }: {
   projectId: string
   chapters: Chapter[]
   qualityTruth: QualityGateTruth | null
+  activeAdaptation?: AdaptationProject
   onOpenWorkspaceTarget: (section: string, chapterId?: string) => void
 }) {
   const navigate = useNavigate()
@@ -46,9 +48,8 @@ export function QualityGateDashboardSection({
     setLoading(true)
     setError(null)
     try {
-      const [memories, adaptations, tasks] = await Promise.all([
+      const [memories, tasks] = await Promise.all([
         ipc.chapterMemory.list(projectId),
-        ipc.adaptationProject.listByProject(projectId),
         ipc.longTask.list(projectId),
       ])
       const next: DashboardIssue[] = chaptersWithoutMemory(chapters, memories).map((chapter) => ({
@@ -95,7 +96,8 @@ export function QualityGateDashboardSection({
         })
       }
 
-      for (const adaptation of adaptations) {
+      if (activeAdaptation) {
+        const adaptation = activeAdaptation
         const scripts = await ipc.script.list(adaptation.id)
         const reviews = await Promise.all(scripts.map((script) => ipc.scriptReview.get(script.id)))
         scripts.forEach((script, index) => {
@@ -154,7 +156,7 @@ export function QualityGateDashboardSection({
     } finally {
       setLoading(false)
     }
-  }, [chapters, projectId, qualityTruth])
+  }, [activeAdaptation, chapters, projectId, qualityTruth])
 
   useEffect(() => {
     void reload()

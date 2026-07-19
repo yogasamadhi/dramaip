@@ -142,6 +142,7 @@ export function WorkspacePage() {
   const [pendingPaletteCommand, setPendingPaletteCommand] = useState<NovelTaskType | null>(null)
   const [paletteCommandRunning, setPaletteCommandRunning] = useState(false)
   const [preflightRunning, setPreflightRunning] = useState(false)
+  const requestedAdaptationId = searchParams.get('adaptation') ?? undefined
   // 工作流真值依赖正文而不只是“是否非空”：正文变更后，旧质量报告必须立即显示为过期。
   const chapterWorkflowKey = JSON.stringify(chapters.map((chapter) => ({
     id: chapter.id,
@@ -156,7 +157,11 @@ export function WorkspacePage() {
     cliffhanger: chapter.cliffhanger,
   })))
 
-  const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
+  const loadWorkflowSnapshot = useCallback(async (
+    currentProject: Project,
+    projectChapters: Chapter[],
+    requestedActiveAdaptationId?: string,
+  ) => {
     const [
       characters,
       outlines,
@@ -185,7 +190,15 @@ export function WorkspacePage() {
     setQualityReports(qualityReports)
     setProjectSkills(nextProjectSkills)
 
-    const primaryAdaptation = adaptations[0]
+    const activeResolution = await ipc.project.resolveActiveAdaptation(
+      currentProject.id,
+      requestedActiveAdaptationId,
+    )
+    const activeAdaptation = activeResolution.adaptation
+    const snapshotProject = currentProject.activeAdaptationId === activeAdaptation?.id
+      ? currentProject
+      : { ...currentProject, activeAdaptationId: activeAdaptation?.id }
+    if (snapshotProject !== currentProject) setProject(snapshotProject)
     let episodes: ProjectWorkflowSnapshot['episodes'] = []
     let scripts: ProjectWorkflowSnapshot['scripts'] = []
     let scenes: ProjectWorkflowSnapshot['scenes'] = []
@@ -193,9 +206,9 @@ export function WorkspacePage() {
     let videoTasks: ProjectWorkflowSnapshot['videoTasks'] = []
     let videoResults: ProjectWorkflowSnapshot['videoResults'] = []
 
-    if (primaryAdaptation) {
-      episodes = await ipc.episode.list(primaryAdaptation.id)
-      scripts = await ipc.script.list(primaryAdaptation.id)
+    if (activeAdaptation) {
+      episodes = await ipc.episode.list(activeAdaptation.id)
+      scripts = await ipc.script.list(activeAdaptation.id)
       scenes = (await Promise.all(scripts.map((script) => ipc.scene.listByScript(script.id)))).flat()
       shots = (await Promise.all(episodes.map((episode) => ipc.shot.listByEpisode(episode.id)))).flat()
       const taskGroups = await Promise.all(
@@ -207,12 +220,13 @@ export function WorkspacePage() {
     }
 
     setWorkflowSnapshot({
-      project: currentProject,
+      project: snapshotProject,
       chapters: projectChapters,
       characters,
       outlines,
       qualityReports,
       adaptations,
+      activeAdaptation,
       episodes,
       scripts,
       scenes,
@@ -221,7 +235,7 @@ export function WorkspacePage() {
       videoResults,
     })
     setAdaptationReadiness(buildAdaptationReadiness({
-      project: currentProject,
+      project: snapshotProject,
       chapters: projectChapters,
       characters,
       outlines,
@@ -240,7 +254,7 @@ export function WorkspacePage() {
   }, [id])
 
   useEffect(() => {
-    if (project) void loadWorkflowSnapshot(project, chapters)
+    if (project) void loadWorkflowSnapshot(project, chapters, requestedAdaptationId)
     else {
       setWorkflowSnapshot(null)
       setAdaptationReadiness(null)
@@ -252,7 +266,7 @@ export function WorkspacePage() {
       setProjectSkills([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot])
+  }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot, requestedAdaptationId])
 
   const loadAiRuns = useCallback(async () => {
     if (!id) return
@@ -501,7 +515,7 @@ export function WorkspacePage() {
       navigate(`/projects/${project?.id ?? id}/writing-room`)
       return
     }
-    const adaptation = workflowSnapshot?.adaptations[0]
+    const adaptation = workflowSnapshot?.activeAdaptation
     if (adaptation && (command.group === 'adaptation' || command.group === 'script' || command.group === 'shot')) {
       const path = command.group === 'adaptation' ? '' : command.group === 'script' ? '/scripts' : '/shots'
       navigate(`/adaptations/${adaptation.id}${path}`)
@@ -644,7 +658,23 @@ export function WorkspacePage() {
         reports: workflowSnapshot.qualityReports,
       })
     : null
-  const primaryAdaptation = workflowSnapshot?.adaptations[0]
+  const primaryAdaptation = workflowSnapshot?.activeAdaptation
+
+  async function changeActiveAdaptation(adaptationId: string) {
+    if (!project) return
+    const updated = await ipc.project.setActiveAdaptation(project.id, adaptationId)
+    if (!updated) {
+      toast.error('切换失败：该改编不属于当前项目')
+      return
+    }
+    setProject(updated)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('adaptation', adaptationId)
+      return next
+    })
+    toast.success('已切换当前改编，相关分集、剧本、分镜和视频数据已同步刷新')
+  }
 
   function openAdaptationPath(path: 'overview' | 'scripts' | 'shots' | 'video') {
     if (!project) return
@@ -699,10 +729,31 @@ export function WorkspacePage() {
     <>
       <WorkspaceShell
         title={project.title}
-        breadcrumbs={['项目', '创作工作台', section === 'chapters' && selected ? selected.title : section]}
+        breadcrumbs={[
+          '项目',
+          primaryAdaptation ? `第 ${primaryAdaptation.seasonNumber ?? 1} 季：${primaryAdaptation.title}` : '创作工作台',
+          section === 'chapters' && selected ? selected.title : section,
+        ]}
         badge={<Badge variant="secondary">{project.shortDramaType}</Badge>}
         actions={
           <div className="flex items-center gap-1">
+            {workflowSnapshot?.adaptations.length ? (
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="sr-only">当前改编</span>
+                <select
+                  aria-label="当前改编"
+                  className="h-8 max-w-44 rounded-md border bg-background px-2 text-xs text-foreground outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                  value={primaryAdaptation?.id ?? ''}
+                  onChange={(event) => void changeActiveAdaptation(event.target.value)}
+                >
+                  {workflowSnapshot.adaptations.map((adaptation) => (
+                    <option key={adaptation.id} value={adaptation.id}>
+                      当前：第 {adaptation.seasonNumber ?? 1} 季 · {adaptation.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <Button variant="secondary" size="sm" onClick={() => setAiCommandPaletteOpen(true)} title="打开 AI 命令面板（⌘/Ctrl+K）">
               <Command />
               AI 命令
@@ -1038,6 +1089,7 @@ export function WorkspacePage() {
               projectId={project.id}
               chapters={chapters}
               qualityTruth={projectQualityTruth}
+              activeAdaptation={primaryAdaptation}
               onOpenWorkspaceTarget={(nextSection, chapterId) => {
                 openWorkspaceTarget(nextSection, chapterId)
               }}
@@ -1099,6 +1151,7 @@ export function WorkspacePage() {
                 caseStudies,
                 visualProfiles,
                 adaptations: workflowSnapshot?.adaptations ?? [],
+                activeAdaptationId: workflowSnapshot?.activeAdaptation?.id,
                 episodes: workflowSnapshot?.episodes ?? [],
                 scripts: workflowSnapshot?.scripts ?? [],
                 scenes: workflowSnapshot?.scenes ?? [],
@@ -1206,7 +1259,12 @@ export function WorkspacePage() {
           {section === 'ai-dashboard' && <AiDashboardSection projectId={project.id} />}
 
           {section === 'creative-diagnosis' && (
-            <CreativeDiagnosisSection projectId={project.id} chapter={selected} qualityTruth={projectQualityTruth} />
+            <CreativeDiagnosisSection
+              projectId={project.id}
+              chapter={selected}
+              qualityTruth={projectQualityTruth}
+              activeAdaptation={workflowSnapshot?.activeAdaptation}
+            />
           )}
 
           {section === 'beats' && (

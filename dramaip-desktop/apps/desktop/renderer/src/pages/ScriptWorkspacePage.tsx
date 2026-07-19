@@ -53,6 +53,7 @@ export function ScriptWorkspacePage() {
       ipc.script.list(id),
     ])
     setAdaptation(a ?? null)
+    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
     setEpisodes(eps)
     setScripts(scs)
     setActiveEpisodeId((cur) => {

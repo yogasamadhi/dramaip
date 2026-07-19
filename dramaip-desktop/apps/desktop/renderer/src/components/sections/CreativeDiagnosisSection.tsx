@@ -31,6 +31,7 @@ interface Props {
   projectId: string
   chapter: Chapter | null
   qualityTruth: QualityGateTruth | null
+  activeAdaptation?: AdaptationProject
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'destructive' {
@@ -55,7 +56,7 @@ const WORKFLOW_STATUS_VARIANT: Record<WorkflowRun['status'], 'default' | 'second
   failed: 'destructive',
 }
 
-export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: Props) {
+export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, activeAdaptation }: Props) {
   const navigate = useNavigate()
   const [freshness, setFreshness] = useState<FreshnessReport[]>([])
   const [variants, setVariants] = useState<AntiTropeVariant[]>([])
@@ -65,7 +66,6 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
   const [curves, setCurves] = useState<NarrativeCurveReport[]>([])
   const [textQuality, setTextQuality] = useState<TextQualityReportResult | null>(null)
   const [workflows, setWorkflows] = useState<WorkflowRun[]>([])
-  const [adaptations, setAdaptations] = useState<AdaptationProject[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [pendingRevisionTask, setPendingRevisionTask] = useState<RevisionTask | null>(null)
@@ -76,7 +76,7 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
   )
 
   const reload = useCallback(async () => {
-    const [fr, at, rt, cv, au, nc, wf, ad] = await Promise.all([
+    const [fr, at, rt, cv, au, nc, wf] = await Promise.all([
       ipc.creative.listFreshness(projectId),
       ipc.creative.listAntiTropeByTarget(target.kind, target.id),
       ipc.revisionTask.list(projectId),
@@ -84,7 +84,6 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
       ipc.creative.listAudienceSimulations(projectId),
       ipc.creative.listNarrativeCurves(projectId),
       ipc.workflow.list(projectId),
-      ipc.adaptationProject.listByProject(projectId),
     ])
     setFreshness(fr)
     setVariants(at)
@@ -93,7 +92,6 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
     setAudiences(au)
     setCurves(nc)
     setWorkflows(wf)
-    setAdaptations(ad)
   }, [projectId, target.id, target.kind])
 
   useEffect(() => {
@@ -125,8 +123,6 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
     }
   }
 
-  const latestAdaptation = adaptations[adaptations.length - 1]
-
   async function runWorkflow(templateKey: string, pauseAfterStep = false) {
     setBusy(templateKey)
     const tid = toast.loading('正在运行工作流…')
@@ -135,7 +131,7 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
         templateKey,
         projectId,
         chapterId: chapter?.id,
-        adaptationProjectId: latestAdaptation?.id,
+        adaptationProjectId: activeAdaptation?.id,
         pauseAfterStep,
       })
       if (res.ok) {
@@ -187,8 +183,8 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
       navigate('/settings/tasks')
       return
     }
-    if (step.videoTaskIds?.length && latestAdaptation) {
-      navigate(`/adaptations/${latestAdaptation.id}/video`)
+    if (step.videoTaskIds?.length && activeAdaptation) {
+      navigate(`/adaptations/${activeAdaptation.id}/video`)
       return
     }
     if (step.aiRunId) {
@@ -394,7 +390,7 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: P
                 </div>
               </div>
             ))}
-            {!latestAdaptation && (
+            {!activeAdaptation && (
               <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground xl:col-span-2">
                 小说到视频流水线需要已有改编项目；未创建时可先到改编页建立分集容器。
               </div>
