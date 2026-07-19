@@ -353,7 +353,7 @@ make platform-e2e
 | LM4-19 | P1 | Mobile/Desktop 接续 | done | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | partial | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
-| LM4-12R | P1 | Web/Cloud AI | doing | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
+| LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
 | LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | todo | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
@@ -1289,4 +1289,20 @@ Push: c641dcb pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-20-account-read-model deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
 Notes: The full platform E2E script's new account assertions executed successfully; it later exposes that the Web chat endpoint lacks the required AI preflight binding. That pre-existing Web AI flow is P2 work owned by LM4-28, so this loop does not bypass, weaken or misclassify it as an account failure.
+```
+
+```text
+Loop: LM4-12R
+Target branch: main
+Loop branch: loop/lm4-12r-web-preflight-binding
+Commit(s): 5c85942 fix: bind web chat to cloud AI preflight
+Merge commit: 4d6388d merge: LM4-12R web chat preflight binding
+Verification: Before merge: platform services targeted Web BFF/Gateway/platform hash tests and full `GOCACHE=/tmp/dramaip-go-build go test ./...`; clients `pnpm lint`, `pnpm typecheck`, `pnpm contracts:check`, and `pnpm build:web`; `make test`; `make web-route-smoke`; `node --check scripts/platform-e2e.mjs`; rebuilt Compose `make platform-e2e`. After merge: `make test`, `make platform-e2e`, and `git diff --check origin/main...HEAD`. All passed. The health E2E confirmed that preflight succeeds before the test Provider call, quota is consumed once, the idempotency replay does not consume again, and a changed payload with the old binding is rejected.
+UI/manual evidence: The existing Web Chat form now sends its provider/model/messages/token cap to preflight before submitting a generated request id and the returned hash to Chat. The UI remains intentionally synchronous; model catalog, history, streaming and cancellation remain LM4-28 work.
+Diff review: Reviewed the shared Go SHA-256 base64url vector, Web BFF two-stage default-model resolution, preflight response validation, strict bounded JSON/message validation, execution-time recheck, Gateway final hash/amount reservation, SDK contract and E2E sequence. New paths log no prompt body and persist no credential. No secret, local database, screenshot or build artifact was committed.
+Remote sync: Fetched and fast-forward checked origin/main at 28e582c before the loop branch and again before merge; main had no intervening remote commits.
+Push: 4d6388d pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-12r-web-preflight-binding deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
+Notes: This is a P1 compatibility repair reopened from LM4-12 after LM4-21 exposed a Web-only broken synchronous Chat path. It does not advance LM4-28; LM4-21 must still be rerun before any P2 production-workspace loop can begin.
 ```
