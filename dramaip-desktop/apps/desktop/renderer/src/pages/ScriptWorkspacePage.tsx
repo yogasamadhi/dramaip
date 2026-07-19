@@ -157,7 +157,7 @@ export function ScriptWorkspacePage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/adaptations/${adaptation.id}`)}>
+        <Button variant="ghost" size="icon" aria-label="返回改编工作台" onClick={() => navigate(`/adaptations/${adaptation.id}`)}>
           <ArrowLeft />
         </Button>
         <h1 className="text-base font-semibold">{adaptation.title} · AI 短剧剧本</h1>

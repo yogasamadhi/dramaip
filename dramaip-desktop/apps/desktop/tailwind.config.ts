@@ -12,6 +12,40 @@ export default {
     },
     extend: {
       colors: {
+        canvas: {
+          DEFAULT: 'hsl(var(--canvas))',
+          elevated: 'hsl(var(--canvas-elevated))',
+        },
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          raised: 'hsl(var(--surface-raised))',
+          sunken: 'hsl(var(--surface-sunken))',
+        },
+        brand: {
+          DEFAULT: 'hsl(var(--brand))',
+          foreground: 'hsl(var(--brand-foreground))',
+          soft: 'hsl(var(--brand-soft))',
+        },
+        ai: {
+          DEFAULT: 'hsl(var(--ai))',
+          foreground: 'hsl(var(--ai-foreground))',
+          soft: 'hsl(var(--ai-soft))',
+        },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+          soft: 'hsl(var(--success-soft))',
+        },
+        warn: {
+          DEFAULT: 'hsl(var(--warn))',
+          foreground: 'hsl(var(--warn-foreground))',
+          soft: 'hsl(var(--warn-soft))',
+        },
+        block: {
+          DEFAULT: 'hsl(var(--block))',
+          foreground: 'hsl(var(--block-foreground))',
+          soft: 'hsl(var(--block-soft))',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -52,14 +86,8 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"PingFang SC"',
-          '"Microsoft YaHei"',
-          'sans-serif',
-        ],
+        sans: ['var(--font-ui)'],
+        editor: ['var(--font-editor)'],
       },
       keyframes: {
         'accordion-down': {

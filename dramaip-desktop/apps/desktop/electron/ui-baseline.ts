@@ -5,6 +5,8 @@ import { getRepos } from './db'
 import { seedP0Fixture } from './e2e-smoke'
 
 type UiTheme = 'light' | 'dark'
+type UiThemePreference = UiTheme | 'system'
+type UiDensity = 'comfortable' | 'compact'
 
 interface UiViewport {
   width: number
@@ -18,6 +20,8 @@ interface UiBaselineSpec {
   readyText: string
   viewport: UiViewport
   theme: UiTheme
+  themePreference: UiThemePreference
+  density: UiDensity
   reducedMotion: boolean
 }
 
@@ -50,6 +54,8 @@ export interface UiBaselineArtifact {
   page: string
   viewport: UiViewport
   theme: UiTheme
+  themePreference: UiThemePreference
+  density: UiDensity
   reducedMotion: boolean
   focusPath: string[]
   accessibility: UiAccessibilityReport
@@ -79,6 +85,8 @@ export async function runDesktopUiBaseline(
       readyText: '打开工作台',
       viewport: { width: 1320, height: 860 },
       theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
       reducedMotion: false,
     },
     {
@@ -88,6 +96,8 @@ export async function runDesktopUiBaseline(
       readyText: '新建章节',
       viewport: { width: 1024, height: 760 },
       theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
       reducedMotion: false,
     },
     {
@@ -97,6 +107,8 @@ export async function runDesktopUiBaseline(
       readyText: '新建章节',
       viewport: { width: 1320, height: 860 },
       theme: 'dark',
+      themePreference: 'dark',
+      density: 'comfortable',
       reducedMotion: false,
     },
     {
@@ -106,6 +118,8 @@ export async function runDesktopUiBaseline(
       readyText: '主流程',
       viewport: { width: 1320, height: 860 },
       theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
       reducedMotion: false,
     },
     {
@@ -115,6 +129,8 @@ export async function runDesktopUiBaseline(
       readyText: '批量生成前 10 集',
       viewport: { width: 1600, height: 960 },
       theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
       reducedMotion: false,
     },
     {
@@ -124,20 +140,35 @@ export async function runDesktopUiBaseline(
       readyText: '提交视频生成任务',
       viewport: { width: 1320, height: 860 },
       theme: 'light',
+      themePreference: 'light',
+      density: 'compact',
       reducedMotion: true,
+    },
+    {
+      name: 'appearance-system-1320-light',
+      hash: '#/settings/appearance',
+      expectedText: '外观与编辑偏好',
+      readyText: '界面主题',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'system',
+      density: 'comfortable',
+      reducedMotion: false,
     },
   ]
 
   const artifacts: UiBaselineArtifact[] = []
   for (const spec of specs) {
     win.setSize(spec.viewport.width, spec.viewport.height)
-    await setReducedMotion(win, spec.reducedMotion)
+    await setMediaPreferences(win, spec.reducedMotion, spec.theme)
     const focusPath = await win.webContents.executeJavaScript(
       `(${prepareRendererForUiBaseline.toString()})(${JSON.stringify({
         hash: spec.hash,
         expectedText: spec.expectedText,
         readyText: spec.readyText,
         theme: spec.theme,
+        themePreference: spec.themePreference,
+        density: spec.density,
         reducedMotion: spec.reducedMotion,
       })})`,
       true,
@@ -152,6 +183,8 @@ export async function runDesktopUiBaseline(
       page: spec.hash,
       viewport: spec.viewport,
       theme: spec.theme,
+      themePreference: spec.themePreference,
+      density: spec.density,
       reducedMotion: spec.reducedMotion,
       focusPath,
       accessibility,
@@ -269,14 +302,17 @@ function seedUiFixture(): UiFixture {
   }
 }
 
-async function setReducedMotion(win: BrowserWindow, reducedMotion: boolean): Promise<void> {
+async function setMediaPreferences(win: BrowserWindow, reducedMotion: boolean, theme: UiTheme): Promise<void> {
   const debuggerApi = win.webContents.debugger
   const attachedHere = !debuggerApi.isAttached()
   if (attachedHere) debuggerApi.attach('1.3')
   try {
     await debuggerApi.sendCommand('Emulation.setEmulatedMedia', {
       media: 'screen',
-      features: [{ name: 'prefers-reduced-motion', value: reducedMotion ? 'reduce' : 'no-preference' }],
+      features: [
+        { name: 'prefers-reduced-motion', value: reducedMotion ? 'reduce' : 'no-preference' },
+        { name: 'prefers-color-scheme', value: theme },
+      ],
     })
   } finally {
     if (attachedHere && debuggerApi.isAttached()) debuggerApi.detach()
@@ -324,6 +360,8 @@ async function prepareRendererForUiBaseline(input: {
   expectedText: string
   readyText: string
   theme: UiTheme
+  themePreference: UiThemePreference
+  density: UiDensity
   reducedMotion: boolean
 }): Promise<string[]> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
@@ -335,9 +373,15 @@ async function prepareRendererForUiBaseline(input: {
     }
     throw new Error(`UI 基线等待超时：${label}`)
   }
-  window.localStorage.setItem('sdns-ui-theme', input.theme)
+  window.localStorage.setItem('sdns-ui-theme-preference', input.themePreference)
+  window.localStorage.setItem('sdns-ui-theme', input.themePreference)
+  window.localStorage.setItem('sdns-ui-density', input.density)
+  window.dispatchEvent(new StorageEvent('storage', { key: 'sdns-ui-theme-preference', newValue: input.themePreference }))
+  window.dispatchEvent(new StorageEvent('storage', { key: 'sdns-ui-density', newValue: input.density }))
   document.documentElement.classList.toggle('dark', input.theme === 'dark')
   document.documentElement.dataset.theme = input.theme
+  document.documentElement.dataset.themePreference = input.themePreference
+  document.documentElement.dataset.density = input.density
   document.documentElement.style.colorScheme = input.theme
   document.documentElement.dataset.uiBaselineReducedMotion = String(input.reducedMotion)
   if (window.location.hash !== input.hash) window.location.hash = input.hash

@@ -5,11 +5,11 @@ import { useTheme } from '@/components/ThemeProvider'
 type ToasterProps = ComponentProps<typeof Sonner>
 
 const Toaster = ({ theme: themeProp, ...props }: ToasterProps) => {
-  const { theme } = useTheme()
+  const { resolvedTheme } = useTheme()
 
   return (
     <Sonner
-      theme={themeProp ?? theme}
+      theme={themeProp ?? resolvedTheme}
       position="bottom-right"
       className="toaster group"
       toastOptions={{

@@ -336,7 +336,7 @@ make platform-e2e
 | LM4-02 | P0 | Desktop/工作流 | done | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
 | LM4-03 | P0 | Web/Billing | done | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
 | LM4-04 | P0 | Release/QA | done | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
-| LM4-05 | P1 | Design System/前端 | todo | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
+| LM4-05 | P1 | Design System/前端 | done | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
 | LM4-06 | P1 | Desktop/产品体验 | todo | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
 | LM4-07 | P1 | Desktop/项目体验 | todo | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
 | LM4-08 | P1 | Desktop/数据生命周期 | todo | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
@@ -1004,4 +1004,20 @@ Push: b4c9748 pushed to origin/main successfully on 2026-07-19; this completion 
 Loop branch cleanup: Local loop/lm4-04-p0-release-gate deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: WeChat/Alipay webhook integrations correctly refused to run without dedicated fresh PostgreSQL DSNs. No authorized official sandbox merchant/callback evidence or signed/notarized macOS release environment exists. Provider Feature Flags remain disabled; real payment and external macOS distribution are explicitly not declared complete.
+```
+
+```text
+Loop: LM4-05
+Target branch: main
+Loop branch: loop/lm4-05-design-foundation
+Commit(s): pending loop commit
+Merge commit: pending merge
+Verification: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (125/125); pnpm test:ui (7 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e; git diff --check. All passed before commit.
+UI/manual evidence: Reviewed 1320 dark workspace, system-theme Appearance page, and compact reduced-motion video fixture. Semantic canvas/surface/AI/status colors, clear focus styles, persistent density/font preferences and static reduced-motion behavior are documented in docs/loop/LM4-05-设计系统基础.md.
+Diff review: pending final cumulative review; no generated UI artifacts or local preferences will be committed.
+Remote sync: pending final target-branch sync before merge.
+Push: pending merge and verification.
+Loop branch cleanup: pending merge/push, then delete local loop branch; no remote loop branch was created.
+Current branch/worktree: loop/lm4-05-design-foundation; feature change pending commit.
+Notes: Zero AX observations apply only to the seven fixed baseline pages. Theme-toggle placement and page-level information architecture intentionally remain for LM4-06+; native confirm/prompt replacement remains LM4-17.
 ```

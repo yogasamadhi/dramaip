@@ -1,15 +1,16 @@
-import { Moon, Sun, type LucideIcon } from 'lucide-react'
+import { MonitorCog, Moon, Sun, type LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useTheme, type ThemeMode } from '@/components/ThemeProvider'
+import { useTheme, type ThemePreference } from '@/components/ThemeProvider'
 import { cn } from '@/lib/utils'
 
-const OPTIONS: Array<{ value: ThemeMode; label: string; icon: LucideIcon }> = [
+const OPTIONS: Array<{ value: ThemePreference; label: string; icon: LucideIcon }> = [
   { value: 'light', label: '明亮', icon: Sun },
   { value: 'dark', label: '暗夜', icon: Moon },
+  { value: 'system', label: '系统', icon: MonitorCog },
 ]
 
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, setTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme } = useTheme()
 
   return (
     <div
@@ -28,7 +29,7 @@ export function ThemeToggle({ className }: { className?: string }) {
             variant={selected ? 'secondary' : 'ghost'}
             className="h-8 px-2.5"
             aria-pressed={selected}
-            title={`${option.label}模式`}
+            title={option.value === 'system' ? `跟随系统（当前${resolvedTheme === 'dark' ? '暗夜' : '明亮'}）` : `${option.label}模式`}
             onClick={() => setTheme(option.value)}
           >
             <Icon />

@@ -483,7 +483,7 @@ export function WorkspacePage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-4 py-2.5">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" aria-label="返回项目列表" onClick={() => navigate('/')}>
           <ArrowLeft />
         </Button>
         <h1 className="text-base font-semibold">{project.title}</h1>
@@ -510,7 +510,7 @@ export function WorkspacePage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+          <Button variant="ghost" size="icon" aria-label="打开设置" onClick={() => navigate('/settings')}>
             <Settings />
           </Button>
         </div>
@@ -523,7 +523,7 @@ export function WorkspacePage() {
             <div className="space-y-3 p-2">
               {WORKSPACE_NAV_GROUPS.map((group) => (
                 <div key={group.key} className="space-y-1">
-                  <div className="px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                  <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
                     {group.label}
                   </div>
                   {group.items.map((item) => {
@@ -542,7 +542,7 @@ export function WorkspacePage() {
                         }}
                         aria-current={active ? 'page' : undefined}
                         className={cn(
-                          'flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors',
+                          'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                           active
                             ? 'bg-accent font-medium text-accent-foreground'
                             : 'hover:bg-accent/60',
@@ -572,7 +572,7 @@ export function WorkspacePage() {
               <div className="flex items-center gap-2 border-b px-3 py-2">
                 {chapters.length > 0 ? (
                   <Select value={selectedId ?? undefined} onValueChange={(v) => { setSelectedId(v); setEditorNonce((n) => n + 1) }}>
-                    <SelectTrigger className="w-64">
+                    <SelectTrigger aria-label="选择章节" className="w-64">
                       <SelectValue placeholder="选择章节" />
                     </SelectTrigger>
                     <SelectContent>
@@ -601,6 +601,7 @@ export function WorkspacePage() {
                 <>
                   <div className="border-b px-4 py-2">
                     <Input
+                      aria-label="章节标题"
                       defaultValue={selected.title}
                       key={selected.id + '-title'}
                       onBlur={(e) => renameChapter(e.target.value)}
