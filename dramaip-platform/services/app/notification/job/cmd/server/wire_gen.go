@@ -44,8 +44,10 @@ func wireApp() (*kratos.App, func(), error) {
 	}
 	consumerService := service.NewConsumerService(notificationEventUsecase)
 	httpServer := server.NewHTTPServer(bootstrap, consumerService)
+	deliveryOperationsService := server.NewDeliveryOperationsService(notificationRepo, consumerService)
+	grpcServer := server.NewGRPCServer(bootstrap, deliveryOperationsService)
 	jobServer := server.NewJobServer(consumerService)
-	app := newApp(httpServer, jobServer)
+	app := newApp(httpServer, grpcServer, jobServer)
 	return app, func() {
 		consumerCleanup()
 		cleanup()

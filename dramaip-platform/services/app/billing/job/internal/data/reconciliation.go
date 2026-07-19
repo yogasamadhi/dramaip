@@ -91,10 +91,18 @@ type reconciliationTarget struct {
 // is intentionally local-ledger-first: real provider settlement files and
 // live financial actions require separately configured merchant credentials.
 func (d *Data) Reconcile(ctx context.Context, trigger, requestedBy string, batch int) (ReconciliationRun, error) {
+	return d.reconcile(ctx, trigger, requestedBy, "", batch)
+}
+
+func (d *Data) ReconcileIdempotent(ctx context.Context, trigger, requestedBy, idempotencyKey string, batch int) (ReconciliationRun, error) {
+	return d.reconcile(ctx, trigger, requestedBy, idempotencyKey, batch)
+}
+
+func (d *Data) reconcile(ctx context.Context, trigger, requestedBy, idempotencyKey string, batch int) (ReconciliationRun, error) {
 	if batch <= 0 {
 		batch = 1
 	}
-	run, started, err := d.beginReconciliationRun(ctx, trigger, requestedBy)
+	run, started, err := d.beginReconciliationRun(ctx, trigger, requestedBy, idempotencyKey)
 	if err != nil || !started {
 		return run, err
 	}
@@ -191,23 +199,52 @@ func (d *Data) Reconcile(ctx context.Context, trigger, requestedBy string, batch
 	return d.completeReconciliationRun(ctx, run, len(targets), detected)
 }
 
-func (d *Data) beginReconciliationRun(ctx context.Context, trigger, requestedBy string) (ReconciliationRun, bool, error) {
+func (d *Data) beginReconciliationRun(ctx context.Context, trigger, requestedBy, idempotencyKey string) (ReconciliationRun, bool, error) {
 	trigger = strings.TrimSpace(trigger)
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if trigger == "" {
 		trigger = "scheduled"
+	}
+	if idempotencyKey != "" {
+		var existing ReconciliationRun
+		if err := d.DB.WithContext(ctx).Raw(`
+			SELECT id::text AS id, trigger, requested_by, status, scanned_orders, detected_items,
+			       COALESCE(failure_reason, '') AS failure_reason, started_at::text AS started_at,
+			       COALESCE(finished_at::text, '') AS finished_at
+			FROM billing.reconciliation_runs WHERE idempotency_key = ? LIMIT 1
+		`, idempotencyKey).Scan(&existing).Error; err != nil {
+			return ReconciliationRun{}, false, err
+		}
+		if existing.ID != "" {
+			return existing, false, nil
+		}
 	}
 	run := ReconciliationRun{ID: platform.NewUUID(), Trigger: trigger, RequestedBy: strings.TrimSpace(requestedBy), Status: "running"}
 	var created struct{ StartedAt string }
 	result := d.DB.WithContext(ctx).Raw(`
-		INSERT INTO billing.reconciliation_runs (id, trigger, requested_by, status)
-		VALUES (?::uuid, ?, ?, 'running')
-		ON CONFLICT ((1)) WHERE status = 'running' DO NOTHING
+		INSERT INTO billing.reconciliation_runs (id, trigger, requested_by, status, idempotency_key)
+		VALUES (?::uuid, ?, ?, 'running', NULLIF(?, ''))
+		ON CONFLICT DO NOTHING
 		RETURNING started_at::text AS started_at
-	`, run.ID, run.Trigger, run.RequestedBy).Scan(&created)
+	`, run.ID, run.Trigger, run.RequestedBy, idempotencyKey).Scan(&created)
 	if result.Error != nil {
 		return ReconciliationRun{}, false, result.Error
 	}
 	if created.StartedAt == "" {
+		if idempotencyKey != "" {
+			var existing ReconciliationRun
+			if err := d.DB.WithContext(ctx).Raw(`
+				SELECT id::text AS id, trigger, requested_by, status, scanned_orders, detected_items,
+				       COALESCE(failure_reason, '') AS failure_reason, started_at::text AS started_at,
+				       COALESCE(finished_at::text, '') AS finished_at
+				FROM billing.reconciliation_runs WHERE idempotency_key = ? LIMIT 1
+			`, idempotencyKey).Scan(&existing).Error; err != nil {
+				return ReconciliationRun{}, false, err
+			}
+			if existing.ID != "" {
+				return existing, false, nil
+			}
+		}
 		return ReconciliationRun{Status: "skipped"}, false, nil
 	}
 	run.StartedAt = created.StartedAt

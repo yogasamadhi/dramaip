@@ -195,7 +195,7 @@ bootstrap() {
     POSTGRES_BILLING_PASSWORD POSTGRES_QUOTA_PASSWORD POSTGRES_AI_GATEWAY_PASSWORD
     POSTGRES_NOTIFICATION_PASSWORD POSTGRES_INSPIRATION_PASSWORD POSTGRES_ADMIN_PASSWORD
     POSTGRES_REPORTING_PASSWORD REDIS_PASSWORD RABBITMQ_USER RABBITMQ_PASSWORD
-    AI_PROVIDER_API_KEY RECONCILIATION_OPERATOR_TOKEN AUTH_EMAIL_DELIVERY_TOKEN
+    AI_PROVIDER_API_KEY AUTH_EMAIL_DELIVERY_TOKEN
   )
   local -a runtime_args=()
   local key value
@@ -203,7 +203,7 @@ bootstrap() {
     case "$key" in
       POSTGRES_USER|RABBITMQ_USER) value="dramaip" ;;
       AI_PROVIDER_API_KEY) value="temporary-staging-no-external-provider" ;;
-      RECONCILIATION_OPERATOR_TOKEN|AUTH_EMAIL_DELIVERY_TOKEN) value="temporary-staging-disabled" ;;
+      AUTH_EMAIL_DELIVERY_TOKEN) value="temporary-staging-disabled" ;;
       *) value="$(openssl rand -hex 32)" ;;
     esac
     runtime_args+=(--from-literal="$key=$value")

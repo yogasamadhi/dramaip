@@ -10,10 +10,12 @@ import {
   AuditEntry,
   CostAlert,
   Customer,
+  DeliveryAttempt,
   OrderSummary,
   Overview,
   Principal,
   ProjectionException,
+  Reconciliation,
   SubscriptionSummary,
   UserSummary,
 } from "./api";
@@ -38,6 +40,12 @@ type Operation =
   | "quota"
   | "notify";
 type PendingOperation = { kind: Operation; targetID: string };
+type JobOperation = "reconcile" | "reconciliation_action" | "retry_delivery";
+type PendingJobOperation = {
+  kind: JobOperation;
+  targetID: string;
+  action?: string;
+};
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("zh-CN").format(value);
@@ -160,8 +168,15 @@ function App() {
   const [reason, setReason] = useState("");
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [costAlerts, setCostAlerts] = useState<CostAlert[]>([]);
+  const [reconciliation, setReconciliation] =
+    useState<Reconciliation | null>(null);
+  const [deliveryAttempts, setDeliveryAttempts] = useState<DeliveryAttempt[]>(
+    [],
+  );
   const [pendingOperation, setPendingOperation] =
     useState<PendingOperation | null>(null);
+  const [pendingJobOperation, setPendingJobOperation] =
+    useState<PendingJobOperation | null>(null);
   const [operationReason, setOperationReason] = useState("");
   const [quotaDelta, setQuotaDelta] = useState(0);
   const [notificationTitle, setNotificationTitle] = useState("");
@@ -174,8 +189,19 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [overview, users, orders, subscriptions, exceptions, audit, costs] =
-        await Promise.all([
+      const canBilling = principal?.permissions.includes("billing.write");
+      const canNotify = principal?.permissions.includes("notification.write");
+      const [
+        overview,
+        users,
+        orders,
+        subscriptions,
+        exceptions,
+        audit,
+        costs,
+        reconciliationResult,
+        deliveryResult,
+      ] = await Promise.all([
           adminAPI.overview(activeToken),
           adminAPI.users(activeToken, "", userQuery),
           adminAPI.orders(activeToken),
@@ -183,6 +209,12 @@ function App() {
           adminAPI.exceptions(activeToken),
           adminAPI.audit(activeToken),
           adminAPI.costAlerts(activeToken),
+          canBilling
+            ? adminAPI.reconciliation(activeToken)
+            : Promise.resolve(null),
+          canNotify
+            ? adminAPI.deliveryAttempts(activeToken)
+            : Promise.resolve(null),
         ]);
       setData({
         overview,
@@ -194,6 +226,8 @@ function App() {
         audit: audit.entries,
       });
       setCostAlerts(costs.alerts);
+      setReconciliation(reconciliationResult);
+      setDeliveryAttempts(deliveryResult?.attempts || []);
     } catch (cause) {
       const message =
         cause instanceof APIError ? cause.message : "报表暂不可用";
@@ -391,6 +425,51 @@ function App() {
       setLoading(false);
     }
   }
+  async function runJobOperation() {
+    if (
+      !token ||
+      !pendingJobOperation ||
+      operationReason.trim().length < 4
+    )
+      return;
+    const actionByOperation: Record<JobOperation, string> = {
+      reconcile: "billing.reconciliation.start",
+      reconciliation_action: "billing.reconciliation.action",
+      retry_delivery: "notification.delivery.retry",
+    };
+    setLoading(true);
+    setError("");
+    try {
+      const confirmation = await adminAPI.createConfirmation(
+        token,
+        actionByOperation[pendingJobOperation.kind],
+        pendingJobOperation.targetID,
+        operationReason.trim(),
+      );
+      if (pendingJobOperation.kind === "reconcile")
+        await adminAPI.startReconciliation(token, confirmation.confirmation.id);
+      if (pendingJobOperation.kind === "reconciliation_action")
+        await adminAPI.applyReconciliationAction(
+          token,
+          pendingJobOperation.targetID,
+          pendingJobOperation.action || "manual_confirm",
+          confirmation.confirmation.id,
+        );
+      if (pendingJobOperation.kind === "retry_delivery")
+        await adminAPI.retryDelivery(
+          token,
+          pendingJobOperation.targetID,
+          confirmation.confirmation.id,
+        );
+      setPendingJobOperation(null);
+      setOperationReason("");
+      await refresh(token);
+    } catch (cause) {
+      setError(cause instanceof APIError ? cause.message : "领域操作未完成");
+    } finally {
+      setLoading(false);
+    }
+  }
   const filteredUsers = data?.users || [];
   if (!token || !principal)
     return (
@@ -573,6 +652,153 @@ function App() {
                 ])}
             />
           </section>
+          {principal.permissions.includes("billing.write") && (
+            <section className="panel operations-panel">
+              <div className="panel-heading">
+                <div>
+                  <h2>账务对账处置</h2>
+                  <p>
+                    由 Billing Job 完成扫描与受控修复；管理台不会直接修改账务表。
+                  </p>
+                </div>
+                <button
+                  className="quiet"
+                  disabled={loading}
+                  onClick={() =>
+                    setPendingJobOperation({
+                      kind: "reconcile",
+                      targetID: "billing-reconciliation",
+                    })
+                  }
+                >
+                  发起对账
+                </button>
+              </div>
+              <p className="operation-meta">
+                最近运行：{reconciliation?.latest_run
+                  ? `${reconciliation.latest_run.status} · 扫描 ${reconciliation.latest_run.scanned_items} · 发现 ${reconciliation.latest_run.detected_items} · ${formatDate(reconciliation.latest_run.started_at)}`
+                  : "暂无运行记录"}
+              </p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>问题</th>
+                    <th>对象</th>
+                    <th>建议</th>
+                    <th>状态</th>
+                    <th>最近发现</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reconciliation?.items.length ? (
+                    reconciliation.items.map((row) => {
+                      const action =
+                        row.recommendation === "retry_quota_provision"
+                          ? "retry_quota_provision"
+                          : "manual_confirm";
+                      return (
+                        <tr key={row.id}>
+                          <td>
+                            {row.mismatch_type}
+                            <small>{row.severity}</small>
+                          </td>
+                          <td title={row.order_id || row.subscription_id}>
+                            {short(row.order_id || row.subscription_id)}
+                          </td>
+                          <td>{row.recommendation}</td>
+                          <td>{row.status}</td>
+                          <td>{formatDate(row.last_detected_at)}</td>
+                          <td>
+                            {row.status === "resolved" ? (
+                              "已解决"
+                            ) : (
+                              <button
+                                className="quiet"
+                                disabled={loading}
+                                onClick={() =>
+                                  setPendingJobOperation({
+                                    kind: "reconciliation_action",
+                                    targetID: row.id,
+                                    action,
+                                  })
+                                }
+                              >
+                                {action === "retry_quota_provision"
+                                  ? "重试额度开通"
+                                  : "人工确认"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="empty">
+                        暂无待处置对账项
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </section>
+          )}
+          {principal.permissions.includes("notification.write") && (
+            <section className="panel operations-panel">
+              <div className="panel-heading">
+                <div>
+                  <h2>失败投递重试</h2>
+                  <p>
+                    仅展示失败尝试。重试会复用原始事件，并重新走 Notification Job 的 inbox 与通道链路。
+                  </p>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>用户</th>
+                    <th>通道</th>
+                    <th>失败原因</th>
+                    <th>时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveryAttempts.length ? (
+                    deliveryAttempts.map((row) => (
+                      <tr key={row.id}>
+                        <td title={row.user_id}>{short(row.user_id)}</td>
+                        <td>{row.channel}</td>
+                        <td>{row.failure || "—"}</td>
+                        <td>{formatDate(row.attempted_at)}</td>
+                        <td>
+                          <button
+                            className="quiet"
+                            disabled={loading}
+                            onClick={() =>
+                              setPendingJobOperation({
+                                kind: "retry_delivery",
+                                targetID: row.id,
+                              })
+                            }
+                          >
+                            重试投递
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="empty">
+                        没有失败投递
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -723,6 +949,19 @@ function App() {
             setOperationReason("");
           }}
           onConfirm={() => void runOperation()}
+        />
+      )}
+      {pendingJobOperation && (
+        <JobOperationDialog
+          operation={pendingJobOperation}
+          reason={operationReason}
+          busy={loading}
+          onReason={setOperationReason}
+          onCancel={() => {
+            setPendingJobOperation(null);
+            setOperationReason("");
+          }}
+          onConfirm={() => void runJobOperation()}
         />
       )}
     </main>
@@ -968,6 +1207,66 @@ function MiniTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
         )}
       </tbody>
     </table>
+  );
+}
+function JobOperationDialog({
+  operation,
+  reason,
+  busy,
+  onReason,
+  onCancel,
+  onConfirm,
+}: {
+  operation: PendingJobOperation;
+  reason: string;
+  busy: boolean;
+  onReason: (value: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const labels: Record<JobOperation, string> = {
+    reconcile: "发起账务对账",
+    reconciliation_action:
+      operation.action === "retry_quota_provision"
+        ? "重试额度开通"
+        : "人工确认对账项",
+    retry_delivery: "重试通知投递",
+  };
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="job-operation-title"
+      >
+        <p className="eyebrow">SECOND CONFIRMATION</p>
+        <h2 id="job-operation-title">{labels[operation.kind]}</h2>
+        <p>
+          此操作会创建一次性确认与审计记录。目标
+          <strong>{short(operation.targetID)}</strong> 仅会由对应 Job 的 mTLS
+          领域接口处理。
+        </p>
+        <label>
+          处置说明
+          <textarea
+            value={reason}
+            onChange={(event) => onReason(event.target.value)}
+            minLength={4}
+            maxLength={300}
+            placeholder="说明授权依据与预期结果"
+          />
+        </label>
+        <div className="modal-actions">
+          <button className="quiet" onClick={onCancel}>
+            取消
+          </button>
+          <button disabled={busy || reason.trim().length < 4} onClick={onConfirm}>
+            确认执行
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 function OperationDialog({

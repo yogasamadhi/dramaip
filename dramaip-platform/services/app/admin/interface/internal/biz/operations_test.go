@@ -6,7 +6,9 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
+	billingjobv1 "github.com/dramaip/dramaip-platform/services/api/billing/job/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationjobv1 "github.com/dramaip/dramaip-platform/services/api/notification/job/v1"
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
@@ -54,9 +56,43 @@ func TestViewerCannotPrepareCustomerOperation(t *testing.T) {
 	}
 }
 
+func TestJobOperationsBindConfirmationToActorAndIdempotency(t *testing.T) {
+	admin := newTestUsecase(t, newFakeRepo(t))
+	login, err := admin.Login(context.Background(), "security@example.com", "correct-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	domain := &operationFake{}
+	operations := NewOperationsUsecase(admin, domain)
+	startConfirmation, err := admin.CreateConfirmation(context.Background(), login.Principal, "billing.reconciliation.start", "billing-reconciliation", "daily ledger review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := operations.StartReconciliation(context.Background(), login.Principal, startConfirmation.ID); err != nil {
+		t.Fatalf("StartReconciliation() error = %v", err)
+	}
+	if domain.startRequest == nil || domain.startRequest.GetActorId() != login.Principal.ID || domain.startRequest.GetIdempotencyKey() != startConfirmation.ID {
+		t.Fatalf("start request missing actor/idempotency binding: %#v", domain.startRequest)
+	}
+
+	const attemptID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+	retryConfirmation, err := admin.CreateConfirmation(context.Background(), login.Principal, "notification.delivery.retry", attemptID, "retry failed delivery")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := operations.RetryDelivery(context.Background(), login.Principal, attemptID, retryConfirmation.ID); err != nil {
+		t.Fatalf("RetryDelivery() error = %v", err)
+	}
+	if domain.retryRequest == nil || domain.retryRequest.GetActorId() != login.Principal.ID || domain.retryRequest.GetIdempotencyKey() != retryConfirmation.ID {
+		t.Fatalf("retry request missing actor/idempotency binding: %#v", domain.retryRequest)
+	}
+}
+
 type operationFake struct {
 	authRequest    *authv1.SetUserStatusRequest
 	profileRequest *userv1.SetProfileStatusRequest
+	startRequest   *billingjobv1.StartReconciliationRequest
+	retryRequest   *notificationjobv1.RetryDeliveryRequest
 }
 
 func (f *operationFake) SetUserStatus(_ context.Context, req *authv1.SetUserStatusRequest, _ ...grpc.CallOption) (*authv1.SetUserStatusReply, error) {
@@ -96,6 +132,26 @@ func (*operationFake) ListNotifications(context.Context, *notificationv1.ListNot
 }
 func (*operationFake) CreateNotification(context.Context, *notificationv1.CreateNotificationRequest, ...grpc.CallOption) (*notificationv1.CreateNotificationResponse, error) {
 	return &notificationv1.CreateNotificationResponse{}, nil
+}
+func (f *operationFake) StartReconciliation(_ context.Context, req *billingjobv1.StartReconciliationRequest, _ ...grpc.CallOption) (*billingjobv1.StartReconciliationResponse, error) {
+	f.startRequest = req
+	return &billingjobv1.StartReconciliationResponse{Run: &billingjobv1.ReconciliationRun{Id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Status: "completed"}}, nil
+}
+func (*operationFake) GetLatestReconciliationRun(context.Context, *billingjobv1.GetLatestReconciliationRunRequest, ...grpc.CallOption) (*billingjobv1.GetLatestReconciliationRunResponse, error) {
+	return &billingjobv1.GetLatestReconciliationRunResponse{}, nil
+}
+func (*operationFake) ListReconciliationItems(context.Context, *billingjobv1.ListReconciliationItemsRequest, ...grpc.CallOption) (*billingjobv1.ListReconciliationItemsResponse, error) {
+	return &billingjobv1.ListReconciliationItemsResponse{}, nil
+}
+func (*operationFake) ApplyReconciliationAction(context.Context, *billingjobv1.ApplyReconciliationActionRequest, ...grpc.CallOption) (*billingjobv1.ApplyReconciliationActionResponse, error) {
+	return &billingjobv1.ApplyReconciliationActionResponse{}, nil
+}
+func (*operationFake) ListDeliveryAttempts(context.Context, *notificationjobv1.ListDeliveryAttemptsRequest, ...grpc.CallOption) (*notificationjobv1.ListDeliveryAttemptsResponse, error) {
+	return &notificationjobv1.ListDeliveryAttemptsResponse{}, nil
+}
+func (f *operationFake) RetryDelivery(_ context.Context, req *notificationjobv1.RetryDeliveryRequest, _ ...grpc.CallOption) (*notificationjobv1.RetryDeliveryResponse, error) {
+	f.retryRequest = req
+	return &notificationjobv1.RetryDeliveryResponse{EventId: "event-1", NotificationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", Status: "replayed"}, nil
 }
 func (*operationFake) ListCostAlerts(context.Context, *aiv1.ListCostAlertsRequest, ...grpc.CallOption) (*aiv1.ListCostAlertsReply, error) {
 	return &aiv1.ListCostAlertsReply{}, nil

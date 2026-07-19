@@ -252,8 +252,10 @@ config:
   reportingHttpAddr: :8112
   reportingGrpcAddr: :9108
   notificationJobHttpAddr: :8109
+  notificationJobGrpcAddr: :9111
   reportingJobHttpAddr: :8113
   billingJobHttpAddr: :8106
+  billingJobGrpcAddr: :9110
   quotaJobHttpAddr: :8107
   autoMigrate: "false"
   migrationsDir: /app/migrations
@@ -319,6 +321,8 @@ config:
     quotaGrpcEndpoint: dramaip-platform-quota:9104
     aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
     notificationGrpcEndpoint: dramaip-platform-notification:9106
+    billingJobGrpcEndpoint: dramaip-platform-billing-job:9110
+    notificationJobGrpcEndpoint: dramaip-platform-notification-job:9111
     inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
     reportingGrpcEndpoint: dramaip-platform-reporting:9108
   ai:
@@ -377,7 +381,6 @@ secret:
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
   aiProviderApiKey: sk-replace-me
-  reconciliationOperatorToken: ""
   authEmailDeliveryToken: ""
 
 # Production must set this to a Secret containing private.pem and jwks.json.

@@ -261,11 +261,11 @@ func actionPermission(action string) string {
 		return "reporting.write"
 	case "customer.status.set":
 		return "customer.write"
-	case "billing.refund.request", "billing.subscription.resume":
+	case "billing.refund.request", "billing.subscription.resume", "billing.reconciliation.start", "billing.reconciliation.action":
 		return "billing.write"
 	case "quota.adjust":
 		return "quota.write"
-	case "notification.send":
+	case "notification.send", "notification.delivery.retry":
 		return "notification.write"
 	default:
 		return ""

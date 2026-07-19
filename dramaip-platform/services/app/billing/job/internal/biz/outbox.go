@@ -62,6 +62,10 @@ func (u *OutboxUsecase) Reconcile(ctx context.Context, trigger, requestedBy stri
 	return u.data.Reconcile(ctx, trigger, requestedBy, u.reconciliationBatch)
 }
 
+func (u *OutboxUsecase) ReconcileIdempotent(ctx context.Context, trigger, requestedBy, idempotencyKey string) (data.ReconciliationRun, error) {
+	return u.data.ReconcileIdempotent(ctx, trigger, requestedBy, idempotencyKey, u.reconciliationBatch)
+}
+
 func (u *OutboxUsecase) ReconciliationInterval() time.Duration { return u.reconciliationEvery }
 
 func (u *OutboxUsecase) ReconciliationEnabled() bool { return u.reconciliationEnabled }

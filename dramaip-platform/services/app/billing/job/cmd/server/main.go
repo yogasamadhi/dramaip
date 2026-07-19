@@ -5,6 +5,7 @@ import (
 
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/go-kratos/kratos/v3/transport"
+	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	khttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
@@ -21,6 +22,6 @@ func main() {
 	}
 }
 
-func newApp(httpServer *khttp.Server, job transport.Server) *kratos.App {
-	return kratosx.NewApp("billing-job", httpServer, job)
+func newApp(httpServer *khttp.Server, grpcServer *kgrpc.Server, job transport.Server) *kratos.App {
+	return kratosx.NewApp("billing-job", httpServer, grpcServer, job)
 }

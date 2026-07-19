@@ -23,6 +23,8 @@ func wireApp() (*kratos.App, func(), error) {
 		biz.NewNotificationEventUsecase,
 		service.NewConsumerService,
 		server.NewHTTPServer,
+		server.NewDeliveryOperationsService,
+		server.NewGRPCServer,
 		server.NewJobServer,
 		newApp,
 	))

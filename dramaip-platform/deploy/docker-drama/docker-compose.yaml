@@ -356,6 +356,7 @@ services:
       POSTGRES_USER: dramaip_notification
       POSTGRES_PASSWORD: ${POSTGRES_NOTIFICATION_PASSWORD:-dramaip}
       NOTIFICATION_JOB_HTTP_ADDR: ":8109"
+      NOTIFICATION_JOB_GRPC_ADDR: ":9111"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
       RABBITMQ_USER: ${RABBITMQ_USER:-dramaip}
@@ -435,6 +436,7 @@ services:
       POSTGRES_USER: dramaip_billing
       POSTGRES_PASSWORD: ${POSTGRES_BILLING_PASSWORD:-dramaip}
       BILLING_JOB_HTTP_ADDR: ":8106"
+      BILLING_JOB_GRPC_ADDR: ":9110"
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
       OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
       OUTBOX_LEASE: ${OUTBOX_LEASE:-30s}
@@ -442,7 +444,6 @@ services:
       BILLING_RECONCILIATION_ENABLED: ${BILLING_RECONCILIATION_ENABLED:-true}
       BILLING_RECONCILIATION_INTERVAL: ${BILLING_RECONCILIATION_INTERVAL:-1h}
       BILLING_RECONCILIATION_BATCH_SIZE: ${BILLING_RECONCILIATION_BATCH_SIZE:-100}
-      RECONCILIATION_OPERATOR_TOKEN: ${RECONCILIATION_OPERATOR_TOKEN:-}
       QUOTA_GRPC_ENDPOINT: quota:9104
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
@@ -614,6 +615,8 @@ services:
       QUOTA_GRPC_ENDPOINT: quota:9104
       AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
       NOTIFICATION_GRPC_ENDPOINT: notification:9106
+      BILLING_JOB_GRPC_ENDPOINT: billing-job:9110
+      NOTIFICATION_JOB_GRPC_ENDPOINT: notification-job:9111
       ADMIN_BFF_GRPC_DIAL_TIMEOUT: ${ADMIN_BFF_GRPC_DIAL_TIMEOUT:-15s}
       OTEL_SERVICE_NAME: dramaip-admin-bff
     depends_on:
@@ -636,6 +639,10 @@ services:
       ai-gateway:
         condition: service_started
       notification:
+        condition: service_started
+      billing-job:
+        condition: service_started
+      notification-job:
         condition: service_started
 
   # Application external entry — the ONLY API service clients may reach from outside.

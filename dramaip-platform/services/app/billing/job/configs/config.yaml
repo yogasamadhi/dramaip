@@ -1,6 +1,8 @@
 server:
   http:
     addr: 0.0.0.0:8106
+  grpc:
+    addr: 0.0.0.0:9110
 data:
   postgres:
     dsn: postgres://dramaip:dramaip@localhost:5432/dramaip?sslmode=disable&search_path=billing

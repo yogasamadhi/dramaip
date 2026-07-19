@@ -33,8 +33,10 @@ func wireApp() (*kratos.App, func(), error) {
 	}
 	outboxService := service.NewOutboxService(outboxUsecase, bootstrap)
 	httpServer := server.NewHTTPServer(bootstrap, outboxService)
+	reconciliationOperationsService := server.NewReconciliationOperationsService(outboxService)
+	grpcServer := server.NewGRPCServer(bootstrap, reconciliationOperationsService)
 	jobServer := server.NewJobServer(outboxService)
-	app := newApp(httpServer, jobServer)
+	app := newApp(httpServer, grpcServer, jobServer)
 	return app, func() {
 		cleanup()
 	}, nil

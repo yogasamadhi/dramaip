@@ -11,9 +11,9 @@
   (dict "key" "notification" "component" "notification" "http" 8108 "grpc" 9106)
   (dict "key" "inspiration" "component" "inspiration" "http" 8111 "grpc" 9107)
   (dict "key" "reporting" "component" "reporting" "http" 8112 "grpc" 9108)
-  (dict "key" "notificationJob" "component" "notification-job" "http" 8109 "grpc" 0)
+  (dict "key" "notificationJob" "component" "notification-job" "http" 8109 "grpc" 9111)
   (dict "key" "reportingJob" "component" "reporting-job" "http" 8113 "grpc" 0)
-  (dict "key" "billingJob" "component" "billing-job" "http" 8106 "grpc" 0)
+  (dict "key" "billingJob" "component" "billing-job" "http" 8106 "grpc" 9110)
   (dict "key" "quotaJob" "component" "quota-job" "http" 8107 "grpc" 0)
 -}}
 {{- $databaseRoles := dict
@@ -150,13 +150,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "dramaip-platform.secretName" $ }}
                   key: RABBITMQ_PASSWORD
-            {{- end }}
-            {{- if eq $key "billingJob" }}
-            - name: RECONCILIATION_OPERATOR_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "dramaip-platform.secretName" $ }}
-                  key: RECONCILIATION_OPERATOR_TOKEN
             {{- end }}
             {{- if eq $key "aiGateway" }}
             - name: AI_PROVIDER_API_KEY

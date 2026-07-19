@@ -8,7 +8,9 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
+	billingjobv1 "github.com/dramaip/dramaip-platform/services/api/billing/job/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationjobv1 "github.com/dramaip/dramaip-platform/services/api/notification/job/v1"
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
@@ -32,22 +34,30 @@ type DomainClient interface {
 	AdjustPeriodQuota(context.Context, *quotav1.AdjustPeriodQuotaRequest, ...grpc.CallOption) (*quotav1.QuotaAdjustment, error)
 	ListNotifications(context.Context, *notificationv1.ListNotificationsRequest, ...grpc.CallOption) (*notificationv1.ListNotificationsResponse, error)
 	CreateNotification(context.Context, *notificationv1.CreateNotificationRequest, ...grpc.CallOption) (*notificationv1.CreateNotificationResponse, error)
+	StartReconciliation(context.Context, *billingjobv1.StartReconciliationRequest, ...grpc.CallOption) (*billingjobv1.StartReconciliationResponse, error)
+	GetLatestReconciliationRun(context.Context, *billingjobv1.GetLatestReconciliationRunRequest, ...grpc.CallOption) (*billingjobv1.GetLatestReconciliationRunResponse, error)
+	ListReconciliationItems(context.Context, *billingjobv1.ListReconciliationItemsRequest, ...grpc.CallOption) (*billingjobv1.ListReconciliationItemsResponse, error)
+	ApplyReconciliationAction(context.Context, *billingjobv1.ApplyReconciliationActionRequest, ...grpc.CallOption) (*billingjobv1.ApplyReconciliationActionResponse, error)
+	ListDeliveryAttempts(context.Context, *notificationjobv1.ListDeliveryAttemptsRequest, ...grpc.CallOption) (*notificationjobv1.ListDeliveryAttemptsResponse, error)
+	RetryDelivery(context.Context, *notificationjobv1.RetryDeliveryRequest, ...grpc.CallOption) (*notificationjobv1.RetryDeliveryResponse, error)
 	ListCostAlerts(context.Context, *aiv1.ListCostAlertsRequest, ...grpc.CallOption) (*aiv1.ListCostAlertsReply, error)
 }
 
 // DomainClients keeps the interfaces small even though generated gRPC client
 // types are large. The production gateway composes their methods below.
 type DomainClients struct {
-	Auth         authv1.AuthServiceClient
-	User         userv1.UserServiceClient
-	Billing      billingv1.BillingServiceClient
-	Quota        quotav1.QuotaServiceClient
-	Notification notificationv1.NotificationServiceClient
-	AI           aiv1.AiGatewayServiceClient
+	Auth            authv1.AuthServiceClient
+	User            userv1.UserServiceClient
+	Billing         billingv1.BillingServiceClient
+	Quota           quotav1.QuotaServiceClient
+	Notification    notificationv1.NotificationServiceClient
+	BillingJob      billingjobv1.ReconciliationOperationsServiceClient
+	NotificationJob notificationjobv1.NotificationDeliveryOperationsServiceClient
+	AI              aiv1.AiGatewayServiceClient
 }
 
 func NewDomainClients(g *data.DomainGateway) *DomainClients {
-	return &DomainClients{Auth: g.Auth, User: g.User, Billing: g.Billing, Quota: g.Quota, Notification: g.Notification, AI: g.AI}
+	return &DomainClients{Auth: g.Auth, User: g.User, Billing: g.Billing, Quota: g.Quota, Notification: g.Notification, BillingJob: g.BillingJob, NotificationJob: g.NotificationJob, AI: g.AI}
 }
 func (c *DomainClients) SetUserStatus(ctx context.Context, r *authv1.SetUserStatusRequest, o ...grpc.CallOption) (*authv1.SetUserStatusReply, error) {
 	return c.Auth.SetUserStatus(ctx, r, o...)
@@ -85,6 +95,24 @@ func (c *DomainClients) ListNotifications(ctx context.Context, r *notificationv1
 func (c *DomainClients) CreateNotification(ctx context.Context, r *notificationv1.CreateNotificationRequest, o ...grpc.CallOption) (*notificationv1.CreateNotificationResponse, error) {
 	return c.Notification.CreateNotification(ctx, r, o...)
 }
+func (c *DomainClients) StartReconciliation(ctx context.Context, r *billingjobv1.StartReconciliationRequest, o ...grpc.CallOption) (*billingjobv1.StartReconciliationResponse, error) {
+	return c.BillingJob.StartReconciliation(ctx, r, o...)
+}
+func (c *DomainClients) GetLatestReconciliationRun(ctx context.Context, r *billingjobv1.GetLatestReconciliationRunRequest, o ...grpc.CallOption) (*billingjobv1.GetLatestReconciliationRunResponse, error) {
+	return c.BillingJob.GetLatestReconciliationRun(ctx, r, o...)
+}
+func (c *DomainClients) ListReconciliationItems(ctx context.Context, r *billingjobv1.ListReconciliationItemsRequest, o ...grpc.CallOption) (*billingjobv1.ListReconciliationItemsResponse, error) {
+	return c.BillingJob.ListReconciliationItems(ctx, r, o...)
+}
+func (c *DomainClients) ApplyReconciliationAction(ctx context.Context, r *billingjobv1.ApplyReconciliationActionRequest, o ...grpc.CallOption) (*billingjobv1.ApplyReconciliationActionResponse, error) {
+	return c.BillingJob.ApplyReconciliationAction(ctx, r, o...)
+}
+func (c *DomainClients) ListDeliveryAttempts(ctx context.Context, r *notificationjobv1.ListDeliveryAttemptsRequest, o ...grpc.CallOption) (*notificationjobv1.ListDeliveryAttemptsResponse, error) {
+	return c.NotificationJob.ListDeliveryAttempts(ctx, r, o...)
+}
+func (c *DomainClients) RetryDelivery(ctx context.Context, r *notificationjobv1.RetryDeliveryRequest, o ...grpc.CallOption) (*notificationjobv1.RetryDeliveryResponse, error) {
+	return c.NotificationJob.RetryDelivery(ctx, r, o...)
+}
 func (c *DomainClients) ListCostAlerts(ctx context.Context, r *aiv1.ListCostAlertsRequest, o ...grpc.CallOption) (*aiv1.ListCostAlertsReply, error) {
 	return c.AI.ListCostAlerts(ctx, r, o...)
 }
@@ -96,6 +124,11 @@ type CustomerDetail struct {
 	Balance       *quotav1.TokenBalance          `json:"balance"`
 	Usage         []*quotav1.TokenUsage          `json:"usage"`
 	Notifications []*notificationv1.Notification `json:"notifications"`
+}
+
+type ReconciliationDetail struct {
+	Latest *billingjobv1.ReconciliationRun
+	Items  []*billingjobv1.ReconciliationItem
 }
 type OperationsUsecase struct {
 	admin  *AdminUsecase
@@ -224,6 +257,82 @@ func (u *OperationsUsecase) SendNotification(ctx context.Context, actor Principa
 		return nil, err
 	}
 	return result.Notification, nil
+}
+
+func (u *OperationsUsecase) Reconciliation(ctx context.Context, actor Principal, state string, limit int) (*ReconciliationDetail, error) {
+	if !actor.Allows("billing.write") {
+		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
+	}
+	latest, err := u.domain.GetLatestReconciliationRun(ctx, &billingjobv1.GetLatestReconciliationRunRequest{})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	items, err := u.domain.ListReconciliationItems(ctx, &billingjobv1.ListReconciliationItemsRequest{Status: strings.TrimSpace(state), Limit: int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	return &ReconciliationDetail{Latest: latest.GetRun(), Items: items.GetItems()}, nil
+}
+
+func (u *OperationsUsecase) StartReconciliation(ctx context.Context, actor Principal, confirmationID string) (*billingjobv1.ReconciliationRun, error) {
+	const target = "billing-reconciliation"
+	confirmation, err := u.admin.PrepareOperation(ctx, actor, "billing.reconciliation.start", target, confirmationID)
+	if err != nil {
+		return nil, err
+	}
+	result, err := u.domain.StartReconciliation(platform.WithUserIdentity(ctx, actor.ID), &billingjobv1.StartReconciliationRequest{ActorId: actor.ID, IdempotencyKey: confirmation.ID})
+	if err != nil {
+		return nil, err
+	}
+	if result.GetRun() == nil {
+		return nil, status.Error(codes.Internal, "reconciliation_start_missing_result")
+	}
+	if err := u.complete(ctx, actor, "billing.reconciliation.start", target, confirmation.ID, "reconciliation_run", map[string]string{"run_id": result.Run.GetId(), "status": result.Run.GetStatus()}); err != nil {
+		return nil, err
+	}
+	return result.Run, nil
+}
+
+func (u *OperationsUsecase) ApplyReconciliationAction(ctx context.Context, actor Principal, itemID, action, confirmationID string) (*billingjobv1.ReconciliationAction, error) {
+	confirmation, err := u.admin.PrepareOperation(ctx, actor, "billing.reconciliation.action", itemID, confirmationID)
+	if err != nil {
+		return nil, err
+	}
+	result, err := u.domain.ApplyReconciliationAction(platform.WithUserIdentity(ctx, actor.ID), &billingjobv1.ApplyReconciliationActionRequest{
+		ItemId: itemID, Action: strings.TrimSpace(action), ActorId: actor.ID, Reason: confirmation.Reason, IdempotencyKey: confirmation.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result.GetAction() == nil {
+		return nil, status.Error(codes.Internal, "reconciliation_action_missing_result")
+	}
+	if err := u.complete(ctx, actor, "billing.reconciliation.action", itemID, confirmation.ID, "reconciliation_item", map[string]string{"action_id": result.Action.GetId(), "status": result.Action.GetStatus(), "action": result.Action.GetAction()}); err != nil {
+		return nil, err
+	}
+	return result.Action, nil
+}
+
+func (u *OperationsUsecase) DeliveryAttempts(ctx context.Context, actor Principal, state string, limit int) (*notificationjobv1.ListDeliveryAttemptsResponse, error) {
+	if !actor.Allows("notification.write") {
+		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
+	}
+	return u.domain.ListDeliveryAttempts(ctx, &notificationjobv1.ListDeliveryAttemptsRequest{Status: strings.TrimSpace(state), Limit: int32(limit)})
+}
+
+func (u *OperationsUsecase) RetryDelivery(ctx context.Context, actor Principal, attemptID, confirmationID string) (*notificationjobv1.RetryDeliveryResponse, error) {
+	confirmation, err := u.admin.PrepareOperation(ctx, actor, "notification.delivery.retry", attemptID, confirmationID)
+	if err != nil {
+		return nil, err
+	}
+	result, err := u.domain.RetryDelivery(platform.WithUserIdentity(ctx, actor.ID), &notificationjobv1.RetryDeliveryRequest{DeliveryAttemptId: attemptID, ActorId: actor.ID, IdempotencyKey: confirmation.ID})
+	if err != nil {
+		return nil, err
+	}
+	if err := u.complete(ctx, actor, "notification.delivery.retry", attemptID, confirmation.ID, "delivery_attempt", map[string]string{"event_id": result.GetEventId(), "notification_id": result.GetNotificationId(), "status": result.GetStatus()}); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 func (u *OperationsUsecase) complete(ctx context.Context, actor Principal, action, target, confirmationID, resource string, after any) error {
 	payload, err := json.Marshal(after)

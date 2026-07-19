@@ -5,9 +5,12 @@ package data
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 )
 
@@ -23,6 +26,29 @@ type NotificationRow struct {
 	SourceEventID string
 	ReadAt        string
 	CreatedAt     string
+}
+
+// DeliveryAttemptRow is intentionally a compact operational projection. The
+// raw inbox payload never crosses the Admin boundary; only notification-job
+// reads it when retrying through its normal consumer flow.
+type DeliveryAttemptRow struct {
+	ID             string
+	EventID        string
+	NotificationID string
+	UserID         string
+	Channel        string
+	Status         string
+	Failure        string
+	AttemptedAt    string
+}
+
+type DeliveryRetryOperation struct {
+	DeliveryAttemptID string
+	IdempotencyKey    string
+	Actor             string
+	Status            string
+	EventID           string
+	NotificationID    string
 }
 
 func NewData() (*Data, func(), error) {
@@ -151,6 +177,130 @@ func (r *NotificationRepo) RecordDeliveryAttempt(ctx context.Context, eventID st
 		INSERT INTO notification.delivery_attempts (id, event_id, notification_id, channel, status, failure)
 		VALUES (?::uuid, ?, ?::uuid, ?, ?, NULLIF(?, ''))
 	`, platform.NewUUID(), eventID, notificationID, channel, status, failure).Error
+}
+
+func (r *NotificationRepo) ListDeliveryAttempts(ctx context.Context, state string, limit int32) ([]DeliveryAttemptRow, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	state = strings.TrimSpace(state)
+	var rows []DeliveryAttemptRow
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT attempts.id::text AS id, attempts.event_id, attempts.notification_id::text AS notification_id,
+		       notifications.user_id::text AS user_id, attempts.channel, attempts.status,
+		       COALESCE(attempts.failure, '') AS failure, attempts.attempted_at::text AS attempted_at
+		FROM notification.delivery_attempts AS attempts
+		JOIN notification.notifications ON notifications.id = attempts.notification_id
+		WHERE (? = '' OR attempts.status = ?)
+		ORDER BY attempts.attempted_at DESC
+		LIMIT ?
+	`, state, state, limit).Scan(&rows).Error
+	return rows, err
+}
+
+// RetryDeliveryEnvelope only returns payload to notification-job. A failed
+// attempt is retryable only while the original inbox event remains unfinished;
+// this prevents a stale operator click from replaying a delivery that a worker
+// has already completed.
+func (r *NotificationRepo) RetryDeliveryEnvelope(ctx context.Context, attemptID string) (DeliveryAttemptRow, []byte, error) {
+	var attempt DeliveryAttemptRow
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT attempts.id::text AS id, attempts.event_id, attempts.notification_id::text AS notification_id,
+		       notifications.user_id::text AS user_id, attempts.channel, attempts.status,
+		       COALESCE(attempts.failure, '') AS failure, attempts.attempted_at::text AS attempted_at
+		FROM notification.delivery_attempts AS attempts
+		JOIN notification.notifications ON notifications.id = attempts.notification_id
+		WHERE attempts.id = ?::uuid
+		LIMIT 1
+	`, attemptID).Scan(&attempt).Error
+	if err != nil {
+		return DeliveryAttemptRow{}, nil, err
+	}
+	if attempt.ID == "" {
+		return DeliveryAttemptRow{}, nil, gorm.ErrRecordNotFound
+	}
+	if attempt.Status != "failed" {
+		return DeliveryAttemptRow{}, nil, status.Error(codes.FailedPrecondition, "delivery_attempt_is_not_failed")
+	}
+	var inbox struct {
+		RawPayload  string
+		ProcessedAt string
+	}
+	err = r.data.DB.WithContext(ctx).Raw(`
+		SELECT raw_payload::text AS raw_payload, COALESCE(processed_at::text, '') AS processed_at
+		FROM notification.event_inbox WHERE event_id = ? LIMIT 1
+	`, attempt.EventID).Scan(&inbox).Error
+	if err != nil {
+		return DeliveryAttemptRow{}, nil, err
+	}
+	if inbox.RawPayload == "" {
+		return DeliveryAttemptRow{}, nil, status.Error(codes.FailedPrecondition, "delivery_retry_payload_unavailable")
+	}
+	if inbox.ProcessedAt != "" {
+		return DeliveryAttemptRow{}, nil, status.Error(codes.FailedPrecondition, "delivery_already_completed")
+	}
+	return attempt, []byte(inbox.RawPayload), nil
+}
+
+// BeginDeliveryRetry records the confirmation-derived idempotency key before
+// notification-job re-enters the delivery flow. A completed operation returns
+// its prior result; a failed/running one requires a new confirmation instead
+// of silently producing another delivery attempt.
+func (r *NotificationRepo) BeginDeliveryRetry(ctx context.Context, attemptID, actor, idempotencyKey string) (DeliveryAttemptRow, []byte, bool, error) {
+	attemptID, actor, idempotencyKey = strings.TrimSpace(attemptID), strings.TrimSpace(actor), strings.TrimSpace(idempotencyKey)
+	if attemptID == "" || actor == "" || idempotencyKey == "" {
+		return DeliveryAttemptRow{}, nil, false, status.Error(codes.InvalidArgument, "delivery_retry_idempotency_required")
+	}
+	var existing DeliveryRetryOperation
+	err := r.data.DB.WithContext(ctx).Raw(`
+		SELECT delivery_attempt_id::text AS delivery_attempt_id, idempotency_key, actor, status,
+		       event_id, notification_id::text AS notification_id
+		FROM notification.delivery_retry_operations WHERE idempotency_key = ? LIMIT 1
+	`, idempotencyKey).Scan(&existing).Error
+	if err != nil {
+		return DeliveryAttemptRow{}, nil, false, err
+	}
+	if existing.IdempotencyKey != "" {
+		if existing.DeliveryAttemptID != attemptID || existing.Actor != actor {
+			return DeliveryAttemptRow{}, nil, false, status.Error(codes.AlreadyExists, "delivery_retry_idempotency_conflict")
+		}
+		if existing.Status == "completed" {
+			return DeliveryAttemptRow{ID: attemptID, EventID: existing.EventID, NotificationID: existing.NotificationID}, nil, true, nil
+		}
+		return DeliveryAttemptRow{}, nil, false, status.Error(codes.FailedPrecondition, "delivery_retry_requires_new_confirmation")
+	}
+	attempt, raw, err := r.RetryDeliveryEnvelope(ctx, attemptID)
+	if err != nil {
+		return DeliveryAttemptRow{}, nil, false, err
+	}
+	result := r.data.DB.WithContext(ctx).Exec(`
+		INSERT INTO notification.delivery_retry_operations (
+			id, delivery_attempt_id, idempotency_key, actor, status, event_id, notification_id
+		) VALUES (?::uuid, ?::uuid, ?, ?, 'running', ?, ?::uuid)
+		ON CONFLICT (idempotency_key) DO NOTHING
+	`, platform.NewUUID(), attemptID, idempotencyKey, actor, attempt.EventID, attempt.NotificationID)
+	if result.Error != nil {
+		return DeliveryAttemptRow{}, nil, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return r.BeginDeliveryRetry(ctx, attemptID, actor, idempotencyKey)
+	}
+	return attempt, raw, false, nil
+}
+
+func (r *NotificationRepo) FinishDeliveryRetry(ctx context.Context, idempotencyKey, state string, cause error) error {
+	failure := ""
+	if cause != nil {
+		failure = cause.Error()
+		if len(failure) > 500 {
+			failure = failure[:500]
+		}
+	}
+	return r.data.DB.WithContext(ctx).Exec(`
+		UPDATE notification.delivery_retry_operations
+		SET status = ?, failure = NULLIF(?, ''), completed_at = now()
+		WHERE idempotency_key = ? AND status = 'running'
+	`, state, failure, strings.TrimSpace(idempotencyKey)).Error
 }
 
 func (r *NotificationRepo) notificationByID(ctx context.Context, userID string, notificationID string) (NotificationRow, error) {

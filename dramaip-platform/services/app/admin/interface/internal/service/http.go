@@ -7,7 +7,9 @@ import (
 	"strings"
 	"sync/atomic"
 
+	billingjobv1 "github.com/dramaip/dramaip-platform/services/api/billing/job/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationjobv1 "github.com/dramaip/dramaip-platform/services/api/notification/job/v1"
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/biz"
@@ -51,8 +53,13 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/admin/customers/status", s.handleCustomerStatus)
 	mux.HandleFunc("/v1/admin/billing/refunds", s.handleRefund)
 	mux.HandleFunc("/v1/admin/billing/subscriptions/resume", s.handleResumeSubscription)
+	mux.HandleFunc("/v1/admin/billing/reconciliation", s.handleReconciliation)
+	mux.HandleFunc("/v1/admin/billing/reconciliation/runs", s.handleStartReconciliation)
+	mux.HandleFunc("/v1/admin/billing/reconciliation/items/actions", s.handleReconciliationAction)
 	mux.HandleFunc("/v1/admin/quota/adjustments", s.handleQuotaAdjustment)
 	mux.HandleFunc("/v1/admin/notifications/send", s.handleSendNotification)
+	mux.HandleFunc("/v1/admin/notifications/delivery-attempts", s.handleDeliveryAttempts)
+	mux.HandleFunc("/v1/admin/notifications/delivery-attempts/retry", s.handleRetryDelivery)
 	return platform.TraceMiddleware("admin-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
@@ -504,6 +511,119 @@ func (s *HTTPService) handleSendNotification(w http.ResponseWriter, r *http.Requ
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"notification": notificationJSON(notification)})
 }
+func (s *HTTPService) handleReconciliation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.operationActor(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	detail, err := s.operations.Reconciliation(r.Context(), actor, r.URL.Query().Get("status"), limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "reconciliation_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reconciliationJSON(detail))
+}
+func (s *HTTPService) handleStartReconciliation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.operationActor(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		ConfirmationID string `json:"confirmation_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	run, err := s.operations.StartReconciliation(r.Context(), actor, req.ConfirmationID)
+	if err != nil {
+		s.writeGRPCError(w, err, "reconciliation_start_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"run": reconciliationRunJSON(run)})
+}
+func (s *HTTPService) handleReconciliationAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.operationActor(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		ItemID         string `json:"item_id"`
+		Action         string `json:"action"`
+		ConfirmationID string `json:"confirmation_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	action, err := s.operations.ApplyReconciliationAction(r.Context(), actor, req.ItemID, req.Action, req.ConfirmationID)
+	if err != nil {
+		s.writeGRPCError(w, err, "reconciliation_action_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"action": reconciliationActionJSON(action)})
+}
+func (s *HTTPService) handleDeliveryAttempts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.operationActor(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	response, err := s.operations.DeliveryAttempts(r.Context(), actor, r.URL.Query().Get("status"), limit)
+	if err != nil {
+		s.writeGRPCError(w, err, "delivery_attempts_unavailable")
+		return
+	}
+	attempts := make([]map[string]string, 0, len(response.GetAttempts()))
+	for _, attempt := range response.GetAttempts() {
+		attempts = append(attempts, deliveryAttemptJSON(attempt))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"attempts": attempts})
+}
+func (s *HTTPService) handleRetryDelivery(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	actor, ok := s.operationActor(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		DeliveryAttemptID string `json:"delivery_attempt_id"`
+		ConfirmationID    string `json:"confirmation_id"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := s.operations.RetryDelivery(r.Context(), actor, req.DeliveryAttemptID, req.ConfirmationID)
+	if err != nil {
+		s.writeGRPCError(w, err, "delivery_retry_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"event_id": result.GetEventId(), "notification_id": result.GetNotificationId(), "status": result.GetStatus()})
+}
 func parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	limit := 50
 	if raw := r.URL.Query().Get("limit"); raw != "" {
@@ -549,6 +669,31 @@ func notificationJSON(value *notificationv1.Notification) map[string]string {
 		return nil
 	}
 	return map[string]string{"id": value.GetId(), "type": value.GetType(), "title": value.GetTitle(), "body": value.GetBody(), "source_event_id": value.GetSourceEventId(), "read_at": value.GetReadAt(), "created_at": value.GetCreatedAt()}
+}
+func reconciliationRunJSON(value *billingjobv1.ReconciliationRun) map[string]any {
+	if value == nil {
+		return nil
+	}
+	return map[string]any{"id": value.GetId(), "trigger": value.GetTrigger(), "requested_by": value.GetRequestedBy(), "status": value.GetStatus(), "scanned_items": value.GetScannedItems(), "detected_items": value.GetDetectedItems(), "started_at": value.GetStartedAt(), "completed_at": value.GetCompletedAt(), "failure": value.GetFailure()}
+}
+func reconciliationItemJSON(value *billingjobv1.ReconciliationItem) map[string]any {
+	return map[string]any{"id": value.GetId(), "order_id": value.GetOrderId(), "subscription_id": value.GetSubscriptionId(), "mismatch_type": value.GetMismatchType(), "severity": value.GetSeverity(), "recommendation": value.GetRecommendation(), "status": value.GetStatus(), "occurrences": value.GetOccurrences(), "first_detected_at": value.GetFirstDetectedAt(), "last_detected_at": value.GetLastDetectedAt(), "resolved_at": value.GetResolvedAt(), "resolved_by": value.GetResolvedBy(), "resolution_note": value.GetResolutionNote()}
+}
+func reconciliationActionJSON(value *billingjobv1.ReconciliationAction) map[string]string {
+	if value == nil {
+		return nil
+	}
+	return map[string]string{"id": value.GetId(), "item_id": value.GetItemId(), "action": value.GetAction(), "status": value.GetStatus(), "outcome_json": value.GetOutcomeJson(), "created_at": value.GetCreatedAt(), "completed_at": value.GetCompletedAt()}
+}
+func reconciliationJSON(value *biz.ReconciliationDetail) map[string]any {
+	items := make([]map[string]any, 0, len(value.Items))
+	for _, item := range value.Items {
+		items = append(items, reconciliationItemJSON(item))
+	}
+	return map[string]any{"latest_run": reconciliationRunJSON(value.Latest), "items": items}
+}
+func deliveryAttemptJSON(value *notificationjobv1.DeliveryAttempt) map[string]string {
+	return map[string]string{"id": value.GetId(), "event_id": value.GetEventId(), "notification_id": value.GetNotificationId(), "user_id": value.GetUserId(), "channel": value.GetChannel(), "status": value.GetStatus(), "failure": value.GetFailure(), "attempted_at": value.GetAttemptedAt()}
 }
 func customerJSON(value *biz.CustomerDetail) map[string]any {
 	orders := make([]map[string]string, 0, len(value.Orders))

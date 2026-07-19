@@ -12,7 +12,9 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
+	billingjobv1 "github.com/dramaip/dramaip-platform/services/api/billing/job/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
+	notificationjobv1 "github.com/dramaip/dramaip-platform/services/api/notification/job/v1"
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
@@ -140,6 +142,33 @@ func TestAdminHTTPCustomerStatusUsesOperationConfirmation(t *testing.T) {
 	router.ServeHTTP(changeRecorder, change)
 	if changeRecorder.Code != http.StatusOK || !bytes.Contains(changeRecorder.Body.Bytes(), []byte(`"status":"suspended"`)) {
 		t.Fatalf("status = %d: %s", changeRecorder.Code, changeRecorder.Body.String())
+	}
+}
+
+func TestAdminHTTPStartsJobOwnedReconciliationWithConfirmation(t *testing.T) {
+	router := newTestHTTPServiceWithOperations(t).Router()
+	login := httptest.NewRequest(http.MethodPost, "/v1/admin/auth/login", bytes.NewBufferString(`{"email":"security@example.com","password":"correct-password"}`))
+	loginRecorder := httptest.NewRecorder()
+	router.ServeHTTP(loginRecorder, login)
+	var session struct{ AccessToken string `json:"access_token"` }
+	_ = json.Unmarshal(loginRecorder.Body.Bytes(), &session)
+	confirmation := httptest.NewRequest(http.MethodPost, "/v1/admin/confirmations", bytes.NewBufferString(`{"action":"billing.reconciliation.start","target_id":"billing-reconciliation","reason":"daily ledger review"}`))
+	confirmation.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	confirmationRecorder := httptest.NewRecorder()
+	router.ServeHTTP(confirmationRecorder, confirmation)
+	if confirmationRecorder.Code != http.StatusCreated {
+		t.Fatalf("confirmation = %d: %s", confirmationRecorder.Code, confirmationRecorder.Body.String())
+	}
+	var reply struct {
+		Confirmation struct{ ID string `json:"id"` } `json:"confirmation"`
+	}
+	_ = json.Unmarshal(confirmationRecorder.Body.Bytes(), &reply)
+	start := httptest.NewRequest(http.MethodPost, "/v1/admin/billing/reconciliation/runs", bytes.NewBufferString(`{"confirmation_id":"`+reply.Confirmation.ID+`"}`))
+	start.Header.Set("Authorization", "Bearer "+session.AccessToken)
+	startRecorder := httptest.NewRecorder()
+	router.ServeHTTP(startRecorder, start)
+	if startRecorder.Code != http.StatusAccepted || !bytes.Contains(startRecorder.Body.Bytes(), []byte(`"status":"completed"`)) {
+		t.Fatalf("start = %d: %s", startRecorder.Code, startRecorder.Body.String())
 	}
 }
 
@@ -276,6 +305,24 @@ func (*httpOperationDomain) ListNotifications(context.Context, *notificationv1.L
 }
 func (*httpOperationDomain) CreateNotification(context.Context, *notificationv1.CreateNotificationRequest, ...grpc.CallOption) (*notificationv1.CreateNotificationResponse, error) {
 	return &notificationv1.CreateNotificationResponse{}, nil
+}
+func (*httpOperationDomain) StartReconciliation(context.Context, *billingjobv1.StartReconciliationRequest, ...grpc.CallOption) (*billingjobv1.StartReconciliationResponse, error) {
+	return &billingjobv1.StartReconciliationResponse{Run: &billingjobv1.ReconciliationRun{Id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Status: "completed"}}, nil
+}
+func (*httpOperationDomain) GetLatestReconciliationRun(context.Context, *billingjobv1.GetLatestReconciliationRunRequest, ...grpc.CallOption) (*billingjobv1.GetLatestReconciliationRunResponse, error) {
+	return &billingjobv1.GetLatestReconciliationRunResponse{}, nil
+}
+func (*httpOperationDomain) ListReconciliationItems(context.Context, *billingjobv1.ListReconciliationItemsRequest, ...grpc.CallOption) (*billingjobv1.ListReconciliationItemsResponse, error) {
+	return &billingjobv1.ListReconciliationItemsResponse{}, nil
+}
+func (*httpOperationDomain) ApplyReconciliationAction(context.Context, *billingjobv1.ApplyReconciliationActionRequest, ...grpc.CallOption) (*billingjobv1.ApplyReconciliationActionResponse, error) {
+	return &billingjobv1.ApplyReconciliationActionResponse{}, nil
+}
+func (*httpOperationDomain) ListDeliveryAttempts(context.Context, *notificationjobv1.ListDeliveryAttemptsRequest, ...grpc.CallOption) (*notificationjobv1.ListDeliveryAttemptsResponse, error) {
+	return &notificationjobv1.ListDeliveryAttemptsResponse{}, nil
+}
+func (*httpOperationDomain) RetryDelivery(context.Context, *notificationjobv1.RetryDeliveryRequest, ...grpc.CallOption) (*notificationjobv1.RetryDeliveryResponse, error) {
+	return &notificationjobv1.RetryDeliveryResponse{}, nil
 }
 func (*httpOperationDomain) ListCostAlerts(context.Context, *aiv1.ListCostAlertsRequest, ...grpc.CallOption) (*aiv1.ListCostAlertsReply, error) {
 	return &aiv1.ListCostAlertsReply{}, nil

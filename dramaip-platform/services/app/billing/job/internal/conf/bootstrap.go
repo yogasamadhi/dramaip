@@ -15,6 +15,7 @@ type Bootstrap struct {
 
 type ServerConfig struct {
 	HTTP EndpointConfig `yaml:"http"`
+	GRPC EndpointConfig `yaml:"grpc"`
 }
 
 type EndpointConfig struct {
@@ -39,7 +40,7 @@ type QuotaConfig struct {
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Environment: "dev",
-		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}},
+		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8106"}, GRPC: EndpointConfig{Addr: ":9110"}},
 		Job:         JobConfig{OutboxRelayInterval: "1s", OutboxBatchSize: 100, OutboxLease: "30s", OutboxRetryDelay: "5s", OperationTimeout: "30s", ReconciliationEnabled: true, ReconciliationInterval: "1h", ReconciliationBatchSize: 100},
 		Quota:       QuotaConfig{GRPCEndpoint: "localhost:9104"},
 	}
@@ -47,6 +48,7 @@ func Load() (*Bootstrap, error) {
 		return nil, err
 	}
 	cfg.Server.HTTP.Addr = kratosx.Env("BILLING_JOB_HTTP_ADDR", cfg.Server.HTTP.Addr)
+	cfg.Server.GRPC.Addr = kratosx.Env("BILLING_JOB_GRPC_ADDR", cfg.Server.GRPC.Addr)
 	cfg.Job.OutboxRelayInterval = kratosx.Env("OUTBOX_POLL_INTERVAL", kratosx.Env("OUTBOX_POLL_INTERVAL_MS", cfg.Job.OutboxRelayInterval))
 	cfg.Job.OutboxBatchSize = kratosx.EnvInt("OUTBOX_BATCH_SIZE", cfg.Job.OutboxBatchSize)
 	cfg.Job.OutboxLease = kratosx.Env("OUTBOX_LEASE", cfg.Job.OutboxLease)
