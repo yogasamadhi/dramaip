@@ -23,6 +23,9 @@ const VideoProviderSettingsPage = lazy(() =>
   import('@/pages/VideoProviderSettingsPage').then((m) => ({ default: m.VideoProviderSettingsPage })),
 )
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const AppearanceSettingsPage = lazy(() =>
+  import('@/pages/AppearanceSettingsPage').then((m) => ({ default: m.AppearanceSettingsPage })),
+)
 const ModelSettingsPage = lazy(() => import('@/pages/ModelSettingsPage').then((m) => ({ default: m.ModelSettingsPage })))
 const DataSettingsPage = lazy(() => import('@/pages/DataSettingsPage').then((m) => ({ default: m.DataSettingsPage })))
 const TaskMonitorPage = lazy(() => import('@/pages/TaskMonitorPage').then((m) => ({ default: m.TaskMonitorPage })))
@@ -55,6 +58,7 @@ export default function App() {
           <Route path="/adaptations/:id/shots" element={<ShotWorkspacePage />} />
           <Route path="/adaptations/:id/video" element={<VideoGenerationPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/appearance" element={<AppearanceSettingsPage />} />
           <Route path="/settings/model" element={<Navigate to="/settings/models" replace />} />
           <Route path="/settings/models" element={<ModelSettingsPage />} />
           <Route path="/settings/data" element={<DataSettingsPage />} />

@@ -272,7 +272,7 @@ export function VideoGenerationPage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/adaptations/${adaptation.id}/shots`)}>
+        <Button variant="ghost" size="icon" aria-label="返回分镜工作台" onClick={() => navigate(`/adaptations/${adaptation.id}/shots`)}>
           <ArrowLeft />
         </Button>
         <h1 className="text-base font-semibold">{adaptation.title} · 视频生成</h1>
@@ -281,7 +281,7 @@ export function VideoGenerationPage() {
             value={episodeId}
             onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p }, { replace: true })}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger aria-label="选择集数" className="w-40">
               <SelectValue placeholder="选择集数" />
             </SelectTrigger>
             <SelectContent>

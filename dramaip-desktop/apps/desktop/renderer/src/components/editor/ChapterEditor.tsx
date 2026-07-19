@@ -67,6 +67,7 @@ export function ChapterEditor({ chapter, onContentChange }: ChapterEditorProps) 
     editorProps: {
       attributes: {
         class: 'tiptap-content mx-auto max-w-3xl px-8 py-6 focus:outline-none',
+        'aria-label': '章节正文编辑器',
       },
     },
     onUpdate: ({ editor }) => {
