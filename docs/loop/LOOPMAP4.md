@@ -355,7 +355,7 @@ make platform-e2e
 | LM4-21 | P1 | QA/Release | done | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
 | LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
 | LM4-22 | P2 | Desktop/改编产品 | done | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
-| LM4-23 | P2 | Desktop/剧本编辑 | doing | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
+| LM4-23 | P2 | Desktop/剧本编辑 | done | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | todo | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
 | LM4-25 | P2 | Desktop/视频产品 | todo | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
 | LM4-26 | P2 | Video Provider | todo | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
@@ -1337,4 +1337,20 @@ Push: b694135 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-22-production-shell-planning deleted after the main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
 Notes: This loop establishes the shared production navigation/context layer only. Structured script internals, Storyboard editing and video production behavior remain isolated to LM4-23, LM4-24 and LM4-25 respectively.
+```
+
+```text
+Loop: LM4-23
+Target branch: main
+Loop branch: loop/lm4-23-structured-script-editor
+Commit(s): 0a703ff feat: add structured script editor
+Merge commit: cdb2461 merge: LM4-23 structured script editor
+Verification: Before merge, Desktop `pnpm format:check`; `pnpm typecheck`; `pnpm test` (149 unit tests plus DB migration/repository smoke); targeted structured parser/export tests; `pnpm test:ui` (25 screenshots, 0 accessibility observations); `pnpm test:e2e`; and current-source `pnpm package:smoke:dir` all passed. After merge, `pnpm test:e2e:skip-build`, `pnpm test:unit` (149/149), and `git diff --check` all passed. The packaged app smoke initialized its database successfully; macOS signing/notarization remains intentionally skipped because no Apple identity/notarization environment is configured.
+UI/manual evidence: Retained UI output at `dramaip-desktop/artifacts/lm4-23/` covers the structured script workspace at 1024px light, 1320px dark, and 1600px light. Manual review found no critical overflow; after review, the mode, import and block-insert controls were changed from low-contrast ghost controls to outlined controls so the dark workflow has explicit readable entry points. The final 25-image matrix has zero fixed-fixture accessibility observations. Electron E2E creates a scene block, uses Cmd/Ctrl+Enter to add an action block, and verifies the saved content remains compatible Markdown; the established immediate-route-leave draft test still passes.
+Diff review: `script.content` remains the only persisted source of truth and existing Markdown/AI outputs open without a database migration. The new core model derives scene heading, action, character, dialogue and transition blocks, serializes them back to canonical Markdown, offers a plain Markdown fallback and accepts pasted Markdown, structured JSON or existing script-export JSON into a local draft before save. Script JSON now includes a derived `structuredDocument` while retaining the unchanged `script.content` contract. Checkpoints flush the current draft before snapshotting; scene replacement flushes and explicitly confirms before invoking the existing snapshot-before-write path. AI preview continues to use LM4-14's atomic adoption flow and now displays structured block locations. No user content, credentials, local DB, retained screenshot, package artifact or ignored output was committed; tracked secret-name scan was clean.
+Remote sync: Fetched and fast-forward checked origin/main at 9bc22f0 before branch creation and again before merge; main had no intervening remote commits.
+Push: cdb2461 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-23-structured-script-editor deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build, package and retained UI artifacts excluded).
+Notes: This is a compatibility-first structure layer, not a new database format. It preserves the old plain-text exit hatch and avoids changing Storyboard, provider or collaboration semantics, which remain LM4-24–27 work.
 ```
