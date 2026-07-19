@@ -57,6 +57,7 @@ export interface VideoDeliveryTruth {
   complete: boolean
   successfulTaskCount: number
   usableResultCount: number
+  bestResultCount: number
   pendingTaskCount: number
   failedTaskCount: number
   detail: string
@@ -207,22 +208,36 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
 
 export function buildVideoDeliveryTruth(videoTasks: VideoGenerationTask[], videoResults: VideoResult[]): VideoDeliveryTruth {
   const successfulTaskIds = new Set(videoTasks.filter((task) => task.status === 'success').map((task) => task.id))
-  const usableResultCount = videoResults.filter((result) => {
+  const usableResults = videoResults.filter((result) => {
     if (!successfulTaskIds.has(result.taskId)) return false
     return Boolean(result.localVideoPath?.trim() || result.resultVideoUrl.trim() || result.remoteVideoUrl?.trim())
-  }).length
+  })
+  const usableResultCount = usableResults.length
+  const bestResultCount = usableResults.filter((result) => result.isBest).length
   const successfulTaskCount = successfulTaskIds.size
   const pendingTaskCount = videoTasks.filter((task) => task.status === 'pending' || task.status === 'running').length
   const failedTaskCount = videoTasks.filter((task) => task.status === 'failed' || task.status === 'canceled').length
-  if (usableResultCount > 0) {
+  if (bestResultCount > 0) {
     const suffix = pendingTaskCount || failedTaskCount ? `；另有进行中 ${pendingTaskCount} 个、失败/取消 ${failedTaskCount} 个` : ''
     return {
       complete: true,
       successfulTaskCount,
       usableResultCount,
+      bestResultCount,
       pendingTaskCount,
       failedTaskCount,
-      detail: `成功任务 ${successfulTaskCount} 个，可用视频结果 ${usableResultCount} 个${suffix}`,
+      detail: `成功任务 ${successfulTaskCount} 个，已选最佳视频 ${bestResultCount} 个${suffix}`,
+    }
+  }
+  if (usableResultCount > 0) {
+    return {
+      complete: false,
+      successfulTaskCount,
+      usableResultCount,
+      bestResultCount,
+      pendingTaskCount,
+      failedTaskCount,
+      detail: `成功任务 ${successfulTaskCount} 个，可用视频结果 ${usableResultCount} 个，待选择最佳交付版本`,
     }
   }
   if (successfulTaskCount > 0) {
@@ -230,6 +245,7 @@ export function buildVideoDeliveryTruth(videoTasks: VideoGenerationTask[], video
       complete: false,
       successfulTaskCount,
       usableResultCount,
+      bestResultCount,
       pendingTaskCount,
       failedTaskCount,
       detail: `成功任务 ${successfulTaskCount} 个，但没有可用视频结果`,
@@ -240,6 +256,7 @@ export function buildVideoDeliveryTruth(videoTasks: VideoGenerationTask[], video
       complete: false,
       successfulTaskCount,
       usableResultCount,
+      bestResultCount,
       pendingTaskCount,
       failedTaskCount,
       detail: `视频任务 ${videoTasks.length} 个，进行中 ${pendingTaskCount} 个，失败/取消 ${failedTaskCount} 个`,
@@ -249,6 +266,7 @@ export function buildVideoDeliveryTruth(videoTasks: VideoGenerationTask[], video
     complete: false,
     successfulTaskCount,
     usableResultCount,
+    bestResultCount,
     pendingTaskCount,
     failedTaskCount,
     detail: '创建视频生成任务并产出可用结果',

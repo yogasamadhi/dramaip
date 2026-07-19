@@ -278,6 +278,7 @@ test('keeps high-risk channels in the shared contract', () => {
     'template:run',
     'writingRoom:run',
     'videoTask:create',
+    'videoTask:cancel',
     'videoTask:update',
     'videoProvider:create',
     'workflow:run',
@@ -329,6 +330,8 @@ test('validates creative IPC contracts', () => {
   assert.deepEqual(validateIpcArgs('longTask:list', ['p1']), ['p1'])
   assert.deepEqual(validateIpcArgs('longTask:cancel', ['task1']), ['task1'])
   assert.deepEqual(validateIpcArgs('longTask:retry', ['task1']), ['task1'])
+  assert.deepEqual(validateIpcArgs('videoTask:cancel', ['video-task-1']), ['video-task-1'])
+  assert.throws(() => validateIpcArgs('videoTask:cancel', []), /参数数量错误/)
   assert.deepEqual(validateIpcArgs('batchTask:run', [{ kind: 'scripts', adaptationProjectId: 'a1', episodeIds: ['e1'] }]), [
     { kind: 'scripts', adaptationProjectId: 'a1', episodeIds: ['e1'] },
   ])

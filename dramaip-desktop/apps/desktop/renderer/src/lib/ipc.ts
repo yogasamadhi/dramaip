@@ -703,6 +703,7 @@ export interface StudioApi {
     create(input: CreateVideoTaskInput): Promise<VideoTaskOpResult>
     checkStatus(taskId: string): Promise<VideoTaskOpResult>
     retry(taskId: string, providerConfigId?: string): Promise<VideoTaskOpResult>
+    cancel(taskId: string): Promise<{ ok: boolean; error?: string; task?: VideoGenerationTask; remoteCanceled?: boolean }>
     update(id: string, patch: unknown): Promise<VideoGenerationTask | undefined>
     remove(id: string): Promise<boolean>
   }

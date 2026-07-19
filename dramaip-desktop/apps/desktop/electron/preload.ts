@@ -344,6 +344,7 @@ const api = {
     create: (input: unknown) => invoke('videoTask:create', input),
     checkStatus: (taskId: string) => invoke('videoTask:checkStatus', taskId),
     retry: (taskId: string, providerConfigId?: string) => invoke('videoTask:retry', taskId, providerConfigId),
+    cancel: (taskId: string) => invoke('videoTask:cancel', taskId),
     update: (id: string, patch: unknown) => invoke('videoTask:update', id, patch),
     remove: (id: string) => invoke('videoTask:delete', id),
   },

@@ -60,6 +60,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
   const structuredScriptStep = await verifyStructuredScriptRenderer(win, p0.fixture)
   const storyboardStep = await verifyStoryboardRenderer(win, p0.fixture)
+  const videoProductionStep = await verifyVideoProductionConsoleRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -67,7 +68,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -1159,6 +1160,97 @@ async function verifyStoryboardRenderer(win: BrowserWindow, fixture: P0Fixture):
   }
 }
 
+async function verifyVideoProductionConsoleRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const shots = repos.shot.listShotsByScene(repos.db, fixture.scene.id)
+    if (shots.length < 3) throw new Error('视频生产台 fixture 缺少可批量排队的镜头')
+    const mockProvider = repos.videoProviderConfig.createVideoProviderConfig(repos.db, {
+      name: 'E2E Mock Video Queue',
+      kind: 'mock',
+      model: 'mock-v1',
+      defaultParams: '{"seconds":4,"estimatedCost":0,"currency":"CNY"}',
+      isDefault: true,
+    })
+    const autoPolledShot = shots[0]
+    if (!autoPolledShot) throw new Error('视频生产台 fixture 缺少自动轮询镜头')
+    const autoPolledTask = repos.videoTask.createVideoTask(repos.db, {
+      projectId: fixture.project.id,
+      episodeId: fixture.episode.id,
+      sceneId: fixture.scene.id,
+      shotId: autoPolledShot.id,
+      provider: mockProvider.name,
+      model: mockProvider.model ?? 'mock-v1',
+      prompt: autoPolledShot.videoPrompt || autoPolledShot.visualDescription,
+      referenceImageUrls: [],
+      status: 'running',
+      remoteTaskId: 'e2e-auto-poll',
+    })
+    const stalledProvider = repos.videoProviderConfig.createVideoProviderConfig(repos.db, {
+      name: 'E2E Local Tracking Only',
+      kind: 'custom',
+      model: 'custom-v1',
+      isDefault: false,
+    })
+    const stalledShot = repos.shot.createShot(repos.db, {
+      sceneId: fixture.scene.id,
+      episodeId: fixture.episode.id,
+      shotNumber: Math.max(...shots.map((shot) => shot.shotNumber)) + 1,
+      visualDescription: 'E2E 停止本地跟踪镜头',
+      videoPrompt: 'e2e local tracking only prompt',
+    })
+    const stalledTask = repos.videoTask.createVideoTask(repos.db, {
+      projectId: fixture.project.id,
+      episodeId: fixture.episode.id,
+      sceneId: fixture.scene.id,
+      shotId: stalledShot.id,
+      provider: stalledProvider.name,
+      model: stalledProvider.model ?? 'custom-v1',
+      prompt: stalledShot.videoPrompt || stalledShot.visualDescription,
+      referenceImageUrls: [],
+      status: 'running',
+      remoteTaskId: 'e2e-local-tracking-only',
+    })
+    const stalledLongTask = repos.longTask.createLongTask(repos.db, {
+      kind: 'video',
+      status: 'running',
+      title: 'E2E 视频本地跟踪停止',
+      projectId: fixture.project.id,
+      adaptationProjectId: fixture.adaptation.id,
+      episodeId: fixture.episode.id,
+      sceneId: fixture.scene.id,
+      shotId: stalledShot.id,
+      relatedEntityId: stalledTask.id,
+    })
+    const result = await win.webContents.executeJavaScript(
+      `(${rendererVideoProductionConsoleMain.toString()})(${JSON.stringify({
+        adaptationId: fixture.adaptation.id,
+        episodeId: fixture.episode.id,
+        sceneId: fixture.scene.id,
+        activeShotId: shots[0]?.id,
+        autoPolledTaskId: autoPolledTask.id,
+        stalledShotId: stalledShot.id,
+        stalledTaskId: stalledTask.id,
+        stalledLongTaskId: stalledLongTask.id,
+        expectedProviderId: mockProvider.id,
+      })})`,
+      true,
+    ) as { batchTaskCount: number; resultCount: number; canceledLongTaskStatus?: string }
+    if (result.batchTaskCount < 2 || result.resultCount < 2 || result.canceledLongTaskStatus !== 'canceled') {
+      throw new Error(`视频生产台批量/对比/取消状态不完整：${JSON.stringify(result)}`)
+    }
+    return { name: 'video-production-batch-preflight-compare-and-local-cancel', ok: true, durationMs: Date.now() - startedAt, detail: result }
+  } catch (error) {
+    return {
+      name: 'video-production-batch-preflight-compare-and-local-cancel',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 async function rendererStoryboardMain(input: { adaptationId: string; episodeId: string; sceneId: string; orderedIds: string[] }): Promise<{ order: string[] }> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
   const waitFor = async (label: string, probe: () => boolean | Promise<boolean>, timeoutMs = 8000): Promise<void> => {
@@ -1178,6 +1270,88 @@ async function rendererStoryboardMain(input: { adaptationId: string; episodeId: 
   firstCard.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight', altKey: true }))
   await waitFor('镜头键盘重排持久化', async () => (await api.shot.listByScene(input.sceneId)).map((shot) => shot.id).join(',') === [input.orderedIds[1], input.orderedIds[0], input.orderedIds[2]].join(','))
   return { order: (await api.shot.listByScene(input.sceneId)).map((shot) => shot.id) }
+}
+
+async function rendererVideoProductionConsoleMain(input: {
+  adaptationId: string
+  episodeId: string
+  sceneId: string
+  activeShotId: string
+  autoPolledTaskId: string
+  stalledShotId: string
+  stalledTaskId: string
+  stalledLongTaskId: string
+  expectedProviderId: string
+}): Promise<{ batchTaskCount: number; resultCount: number; canceledLongTaskStatus?: string }> {
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+  const waitFor = async (label: string, probe: () => boolean | Promise<boolean>, timeoutMs = 10000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await probe()) return
+      await sleep(50)
+    }
+    throw new Error(`视频生产台 smoke 等待超时：${label}`)
+  }
+  const button = (label: string) => Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+    .find((element) => (element.textContent ?? '').includes(label))
+  const api = (window as unknown as {
+    api: {
+      videoProvider: { list: () => Promise<Array<{ id: string }>> }
+      videoTask: {
+        listByEpisode: (episodeId: string) => Promise<Array<{ shotId?: string; status: string; note?: string }>>
+        get: (id: string) => Promise<{ status: string } | undefined>
+      }
+      videoResult: { listByShot: (shotId: string) => Promise<Array<{ id: string; isBest: boolean }>> }
+      longTask: { get: (id: string) => Promise<{ status: string } | undefined> }
+    }
+  }).api
+
+  window.location.hash = `#/adaptations/${input.adaptationId}/video?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.activeShotId}`
+  await waitFor('视频台预估与默认 Provider', async () => {
+    const preflight = document.querySelector('[data-video-preflight]')
+    const providerConfigured = (await api.videoProvider.list()).some((provider) => provider.id === input.expectedProviderId)
+    return Boolean(preflight) && providerConfigured && (document.body.textContent ?? '').includes('预计费用')
+  })
+  await waitFor('自动轮询完成', async () => (await api.videoTask.get(input.autoPolledTaskId))?.status === 'success')
+  const batch = button('批量排队本场景')
+  if (!batch || batch.disabled) throw new Error('未找到可用的场景批量排队入口')
+  batch.click()
+  await waitFor('场景批量任务完成', async () => (await api.videoTask.listByEpisode(input.episodeId))
+    .filter((task) => task.status === 'success' && task.note?.includes('场景批量排队')).length >= 2)
+  await waitFor('场景批量界面空闲', () => {
+    const currentSubmit = button('提交视频生成任务')
+    return Boolean(currentSubmit && !currentSubmit.disabled)
+  })
+
+  const submit = button('提交视频生成任务')
+  if (!submit || submit.disabled) throw new Error('未找到可用的单镜头提交入口')
+  submit.click()
+  await waitFor('单镜头第二个结果', async () => (await api.videoResult.listByShot(input.activeShotId)).length >= 2)
+
+  const compareButtons = () => Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+    .filter((element) => (element.textContent ?? '').includes('加入对比'))
+  await waitFor('结果对比入口', () => compareButtons().length >= 2)
+  compareButtons().slice(0, 2).forEach((element) => element.click())
+  await waitFor('同步结果对比面板', () => document.querySelectorAll('[data-video-comparison] video').length === 2)
+
+  const best = button('选为最佳')
+  if (!best) throw new Error('未找到最佳结果选择入口')
+  best.click()
+  await waitFor('最佳结果持久化', async () => (await api.videoResult.listByShot(input.activeShotId)).some((result) => result.isBest))
+
+  window.location.hash = `#/adaptations/${input.adaptationId}/video?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.stalledShotId}`
+  await waitFor('待取消视频任务', () => Boolean(document.querySelector(`[data-video-task="${input.stalledTaskId}"]`)))
+  const stalledTaskCard = document.querySelector(`[data-video-task="${input.stalledTaskId}"]`)
+  const cancel = Array.from(stalledTaskCard?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+    .find((element) => (element.textContent ?? '').includes('停止跟踪'))
+  if (!cancel) throw new Error('未找到停止本地跟踪入口')
+  cancel.click()
+  await waitFor('本地跟踪停止持久化', async () => (await api.videoTask.get(input.stalledTaskId))?.status === 'canceled')
+  const canceledLongTask = await api.longTask.get(input.stalledLongTaskId)
+  const batchTaskCount = (await api.videoTask.listByEpisode(input.episodeId))
+    .filter((task) => task.status === 'success' && task.note?.includes('场景批量排队')).length
+  const resultCount = (await api.videoResult.listByShot(input.activeShotId)).length
+  return { batchTaskCount, resultCount, canceledLongTaskStatus: canceledLongTask?.status }
 }
 
 async function verifyProductionShellRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {

@@ -48,6 +48,7 @@ export {
   DRAMA_EPISODE_DELIVERY_PACKAGE_FORMAT,
   DRAMA_PROPOSAL_PACKAGE_FORMAT,
   DRAMA_SHOT_DELIVERY_PACKAGE_FORMAT,
+  type DramaBestVideoDelivery,
   type DramaDeliveryEpisodeItem,
   type DramaDeliveryExportData,
   type DramaDeliveryExportOptions,

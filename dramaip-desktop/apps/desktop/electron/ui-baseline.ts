@@ -26,6 +26,7 @@ interface UiBaselineSpec {
   openAiCommandPalette?: boolean
   openAiContextPreview?: boolean
   openTextDiffPreview?: boolean
+  openVideoComparison?: boolean
 }
 
 interface UiFixture {
@@ -353,6 +354,18 @@ export async function runDesktopUiBaseline(
       reducedMotion: false,
     },
     {
+      name: 'video-production-console-1024-light',
+      hash: `#/adaptations/${fixture.adaptationId}/video?episode=${fixture.episodeId}&scene=${fixture.sceneId}&shot=${fixture.shotId}`,
+      expectedText: '提交前预估',
+      readyText: '批量排队本场景',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+      openVideoComparison: true,
+    },
+    {
       name: 'video-failed-task-1320-reduced',
       hash: `#/adaptations/${fixture.adaptationId}/video?episode=${fixture.episodeId}&scene=${fixture.sceneId}&shot=${fixture.shotId}`,
       expectedText: '基线视频任务失败',
@@ -403,6 +416,7 @@ export async function runDesktopUiBaseline(
         openAiCommandPalette: spec.openAiCommandPalette,
         openAiContextPreview: spec.openAiContextPreview,
         openTextDiffPreview: spec.openTextDiffPreview,
+        openVideoComparison: spec.openVideoComparison,
       })})`,
       true,
     ) as string[]
@@ -474,6 +488,13 @@ function seedUiFixture(): UiFixture {
     videoPrompt: '竖屏特写，都市片场，女主按下投屏键，冷色电影光。',
     negativePrompt: '模糊、文字水印、畸形手指',
   })
+  repos.videoProviderConfig.createVideoProviderConfig(repos.db, {
+    name: 'UI 基线 Mock Video',
+    kind: 'mock',
+    model: 'mock-v1',
+    defaultParams: '{"seconds":4,"estimatedCost":0,"currency":"CNY"}',
+    isDefault: true,
+  })
   repos.videoTask.createVideoTask(repos.db, {
     projectId: project.id,
     episodeId: p0.episode.id,
@@ -503,6 +524,13 @@ function seedUiFixture(): UiFixture {
     resultVideoUrl: 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAAAAGlzb20=',
     isBest: true,
     note: '本地基线结果（非真实视频）',
+  })
+  repos.videoResult.createVideoResult(repos.db, {
+    taskId: completedVideoTask.id,
+    shotId: shot.id,
+    resultVideoUrl: 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAAAAGlzb20BAAAA',
+    isBest: false,
+    note: '本地基线候选结果（非真实视频）',
   })
   repos.longTask.createLongTask(repos.db, {
     kind: 'video',
@@ -642,6 +670,7 @@ async function prepareRendererForUiBaseline(input: {
   openAiCommandPalette?: boolean
   openAiContextPreview?: boolean
   openTextDiffPreview?: boolean
+  openVideoComparison?: boolean
 }): Promise<string[]> {
   const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
   const waitFor = async (label: string, probe: () => boolean, timeoutMs = 8000): Promise<void> => {
@@ -696,6 +725,20 @@ async function prepareRendererForUiBaseline(input: {
       const bodyText = document.body.textContent ?? ''
       return bodyText.includes('AI 变更预览') && bodyText.includes('采用已选内容并保存')
     })
+  }
+  if (input.openVideoComparison) {
+    const compareButtons = () => Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .filter((button) => (button.textContent ?? '').includes('加入对比'))
+    await waitFor('视频结果对比入口', () => compareButtons().length >= 2)
+    compareButtons().slice(0, 2).forEach((button) => button.click())
+    await waitFor('同步视频结果对比', () => document.querySelectorAll('[data-video-comparison] video').length === 2)
+    document.querySelector('[data-video-comparison]')?.scrollIntoView({ block: 'center' })
+  } else if (input.hash.includes('/video?')) {
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+      .filter((button) => (button.textContent ?? '').includes('已加入对比'))
+      .forEach((button) => button.click())
+    await waitFor('清除视频对比选择', () => !document.querySelector('[data-video-comparison]'))
+    document.querySelector('[data-video-preflight]')?.scrollIntoView({ block: 'start' })
   }
   await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
   return Array.from(document.querySelectorAll<HTMLElement>(
