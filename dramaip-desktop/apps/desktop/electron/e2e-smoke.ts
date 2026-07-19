@@ -59,6 +59,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
   const structuredScriptStep = await verifyStructuredScriptRenderer(win, p0.fixture)
+  const storyboardStep = await verifyStoryboardRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -66,7 +67,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -1049,10 +1050,14 @@ async function rendererDraftPersistenceMain(input: {
   await waitFor('项目列表', () => (document.body.textContent ?? '').includes('项目工作台'))
   await waitFor('剧本持久化', async () => (await api.script.get(input.scriptId))?.content.includes(scriptDraft) === true)
 
-  window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}`
+  window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.shotId}`
   await waitFor('镜头编辑器', () => (document.body.textContent ?? '').includes('镜头 Prompt 编辑器'))
+  const promptTab = Array.from(document.querySelectorAll('button')).find((button) => button.getAttribute('role') === 'tab' && button.textContent?.trim() === 'Prompt')
+  if (!promptTab) throw new Error('未找到镜头 Prompt Inspector 标签')
+  promptTab.click()
+  await waitFor('视频 Prompt 输入框', () => Boolean(document.querySelector('textarea[aria-label="视频 Prompt"]')))
   const shotDraft = 'E2E immediate shot draft'
-  const shotTextarea = document.querySelectorAll('textarea')[0] as HTMLTextAreaElement | undefined
+  const shotTextarea = document.querySelector('textarea[aria-label="视频 Prompt"]') as HTMLTextAreaElement | undefined
   if (!shotTextarea) throw new Error('未找到镜头 Prompt 输入框')
   setValue(shotTextarea, shotDraft)
   window.location.hash = '#/'
@@ -1120,6 +1125,59 @@ async function rendererStructuredScriptMain(input: { adaptationId: string; scrip
   await waitFor('键盘新增动作块', () => document.querySelectorAll('[data-script-block="action"]').length >= 2)
   await waitFor('兼容 Markdown 保存', async () => (await api.script.get(input.scriptId))?.content.includes('## 场景：E2E 结构化场景') === true)
   return { blockKinds: Array.from(document.querySelectorAll('[data-script-block]')).map((node) => node.getAttribute('data-script-block') ?? '') }
+}
+
+async function verifyStoryboardRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const shots = [1, 2, 3].map((shotNumber) => repos.shot.createShot(repos.db, {
+      sceneId: fixture.scene.id,
+      episodeId: fixture.episode.id,
+      shotNumber,
+      visualDescription: `E2E Storyboard 镜头 ${shotNumber}`,
+      durationSeconds: 3 + shotNumber,
+      videoPrompt: `storyboard prompt ${shotNumber}`,
+    }))
+    const result = await win.webContents.executeJavaScript(
+      `(${rendererStoryboardMain.toString()})(${JSON.stringify({
+        adaptationId: fixture.adaptation.id,
+        episodeId: fixture.episode.id,
+        sceneId: fixture.scene.id,
+        orderedIds: shots.map((shot) => shot.id),
+      })})`,
+      true,
+    ) as { order: string[] }
+    return { name: 'storyboard-order-keyboard-and-inspector', ok: true, durationMs: Date.now() - startedAt, detail: result }
+  } catch (error) {
+    return {
+      name: 'storyboard-order-keyboard-and-inspector',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function rendererStoryboardMain(input: { adaptationId: string; episodeId: string; sceneId: string; orderedIds: string[] }): Promise<{ order: string[] }> {
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+  const waitFor = async (label: string, probe: () => boolean | Promise<boolean>, timeoutMs = 8000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await probe()) return
+      await sleep(50)
+    }
+    throw new Error(`Storyboard smoke 等待超时：${label}`)
+  }
+  const api = (window as unknown as { api: { shot: { listByScene: (sceneId: string) => Promise<Array<{ id: string }>> } } }).api
+  window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.orderedIds[0]}`
+  await waitFor('Storyboard 画布', () => document.querySelectorAll('[data-storyboard-shot]').length === 3)
+  if (!document.querySelector('[data-storyboard-assets]')) throw new Error('未找到镜头素材 Inspector')
+  const firstCard = document.querySelector(`[data-storyboard-shot="${input.orderedIds[0]}"]`) as HTMLElement
+  firstCard.focus()
+  firstCard.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight', altKey: true }))
+  await waitFor('镜头键盘重排持久化', async () => (await api.shot.listByScene(input.sceneId)).map((shot) => shot.id).join(',') === [input.orderedIds[1], input.orderedIds[0], input.orderedIds[2]].join(','))
+  return { order: (await api.shot.listByScene(input.sceneId)).map((shot) => shot.id) }
 }
 
 async function verifyProductionShellRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {

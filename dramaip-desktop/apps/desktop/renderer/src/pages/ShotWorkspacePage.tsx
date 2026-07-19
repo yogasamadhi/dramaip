@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -19,7 +19,7 @@ import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, Promp
 import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
-import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl } from '@/lib/assets'
+import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -28,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { StoryboardCanvas } from '@/components/StoryboardCanvas'
 import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
 import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 import {
@@ -133,7 +134,7 @@ export function ShotWorkspacePage() {
       return
     }
     setShots(await ipc.shot.listByScene(sceneId))
-  }, [sceneId])
+  }, [sceneId, version])
 
   useEffect(() => {
     void reload()
@@ -224,7 +225,7 @@ export function ShotWorkspacePage() {
             value={episodeId}
             onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p })}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40" aria-label="选择剧集">
               <SelectValue placeholder="选择集数" />
             </SelectTrigger>
             <SelectContent>
@@ -329,8 +330,11 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
   const [versions, setVersions] = useState<PromptVersion[]>([])
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [shotAssets, setShotAssets] = useState<ProjectAsset[]>([])
+  const [assetsByShot, setAssetsByShot] = useState<Record<string, ProjectAsset[]>>({})
   const [assetDraft, setAssetDraft] = useState<VideoAssetDraftResult | null>(null)
   const [baseDraft, setBaseDraft] = useState<ShotDraft>(EMPTY_SHOT_DRAFT)
+  const [inspectorTab, setInspectorTab] = useState<'info' | 'prompt' | 'assets' | 'review' | 'versions'>('info')
+  const [reordering, setReordering] = useState(false)
 
   useEffect(() => {
     if (!shots.length || (activeShotId && shots.some((shot) => shot.id === activeShotId))) return
@@ -350,6 +354,27 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
     }
     void (async () => setVersions(await ipc.promptVersion.list(activeShot.id)))()
   }, [activeShot])
+
+  useEffect(() => {
+    let canceled = false
+    void Promise.all(shots.map(async (shot) => [shot.id, await ipc.asset.listBySource('shot', shot.id)] as const)).then((entries) => {
+      if (!canceled) setAssetsByShot(Object.fromEntries(entries))
+    })
+    return () => { canceled = true }
+  }, [shots])
+
+  async function reorderStoryboard(orderedIds: string[]) {
+    setReordering(true)
+    try {
+      await ipc.shot.reorder(scene.id, orderedIds)
+      toast.success('Storyboard 顺序已保存')
+      onChanged()
+    } catch (error) {
+      toast.error(`镜头重排失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setReordering(false)
+    }
+  }
 
   useEffect(() => {
     let canceled = false
@@ -647,41 +672,47 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             本场景还没有镜头。点击「AI 拆分镜头」，AI 会把场景画面拆成有序的镜头清单。
           </div>
         ) : (
-          <div className="flex gap-4">
-            {/* 镜头列表 */}
-            <div className="w-56 shrink-0 space-y-1.5">
-              {shots.map((s, i) => (
-                <button
-                  key={s.id}
-                  onClick={() => setParams((current) => {
-                    const next = new URLSearchParams(current)
-                    next.set('shot', s.id)
-                    return next
-                  })}
-                  className={cn(
-                    'w-full rounded-md border p-2 text-left text-xs',
-                    activeShotId === s.id ? 'border-primary bg-accent' : 'hover:bg-accent/60',
-                  )}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">镜头 {i + 1}</span>
-                    {s.aiVideoDifficulty && (
-                      <Badge variant={DIFFICULTY_VARIANT[s.aiVideoDifficulty]} className="ml-auto text-[10px]">
-                        {s.aiVideoDifficulty}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="mt-0.5 truncate text-muted-foreground">
-                    {s.cameraAngle ?? ''}{s.cameraMovement ? ` · ${s.cameraMovement}` : ''}
-                  </div>
-                  <div className="truncate text-[11px] text-muted-foreground">{s.visualDescription}</div>
-                </button>
-              ))}
-            </div>
+          <div className="space-y-4">
+            <StoryboardCanvas
+              shots={shots}
+              activeShotId={activeShotId}
+              assetsByShot={assetsByShot}
+              busy={busy !== null || busy2 !== null || reordering}
+              onSelect={(shotId) => setParams((current) => {
+                const next = new URLSearchParams(current)
+                next.set('shot', shotId)
+                return next
+              })}
+              onReorder={reorderStoryboard}
+            />
 
-            {/* 单镜头详情 */}
+            {/* 单镜头 Inspector */}
             {activeShot && (
-              <div className="flex-1 space-y-3">
+              <div className="space-y-3 rounded-lg border bg-background p-4">
+                <div className="flex flex-wrap gap-1 border-b pb-3" role="tablist" aria-label="镜头 Inspector">
+                  {([
+                    ['info', '信息'],
+                    ['prompt', 'Prompt'],
+                    ['assets', '素材'],
+                    ['review', '审查'],
+                    ['versions', '版本'],
+                  ] as const).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      id={`shot-inspector-tab-${key}`}
+                      type="button"
+                      size="sm"
+                      variant={inspectorTab === key ? 'secondary' : 'outline'}
+                      role="tab"
+                      aria-controls={`shot-inspector-panel-${key}`}
+                      aria-selected={inspectorTab === key}
+                      onClick={() => setInspectorTab(key)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <div id="shot-inspector-panel-info" role="tabpanel" aria-labelledby="shot-inspector-tab-info" hidden={inspectorTab !== 'info'}>
                 {/* 镜头元信息 */}
                 <div className="rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-3">
@@ -752,9 +783,10 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     <Video className="h-3.5 w-3.5" /> 生成视频
                   </Button>
                 </div>
+                </div>
 
                 {/* Prompt 编辑器 */}
-                <div className="space-y-2">
+                <div id="shot-inspector-panel-prompt" role="tabpanel" aria-labelledby="shot-inspector-tab-prompt" className="space-y-2" hidden={inspectorTab !== 'prompt'}>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium">镜头 Prompt 编辑器</span>
                     <DraftStateBadge status={saveState} />
@@ -770,6 +802,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                         onChange={(e) => updateDraft((current) => ({ ...current, videoPrompt: e.target.value }))}
                         rows={4}
                         className="text-xs"
+                        aria-label="视频 Prompt"
                       />
                     </div>
                     <div>
@@ -882,11 +915,22 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                   />
                 </div>
 
+                <div id="shot-inspector-panel-assets" role="tabpanel" aria-labelledby="shot-inspector-tab-assets" hidden={inspectorTab !== 'assets'}>
+                  <StoryboardAssetInspector
+                    assets={shotAssets}
+                    draft={draft}
+                    onUpdate={updateDraft}
+                  />
+                  <div className="mt-3 flex justify-end">
+                    <Button size="sm" onClick={() => void saveShot()} disabled={!isDirty}><Pencil className="h-3.5 w-3.5" />保存素材引用</Button>
+                  </div>
+                </div>
+
                 {/* 审查结果 */}
-                <ShotReviewBlock shotId={activeShot.id} />
+                <div id="shot-inspector-panel-review" role="tabpanel" aria-labelledby="shot-inspector-tab-review" hidden={inspectorTab !== 'review'}><ShotReviewBlock shotId={activeShot.id} /></div>
 
                 {/* Prompt 版本历史 */}
-                <div>
+                <div id="shot-inspector-panel-versions" role="tabpanel" aria-labelledby="shot-inspector-tab-versions" hidden={inspectorTab !== 'versions'}>
                   <div className="mb-1 text-sm font-medium">Prompt 版本历史</div>
                   {versions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">暂无版本。AI 生成/改写后会自动追加版本快照。</p>
@@ -969,6 +1013,83 @@ function VideoAssetDraftPanel({ draft, onApply }: { draft: VideoAssetDraftResult
             </ul>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+type StoryboardAssetField = 'referenceInput' | 'firstFrameInput' | 'coverInput' | 'narrationInput' | 'subtitleInput'
+
+const STORYBOARD_ASSET_FIELDS: Array<{ field: StoryboardAssetField; kind: ProjectAsset['kind']; label: string; description: string }> = [
+  { field: 'referenceInput', kind: 'scene_reference', label: '场景参考图', description: '构图、布光或风格参考；不会上传本地文件。' },
+  { field: 'firstFrameInput', kind: 'first_frame_image', label: '首帧图', description: '作为视频生成或交付的首帧引用。' },
+  { field: 'coverInput', kind: 'cover_image', label: '封面图', description: '用于镜头封面与交付预览。' },
+  { field: 'narrationInput', kind: 'narration_audio', label: '旁白音频', description: '引用音频路径或远端链接。' },
+  { field: 'subtitleInput', kind: 'subtitle_file', label: '字幕文件', description: '引用 SRT、VTT 或 ASS 等字幕文件。' },
+]
+
+function StoryboardAssetInspector({ assets, draft, onUpdate }: {
+  assets: ProjectAsset[]
+  draft: ShotDraft
+  onUpdate: (updater: (current: ShotDraft) => ShotDraft) => void
+}) {
+  return (
+    <section className="space-y-3" data-storyboard-assets>
+      <div>
+        <h3 className="text-sm font-medium">镜头素材 Inspector</h3>
+        <p className="text-xs text-muted-foreground">选择或拖入本地文件只会记录本地引用；不会复制、上传或删除源文件。也可继续填写 HTTPS URL。</p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {STORYBOARD_ASSET_FIELDS.map((item) => (
+          <AssetReferenceControl
+            key={item.field}
+            asset={assets.find((asset) => asset.kind === item.kind)}
+            value={draft[item.field]}
+            label={item.label}
+            description={item.description}
+            kind={item.kind}
+            onChange={(value) => onUpdate((current) => ({ ...current, [item.field]: value }))}
+          />
+        ))}
+      </div>
+      <AssetBadges assets={assets} />
+    </section>
+  )
+}
+
+function AssetReferenceControl({ asset, value, label, description, kind, onChange }: {
+  asset?: ProjectAsset
+  value: string
+  label: string
+  description: string
+  kind: ProjectAsset['kind']
+  onChange: (value: string) => void
+}) {
+  const previewUrl = asset && isVideoReferenceImageAsset(asset) ? assetReferenceUrl(asset) : undefined
+  async function chooseFile() {
+    const result = await ipc.asset.chooseLocalFile(kind)
+    if (result.ok && result.path) onChange(result.path)
+    else if (result.error) toast.error(`选择素材失败：${result.error}`)
+  }
+  function dropLocalFile(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    const file = event.dataTransfer.files[0] as (File & { path?: string }) | undefined
+    if (file?.path) {
+      onChange(file.path)
+      return
+    }
+    toast.error('未读取到本地路径。请使用“选择本地文件”以安全地引用素材。')
+  }
+  return (
+    <div className="rounded-md border p-3" onDragOver={(event) => event.preventDefault()} onDrop={dropLocalFile}>
+      <div className="mb-2 flex items-start gap-2">
+        <div className="min-w-0"><div className="text-xs font-medium">{label}</div><p className="text-[11px] text-muted-foreground">{description}</p></div>
+        <Badge className="ml-auto" variant={asset ? ASSET_STATUS_VARIANT[asset.status] : 'outline'}>{asset ? ASSET_STATUS_LABEL[asset.status] : '未引用'}</Badge>
+      </div>
+      {previewUrl ? <img src={previewUrl} alt={`${label}预览`} className="mb-2 aspect-video w-full rounded border object-cover" /> : <div className="mb-2 flex aspect-[16/5] items-center justify-center rounded border border-dashed bg-muted/20 text-[11px] text-muted-foreground">拖入本地文件或选择引用</div>}
+      <div className="flex gap-2">
+        <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder="HTTPS URL 或本地路径" className="min-w-0 text-xs" aria-label={`${label}引用`} />
+        <Button type="button" size="sm" variant="outline" onClick={() => void chooseFile()}>选择文件</Button>
       </div>
     </div>
   )
