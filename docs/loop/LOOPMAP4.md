@@ -1446,3 +1446,19 @@ Loop branch cleanup: Retained at `loop/lm4-29-admin-operations` so LM4-30 can be
 Current branch/worktree: loop/lm4-29-admin-operations; clean before this completion-record commit (ignored local build output excluded).
 Notes: The safe customer, refund, resume, quota, notification and cost-alert paths are implemented. The overall loop remains partial because Billing Job exposes reconciliation through a static-token boundary only, and Notification exposes no delivery-attempt/retry operation. Routing either through Admin BFF would violate the required mTLS/RBAC/operator/reason/idempotency/audit boundary. A future Billing/Notification owner-domain API must supply the controlled operation before this loop can become done. Per requested policy, continue with LM4-30 rather than bypassing this security blocker.
 ```
+
+```text
+Loop: LM4-29 (done — owner-operation continuation)
+Target branch: loop/lm4-29-admin-operations
+Loop branch: loop/lm4-29-owner-operations
+Commit(s): c87c475 feat: complete audited job operations
+Merge commit: 8a3bde8 merge: complete LM4-29 job operations
+Verification: `buf generate`, `buf lint`, merged-tree `GOCACHE=/tmp/dramaip-go-build go test ./...`, Admin business/HTTP tests, Notification retry tests, `pnpm --filter @dramaip/admin typecheck`, `pnpm --filter @dramaip/admin test`, `pnpm --filter @dramaip/admin build`, `docker compose --env-file ../../services/.env.example -f docker-compose.yaml config --quiet`, Helm lint/template with `values-dev.yaml`, and `git diff --check origin/loop/lm4-29-admin-operations...HEAD` all passed. The only frontend build note is Vite's existing advisory that the ECharts bundle exceeds 500 kB after minification; it is not a build or correctness failure.
+UI/manual evidence: Finance-authorized operators see the latest reconciliation run and ordered cases, can request a fresh scan, and can only invoke the safe existing `retry_quota_provision` repair or `manual_confirm`. Notification-authorized operators see failed attempts only and can request a replay. Both paths require a second-confirmation reason; the console labels that the Job, rather than Admin, owns execution.
+Diff review: Replaced the static-token Billing Job HTTP reconciliation routes with a narrow mTLS gRPC service restricted to `admin-bff`; added an equally narrow Notification Job delivery service. The Admin BFF retains no Billing/Notification database handle. mTLS identity propagation binds the caller-requested actor to the authenticated Admin principal. Confirmation IDs are passed to owner-domain durable idempotency records, and the resulting run/action/replay results are written through the existing Admin immutable audit flow. Notification replay reads the original durable inbox envelope only inside notification-job and re-enters the same lease/channel path; completed, leased or payload-less events are rejected. No user content, credentials, provider token, local database, build output or static operator secret is in the diff.
+Remote sync: Target was fetched and fast-forward checked against origin before merge; no intervening remote commit required conflict resolution.
+Push: c87c475 and 8a3bde8 were pushed successfully to origin/loop/lm4-29-admin-operations before this completion-record commit. This record is committed and pushed immediately afterward.
+Loop branch cleanup: Retain loop/lm4-29-owner-operations temporarily because the target branch remains part of the retained LM4-26/27/28 chain; cleanup owner is the later approved parent-to-main sync. It is not presented as merged into main.
+Current branch/worktree: loop/lm4-29-admin-operations; clean before this completion-record creation (ignored build output excluded).
+Notes: The prior LM4-29 partial blocker is closed. LM4-26, LM4-27, LM4-28, LM4-30 and LM4-31 retain their own documented completion conditions; this record does not claim all P0/P1/P2 work is complete.
+```
