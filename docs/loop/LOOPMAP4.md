@@ -334,7 +334,7 @@ make platform-e2e
 | LM4-00 | P0 | QA/产品体验 | done | 建立可重复的 UI、无障碍和状态基线 Gate | Desktop UI harness、fixtures、截图、审计文档 | 无 |
 | LM4-01 | P0 | Desktop/数据可靠性 | done | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
 | LM4-02 | P0 | Desktop/工作流 | done | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
-| LM4-03 | P0 | Web/Billing | todo | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
+| LM4-03 | P0 | Web/Billing | done | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
 | LM4-04 | P0 | Release/QA | todo | 通过 P0 可靠性与交易回归 Gate | Desktop、Web、Billing、E2E、发布记录 | LM4-01～03 |
 | LM4-05 | P1 | Design System/前端 | todo | 建立统一视觉、主题、密度、动效和无障碍基础 | globals、Tailwind、UI primitives、Appearance | LM4-04 |
 | LM4-06 | P1 | Desktop/产品体验 | todo | 交付统一响应式 App Shell 和可深链导航 | App、Routes、Workspace、shell/layout/store | LM4-05 |
@@ -972,4 +972,20 @@ Push: a8fa612 pushed to origin/main successfully on 2026-07-19; this completion 
 Loop branch cleanup: Local loop/lm4-02-workflow-freshness deleted after successful main push.
 Current branch/worktree: main; clean before completion-record creation (ignored local UI artifacts excluded).
 Notes: Quality reports now carry a deterministic source fingerprint (schema migration v19). Legacy reports lacking one are deliberately shown as needing recheck. A video stage only completes when a successful task has a usable local or remote output; a successful task alone is not delivery proof.
+```
+
+```text
+Loop: LM4-03
+Target branch: main
+Loop branch: loop/lm4-03-payment-checkout
+Commit(s): 2348110 loop: complete payment checkout flow
+Merge commit: 8e0d1b5 merge: LM4-03 payment checkout
+Verification: dramaip-platform make test (Go ./..., client typecheck, Web route smoke); clients pnpm lint; clients pnpm build:web; services buf generate; local healthy-stack migration 036; make platform-e2e; git diff --check. All passed after merge.
+UI/manual evidence: Browser verified the unauthenticated local pricing shell at localhost:3009, but its existing dev process did not load public plans, so it is not counted as a positive checkout-UI assertion. API GET /v1/plans and CORS for that origin were independently healthy. Pricing/order UI behavior is covered by production build, route assertions, explicit-provider BFF HTTP tests, and local-stack simulated checkout E2E; details and the limitation are in docs/loop/LM4-03-支付闭环.md.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, local images, build outputs, or runtime artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 51f4eab before branch creation and again before merge.
+Push: 8e0d1b5 pushed to origin/main successfully on 2026-07-19; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-03-payment-checkout deleted after successful main push.
+Current branch/worktree: main; clean before completion-record creation (local health-stack state and ignored build output excluded).
+Notes: Migration 036 persists real provider payment URLs and expiry; pending orders become expired only after their configured provider-validity window. WeChat/Alipay signature fixtures, BFF forwarding, simulated E2E, and false-client-activation prevention passed. Official-channel release remains blocked: no isolated PostgreSQL DSN (webhook integration resets cluster-wide role passwords) and no authorized official sandbox merchant/callback evidence were supplied. Provider Feature Flags therefore stay disabled; this is not claimed as real-money channel validation.
 ```
