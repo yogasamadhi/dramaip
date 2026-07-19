@@ -36,6 +36,8 @@ export interface ApplyArtifactInput {
   adaptationProjectId?: string
   /** 已被 graph 的 Zod 校验过的产物（book_outline 为 Markdown 文本，其余为 JSON） */
   data: unknown
+  /** 结构化预览仅选择部分条目时，不清空未被选择的既有项目。 */
+  partialAdopt?: boolean
 }
 
 export interface ApplyArtifactOutput {
@@ -245,11 +247,14 @@ export async function applyGeneratedArtifact(
       const projectId = requireProjectId(input.projectId, taskType)
       if (!input.adaptationProjectId) throw new Error('生成分集大纲需要 adaptationProjectId')
       const items = data as EpisodesResult
-      // 清空该改编项目下已有分集（重新生成分集）
+      // 全量采用才替换分集；部分采用追加/更新所选条目，避免“只选一集”误删其余分集。
       const existing = repos.episode.listEpisodes(db, input.adaptationProjectId)
-      for (const e of existing) repos.episode.deleteEpisode(db, e.id)
-      const created = items.map((it) =>
-        repos.episode.createEpisode(db, {
+      if (!input.partialAdopt) {
+        for (const e of existing) repos.episode.deleteEpisode(db, e.id)
+      }
+      const existingByNumber = new Map(existing.map((episode) => [episode.episodeNumber, episode]))
+      const created = items.map((it) => {
+        const payload = {
           adaptationProjectId: input.adaptationProjectId!,
           episodeNumber: it.episodeNumber,
           title: it.title,
@@ -263,8 +268,12 @@ export async function applyGeneratedArtifact(
           keyVisuals: it.keyVisuals,
           relatedChapterIds: it.relatedChapterIds,
           relatedBeatIds: it.relatedBeatIds,
-        }),
-      )
+        }
+        const current = input.partialAdopt ? existingByNumber.get(it.episodeNumber) : undefined
+        return current
+          ? repos.episode.updateEpisode(db, current.id, payload) ?? current
+          : repos.episode.createEpisode(db, payload)
+      })
       repos.creative.createContentVersion(db, {
         projectId,
         targetKind: 'adaptation',
@@ -272,7 +281,7 @@ export async function applyGeneratedArtifact(
         label: '采纳预览：分集大纲',
         source: 'adopt_preview',
         content: JSON.stringify(items, null, 2),
-        meta: { taskType },
+        meta: { taskType, partialAdopt: Boolean(input.partialAdopt) },
       })
       return { kind: taskType, created }
     }

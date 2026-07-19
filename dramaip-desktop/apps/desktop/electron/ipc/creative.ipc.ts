@@ -98,6 +98,13 @@ export function registerCreativeIpc(): void {
     repos().creative.updateRevisionTask(repos().db, id, patch as never),
   )
   ipcMain.handle('revisionTask:preview', async (_e, id: string) => previewRevisionTask(id))
+  ipcMain.handle('revisionTask:updatePreview', (_e, id: string, preview: TextDiffPreviewPayload) => {
+    try {
+      return { ok: true, task: repos().revisionAdoption.saveRevisionTaskPreview(repos().db, id, preview) }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
   ipcMain.handle('revisionTask:adopt', (_e, id: string) => repos().revisionAdoption.adoptRevisionTask(repos().db, id))
   ipcMain.handle('revisionTask:undo', (_e, id: string) => repos().revisionAdoption.undoRevisionTask(repos().db, id))
   // 兼容旧 renderer：两条旧命令均进入同一原子采用事务，不能再单独写正文或标任务完成。

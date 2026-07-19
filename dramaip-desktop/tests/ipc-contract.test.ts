@@ -282,6 +282,7 @@ test('keeps high-risk channels in the shared contract', () => {
     'workflow:resume',
     'workflow:retryStep',
     'revisionTask:create',
+    'revisionTask:updatePreview',
     'revisionTask:adopt',
     'revisionTask:undo',
     'revisionTask:apply',
@@ -301,6 +302,13 @@ test('validates creative IPC contracts', () => {
   assert.throws(() => validateIpcArgs('revisionTask:apply', []), /参数数量错误/)
   assert.deepEqual(validateIpcArgs('revisionTask:adopt', ['revision-1']), ['revision-1'])
   assert.deepEqual(validateIpcArgs('revisionTask:undo', ['revision-1']), ['revision-1'])
+  assert.throws(() => validateIpcArgs('revisionTask:updatePreview', ['revision-1', { targetKind: 'chapter' }]), /参数校验失败/)
+  assert.deepEqual(
+    validateIpcArgs('revisionTask:updatePreview', ['revision-1', {
+      targetKind: 'chapter', targetId: 'chapter-1', taskType: 'rewrite_chapter', currentContent: '原文', nextContent: '候选',
+    }]),
+    ['revision-1', { targetKind: 'chapter', targetId: 'chapter-1', taskType: 'rewrite_chapter', currentContent: '原文', nextContent: '候选' }],
+  )
   assert.deepEqual(validateIpcArgs('dataBackup:list', []), [])
   assert.deepEqual(validateIpcArgs('dataBackup:restore', ['/tmp/studio.db']), ['/tmp/studio.db'])
   assert.throws(() => validateIpcArgs('dataBackup:restore', ['']), /参数校验失败/)

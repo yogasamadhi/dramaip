@@ -47,6 +47,7 @@ import type {
   QualityGateReport,
   RevisionTask,
   RevisionTaskAdoptResult,
+  RevisionTaskPreviewUpdateResult,
   RevisionTaskUndoResult,
   Scene,
   Script,
@@ -143,6 +144,8 @@ export interface ApplyArtifactInput {
   data: unknown
   characterId?: string
   adaptationProjectId?: string
+  /** 结构化生成仅采用部分条目时，保留未涉及的已有数据。 */
+  partialAdopt?: boolean
 }
 
 export interface ApplyArtifactResult {
@@ -796,6 +799,7 @@ export interface StudioApi {
     create(data: Partial<RevisionTask> & { targetKind: RevisionTask['targetKind']; title: string; description: string; suggestedAction: string }): Promise<RevisionTask>
     update(id: string, patch: Partial<RevisionTask>): Promise<RevisionTask | undefined>
     preview(id: string): Promise<RevisionTaskPreviewResult>
+    updatePreview(id: string, preview: TextDiffPreviewPayload): Promise<RevisionTaskPreviewUpdateResult>
     adopt(id: string): Promise<RevisionTaskAdoptResult>
     undo(id: string): Promise<RevisionTaskUndoResult>
     /** @deprecated 兼容旧调用，等同于 adopt。 */

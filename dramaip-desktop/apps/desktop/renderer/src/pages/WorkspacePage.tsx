@@ -594,12 +594,13 @@ export function WorkspacePage() {
     }
   }
 
-  async function handleAdopt() {
+  async function handleAdopt(data: unknown, options: { partialAdopt: boolean }) {
     if (!project) return
     const res = await ipc.ai.applyResult({
       projectId: project.id,
       taskType: preview.taskType,
-      data: preview.data,
+      data,
+      partialAdopt: options.partialAdopt,
       characterId: preview.characterId,
       adaptationProjectId: preview.adaptationProjectId,
     })
@@ -617,12 +618,12 @@ export function WorkspacePage() {
     }
   }
 
-  async function handleTextAdopt() {
-    if (!project || !textPreview) return
+  async function handleTextAdopt(candidate: TextDiffPreviewPayload) {
+    if (!project) return
     const res = await ipc.ai.applyResult({
       projectId: project.id,
-      taskType: textPreview.taskType,
-      data: textPreview,
+      taskType: candidate.taskType,
+      data: candidate,
     })
     if (res.ok) {
       toast.success('已保存到项目')

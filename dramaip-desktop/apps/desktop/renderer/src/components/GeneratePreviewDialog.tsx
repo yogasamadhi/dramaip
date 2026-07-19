@@ -1,6 +1,6 @@
 // GeneratePreviewDialog —— generate 类 AI 产物的预览弹窗（§11.1-11.4）
 // 「采用并保存」→ onAdopt（经 IPC ai:applyResult 落库）；「丢弃」→ onCancel（不入库）
-import { useState } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import type {
   EpisodesResult,
@@ -37,7 +37,7 @@ interface Props {
   open: boolean
   taskType: PreviewTaskType
   data: unknown
-  onAdopt: () => Promise<void>
+  onAdopt: (data: unknown, options: { partialAdopt: boolean }) => Promise<void>
   onCancel: () => void
 }
 
@@ -54,11 +54,23 @@ const TITLE: Record<PreviewTaskType, string> = {
 
 export function GeneratePreviewDialog({ open, taskType, data, onAdopt, onCancel }: Props) {
   const [saving, setSaving] = useState(false)
+  const items = Array.isArray(data) ? data : []
+  const selectable = isSelectableTask(taskType) && Array.isArray(data)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+
+  useEffect(() => {
+    if (open && selectable) setSelected(new Set(items.map((_, index) => index)))
+  }, [data, open, selectable])
+
+  const adoptedData = useMemo(
+    () => selectable ? items.filter((_, index) => selected.has(index)) : data,
+    [data, items, selectable, selected],
+  )
 
   async function handleAdopt() {
     setSaving(true)
     try {
-      await onAdopt()
+      await onAdopt(adoptedData, { partialAdopt: selectable && selected.size !== items.length })
     } finally {
       setSaving(false)
     }
@@ -77,17 +89,25 @@ export function GeneratePreviewDialog({ open, taskType, data, onAdopt, onCancel 
           <DialogDescription>预览生成结果，确认后写入项目；不满意可丢弃后重新生成。</DialogDescription>
         </DialogHeader>
 
+        {selectable && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs">
+            <span className="mr-auto text-muted-foreground">已选择 {selected.size}/{items.length} 项；未选择的内容不会写入。</span>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set(items.map((_, index) => index)))}>全选</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>全不选</Button>
+          </div>
+        )}
+
         <div className="-mr-2 flex-1 overflow-auto pr-2 text-sm">
           {taskType === 'generate_project' && <ProjectPreview data={data as GenerateProjectResult} />}
           {taskType === 'generate_characters' && (
-            <CharactersPreview data={data as GenerateCharactersResult} />
+            <CharactersPreview data={data as GenerateCharactersResult} selected={selected} onToggle={(index) => toggleSelection(setSelected, index)} />
           )}
           {taskType === 'generate_book_outline' && <TextPreview text={String(data ?? '')} />}
           {taskType === 'generate_chapter_outline' && (
-            <ChapterOutlinesPreview data={data as GenerateChapterOutlinesResult} />
+            <ChapterOutlinesPreview data={data as GenerateChapterOutlinesResult} selected={selected} onToggle={(index) => toggleSelection(setSelected, index)} />
           )}
           {taskType === 'generate_story_arc_outline' && (
-            <StoryArcOutlinesPreview data={data as GenerateStoryArcOutlineResult} />
+            <StoryArcOutlinesPreview data={data as GenerateStoryArcOutlineResult} selected={selected} onToggle={(index) => toggleSelection(setSelected, index)} />
           )}
           {taskType === 'generate_character_visual_profile' && (
             <VisualProfilePreview data={data as VisualProfileResult} />
@@ -96,7 +116,7 @@ export function GeneratePreviewDialog({ open, taskType, data, onAdopt, onCancel 
             <VisualSettingPreview data={data as VisualSettingResult} />
           )}
           {taskType === 'convert_novel_to_episodes' && (
-            <EpisodesPreview data={data as EpisodesResult} />
+            <EpisodesPreview data={data as EpisodesResult} selected={selected} onToggle={(index) => toggleSelection(setSelected, index)} />
           )}
         </div>
 
@@ -104,7 +124,7 @@ export function GeneratePreviewDialog({ open, taskType, data, onAdopt, onCancel 
           <Button variant="outline" onClick={onCancel} disabled={saving}>
             丢弃
           </Button>
-          <Button onClick={handleAdopt} disabled={saving}>
+          <Button onClick={handleAdopt} disabled={saving || (selectable && selected.size === 0)}>
             {saving ? <Loader2 className="animate-spin" /> : <Check />}
             采用并保存
           </Button>
@@ -129,12 +149,12 @@ function ProjectPreview({ data }: { data: GenerateProjectResult }) {
   )
 }
 
-function CharactersPreview({ data }: { data: GenerateCharactersResult }) {
+function CharactersPreview({ data, selected, onToggle }: { data: GenerateCharactersResult; selected: Set<number>; onToggle: (index: number) => void }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">将新增 {data.length} 个人物</p>
       {data.map((c, i) => (
-        <div key={i} className="rounded-md border p-3">
+        <SelectableCard key={i} selected={selected.has(i)} label={`采用人物：${c.name}`} onToggle={() => onToggle(i)}>
           <div className="mb-1 flex items-center gap-2">
             <span className="font-medium">{c.name}</span>
             <Badge variant="secondary">{c.role}</Badge>
@@ -153,18 +173,18 @@ function CharactersPreview({ data }: { data: GenerateCharactersResult }) {
               {c.appearancePrompt && <span className="block">外观 Prompt：{c.appearancePrompt}</span>}
             </div>
           )}
-        </div>
+        </SelectableCard>
       ))}
     </div>
   )
 }
 
-function ChapterOutlinesPreview({ data }: { data: GenerateChapterOutlinesResult }) {
+function ChapterOutlinesPreview({ data, selected, onToggle }: { data: GenerateChapterOutlinesResult; selected: Set<number>; onToggle: (index: number) => void }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">将新增 {data.length} 条章节大纲</p>
       {data.map((c, i) => (
-        <div key={i} className="rounded-md border p-3">
+        <SelectableCard key={i} selected={selected.has(i)} label={`采用章节大纲：${c.title}`} onToggle={() => onToggle(i)}>
           <div className="mb-1 font-medium">
             第 {i + 1} 章 · {c.title}
           </div>
@@ -177,18 +197,18 @@ function ChapterOutlinesPreview({ data }: { data: GenerateChapterOutlinesResult 
             {c.shortDramaNote && <span className="block">AI短剧备注：{c.shortDramaNote}</span>}
             {c.keyVisuals && <span className="block">关键画面：{c.keyVisuals}</span>}
           </div>
-        </div>
+        </SelectableCard>
       ))}
     </div>
   )
 }
 
-function StoryArcOutlinesPreview({ data }: { data: GenerateStoryArcOutlineResult }) {
+function StoryArcOutlinesPreview({ data, selected, onToggle }: { data: GenerateStoryArcOutlineResult; selected: Set<number>; onToggle: (index: number) => void }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">将新增 {data.length} 条长篇规划</p>
       {data.map((arc, i) => (
-        <div key={i} className="rounded-md border p-3">
+        <SelectableCard key={i} selected={selected.has(i)} label={`采用规划：${arc.title}`} onToggle={() => onToggle(i)}>
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <Badge variant="outline">{storyArcKindLabel(arc.kind)}</Badge>
             <span className="font-medium">{arc.title}</span>
@@ -205,7 +225,7 @@ function StoryArcOutlinesPreview({ data }: { data: GenerateStoryArcOutlineResult
           {arc.coreConflict && <Field label="核心矛盾" value={arc.coreConflict} />}
           {arc.keyHighlights?.length ? <Field label="关键爽点" value={arc.keyHighlights.join('；')} /> : null}
           {arc.foreshadowingPayoffs?.length ? <Field label="伏笔回收" value={arc.foreshadowingPayoffs.join('；')} /> : null}
-        </div>
+        </SelectableCard>
       ))}
     </div>
   )
@@ -266,14 +286,14 @@ function Field({ label, value, block, strong }: { label: string; value?: string;
   )
 }
 
-function EpisodesPreview({ data }: { data: EpisodesResult }) {
+function EpisodesPreview({ data, selected, onToggle }: { data: EpisodesResult; selected: Set<number>; onToggle: (index: number) => void }) {
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">将生成 {data.length} 集分集大纲（采用后会覆盖已有分集）</p>
       <ScrollArea className="max-h-[55vh]">
         <div className="space-y-2 pr-2">
           {data.map((e, i) => (
-            <div key={i} className="rounded-md border p-2">
+            <SelectableCard key={i} selected={selected.has(i)} label={`采用第 ${i + 1} 集：${e.title}`} onToggle={() => onToggle(i)}>
               <div className="mb-0.5 flex items-center gap-1.5">
                 <Badge variant="outline">第 {i + 1} 集</Badge>
                 <span className="text-sm font-medium">{e.title}</span>
@@ -285,10 +305,32 @@ function EpisodesPreview({ data }: { data: EpisodesResult }) {
                 <div>悬念：{e.cliffhanger}</div>
                 {e.keyVisuals.length > 0 && <div>关键画面：{e.keyVisuals.join('；')}</div>}
               </div>
-            </div>
+            </SelectableCard>
           ))}
         </div>
       </ScrollArea>
     </div>
   )
+}
+
+function SelectableCard({ selected, label, onToggle, children }: { selected: boolean; label: string; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className={`rounded-md border p-3 transition-colors motion-reduce:transition-none ${selected ? 'border-primary/45 bg-primary/5' : 'bg-muted/25 opacity-65'}`}>
+      <div className="mb-2 flex justify-end"><Button type="button" size="sm" variant={selected ? 'secondary' : 'outline'} onClick={onToggle} aria-pressed={selected}>{selected ? '采用此项' : '已排除'}<span className="sr-only">{label}</span></Button></div>
+      {children}
+    </div>
+  )
+}
+
+function toggleSelection(setSelected: Dispatch<SetStateAction<Set<number>>>, index: number) {
+  setSelected((current) => {
+    const next = new Set(current)
+    if (next.has(index)) next.delete(index)
+    else next.add(index)
+    return next
+  })
+}
+
+function isSelectableTask(taskType: PreviewTaskType): boolean {
+  return taskType === 'generate_characters' || taskType === 'generate_chapter_outline' || taskType === 'generate_story_arc_outline' || taskType === 'convert_novel_to_episodes'
 }

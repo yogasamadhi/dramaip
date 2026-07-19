@@ -13,6 +13,7 @@ import {
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
 import type { TextDiffPreviewPayload } from '@sdns/core'
+import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 
 interface RawBetterSqliteDatabase {
   close(): void
@@ -84,7 +85,7 @@ function createRepositoryFixture() {
     negativePrompt: '原始负面 Prompt',
     imagePrompt: '原始图片 Prompt',
   })
-  return { dir, raw: opened.raw, db: opened.db, repos, project, chapter, script, shot }
+  return { dir, raw: opened.raw, db: opened.db, repos, project, chapter, adaptation, episode, script, shot }
 }
 
 function closeRepositoryFixture(fixture: ReturnType<typeof createRepositoryFixture>): void {
@@ -250,6 +251,60 @@ test('adopts a revision exactly once and supports an audited one-step undo', () 
     assert.equal(undone.task?.status, 'undone')
     assert.equal(repos.chapter.getChapter(db, chapter.id)?.content, chapter.content)
     assert.equal(repos.creative.listContentVersionsByTarget(db, 'chapter', chapter.id).length, 3)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('persists an edited partial revision candidate before atomic adoption', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, chapter } = fixture
+    const task = repos.creative.createRevisionTask(db, {
+      projectId: project.id, targetKind: 'chapter', targetId: chapter.id,
+      title: '仅采用段尾钩子', description: '保留人工正文，只采用一个候选段落。', suggestedAction: '补强段尾。',
+    })
+    repos.revisionAdoption.saveRevisionTaskPreview(db, task.id, {
+      targetKind: 'chapter', targetId: chapter.id, taskType: 'rewrite_chapter', currentContent: chapter.content,
+      nextContent: 'AI 全文改写。', projectId: project.id,
+    })
+    const edited = repos.revisionAdoption.saveRevisionTaskPreview(db, task.id, {
+      targetKind: 'chapter', targetId: chapter.id, taskType: 'rewrite_chapter', currentContent: chapter.content,
+      nextContent: `${chapter.content}\n\n只采用的段尾倒计时。`, projectId: project.id,
+    })
+    assert.equal(edited.status, 'preview_ready')
+    assert.equal(edited.preview?.nextContent, `${chapter.content}\n\n只采用的段尾倒计时。`)
+    const adopted = repos.revisionAdoption.adoptRevisionTask(db, task.id)
+    assert.equal(adopted.ok, true)
+    assert.equal(repos.chapter.getChapter(db, chapter.id)?.content, `${chapter.content}\n\n只采用的段尾倒计时。`)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('partial episode adoption preserves unselected episodes and updates matching selected numbers', async () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode } = fixture
+    const result = await applyGeneratedArtifact({ repos } as never, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      taskType: 'convert_novel_to_episodes',
+      partialAdopt: true,
+      data: [{
+        episodeNumber: 2,
+        title: '第二集（仅采用）',
+        summary: '保留第一集，只写入被选中的第二集。',
+        hook: '新钩子', mainConflict: '新冲突', cliffhanger: '新悬念',
+        keyVisuals: [], relatedChapterIds: [], relatedBeatIds: [],
+      }],
+    })
+    assert.equal((result.created as unknown[]).length, 1)
+    const episodes = repos.episode.listEpisodes(db, adaptation.id)
+    assert.equal(episodes.length, 2)
+    assert.equal(episodes[0]?.id, episode.id)
+    assert.equal(episodes[0]?.title, '第一集')
+    assert.equal(episodes[1]?.title, '第二集（仅采用）')
   } finally {
     closeRepositoryFixture(fixture)
   }

@@ -1200,6 +1200,12 @@ export interface RevisionTaskUndoResult {
   result?: ContentVersion
 }
 
+export interface RevisionTaskPreviewUpdateResult {
+  ok: boolean
+  error?: string
+  task?: RevisionTask
+}
+
 export interface QualityGateReport {
   id: string
   projectId?: string
