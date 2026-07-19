@@ -47,7 +47,7 @@ func (s *BillingService) CreateCheckout(ctx context.Context, req *billingv1.Crea
 	platform.RecordBusinessEvent("payment_checkout", "succeeded")
 	return &billingv1.CreateCheckoutReply{
 		OrderId: result.OrderID, PlanId: result.PlanID, Provider: result.Provider,
-		Status: result.Status, PaymentUrl: result.PaymentURL,
+		Status: result.Status, PaymentUrl: result.PaymentURL, ExpiresAt: result.ExpiresAt,
 	}, nil
 }
 
@@ -189,7 +189,7 @@ func orderReply(order data.OrderRow) *billingv1.Order {
 		Id: order.ID, UserId: order.UserID, PlanId: order.PlanID, PlanCode: order.PlanCode,
 		Provider: order.Provider, Status: order.Status, Amount: order.Amount, Currency: order.Currency,
 		PaymentUrl: order.PaymentURL, CreatedAt: order.CreatedAt, PaidAt: order.PaidAt,
-		SubscriptionId: order.SubscriptionID,
+		SubscriptionId: order.SubscriptionID, ExpiresAt: order.ExpiresAt,
 	}
 }
 

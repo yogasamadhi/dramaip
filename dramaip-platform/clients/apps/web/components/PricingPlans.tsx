@@ -1,13 +1,13 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import type { PaymentProvider } from '@dramaip/sdk'
 import { formatApiError, parseApiError } from '../lib/api-error'
 import { apiClient } from '../lib/api-client'
-import { planCodeLabel } from '../lib/display'
-import { isSimulatedPaymentEnabled } from '../lib/runtime'
+import { paymentProviderLabel, planCodeLabel } from '../lib/display'
+import { checkoutProviders, isSimulatedPaymentEnabled } from '../lib/runtime'
 import { loginPath } from '../lib/routes'
 import { Button } from './ui/Button'
 
@@ -23,6 +23,8 @@ export function PricingPlans() {
   })
   const hasSession = session.isSuccess
   const simulatedPayment = isSimulatedPaymentEnabled()
+  const providers = useMemo(() => checkoutProviders(), [])
+  const [provider, setProvider] = useState<PaymentProvider>(() => providers[0] ?? 'wechat_pay')
   const plans = useQuery({ queryKey: ['plans'], queryFn: () => apiClient.getPlans() })
   const subscription = useQuery({
     queryKey: ['subscription'],
@@ -32,7 +34,10 @@ export function PricingPlans() {
   })
 
   const checkout = useMutation({
-    mutationFn: (planID: string) => apiClient.createCheckout({ plan_id: planID, channel: simulatedPayment ? 'simulated' : 'production' }),
+    mutationFn: (planID: string) => apiClient.createCheckout({ plan_id: planID, channel: provider }),
+    onSuccess: (result) => {
+      router.push(`/account/orders/${encodeURIComponent(result.checkout_id)}`)
+    },
     onError: (error) => {
       if (parseApiError(error).status === 401) router.push(loginPath('/pricing'))
     },
@@ -52,25 +57,41 @@ export function PricingPlans() {
     },
   })
 
-  const simulatedConfirm = useMutation({
-    mutationFn: (checkoutID: string) => apiClient.confirmSimulatedPayment({ checkout_id: checkoutID }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
-      await queryClient.invalidateQueries({ queryKey: ['subscription'] })
-      await queryClient.invalidateQueries({ queryKey: ['orders'] })
-    },
-  })
-
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!providers.includes(provider) && providers[0]) setProvider(providers[0])
+  }, [provider, providers])
 
   if (plans.isLoading) return <p className="mt-8 text-sm text-slate-600">正在加载套餐...</p>
   if (plans.error) return <p className="mt-8 text-sm text-rose-600">{formatApiError(plans.error, '无法加载套餐。')}</p>
 
   return (
     <div className="mt-8 grid gap-4 md:grid-cols-4">
+      <fieldset className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm md:col-span-4">
+        <legend className="text-base font-semibold text-slate-950">支付方式</legend>
+        <p className="mt-1 text-sm text-slate-600">
+          {simulatedPayment ? '当前为模拟环境，仅用于验证下单和状态流转。' : '创建订单后将在订单页展示支付入口，并以服务端状态为准。'}
+        </p>
+        {providers.length > 0 ? (
+          <label className="mt-4 grid max-w-sm gap-1 text-sm font-medium text-slate-700">
+            使用渠道
+            <select
+              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-slate-950"
+              value={provider}
+              onChange={(event) => setProvider(event.target.value as PaymentProvider)}
+            >
+              {providers.map((item) => <option key={item} value={item}>{paymentProviderLabel(item)}</option>)}
+            </select>
+          </label>
+        ) : (
+          <p className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-800" role="status">
+            当前环境未公布可用支付渠道。请联系运营配置已启用的微信支付或支付宝渠道。
+          </p>
+        )}
+      </fieldset>
       {plans.data?.plans.map((plan) => {
         const isCurrent = subscription.data?.plan_code === plan.id && subscription.data.status === 'active'
         const canChangePlan = Boolean(subscription.data?.id && subscription.data.status === 'active')
@@ -98,7 +119,7 @@ export function PricingPlans() {
                 }
                 checkout.mutate(plan.id)
               }}
-              disabled={checkout.isPending || changePlan.isPending || isCurrent}
+              disabled={checkout.isPending || changePlan.isPending || isCurrent || (!canChangePlan && providers.length === 0)}
             >
               {isCurrent ? '当前套餐' : canChangePlan ? '切换套餐' : plan.price_cny === 0 ? '免费开始' : '订阅'}
             </Button>
@@ -106,42 +127,7 @@ export function PricingPlans() {
         )
       })}
 
-      {checkout.data ? (
-        <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800 md:col-span-4">
-          <div className="font-medium">订单已创建：{checkout.data.checkout_id}</div>
-          <div className="mt-2">状态：{statusLabel(checkout.data.status)}</div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={`/account/orders/${checkout.data.checkout_id}`}>
-              <Button type="button" variant="secondary">
-                查看订单
-              </Button>
-            </Link>
-            {simulatedPayment ? (
-              <Button
-                type="button"
-                onClick={() => simulatedConfirm.mutate(checkout.data.checkout_id)}
-                disabled={simulatedConfirm.isPending}
-              >
-                {simulatedConfirm.isPending ? '确认中...' : '使用模拟支付完成订单'}
-              </Button>
-            ) : (
-              <span className="self-center text-slate-600">等待支付服务商确认。</span>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      {simulatedConfirm.data ? (
-        <section className="rounded-lg border border-emerald-200 bg-white p-5 text-sm text-emerald-800 md:col-span-4">
-          支付已确认。套餐 {planCodeLabel(simulatedConfirm.data.subscription.plan_code)}，剩余{' '}
-          {simulatedConfirm.data.token_balance.remaining_tokens.toLocaleString()} 模型额度。
-        </section>
-      ) : null}
-      {simulatedConfirm.error ? (
-        <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 md:col-span-4">
-          {formatApiError(simulatedConfirm.error, '模拟支付暂不可用。')}
-        </section>
-      ) : null}
+      {checkout.isPending ? <p className="text-sm text-slate-600 md:col-span-4" role="status">正在创建订单并跳转到支付页...</p> : null}
       {checkout.error ? (
         <section className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 md:col-span-4">
           {formatApiError(checkout.error, '暂时无法创建订单。')}
@@ -168,17 +154,6 @@ function lifecycleKey(prefix: string) {
 
 function formatError(error: unknown, fallback: string) {
   return formatApiError(error, fallback)
-}
-
-function statusLabel(value?: string) {
-  const labels: Record<string, string> = {
-    pending: '待支付',
-    paid: '已支付',
-    active: '已生效',
-    canceled: '已取消',
-    failed: '失败',
-  }
-  return value ? labels[value] ?? value.replaceAll('_', ' ') : '-'
 }
 
 function planName(id?: string, fallback?: string) {

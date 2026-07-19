@@ -14,7 +14,6 @@ export function planCodeLabel(value?: string) {
 export function paymentProviderLabel(value?: string) {
   const labels: Record<string, string> = {
     simulated: '模拟支付',
-    production: '生产支付',
     platform_seed: '平台预置',
     wechat_pay: '微信支付',
     alipay: '支付宝',

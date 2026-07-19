@@ -24,6 +24,7 @@ type EndpointConfig struct {
 
 type PaymentConfig struct {
 	SimulatedEnabled bool            `yaml:"simulated_enabled"`
+	CheckoutTTL      string          `yaml:"checkout_ttl"`
 	WechatPay        WechatPayConfig `yaml:"wechat_pay"`
 	Alipay           AlipayConfig    `yaml:"alipay"`
 }
@@ -65,6 +66,7 @@ func Load() (*Bootstrap, error) {
 		},
 		Payment: PaymentConfig{
 			SimulatedEnabled: true,
+			CheckoutTTL:      "30m",
 			WechatPay:        WechatPayConfig{APIBaseURL: "https://api.mch.weixin.qq.com"},
 			Alipay:           AlipayConfig{Gateway: "https://openapi.alipay.com/gateway.do"},
 		},
@@ -79,6 +81,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Quota.GRPCEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Quota.GRPCEndpoint)
 	cfg.Quota.DialTimeout = kratosx.Env("BILLING_QUOTA_DIAL_TIMEOUT", cfg.Quota.DialTimeout)
 	cfg.Payment.SimulatedEnabled = kratosx.EnvBool("BILLING_SIMULATED_ENABLED", cfg.Payment.SimulatedEnabled)
+	cfg.Payment.CheckoutTTL = kratosx.Env("BILLING_CHECKOUT_TTL", cfg.Payment.CheckoutTTL)
 	cfg.Payment.WechatPay.Enabled = kratosx.EnvBool("WECHAT_PAY_ENABLED", cfg.Payment.WechatPay.Enabled)
 	cfg.Payment.WechatPay.AppID = kratosx.Env("WECHAT_PAY_APP_ID", cfg.Payment.WechatPay.AppID)
 	cfg.Payment.WechatPay.MchID = kratosx.Env("WECHAT_PAY_MCH_ID", cfg.Payment.WechatPay.MchID)

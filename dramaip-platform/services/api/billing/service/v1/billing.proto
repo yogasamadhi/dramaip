@@ -48,6 +48,7 @@ message CreateCheckoutReply {
   string plan_id = 3;
   string provider = 4;
   string status = 5;
+  string expires_at = 6;
 }
 
 message ConfirmSandboxPaymentRequest {
@@ -166,4 +167,5 @@ message Order {
   string created_at = 10;
   string paid_at = 11;
   string subscription_id = 12;
+  string expires_at = 13;
 }

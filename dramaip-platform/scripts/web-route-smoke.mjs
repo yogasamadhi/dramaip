@@ -24,15 +24,16 @@ const checks = [
   },
   {
     file: 'clients/apps/web/app/login/page.tsx',
-    patterns: ['safeNextPath', 'router.replace(currentNextPath())', 'getAccessToken()'],
+    patterns: ['safeNextPath', 'router.replace(currentNextPath())', 'apiClient.getSession()', 'queryClient.clear()'],
   },
   {
     file: 'clients/apps/web/app/register/page.tsx',
-    patterns: ['safeNextPath', 'router.replace(currentNextPath())', 'getAccessToken()'],
+    patterns: ['safeNextPath', "router.replace('/verify-email')", 'apiClient.getSession()', 'queryClient.clear()'],
   },
   {
     file: 'clients/apps/web/components/PricingPlans.tsx',
-    patterns: ["router.push(loginPath('/pricing'))", 'isSimulatedPaymentEnabled', 'checkout.mutate', '/account/orders/'],
+    patterns: ["router.push(loginPath('/pricing'))", 'checkoutProviders', 'channel: provider', 'router.push(`/account/orders/${encodeURIComponent(result.checkout_id)}`)'],
+    forbidden: ["'production'", '"production"'],
   },
   {
     file: 'clients/apps/web/components/AccountDashboard.tsx',
@@ -40,7 +41,7 @@ const checks = [
   },
   {
     file: 'clients/apps/web/app/account/orders/[orderId]/page.tsx',
-    patterns: ['<RequireAuth>', 'apiClient.getOrder', 'apiClient.confirmSimulatedPayment'],
+    patterns: ['<RequireAuth>', 'apiClient.getOrder', 'apiClient.confirmSimulatedPayment', 'refetchInterval', 'retryCheckout', 'expires_at'],
   },
 ]
 
@@ -50,6 +51,9 @@ for (const check of checks) {
   const source = read(check.file)
   for (const pattern of check.patterns) {
     assert(source.includes(pattern), `${check.file} missing ${pattern}`)
+  }
+  for (const pattern of check.forbidden ?? []) {
+    assert(!source.includes(pattern), `${check.file} must not contain ${pattern}`)
   }
 }
 

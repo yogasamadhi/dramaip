@@ -43,7 +43,7 @@ func TestClientSignsCreateAndQueryRequests(t *testing.T) {
 		switch r.URL.Path {
 		case "/v3/pay/transactions/native":
 			body, _ := io.ReadAll(r.Body)
-			if r.Method != http.MethodPost || !strings.Contains(string(body), `"out_trade_no":"wx-order-1"`) {
+			if r.Method != http.MethodPost || !strings.Contains(string(body), `"out_trade_no":"wx-order-1"`) || !strings.Contains(string(body), `"time_expire":"2026-07-20T12:30:00Z"`) {
 				t.Errorf("native request %s %s", r.Method, body)
 			}
 			_, _ = w.Write([]byte(`{"code_url":"weixin://wxpay/bizpayurl?pr=test"}`))
@@ -65,7 +65,7 @@ func TestClientSignsCreateAndQueryRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	native, err := client.CreateNativeOrder(t.Context(), NativeOrderRequest{OutTradeNo: "wx-order-1", Description: "DramaIP Basic", TotalCents: 990, NotifyURL: "https://example.test/v1/webhooks/wechat-pay"})
+	native, err := client.CreateNativeOrder(t.Context(), NativeOrderRequest{OutTradeNo: "wx-order-1", Description: "DramaIP Basic", TotalCents: 990, NotifyURL: "https://example.test/v1/webhooks/wechat-pay", TimeExpire: "2026-07-20T12:30:00Z"})
 	if err != nil || native.CodeURL == "" {
 		t.Fatalf("CreateNativeOrder = %#v, %v", native, err)
 	}

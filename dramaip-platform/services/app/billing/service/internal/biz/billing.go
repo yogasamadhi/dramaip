@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/internal/alipay"
@@ -20,6 +21,7 @@ import (
 type BillingUsecase struct {
 	repo             BillingRepository
 	simulatedEnabled bool
+	checkoutTTL      string
 	wechatPay        conf.WechatPayConfig
 	alipay           conf.AlipayConfig
 }
@@ -29,8 +31,8 @@ type BillingRepository interface {
 	ListPlans(context.Context) ([]data.PlanRow, error)
 	GetSubscription(context.Context, string) (data.SubscriptionRow, error)
 	CreateCheckout(context.Context, string, string, string) (data.CheckoutResult, error)
-	CreateWechatCheckout(context.Context, string, string, string, string) (data.CheckoutResult, error)
-	CreateAlipayCheckout(context.Context, string, string, string, string) (data.CheckoutResult, error)
+	CreateWechatCheckout(context.Context, string, string, string, string, string, time.Time) (data.CheckoutResult, error)
+	CreateAlipayCheckout(context.Context, string, string, string, string, string, time.Time) (data.CheckoutResult, error)
 	ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error)
 	ConfirmWechatPayment(context.Context, string, string, string, int64, string, []byte) (data.SimulatedPaymentResult, error)
 	ConfirmAlipayPayment(context.Context, string, string, string, int64, string, []byte) (data.SimulatedPaymentResult, error)
@@ -58,7 +60,7 @@ type BillingRepository interface {
 }
 
 func NewBillingUsecase(repo BillingRepository, cfg *conf.Bootstrap) *BillingUsecase {
-	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled, wechatPay: cfg.Payment.WechatPay, alipay: cfg.Payment.Alipay}
+	return &BillingUsecase{repo: repo, simulatedEnabled: cfg.Payment.SimulatedEnabled, checkoutTTL: cfg.Payment.CheckoutTTL, wechatPay: cfg.Payment.WechatPay, alipay: cfg.Payment.Alipay}
 }
 
 func (u *BillingUsecase) Checks() map[string]func(context.Context) error {
@@ -82,6 +84,9 @@ func (u *BillingUsecase) CreateCheckout(ctx context.Context, userID string, plan
 	}
 	if provider == "alipay" {
 		return u.createAlipayCheckout(ctx, userID, planID)
+	}
+	if provider == "production" {
+		return data.CheckoutResult{}, status.Error(codes.InvalidArgument, "payment provider must be wechat_pay or alipay")
 	}
 	if provider != "simulated" {
 		return data.CheckoutResult{}, status.Errorf(codes.InvalidArgument, "unsupported payment provider %q", provider)
@@ -119,20 +124,20 @@ func (u *BillingUsecase) createWechatCheckout(ctx context.Context, userID string
 		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "wechat pay configuration is incomplete")
 	}
 	orderID := platform.NewUUID()
+	expiresAt := time.Now().UTC().Add(u.checkoutTTLDuration())
 	providerOrderID := "wx" + strings.ReplaceAll(orderID, "-", "")[:30]
 	nativeOrder, err := client.CreateNativeOrder(ctx, wechat.NativeOrderRequest{
 		OutTradeNo: providerOrderID, Description: fmt.Sprintf("DramaIP %s", plan.Name),
 		TotalCents: int64(math.Round(plan.Price * 100)), Currency: plan.Currency,
-		NotifyURL: u.wechatPay.NotifyURL,
+		NotifyURL: u.wechatPay.NotifyURL, TimeExpire: expiresAt.Format(time.RFC3339),
 	})
 	if err != nil {
 		return data.CheckoutResult{}, status.Errorf(codes.Unavailable, "create wechat pay order: %v", err)
 	}
-	checkout, err := u.repo.CreateWechatCheckout(ctx, userID, planID, orderID, providerOrderID)
+	checkout, err := u.repo.CreateWechatCheckout(ctx, userID, planID, orderID, providerOrderID, nativeOrder.CodeURL, expiresAt)
 	if err != nil {
 		return data.CheckoutResult{}, err
 	}
-	checkout.PaymentURL = nativeOrder.CodeURL
 	return checkout, nil
 }
 
@@ -165,19 +170,35 @@ func (u *BillingUsecase) createAlipayCheckout(ctx context.Context, userID string
 		return data.CheckoutResult{}, status.Error(codes.FailedPrecondition, "alipay configuration is incomplete")
 	}
 	orderID := platform.NewUUID()
+	expiresAt := time.Now().UTC().Add(u.checkoutTTLDuration())
 	precreated, err := client.CreatePrecreateOrder(ctx, alipay.PrecreateOrderRequest{
 		OutTradeNo: orderID, Subject: fmt.Sprintf("DramaIP %s", plan.Name),
-		TotalCents: int64(math.Round(plan.Price * 100)), Currency: plan.Currency,
+		TotalCents: int64(math.Round(plan.Price * 100)), Currency: plan.Currency, Timeout: alipayTimeout(u.checkoutTTLDuration()),
 	})
 	if err != nil {
 		return data.CheckoutResult{}, status.Errorf(codes.Unavailable, "create alipay order: %v", err)
 	}
-	checkout, err := u.repo.CreateAlipayCheckout(ctx, userID, planID, orderID, orderID)
+	checkout, err := u.repo.CreateAlipayCheckout(ctx, userID, planID, orderID, orderID, precreated.QRCode, expiresAt)
 	if err != nil {
 		return data.CheckoutResult{}, err
 	}
-	checkout.PaymentURL = precreated.QRCode
 	return checkout, nil
+}
+
+func (u *BillingUsecase) checkoutTTLDuration() time.Duration {
+	value, err := time.ParseDuration(strings.TrimSpace(u.checkoutTTL))
+	if err != nil || value < time.Minute || value > 24*time.Hour {
+		return 30 * time.Minute
+	}
+	return value
+}
+
+func alipayTimeout(ttl time.Duration) string {
+	minutes := int(math.Ceil(ttl.Minutes()))
+	if minutes < 1 {
+		minutes = 1
+	}
+	return strconv.Itoa(minutes) + "m"
 }
 
 func (u *BillingUsecase) ConfirmSandboxPayment(ctx context.Context, userID string, checkoutID string) (data.SandboxPaymentResult, error) {

@@ -54,6 +54,7 @@ type NativeOrderRequest struct {
 	TotalCents  int64
 	Currency    string
 	NotifyURL   string
+	TimeExpire  string
 }
 
 type NativeOrder struct {
@@ -144,11 +145,15 @@ func (c *Client) CreateNativeOrder(ctx context.Context, order NativeOrderRequest
 	if order.Currency == "" {
 		order.Currency = "CNY"
 	}
-	body, err := json.Marshal(map[string]any{
+	bodyFields := map[string]any{
 		"appid": c.appID, "mchid": c.mchID, "description": order.Description,
 		"out_trade_no": order.OutTradeNo, "notify_url": order.NotifyURL,
 		"amount": map[string]any{"total": order.TotalCents, "currency": order.Currency},
-	})
+	}
+	if order.TimeExpire != "" {
+		bodyFields["time_expire"] = order.TimeExpire
+	}
+	body, err := json.Marshal(bodyFields)
 	if err != nil {
 		return NativeOrder{}, err
 	}
