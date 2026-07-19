@@ -341,7 +341,7 @@ make platform-e2e
 | LM4-07 | P1 | Desktop/项目体验 | done | 让首页和创建流程直接引导用户继续当前创作 | ProjectList、CreateProject、project summaries | LM4-06 |
 | LM4-08 | P1 | Desktop/数据生命周期 | done | 交付可恢复的项目废纸篓和最终删除边界 | DB migration/repo、项目首页、导入导出 | LM4-07 |
 | LM4-09 | P1 | Desktop/编辑器 | done | 交付适合长篇项目的章节树与专注写作体验 | Workspace、chapter tree、TipTap、shortcuts | LM4-01、LM4-06 |
-| LM4-10 | P1 | Desktop/AI 产品 | todo | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
+| LM4-10 | P1 | Desktop/AI 产品 | done | 将 AI 按钮墙重构为上下文推荐和可搜索命令入口 | AI panel、command palette、task metadata | LM4-05、LM4-06 |
 | LM4-11 | P1 | Desktop/任务可靠性 | todo | 交付跨页面、跨重启可追踪的任务中心 | long task runtime/repo、task dock、monitor | LM4-01、LM4-10 |
 | LM4-12 | P1 | Desktop/Cloud AI | todo | 在真实生成前完成权威模型和额度预检 | Desktop AI IPC/provider、Desktop BFF、AI Gateway | LM4-10、LM4-11 |
 | LM4-13 | P1 | Desktop/AI 数据安全 | todo | 将修稿采用、版本和任务完成收口为原子事务 | creative IPC、revision repo、content versions | LM4-01、LM4-10 |
@@ -1084,4 +1084,20 @@ Push: de06f44 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-09-chapter-tree deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: No new long-form business model or migration was added. The existing chapter orderIndex remains authoritative; chapter:reorder accepts the complete, unique project id set only and rewrites it in one SQLite transaction. Existing volume/unit/stage ranges are a display projection, so the UI can revert to a plain list without losing order. Cmd/Ctrl+N creates, Cmd/Ctrl+S uses LM4-01 draft-save truth, Cmd/Ctrl+K focuses tree search, and Alt+Up/Down changes chapters without taking ordinary cursor arrows from the editor.
+```
+
+```text
+Loop: LM4-10
+Target branch: main
+Loop branch: loop/lm4-10-ai-command-palette
+Commit(s): e157581 loop: unify AI command discovery
+Merge commit: b0b47a4 merge: LM4-10 AI command palette
+Verification: dramaip-desktop pnpm test (133 unit tests plus DB migration replay); pnpm test:ui (17 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e (includes ai-command-palette-search-policy-and-shortcut); pnpm format:check; git diff --check origin/main...HEAD. All passed again after merge.
+UI/manual evidence: Reviewed isolated 1320px light command-palette and compact preflight-summary fixtures. The palette keeps only three contextual recommendations by default, searches the complete 66-task registry, supports category/favorite/recent filters, displays each write policy, and retains a visible no-chapter explanation. The preflight opens with a compact five-context summary and an explicit detail expander; reduced motion uses the existing static state treatment. E2E verifies search, policy visibility, favorites, compact context expansion, Cmd/Ctrl+K, and a task deep-link to the original character workspace.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, local preference data, or temporary UI artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 4b0ae74 before branch creation and again before merge.
+Push: b0b47a4 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-10-ai-command-palette deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
+Notes: The catalog is generated from every TASK_WRITE_POLICIES entry, preserving all existing task reachability and write-policy semantics. Direct chapter actions retain their preflight confirmation; non-chapter entries deep-link to the exact existing workspace, while tasks requiring an adaptation direct to adaptation creation if none exists. Cmd/Ctrl+K intentionally keeps chapter-tree search on the writing page and opens the global command palette elsewhere to avoid a shortcut conflict.
 ```
