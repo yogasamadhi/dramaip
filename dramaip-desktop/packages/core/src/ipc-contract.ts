@@ -562,6 +562,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'longTask:retry': [id],
   'batchTask:run': [batchTaskRunInput],
   'project:list': [],
+  'project:listHomeSummaries': [],
   'project:create': [projectInput],
   'project:update': [id, projectPatch],
   'chapter:list': [id],

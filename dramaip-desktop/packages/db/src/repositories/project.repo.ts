@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { DB } from '../client'
 import {
   projects,
@@ -34,14 +34,46 @@ import {
   videoGenerationTasks,
   videoResults,
   projectAssets,
+  qualityGateReports,
 } from '../schema'
-import type { OptionalId, Project } from '@sdns/core'
+import type { OptionalId, Project, ProjectHomeSummary } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
 
 export function listProjects(db: DB): Project[] {
   return db.select().from(projects).orderBy(projects.updatedAt).all() as unknown as Project[]
+}
+
+export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
+  return db.select().from(projects).orderBy(desc(projects.updatedAt)).all().map((row) => {
+    const project = row as unknown as Project
+    const projectChapters = db.select().from(chapters).where(eq(chapters.projectId, project.id)).orderBy(desc(chapters.updatedAt)).all()
+    const adaptation = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).orderBy(desc(adaptationProjects.updatedAt)).get()
+    const blockerCount = db.select().from(qualityGateReports)
+      .where(eq(qualityGateReports.projectId, project.id))
+      .all()
+      .filter((report) => report.verdict === 'block')
+      .reduce((count, report) => count + JSON.parse(report.blockingIssues || '[]').length, 0)
+    const latestChapter = projectChapters[0]
+    const episodeCount = adaptation
+      ? db.select().from(episodes).where(eq(episodes.adaptationProjectId, adaptation.id)).all().length
+      : 0
+    const stage = adaptation ? 'adaptation' : latestChapter ? 'writing' : 'setup'
+    const nextAction = latestChapter
+      ? { label: '继续写作', path: `/projects/${project.id}?section=chapters&chapter=${latestChapter.id}` }
+      : { label: '完善项目设定', path: `/projects/${project.id}?section=overview` }
+    return {
+      project,
+      chapterCount: projectChapters.length,
+      wordCount: projectChapters.reduce((total, chapter) => total + chapter.content.replace(/\s/g, '').length, 0),
+      latestChapter: latestChapter ? { id: latestChapter.id, title: latestChapter.title, updatedAt: latestChapter.updatedAt } : undefined,
+      adaptation: adaptation ? { id: adaptation.id, title: adaptation.title, episodeCount } : undefined,
+      blockerCount,
+      stage,
+      nextAction,
+    }
+  })
 }
 
 export function getProject(db: DB, id: string): Project | undefined {

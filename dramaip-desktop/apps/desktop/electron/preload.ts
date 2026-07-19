@@ -65,6 +65,7 @@ const api = {
   },
   project: {
     list: () => invoke('project:list'),
+    listHomeSummaries: () => invoke('project:listHomeSummaries'),
     get: (id: string) => invoke('project:get', id),
     create: (data: unknown) => invoke('project:create', data),
     update: (id: string, patch: unknown) => invoke('project:update', id, patch),

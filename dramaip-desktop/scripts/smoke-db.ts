@@ -75,6 +75,11 @@ function main() {
 
   const cUpd = repos.chapter.updateChapterContent(repos.db, c1.id, '这是第一章正文…')
   assert(cUpd?.content === '这是第一章正文…', 'updateChapterContent 写回正文')
+  const homeSummary = repos.project.listProjectHomeSummaries(repos.db).find((summary) => summary.project.id === p1.id)
+  assert(
+    homeSummary?.chapterCount === 2 && homeSummary.wordCount === '这是第一章正文…'.replace(/\s/g, '').length && homeSummary.nextAction.path.includes('chapter='),
+    'projectHomeSummary 提供章节、字数和继续写作入口',
+  )
 
   // 人物
   const ch = repos.character.createCharacter(repos.db, { projectId: p1.id, name: '林晚', role: '主角', personality: '冷静' })

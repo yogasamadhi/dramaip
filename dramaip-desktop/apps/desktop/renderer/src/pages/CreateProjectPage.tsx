@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronDown, ChevronUp, Library, MessageSquare, Sparkles } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, FilePlus2, Library, Lightbulb, MessageSquare, Sparkles, Upload } from 'lucide-react'
 import type { GenrePreset } from '@sdns/core'
 import { SHORT_DRAMA_TYPES } from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
@@ -87,10 +87,20 @@ export function CreateProjectPage() {
     }
   }
 
+  async function handleImport() {
+    const toastId = toast.loading('正在导入项目包…')
+    const result = await ipc.project.importPackage()
+    if (result.ok && result.project) {
+      toast.success(`已导入「${result.project.title}」`, { id: toastId })
+      navigate(`/projects/${result.project.id}`)
+    } else if (result.canceled) toast.dismiss(toastId)
+    else toast.error('导入失败：' + (result.error ?? '未知错误'), { id: toastId })
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="icon" aria-label="返回项目列表" onClick={() => navigate('/')}>
           <ArrowLeft />
         </Button>
         <h1 className="text-lg font-semibold">创建项目</h1>
@@ -98,6 +108,17 @@ export function CreateProjectPage() {
 
       <main className="flex flex-1 items-center justify-center overflow-auto p-6">
         <div className="w-full max-w-xl space-y-6">
+          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建方式">
+            <Button variant="secondary" className="h-auto justify-start py-3 text-left" onClick={() => { setTitle(''); setIdea(''); setAdvanced(false) }}>
+              <FilePlus2 /><span><span className="block">空白项目</span><span className="block text-xs font-normal text-muted-foreground">从名称开始</span></span>
+            </Button>
+            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => setAdvanced(true)}>
+              <Lightbulb /><span><span className="block">带着灵感创建</span><span className="block text-xs font-normal text-muted-foreground">补充钩子和方向</span></span>
+            </Button>
+            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => void handleImport()}>
+              <Upload /><span><span className="block">导入项目包</span><span className="block text-xs font-normal text-muted-foreground">继续已有创作</span></span>
+            </Button>
+          </section>
           <div className="space-y-2">
             <Label className="text-base">作品名称 *</Label>
             <Input
@@ -117,6 +138,13 @@ export function CreateProjectPage() {
               只需要起个名字就能创建。其余设定（类型、卖点、钩子、受众等）进入工作台后，在和 AI 的「项目对话」里慢慢聊清楚即可。
             </p>
           </div>
+
+          {!advanced && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">先选一个类型（可选）</div>
+              <div className="flex flex-wrap gap-2">{typeOptions.slice(0, 8).map((type) => <Button key={type} size="sm" variant={shortDramaType === type ? 'secondary' : 'outline'} onClick={() => setShortDramaType(type)}>{type}</Button>)}</div>
+            </div>
+          )}
 
           <button
             type="button"
