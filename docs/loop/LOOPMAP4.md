@@ -19,8 +19,8 @@
 5. Web、Mobile、Admin、Desktop 与平台服务之间的状态和契约保持一致；
 6. 所有 P0/P1/P2 在最终 Gate 中有可复现的自动化与人工验收证据。
 
-> 规划状态说明：本文创建时所有 LM4 loop 均为 `todo`。编写本地图本身不代表任何
-> 功能 loop 已经满足 `LOOPRULE.md` 第 7 节的完成定义。
+> 规划状态说明：本文创建时所有 LM4 loop 均为 `todo`。后续状态仅在对应 loop 完成
+> `LOOPRULE.md` 第 7 节定义的实现、验证、合并、推送与清理后更新。
 
 ## 0. 目标与范围
 
@@ -331,7 +331,7 @@ make platform-e2e
 
 | Loop | P | Owner | 状态 | 单一目标 | 主要范围 | 依赖 |
 | --- | --- | --- | --- | --- | --- | --- |
-| LM4-00 | P0 | QA/产品体验 | todo | 建立可重复的 UI、无障碍和状态基线 Gate | Desktop UI harness、fixtures、截图、审计文档 | 无 |
+| LM4-00 | P0 | QA/产品体验 | done | 建立可重复的 UI、无障碍和状态基线 Gate | Desktop UI harness、fixtures、截图、审计文档 | 无 |
 | LM4-01 | P0 | Desktop/数据可靠性 | todo | 确保所有核心编辑内容在切换、关闭和崩溃时不丢失 | Chapter/Script/Shot、IPC、DB、Electron lifecycle | LM4-00 |
 | LM4-02 | P0 | Desktop/工作流 | todo | 让阶段、质检和视频完成状态反映最新真实产物 | workflow guide、readiness、quality、versions、video | LM4-00 |
 | LM4-03 | P0 | Web/Billing | todo | 恢复正式支付下单到结果确认的用户闭环 | Pricing、SDK、Web BFF、Billing、订单页 | LM4-00 |
@@ -908,7 +908,7 @@ UI 人工 smoke 至少记录：
 
 ## 12. 完成记录区
 
-每完成一个 loop，在本节末尾追加记录，不覆盖历史。当前没有已完成记录。
+每完成一个 loop，在本节末尾追加记录，不覆盖历史。
 
 ```text
 Loop:
@@ -924,4 +924,20 @@ Push:
 Loop branch cleanup:
 Current branch/worktree:
 Notes:
+```
+
+```text
+Loop: LM4-00
+Target branch: main
+Loop branch: loop/lm4-00-ui-baseline
+Commit(s): 3436fa9 loop: add desktop UI baseline gate
+Merge commit: cf2d97e loop: merge LM4-00 UI baseline gate
+Verification: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (120/120); pnpm test:ui (5 screenshots, 11 recorded a11y observations); git diff --check origin/main...HEAD
+UI/manual evidence: Reviewed project list, 1024 light and 1320 dark workspace, 1600 script workspace, and reduced-motion video failure fixture. Fixture/report paths are documented in docs/loop/LM4-00-UI基线.md.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, build outputs, or runtime artifacts committed.
+Remote sync: Fetched and fast-forward checked origin/main at 0bda497 before branch creation and again before merge.
+Push: cf2d97e pushed to origin/main successfully on 2026-07-19.
+Loop branch cleanup: Local loop/lm4-00-ui-baseline deleted after successful main push.
+Current branch/worktree: main; clean at record creation (ignored local UI artifacts excluded).
+Notes: 11 existing missing accessible-name observations are recorded as baseline evidence, not waived; LM4-19 owns corrective a11y gates.
 ```
