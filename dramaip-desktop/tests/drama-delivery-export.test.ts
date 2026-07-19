@@ -11,6 +11,8 @@ import type {
   ScriptReview,
   Shot,
   ShotReview,
+  VideoGenerationTask,
+  VideoResult,
 } from '../packages/core/src'
 import {
   buildDramaEpisodeDeliveryPackage,
@@ -209,6 +211,35 @@ const shotReviews: ShotReview[] = [
   },
 ]
 
+const videoTasks: VideoGenerationTask[] = [
+  {
+    id: 'video-task-1',
+    projectId: 'p1',
+    episodeId: 'e1',
+    sceneId: 'scene-1',
+    shotId: 'shot-1',
+    provider: 'mock',
+    model: 'mock-v1',
+    prompt: shots[0].videoPrompt,
+    referenceImageUrls: [],
+    status: 'success',
+    createdAt: now,
+    updatedAt: now,
+  },
+]
+
+const videoResults: VideoResult[] = [
+  {
+    id: 'video-result-1',
+    taskId: 'video-task-1',
+    shotId: 'shot-1',
+    resultVideoUrl: 'https://cdn.example.test/result.mp4',
+    remoteVideoUrl: 'https://cdn.example.test/result.mp4',
+    isBest: true,
+    createdAt: now,
+  },
+]
+
 const data: DramaDeliveryExportData = {
   project,
   adaptation,
@@ -220,6 +251,8 @@ const data: DramaDeliveryExportData = {
   shots,
   scriptReviews,
   shotReviews,
+  videoTasks,
+  videoResults,
 }
 
 test('builds a short drama proposal package with first 10 analysis and video risks', () => {
@@ -248,6 +281,13 @@ test('exports episode delivery package with scripts, scenes, shots, and prompts'
   assert.equal(pkg.episodes.length, 1)
   assert.equal(pkg.episodes[0].script?.id, 's1')
   assert.equal(pkg.episodes[0].scenes[0].shots[0].riskFlags.includes('AI 视频高难度'), true)
+  assert.deepEqual(pkg.episodes[0].scenes[0].shots[0].bestVideo, {
+    resultId: 'video-result-1',
+    taskId: 'video-task-1',
+    source: 'result',
+    url: 'https://cdn.example.test/result.mp4',
+    archivedAt: undefined,
+  })
 
   const md = exportDramaEpisodeDeliveryMarkdown(data, { episodeLimit: 1 })
   assert.match(md, /# 爆款开机日 · 分集交付包/)
@@ -255,6 +295,7 @@ test('exports episode delivery package with scripts, scenes, shots, and prompts'
   assert.match(md, /### 剧本正文/)
   assert.match(md, /视频 Prompt/)
   assert.match(md, /负面 Prompt/)
+  assert.match(md, /最佳视频交付/)
 
   const json = JSON.parse(exportDramaEpisodeDeliveryJson(data, { episodeLimit: 1 })) as ReturnType<typeof buildDramaEpisodeDeliveryPackage>
   assert.equal(json.meta.format, DRAMA_EPISODE_DELIVERY_PACKAGE_FORMAT)
@@ -268,10 +309,11 @@ test('exports shot delivery json and csv for video production handoff', () => {
 
   const csv = exportDramaShotDeliveryCsv(data, { episodeLimit: 1 })
   assert.match(csv, /episodeNumber,episodeTitle,sceneNumber,sceneTitle/)
-  assert.match(csv, /videoPrompt,negativePrompt/)
+  assert.match(csv, /videoPrompt,negativePrompt,bestVideoSource,bestVideoUrl/)
   assert.match(csv, /"vertical close-up, rain set, script cover, sharp lighting"/)
   assert.match(csv, /"blurred face, extra fingers"/)
   assert.match(csv, /雨夜和推镜头叠加/)
+  assert.match(csv, /https:\/\/cdn.example.test\/result.mp4/)
 })
 
 test('keeps shot delivery exports in persisted storyboard order', () => {

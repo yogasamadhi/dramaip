@@ -97,6 +97,8 @@ export function registerExportIpc(): void {
     const scripts = r.script.listScripts(r.db, adaptationId)
     const scenes = scripts.flatMap((script) => r.scene.listScenesByScript(r.db, script.id))
     const shots = scenes.flatMap((scene) => r.shot.listShotsByScene(r.db, scene.id))
+    const videoTasks = episodes.flatMap((episode) => r.videoTask.listVideoTasksByEpisode(r.db, episode.id))
+    const videoResults = videoTasks.flatMap((task) => r.videoResult.listVideoResultsByTask(r.db, task.id))
     return {
       project,
       adaptation,
@@ -106,6 +108,8 @@ export function registerExportIpc(): void {
       scripts,
       scenes,
       shots,
+      videoTasks,
+      videoResults,
       scriptReviews: scripts
         .map((script) => r.scriptReview.getScriptReview(r.db, script.id))
         .filter((review): review is NonNullable<typeof review> => Boolean(review)),

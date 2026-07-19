@@ -18,7 +18,7 @@ import {
 } from '../secrets'
 import { logger } from '../logger'
 import { createVideoAssetArchiver } from '../video-assets'
-import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
+import { beginLongTaskRun, cancelLongTaskRun, finishLongTaskRun } from '../task-runtime'
 
 export function registerVideoIpc(): void {
   const repos = () => getRepos()
@@ -164,6 +164,23 @@ export function registerVideoIpc(): void {
     } finally {
       finishLongTaskRun(longTaskId)
     }
+  })
+
+  // Current adapters do not expose provider-side cancellation. This safely aborts any local
+  // submission/polling run and marks the persisted task as no longer tracked.
+  ipcMain.handle('videoTask:cancel', (_e, id: string) => {
+    const r = repos()
+    const task = r.videoTask.getVideoTask(r.db, id)
+    if (!task) return { ok: false, error: '未找到视频任务' }
+    if (task.status !== 'pending' && task.status !== 'running') return { ok: false, error: '任务已结束，不能取消' }
+    const longTask = r.longTask.getLongTaskByRelatedEntity(r.db, 'video', id)
+    if (longTask && (longTask.status === 'pending' || longTask.status === 'running')) {
+      cancelLongTaskRun(longTask.id)
+      r.longTask.finishLongTask(r.db, longTask.id, 'canceled', { errorMessage: '已停止本地视频任务跟踪' })
+    }
+    const updated = r.videoTask.updateVideoTask(r.db, id, { status: 'canceled', errorMessage: '已停止本地跟踪；当前 Provider 未提供远端取消能力' })
+    logger.info('video', 'task locally canceled', { videoTaskId: id, longTaskId: longTask?.id })
+    return { ok: Boolean(updated), task: updated, remoteCanceled: false }
   })
 
   ipcMain.handle('videoTask:update', (_e, id: string, patch: unknown) =>

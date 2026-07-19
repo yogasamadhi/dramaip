@@ -138,7 +138,7 @@ test('requires a usable result before video delivery is complete', () => {
   const video = stages.find((stage) => stage.key === 'video')
 
   assert.equal(video?.complete, true)
-  assert.equal(video?.detail, '成功任务 1 个，可用视频结果 1 个')
+  assert.equal(video?.detail, '成功任务 1 个，已选最佳视频 1 个')
 })
 
 test('uses the latest matching quality report and marks changed sources stale', () => {
@@ -173,4 +173,17 @@ test('does not treat pending, failed, or result-less video tasks as delivery com
     { id: 's', provider: 'mock', model: 'mock', prompt: '', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask,
   ], [])
   assert.equal(noResult.complete, false)
+})
+
+test('requires an explicitly selected best video before delivery is complete', () => {
+  const truth = buildVideoDeliveryTruth([
+    { id: 's', provider: 'mock', model: 'mock', prompt: '', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask,
+  ], [
+    { id: 'r', taskId: 's', resultVideoUrl: 'https://example.test/unselected.mp4', isBest: false, createdAt: '' } as VideoResult,
+  ])
+
+  assert.equal(truth.complete, false)
+  assert.equal(truth.usableResultCount, 1)
+  assert.equal(truth.bestResultCount, 0)
+  assert.match(truth.detail, /待选择最佳交付版本/)
 })

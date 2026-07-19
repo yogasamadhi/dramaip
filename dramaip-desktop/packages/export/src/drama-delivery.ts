@@ -9,6 +9,8 @@ import type {
   ScriptReview,
   Shot,
   ShotReview,
+  VideoGenerationTask,
+  VideoResult,
 } from '@sdns/core'
 
 export const DRAMA_PROPOSAL_PACKAGE_FORMAT = 'sdns-drama-proposal-package'
@@ -33,12 +35,24 @@ export interface DramaDeliveryExportData {
   shots?: Shot[]
   scriptReviews?: ScriptReview[]
   shotReviews?: ShotReview[]
+  videoTasks?: VideoGenerationTask[]
+  videoResults?: VideoResult[]
+}
+
+/** The explicitly selected, successful video delivery pointer. Raw provider metadata is excluded. */
+export interface DramaBestVideoDelivery {
+  resultId: string
+  taskId: string
+  source: 'local' | 'result' | 'remote'
+  url: string
+  archivedAt?: string
 }
 
 export interface DramaDeliveryShotItem {
   shot: Shot
   review?: ShotReview
   riskFlags: string[]
+  bestVideo?: DramaBestVideoDelivery
 }
 
 export interface DramaDeliverySceneItem {
@@ -358,6 +372,8 @@ export function exportDramaShotDeliveryCsv(
     'narration',
     'videoPrompt',
     'negativePrompt',
+    'bestVideoSource',
+    'bestVideoUrl',
     'imagePrompt',
     'consistencyNotes',
     'aiVideoDifficulty',
@@ -386,6 +402,8 @@ export function exportDramaShotDeliveryCsv(
         item.shot.narration ?? '',
         item.shot.videoPrompt,
         item.shot.negativePrompt ?? '',
+        item.bestVideo?.source ?? '',
+        item.bestVideo?.url ?? '',
         item.shot.imagePrompt ?? '',
         item.shot.consistencyNotes ?? '',
         item.review?.aiVideoDifficulty ?? item.shot.aiVideoDifficulty ?? '',
@@ -405,6 +423,7 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
   const scenesByScript = groupBy(data.scenes ?? [], (scene) => scene.scriptId)
   const shotsByScene = groupBy(data.shots ?? [], (shot) => shot.sceneId)
   const shotReviewsByShot = new Map((data.shotReviews ?? []).map((review) => [review.shotId, review]))
+  const bestVideosByShot = buildBestVideosByShot(data)
   return episodes.map((episode) => {
     const script = scriptsByEpisode.get(episode.id)
     const scenes = script
@@ -412,7 +431,7 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
           scene,
           shots: sortShots(shotsByScene.get(scene.id) ?? []).map((shot) => {
             const review = shotReviewsByShot.get(shot.id)
-            return { shot, review, riskFlags: buildShotRiskFlags(shot, review) }
+            return { shot, review, riskFlags: buildShotRiskFlags(shot, review), bestVideo: bestVideosByShot.get(shot.id) }
           }),
         }))
       : []
@@ -423,6 +442,35 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
       scenes,
     }
   })
+}
+
+function buildBestVideosByShot(data: DramaDeliveryExportData): Map<string, DramaBestVideoDelivery> {
+  const successfulTasksById = new Map(
+    (data.videoTasks ?? [])
+      .filter((task) => task.status === 'success')
+      .map((task) => [task.id, task]),
+  )
+  const selectedByShot = new Map<string, DramaBestVideoDelivery>()
+  for (const result of data.videoResults ?? []) {
+    if (!result.isBest) continue
+    const task = successfulTasksById.get(result.taskId)
+    const shotId = result.shotId ?? task?.shotId
+    if (!task || !shotId || selectedByShot.has(shotId)) continue
+    const localVideoPath = result.localVideoPath?.trim()
+    const resultVideoUrl = result.resultVideoUrl.trim()
+    const remoteVideoUrl = result.remoteVideoUrl?.trim()
+    const source = localVideoPath ? 'local' : resultVideoUrl ? 'result' : remoteVideoUrl ? 'remote' : undefined
+    const url = localVideoPath ?? (resultVideoUrl || remoteVideoUrl)
+    if (!source || !url) continue
+    selectedByShot.set(shotId, {
+      resultId: result.id,
+      taskId: task.id,
+      source,
+      url,
+      archivedAt: result.archivedAt,
+    })
+  }
+  return selectedByShot
 }
 
 function summarizeEpisodeAnalysis(analysis: EpisodeAnalysis, episodeLimit: number): DramaEpisodeAnalysisSummary {
@@ -609,6 +657,7 @@ function renderDeliveryShot(item: DramaDeliveryShotItem): string {
       line('旁白', shot.narration),
       line('视频 Prompt', shot.videoPrompt || '（未生成）'),
       line('负面 Prompt', shot.negativePrompt),
+      item.bestVideo ? line('最佳视频交付', `${item.bestVideo.source} · ${item.bestVideo.url}`) : '',
       line('图片 Prompt', shot.imagePrompt),
       line('一致性提示', shot.consistencyNotes),
       line('AI 视频难度', review?.aiVideoDifficulty ?? shot.aiVideoDifficulty),
