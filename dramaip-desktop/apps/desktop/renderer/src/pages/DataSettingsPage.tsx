@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, DatabaseBackup, HardDrive, Loader2, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react'
-import type { DatabaseBackupInfo } from '@/lib/ipc'
+import { ArrowLeft, Cloud, Copy, DatabaseBackup, HardDrive, KeyRound, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import type { Project } from '@sdns/core'
+import type { CloudProjectSnapshot, DatabaseBackupInfo } from '@/lib/ipc'
 import { ipc } from '@/lib/ipc'
-import { confirmAction } from '@/components/ConfirmActionDialog'
+import { confirmAction, promptAction } from '@/components/ConfirmActionDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 function formatBytes(bytes: number): string {
@@ -32,8 +34,15 @@ function backupKindLabel(kind: DatabaseBackupInfo['kind']): string {
 export function DataSettingsPage() {
   const navigate = useNavigate()
   const [backups, setBackups] = useState<DatabaseBackupInfo[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [cloudSnapshots, setCloudSnapshots] = useState<CloudProjectSnapshot[]>([])
+  const [cloudLoading, setCloudLoading] = useState(true)
+  const [cloudSignedIn, setCloudSignedIn] = useState(false)
+  const [cloudNotice, setCloudNotice] = useState('')
+  const [recoveryKey, setRecoveryKey] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState<'create' | `restore:${string}` | null>(null)
+  const [busy, setBusy] = useState<'create' | 'cloud-create' | `restore:${string}` | `cloud-restore:${string}` | `cloud-delete:${string}` | null>(null)
 
   async function reload() {
     setLoading(true)
@@ -46,8 +55,31 @@ export function DataSettingsPage() {
     }
   }
 
+  async function reloadCloudSnapshots() {
+    setCloudLoading(true)
+    try {
+      const [nextProjects, cloudStatus] = await Promise.all([ipc.project.list(), ipc.cloudAuth.status()])
+      setProjects(nextProjects)
+      setSelectedProjectId((current) => current && nextProjects.some((project) => project.id === current) ? current : nextProjects[0]?.id ?? '')
+      setCloudSignedIn(Boolean(cloudStatus.signedIn))
+      if (!cloudStatus.signedIn) {
+        setCloudSnapshots([])
+        setCloudNotice(cloudStatus.enabled === false ? '云端登录尚未启用；本机备份不受影响。' : '登录云端账号后可创建和查看加密快照。')
+        return
+      }
+      const nextSnapshots = await ipc.cloudSnapshot.list()
+      setCloudSnapshots(nextSnapshots)
+      setCloudNotice('')
+    } catch (error) {
+      toast.error('云端快照读取失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setCloudLoading(false)
+    }
+  }
+
   useEffect(() => {
     void reload()
+    void reloadCloudSnapshots()
   }, [])
 
   const summary = useMemo(() => {
@@ -101,10 +133,88 @@ export function DataSettingsPage() {
     }
   }
 
+  async function handleCreateCloudSnapshot() {
+    if (!cloudSignedIn) {
+      navigate('/settings/cloud-account')
+      return
+    }
+    if (!selectedProjectId) {
+      toast.error('请先创建或选择一个项目')
+      return
+    }
+    setBusy('cloud-create')
+    try {
+      const created = await ipc.cloudSnapshot.create({ projectId: selectedProjectId })
+      setRecoveryKey(created.recoveryKey)
+      await reloadCloudSnapshots()
+      toast.success('已创建端到端加密云端快照')
+    } catch (error) {
+      toast.error('创建云端快照失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleRestoreCloudSnapshot(snapshot: CloudProjectSnapshot) {
+    const confirmed = await confirmAction({
+      title: '恢复为新项目？',
+      description: '恢复会校验加密快照并导入为一个新的本地项目，不会覆盖当前项目或本机备份。',
+      confirmLabel: '恢复为新项目',
+    })
+    if (!confirmed) return
+    const suppliedRecoveryKey = snapshot.recoveryKeyAvailable ? undefined : await promptAction({
+      title: '需要恢复密钥',
+      description: '此设备的系统 Keychain 中没有该密钥。请输入创建快照时保存的恢复密钥；它不会被上传或保存到项目数据。',
+      inputLabel: '恢复密钥',
+      placeholder: '粘贴恢复密钥',
+      confirmLabel: '验证并恢复',
+    })
+    if (!snapshot.recoveryKeyAvailable && !suppliedRecoveryKey) return
+    setBusy(`cloud-restore:${snapshot.id}`)
+    try {
+      const restored = await ipc.cloudSnapshot.restore({ snapshotId: snapshot.id, recoveryKey: suppliedRecoveryKey ?? undefined })
+      toast.success(`已恢复为新项目「${restored.title}」`)
+    } catch (error) {
+      toast.error('恢复云端快照失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleDeleteCloudSnapshot(snapshot: CloudProjectSnapshot) {
+    const confirmed = await confirmAction({
+      title: '删除云端快照？',
+      description: '将清除远端唯一的加密信封，并移除此设备 Keychain 中的恢复密钥；删除后不能下载或恢复。',
+      confirmLabel: '删除云端快照',
+      destructive: true,
+    })
+    if (!confirmed) return
+    setBusy(`cloud-delete:${snapshot.id}`)
+    try {
+      await ipc.cloudSnapshot.remove({ snapshotId: snapshot.id })
+      await reloadCloudSnapshots()
+      toast.success('已删除云端快照')
+    } catch (error) {
+      toast.error('删除云端快照失败：' + (error instanceof Error ? error.message : String(error)))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function copyRecoveryKey() {
+    if (!recoveryKey) return
+    try {
+      await navigator.clipboard.writeText(recoveryKey)
+      toast.success('恢复密钥已复制；请保存到自己的密码管理器')
+    } catch {
+      toast.error('无法复制，请手动保存恢复密钥')
+    }
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} aria-label="返回设置">
           <ArrowLeft />
         </Button>
         <DatabaseBackup className="h-5 w-5" />
@@ -158,6 +268,51 @@ export function DataSettingsPage() {
             </div>
 
             <Card>
+              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base"><Cloud className="h-4 w-4 text-primary" />端到端加密云端快照</CardTitle>
+                  <p className="mt-2 text-sm font-normal text-muted-foreground">手动创建；项目包先在本机加密，云端只保留密文 30 天。恢复始终导入为新项目。</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => void reloadCloudSnapshots()} disabled={cloudLoading || busy !== null}><RefreshCw />刷新</Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-4 md:flex-row md:items-center">
+                  <label className="min-w-0 flex-1 text-sm">
+                    <span className="mb-1 block text-xs text-muted-foreground">要创建快照的本地项目</span>
+                    <select className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} disabled={busy !== null || projects.length === 0}>
+                      {projects.length === 0 ? <option value="">暂无项目</option> : projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}
+                    </select>
+                  </label>
+                  <Button onClick={() => void handleCreateCloudSnapshot()} disabled={busy !== null || !selectedProjectId}>
+                    {busy === 'cloud-create' ? <Loader2 className="animate-spin" /> : <ShieldCheck />}
+                    {cloudSignedIn ? '创建加密快照' : '登录后创建'}
+                  </Button>
+                </div>
+                {cloudLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />读取云端快照…</div>
+                ) : cloudNotice ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3 text-sm text-muted-foreground"><span>{cloudNotice}</span><Button variant="outline" size="sm" onClick={() => navigate('/settings/cloud-account')}>管理云端账号</Button></div>
+                ) : cloudSnapshots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">暂无云端快照。它不是实时同步，只有你点击创建时才会上传密文。</p>
+                ) : (
+                  <div className="space-y-3">
+                    {cloudSnapshots.map((snapshot) => {
+                      const restoring = busy === `cloud-restore:${snapshot.id}`
+                      const deleting = busy === `cloud-delete:${snapshot.id}`
+                      return <div key={snapshot.id} className="grid gap-3 rounded-md border p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{formatDate(snapshot.createdAt)}</span><Badge variant={snapshot.recoveryKeyAvailable ? 'secondary' : 'outline'}>{snapshot.recoveryKeyAvailable ? '本机密钥可用' : '需要恢复密钥'}</Badge></div>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>{formatBytes(snapshot.encryptedBytes)}</span><span>到期：{formatDate(snapshot.expiresAt)}</span><span className="font-mono">{snapshot.encryptedSha256.slice(0, 12)}…</span></div>
+                        </div>
+                        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void handleRestoreCloudSnapshot(snapshot)} disabled={busy !== null}>{restoring ? <Loader2 className="animate-spin" /> : <RotateCcw />}恢复为新项目</Button><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label="删除云端快照" onClick={() => void handleDeleteCloudSnapshot(snapshot)} disabled={busy !== null}>{deleting ? <Loader2 className="animate-spin" /> : <Trash2 />}</Button></div>
+                      </div>
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader>
                 <CardTitle className="text-base">备份列表</CardTitle>
               </CardHeader>
@@ -208,6 +363,13 @@ export function DataSettingsPage() {
           </div>
         </ScrollArea>
       </main>
+      <Dialog open={Boolean(recoveryKey)} onOpenChange={(open) => { if (!open) setRecoveryKey(undefined) }}>
+        <DialogContent aria-describedby="snapshot-recovery-key-description">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" />保存恢复密钥</DialogTitle><DialogDescription id="snapshot-recovery-key-description">此密钥不会上传到云端。它已保存在本机系统 Keychain，但请同时保存到自己的密码管理器；换设备或清除 Keychain 后恢复需要它。</DialogDescription></DialogHeader>
+          <code className="break-all rounded-md border bg-muted p-3 text-xs leading-5">{recoveryKey}</code>
+          <DialogFooter><Button variant="outline" onClick={() => void copyRecoveryKey()}><Copy />复制密钥</Button><Button onClick={() => setRecoveryKey(undefined)}>我已安全保存</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

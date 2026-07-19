@@ -63,6 +63,7 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 		filepath.Join(migrationsRoot, "admin", "031_admin_rbac_audit.up.sql"),
 		filepath.Join(migrationsRoot, "reporting", "032_reporting_event_read_model.up.sql"),
 		filepath.Join(migrationsRoot, "platform", "033_database_role_isolation_complete.up.sql"),
+		filepath.Join(migrationsRoot, "snapshot", "041_snapshot_envelopes.up.sql"),
 	}
 	var builder strings.Builder
 	for _, path := range paths {
@@ -90,6 +91,9 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 	}
 	if !strings.Contains(sql, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA auth, user_profile, billing, quota, ai_gateway, notification, inspiration, admin, reporting FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin, dramaip_reporting") {
 		t.Fatal("role migration does not revoke every domain sequence privilege before grants")
+	}
+	if !strings.Contains(sql, "REVOKE ALL ON SCHEMA snapshot FROM dramaip_auth, dramaip_user, dramaip_billing, dramaip_quota, dramaip_ai_gateway, dramaip_notification, dramaip_inspiration, dramaip_admin, dramaip_reporting, dramaip_snapshot") {
+		t.Fatal("snapshot migration does not revoke the new domain from every runtime role")
 	}
 	if !strings.Contains(sql, "CREATE TRIGGER admin_audit_logs_immutable") || !strings.Contains(sql, "REVOKE UPDATE, DELETE ON admin.audit_logs FROM dramaip_admin") {
 		t.Fatal("admin audit migration does not enforce append-only runtime access")

@@ -18,6 +18,7 @@ images:
   aiGateway: { repository: registry.example.invalid/dramaip/ai-gateway, tag: candidate }
   notification: { repository: registry.example.invalid/dramaip/notification, tag: candidate }
   inspiration: { repository: registry.example.invalid/dramaip/inspiration, tag: candidate }
+  snapshot: { repository: registry.example.invalid/dramaip/snapshot, tag: candidate }
   reporting: { repository: registry.example.invalid/dramaip/reporting, tag: candidate }
   notificationJob: { repository: registry.example.invalid/dramaip/notification-job, tag: candidate }
   reportingJob: { repository: registry.example.invalid/dramaip/reporting-job, tag: candidate }

@@ -30,6 +30,8 @@ data:
   NOTIFICATION_GRPC_ADDR: {{ .Values.config.notificationGrpcAddr | quote }}
   INSPIRATION_HTTP_ADDR: {{ .Values.config.inspirationHttpAddr | quote }}
   INSPIRATION_GRPC_ADDR: {{ .Values.config.inspirationGrpcAddr | quote }}
+  SNAPSHOT_HTTP_ADDR: {{ .Values.config.snapshotHttpAddr | quote }}
+  SNAPSHOT_GRPC_ADDR: {{ .Values.config.snapshotGrpcAddr | quote }}
   REPORTING_HTTP_ADDR: {{ .Values.config.reportingHttpAddr | quote }}
   REPORTING_GRPC_ADDR: {{ .Values.config.reportingGrpcAddr | quote }}
   NOTIFICATION_JOB_HTTP_ADDR: {{ .Values.config.notificationJobHttpAddr | quote }}
@@ -113,6 +115,7 @@ data:
   BILLING_JOB_GRPC_ENDPOINT: {{ .Values.config.downstream.billingJobGrpcEndpoint | quote }}
   NOTIFICATION_JOB_GRPC_ENDPOINT: {{ .Values.config.downstream.notificationJobGrpcEndpoint | quote }}
   INSPIRATION_GRPC_ENDPOINT: {{ .Values.config.downstream.inspirationGrpcEndpoint | quote }}
+  SNAPSHOT_GRPC_ENDPOINT: {{ .Values.config.downstream.snapshotGrpcEndpoint | quote }}
   REPORTING_GRPC_ENDPOINT: {{ .Values.config.downstream.reportingGrpcEndpoint | quote }}
   AI_PROVIDERS: {{ .Values.config.ai.providers | quote }}
   AI_PROVIDER_DEFAULT: {{ .Values.config.ai.defaultProvider | quote }}

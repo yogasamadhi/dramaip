@@ -50,6 +50,12 @@ const api = {
     list: (input: { projectId: string }) => invoke('cloudHandoff:list', input),
     adopt: (input: { projectId: string; draftId: string }) => invoke('cloudHandoff:adopt', input),
   },
+  cloudSnapshot: {
+    list: () => invoke('cloudSnapshot:list'),
+    create: (input: { projectId: string }) => invoke('cloudSnapshot:create', input),
+    restore: (input: { snapshotId: string; recoveryKey?: string }) => invoke('cloudSnapshot:restore', input),
+    remove: (input: { snapshotId: string }) => invoke('cloudSnapshot:delete', input),
+  },
   dataBackup: {
     list: () => invoke('dataBackup:list'),
     create: () => invoke('dataBackup:create'),

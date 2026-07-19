@@ -424,6 +424,17 @@ export async function runDesktopUiBaseline(
       density: 'comfortable',
       reducedMotion: false,
     },
+    {
+      name: 'encrypted-snapshots-1024-light',
+      hash: '#/settings/data',
+      expectedText: '端到端加密云端快照',
+      readyText: '备份列表',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
   ]
 
   const artifacts: UiBaselineArtifact[] = []

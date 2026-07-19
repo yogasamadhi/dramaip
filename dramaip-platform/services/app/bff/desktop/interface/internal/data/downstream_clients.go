@@ -9,6 +9,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -41,12 +42,20 @@ type InspirationClient interface {
 	RecordMobileDraftAdoption(context.Context, *inspirationv1.RecordMobileDraftAdoptionRequest, ...grpc.CallOption) (*inspirationv1.RecordMobileDraftAdoptionResponse, error)
 }
 
+type SnapshotClient interface {
+	CreateProjectSnapshot(context.Context, *snapshotv1.CreateProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.CreateProjectSnapshotResponse, error)
+	ListProjectSnapshots(context.Context, *snapshotv1.ListProjectSnapshotsRequest, ...grpc.CallOption) (*snapshotv1.ListProjectSnapshotsResponse, error)
+	GetProjectSnapshot(context.Context, *snapshotv1.GetProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.GetProjectSnapshotResponse, error)
+	DeleteProjectSnapshot(context.Context, *snapshotv1.DeleteProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.DeleteProjectSnapshotResponse, error)
+}
+
 type Data struct {
 	Auth        AuthClient
 	Billing     BillingClient
 	Quota       QuotaClient
 	AI          AIClient
 	Inspiration InspirationClient
+	Snapshot    SnapshotClient
 	conns       []*grpc.ClientConn
 }
 
@@ -83,9 +92,18 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = aiConn.Close()
 		return nil, nil, err
 	}
+	snapshotConn, err := platform.DialGRPC(ctx, cfg.Downstream.SnapshotEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		_ = aiConn.Close()
+		_ = inspirationConn.Close()
+		return nil, nil, err
+	}
 	d := &Data{
-		Auth: authv1.NewAuthServiceClient(authConn), Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn), AI: aiv1.NewAiGatewayServiceClient(aiConn), Inspiration: inspirationv1.NewInspirationServiceClient(inspirationConn),
-		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn, aiConn, inspirationConn},
+		Auth: authv1.NewAuthServiceClient(authConn), Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn), AI: aiv1.NewAiGatewayServiceClient(aiConn), Inspiration: inspirationv1.NewInspirationServiceClient(inspirationConn), Snapshot: snapshotv1.NewSnapshotServiceClient(snapshotConn),
+		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn, aiConn, inspirationConn, snapshotConn},
 	}
 	return d, d.Close, nil
 }

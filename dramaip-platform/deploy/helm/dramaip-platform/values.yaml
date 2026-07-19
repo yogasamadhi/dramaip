@@ -39,6 +39,9 @@ images:
   inspiration:
     repository: ghcr.io/dramaip/dramaip-inspiration
     tag: "0.1.0"
+  snapshot:
+    repository: ghcr.io/dramaip/dramaip-snapshot
+    tag: "0.1.0"
   reporting:
     repository: ghcr.io/dramaip/dramaip-reporting
     tag: "0.1.0"
@@ -249,6 +252,8 @@ config:
   notificationGrpcAddr: :9106
   inspirationHttpAddr: :8111
   inspirationGrpcAddr: :9107
+  snapshotHttpAddr: :8114
+  snapshotGrpcAddr: :9109
   reportingHttpAddr: :8112
   reportingGrpcAddr: :9108
   notificationJobHttpAddr: :8109
@@ -324,6 +329,7 @@ config:
     billingJobGrpcEndpoint: dramaip-platform-billing-job:9110
     notificationJobGrpcEndpoint: dramaip-platform-notification-job:9111
     inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
+    snapshotGrpcEndpoint: dramaip-platform-snapshot:9109
     reportingGrpcEndpoint: dramaip-platform-reporting:9108
   ai:
     providers: openai-compatible
@@ -377,6 +383,7 @@ secret:
   postgresInspirationPassword: change-me
   postgresAdminPassword: change-me
   postgresReportingPassword: change-me
+  postgresSnapshotPassword: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -417,6 +424,7 @@ internalMTLS:
     aiGateway: ai-gateway.crt
     notification: notification-service.crt
     inspiration: inspiration-service.crt
+    snapshot: snapshot-service.crt
     reporting: reporting-service.crt
     notificationJob: notification-job.crt
     reportingJob: reporting-job.crt
@@ -434,6 +442,7 @@ internalMTLS:
     aiGateway: ai-gateway.key
     notification: notification-service.key
     inspiration: inspiration-service.key
+    snapshot: snapshot-service.key
     reporting: reporting-service.key
     notificationJob: notification-job.key
     reportingJob: reporting-job.key
