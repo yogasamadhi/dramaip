@@ -1416,3 +1416,18 @@ Push: This loop branch is retained and pushed after this audit record. It is not
 Current branch/worktree: loop/lm4-27-wan-provider; clean before this audit-record creation (ignored local build and retained UI artifacts excluded).
 Blocking next action: Run `WAN_SANDBOX_ALLOW_BILLING=1 WAN_SANDBOX_API_KEY=<securely-injected-key> pnpm test:wan:sandbox` only in an approved, billable Alibaba Cloud Model Studio sandbox; record the redacted create/query/result/cancel evidence and then complete the parent-to-main sync chain. In accordance with the requested loop policy, proceed to LM4-28 on this retained branch while this blocker remains explicitly recorded.
 ```
+
+```text
+Loop: LM4-28 (partial)
+Target branch: loop/lm4-27-wan-provider
+Loop branch: loop/lm4-28-web-ai-authoring
+Commit(s): 5266768 feat: add Web AI authoring stream
+Verification: Clients `pnpm lint`, `pnpm typecheck`, `pnpm contracts:check`, `pnpm build:web`, and `node ../scripts/web-route-smoke.mjs` passed. Services `GOCACHE=/tmp/dramaip-go-build go test ./...`, `make test`, and focused Gateway/BFF stream tests passed. `buf generate` and targeted `buf format api/ai_gateway/service/v1/ai.proto -d` passed. Rebuilt Compose with `make platform-up`; the rerun `make platform-e2e` passed and exercised authenticated model catalog, request-bound preflight, compatibility chat, SSE delta/completed, status recovery and idempotent cancellation. `git diff --check` passed.
+UI/manual evidence: The Web Chat page is now an authoring shell with starter tasks, server model catalog, preflight estimate, local account-namespaced history, live output, cancel/recover controls and no visible provider/idempotency/reservation fields. Its only repeating state cue is a reduced-motion-safe three-dot receive indicator; no local fake typing animation is used. The dedicated in-app browser rejected both localhost and 127.0.0.1 navigation with its client policy, so a live visual screenshot could not be captured in this environment; the production Next build, route smoke and Compose API E2E passed instead.
+Diff review: Reviewed the generated additive Gateway contract; owner-scoped catalog/status/cancel operations; durable audit replay; preflight recheck; stream timeout/bulkhead/circuit boundary; direct OpenAI-compatible SSE parsing; reservation/cost release before canceled audit; Web BFF disconnect drain; opaque SDK recovery key; and account-scoped browser-only prompt history. Gateway audit/cache/status responses exclude prompt input, provider credentials and raw provider events. A reconnect reuses the durable idempotency key and does not call the provider twice.
+Tooling note: repository-wide `buf lint` remains blocked before this new proto by the pre-existing `events/envelope/v1/envelope.proto` import of missing `events/billing/v1/checkout_created.proto`; this is unrelated to LM4-28. The generated files and targeted formatter are clean.
+Remote sync: This branch starts from the fetched, retained LM4-27 branch. The normal target/main merge sequence is deliberately deferred because LM4-26 and LM4-27 are still partial pending authorized provider sandboxes; no branch is misrepresented as merged.
+Push: This loop branch is retained and pushed after this audit record. It is not merged into main.
+Current branch/worktree: loop/lm4-28-web-ai-authoring; clean before this audit-record creation (ignored local build output excluded).
+Blocking next action: Complete the redacted Hailuo and Wan official sandbox evidence, then fast-forward/revalidate the retained branch chain before merging to main. In accordance with the requested loop policy, proceed now to LM4-29 instead of waiting on that external dependency.
+```
