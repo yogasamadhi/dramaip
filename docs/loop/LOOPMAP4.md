@@ -354,7 +354,7 @@ make platform-e2e
 | LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | done | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
 | LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
-| LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
+| LM4-22 | P2 | Desktop/改编产品 | doing | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | todo | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
 | LM4-25 | P2 | Desktop/视频产品 | todo | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |

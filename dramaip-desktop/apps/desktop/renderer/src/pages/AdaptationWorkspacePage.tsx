@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Download, FileJson, Loader2, Pencil, Sparkles, Wand2 } from 'lucide-react'
-import type { AdaptationProject, Episode, EpisodeAnalysis } from '@sdns/core'
+import { CheckCircle2, CircleAlert, LayoutGrid, List, Loader2, Pencil, Sparkles, Wand2, Waypoints } from 'lucide-react'
+import type { AdaptationProject, Episode, EpisodeAnalysis, Script } from '@sdns/core'
 import { TASK_TYPE_LABELS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -13,9 +13,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TrendChart, type TrendSeries } from '@/components/charts/TrendChart'
 import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/GeneratePreviewDialog'
+import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
 import { cn } from '@/lib/utils'
 
 type NavKey = 'overview' | 'episodes' | 'first10'
+type EpisodePlannerView = 'cards' | 'table' | 'pace'
+type EpisodePlannerFilter = 'all' | 'incomplete' | 'hook' | 'reversal' | 'cliffhanger' | 'visual'
 const NAV: { key: NavKey; label: string }[] = [
   { key: 'overview', label: '改编概览' },
   { key: 'episodes', label: '分集大纲' },
@@ -28,6 +31,7 @@ export function AdaptationWorkspacePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
+  const [scripts, setScripts] = useState<Script[]>([])
   const [analysis, setAnalysis] = useState<EpisodeAnalysis | undefined>(undefined)
   const [version, setVersion] = useState(0)
   const requestedNav = searchParams.get('section')
@@ -56,15 +60,17 @@ export function AdaptationWorkspacePage() {
 
   const reload = useCallback(async () => {
     if (!id) return
-    const [a, eps, an] = await Promise.all([
+    const [a, eps, an, scs] = await Promise.all([
       ipc.adaptationProject.get(id),
       ipc.episode.list(id),
       ipc.episodeAnalysis.get(id),
+      ipc.script.list(id),
     ])
     setAdaptation(a ?? null)
     if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
     setEpisodes(eps)
     setAnalysis(an)
+    setScripts(scs)
   }, [id])
 
   useEffect(() => {
@@ -207,6 +213,35 @@ export function AdaptationWorkspacePage() {
     }
   }
 
+  async function runSelectedScripts(episodeIds: string[]) {
+    if (!adaptation) return
+    const targetIds = episodeIds.filter((episodeId) => !scripts.some((script) => script.episodeId === episodeId))
+    if (targetIds.length === 0) {
+      toast.message('已选分集都已有剧本，可直接进入剧本审阅')
+      return
+    }
+    setBusy('selected-scripts')
+    const tid = toast.loading(`正在生成已选的 ${targetIds.length} 集剧本…`)
+    try {
+      const res = await ipc.batchTask.run({
+        kind: 'scripts',
+        projectId: adaptation.sourceProjectId,
+        adaptationProjectId: adaptation.id,
+        episodeIds: targetIds,
+      })
+      if (res.ok) {
+        toast.success(`已提交并完成 ${targetIds.length} 集剧本生成`, { id: tid })
+      } else {
+        toast.error(`批量生成存在失败：${res.error ?? '请在任务中心查看详情'}`, { id: tid })
+      }
+      setVersion((value) => value + 1)
+    } catch (error) {
+      toast.error('批量生成出错：' + (error instanceof Error ? error.message : String(error)), { id: tid })
+    } finally {
+      setBusy(null)
+    }
+  }
+
   if (!adaptation) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -226,39 +261,27 @@ export function AdaptationWorkspacePage() {
     : []
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-          <ArrowLeft />
+    <ProductionWorkspaceShell
+      adaptation={adaptation}
+      stage={nav === 'overview' ? 'overview' : 'episodes'}
+      counts={{ targetEpisodes: adaptation.targetEpisodeCount, episodes: episodes.length, scripts: scripts.length }}
+      actions={nav === 'episodes' ? (
+        <Button size="sm" onClick={runConvert} disabled={generating !== null}>
+          {generating === 'convert_novel_to_episodes' ? <Loader2 className="animate-spin" /> : <Wand2 />}
+          AI 生成分集大纲
         </Button>
-        <div className="min-w-0">
-          <nav aria-label="面包屑" className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>项目</span><span aria-hidden>›</span><span>改编</span><span aria-hidden>›</span>
-            <span>{NAV.find((item) => item.key === nav)?.label}</span>
-          </nav>
-          <h1 className="truncate text-base font-semibold">{adaptation.title}</h1>
-        </div>
-        <Badge variant="secondary">{adaptation.targetEpisodeCount} 集</Badge>
-        <Badge variant="outline">{adaptation.adaptationStyle}</Badge>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaProposalMarkdown(adaptation.id, { episodeLimit: 10 })}>
-            <Download /> 提案包
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaProposalJson(adaptation.id, { episodeLimit: 10 })}>
-            <FileJson /> 提案 JSON
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.adaptationMarkdown(adaptation.id)}>
-            <Download /> 大纲 MD
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.adaptationJson(adaptation.id)}>
-            <FileJson /> 大纲 JSON
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
+      ) : undefined}
+      exports={[
+        { label: '前 10 集提案包（Markdown）', onSelect: () => ipc.export.dramaProposalMarkdown(adaptation.id, { episodeLimit: 10 }) },
+        { label: '前 10 集提案包（JSON）', onSelect: () => ipc.export.dramaProposalJson(adaptation.id, { episodeLimit: 10 }) },
+        { label: '分集大纲（Markdown）', onSelect: () => ipc.export.adaptationMarkdown(adaptation.id) },
+        { label: '分集大纲（JSON）', onSelect: () => ipc.export.adaptationJson(adaptation.id) },
+      ]}
+    >
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 左侧 nav */}
-        <aside className="w-40 shrink-0 border-r p-2">
+        <aside className="w-40 shrink-0 border-r bg-muted/20 p-2">
+          <div className="mb-2 px-2 text-[11px] font-medium text-muted-foreground">改编工作台</div>
           {NAV.map((item) => (
             <button
               key={item.key}
@@ -274,7 +297,7 @@ export function AdaptationWorkspacePage() {
         </aside>
 
         {/* 中间内容 */}
-        <section className="flex-1 overflow-hidden">
+        <section className="flex min-w-0 flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-6">
               {nav === 'overview' && (
@@ -295,7 +318,7 @@ export function AdaptationWorkspacePage() {
                     <Meta label="目标受众" value={adaptation.audience ?? '—'} />
                     <Meta label="源小说项目" value={adaptation.sourceProjectId ?? '（无）'} />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={runStrategy} disabled={busy === 'strategy'}>
                       {busy === 'strategy' ? <Loader2 className="animate-spin" /> : <Sparkles />}
                       生成改编策略
@@ -323,76 +346,30 @@ export function AdaptationWorkspacePage() {
 
               {nav === 'episodes' && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">分集大纲</span>
-                    <Badge variant="secondary">{episodes.length} 集</Badge>
+                    <Badge variant="secondary">{episodes.length} / {adaptation.targetEpisodeCount} 集</Badge>
                     <div className="ml-auto flex gap-2">
                       {episodes.length > 0 && (
                         <Button size="sm" variant="secondary" onClick={() => navigate(`/adaptations/${adaptation.id}/scripts`)}>
-                          生成 AI 短剧剧本 →
+                          进入剧本工作台 →
                         </Button>
                       )}
-                      <Button size="sm" onClick={runConvert} disabled={generating !== null}>
-                        {generating === 'convert_novel_to_episodes' ? <Loader2 className="animate-spin" /> : <Wand2 />}
-                        AI 生成分集大纲
-                      </Button>
                     </div>
                   </div>
                   {episodes.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       还没有分集大纲。点击「AI 生成分集大纲」，AI 会读取源小说生成完整的分集大纲。
                     </p>
-                  ) : (
-                    episodes.map((ep) => (
-                      <div key={ep.id} className="rounded-md border p-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">第 {ep.episodeNumber} 集</Badge>
-                          <span className="font-medium">{ep.title}</span>
-                          <div className="ml-auto flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="AI 重写"
-                              onClick={() => runEpisodeTask(ep, 'rewrite_episode_outline')}
-                              disabled={busy !== null}
-                            >
-                              重写
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="增强钩子"
-                              onClick={() => runEpisodeTask(ep, 'enhance_episode_hook')}
-                              disabled={busy !== null}
-                            >
-                              增强钩子
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              title="增强关键画面"
-                              onClick={() => runEpisodeTask(ep, 'enhance_episode_visuals')}
-                              disabled={busy !== null}
-                            >
-                              增强画面
-                            </Button>
-                            <Button size="icon" variant="ghost" title="编辑" onClick={() => setEditing(ep)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{ep.summary}</p>
-                        <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
-                          <span>钩子：{ep.hook}</span>
-                          <span>冲突：{ep.mainConflict}</span>
-                          {ep.reversal && <span>反转：{ep.reversal}</span>}
-                          {ep.emotionalBeat && <span>情绪：{ep.emotionalBeat}</span>}
-                          <span className="col-span-2">悬念：{ep.cliffhanger}</span>
-                          {ep.keyVisuals.length > 0 && <span className="col-span-2">关键画面：{ep.keyVisuals.join('；')}</span>}
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  ) : <EpisodePlanningBoard
+                    episodes={episodes}
+                    scripts={scripts}
+                    busy={busy}
+                    onEdit={setEditing}
+                    onTask={runEpisodeTask}
+                    onOpenScript={(episodeId) => navigate(`/adaptations/${adaptation.id}/scripts?episode=${episodeId}`)}
+                    onGenerateSelectedScripts={runSelectedScripts}
+                  />}
                 </div>
               )}
 
@@ -457,8 +434,249 @@ export function AdaptationWorkspacePage() {
           }}
         />
       )}
+    </ProductionWorkspaceShell>
+  )
+}
+
+function EpisodePlanningBoard({
+  episodes,
+  scripts,
+  busy,
+  onEdit,
+  onTask,
+  onOpenScript,
+  onGenerateSelectedScripts,
+}: {
+  episodes: Episode[]
+  scripts: Script[]
+  busy: string | null
+  onEdit: (episode: Episode) => void
+  onTask: (episode: Episode, taskType: 'rewrite_episode_outline' | 'enhance_episode_hook' | 'enhance_episode_visuals') => void
+  onOpenScript: (episodeId: string) => void
+  onGenerateSelectedScripts: (episodeIds: string[]) => void
+}) {
+  const [view, setView] = useState<EpisodePlannerView>('cards')
+  const [filter, setFilter] = useState<EpisodePlannerFilter>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const scriptEpisodeIds = useMemo(() => new Set(scripts.map((script) => script.episodeId)), [scripts])
+  const visibleEpisodes = useMemo(
+    () => episodes.filter((episode) => matchesEpisodeFilter(episode, filter)),
+    [episodes, filter],
+  )
+  const incompleteCount = episodes.filter((episode) => episodePlanningGaps(episode).length > 0).length
+  const selectedVisible = visibleEpisodes.filter((episode) => selectedIds.has(episode.id))
+
+  useEffect(() => {
+    const validIds = new Set(episodes.map((episode) => episode.id))
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((episodeId) => validIds.has(episodeId)))
+      return next.size === current.size ? current : next
+    })
+  }, [episodes])
+
+  function toggleSelected(episodeId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(episodeId)) next.delete(episodeId)
+      else next.add(episodeId)
+      return next
+    })
+  }
+
+  function toggleVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      const everyVisibleSelected = visibleEpisodes.every((episode) => next.has(episode.id))
+      for (const episode of visibleEpisodes) {
+        if (everyVisibleSelected) next.delete(episode.id)
+        else next.add(episode.id)
+      }
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="studio-surface flex flex-wrap items-center gap-2 rounded-lg p-2">
+        <div className="flex rounded-md bg-muted p-0.5" role="group" aria-label="分集视图">
+          <PlannerViewButton active={view === 'cards'} label="卡片" icon={<LayoutGrid />} onClick={() => setView('cards')} />
+          <PlannerViewButton active={view === 'table'} label="表格" icon={<List />} onClick={() => setView('table')} />
+          <PlannerViewButton active={view === 'pace'} label="节奏线" icon={<Waypoints />} onClick={() => setView('pace')} />
+        </div>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          显示
+          <select className="h-8 rounded-md border bg-background px-2 text-xs text-foreground" value={filter} onChange={(event) => setFilter(event.target.value as EpisodePlannerFilter)}>
+            <option value="all">全部分集</option>
+            <option value="incomplete">有缺失（{incompleteCount}）</option>
+            <option value="hook">缺开场钩子</option>
+            <option value="reversal">缺关键反转</option>
+            <option value="cliffhanger">缺结尾悬念</option>
+            <option value="visual">缺关键画面</option>
+          </select>
+        </label>
+        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
+          <span>{visibleEpisodes.length} 集可见 · 已选 {selectedIds.size} 集</span>
+          <Button size="sm" variant="ghost" onClick={toggleVisible}>{selectedVisible.length === visibleEpisodes.length ? '取消本页选择' : '选择本页'}</Button>
+          {selectedIds.size > 0 && (
+            <Button size="sm" onClick={() => onGenerateSelectedScripts([...selectedIds])} disabled={busy !== null}>
+              {busy === 'selected-scripts' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              为已选集生成剧本
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {view === 'cards' && (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {visibleEpisodes.map((episode) => <EpisodePlanningCard
+            key={episode.id}
+            episode={episode}
+            selected={selectedIds.has(episode.id)}
+            hasScript={scriptEpisodeIds.has(episode.id)}
+            disabled={busy !== null}
+            onToggle={() => toggleSelected(episode.id)}
+            onEdit={() => onEdit(episode)}
+            onTask={onTask}
+            onOpenScript={() => onOpenScript(episode.id)}
+          />)}
+        </div>
+      )}
+
+      {view === 'table' && <EpisodePlanningTable
+        episodes={visibleEpisodes}
+        selectedIds={selectedIds}
+        scriptEpisodeIds={scriptEpisodeIds}
+        onToggle={toggleSelected}
+        onEdit={onEdit}
+        onOpenScript={onOpenScript}
+      />}
+
+      {view === 'pace' && <EpisodePaceLine episodes={visibleEpisodes} onOpenScript={onOpenScript} />}
     </div>
   )
+}
+
+function PlannerViewButton({ active, label, icon, onClick }: { active: boolean; label: string; icon: React.ReactNode; onClick: () => void }) {
+  return <Button size="sm" variant={active ? 'secondary' : 'ghost'} aria-pressed={active} onClick={onClick}>{icon}{label}</Button>
+}
+
+function EpisodePlanningCard({
+  episode,
+  selected,
+  hasScript,
+  disabled,
+  onToggle,
+  onEdit,
+  onTask,
+  onOpenScript,
+}: {
+  episode: Episode
+  selected: boolean
+  hasScript: boolean
+  disabled: boolean
+  onToggle: () => void
+  onEdit: () => void
+  onTask: (episode: Episode, taskType: 'rewrite_episode_outline' | 'enhance_episode_hook' | 'enhance_episode_visuals') => void
+  onOpenScript: () => void
+}) {
+  const gaps = episodePlanningGaps(episode)
+  return (
+    <article className={cn('studio-card-interactive rounded-lg border bg-card p-3', selected && 'border-primary ring-1 ring-primary/30')}>
+      <div className="flex items-start gap-2">
+        <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={selected} onChange={onToggle} aria-label={`选择第 ${episode.episodeNumber} 集`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">第 {episode.episodeNumber} 集</Badge>
+            <span className="font-medium">{episode.title}</span>
+            {hasScript && <Badge variant="secondary"><CheckCircle2 className="h-3 w-3" /> 已有剧本</Badge>}
+            {gaps.length > 0 && <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300"><CircleAlert className="h-3 w-3" /> 缺 {gaps.join('、')}</Badge>}
+          </div>
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{episode.summary || '尚未填写一句话梗概'}</p>
+        </div>
+        <Button size="icon" variant="ghost" title={`编辑第 ${episode.episodeNumber} 集`} onClick={onEdit}><Pencil className="h-4 w-4" /></Button>
+      </div>
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div><dt className="inline font-medium text-foreground">钩子：</dt><dd className="inline">{episode.hook || '待补'}</dd></div>
+        <div><dt className="inline font-medium text-foreground">冲突：</dt><dd className="inline">{episode.mainConflict || '待补'}</dd></div>
+        <div><dt className="inline font-medium text-foreground">反转：</dt><dd className="inline">{episode.reversal || '待补'}</dd></div>
+        <div><dt className="inline font-medium text-foreground">情绪：</dt><dd className="inline">{episode.emotionalBeat || '待补'}</dd></div>
+        <div className="col-span-2"><dt className="inline font-medium text-foreground">悬念：</dt><dd className="inline">{episode.cliffhanger || '待补'}</dd></div>
+      </dl>
+      <div className="mt-3 flex flex-wrap gap-1">
+        <Button size="sm" variant="ghost" onClick={() => onTask(episode, 'rewrite_episode_outline')} disabled={disabled}>重写</Button>
+        <Button size="sm" variant="ghost" onClick={() => onTask(episode, 'enhance_episode_hook')} disabled={disabled}>增强钩子</Button>
+        <Button size="sm" variant="ghost" onClick={() => onTask(episode, 'enhance_episode_visuals')} disabled={disabled}>增强画面</Button>
+        <Button size="sm" variant={hasScript ? 'ghost' : 'outline'} className="ml-auto" onClick={onOpenScript}>{hasScript ? '审阅剧本' : '进入剧本'}</Button>
+      </div>
+    </article>
+  )
+}
+
+function EpisodePlanningTable({ episodes, selectedIds, scriptEpisodeIds, onToggle, onEdit, onOpenScript }: {
+  episodes: Episode[]
+  selectedIds: Set<string>
+  scriptEpisodeIds: Set<string>
+  onToggle: (id: string) => void
+  onEdit: (episode: Episode) => void
+  onOpenScript: (id: string) => void
+}) {
+  return (
+    <div className="overflow-x-auto rounded-lg border bg-card">
+      <table className="w-full min-w-[760px] text-left text-xs">
+        <thead className="bg-muted/60 text-muted-foreground"><tr><th className="w-10 p-3">选</th><th className="p-3">分集</th><th className="p-3">钩子 / 反转</th><th className="p-3">冲突 / 悬念</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
+        <tbody>{episodes.map((episode) => {
+          const gaps = episodePlanningGaps(episode)
+          return <tr key={episode.id} className="border-t hover:bg-muted/30">
+            <td className="p-3"><input className="h-4 w-4 accent-primary" type="checkbox" checked={selectedIds.has(episode.id)} onChange={() => onToggle(episode.id)} aria-label={`选择第 ${episode.episodeNumber} 集`} /></td>
+            <td className="p-3"><div className="font-medium">第 {episode.episodeNumber} 集 · {episode.title}</div><div className="mt-1 max-w-[18rem] truncate text-muted-foreground">{episode.summary || '待补梗概'}</div></td>
+            <td className="p-3"><div>{episode.hook || '待补钩子'}</div><div className="mt-1 text-muted-foreground">{episode.reversal || '待补反转'}</div></td>
+            <td className="p-3"><div>{episode.mainConflict || '待补冲突'}</div><div className="mt-1 text-muted-foreground">{episode.cliffhanger || '待补悬念'}</div></td>
+            <td className="p-3">{gaps.length > 0 ? <span className="text-amber-700 dark:text-amber-300">缺 {gaps.join('、')}</span> : scriptEpisodeIds.has(episode.id) ? <span className="text-emerald-700 dark:text-emerald-300">剧本已就绪</span> : '大纲已就绪'}</td>
+            <td className="p-3 text-right"><Button size="sm" variant="ghost" onClick={() => onEdit(episode)}>编辑</Button><Button size="sm" variant="ghost" onClick={() => onOpenScript(episode.id)}>剧本</Button></td>
+          </tr>
+        })}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function EpisodePaceLine({ episodes, onOpenScript }: { episodes: Episode[]; onOpenScript: (id: string) => void }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="text-sm font-medium">分集节奏线</h3><p className="mt-1 text-xs text-muted-foreground">按钩子、反转与结尾悬念定位节奏空档；颜色不单独承载状态。</p></div><span className="text-xs text-muted-foreground">{episodes.length} 集</span></div>
+      <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {episodes.map((episode) => {
+          const gaps = episodePlanningGaps(episode)
+          return <li key={episode.id}><button className="studio-card-interactive w-full rounded-md border p-3 text-left hover:bg-accent/40" onClick={() => onOpenScript(episode.id)}>
+            <div className="flex items-center justify-between gap-2"><span className="font-medium text-sm">第 {episode.episodeNumber} 集</span><span className={cn('text-[11px]', gaps.length ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300')}>{gaps.length ? `待补 ${gaps.length} 项` : '节奏要素齐全'}</span></div>
+            <div className="mt-3 grid grid-cols-3 gap-1 text-center text-[10px]"><PaceSignal label="钩子" complete={Boolean(episode.hook)} /><PaceSignal label="反转" complete={Boolean(episode.reversal)} /><PaceSignal label="悬念" complete={Boolean(episode.cliffhanger)} /></div>
+            <p className="mt-2 truncate text-xs text-muted-foreground">{episode.title}</p>
+          </button></li>
+        })}
+      </ol>
+    </div>
+  )
+}
+
+function PaceSignal({ label, complete }: { label: string; complete: boolean }) {
+  return <span className={cn('rounded px-1.5 py-1', complete ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300')}>{label}<span className="sr-only">{complete ? '已填写' : '待补'}</span></span>
+}
+
+function episodePlanningGaps(episode: Episode): string[] {
+  const gaps: string[] = []
+  if (!episode.hook?.trim()) gaps.push('钩子')
+  if (!episode.reversal?.trim()) gaps.push('反转')
+  if (!episode.cliffhanger?.trim()) gaps.push('悬念')
+  if (episode.keyVisuals.length === 0) gaps.push('画面')
+  return gaps
+}
+
+function matchesEpisodeFilter(episode: Episode, filter: EpisodePlannerFilter): boolean {
+  const gaps = episodePlanningGaps(episode)
+  if (filter === 'all') return true
+  if (filter === 'incomplete') return gaps.length > 0
+  const label: Record<Exclude<EpisodePlannerFilter, 'all' | 'incomplete'>, string> = { hook: '钩子', reversal: '反转', cliffhanger: '悬念', visual: '画面' }
+  return gaps.includes(label[filter])
 }
 
 function Meta({ label, value }: { label: string; value: string }) {

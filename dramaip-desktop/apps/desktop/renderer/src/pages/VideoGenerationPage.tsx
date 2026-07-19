@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AlertTriangle,
-  ArrowLeft,
   Check,
   ChevronRight,
   Clock,
@@ -31,6 +30,7 @@ import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetRefere
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
 import {
   Select,
   SelectContent,
@@ -57,7 +57,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function VideoGenerationPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
@@ -271,13 +270,13 @@ export function VideoGenerationPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" aria-label="返回分镜工作台" onClick={() => navigate(`/adaptations/${adaptation.id}/shots`)}>
-          <ArrowLeft />
-        </Button>
-        <h1 className="text-base font-semibold">{adaptation.title} · 视频生成</h1>
-        <div className="ml-auto flex items-center gap-2">
+    <ProductionWorkspaceShell
+      adaptation={adaptation}
+      stage="video"
+      counts={{ targetEpisodes: adaptation.targetEpisodeCount, episodes: episodes.length, scripts: scripts.length, scenes: scenes.length, shots: shots.length, videos: results.length }}
+      activeEpisodeId={activeEpisode?.id}
+      activeEpisodeLabel={activeEpisode ? `第 ${activeEpisode.episodeNumber} 集` : undefined}
+      actions={<>
           <Select
             value={episodeId}
             onValueChange={(v) => setParams((p) => { p.set('episode', v); p.delete('scene'); p.delete('shot'); return p })}
@@ -293,8 +292,8 @@ export function VideoGenerationPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </header>
+        </>}
+    >
 
       {!activeEpisode ? (
         <Empty text="请选择一集。" />
@@ -488,7 +487,7 @@ export function VideoGenerationPage() {
           </section>
         </div>
       )}
-    </div>
+    </ProductionWorkspaceShell>
   )
 }
 

@@ -212,6 +212,22 @@
   .studio-ai-pulse {
     animation: studio-ai-pulse 1.8s ease-in-out infinite;
   }
+
+  .production-stepper__connector {
+    position: relative;
+    width: 1.5rem;
+    height: 1px;
+    margin: 0 0.125rem;
+    overflow: hidden;
+    background: hsl(var(--border));
+  }
+
+  .production-stepper li[data-active] + li .production-stepper__connector,
+  .production-stepper li[data-active] .production-stepper__connector {
+    background: linear-gradient(90deg, hsl(var(--brand) / 0.2), hsl(var(--brand)), hsl(var(--brand) / 0.2));
+    background-size: 200% 100%;
+    animation: production-stage-flow 2.8s linear infinite;
+  }
 }
 
 @keyframes studio-page-enter {
@@ -249,6 +265,12 @@
   }
   50% {
     box-shadow: 0 0 0 6px hsl(var(--ai) / 0);
+  }
+}
+
+@keyframes production-stage-flow {
+  to {
+    background-position: -200% 0;
   }
 }
 
