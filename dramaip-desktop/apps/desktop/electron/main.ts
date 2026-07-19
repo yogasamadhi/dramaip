@@ -225,6 +225,21 @@ function createWindow(options: { show?: boolean } = {}): BrowserWindow {
     if (options.show !== false) mainWindow.show()
   })
 
+  let closingAfterDraftFlush = false
+  mainWindow.on('close', (event) => {
+    if (closingAfterDraftFlush || mainWindow.webContents.isDestroyed()) return
+    event.preventDefault()
+    void mainWindow.webContents.executeJavaScript(
+      'window.__sdnsFlushDrafts ? window.__sdnsFlushDrafts() : Promise.resolve()',
+      true,
+    ).catch((error) => {
+      logger.warn('main', 'draft flush before close failed', { message: error instanceof Error ? error.message : String(error) })
+    }).finally(() => {
+      closingAfterDraftFlush = true
+      mainWindow.close()
+    })
+  })
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (canOpenExternalUrl(url, { dev: isDevRuntime() })) void shell.openExternal(url)
     return { action: 'deny' }

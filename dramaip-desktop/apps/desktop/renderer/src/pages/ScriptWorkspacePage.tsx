@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 import { cn } from '@/lib/utils'
 
 type ScriptTaskType =
@@ -289,15 +290,27 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
   const [tab, setTab] = useState<'script' | 'scenes' | 'review'>('script')
   const [scenes, setScenes] = useState<Scene[]>([])
   const [review, setReview] = useState<ScriptReview | undefined>(undefined)
-  const [draftContent, setDraftContent] = useState('')
-  const [dirty, setDirty] = useState(false)
   const [busy2, setBusy2] = useState<string | null>(null)
-
-  // 切换集数 / 剧本更新时，重置编辑器草稿
-  useEffect(() => {
-    setDraftContent(script?.content ?? '')
-    setDirty(false)
-  }, [script?.id, script?.updatedAt])
+  const {
+    value: draftContent,
+    updateValue: updateDraftContent,
+    flush: flushContent,
+    discardRecovery,
+    status: saveState,
+    isDirty,
+  } = useAutosaveDraft({
+    targetKey: script ? `script:${script.id}` : `script-episode:${episode.id}`,
+    initialValue: script?.content ?? '',
+    serialize: (value) => value,
+    deserialize: (value) => value,
+    save: async (content) => {
+      if (!script) return false
+      const updated = await ipc.script.updateContent(script.id, content)
+      if (!updated) return false
+      onChanged()
+      return true
+    },
+  })
 
   const loadExtras = useCallback(async () => {
     if (!script) {
@@ -318,12 +331,11 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
   }, [loadExtras])
 
   async function saveContent() {
-    if (!script) return
-    const updated = await ipc.script.updateContent(script.id, draftContent)
-    if (updated) {
+    const saved = await flushContent()
+    if (saved) {
       toast.success('剧本已保存')
-      setDirty(false)
-      onChanged()
+    } else {
+      toast.error('保存失败，本地恢复草稿仍已保留。')
     }
   }
 
@@ -459,7 +471,10 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-medium">剧本正文</span>
-                  {dirty && <Badge variant="secondary">未保存</Badge>}
+                  <DraftStateBadge status={saveState} />
+                  {saveState === 'recovered' && (
+                    <Button size="sm" variant="ghost" onClick={discardRecovery}>放弃恢复草稿</Button>
+                  )}
                   <div className="ml-auto flex flex-wrap gap-1.5">
                     {taskBtns.map((b) => (
                       <Button
@@ -489,10 +504,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                 </div>
                 <Textarea
                   value={draftContent}
-                  onChange={(e) => {
-                    setDraftContent(e.target.value)
-                    setDirty(true)
-                  }}
+                  onChange={(e) => updateDraftContent(e.target.value)}
                   rows={26}
                   className="font-mono text-xs leading-relaxed"
                   placeholder="剧本正文（Markdown）…"
@@ -504,7 +516,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                   <Button size="sm" variant="outline" onClick={() => ipc.export.scriptJson(script.id)}>
                     <FileJson /> 导出 JSON
                   </Button>
-                  <Button size="sm" onClick={saveContent} disabled={!dirty}>
+                  <Button size="sm" onClick={() => void saveContent()} disabled={!isDirty}>
                     <Pencil className="h-3.5 w-3.5" />
                     保存
                   </Button>
@@ -514,7 +526,7 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                   targetId={script.id}
                   currentContent={draftContent}
                   title="剧本版本"
-                  restoreDisabled={dirty}
+                  restoreDisabled={isDirty}
                   onRestored={onChanged}
                 />
               </div>
@@ -638,4 +650,16 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
       </div>
     </ScrollArea>
   )
+}
+
+function DraftStateBadge({ status }: { status: DraftSaveState }) {
+  const label: Record<DraftSaveState, string> = {
+    clean: '已保存',
+    dirty: '待保存',
+    saving: '保存中',
+    saved: '已保存',
+    error: '保存失败',
+    recovered: '已恢复草稿',
+  }
+  return <Badge variant={status === 'error' ? 'destructive' : 'secondary'}>{label[status]}</Badge>
 }
