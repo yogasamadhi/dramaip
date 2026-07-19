@@ -11,6 +11,7 @@ import {
   freshnessReports,
   narrativeCurveReports,
   qualityGateReports,
+  qualityIssueAcknowledgements,
   revisionTasks,
   workflowRuns,
 } from '../schema'
@@ -28,6 +29,7 @@ import type {
   NarrativeCurveReport,
   OptionalId,
   QualityGateReport,
+  QualityIssueAcknowledgement,
   RevisionTask,
   RevisionTaskBenefit,
   TextDiffPreviewPayload,
@@ -54,6 +56,7 @@ type AntiTropeRow = typeof antiTropeVariants.$inferSelect
 type RevisionTaskRow = typeof revisionTasks.$inferSelect
 type ContentVersionRow = typeof contentVersions.$inferSelect
 type QualityGateRow = typeof qualityGateReports.$inferSelect
+type QualityIssueAcknowledgementRow = typeof qualityIssueAcknowledgements.$inferSelect
 type AudienceRow = typeof audienceSimulations.$inferSelect
 type CurveRow = typeof narrativeCurveReports.$inferSelect
 type WorkflowRow = typeof workflowRuns.$inferSelect
@@ -278,6 +281,22 @@ function qualityGateFromRow(row: QualityGateRow): QualityGateReport {
     sourceFingerprint: row.sourceFingerprint ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  }
+}
+
+function qualityIssueAcknowledgementFromRow(row: QualityIssueAcknowledgementRow): QualityIssueAcknowledgement {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    adaptationProjectId: row.adaptationProjectId ?? undefined,
+    issueId: row.issueId,
+    issueKind: row.issueKind,
+    issueTitle: row.issueTitle,
+    issueDetail: row.issueDetail ?? undefined,
+    disposition: row.disposition as QualityIssueAcknowledgement['disposition'],
+    note: row.note ?? undefined,
+    actorLabel: row.actorLabel,
+    createdAt: row.createdAt,
   }
 }
 
@@ -681,6 +700,39 @@ export function listQualityGateReports(db: DB, projectId?: string): QualityGateR
   const q = db.select().from(qualityGateReports)
   const rows = projectId ? q.where(eq(qualityGateReports.projectId, projectId)).orderBy(desc(qualityGateReports.createdAt)).all() : q.orderBy(desc(qualityGateReports.createdAt)).all()
   return rows.map((r) => qualityGateFromRow(r as QualityGateRow))
+}
+
+/**
+ * 质量项处置只追加审计记录，不会覆盖质量报告或让阻塞项从历史中消失。
+ * 单机版的操作者为固定的“本地用户”；将来接入账户时可在这一字段保留显示名。
+ */
+export function acknowledgeQualityIssue(
+  db: DB,
+  data: Pick<QualityIssueAcknowledgement, 'projectId' | 'adaptationProjectId' | 'issueId' | 'issueKind' | 'issueTitle' | 'issueDetail' | 'disposition' | 'note'>,
+): QualityIssueAcknowledgement {
+  const value: typeof qualityIssueAcknowledgements.$inferInsert = {
+    id: genId(),
+    projectId: data.projectId,
+    adaptationProjectId: data.adaptationProjectId ?? null,
+    issueId: data.issueId,
+    issueKind: data.issueKind,
+    issueTitle: data.issueTitle,
+    issueDetail: data.issueDetail ?? null,
+    disposition: data.disposition,
+    note: data.note?.trim() || null,
+    actorLabel: '本地用户',
+    createdAt: now(),
+  }
+  const [row] = insertRow(db, qualityIssueAcknowledgements, value)
+  return qualityIssueAcknowledgementFromRow(row as QualityIssueAcknowledgementRow)
+}
+
+export function listQualityIssueAcknowledgements(db: DB, projectId: string): QualityIssueAcknowledgement[] {
+  return db.select().from(qualityIssueAcknowledgements)
+    .where(eq(qualityIssueAcknowledgements.projectId, projectId))
+    .orderBy(desc(qualityIssueAcknowledgements.createdAt))
+    .all()
+    .map((row) => qualityIssueAcknowledgementFromRow(row as QualityIssueAcknowledgementRow))
 }
 
 export function createAudienceSimulation(

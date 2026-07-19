@@ -429,6 +429,8 @@ const api = {
     listAntiTropeByTarget: (targetKind: string, targetId?: string) =>
       invoke('creative:antiTrope:listByTarget', targetKind, targetId),
     listQualityGates: (projectId?: string) => invoke('creative:qualityGate:list', projectId),
+    listQualityIssueAcknowledgements: (projectId: string) => invoke('creative:qualityIssue:list', projectId),
+    acknowledgeQualityIssue: (data: unknown) => invoke('creative:qualityIssue:acknowledge', data),
     listAudienceSimulations: (projectId?: string) => invoke('creative:audience:list', projectId),
     listNarrativeCurves: (projectId?: string) => invoke('creative:curve:list', projectId),
   },

@@ -45,6 +45,7 @@ import type {
   ProjectSkill,
   PromptVersion,
   QualityGateReport,
+  QualityIssueAcknowledgement,
   RevisionTask,
   RevisionTaskAdoptResult,
   RevisionTaskPreviewUpdateResult,
@@ -795,6 +796,8 @@ export interface StudioApi {
     listFreshnessByTarget(targetKind: string, targetId?: string): Promise<FreshnessReport[]>
     listAntiTropeByTarget(targetKind: string, targetId?: string): Promise<AntiTropeVariant[]>
     listQualityGates(projectId?: string): Promise<QualityGateReport[]>
+    listQualityIssueAcknowledgements(projectId: string): Promise<QualityIssueAcknowledgement[]>
+    acknowledgeQualityIssue(data: Pick<QualityIssueAcknowledgement, 'projectId' | 'adaptationProjectId' | 'issueId' | 'issueKind' | 'issueTitle' | 'issueDetail' | 'disposition' | 'note'>): Promise<QualityIssueAcknowledgement>
     listAudienceSimulations(projectId?: string): Promise<AudienceSimulation[]>
     listNarrativeCurves(projectId?: string): Promise<NarrativeCurveReport[]>
   }
