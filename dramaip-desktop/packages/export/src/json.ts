@@ -1,5 +1,5 @@
 // JSON 导出（PROJECT_BRIEF.md §15）
-import type { AdaptationProject, Episode, Evaluation, Scene, Script, Shot } from '@sdns/core'
+import { parseScriptMarkdown, type AdaptationProject, type Episode, type Evaluation, type Scene, type Script, type Shot } from '@sdns/core'
 import type { ProjectExportData } from './markdown'
 
 export interface ProjectExportJson extends ProjectExportData {
@@ -37,6 +37,9 @@ export function exportScriptJson(script: Script, scenes: Scene[]): string {
     {
       script,
       scenes,
+      // Markdown remains the canonical persisted/exported body. The derived block document
+      // gives LM4-23 consumers a lossless structured entry point without breaking old imports.
+      structuredDocument: parseScriptMarkdown(script.content),
       exportedAt: new Date().toISOString(),
     },
     null,

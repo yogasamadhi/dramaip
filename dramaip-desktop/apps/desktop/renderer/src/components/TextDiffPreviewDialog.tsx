@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { Check, ChevronDown, ChevronUp, Columns2, Edit3, Eye, Loader2, Minus, Plus } from 'lucide-react'
 import type { TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS } from '@sdns/core'
+import { parseScriptMarkdown, scriptBlockLabel, TASK_TYPE_LABELS } from '@sdns/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -95,6 +95,14 @@ export function TextDiffPreviewDialog({ open, preview, onAdopt, onCancel }: Prop
   }, [preview])
 
   const changed = useMemo(() => diff.filter((block) => block.kind !== 'same'), [diff])
+  const structuredLocations = useMemo(() => {
+    if (preview?.targetKind !== 'script') return []
+    return Array.from(new Set(changed
+      .map((block) => parseScriptMarkdown(block.after || block.before).blocks[0])
+      .filter(Boolean)
+      .map((block) => scriptBlockLabel(block))))
+      .slice(0, 8)
+  }, [changed, preview?.targetKind])
   const candidate = useMemo(() => preview ? withPreviewContent(preview, editedNextContent) : null, [editedNextContent, preview])
   const selectedCount = selectedIds.size
 
@@ -163,6 +171,7 @@ export function TextDiffPreviewDialog({ open, preview, onAdopt, onCancel }: Prop
             {preview && <Badge variant="outline">{TASK_TYPE_LABELS[preview.taskType] ?? preview.taskType}</Badge>}
           </div>
           <DialogDescription>{preview?.title ?? '按段落审阅、选择或编辑候选内容；采用后仍可通过版本记录撤销。'}</DialogDescription>
+          {structuredLocations.length > 0 && <p className="text-xs text-muted-foreground">结构化定位：{structuredLocations.join(' · ')}</p>}
         </DialogHeader>
 
         <div className="flex flex-wrap items-center gap-2 border-y py-2 text-xs">

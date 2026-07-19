@@ -58,6 +58,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
+  const structuredScriptStep = await verifyStructuredScriptRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -65,7 +66,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -1037,9 +1038,13 @@ async function rendererDraftPersistenceMain(input: {
   }).api
 
   window.location.hash = `#/adaptations/${input.adaptationId}/scripts`
-  await waitFor('剧本编辑器', () => Boolean(document.querySelector('textarea[placeholder*="剧本正文"]')))
+  await waitFor('结构化剧本编辑器', () => Boolean(document.querySelector('[data-script-editor="structured"]')))
+  const markdownToggle = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Markdown')
+  if (!markdownToggle) throw new Error('未找到剧本 Markdown 回退视图')
+  markdownToggle.click()
+  await waitFor('剧本 Markdown 回退输入框', () => Boolean(document.querySelector('textarea[aria-label="剧本 Markdown 正文"]')))
   const scriptDraft = 'E2E immediate script draft'
-  setValue(document.querySelector('textarea[placeholder*="剧本正文"]') as HTMLTextAreaElement, scriptDraft)
+  setValue(document.querySelector('textarea[aria-label="剧本 Markdown 正文"]') as HTMLTextAreaElement, scriptDraft)
   window.location.hash = '#/'
   await waitFor('项目列表', () => (document.body.textContent ?? '').includes('项目工作台'))
   await waitFor('剧本持久化', async () => (await api.script.get(input.scriptId))?.content.includes(scriptDraft) === true)
@@ -1058,6 +1063,63 @@ async function rendererDraftPersistenceMain(input: {
     scriptContent: (await api.script.get(input.scriptId))?.content ?? '',
     shotPrompt: (await api.shot.get(input.shotId))?.videoPrompt ?? '',
   }
+}
+
+async function verifyStructuredScriptRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const result = await win.webContents.executeJavaScript(
+      `(${rendererStructuredScriptMain.toString()})(${JSON.stringify({
+        adaptationId: fixture.adaptation.id,
+        scriptId: fixture.script.id,
+      })})`,
+      true,
+    ) as { blockKinds: string[] }
+    return {
+      name: 'structured-script-editor-keyboard-and-compatible-save',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: result,
+    }
+  } catch (error) {
+    return {
+      name: 'structured-script-editor-keyboard-and-compatible-save',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function rendererStructuredScriptMain(input: { adaptationId: string; scriptId: string }): Promise<{ blockKinds: string[] }> {
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+  const waitFor = async (label: string, probe: () => boolean | Promise<boolean>, timeoutMs = 8000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (await probe()) return
+      await sleep(50)
+    }
+    throw new Error(`结构化剧本 smoke 等待超时：${label}`)
+  }
+  const api = (window as unknown as { api: { script: { get: (id: string) => Promise<{ content: string } | undefined> } } }).api
+  window.location.hash = `#/adaptations/${input.adaptationId}/scripts`
+  await waitFor('结构化编辑器', () => Boolean(document.querySelector('[data-script-editor="structured"]')))
+  const insertBar = document.querySelector('[aria-label="插入剧本块"]')
+  const addScene = Array.from(insertBar?.querySelectorAll('button') ?? []).find((button) => button.textContent?.includes('场景'))
+  if (!addScene) throw new Error('未找到添加场景按钮')
+  addScene.click()
+  await waitFor('新增场景块', () => Boolean(document.querySelector('[data-script-block="scene_heading"] input')))
+  const sceneInput = document.querySelector('[data-script-block="scene_heading"] input') as HTMLInputElement
+  const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+  descriptor?.set?.call(sceneInput, 'E2E 结构化场景')
+  sceneInput.dispatchEvent(new Event('input', { bubbles: true }))
+  await waitFor('场景输入更新', () => (document.querySelector('[data-script-block="scene_heading"] input') as HTMLInputElement | null)?.value === 'E2E 结构化场景')
+  const updatedSceneInput = document.querySelector('[data-script-block="scene_heading"] input') as HTMLInputElement
+  updatedSceneInput.focus()
+  updatedSceneInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', metaKey: true }))
+  await waitFor('键盘新增动作块', () => document.querySelectorAll('[data-script-block="action"]').length >= 2)
+  await waitFor('兼容 Markdown 保存', async () => (await api.script.get(input.scriptId))?.content.includes('## 场景：E2E 结构化场景') === true)
+  return { blockKinds: Array.from(document.querySelectorAll('[data-script-block]')).map((node) => node.getAttribute('data-script-block') ?? '') }
 }
 
 async function verifyProductionShellRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
