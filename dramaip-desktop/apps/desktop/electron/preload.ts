@@ -69,7 +69,11 @@ const api = {
     get: (id: string) => invoke('project:get', id),
     create: (data: unknown) => invoke('project:create', data),
     update: (id: string, patch: unknown) => invoke('project:update', id, patch),
-    remove: (id: string) => invoke('project:delete', id),
+    trash: (id: string) => invoke('project:trash', id),
+    listTrash: () => invoke('project:listTrash'),
+    restore: (id: string) => invoke('project:restore', id),
+    deletionPreview: (id: string) => invoke('project:deletionPreview', id),
+    purge: (id: string, confirmationTitle: string) => invoke('project:purge', id, confirmationTitle),
     // v1.0：导入项目包
     importPackage: () => invoke('project:importPackage'),
   },

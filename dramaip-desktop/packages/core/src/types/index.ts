@@ -31,6 +31,27 @@ export interface ProjectHomeSummary {
   nextAction: { label: string; path: string }
 }
 
+/** 废纸篓中的项目。删除时间仅在废纸篓和彻底清理流程中暴露。 */
+export interface TrashedProject extends Project {
+  deletedAt: string
+}
+
+/** 最终清理前展示的关联数据规模，避免用户在不知情时永久丢失内容。 */
+export interface ProjectDeletionPreview {
+  project: TrashedProject
+  dependencies: {
+    chapters: number
+    characters: number
+    outlines: number
+    storyArcs: number
+    adaptations: number
+    assets: number
+    contentVersions: number
+    creativeReports: number
+  }
+  totalRecords: number
+}
+
 /** 人物卡 */
 export interface Character {
   id: string

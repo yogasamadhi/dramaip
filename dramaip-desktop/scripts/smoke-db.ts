@@ -694,16 +694,46 @@ function main() {
   assert(repos.shot.listShotsByScene(repos.db, sceneKeep2.id).length === 0, '级联：镜头已删')
   assert(repos.shot.getShot(repos.db, shKeep.id) === undefined, '级联：镜头记录已删')
 
-  // 级联删除：删项目后，其章节/人物/大纲/评分/ai_runs 都应消失
-  repos.project.deleteProject(repos.db, p1.id)
-  assert(repos.project.getProject(repos.db, p1.id) === undefined, 'deleteProject 后项目不存在')
+  // 废纸篓：普通删除不丢关联数据，恢复后完全可用；彻底清理必须先移入废纸篓并输入项目全名。
+  const restoreAdaptation = repos.adaptationProject.createAdaptationProject(repos.db, {
+    sourceProjectId: p1.id,
+    title: '废纸篓恢复验证改编',
+    targetEpisodeCount: 12,
+    adaptationStyle: '快节奏爽剧',
+  })
+  const trashed = repos.project.trashProject(repos.db, p1.id)
+  assert(trashed?.deletedAt != null, 'trashProject 写入删除时间')
+  assert(repos.project.getProject(repos.db, p1.id) === undefined, '废纸篓项目不再被常规读取')
+  assert(repos.project.listProjects(repos.db).length === 1 && repos.project.listTrashedProjects(repos.db)[0]?.id === p1.id, '常规列表隐藏废纸篓，废纸篓可见')
+  assert(!repos.search.globalSearch(repos.db, { query: '复仇千金' }).results.some((result) => result.projectId === p1.id), '全局搜索隐藏废纸篓项目及其内容')
+  let trashedPackageBlocked = false
+  try { collectProjectPackage(repos, p1.id) } catch { trashedPackageBlocked = true }
+  assert(trashedPackageBlocked, '废纸篓项目需恢复后才能导出项目包')
+  assert(repos.chapter.listChapters(repos.db, p1.id).length === 2, '废纸篓保留章节')
+  assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 1, '废纸篓保留资产')
+  assert(repos.creative.getContentVersion(repos.db, version.id)?.id === version.id, '废纸篓保留内容版本')
+  const deletionPreview = repos.project.getProjectDeletionPreview(repos.db, p1.id)
+  assert(deletionPreview?.dependencies.chapters === 2 && deletionPreview.dependencies.assets === 1 && deletionPreview.dependencies.contentVersions === 1, '最终清理预览展示关联规模')
+  assert(repos.project.purgeProject(repos.db, p1.id, '错误项目名') === false, '最终清理拒绝错误强确认')
+  assert(repos.project.restoreProject(repos.db, p1.id)?.title === '复仇千金归来', 'restoreProject 恢复项目')
+  assert(repos.chapter.listChapters(repos.db, p1.id).length === 2, '恢复后章节完整')
+  assert(repos.adaptationProject.getAdaptationProject(repos.db, restoreAdaptation.id)?.id === restoreAdaptation.id, '恢复后改编完整')
+  assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 1 && repos.creative.getContentVersion(repos.db, version.id)?.id === version.id, '恢复后资产和版本完整')
+
+  // 事务级最终删除：只清理已在废纸篓中的项目及其全部依赖。
+  repos.project.trashProject(repos.db, p1.id)
+  assert(repos.project.purgeProject(repos.db, p1.id, '复仇千金归来') === true, 'purgeProject 在强确认后执行')
+  assert(repos.project.getProject(repos.db, p1.id) === undefined, 'purgeProject 后项目不存在')
   assert(repos.chapter.listChapters(repos.db, p1.id).length === 0, '级联：章节已删')
   assert(repos.character.listCharacters(repos.db, p1.id).length === 0, '级联：人物已删')
   assert(repos.aiRun.listAiRunsByProject(repos.db, p1.id).length === 0, '级联：ai_runs 已删')
   assert(repos.longTask.listLongTasksByProject(repos.db, p1.id).length === 0, '级联：long_tasks 已删')
+  assert(repos.videoTask.listVideoTasks(repos.db).length === 0, '级联：视频任务及结果已删')
   assert(repos.asset.listProjectAssets(repos.db, p1.id).length === 0, '级联：assets 已删')
   assert(repos.storyArc.listStoryArcs(repos.db, p1.id).length === 0, '级联：story_arcs 已删')
   assert(repos.inspirationFavorite.listInspirationFavorites(repos.db, p1.id).length === 0, '级联：灵感收藏已删')
+  assert(repos.creative.getContentVersion(repos.db, version.id) === undefined, '级联：内容版本已删')
+  assert(repos.creative.listQualityGateReports(repos.db, p1.id).length === 0, '级联：创意报告已删')
   assert(repos.project.listProjects(repos.db).length === 1, '另一项目仍在')
 
   // 持久性：重新打开同一文件
@@ -712,14 +742,14 @@ function main() {
   assert(repos2.project.listProjects(repos2.db).length === 1, '重新打开数据库：项目持久化')
   assert(repos2.modelConfig.listModelConfigs(repos2.db).length === 2, '重新打开数据库：模型配置持久化')
   assert(repos2.videoProviderConfig.listVideoProviderConfigs(repos2.db).length === 2, '重新打开数据库：视频 Provider 持久化')
-  assert(repos2.videoTask.listVideoTasks(repos2.db).length === 2, '重新打开数据库：视频任务持久化')
+  assert(repos2.videoTask.listVideoTasks(repos2.db).length === 0, '重新打开数据库：已清理的视频任务不会残留')
 
   // v1.0 数据安全：WAL 模式下生成可独立打开的一致性备份
   backupSqliteDatabase(dbPath, backupPath)
   const { db: backupDb } = createDb(backupPath)
   const backupRepos = createRepositories(backupDb)
   assert(backupRepos.project.listProjects(backupRepos.db).length === 1, '一致性备份：项目可恢复读取')
-  assert(backupRepos.videoTask.listVideoTasks(backupRepos.db).length === 2, '一致性备份：视频任务可恢复读取')
+  assert(backupRepos.videoTask.listVideoTasks(backupRepos.db).length === 0, '一致性备份：已清理的视频任务不会复现')
   smokeBackupRestore()
 
   // v0.7 显式清理（video_* 表无 FK，手动验证删除）

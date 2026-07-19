@@ -37,6 +37,7 @@ import type {
   NovelTaskType,
   Outline,
   Project,
+  ProjectDeletionPreview,
   ProjectHomeSummary,
   ProjectAsset,
   ProjectAssetSourceKind,
@@ -57,6 +58,7 @@ import type {
   AiContextControls,
   Template,
   TemplateRun,
+  TrashedProject,
   TextDiffPreviewPayload,
   VideoGenerationTask,
   VideoProviderConfig,
@@ -452,7 +454,11 @@ export interface StudioApi {
     get(id: string): Promise<Project | undefined>
     create(data: Partial<Project> & { title: string; shortDramaType: string }): Promise<Project>
     update(id: string, patch: Partial<Project>): Promise<Project | undefined>
-    remove(id: string): Promise<boolean>
+    trash(id: string): Promise<TrashedProject | undefined>
+    listTrash(): Promise<TrashedProject[]>
+    restore(id: string): Promise<Project | undefined>
+    deletionPreview(id: string): Promise<ProjectDeletionPreview | undefined>
+    purge(id: string, confirmationTitle: string): Promise<boolean>
     /** v1.0：导入完整项目包 */
     importPackage(): Promise<ProjectImportResult>
   }

@@ -575,6 +575,17 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 20,
+    name: 'project-soft-delete',
+    up(raw) {
+      addColumnIfMissing(raw, 'projects', 'deleted_at', 'deleted_at TEXT')
+      raw.exec(`
+        CREATE INDEX IF NOT EXISTS idx_projects_deleted_updated
+          ON projects(deleted_at, updated_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

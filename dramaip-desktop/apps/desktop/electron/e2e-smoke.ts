@@ -606,6 +606,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
   const e2eApiKey = `sk-e2e-${Date.now()}-not-a-real-key`
   let projectId = ''
   let modelConfigId = ''
+  let trashProjectTitle = ''
 
   await step('open-create-project-page', async () => {
     window.location.hash = '#/projects/new'
@@ -659,6 +660,68 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     if (!exitFocusButton) throw new Error('未找到退出专注模式入口')
     exitFocusButton.click()
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
+  })
+
+  await step('project-trash-undo-restore-and-strong-purge', async () => {
+    const api = (window as unknown as {
+      api: { project: { create: (data: { title: string; shortDramaType: string }) => Promise<{ id: string; title: string }> } }
+    }).api
+    trashProjectTitle = `E2E 废纸篓 ${Date.now()}`
+    await api.project.create({ title: trashProjectTitle, shortDramaType: '废纸篓验证' })
+    window.location.hash = '#/'
+    await waitFor('废纸篓项目卡', () => text().includes(trashProjectTitle))
+
+    const projectTrashButton = () => Array.from(document.querySelectorAll<HTMLElement>('.studio-card-interactive'))
+      .find((card) => normalize(card.textContent).includes(trashProjectTitle))
+      ?.querySelector<HTMLElement>('button[aria-label="移至废纸篓"]')
+    const trashProjectFromCard = () => {
+      const button = projectTrashButton()
+      if (!button) throw new Error('未找到待移入废纸篓的项目卡')
+      button.click()
+    }
+    trashProjectFromCard()
+    await waitFor('项目已移入废纸篓', () => !projectTrashButton() && text().includes('已移至废纸篓'))
+    clickButton('撤销')
+    await waitFor('撤销恢复项目', () => Boolean(projectTrashButton()))
+
+    trashProjectFromCard()
+    await waitFor('再次移入废纸篓', () => !projectTrashButton())
+    const openTrash = () => {
+      const trigger = document.querySelector('button[aria-label="打开项目废纸篓"]') as HTMLButtonElement | null
+      if (!trigger) throw new Error('未找到项目废纸篓入口')
+      trigger.click()
+    }
+    openTrash()
+    const trashDialog = () => Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => normalize(dialog.textContent).includes('项目废纸篓'))
+    await waitFor('项目废纸篓对话框', () => trashDialog()?.textContent?.includes(trashProjectTitle))
+    const restoreButton = Array.from(trashDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent).includes('恢复'))
+    if (!restoreButton) throw new Error('未找到废纸篓恢复按钮')
+    restoreButton.click()
+    await waitFor('废纸篓恢复完成', () => text().includes(`已恢复「${trashProjectTitle}」`))
+    clickButton('关闭')
+    await waitFor('恢复后回到项目列表', () => !text().includes('项目废纸篓') && Boolean(projectTrashButton()))
+
+    trashProjectFromCard()
+    await waitFor('最终删除前再次移入废纸篓', () => !projectTrashButton())
+    openTrash()
+    await waitFor('废纸篓待清理项目', () => trashDialog()?.textContent?.includes(trashProjectTitle))
+    const requestPurgeButton = Array.from(trashDialog()?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent).includes('永久删除'))
+    if (!requestPurgeButton) throw new Error('未找到废纸篓永久删除按钮')
+    requestPurgeButton.click()
+    await waitFor('强确认对话框', () => text().includes(`永久删除「${trashProjectTitle}」`))
+    const confirmationDialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'))
+      .find((dialog) => normalize(dialog.textContent).includes(`永久删除「${trashProjectTitle}」`))
+    const confirmationInput = confirmationDialog?.querySelector('input') as HTMLInputElement | null
+    const finalDeleteButton = Array.from(confirmationDialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])
+      .find((button) => normalize(button.textContent).includes('永久删除'))
+    if (!confirmationInput || !finalDeleteButton?.disabled) throw new Error('永久删除未要求完整项目名确认')
+    setInputValue(confirmationInput, trashProjectTitle)
+    await waitFor('强确认启用最终删除', () => !finalDeleteButton.disabled)
+    finalDeleteButton.click()
+    await waitFor('永久删除完成', () => !text().includes(trashProjectTitle))
   })
 
   await step('open-model-settings-page', async () => {

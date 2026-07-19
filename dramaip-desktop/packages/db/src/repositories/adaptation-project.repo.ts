@@ -11,6 +11,8 @@ import {
   shots,
   shotReviews,
   promptVersions,
+  videoGenerationTasks,
+  videoResults,
 } from '../schema'
 import type { AdaptationProject, ChapterRange, OptionalId } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
@@ -115,16 +117,39 @@ export function deleteAdaptationProject(db: DB, id: string): void {
     for (const sc of sceneRows) {
       const shotRows = db.select({ id: shots.id }).from(shots).where(eq(shots.sceneId, sc.id)).all() as Array<{ id: string }>
       for (const sh of shotRows) {
+        deleteVideoTasksByShot(db, sh.id)
         db.delete(promptVersions).where(eq(promptVersions.shotId, sh.id)).run()
         db.delete(shotReviews).where(eq(shotReviews.shotId, sh.id)).run()
       }
+      deleteVideoTasksByScene(db, sc.id)
       db.delete(shots).where(eq(shots.sceneId, sc.id)).run()
     }
     db.delete(scenes).where(eq(scenes.scriptId, s.id)).run()
     db.delete(scriptReviews).where(eq(scriptReviews.scriptId, s.id)).run()
   }
+  const episodeRows = db.select({ id: episodes.id }).from(episodes).where(eq(episodes.adaptationProjectId, id)).all() as Array<{ id: string }>
+  for (const episode of episodeRows) deleteVideoTasksByEpisode(db, episode.id)
   db.delete(scripts).where(eq(scripts.adaptationProjectId, id)).run()
   db.delete(episodes).where(eq(episodes.adaptationProjectId, id)).run()
   db.delete(episodeAnalyses).where(eq(episodeAnalyses.adaptationProjectId, id)).run()
   db.delete(adaptationProjects).where(eq(adaptationProjects.id, id)).run()
+}
+
+function deleteVideoTasksByShot(db: DB, shotId: string): void {
+  deleteVideoTasks(db, db.select({ id: videoGenerationTasks.id }).from(videoGenerationTasks).where(eq(videoGenerationTasks.shotId, shotId)).all().map((row) => row.id))
+}
+
+function deleteVideoTasksByScene(db: DB, sceneId: string): void {
+  deleteVideoTasks(db, db.select({ id: videoGenerationTasks.id }).from(videoGenerationTasks).where(eq(videoGenerationTasks.sceneId, sceneId)).all().map((row) => row.id))
+}
+
+function deleteVideoTasksByEpisode(db: DB, episodeId: string): void {
+  deleteVideoTasks(db, db.select({ id: videoGenerationTasks.id }).from(videoGenerationTasks).where(eq(videoGenerationTasks.episodeId, episodeId)).all().map((row) => row.id))
+}
+
+function deleteVideoTasks(db: DB, taskIds: string[]): void {
+  for (const taskId of taskIds) {
+    db.delete(videoResults).where(eq(videoResults.taskId, taskId)).run()
+    db.delete(videoGenerationTasks).where(eq(videoGenerationTasks.id, taskId)).run()
+  }
 }
