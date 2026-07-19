@@ -11,7 +11,12 @@ import {
 import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
-import { cloudProviderFromModelConfig, isCloudModelConfig, preflightCloudModelConfig } from '../cloud-ai'
+import {
+  cloudProviderFromModelConfig,
+  isCloudModelConfig,
+  preflightCloudModelConfig,
+  type CloudAIPreflight,
+} from '../cloud-ai'
 import { logger } from '../logger'
 import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
 
@@ -108,7 +113,9 @@ export async function runAiTask(
   try {
     const resolution = resolveProviderForTask(repos, input.taskType, input.templateScope, input.projectId)
     const provider = resolution.config && isCloudModelConfig(resolution.config)
-      ? cloudProviderFromModelConfig(resolution.config)
+      ? cloudProviderFromModelConfig(resolution.config, {
+          onPreflight: async (preflight) => recordCloudPreflight(repos, longTaskId, preflight),
+        })
       : resolution.provider
     const result = await runNovelWorkflow(
       {
@@ -239,10 +246,32 @@ function finishAiLongTask(
   longTaskId: string,
   result: { ok: boolean; error?: string; aiRunId?: string; result?: { kind: string } },
 ): void {
+  const existing = repos.longTask.getLongTask(repos.db, longTaskId)
   repos.longTask.finishLongTask(repos.db, longTaskId, result.ok ? 'success' : 'failed', {
     relatedEntityId: result.aiRunId,
     errorMessage: result.error,
-    output: { aiRunId: result.aiRunId, resultKind: result.result?.kind },
+    output: { ...existing?.output, aiRunId: result.aiRunId, resultKind: result.result?.kind },
+  })
+}
+
+function recordCloudPreflight(
+  repos: ReturnType<typeof getRepos>,
+  longTaskId: string,
+  preflight: CloudAIPreflight,
+): void {
+  const existing = repos.longTask.getLongTask(repos.db, longTaskId)
+  repos.longTask.updateLongTask(repos.db, longTaskId, {
+    output: {
+      ...existing?.output,
+      cloudPreflight: {
+        provider: preflight.model.provider,
+        model: preflight.model.model,
+        estimatedTokens: preflight.estimatedTokens,
+        remainingTokens: preflight.remainingTokens,
+        requestHashPrefix: preflight.requestHash.slice(0, 12),
+        checkedAt: new Date().toISOString(),
+      },
+    },
   })
 }
 

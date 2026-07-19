@@ -177,8 +177,11 @@ type PreflightRequest struct {
 	ContextCharacters int64                  `protobuf:"varint,4,opt,name=context_characters,json=contextCharacters,proto3" json:"context_characters,omitempty"`
 	MessageCount      int64                  `protobuf:"varint,5,opt,name=message_count,json=messageCount,proto3" json:"message_count,omitempty"`
 	MaxTokens         int64                  `protobuf:"varint,6,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// SHA-256 base64url digest over provider/model/final messages/max_tokens.
+	// This binds the content-free preflight to the later Chat payload.
+	RequestHash   string `protobuf:"bytes,7,opt,name=request_hash,json=requestHash,proto3" json:"request_hash,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PreflightRequest) Reset() {
@@ -253,10 +256,18 @@ func (x *PreflightRequest) GetMaxTokens() int64 {
 	return 0
 }
 
+func (x *PreflightRequest) GetRequestHash() string {
+	if x != nil {
+		return x.RequestHash
+	}
+	return ""
+}
+
 type PreflightReply struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Model           *CloudModel            `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	EstimatedTokens int64                  `protobuf:"varint,2,opt,name=estimated_tokens,json=estimatedTokens,proto3" json:"estimated_tokens,omitempty"`
+	RequestHash     string                 `protobuf:"bytes,3,opt,name=request_hash,json=requestHash,proto3" json:"request_hash,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -305,6 +316,13 @@ func (x *PreflightReply) GetEstimatedTokens() int64 {
 	return 0
 }
 
+func (x *PreflightReply) GetRequestHash() string {
+	if x != nil {
+		return x.RequestHash
+	}
+	return ""
+}
+
 type ChatRequest struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	UserId    string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -317,9 +335,12 @@ type ChatRequest struct {
 	// correlation value for backwards compatibility.
 	IdempotencyKey string `protobuf:"bytes,7,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	// Trusted Web BFF network observation for cost guardrails; never used as identity.
-	ClientIp      string `protobuf:"bytes,8,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ClientIp string `protobuf:"bytes,8,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	// Must equal the hash accepted by Preflight and the gateway's recomputation
+	// from this exact Chat payload.
+	PreflightRequestHash string `protobuf:"bytes,9,opt,name=preflight_request_hash,json=preflightRequestHash,proto3" json:"preflight_request_hash,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ChatRequest) Reset() {
@@ -404,6 +425,13 @@ func (x *ChatRequest) GetIdempotencyKey() string {
 func (x *ChatRequest) GetClientIp() string {
 	if x != nil {
 		return x.ClientIp
+	}
+	return ""
+}
+
+func (x *ChatRequest) GetPreflightRequestHash() string {
+	if x != nil {
+		return x.PreflightRequestHash
 	}
 	return ""
 }
@@ -590,7 +618,7 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\n" +
 	"is_default\x18\x03 \x01(\bR\tisDefault\"T\n" +
 	"\x0fListModelsReply\x12A\n" +
-	"\x06models\x18\x01 \x03(\v2).dramaip.ai_gateway.service.v1.CloudModelR\x06models\"\xd0\x01\n" +
+	"\x06models\x18\x01 \x03(\v2).dramaip.ai_gateway.service.v1.CloudModelR\x06models\"\xf3\x01\n" +
 	"\x10PreflightRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
@@ -598,10 +626,12 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\x12context_characters\x18\x04 \x01(\x03R\x11contextCharacters\x12#\n" +
 	"\rmessage_count\x18\x05 \x01(\x03R\fmessageCount\x12\x1d\n" +
 	"\n" +
-	"max_tokens\x18\x06 \x01(\x03R\tmaxTokens\"|\n" +
+	"max_tokens\x18\x06 \x01(\x03R\tmaxTokens\x12!\n" +
+	"\frequest_hash\x18\a \x01(\tR\vrequestHash\"\x9f\x01\n" +
 	"\x0ePreflightReply\x12?\n" +
 	"\x05model\x18\x01 \x01(\v2).dramaip.ai_gateway.service.v1.CloudModelR\x05model\x12)\n" +
-	"\x10estimated_tokens\x18\x02 \x01(\x03R\x0festimatedTokens\"\xa4\x02\n" +
+	"\x10estimated_tokens\x18\x02 \x01(\x03R\x0festimatedTokens\x12!\n" +
+	"\frequest_hash\x18\x03 \x01(\tR\vrequestHash\"\xda\x02\n" +
 	"\vChatRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +
@@ -612,7 +642,8 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"max_tokens\x18\x05 \x01(\x03R\tmaxTokens\x12\x1a\n" +
 	"\bprovider\x18\x06 \x01(\tR\bprovider\x12'\n" +
 	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\x12\x1b\n" +
-	"\tclient_ip\x18\b \x01(\tR\bclientIp\";\n" +
+	"\tclient_ip\x18\b \x01(\tR\bclientIp\x124\n" +
+	"\x16preflight_request_hash\x18\t \x01(\tR\x14preflightRequestHash\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\"\xd5\x02\n" +

@@ -4,7 +4,12 @@ import { Ban, CheckCircle2, ChevronRight, CircleAlert, Clapperboard, Loader2, Ti
 import type { LongTask } from '@sdns/core'
 import { toast } from 'sonner'
 import { ipc } from '@/lib/ipc'
-import { isLongTaskActive, LONG_TASK_STATUS_LABEL, longTaskRecoveryMessage } from '@/lib/taskStatus'
+import {
+  isLongTaskActive,
+  LONG_TASK_STATUS_LABEL,
+  longTaskCloudPreflightMessage,
+  longTaskRecoveryMessage,
+} from '@/lib/taskStatus'
 import { Button } from '@/components/ui/button'
 
 const POLL_INTERVAL_MS = 5_000
@@ -90,8 +95,8 @@ export function TaskDock() {
                         <span className="truncate text-xs font-medium">{task.title}</span>
                         <span className="shrink-0 text-[11px] text-muted-foreground">{LONG_TASK_STATUS_LABEL[task.status]}</span>
                       </div>
-                      {(longTaskRecoveryMessage(task) ?? task.errorMessage) && (
-                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{longTaskRecoveryMessage(task) ?? task.errorMessage}</p>
+                      {(longTaskRecoveryMessage(task) ?? longTaskCloudPreflightMessage(task) ?? task.errorMessage) && (
+                        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{longTaskRecoveryMessage(task) ?? longTaskCloudPreflightMessage(task) ?? task.errorMessage}</p>
                       )}
                     </div>
                     {isLongTaskActive(task) && (

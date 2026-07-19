@@ -8,7 +8,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { isLongTaskActive, LONG_TASK_STATUS_LABEL, longTaskRecoveryMessage } from '@/lib/taskStatus'
+import {
+  isLongTaskActive,
+  LONG_TASK_STATUS_LABEL,
+  longTaskCloudPreflightMessage,
+  longTaskRecoveryMessage,
+} from '@/lib/taskStatus'
 
 const STATUS_LABEL: Record<LongTaskStatus, string> = LONG_TASK_STATUS_LABEL
 
@@ -157,6 +162,9 @@ export function TaskMonitorPage() {
                           </div>
                           {longTaskRecoveryMessage(task) && (
                             <div className="mt-2 text-xs text-muted-foreground">{longTaskRecoveryMessage(task)}</div>
+                          )}
+                          {longTaskCloudPreflightMessage(task) && (
+                            <div className="mt-2 text-xs text-muted-foreground">{longTaskCloudPreflightMessage(task)}</div>
                           )}
                           {task.errorMessage && <div className="mt-2 text-xs text-destructive">{task.errorMessage}</div>}
                           <BatchProgressBlock progress={batchProgress(task)} />

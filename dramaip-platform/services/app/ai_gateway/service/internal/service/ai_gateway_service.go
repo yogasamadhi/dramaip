@@ -35,7 +35,7 @@ func (s *AiGatewayService) Preflight(ctx context.Context, req *aiv1.PreflightReq
 	}
 	result, err := s.uc.Preflight(biz.PreflightInput{
 		UserID: req.UserId, Provider: req.Provider, Model: req.Model,
-		ContextCharacters: req.ContextCharacters, MessageCount: req.MessageCount, MaxTokens: req.MaxTokens,
+		ContextCharacters: req.ContextCharacters, MessageCount: req.MessageCount, MaxTokens: req.MaxTokens, RequestHash: req.RequestHash,
 	})
 	if err != nil {
 		return nil, err
@@ -43,6 +43,7 @@ func (s *AiGatewayService) Preflight(ctx context.Context, req *aiv1.PreflightReq
 	return &aiv1.PreflightReply{
 		Model:           &aiv1.CloudModel{Provider: result.Model.Provider, Model: result.Model.Model, IsDefault: result.Model.IsDefault},
 		EstimatedTokens: result.EstimatedTokens,
+		RequestHash:     result.RequestHash,
 	}, nil
 }
 
@@ -56,7 +57,7 @@ func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*ai
 	}
 	reply, err := s.uc.Chat(ctx, biz.ChatInput{
 		UserID: req.UserId, RequestID: req.RequestId, IdempotencyKey: req.IdempotencyKey, ClientIP: req.ClientIp, Provider: req.Provider,
-		Model: req.Model, Messages: messages, MaxTokens: req.MaxTokens,
+		Model: req.Model, Messages: messages, MaxTokens: req.MaxTokens, PreflightRequestHash: req.PreflightRequestHash,
 	})
 	if err != nil {
 		return nil, err

@@ -60,14 +60,14 @@ func (u *BFFUsecase) ListCloudModels(ctx context.Context, accessToken string) (*
 	return u.data.AI.ListModels(ctx, &aiv1.ListModelsRequest{UserId: identity.UserId})
 }
 
-func (u *BFFUsecase) PreflightCloudAI(ctx context.Context, accessToken string, provider, model string, contextCharacters, messageCount, maxTokens int64) (*aiv1.PreflightReply, *quotav1.TokenBalance, error) {
+func (u *BFFUsecase) PreflightCloudAI(ctx context.Context, accessToken string, provider, model string, contextCharacters, messageCount, maxTokens int64, requestHash string) (*aiv1.PreflightReply, *quotav1.TokenBalance, error) {
 	identity, ctx, err := u.authenticate(ctx, accessToken)
 	if err != nil {
 		return nil, nil, err
 	}
 	preflight, err := u.data.AI.Preflight(ctx, &aiv1.PreflightRequest{
 		UserId: identity.UserId, Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model),
-		ContextCharacters: contextCharacters, MessageCount: messageCount, MaxTokens: maxTokens,
+		ContextCharacters: contextCharacters, MessageCount: messageCount, MaxTokens: maxTokens, RequestHash: strings.TrimSpace(requestHash),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -76,17 +76,20 @@ func (u *BFFUsecase) PreflightCloudAI(ctx context.Context, accessToken string, p
 	if err != nil {
 		return nil, nil, err
 	}
+	if balance.RemainingTokens < preflight.EstimatedTokens {
+		return nil, nil, status.Error(codes.ResourceExhausted, "cloud_quota_insufficient")
+	}
 	return preflight, balance, nil
 }
 
-func (u *BFFUsecase) ChatCloudAI(ctx context.Context, accessToken, requestID, idempotencyKey, clientIP, provider, model string, messages []*aiv1.ChatMessage, maxTokens int64) (*aiv1.ChatReply, error) {
+func (u *BFFUsecase) ChatCloudAI(ctx context.Context, accessToken, requestID, idempotencyKey, clientIP, provider, model string, messages []*aiv1.ChatMessage, maxTokens int64, preflightRequestHash string) (*aiv1.ChatReply, error) {
 	identity, ctx, err := u.authenticate(ctx, accessToken)
 	if err != nil {
 		return nil, err
 	}
 	return u.data.AI.Chat(ctx, &aiv1.ChatRequest{
 		UserId: identity.UserId, RequestId: strings.TrimSpace(requestID), IdempotencyKey: strings.TrimSpace(idempotencyKey), ClientIp: strings.TrimSpace(clientIP),
-		Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model), Messages: messages, MaxTokens: maxTokens,
+		Provider: strings.TrimSpace(provider), Model: strings.TrimSpace(model), Messages: messages, MaxTokens: maxTokens, PreflightRequestHash: strings.TrimSpace(preflightRequestHash),
 	})
 }
 

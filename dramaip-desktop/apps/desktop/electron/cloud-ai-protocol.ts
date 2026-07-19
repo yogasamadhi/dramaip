@@ -1,4 +1,5 @@
-import type { ChatMessage, ModelConfig } from '@sdns/core'
+import { createHash } from 'node:crypto'
+import type { ChatInput, ChatMessage, ModelConfig } from '@sdns/core'
 
 export const CLOUD_AI_PROVIDER_ID = 'dramaip-cloud'
 export const CLOUD_AI_BASE_URL_PREFIX = 'cloud://'
@@ -15,6 +16,19 @@ export interface CloudAIModel {
 export interface CloudAIContextSummary {
   messages: ChatMessage[]
   contextCharacters: number
+}
+
+/**
+ * A content-free binding sent to the authority before generation. The digest
+ * is recomputed by the gateway when Chat arrives, so a preflight for one
+ * prompt/model cannot authorize another request.
+ */
+export function cloudRequestHash(provider: string, model: string, input: ChatInput): string {
+  const summary = summarizeCloudContext(input.messages, input.maxTokens ?? 1_024)
+  const hash = createHash('sha256')
+  for (const part of [provider, model, String(input.maxTokens ?? 1_024)]) hash.update(part).update('\0')
+  for (const message of summary.messages) hash.update(message.role).update('\0').update(message.content).update('\0')
+  return hash.digest('base64url')
 }
 
 export function isCloudModelConfig(config: Pick<ModelConfig, 'provider' | 'baseUrl'>): boolean {
