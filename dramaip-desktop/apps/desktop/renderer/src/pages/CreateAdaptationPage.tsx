@@ -53,15 +53,17 @@ export function CreateAdaptationPage() {
       return
     }
     void (async () => {
-      const [chapters, characters, outlines, chapterMemories, qualityReports] = await Promise.all([
+      const [sourceProject, chapters, characters, outlines, chapterMemories, qualityReports] = await Promise.all([
+        ipc.project.get(sourceProjectId),
         ipc.chapter.list(sourceProjectId),
         ipc.character.list(sourceProjectId),
         ipc.outline.list(sourceProjectId),
         ipc.chapterMemory.list(sourceProjectId),
         ipc.creative.listQualityGates(sourceProjectId),
       ])
+      if (!sourceProject) return
       setChapterCount(chapters.length)
-      setReadiness(buildAdaptationReadiness({ chapters, characters, outlines, chapterMemories, qualityReports }))
+      setReadiness(buildAdaptationReadiness({ project: sourceProject, chapters, characters, outlines, chapterMemories, qualityReports }))
       const perSeason = 50 // 每季约 50 章
       const from = 1
       const to = Math.min(perSeason, chapters.length)

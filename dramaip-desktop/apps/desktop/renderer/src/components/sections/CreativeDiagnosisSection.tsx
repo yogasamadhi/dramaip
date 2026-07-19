@@ -10,7 +10,6 @@ import type {
   ContentVersion,
   FreshnessReport,
   NarrativeCurveReport,
-  QualityGateReport,
   RevisionTask,
   TextQualityReportResult,
   TextDiffPreviewPayload,
@@ -26,10 +25,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
 import { revisionTaskReviewInstruction, supportsRevisionTaskPreview } from '@/lib/revisionTaskLoop'
+import type { QualityGateTruth } from '@/lib/qualityGateTruth'
 
 interface Props {
   projectId: string
   chapter: Chapter | null
+  qualityTruth: QualityGateTruth | null
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'destructive' {
@@ -54,13 +55,12 @@ const WORKFLOW_STATUS_VARIANT: Record<WorkflowRun['status'], 'default' | 'second
   failed: 'destructive',
 }
 
-export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
+export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth }: Props) {
   const navigate = useNavigate()
   const [freshness, setFreshness] = useState<FreshnessReport[]>([])
   const [variants, setVariants] = useState<AntiTropeVariant[]>([])
   const [tasks, setTasks] = useState<RevisionTask[]>([])
   const [versions, setVersions] = useState<ContentVersion[]>([])
-  const [gates, setGates] = useState<QualityGateReport[]>([])
   const [audiences, setAudiences] = useState<AudienceSimulation[]>([])
   const [curves, setCurves] = useState<NarrativeCurveReport[]>([])
   const [textQuality, setTextQuality] = useState<TextQualityReportResult | null>(null)
@@ -76,12 +76,11 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
   )
 
   const reload = useCallback(async () => {
-    const [fr, at, rt, cv, qg, au, nc, wf, ad] = await Promise.all([
+    const [fr, at, rt, cv, au, nc, wf, ad] = await Promise.all([
       ipc.creative.listFreshness(projectId),
       ipc.creative.listAntiTropeByTarget(target.kind, target.id),
       ipc.revisionTask.list(projectId),
       ipc.contentVersion.listByTarget(target.kind, target.id),
-      ipc.creative.listQualityGates(projectId),
       ipc.creative.listAudienceSimulations(projectId),
       ipc.creative.listNarrativeCurves(projectId),
       ipc.workflow.list(projectId),
@@ -91,7 +90,6 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
     setVariants(at)
     setTasks(rt)
     setVersions(cv)
-    setGates(qg)
     setAudiences(au)
     setCurves(nc)
     setWorkflows(wf)
@@ -268,7 +266,6 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
   }
 
   const latestFreshness = freshness[0]
-  const latestGate = gates[0]
   const latestAudience = audiences[0]
   const latestCurve = curves[0]
 
@@ -316,7 +313,12 @@ export function CreativeDiagnosisSection({ projectId, chapter }: Props) {
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
           <MetricCard title="新鲜度" score={latestFreshness?.overallScore} detail={latestFreshness?.clicheSignals.slice(0, 2).join(' / ')} />
           <MetricCard title="套路风险" score={latestFreshness?.tropeRiskScore} invert detail={latestFreshness?.audiencePredictionPoints.slice(0, 2).join(' / ')} />
-          <MetricCard title="质量闸门" score={latestGate?.score} badge={latestGate?.verdict} detail={[...(latestGate?.blockingIssues ?? []), ...(latestGate?.warnings ?? [])].slice(0, 2).join(' / ')} />
+          <MetricCard
+            title="质量闸门"
+            score={qualityTruth?.state === 'current' ? qualityTruth.report?.score : undefined}
+            badge={qualityTruth?.state === 'current' ? qualityTruth.report?.verdict : qualityTruth ? '需复检' : undefined}
+            detail={qualityTruth?.detail}
+          />
           <MetricCard title="观众留存" score={latestAudience?.retentionScore} detail={latestAudience?.summary} />
         </div>
 

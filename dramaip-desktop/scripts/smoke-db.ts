@@ -614,8 +614,9 @@ function main() {
     blockingIssues: ['开场太可预判'],
     warnings: [],
     suggestions: ['先做反套路改造'],
+    sourceFingerprint: 'qg-v1:smoke',
   })
-  assert(repos.creative.listQualityGateReports(repos.db, p1.id)[0]?.id === gate.id, 'qualityGate report 写回')
+  assert(repos.creative.listQualityGateReports(repos.db, p1.id)[0]?.sourceFingerprint === 'qg-v1:smoke', 'qualityGate report 源版本写回')
   const audience = repos.creative.createAudienceSimulation(repos.db, {
     projectId: p1.id,
     targetKind: 'chapter',

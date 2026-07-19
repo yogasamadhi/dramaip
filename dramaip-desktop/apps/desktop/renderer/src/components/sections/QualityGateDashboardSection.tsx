@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCcw } from 'lucide-react'
 import type { Chapter } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
+import type { QualityGateTruth } from '@/lib/qualityGateTruth'
 import {
   chaptersWithoutMemory,
   failedLongTasks,
@@ -27,10 +28,12 @@ interface DashboardIssue extends QualityGateIssue {
 export function QualityGateDashboardSection({
   projectId,
   chapters,
+  qualityTruth,
   onOpenWorkspaceTarget,
 }: {
   projectId: string
   chapters: Chapter[]
+  qualityTruth: QualityGateTruth | null
   onOpenWorkspaceTarget: (section: string, chapterId?: string) => void
 }) {
   const navigate = useNavigate()
@@ -57,6 +60,40 @@ export function QualityGateDashboardSection({
         actionLabel: '生成记忆',
         target: { type: 'workspace', section: 'memory', chapterId: chapter.id },
       }))
+
+      if (qualityTruth?.state !== 'current') {
+        next.push({
+          id: `quality-truth:${qualityTruth?.state ?? 'loading'}`,
+          kind: 'failed_task',
+          severity: 'warn',
+          title: qualityTruth?.state === 'stale' ? '质量报告已过期' : '需要运行质量闸门',
+          detail: qualityTruth?.detail ?? '正在加载项目质量报告。',
+          actionLabel: '运行检查',
+          target: { type: 'workspace', section: 'creative-diagnosis' },
+        })
+      } else if (qualityTruth.report?.verdict === 'block') {
+        qualityTruth.report.blockingIssues.forEach((detail, index) => {
+          next.push({
+            id: `quality-report:${qualityTruth.report?.id}:${index}`,
+            kind: 'failed_task',
+            severity: 'block',
+            title: '最新质量报告阻塞项',
+            detail,
+            actionLabel: '查看诊断',
+            target: { type: 'workspace', section: 'creative-diagnosis' },
+          })
+        })
+      } else if (qualityTruth.report?.verdict === 'warn') {
+        next.push({
+          id: `quality-report:${qualityTruth.report.id}:warn`,
+          kind: 'failed_task',
+          severity: 'warn',
+          title: '最新质量报告有提醒',
+          detail: qualityTruth.report.warnings.slice(0, 3).join(' / ') || qualityTruth.detail,
+          actionLabel: '查看诊断',
+          target: { type: 'workspace', section: 'creative-diagnosis' },
+        })
+      }
 
       for (const adaptation of adaptations) {
         const scripts = await ipc.script.list(adaptation.id)
@@ -117,7 +154,7 @@ export function QualityGateDashboardSection({
     } finally {
       setLoading(false)
     }
-  }, [chapters, projectId])
+  }, [chapters, projectId, qualityTruth])
 
   useEffect(() => {
     void reload()

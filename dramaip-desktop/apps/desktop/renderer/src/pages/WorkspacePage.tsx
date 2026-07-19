@@ -12,6 +12,7 @@ import {
   type ProjectWorkflowStageKey,
 } from '@/lib/projectWorkflowGuide'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
+import { buildProjectQualityGateTruth } from '@/lib/qualityGateTruth'
 import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
@@ -112,7 +113,19 @@ export function WorkspacePage() {
     characterId?: string
   } | null>(null)
   const [preflightRunning, setPreflightRunning] = useState(false)
-  const chapterWorkflowKey = chapters.map((chapter) => `${chapter.id}:${Boolean(chapter.content.trim())}`).join('|')
+  // 工作流真值依赖正文而不只是“是否非空”：正文变更后，旧质量报告必须立即显示为过期。
+  const chapterWorkflowKey = JSON.stringify(chapters.map((chapter) => ({
+    id: chapter.id,
+    title: chapter.title,
+    summary: chapter.summary,
+    outline: chapter.outline,
+    content: chapter.content,
+    mainConflict: chapter.mainConflict,
+    hook: chapter.hook,
+    highlight: chapter.highlight,
+    reversal: chapter.reversal,
+    cliffhanger: chapter.cliffhanger,
+  })))
 
   const loadWorkflowSnapshot = useCallback(async (currentProject: Project, projectChapters: Chapter[]) => {
     const [
@@ -147,6 +160,7 @@ export function WorkspacePage() {
     let scenes: ProjectWorkflowSnapshot['scenes'] = []
     let shots: ProjectWorkflowSnapshot['shots'] = []
     let videoTasks: ProjectWorkflowSnapshot['videoTasks'] = []
+    let videoResults: ProjectWorkflowSnapshot['videoResults'] = []
 
     if (primaryAdaptation) {
       episodes = await ipc.episode.list(primaryAdaptation.id)
@@ -158,6 +172,7 @@ export function WorkspacePage() {
       )
       const taskMap = new Map(taskGroups.flat().map((task) => [task.id, task]))
       videoTasks = [...taskMap.values()]
+      videoResults = (await Promise.all(videoTasks.map((task) => ipc.videoResult.listByTask(task.id)))).flat()
     }
 
     setWorkflowSnapshot({
@@ -172,8 +187,10 @@ export function WorkspacePage() {
       scenes,
       shots,
       videoTasks,
+      videoResults,
     })
     setAdaptationReadiness(buildAdaptationReadiness({
+      project: currentProject,
       chapters: projectChapters,
       characters,
       outlines,
@@ -403,6 +420,15 @@ export function WorkspacePage() {
   }
 
   const workflowStages = workflowSnapshot ? buildProjectWorkflowStages(workflowSnapshot) : []
+  const projectQualityTruth = workflowSnapshot
+    ? buildProjectQualityGateTruth({
+        project: workflowSnapshot.project,
+        chapters: workflowSnapshot.chapters,
+        characters: workflowSnapshot.characters,
+        outlines: workflowSnapshot.outlines,
+        reports: workflowSnapshot.qualityReports,
+      })
+    : null
   const primaryAdaptation = workflowSnapshot?.adaptations[0]
 
   function openAdaptationPath(path: 'overview' | 'scripts' | 'shots' | 'video') {
@@ -674,6 +700,7 @@ export function WorkspacePage() {
             <QualityGateDashboardSection
               projectId={project.id}
               chapters={chapters}
+              qualityTruth={projectQualityTruth}
               onOpenWorkspaceTarget={(nextSection, chapterId) => {
                 if (chapterId) setSelectedId(chapterId)
                 setSection(nextSection)
@@ -844,7 +871,7 @@ export function WorkspacePage() {
           {section === 'ai-dashboard' && <AiDashboardSection projectId={project.id} />}
 
           {section === 'creative-diagnosis' && (
-            <CreativeDiagnosisSection projectId={project.id} chapter={selected} />
+            <CreativeDiagnosisSection projectId={project.id} chapter={selected} qualityTruth={projectQualityTruth} />
           )}
 
           {section === 'beats' && (

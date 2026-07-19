@@ -564,6 +564,17 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 19,
+    name: 'quality-gate-source-fingerprint',
+    up(raw) {
+      addColumnIfMissing(raw, 'quality_gate_reports', 'source_fingerprint', 'source_fingerprint TEXT')
+      raw.exec(`
+        CREATE INDEX IF NOT EXISTS idx_quality_gate_reports_truth
+          ON quality_gate_reports(project_id, stage, target_kind, target_id, created_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
