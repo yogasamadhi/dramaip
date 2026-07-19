@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronRight, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
+import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
@@ -17,6 +17,7 @@ import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPrefli
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
+import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -55,11 +56,35 @@ import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/Workspac
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
 import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
+import type { AiCommandDefinition } from '@/lib/aiCommandCatalog'
 import { cn } from '@/lib/utils'
 
 const ChapterEditor = lazy(() =>
   import('@/components/editor/ChapterEditor').then((m) => ({ default: m.ChapterEditor })),
 )
+
+/** 非章节任务仍在其既有工作区执行；命令面板只负责消除发现成本，不复制业务入口。 */
+const WORKSPACE_SECTION_BY_TASK: Partial<Record<NovelTaskType, string>> = {
+  generate_project: 'overview',
+  generate_characters: 'characters',
+  generate_book_outline: 'outline',
+  generate_chapter_outline: 'outline',
+  generate_story_arc_outline: 'story-planning',
+  chat_project: 'chat',
+  evaluate_ai_drama_fit: 'evaluation',
+  summarize_chapter: 'memory',
+  update_character_state: 'character-state',
+  extract_story_events: 'timeline',
+  extract_foreshadowing: 'foreshadowing',
+  generate_character_visual_profile: 'visual-profile',
+  generate_visual_setting: 'visual-setting',
+  check_consistency: 'consistency',
+  build_long_context: 'memory',
+  analyze_beats: 'beats',
+  analyze_highlights: 'highlights',
+  analyze_ai_video_feasibility: 'ai-video',
+  analyze_project_ai_drama_trend: 'ai-dashboard',
+}
 
 const WORKSPACE_SECTION_KEYS = new Set(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.key)))
 
@@ -113,6 +138,9 @@ export function WorkspacePage() {
     userInstruction?: string
     characterId?: string
   } | null>(null)
+  const [aiCommandPaletteOpen, setAiCommandPaletteOpen] = useState(false)
+  const [pendingPaletteCommand, setPendingPaletteCommand] = useState<NovelTaskType | null>(null)
+  const [paletteCommandRunning, setPaletteCommandRunning] = useState(false)
   const [preflightRunning, setPreflightRunning] = useState(false)
   // 工作流真值依赖正文而不只是“是否非空”：正文变更后，旧质量报告必须立即显示为过期。
   const chapterWorkflowKey = JSON.stringify(chapters.map((chapter) => ({
@@ -243,6 +271,11 @@ export function WorkspacePage() {
   useEffect(() => {
     if (section === 'ai-runs') void loadAiRuns()
   }, [section, loadAiRuns])
+  useEffect(() => {
+    const openPalette = () => setAiCommandPaletteOpen(true)
+    window.addEventListener('sdns:open-ai-command-palette', openPalette)
+    return () => window.removeEventListener('sdns:open-ai-command-palette', openPalette)
+  }, [])
 
   const openWorkspaceTarget = useCallback((nextSection: string, chapterId?: string | null) => {
     setSection(nextSection)
@@ -259,6 +292,19 @@ export function WorkspacePage() {
   const selected = chapters.find((c) => c.id === selectedId) ?? null
   const pendingGeneratePreflight = pendingGenerate ? buildAiPreflightContext(
     pendingGenerate.taskType,
+    {
+      project,
+      chapters,
+      characters: workflowSnapshot?.characters ?? [],
+      storyArcs,
+      projectSkills,
+      caseStudies,
+      visualProfiles,
+    },
+    contextControls,
+  ) : null
+  const pendingPaletteCommandPreflight = pendingPaletteCommand ? buildAiPreflightContext(
+    pendingPaletteCommand,
     {
       project,
       chapters,
@@ -354,8 +400,13 @@ export function WorkspacePage() {
       }
       if (isCommand && key === 'k') {
         event.preventDefault()
-        chapterSearchRef.current?.focus()
-        chapterSearchRef.current?.select()
+        // 写作页保留章节检索；其余工作区打开全局 AI 命令面板。
+        if (section === 'chapters' && chapterSearchRef.current) {
+          chapterSearchRef.current.focus()
+          chapterSearchRef.current.select()
+        } else {
+          setAiCommandPaletteOpen(true)
+        }
         return
       }
       // 普通方向键仍保留给正文光标和树控件；只有 Alt+方向键跨章节。
@@ -370,7 +421,7 @@ export function WorkspacePage() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [chapters, createChapter, openWorkspaceTarget, selectedId])
+  }, [chapters, createChapter, openWorkspaceTarget, section, selectedId])
 
   async function openSelectedTextAi(selectedText: string) {
     if (!project || !selected) return
@@ -397,6 +448,71 @@ export function WorkspacePage() {
     } catch (error) {
       toast.error(`AI 润色失败：${error instanceof Error ? error.message : String(error)}`, { id: toastId })
     }
+  }
+
+  function requestPaletteChapterTask(taskType: NovelTaskType) {
+    if (!selected) {
+      openWorkspaceTarget('chapters')
+      return
+    }
+    setPendingPaletteCommand(taskType)
+  }
+
+  async function runPendingPaletteCommand() {
+    if (!pendingPaletteCommand || !project || !selected) return
+    setPaletteCommandRunning(true)
+    const label = TASK_TYPE_LABELS[pendingPaletteCommand] ?? pendingPaletteCommand
+    const toastId = toast.loading(`正在执行：${label}…`)
+    try {
+      const result = await ipc.ai.run({
+        projectId: project.id,
+        chapterId: selected.id,
+        taskType: pendingPaletteCommand,
+        contextControls,
+      })
+      if (result.ok && result.result?.kind === 'text_preview') {
+        setTextPreview(result.result.data as TextDiffPreviewPayload)
+        toast.success(`${label}预览已生成，请确认后采用`, { id: toastId })
+      } else if (result.ok) {
+        await onChapterUpdated()
+        toast.success(`${label}已完成`, { id: toastId })
+      } else {
+        toast.error(`${label}失败：${result.error ?? '未知错误'}`, { id: toastId })
+      }
+      setPendingPaletteCommand(null)
+    } catch (error) {
+      toast.error(`${label}异常：${error instanceof Error ? error.message : String(error)}`, { id: toastId })
+    } finally {
+      setPaletteCommandRunning(false)
+    }
+  }
+
+  function openExistingAiTask(command: AiCommandDefinition) {
+    const workspaceSection = WORKSPACE_SECTION_BY_TASK[command.taskType]
+    if (workspaceSection) {
+      openWorkspaceTarget(workspaceSection)
+      return
+    }
+    if (command.group === 'creative_strategy') {
+      openWorkspaceTarget('creative-diagnosis')
+      return
+    }
+    if (command.group === 'writing_room') {
+      navigate(`/projects/${project?.id ?? id}/writing-room`)
+      return
+    }
+    const adaptation = workflowSnapshot?.adaptations[0]
+    if (adaptation && (command.group === 'adaptation' || command.group === 'script' || command.group === 'shot')) {
+      const path = command.group === 'adaptation' ? '' : command.group === 'script' ? '/scripts' : '/shots'
+      navigate(`/adaptations/${adaptation.id}${path}`)
+      return
+    }
+    if (command.group === 'adaptation' || command.group === 'script' || command.group === 'shot') {
+      toast.message(`请先创建改编项目，再继续「${command.label}」。`)
+      navigate(`/adaptations/new?source=${project?.id ?? id}`)
+      return
+    }
+    toast.message(`「${command.label}」保留在原有${command.groupLabel}工作区。`)
   }
 
   async function handleExport(kind: 'md' | 'json') {
@@ -585,27 +701,33 @@ export function WorkspacePage() {
         breadcrumbs={['项目', '创作工作台', section === 'chapters' && selected ? selected.title : section]}
         badge={<Badge variant="secondary">{project.shortDramaType}</Badge>}
         actions={
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Download />
-                导出
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport('md')}>导出项目 Markdown</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('json')}>导出项目 JSON</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSubmissionExport('md')}>
-                导出小说投稿包 Markdown（前 10 章）
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSubmissionExport('json')}>
-                导出小说投稿包 JSON（前 10 章）
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportPackage()}>
-                导出完整项目包（.sdnspkg）
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <Button variant="secondary" size="sm" onClick={() => setAiCommandPaletteOpen(true)} title="打开 AI 命令面板（⌘/Ctrl+K）">
+              <Command />
+              AI 命令
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download />
+                  导出
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleExport('md')}>导出项目 Markdown</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('json')}>导出项目 JSON</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSubmissionExport('md')}>
+                  导出小说投稿包 Markdown（前 10 章）
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleSubmissionExport('json')}>
+                  导出小说投稿包 JSON（前 10 章）
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportPackage()}>
+                  导出完整项目包（.sdnspkg）
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
         context={(mode) => section === 'chapters' && mode === 'full' ? (
           <section className="flex h-full min-h-0 flex-col" aria-label="章节导航">
@@ -1113,6 +1235,14 @@ export function WorkspacePage() {
         onAdopt={handleTextAdopt}
         onCancel={() => setTextPreview(null)}
       />
+      <AiCommandPalette
+        open={aiCommandPaletteOpen}
+        onOpenChange={setAiCommandPaletteOpen}
+        projectId={project.id}
+        chapter={selected}
+        onRunChapterTask={requestPaletteChapterTask}
+        onOpenExistingTask={openExistingAiTask}
+      />
       <AiContextPreviewDialog
         open={pendingGenerate !== null}
         preview={pendingGeneratePreflight?.preview ?? null}
@@ -1123,6 +1253,17 @@ export function WorkspacePage() {
         runLabel="执行 AI"
         running={preflightRunning}
         onClose={() => setPendingGenerate(null)}
+      />
+      <AiContextPreviewDialog
+        open={pendingPaletteCommand !== null}
+        preview={pendingPaletteCommandPreflight?.preview ?? null}
+        controlGroups={pendingPaletteCommandPreflight?.groups}
+        onControlModeChange={(key, targetId, mode) =>
+          setContextControls((current) => setAiContextControlMode(current, key, targetId, mode))}
+        onRun={() => void runPendingPaletteCommand()}
+        runLabel={pendingPaletteCommand ? `执行 ${TASK_TYPE_LABELS[pendingPaletteCommand]}` : '执行 AI'}
+        running={paletteCommandRunning}
+        onClose={() => setPendingPaletteCommand(null)}
       />
     </>
   )
