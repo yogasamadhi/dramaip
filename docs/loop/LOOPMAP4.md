@@ -362,7 +362,7 @@ make platform-e2e
 | LM4-27 | P2 | Video Provider | partial | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
 | LM4-28 | P2 | Web/AI 产品 | partial | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
 | LM4-29 | P2 | Admin/运营 | partial | 交付用户、支付、通知和 AI 成本运营操作台 | Admin UI/BFF、reporting、audit/RBAC | LM4-18、LM4-20、LM4-21 |
-| LM4-30 | P2 | Sync/隐私 | doing | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
+| LM4-30 | P2 | Sync/隐私 | partial | 交付端到端加密、手动触发的项目快照备份 | Desktop package/crypto、snapshot API/store、retention | LM4-08、LM4-18、LM4-21、LM3-34 |
 | LM4-31 | P2 | Release | todo | 通过 LOOPMAP4 全量发布 Gate | 全仓、全端 E2E、打包、运行手册、发布说明 | LM4-22～30 |
 
 ## 8. Loop 详细定义
@@ -1459,4 +1459,19 @@ Push: The retained loop branch is pushed after this record; it is not merged int
 Loop branch cleanup: Retained at `loop/lm4-30-encrypted-snapshots` because the implementation requires a future owner-domain snapshot service/store before it can be completed. Cleanup owner: the later parent-to-main sync after all partial blockers are resolved.
 Current branch/worktree: loop/lm4-30-encrypted-snapshots; clean before this completion-record commit (ignored local build output excluded).
 Notes: No Snapshot service/API/store, retention worker, approved production object storage/KMS configuration or LM3-34 production disaster-recovery gate is available in the current environment. The client crypto foundation is therefore safe but intentionally not exposed as a fake upload button, and no project plaintext is sent to the existing Desktop BFF. The required next action is to define and implement a dedicated mTLS owner-domain ciphertext-only Snapshot API with authenticated list/download/delete, bounded resumable upload, retention and deletion proof; then connect the Electron main process and UI using a recovery key held only by Keychain/user. This loop remains `partial`.
+```
+
+```text
+Loop: LM4-30 continuation (partial)
+Target branch: loop/lm4-30-encrypted-snapshots
+Loop branch: loop/lm4-30-snapshot-service
+Commit(s): 6523687 feat: add encrypted cloud project snapshots
+Verification: Desktop `pnpm typecheck`, `pnpm format:check` and `pnpm test:unit` passed (162 tests); the Electron-runtime DB migration/backup smoke passed (9 migrations plus DB smoke); `pnpm build` passed; and `pnpm test:ui:skip-build -- --output=artifacts/lm4-30-snapshot-final2` produced 31 screenshots including the data/snapshot page with 0 accessibility observations. Platform `buf lint`, full `GOCACHE=/tmp/dramaip-go-build go test ./...`, Desktop BFF HTTP tests, Snapshot use-case tests, Docker Compose config, Helm lint and Helm render all passed. `git diff --check` is clean. The optional Wire generator cannot run in this checkout because its tool-only transitive modules are absent from go.sum; the checked-in generated wire file and every Go package compile in the full test command.
+Delivered boundary: Desktop serializes a selected local project package without binary assets, encrypts it in Electron main with the existing AES-256-GCM envelope, keeps the recovery key in OS Keychain (and displays it once for user-controlled backup), and sends only an opaque base64 envelope to Desktop BFF. The new Snapshot owner service has its own PostgreSQL schema/runtime role, mTLS caller allow-list limited to `desktop-bff`, 8 MiB encrypted-envelope limit, 10 active-snapshot limit, per-user idempotency, authenticated list/download/delete, 30-day expiry and an hourly physical ciphertext purge. Deletion clears the encrypted blob before it returns success. Restore verifies/decrypts locally and imports a new project rather than overwriting local data. The renderer never receives access tokens or raw envelopes.
+UI/manual evidence: The Data & Backup page now separates local SQLite backups from manual cloud snapshots, names the no-realtime-sync boundary, routes signed-out users to cloud login without a noisy failure toast, lets the user choose the local project to snapshot, shows key availability/expiry/size, and uses accessible confirmation/input dialogs for restore and permanent cloud deletion. The added 1024px light baseline fixed the pre-existing unlabeled back icon; the final a11y scan reports zero observations.
+Diff review: Reviewed generated additive proto code, no-plaintext BFF response shapes, user-identity propagation, mTLS-only Snapshot RPC, per-schema database grants, bounded JSON decoding, opaque bytea storage, keychain transition handling, package validation before import and deletion/expiry cleanup semantics. No recovery key, access token, plaintext package, project database, built package or retained screenshot is committed.
+Remote sync: The target branch was fetched and checked against `origin/loop/lm4-30-encrypted-snapshots` before creating this continuation branch. Its inherited LM4-26/27 external provider blockers still prohibit the normal parent-to-main merge chain.
+Push: This retained continuation branch is pushed after this record; it is not represented as merged into its partial target.
+Current branch/worktree: loop/lm4-30-snapshot-service; clean before this continuation-record commit (ignored build/UI artifacts excluded).
+Remaining blocker: A production admission still needs an approved deployment of the migration and mTLS certificate/key pair, a real Desktop cloud-account upload/list/download/delete recovery exercise, a reviewed production storage/KMS/backup-retention decision, resumable upload design for packages above the safe 8 MiB request bound, and LM3-34 disaster-recovery evidence. Those are not substituted with local fixtures, so LM4-30 remains `partial`.
 ```
