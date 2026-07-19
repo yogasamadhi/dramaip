@@ -32,6 +32,8 @@ type MobileDraft struct {
 	AiExpansion   string                 `protobuf:"bytes,7,opt,name=ai_expansion,json=aiExpansion,proto3" json:"ai_expansion,omitempty"`
 	CreatedAt     string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     string                 `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	AdoptionCount int32                  `protobuf:"varint,10,opt,name=adoption_count,json=adoptionCount,proto3" json:"adoption_count,omitempty"`
+	LastAdoptedAt string                 `protobuf:"bytes,11,opt,name=last_adopted_at,json=lastAdoptedAt,proto3" json:"last_adopted_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -125,6 +127,20 @@ func (x *MobileDraft) GetCreatedAt() string {
 func (x *MobileDraft) GetUpdatedAt() string {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *MobileDraft) GetAdoptionCount() int32 {
+	if x != nil {
+		return x.AdoptionCount
+	}
+	return 0
+}
+
+func (x *MobileDraft) GetLastAdoptedAt() string {
+	if x != nil {
+		return x.LastAdoptedAt
 	}
 	return ""
 }
@@ -269,6 +285,7 @@ type ListMobileDraftsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -317,9 +334,17 @@ func (x *ListMobileDraftsRequest) GetLimit() int32 {
 	return 0
 }
 
+func (x *ListMobileDraftsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type ListMobileDraftsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Drafts        []*MobileDraft         `protobuf:"bytes,1,rep,name=drafts,proto3" json:"drafts,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -359,6 +384,13 @@ func (x *ListMobileDraftsResponse) GetDrafts() []*MobileDraft {
 		return x.Drafts
 	}
 	return nil
+}
+
+func (x *ListMobileDraftsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type RecordMobileDraftAdoptionRequest struct {
@@ -465,11 +497,115 @@ func (x *RecordMobileDraftAdoptionResponse) GetDraft() *MobileDraft {
 	return nil
 }
 
+type DeleteMobileDraftRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DraftId       string                 `protobuf:"bytes,2,opt,name=draft_id,json=draftId,proto3" json:"draft_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMobileDraftRequest) Reset() {
+	*x = DeleteMobileDraftRequest{}
+	mi := &file_api_inspiration_service_v1_inspiration_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMobileDraftRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMobileDraftRequest) ProtoMessage() {}
+
+func (x *DeleteMobileDraftRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_inspiration_service_v1_inspiration_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMobileDraftRequest.ProtoReflect.Descriptor instead.
+func (*DeleteMobileDraftRequest) Descriptor() ([]byte, []int) {
+	return file_api_inspiration_service_v1_inspiration_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DeleteMobileDraftRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DeleteMobileDraftRequest) GetDraftId() string {
+	if x != nil {
+		return x.DraftId
+	}
+	return ""
+}
+
+type DeleteMobileDraftResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DraftId       string                 `protobuf:"bytes,1,opt,name=draft_id,json=draftId,proto3" json:"draft_id,omitempty"`
+	DeletedAt     string                 `protobuf:"bytes,2,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteMobileDraftResponse) Reset() {
+	*x = DeleteMobileDraftResponse{}
+	mi := &file_api_inspiration_service_v1_inspiration_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteMobileDraftResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteMobileDraftResponse) ProtoMessage() {}
+
+func (x *DeleteMobileDraftResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_inspiration_service_v1_inspiration_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteMobileDraftResponse.ProtoReflect.Descriptor instead.
+func (*DeleteMobileDraftResponse) Descriptor() ([]byte, []int) {
+	return file_api_inspiration_service_v1_inspiration_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DeleteMobileDraftResponse) GetDraftId() string {
+	if x != nil {
+		return x.DraftId
+	}
+	return ""
+}
+
+func (x *DeleteMobileDraftResponse) GetDeletedAt() string {
+	if x != nil {
+		return x.DeletedAt
+	}
+	return ""
+}
+
 var File_api_inspiration_service_v1_inspiration_proto protoreflect.FileDescriptor
 
 const file_api_inspiration_service_v1_inspiration_proto_rawDesc = "" +
 	"\n" +
-	",api/inspiration/service/v1/inspiration.proto\x12\x1edramaip.inspiration.service.v1\"\x82\x02\n" +
+	",api/inspiration/service/v1/inspiration.proto\x12\x1edramaip.inspiration.service.v1\"\xd1\x02\n" +
 	"\vMobileDraft\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
 	"\tclient_id\x18\x02 \x01(\tR\bclientId\x12\x12\n" +
@@ -481,7 +617,10 @@ const file_api_inspiration_service_v1_inspiration_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\tR\tupdatedAt\"\xda\x01\n" +
+	"updated_at\x18\t \x01(\tR\tupdatedAt\x12%\n" +
+	"\x0eadoption_count\x18\n" +
+	" \x01(\x05R\radoptionCount\x12&\n" +
+	"\x0flast_adopted_at\x18\v \x01(\tR\rlastAdoptedAt\"\xda\x01\n" +
 	"\x18UpsertMobileDraftRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
 	"\tclient_id\x18\x02 \x01(\tR\bclientId\x12\x12\n" +
@@ -491,22 +630,33 @@ const file_api_inspiration_service_v1_inspiration_proto_rawDesc = "" +
 	"\acontent\x18\x06 \x01(\tR\acontent\x12!\n" +
 	"\fai_expansion\x18\a \x01(\tR\vaiExpansion\"^\n" +
 	"\x19UpsertMobileDraftResponse\x12A\n" +
-	"\x05draft\x18\x01 \x01(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x05draft\"H\n" +
+	"\x05draft\x18\x01 \x01(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x05draft\"`\n" +
 	"\x17ListMobileDraftsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\"_\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\x80\x01\n" +
 	"\x18ListMobileDraftsResponse\x12C\n" +
-	"\x06drafts\x18\x01 \x03(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x06drafts\"\x7f\n" +
+	"\x06drafts\x18\x01 \x03(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x06drafts\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"\x7f\n" +
 	" RecordMobileDraftAdoptionRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
 	"\bdraft_id\x18\x02 \x01(\tR\adraftId\x12'\n" +
 	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\"f\n" +
 	"!RecordMobileDraftAdoptionResponse\x12A\n" +
-	"\x05draft\x18\x01 \x01(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x05draft2\xca\x03\n" +
+	"\x05draft\x18\x01 \x01(\v2+.dramaip.inspiration.service.v1.MobileDraftR\x05draft\"N\n" +
+	"\x18DeleteMobileDraftRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x19\n" +
+	"\bdraft_id\x18\x02 \x01(\tR\adraftId\"U\n" +
+	"\x19DeleteMobileDraftResponse\x12\x19\n" +
+	"\bdraft_id\x18\x01 \x01(\tR\adraftId\x12\x1d\n" +
+	"\n" +
+	"deleted_at\x18\x02 \x01(\tR\tdeletedAt2\xd5\x04\n" +
 	"\x12InspirationService\x12\x88\x01\n" +
 	"\x11UpsertMobileDraft\x128.dramaip.inspiration.service.v1.UpsertMobileDraftRequest\x1a9.dramaip.inspiration.service.v1.UpsertMobileDraftResponse\x12\x85\x01\n" +
 	"\x10ListMobileDrafts\x127.dramaip.inspiration.service.v1.ListMobileDraftsRequest\x1a8.dramaip.inspiration.service.v1.ListMobileDraftsResponse\x12\xa0\x01\n" +
-	"\x19RecordMobileDraftAdoption\x12@.dramaip.inspiration.service.v1.RecordMobileDraftAdoptionRequest\x1aA.dramaip.inspiration.service.v1.RecordMobileDraftAdoptionResponseBWZUgithub.com/dramaip/dramaip-platform/services/api/inspiration/service/v1;inspirationv1b\x06proto3"
+	"\x19RecordMobileDraftAdoption\x12@.dramaip.inspiration.service.v1.RecordMobileDraftAdoptionRequest\x1aA.dramaip.inspiration.service.v1.RecordMobileDraftAdoptionResponse\x12\x88\x01\n" +
+	"\x11DeleteMobileDraft\x128.dramaip.inspiration.service.v1.DeleteMobileDraftRequest\x1a9.dramaip.inspiration.service.v1.DeleteMobileDraftResponseBWZUgithub.com/dramaip/dramaip-platform/services/api/inspiration/service/v1;inspirationv1b\x06proto3"
 
 var (
 	file_api_inspiration_service_v1_inspiration_proto_rawDescOnce sync.Once
@@ -520,7 +670,7 @@ func file_api_inspiration_service_v1_inspiration_proto_rawDescGZIP() []byte {
 	return file_api_inspiration_service_v1_inspiration_proto_rawDescData
 }
 
-var file_api_inspiration_service_v1_inspiration_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_inspiration_service_v1_inspiration_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_api_inspiration_service_v1_inspiration_proto_goTypes = []any{
 	(*MobileDraft)(nil),                       // 0: dramaip.inspiration.service.v1.MobileDraft
 	(*UpsertMobileDraftRequest)(nil),          // 1: dramaip.inspiration.service.v1.UpsertMobileDraftRequest
@@ -529,6 +679,8 @@ var file_api_inspiration_service_v1_inspiration_proto_goTypes = []any{
 	(*ListMobileDraftsResponse)(nil),          // 4: dramaip.inspiration.service.v1.ListMobileDraftsResponse
 	(*RecordMobileDraftAdoptionRequest)(nil),  // 5: dramaip.inspiration.service.v1.RecordMobileDraftAdoptionRequest
 	(*RecordMobileDraftAdoptionResponse)(nil), // 6: dramaip.inspiration.service.v1.RecordMobileDraftAdoptionResponse
+	(*DeleteMobileDraftRequest)(nil),          // 7: dramaip.inspiration.service.v1.DeleteMobileDraftRequest
+	(*DeleteMobileDraftResponse)(nil),         // 8: dramaip.inspiration.service.v1.DeleteMobileDraftResponse
 }
 var file_api_inspiration_service_v1_inspiration_proto_depIdxs = []int32{
 	0, // 0: dramaip.inspiration.service.v1.UpsertMobileDraftResponse.draft:type_name -> dramaip.inspiration.service.v1.MobileDraft
@@ -537,11 +689,13 @@ var file_api_inspiration_service_v1_inspiration_proto_depIdxs = []int32{
 	1, // 3: dramaip.inspiration.service.v1.InspirationService.UpsertMobileDraft:input_type -> dramaip.inspiration.service.v1.UpsertMobileDraftRequest
 	3, // 4: dramaip.inspiration.service.v1.InspirationService.ListMobileDrafts:input_type -> dramaip.inspiration.service.v1.ListMobileDraftsRequest
 	5, // 5: dramaip.inspiration.service.v1.InspirationService.RecordMobileDraftAdoption:input_type -> dramaip.inspiration.service.v1.RecordMobileDraftAdoptionRequest
-	2, // 6: dramaip.inspiration.service.v1.InspirationService.UpsertMobileDraft:output_type -> dramaip.inspiration.service.v1.UpsertMobileDraftResponse
-	4, // 7: dramaip.inspiration.service.v1.InspirationService.ListMobileDrafts:output_type -> dramaip.inspiration.service.v1.ListMobileDraftsResponse
-	6, // 8: dramaip.inspiration.service.v1.InspirationService.RecordMobileDraftAdoption:output_type -> dramaip.inspiration.service.v1.RecordMobileDraftAdoptionResponse
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
+	7, // 6: dramaip.inspiration.service.v1.InspirationService.DeleteMobileDraft:input_type -> dramaip.inspiration.service.v1.DeleteMobileDraftRequest
+	2, // 7: dramaip.inspiration.service.v1.InspirationService.UpsertMobileDraft:output_type -> dramaip.inspiration.service.v1.UpsertMobileDraftResponse
+	4, // 8: dramaip.inspiration.service.v1.InspirationService.ListMobileDrafts:output_type -> dramaip.inspiration.service.v1.ListMobileDraftsResponse
+	6, // 9: dramaip.inspiration.service.v1.InspirationService.RecordMobileDraftAdoption:output_type -> dramaip.inspiration.service.v1.RecordMobileDraftAdoptionResponse
+	8, // 10: dramaip.inspiration.service.v1.InspirationService.DeleteMobileDraft:output_type -> dramaip.inspiration.service.v1.DeleteMobileDraftResponse
+	7, // [7:11] is the sub-list for method output_type
+	3, // [3:7] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name
@@ -558,7 +712,7 @@ func file_api_inspiration_service_v1_inspiration_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_inspiration_service_v1_inspiration_proto_rawDesc), len(file_api_inspiration_service_v1_inspiration_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

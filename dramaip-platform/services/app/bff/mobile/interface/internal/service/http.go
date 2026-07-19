@@ -33,6 +33,7 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/mobile/auth/logout", s.handleLogout)
 	mux.HandleFunc("/v1/mobile/me/brief", s.handleBrief)
 	mux.HandleFunc("/v1/mobile/drafts", s.handleDrafts)
+	mux.HandleFunc("/v1/mobile/drafts/", s.handleDraftAction)
 	mux.HandleFunc("/v1/mobile/ai/expand", s.handleExpand)
 	return platform.TraceMiddleware("mobile-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
@@ -179,20 +180,38 @@ func (s *HTTPService) handleDrafts(w http.ResponseWriter, r *http.Request) {
 			}
 			limit = int32(parsed)
 		}
-		drafts, err := s.uc.ListDrafts(r.Context(), r.Header.Get("Authorization"), limit)
+		drafts, nextCursor, err := s.uc.ListDrafts(r.Context(), r.Header.Get("Authorization"), limit, r.URL.Query().Get("cursor"))
 		if err != nil {
 			s.writeGRPCError(w, err, "mobile_draft_list_unavailable")
 			return
 		}
-		items := make([]map[string]string, 0, len(drafts))
+		items := make([]map[string]any, 0, len(drafts))
 		for _, draft := range drafts {
 			items = append(items, draftJSON(draft))
 		}
 		w.Header().Set("Cache-Control", "no-store")
-		writeJSON(w, http.StatusOK, map[string]any{"drafts": items})
+		writeJSON(w, http.StatusOK, map[string]any{"drafts": items, "next_cursor": nextCursor})
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 	}
+}
+
+func (s *HTTPService) handleDraftAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	draftID := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/v1/mobile/drafts/"))
+	if draftID == "" || strings.Contains(draftID, "/") {
+		writeError(w, http.StatusBadRequest, "invalid_mobile_draft_delete")
+		return
+	}
+	reply, err := s.uc.DeleteDraft(r.Context(), r.Header.Get("Authorization"), draftID)
+	if err != nil {
+		s.writeGRPCError(w, err, "mobile_draft_delete_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"draft_id": reply.GetDraftId(), "deleted_at": reply.GetDeletedAt()})
 }
 
 func (s *HTTPService) handleExpand(w http.ResponseWriter, r *http.Request) {
@@ -225,14 +244,15 @@ func (s *HTTPService) handleExpand(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func draftJSON(draft *inspirationv1.MobileDraft) map[string]string {
+func draftJSON(draft *inspirationv1.MobileDraft) map[string]any {
 	if draft == nil {
-		return map[string]string{}
+		return map[string]any{}
 	}
-	return map[string]string{
+	return map[string]any{
 		"id": draft.Id, "client_id": draft.ClientId, "kind": draft.Kind, "capture_mode": draft.CaptureMode,
 		"title": draft.Title, "content": draft.Content, "ai_expansion": draft.AiExpansion,
 		"created_at": draft.CreatedAt, "updated_at": draft.UpdatedAt,
+		"adoption_count": draft.AdoptionCount, "last_adopted_at": draft.LastAdoptedAt,
 	}
 }
 

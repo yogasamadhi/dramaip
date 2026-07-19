@@ -14,14 +14,22 @@ import (
 type MobileDraftRepository interface {
 	Checks() map[string]func(context.Context) error
 	UpsertMobileDraft(context.Context, string, string, string, string, string, string, string) (data.MobileDraftRow, error)
-	ListMobileDrafts(context.Context, string, int32) ([]data.MobileDraftRow, error)
+	ListMobileDrafts(context.Context, string, int32, string) (data.MobileDraftPage, error)
 	RecordMobileDraftAdoption(context.Context, string, string, string) (data.MobileDraftRow, error)
+	DeleteMobileDraft(context.Context, string, string) (data.MobileDraftRow, error)
 }
 
 type MobileDraftUsecase struct{ repo MobileDraftRepository }
 
 type MobileDraft struct {
 	ID, ClientID, Kind, CaptureMode, Title, Content, AIExpansion, CreatedAt, UpdatedAt string
+	AdoptionCount                                                                      int32
+	LastAdoptedAt                                                                      string
+}
+
+type MobileDraftPage struct {
+	Drafts     []MobileDraft
+	NextCursor string
 }
 
 func NewMobileDraftUsecase(repo MobileDraftRepository) *MobileDraftUsecase {
@@ -42,22 +50,36 @@ func (u *MobileDraftUsecase) Upsert(ctx context.Context, userID, clientID, kind,
 	return mobileDraftFromRow(row), nil
 }
 
-func (u *MobileDraftUsecase) List(ctx context.Context, userID string, limit int32) ([]MobileDraft, error) {
+func (u *MobileDraftUsecase) List(ctx context.Context, userID string, limit int32, cursor string) (MobileDraftPage, error) {
 	if strings.TrimSpace(userID) == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id_required")
+		return MobileDraftPage{}, status.Error(codes.InvalidArgument, "user_id_required")
 	}
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
-	rows, err := u.repo.ListMobileDrafts(ctx, userID, limit)
+	page, err := u.repo.ListMobileDrafts(ctx, userID, limit, strings.TrimSpace(cursor))
 	if err != nil {
-		return nil, err
+		return MobileDraftPage{}, err
 	}
-	drafts := make([]MobileDraft, 0, len(rows))
-	for _, row := range rows {
+	drafts := make([]MobileDraft, 0, len(page.Drafts))
+	for _, row := range page.Drafts {
 		drafts = append(drafts, mobileDraftFromRow(row))
 	}
-	return drafts, nil
+	return MobileDraftPage{Drafts: drafts, NextCursor: page.NextCursor}, nil
+}
+
+func (u *MobileDraftUsecase) Delete(ctx context.Context, userID, draftID string) (MobileDraft, error) {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(draftID) == "" {
+		return MobileDraft{}, status.Error(codes.InvalidArgument, "invalid_mobile_draft_delete")
+	}
+	row, err := u.repo.DeleteMobileDraft(ctx, strings.TrimSpace(userID), strings.TrimSpace(draftID))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return MobileDraft{}, status.Error(codes.NotFound, "mobile_draft_not_found")
+	}
+	if err != nil {
+		return MobileDraft{}, err
+	}
+	return mobileDraftFromRow(row), nil
 }
 
 func (u *MobileDraftUsecase) RecordAdoption(ctx context.Context, userID, draftID, idempotencyKey string) (MobileDraft, error) {
@@ -75,7 +97,7 @@ func (u *MobileDraftUsecase) RecordAdoption(ctx context.Context, userID, draftID
 }
 
 func mobileDraftFromRow(row data.MobileDraftRow) MobileDraft {
-	return MobileDraft{ID: row.ID, ClientID: row.ClientID, Kind: row.Kind, CaptureMode: row.CaptureMode, Title: row.Title, Content: row.Content, AIExpansion: row.AIExpansion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return MobileDraft{ID: row.ID, ClientID: row.ClientID, Kind: row.Kind, CaptureMode: row.CaptureMode, Title: row.Title, Content: row.Content, AIExpansion: row.AIExpansion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, AdoptionCount: row.AdoptionCount, LastAdoptedAt: row.LastAdoptedAt}
 }
 
 func validClientID(value string) bool {

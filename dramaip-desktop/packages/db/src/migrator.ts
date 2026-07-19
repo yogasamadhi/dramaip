@@ -636,6 +636,22 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 24,
+    name: 'cloud-mobile-draft-adoption-projection',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS cloud_mobile_draft_adoptions (
+          cloud_draft_id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          adopted_at TEXT NOT NULL,
+          PRIMARY KEY (cloud_draft_id, project_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_cloud_mobile_draft_adoptions_project
+          ON cloud_mobile_draft_adoptions(project_id, adopted_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

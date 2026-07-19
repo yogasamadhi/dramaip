@@ -21,9 +21,9 @@ func TestMobileDraftUsecaseRejectsOversizedAndInvalidDrafts(t *testing.T) {
 
 func TestMobileDraftUsecaseNormalizesListLimit(t *testing.T) {
 	uc := NewMobileDraftUsecase(fakeMobileDraftRepo{})
-	drafts, err := uc.List(context.Background(), "u1", 999)
-	if err != nil || len(drafts) != 1 || drafts[0].ClientID != "client-123" {
-		t.Fatalf("list = %#v, %v", drafts, err)
+	page, err := uc.List(context.Background(), "u1", 999, "")
+	if err != nil || len(page.Drafts) != 1 || page.Drafts[0].ClientID != "client-123" {
+		t.Fatalf("list = %#v, %v", page, err)
 	}
 }
 
@@ -33,10 +33,13 @@ func (fakeMobileDraftRepo) Checks() map[string]func(context.Context) error { ret
 func (fakeMobileDraftRepo) UpsertMobileDraft(context.Context, string, string, string, string, string, string, string) (data.MobileDraftRow, error) {
 	return fakeMobileDraftRow(), nil
 }
-func (fakeMobileDraftRepo) ListMobileDrafts(context.Context, string, int32) ([]data.MobileDraftRow, error) {
-	return []data.MobileDraftRow{fakeMobileDraftRow()}, nil
+func (fakeMobileDraftRepo) ListMobileDrafts(context.Context, string, int32, string) (data.MobileDraftPage, error) {
+	return data.MobileDraftPage{Drafts: []data.MobileDraftRow{fakeMobileDraftRow()}}, nil
 }
 func (fakeMobileDraftRepo) RecordMobileDraftAdoption(context.Context, string, string, string) (data.MobileDraftRow, error) {
+	return fakeMobileDraftRow(), nil
+}
+func (fakeMobileDraftRepo) DeleteMobileDraft(context.Context, string, string) (data.MobileDraftRow, error) {
 	return fakeMobileDraftRow(), nil
 }
 func fakeMobileDraftRow() data.MobileDraftRow {

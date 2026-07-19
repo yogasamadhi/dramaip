@@ -40,6 +40,7 @@ type AIClient interface {
 type InspirationClient interface {
 	UpsertMobileDraft(context.Context, *inspirationv1.UpsertMobileDraftRequest, ...grpc.CallOption) (*inspirationv1.UpsertMobileDraftResponse, error)
 	ListMobileDrafts(context.Context, *inspirationv1.ListMobileDraftsRequest, ...grpc.CallOption) (*inspirationv1.ListMobileDraftsResponse, error)
+	DeleteMobileDraft(context.Context, *inspirationv1.DeleteMobileDraftRequest, ...grpc.CallOption) (*inspirationv1.DeleteMobileDraftResponse, error)
 }
 
 type Data struct {

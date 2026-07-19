@@ -307,6 +307,10 @@ export interface CloudMobileDraft {
   aiExpansion: string
   createdAt: string
   updatedAt: string
+  adoptionCount: number
+  lastAdoptedAt: string
+  currentProjectAdopted?: boolean
+  adoptedInOtherProject?: boolean
 }
 
 export interface SecretStateCounts {
@@ -437,7 +441,7 @@ export interface StudioApi {
     onBalance(onBalance: (balance: { remainingTokens: number }) => void): () => void
   }
   cloudHandoff: {
-    list(): Promise<CloudMobileDraft[]>
+    list(input: { projectId: string }): Promise<CloudMobileDraft[]>
     adopt(input: { projectId: string; draftId: string }): Promise<{ draft: CloudMobileDraft; imported: number; skipped: number }>
   }
   dataBackup: {

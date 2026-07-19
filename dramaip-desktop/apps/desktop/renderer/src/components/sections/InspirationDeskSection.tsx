@@ -225,7 +225,7 @@ export function InspirationDeskSection({
   async function loadCloudMobileDrafts() {
     setLoadingCloudDrafts(true)
     try {
-      const drafts = await ipc.cloudHandoff.list()
+      const drafts = await ipc.cloudHandoff.list({ projectId: project.id })
       setCloudDrafts(drafts)
       if (!drafts.length) toast.message('云端暂没有待采用的移动草稿')
     } catch (error) {
@@ -242,7 +242,7 @@ export function InspirationDeskSection({
       await refreshFavorites()
       setSourceKind('mobile_import')
       setFavoriteOnly(false)
-      setCloudDrafts((items) => items.filter((item) => item.id !== draft.id))
+      setCloudDrafts((items) => items.map((item) => item.id === draft.id ? { ...item, currentProjectAdopted: true } : item))
       toast.success(`已采用「${result.draft.title}」到本项目灵感台`)
     } catch (error) {
       toast.error('采用移动草稿失败：' + (error instanceof Error ? error.message : String(error)))
@@ -552,7 +552,7 @@ export function InspirationDeskSection({
 
       {cloudDrafts.length > 0 && (
         <div className="border-b bg-muted/30 p-4">
-          <div className="mb-2 text-sm font-medium">移动端待采用草稿</div>
+          <div className="mb-2 text-sm font-medium">移动端云草稿</div>
           <div className="grid gap-2 lg:grid-cols-2">
             {cloudDrafts.map((draft) => (
               <div key={draft.id} className="rounded-md border bg-background p-3">
@@ -561,7 +561,8 @@ export function InspirationDeskSection({
                   <Badge variant="outline">{draft.kind === 'character' ? '人物' : draft.kind === 'project' ? '项目' : '灵感'}</Badge>
                 </div>
                 <div className="mt-1 line-clamp-3 text-sm text-muted-foreground">{draft.content}</div>
-                <Button className="mt-2" type="button" size="sm" onClick={() => void adoptCloudMobileDraft(draft)} disabled={adoptingCloudDraftID === draft.id}>
+                <div className="mt-2 text-xs text-muted-foreground">{draft.currentProjectAdopted ? '本项目已采用' : draft.adoptedInOtherProject || draft.adoptionCount > 0 ? '已在其他项目采用' : '未采用'}</div>
+                <Button className="mt-2" type="button" size="sm" onClick={() => void adoptCloudMobileDraft(draft)} disabled={adoptingCloudDraftID === draft.id || draft.currentProjectAdopted}>
                   {adoptingCloudDraftID === draft.id ? <Loader2 className="animate-spin" /> : <BookmarkCheck />}
                   采用到灵感台
                 </Button>
