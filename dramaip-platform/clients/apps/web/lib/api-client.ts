@@ -83,7 +83,8 @@ apiClient.http.interceptors.response.use(
       !config ||
       config.__dramaipRetry ||
       config.__dramaipSkipRefresh ||
-      String(config.url ?? '').includes('/auth/refresh')
+      String(config.url ?? '').includes('/auth/refresh') ||
+      String(config.url ?? '').includes('/auth/logout')
     ) {
       throw error
     }

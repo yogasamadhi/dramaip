@@ -9,7 +9,7 @@ import (
 	jobdata "github.com/dramaip/dramaip-platform/services/app/reporting/job/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/reporting/job/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/reporting/job/internal/service"
-	kratos "github.com/go-kratos/kratos/v2"
+	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 )
 

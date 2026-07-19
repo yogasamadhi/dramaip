@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	kratos "github.com/go-kratos/kratos/v2"
-	"github.com/go-kratos/kratos/v2/transport"
+	kratos "github.com/go-kratos/kratos/v3"
+	"github.com/go-kratos/kratos/v3/transport"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 )

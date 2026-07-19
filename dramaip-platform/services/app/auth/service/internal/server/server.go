@@ -11,9 +11,9 @@ import (
 	authsvc "github.com/dramaip/dramaip-platform/services/app/auth/service/internal/service"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 func NewGRPCServer(cfg *conf.Bootstrap, svc *authsvc.AuthService) *kgrpc.Server {

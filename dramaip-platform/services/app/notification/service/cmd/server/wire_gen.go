@@ -5,7 +5,7 @@
 package main
 
 import (
-	kratos "github.com/go-kratos/kratos/v2"
+	kratos "github.com/go-kratos/kratos/v3"
 
 	"github.com/dramaip/dramaip-platform/services/app/notification/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/notification/service/internal/biz"

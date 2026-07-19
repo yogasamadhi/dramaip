@@ -10,7 +10,7 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/admin/interface/internal/service"
-	kratos "github.com/go-kratos/kratos/v2"
+	kratos "github.com/go-kratos/kratos/v3"
 )
 
 func wireApp() (*kratos.App, func(), error) {

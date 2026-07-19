@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
-	kratos "github.com/go-kratos/kratos/v2"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	kratos "github.com/go-kratos/kratos/v3"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 func main() {

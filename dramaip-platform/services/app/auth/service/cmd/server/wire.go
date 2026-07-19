@@ -3,7 +3,7 @@
 package main
 
 import (
-	kratos "github.com/go-kratos/kratos/v2"
+	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
 	"github.com/dramaip/dramaip-platform/services/app/auth/service/internal/biz"

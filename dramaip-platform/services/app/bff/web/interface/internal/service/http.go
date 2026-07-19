@@ -210,12 +210,14 @@ func (s *HTTPService) handleLogout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 		return
 	}
+	// Browser logout is local-first: even if downstream revocation is
+	// temporarily unavailable, do not leave usable session cookies behind.
+	s.clearSessionCookies(w)
 	reply, err := s.uc.Logout(r.Context(), cookieValue(r, webRefreshCookie), accessToken(r), deviceID(r))
 	if err != nil {
 		writeGRPCError(w, err, "logout_unavailable")
 		return
 	}
-	s.clearSessionCookies(w)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": reply.Ok})
 }
 

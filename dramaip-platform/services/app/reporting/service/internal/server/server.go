@@ -9,9 +9,9 @@ import (
 	reportingsvc "github.com/dramaip/dramaip-platform/services/app/reporting/service/internal/service"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 func NewHTTPServer(cfg *conf.Bootstrap, repo *data.ReportingRepo) *khttp.Server {

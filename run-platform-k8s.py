@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Local Kubernetes launcher for dramaip-platform.
+Kubernetes launcher for dramaip-platform on a Linux amd64 build host.
 
 Default flow:
   1. Check docker, kubectl, and helm.
   2. Optionally create/start a local kind/minikube cluster.
-  3. Build all current platform workload images from
+  3. Build all current platform workload images as linux/amd64 from
      dramaip-platform/services/Dockerfile.service.
   4. Load the image into kind/minikube when the current context suggests it.
   5. Install or upgrade Kong Ingress Controller.
@@ -69,6 +69,7 @@ DEFAULT_KONG_CHART = "kong/ingress"
 DEFAULT_KONG_GATEWAY_IMAGE = "kong:3.9-ubuntu"
 DEFAULT_KONG_CONTROLLER_IMAGE = "kong/kubernetes-ingress-controller:3.5"
 DEFAULT_TIMEOUT = "10m"
+K8S_TARGET_PLATFORM = "linux/amd64"
 
 SERVICE_IMAGES = (
     ("webBff", "dramaip-web-bff", "./app/bff/web/interface/cmd/server"),
@@ -754,11 +755,39 @@ def split_image_ref(image: str) -> tuple[str, str]:
     return repository, tag
 
 
-def docker_image_exists(image: str, dry_run: bool = False) -> bool:
+def normalize_platform(value: str) -> str:
+    platform = value.strip().lower()
+    if "/" not in platform:
+        return platform
+    os_name, arch = platform.split("/", 1)
+    if arch == "aarch64":
+        arch = "arm64"
+    elif arch == "x86_64":
+        arch = "amd64"
+    return f"{os_name}/{arch}"
+
+
+def docker_image_platform(image: str) -> str | None:
+    result = subprocess.run(
+        ["docker", "image", "inspect", image, "--format", "{{.Os}}/{{.Architecture}}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return normalize_platform(result.stdout)
+
+
+def require_image_platform(image: str, dry_run: bool = False) -> None:
     if dry_run:
-        return True
-    result = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True)
-    return result.returncode == 0
+        return
+    platform = docker_image_platform(image)
+    if platform != K8S_TARGET_PLATFORM:
+        err(
+            f"Local image {image} is {platform or 'missing'}, expected {K8S_TARGET_PLATFORM}. "
+            "Rebuild it without --no-build before loading it into the cluster."
+        )
+        sys.exit(1)
 
 
 def kind_node_name(cluster_name: str) -> str:
@@ -836,6 +865,8 @@ def build_image(args: argparse.Namespace) -> None:
             [
                 "docker",
                 "build",
+                "--platform",
+                K8S_TARGET_PLATFORM,
                 "-f",
                 str(SERVICES_DIR / "Dockerfile.service"),
                 "--build-arg",
@@ -851,6 +882,7 @@ def build_image(args: argparse.Namespace) -> None:
             cwd=SERVICES_DIR,
             dry_run=args.dry_run,
         )
+        require_image_platform(image, args.dry_run)
     ok("service images built")
 
 
@@ -878,6 +910,7 @@ def load_image(args: argparse.Namespace) -> None:
         if not cluster_name and context.startswith("kind-"):
             cluster_name = context.removeprefix("kind-")
         for _key, _repo, image, _target in service_images(args):
+            require_image_platform(image, args.dry_run)
             info(f"Loading image into kind: {image}")
             kind_load_docker_image(image, cluster_name, dry_run=args.dry_run)
         ok("images loaded into kind")
@@ -888,6 +921,7 @@ def load_image(args: argparse.Namespace) -> None:
             warn("minikube is not installed; cannot load image into minikube.")
             return
         for _key, _repo, image, _target in service_images(args):
+            require_image_platform(image, args.dry_run)
             info(f"Loading image into minikube: {image}")
             run(["minikube", "image", "load", image], dry_run=args.dry_run)
         ok("images loaded into minikube")
@@ -901,9 +935,17 @@ def load_optional_runtime_image(args: argparse.Namespace, image: str, label: str
     mode = local_cluster_mode(args)
     if mode not in {"kind", "minikube"}:
         return
-    if not docker_image_exists(image, args.dry_run):
+    current_platform = K8S_TARGET_PLATFORM if args.dry_run else docker_image_platform(image)
+    if not current_platform:
         warn(f"{label} image is not present locally: {image}; Helm will try to pull it.")
         return
+    if current_platform != K8S_TARGET_PLATFORM:
+        warn(
+            f"Replacing cached {current_platform} {label} image with "
+            f"{K8S_TARGET_PLATFORM}: {image}"
+        )
+        run(["docker", "pull", "--platform", K8S_TARGET_PLATFORM, image])
+        require_image_platform(image)
 
     if mode == "kind":
         cluster_name = args.kind_cluster

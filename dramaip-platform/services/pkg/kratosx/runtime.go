@@ -3,17 +3,18 @@ package kratosx
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	kratos "github.com/go-kratos/kratos/v2"
-	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-kratos/kratos/v2/middleware"
-	"github.com/go-kratos/kratos/v2/transport"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	kratos "github.com/go-kratos/kratos/v3"
+	klog "github.com/go-kratos/kratos/v3/log"
+	"github.com/go-kratos/kratos/v3/middleware"
+	"github.com/go-kratos/kratos/v3/transport"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 	"go.opentelemetry.io/otel"
 )
 
@@ -38,26 +39,136 @@ func EnvDurationSeconds(key string, fallbackSeconds int) time.Duration {
 	return time.Duration(EnvInt(key, fallbackSeconds)) * time.Second
 }
 
-func Logger(service string) log.Logger {
-	return structuredLogger{service: service}
+func Logger(service string) *slog.Logger {
+	return klog.NewLogger(newStructuredLogHandler(service, platform.StructuredLog))
 }
 
-type structuredLogger struct{ service string }
+type structuredLogWriter func(context.Context, string, string, string, map[string]any)
 
-func (l structuredLogger) Log(level log.Level, keyvals ...any) error {
-	fields := map[string]any{"service_version": Version}
-	for i := 0; i+1 < len(keyvals); i += 2 {
-		key, ok := keyvals[i].(string)
-		if !ok || key == "" {
-			key = fmt.Sprintf("field_%d", i/2)
-		}
-		fields[key] = keyvals[i+1]
+type scopedLogAttrs struct {
+	groups []string
+	attrs  []slog.Attr
+}
+
+// structuredLogHandler adapts Kratos v3's slog records to the platform log
+// envelope. Instances are immutable after construction, so WithAttrs and
+// WithGroup can safely be used concurrently by derived loggers.
+type structuredLogHandler struct {
+	service string
+	write   structuredLogWriter
+	groups  []string
+	bound   []scopedLogAttrs
+}
+
+func newStructuredLogHandler(service string, write structuredLogWriter) *structuredLogHandler {
+	return &structuredLogHandler{service: service, write: write}
+}
+
+func (*structuredLogHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h *structuredLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	fields := map[string]any{
+		"service_version": Version,
+		"msg":             record.Message,
 	}
-	if len(keyvals)%2 != 0 {
-		fields["malformed_keyvals"] = true
+	for _, scoped := range h.bound {
+		appendStructuredLogAttrs(fields, scoped.groups, scoped.attrs)
 	}
-	platform.StructuredLog(context.Background(), l.service, level.String(), "kratos", fields)
+	record.Attrs(func(attr slog.Attr) bool {
+		appendStructuredLogAttrs(fields, h.groups, []slog.Attr{attr})
+		return true
+	})
+	h.write(ctx, h.service, structuredLogLevel(record.Level), "kratos", fields)
 	return nil
+}
+
+func (h *structuredLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if len(attrs) == 0 {
+		return h
+	}
+	clone := h.clone()
+	clone.bound = append(clone.bound, scopedLogAttrs{
+		groups: append([]string(nil), h.groups...),
+		attrs:  append([]slog.Attr(nil), attrs...),
+	})
+	return clone
+}
+
+func (h *structuredLogHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+	clone := h.clone()
+	clone.groups = append(clone.groups, name)
+	return clone
+}
+
+func (h *structuredLogHandler) clone() *structuredLogHandler {
+	return &structuredLogHandler{
+		service: h.service,
+		write:   h.write,
+		groups:  append([]string(nil), h.groups...),
+		bound:   append([]scopedLogAttrs(nil), h.bound...),
+	}
+}
+
+func appendStructuredLogAttrs(fields map[string]any, groups []string, attrs []slog.Attr) {
+	target := fields
+	for _, group := range groups {
+		nested, ok := target[group].(map[string]any)
+		if !ok {
+			nested = map[string]any{}
+			target[group] = nested
+		}
+		target = nested
+	}
+	for _, attr := range attrs {
+		appendStructuredLogAttr(target, attr)
+	}
+}
+
+func appendStructuredLogAttr(target map[string]any, attr slog.Attr) {
+	if attr.Equal(slog.Attr{}) {
+		return
+	}
+	attr.Value = attr.Value.Resolve()
+	if attr.Value.Kind() != slog.KindGroup {
+		target[attr.Key] = attr.Value.Any()
+		return
+	}
+	if attr.Key == "" {
+		for _, child := range attr.Value.Group() {
+			appendStructuredLogAttr(target, child)
+		}
+		return
+	}
+	nested, ok := target[attr.Key].(map[string]any)
+	if !ok {
+		nested = map[string]any{}
+	}
+	for _, child := range attr.Value.Group() {
+		appendStructuredLogAttr(nested, child)
+	}
+	if len(nested) > 0 {
+		target[attr.Key] = nested
+	}
+}
+
+func structuredLogLevel(level slog.Level) string {
+	switch {
+	case level >= klog.LevelFatal:
+		return "FATAL"
+	case level >= slog.LevelError:
+		return "ERROR"
+	case level >= slog.LevelWarn:
+		return "WARN"
+	case level >= slog.LevelInfo:
+		return "INFO"
+	default:
+		return "DEBUG"
+	}
 }
 
 func NewApp(name string, servers ...transport.Server) *kratos.App {

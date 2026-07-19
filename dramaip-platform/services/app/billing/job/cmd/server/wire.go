@@ -8,8 +8,8 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/billing/job/internal/service"
-	kratos "github.com/go-kratos/kratos/v2"
-	"github.com/go-kratos/kratos/v2/transport"
+	kratos "github.com/go-kratos/kratos/v3"
+	"github.com/go-kratos/kratos/v3/transport"
 	"github.com/google/wire"
 )
 

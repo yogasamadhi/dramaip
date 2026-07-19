@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Start dramaip-platform services and web app in development mode.
+Start dramaip-platform services and web app in development mode on an Apple
+Silicon Mac. Third-party runtime images are pinned to linux/arm64 before the
+Compose stack starts so an old amd64 cache is never run through emulation.
 
 All 10 Go microservices (web-bff/auth/user/billing/quota/ai-gateway/notification/
 notification-job/billing-job/quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
@@ -19,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import signal
@@ -50,6 +53,8 @@ _SHUTDOWN_SIGNAL: int | None = None
 # brings the stack up (Kong is the sole external entry, proxy port 8000 → web-bff:8100)
 # and optionally starts the local Next.js web dev server.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
+COMPOSE_ROOT_SERVICE = "kong"
+COMPOSE_TARGET_PLATFORM = "linux/arm64"
 KONG_PROXY_PORT = 8000
 KONG_HEALTH_TIMEOUT_S = 90.0   # full stack (build + 10 services + infra) takes longer than Kong alone
 WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
@@ -134,6 +139,125 @@ def compose_cmd(*args: str) -> list[str]:
         cmd.extend(["--env-file", str(SERVICES_ENV_FILE)])
     cmd.extend(["-f", str(COMPOSE_FILE), *args])
     return cmd
+
+
+def compose_env() -> dict[str, str]:
+    """Keep every Compose pull and build on the M4 Docker platform."""
+    env = os.environ.copy()
+    env["DOCKER_DEFAULT_PLATFORM"] = COMPOSE_TARGET_PLATFORM
+    return env
+
+
+def normalize_platform(value: str) -> str:
+    platform = value.strip().lower()
+    if "/" not in platform:
+        return platform
+    os_name, arch = platform.split("/", 1)
+    if arch == "aarch64":
+        arch = "arm64"
+    elif arch == "x86_64":
+        arch = "amd64"
+    return f"{os_name}/{arch}"
+
+
+def docker_image_platform(image: str) -> str | None:
+    result = subprocess.run(
+        ["docker", "image", "inspect", image, "--format", "{{.Os}}/{{.Architecture}}"],
+        cwd=str(SCRIPT_DIR),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    return normalize_platform(result.stdout)
+
+
+def compose_runtime_images(root_service: str) -> list[str]:
+    """Return non-build images in the dependency graph started by Compose."""
+    result = subprocess.run(
+        compose_cmd("config", "--format", "json"),
+        cwd=str(SCRIPT_DIR),
+        env=compose_env(),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"Cannot resolve Docker Compose configuration: {details or 'unknown error'}")
+
+    try:
+        services = json.loads(result.stdout)["services"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise RuntimeError(f"Cannot parse Docker Compose service configuration: {exc}") from exc
+    if root_service not in services:
+        raise RuntimeError(f"Docker Compose service is missing: {root_service}")
+
+    images: set[str] = set()
+    pending = [root_service]
+    visited: set[str] = set()
+    while pending:
+        service_name = pending.pop()
+        if service_name in visited:
+            continue
+        visited.add(service_name)
+        service = services.get(service_name)
+        if not isinstance(service, dict):
+            raise RuntimeError(f"Docker Compose dependency is missing: {service_name}")
+
+        image = service.get("image")
+        if image and not service.get("build"):
+            images.add(str(image))
+
+        depends_on = service.get("depends_on", {})
+        if isinstance(depends_on, dict):
+            pending.extend(str(name) for name in depends_on)
+        elif isinstance(depends_on, list):
+            pending.extend(str(name) for name in depends_on)
+
+    return sorted(images)
+
+
+def ensure_compose_image_platforms() -> None:
+    server_platform = command_output(
+        ["docker", "info", "--format", "{{.OSType}}/{{.Architecture}}"],
+        SCRIPT_DIR,
+    )
+    if not server_platform:
+        raise RuntimeError("Cannot determine the Docker daemon platform.")
+    server_platform = normalize_platform(server_platform)
+    if server_platform != COMPOSE_TARGET_PLATFORM:
+        raise RuntimeError(
+            f"run-platform.py requires an M4/arm64 Docker daemon; found {server_platform}. "
+            f"Use run-platform-k8s.py for the Linux amd64 environment."
+        )
+
+    for image in compose_runtime_images(COMPOSE_ROOT_SERVICE):
+        current_platform = docker_image_platform(image)
+        if current_platform == COMPOSE_TARGET_PLATFORM:
+            continue
+
+        if current_platform:
+            warn(
+                f"Replacing cached {current_platform} image with {COMPOSE_TARGET_PLATFORM}: {image}"
+            )
+        else:
+            info(f"Pulling {COMPOSE_TARGET_PLATFORM} runtime image: {image}")
+        result = subprocess.run(
+            ["docker", "pull", "--platform", COMPOSE_TARGET_PLATFORM, image],
+            cwd=str(SCRIPT_DIR),
+            env=compose_env(),
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Failed to pull {image} for {COMPOSE_TARGET_PLATFORM}; the Compose stack was not started."
+            )
+        pulled_platform = docker_image_platform(image)
+        if pulled_platform != COMPOSE_TARGET_PLATFORM:
+            raise RuntimeError(
+                f"Docker pulled {image} as {pulled_platform or 'unknown'}, expected {COMPOSE_TARGET_PLATFORM}."
+            )
+
+    ok(f"Compose runtime images match {COMPOSE_TARGET_PLATFORM}")
 
 
 def check_layout() -> None:
@@ -244,9 +368,11 @@ def ensure_stack_running() -> None:
     picked up on each launch.
     """
     check_docker()
+    ensure_compose_image_platforms()
     info(f"Starting platform stack: docker compose up -d --build kong (proxy :{KONG_PROXY_PORT})")
     up = subprocess.run(
-        compose_cmd("up", "-d", "--build", "kong")
+        compose_cmd("up", "-d", "--build", "kong"),
+        env=compose_env(),
     )
     if up.returncode != 0:
         err(
@@ -259,7 +385,7 @@ def ensure_stack_running() -> None:
     # Kong after the dependency graph is up so its first proxy request resolves
     # the current BFF addresses instead of returning a stale-upstream 502.
     info("Restarting Kong to refresh upstream Docker DNS after service rebuilds")
-    refresh = subprocess.run(compose_cmd("restart", "kong"))
+    refresh = subprocess.run(compose_cmd("restart", "kong"), env=compose_env())
     if refresh.returncode != 0:
         err("Kong failed to restart after the service rebuild.")
         sys.exit(1)
@@ -300,6 +426,7 @@ def http_ok(url: str, timeout: float) -> tuple[bool, str]:
 def print_compose_status() -> None:
     result = subprocess.run(
         compose_cmd("ps"),
+        env=compose_env(),
         capture_output=True,
         text=True,
     )

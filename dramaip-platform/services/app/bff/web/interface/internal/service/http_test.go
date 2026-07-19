@@ -169,6 +169,40 @@ func TestCookieSessionAndCSRF(t *testing.T) {
 	}
 }
 
+func TestLogoutClearsCookiesWhenDownstreamRejectsSession(t *testing.T) {
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: logoutErrorAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+	session := loginForSession(t, router)
+
+	logout := httptest.NewRequest(http.MethodPost, "/v1/auth/logout", nil)
+	logout.AddCookie(session.accessCookie)
+	logout.AddCookie(session.refreshCookie)
+	logout.AddCookie(session.csrfCookie)
+	logout.Header.Set(csrfHeader, session.csrfCookie.Value)
+	logoutRecorder := httptest.NewRecorder()
+	router.ServeHTTP(logoutRecorder, logout)
+	if logoutRecorder.Code != http.StatusUnauthorized {
+		t.Fatalf("logout status = %d: %s", logoutRecorder.Code, logoutRecorder.Body.String())
+	}
+
+	cleared := map[string]bool{}
+	for _, cookie := range logoutRecorder.Result().Cookies() {
+		if cookie.Name == webAccessCookie || cookie.Name == webRefreshCookie || cookie.Name == webCSRFCookie {
+			if cookie.MaxAge >= 0 {
+				t.Fatalf("logout did not clear %s: %+v", cookie.Name, cookie)
+			}
+			cleared[cookie.Name] = true
+		}
+	}
+	for _, name := range []string{webAccessCookie, webRefreshCookie, webCSRFCookie} {
+		if !cleared[name] {
+			t.Fatalf("logout response did not expire %s", name)
+		}
+	}
+}
+
 func TestProductionCookieSessionIsSecure(t *testing.T) {
 	service := newTestHTTPServiceWithConfig(&conf.Bootstrap{Environment: "prod", Session: conf.SessionConfig{RefreshCookieTTL: "720h"}})
 	session := loginForSession(t, service.Router())
@@ -444,6 +478,12 @@ func patchJSON(t *testing.T, router http.Handler, path, token, body string, want
 type fakeAuth struct{}
 
 type unverifiedAuth struct{ fakeAuth }
+
+type logoutErrorAuth struct{ fakeAuth }
+
+func (logoutErrorAuth) Logout(context.Context, *authv1.LogoutRequest, ...grpc.CallOption) (*authv1.LogoutReply, error) {
+	return nil, status.Error(codes.Unauthenticated, "invalid token")
+}
 
 func (fakeAuth) Register(context.Context, *authv1.RegisterRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
 	return nil, status.Error(codes.Unimplemented, "register")

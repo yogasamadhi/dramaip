@@ -138,13 +138,19 @@ func (u *AuthUsecase) Refresh(ctx context.Context, refreshToken string) (Session
 }
 
 func (u *AuthUsecase) Logout(ctx context.Context, refreshToken string, accessToken string, deviceID string) error {
+	accessToken = normalizeAccessToken(accessToken)
 	if deviceID != "" && accessToken != "" {
 		identity, err := u.ValidateAccessToken(ctx, accessToken)
-		if err != nil {
+		if err != nil && status.Code(err) != codes.Unauthenticated {
 			return err
 		}
-		if err := u.repo.RevokeRefreshTokensByDevice(ctx, identity.UserID, deviceID); err != nil {
-			return err
+		// An expired or already-invalid access token must not prevent logout.
+		// When it is still valid, revoke every active refresh token for the
+		// device; otherwise the presented refresh token is still revoked below.
+		if err == nil {
+			if err := u.repo.RevokeRefreshTokensByDevice(ctx, identity.UserID, deviceID); err != nil {
+				return err
+			}
 		}
 	}
 	if refreshToken == "" {
@@ -154,6 +160,17 @@ func (u *AuthUsecase) Logout(ctx context.Context, refreshToken string, accessTok
 		return err
 	}
 	return u.repo.DeleteSession(ctx, accessToken)
+}
+
+func normalizeAccessToken(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "Bearer" {
+		return ""
+	}
+	if strings.HasPrefix(value, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(value, "Bearer "))
+	}
+	return value
 }
 
 func (u *AuthUsecase) ValidateAccessToken(ctx context.Context, accessToken string) (AuthIdentity, error) {

@@ -10,9 +10,9 @@ import (
 	billingsvc "github.com/dramaip/dramaip-platform/services/app/billing/service/internal/service"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 func NewHTTPServer(cfg *conf.Bootstrap, uc *billingbiz.BillingUsecase) *khttp.Server {

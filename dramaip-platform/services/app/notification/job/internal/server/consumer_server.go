@@ -6,8 +6,8 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/notification/job/internal/conf"
 	notificationsvc "github.com/dramaip/dramaip-platform/services/app/notification/job/internal/service"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
-	"github.com/go-kratos/kratos/v2/middleware/recovery"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	"github.com/go-kratos/kratos/v3/middleware/recovery"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 )
 
 type JobServer struct {

@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	kratos "github.com/go-kratos/kratos/v2"
-	kgrpc "github.com/go-kratos/kratos/v2/transport/grpc"
-	khttp "github.com/go-kratos/kratos/v2/transport/http"
+	kratos "github.com/go-kratos/kratos/v3"
+	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 )

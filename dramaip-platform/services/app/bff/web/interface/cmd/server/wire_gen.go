@@ -11,7 +11,7 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/server"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/service"
-	kratos "github.com/go-kratos/kratos/v2"
+	kratos "github.com/go-kratos/kratos/v3"
 )
 
 func wireApp() (*kratos.App, func(), error) {

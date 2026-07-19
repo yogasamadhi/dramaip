@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
-	"github.com/go-kratos/kratos/v2/transport"
+	"github.com/go-kratos/kratos/v3/transport"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
