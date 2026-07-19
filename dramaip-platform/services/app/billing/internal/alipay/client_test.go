@@ -43,7 +43,7 @@ func TestClientSignsPrecreateAndQueryAndVerifiesNotification(t *testing.T) {
 		}
 		switch r.PostForm.Get("method") {
 		case "alipay.trade.precreate":
-			if business["out_trade_no"] != "order-1" || business["total_amount"] != "39.00" || r.PostForm.Get("notify_url") != "https://pay.example.test/v1/webhooks/alipay" {
+			if business["out_trade_no"] != "order-1" || business["total_amount"] != "39.00" || business["timeout_express"] != "30m" || r.PostForm.Get("notify_url") != "https://pay.example.test/v1/webhooks/alipay" {
 				t.Fatalf("precreate form=%v business=%v", r.PostForm, business)
 			}
 			writeSignedTestResponse(t, w, alipayKey, "alipay_trade_precreate_response", []byte(`{"code":"10000","out_trade_no":"order-1","qr_code":"alipayqr://order-1"}`))
@@ -66,7 +66,7 @@ func TestClientSignsPrecreateAndQueryAndVerifiesNotification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	precreated, err := client.CreatePrecreateOrder(t.Context(), PrecreateOrderRequest{OutTradeNo: "order-1", Subject: "DramaIP Basic", TotalCents: 3900, Currency: "CNY"})
+	precreated, err := client.CreatePrecreateOrder(t.Context(), PrecreateOrderRequest{OutTradeNo: "order-1", Subject: "DramaIP Basic", TotalCents: 3900, Currency: "CNY", Timeout: "30m"})
 	if err != nil || precreated.QRCode != "alipayqr://order-1" {
 		t.Fatalf("CreatePrecreateOrder = %#v, %v", precreated, err)
 	}

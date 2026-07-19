@@ -100,6 +100,7 @@ type OrderRow struct {
 	Amount         string
 	Currency       string
 	PaymentURL     string
+	ExpiresAt      string
 	CreatedAt      string
 	PaidAt         string
 	SubscriptionID string
@@ -120,6 +121,7 @@ type CheckoutResult struct {
 	Provider   string
 	Status     string
 	PaymentURL string
+	ExpiresAt  string
 }
 
 type SandboxPaymentResult struct {
@@ -278,23 +280,23 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 }
 
 func (r *BillingRepo) CreateCheckout(ctx context.Context, userID string, planCode string, provider string) (CheckoutResult, error) {
-	return r.createCheckout(ctx, userID, planCode, provider, platform.NewUUID(), "")
+	return r.createCheckout(ctx, userID, planCode, provider, platform.NewUUID(), "", "", time.Time{})
 }
 
 // CreateWechatCheckout persists the local side of an already accepted WeChat
 // native order. providerOrderID is deliberately distinct from the UUID primary
 // key because WeChat's out_trade_no has a tighter length limit.
-func (r *BillingRepo) CreateWechatCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string) (CheckoutResult, error) {
-	return r.createCheckout(ctx, userID, planCode, "wechat_pay", orderID, providerOrderID)
+func (r *BillingRepo) CreateWechatCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string, paymentURL string, expiresAt time.Time) (CheckoutResult, error) {
+	return r.createCheckout(ctx, userID, planCode, "wechat_pay", orderID, providerOrderID, paymentURL, expiresAt)
 }
 
 // CreateAlipayCheckout persists the local side of an already accepted Alipay
 // precreate order. Alipay accepts the UUID-shaped merchant out_trade_no.
-func (r *BillingRepo) CreateAlipayCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string) (CheckoutResult, error) {
-	return r.createCheckout(ctx, userID, planCode, "alipay", orderID, providerOrderID)
+func (r *BillingRepo) CreateAlipayCheckout(ctx context.Context, userID string, planCode string, orderID string, providerOrderID string, paymentURL string, expiresAt time.Time) (CheckoutResult, error) {
+	return r.createCheckout(ctx, userID, planCode, "alipay", orderID, providerOrderID, paymentURL, expiresAt)
 }
 
-func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCode string, provider string, orderID string, providerOrderID string) (CheckoutResult, error) {
+func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCode string, provider string, orderID string, providerOrderID string, paymentURL string, expiresAt time.Time) (CheckoutResult, error) {
 	var plan struct {
 		ID                string
 		Code              string
@@ -340,14 +342,15 @@ func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCod
 		if err := tx.Exec(`
 			INSERT INTO billing.orders (
 				id, user_id, plan_id, amount, currency, status, provider, provider_order_id,
+				payment_url, payment_expires_at,
 				plan_code, plan_name, billing_period, plan_price, monthly_token_quota,
 				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
 			)
 			VALUES (
-				?::uuid, ?::uuid, ?::uuid, ?::numeric, ?, 'pending', ?, ?,
+				?::uuid, ?::uuid, ?::uuid, ?::numeric, ?, 'pending', ?, ?, ?, NULLIF(?::text, '')::timestamptz,
 				?, ?, ?, ?::numeric, ?, ?, ?, ?, 'checkout', ?
 			)
-	`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, providerOrderID,
+	`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, providerOrderID, paymentURL, formatTimestamp(expiresAt),
 			plan.Code, plan.Name, plan.BillingPeriod, plan.Price, plan.MonthlyTokenQuota,
 			plan.MaxRPM, plan.MaxContextTokens, plan.ModelLevel, now).Error; err != nil {
 			return err
@@ -360,7 +363,10 @@ func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCod
 	if err != nil {
 		return CheckoutResult{}, err
 	}
-	return CheckoutResult{OrderID: orderID, PlanID: plan.Code, Provider: provider, Status: "pending", PaymentURL: "simulated://payments/orders/" + orderID}, nil
+	if provider == "simulated" {
+		paymentURL = "simulated://payments/orders/" + orderID
+	}
+	return CheckoutResult{OrderID: orderID, PlanID: plan.Code, Provider: provider, Status: "pending", PaymentURL: paymentURL, ExpiresAt: formatTimestamp(expiresAt)}, nil
 }
 
 func (r *BillingRepo) ConfirmSandboxPayment(ctx context.Context, userID string, checkoutID string) (SandboxPaymentResult, error) {
@@ -656,11 +662,15 @@ func (r *BillingRepo) MarkSubscriptionActivationFailed(ctx context.Context, subs
 }
 
 func (r *BillingRepo) ListOrders(ctx context.Context, userID string) ([]OrderRow, error) {
+	if err := r.expirePendingOrders(ctx, userID, ""); err != nil {
+		return nil, err
+	}
 	var rows []OrderRow
 	err := r.data.DB.WithContext(ctx).Raw(`
 		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, o.plan_code,
 		       o.provider, o.status, o.amount::text AS amount, o.currency,
-		       'simulated://payments/orders/' || o.id::text AS payment_url,
+		       CASE WHEN o.provider = 'simulated' THEN 'simulated://payments/orders/' || o.id::text ELSE COALESCE(o.payment_url, '') END AS payment_url,
+		       COALESCE(o.payment_expires_at::text, '') AS expires_at,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
 		       COALESCE(o.subscription_id::text, '') AS subscription_id
 		FROM billing.orders o
@@ -672,11 +682,15 @@ func (r *BillingRepo) ListOrders(ctx context.Context, userID string) ([]OrderRow
 }
 
 func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID string) (OrderRow, error) {
+	if err := r.expirePendingOrders(ctx, userID, orderID); err != nil {
+		return OrderRow{}, err
+	}
 	var row OrderRow
 	err := r.data.DB.WithContext(ctx).Raw(`
 		SELECT o.id::text AS id, o.user_id::text AS user_id, o.plan_id::text AS plan_id, o.plan_code,
 		       o.provider, o.status, o.amount::text AS amount, o.currency,
-		       'simulated://payments/orders/' || o.id::text AS payment_url,
+		       CASE WHEN o.provider = 'simulated' THEN 'simulated://payments/orders/' || o.id::text ELSE COALESCE(o.payment_url, '') END AS payment_url,
+		       COALESCE(o.payment_expires_at::text, '') AS expires_at,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
 		       COALESCE(o.subscription_id::text, '') AS subscription_id
 		FROM billing.orders o
@@ -687,6 +701,30 @@ func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID strin
 		return OrderRow{}, status.Error(codes.NotFound, "order not found")
 	}
 	return row, nil
+}
+
+func (r *BillingRepo) expirePendingOrders(ctx context.Context, userID string, orderID string) error {
+	query := `
+		UPDATE billing.orders
+		SET status = 'expired', updated_at = now()
+		WHERE user_id = ?::uuid
+		  AND status = 'pending'
+		  AND payment_expires_at IS NOT NULL
+		  AND payment_expires_at <= now()
+	`
+	args := []any{userID}
+	if orderID != "" {
+		query += " AND id = ?::uuid"
+		args = append(args, orderID)
+	}
+	return r.data.DB.WithContext(ctx).Exec(query, args...).Error
+}
+
+func formatTimestamp(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(time.RFC3339)
 }
 
 func (r *BillingRepo) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (SubscriptionRow, error) {

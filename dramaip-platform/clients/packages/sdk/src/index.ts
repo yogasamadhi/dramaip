@@ -93,9 +93,13 @@ export const CheckoutResponseSchema = z.object({
   channel: z.string(),
   status: z.string(),
   checkout_url: z.string(),
+  expires_at: z.string().default(''),
 })
 
 export type CheckoutResponse = z.infer<typeof CheckoutResponseSchema>
+
+export const PaymentProviderSchema = z.enum(['simulated', 'wechat_pay', 'alipay'])
+export type PaymentProvider = z.infer<typeof PaymentProviderSchema>
 
 export const SubscriptionSchema = z.object({
   id: z.string().default(''),
@@ -148,8 +152,9 @@ export const OrderSchema = z.object({
   currency: z.string().default(''),
   status: z.string().default(''),
   payment_url: z.string().default(''),
-  created_at: z.string().default(''),
-  paid_at: z.string().optional(),
+	created_at: z.string().default(''),
+	expires_at: z.string().default(''),
+	paid_at: z.string().optional(),
   subscription_id: z.string().optional(),
 })
 
@@ -287,7 +292,7 @@ export interface DramaIpApiClient {
   getNotifications(): Promise<NotificationsResponse>
   markNotificationRead(notificationID: string): Promise<Notification>
   getAccountReport(): Promise<AccountReport>
-  createCheckout(input: { plan_id: string; channel?: string }): Promise<CheckoutResponse>
+	createCheckout(input: { plan_id: string; channel: PaymentProvider }): Promise<CheckoutResponse>
   confirmSimulatedPayment(input: { checkout_id: string }): Promise<PaymentConfirmationResponse>
   confirmSandboxPayment(input: { checkout_id: string }): Promise<SandboxPaymentResponse>
   cancelSubscription(input?: { immediate?: boolean }): Promise<Subscription>

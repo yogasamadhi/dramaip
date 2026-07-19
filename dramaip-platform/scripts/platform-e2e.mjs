@@ -117,6 +117,11 @@ const checkout = await request('POST', '/v1/billing/checkout', {
   body: { plan_id: targetPlan.id, channel: 'simulated' },
 })
 assert(checkout.checkout_id, 'checkout did not return checkout_id')
+assert(checkout.channel === 'simulated' && checkout.status === 'pending', 'simulated checkout did not preserve its provider/status contract')
+
+const pendingOrder = await request('GET', `/v1/me/orders/${encodeURIComponent(checkout.checkout_id)}`)
+assert(pendingOrder.status === 'pending', 'new checkout is not pending before provider confirmation')
+assert(String(pendingOrder.payment_url ?? '').startsWith('simulated://payments/orders/'), 'simulated checkout did not expose its recoverable payment entry')
 
 const confirmed = await request('POST', '/v1/billing/payments/simulated/confirm', {
   body: { checkout_id: checkout.checkout_id },

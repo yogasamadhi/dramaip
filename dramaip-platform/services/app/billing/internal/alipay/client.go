@@ -58,6 +58,7 @@ type PrecreateOrderRequest struct {
 	Subject    string
 	TotalCents int64
 	Currency   string
+	Timeout    string
 }
 
 type PrecreateOrder struct {
@@ -214,11 +215,15 @@ func (c *Client) CreatePrecreateOrder(ctx context.Context, order PrecreateOrderR
 		return PrecreateOrder{}, fmt.Errorf("alipay precreate supports only CNY")
 	}
 	var response precreateResponse
-	if err := c.call(ctx, "alipay.trade.precreate", map[string]any{
+	business := map[string]any{
 		"out_trade_no": order.OutTradeNo,
 		"subject":      order.Subject,
 		"total_amount": centsToAmount(order.TotalCents),
-	}, c.notifyURL, &response); err != nil {
+	}
+	if order.Timeout != "" {
+		business["timeout_express"] = order.Timeout
+	}
+	if err := c.call(ctx, "alipay.trade.precreate", business, c.notifyURL, &response); err != nil {
 		return PrecreateOrder{}, err
 	}
 	if response.Code != "10000" || response.QRCode == "" || response.OutTradeNo != order.OutTradeNo {

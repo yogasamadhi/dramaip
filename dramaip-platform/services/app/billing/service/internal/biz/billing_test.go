@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/billing/service/internal/conf"
@@ -48,6 +49,24 @@ func TestConfirmSimulatedPaymentTracksQuotaActivationFailures(t *testing.T) {
 			t.Fatalf("success result=%#v activated=%d failed=%v", result, repo.activated, repo.failed)
 		}
 	})
+}
+
+func TestCreateCheckoutRejectsPseudoProductionProvider(t *testing.T) {
+	repo := &checkoutCaptureRepo{}
+	uc := NewBillingUsecase(repo, &conf.Bootstrap{Payment: conf.PaymentConfig{SimulatedEnabled: true, CheckoutTTL: "45m"}})
+	checkout, err := uc.CreateCheckout(context.Background(), "user-1", "basic", "simulated")
+	if err != nil || checkout.Provider != "simulated" || repo.provider != "simulated" || repo.calls != 1 {
+		t.Fatalf("simulated checkout=%#v err=%v repo=%#v", checkout, err, repo)
+	}
+	if _, err := uc.CreateCheckout(context.Background(), "user-1", "basic", "production"); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("production provider error = %v, want InvalidArgument", err)
+	}
+	if repo.calls != 1 {
+		t.Fatalf("pseudo provider reached repository %d times", repo.calls)
+	}
+	if got := uc.checkoutTTLDuration(); got != 45*time.Minute {
+		t.Fatalf("checkout ttl = %s, want 45m", got)
+	}
 }
 
 func TestSubscriptionLifecycleRetriesOnlyIdempotentQuotaEffects(t *testing.T) {
@@ -137,6 +156,18 @@ type fakeBillingRepo struct {
 	finalRefund     data.RefundRow
 	refundPrepared  int
 	refundFinalized int
+}
+
+type checkoutCaptureRepo struct {
+	BillingRepository
+	provider string
+	calls    int
+}
+
+func (r *checkoutCaptureRepo) CreateCheckout(_ context.Context, _ string, planID string, provider string) (data.CheckoutResult, error) {
+	r.provider = provider
+	r.calls++
+	return data.CheckoutResult{OrderID: "order-1", PlanID: planID, Provider: provider, Status: "pending"}, nil
 }
 
 func (r *fakeBillingRepo) ConfirmSimulatedPayment(context.Context, string, string) (data.SimulatedPaymentResult, error) {

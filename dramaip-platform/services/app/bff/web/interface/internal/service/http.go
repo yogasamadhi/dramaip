@@ -627,7 +627,7 @@ func (s *HTTPService) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	atomic.AddUint64(&s.checkoutsTotal, 1)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"checkout_id": checkout.OrderId, "plan_id": checkout.PlanId, "channel": checkout.Provider,
-		"status": checkout.Status, "checkout_url": checkout.PaymentUrl,
+		"status": checkout.Status, "checkout_url": checkout.PaymentUrl, "expires_at": checkout.ExpiresAt,
 	})
 }
 
@@ -1111,7 +1111,7 @@ func orderResponse(order *billingv1.Order) map[string]any {
 		"id": order.Id, "user_id": order.UserId, "plan_id": order.PlanId, "plan_code": order.PlanCode,
 		"provider": order.Provider, "status": order.Status, "amount": order.Amount, "currency": order.Currency,
 		"payment_url": order.PaymentUrl, "created_at": order.CreatedAt, "paid_at": order.PaidAt,
-		"subscription_id": order.SubscriptionId,
+		"subscription_id": order.SubscriptionId, "expires_at": order.ExpiresAt,
 	}
 }
 

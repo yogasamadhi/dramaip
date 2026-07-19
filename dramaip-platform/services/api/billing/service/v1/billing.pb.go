@@ -276,6 +276,7 @@ type CreateCheckoutReply struct {
 	PlanId        string                 `protobuf:"bytes,3,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
 	Provider      string                 `protobuf:"bytes,4,opt,name=provider,proto3" json:"provider,omitempty"`
 	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`
+	ExpiresAt     string                 `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -341,6 +342,13 @@ func (x *CreateCheckoutReply) GetProvider() string {
 func (x *CreateCheckoutReply) GetStatus() string {
 	if x != nil {
 		return x.Status
+	}
+	return ""
+}
+
+func (x *CreateCheckoutReply) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
 	}
 	return ""
 }
@@ -1363,6 +1371,7 @@ type Order struct {
 	CreatedAt      string                 `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	PaidAt         string                 `protobuf:"bytes,11,opt,name=paid_at,json=paidAt,proto3" json:"paid_at,omitempty"`
 	SubscriptionId string                 `protobuf:"bytes,12,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	ExpiresAt      string                 `protobuf:"bytes,13,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1481,6 +1490,13 @@ func (x *Order) GetSubscriptionId() string {
 	return ""
 }
 
+func (x *Order) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
 var File_api_billing_service_v1_billing_proto protoreflect.FileDescriptor
 
 const file_api_billing_service_v1_billing_proto_rawDesc = "" +
@@ -1503,14 +1519,16 @@ const file_api_billing_service_v1_billing_proto_rawDesc = "" +
 	"\x15CreateCheckoutRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x17\n" +
 	"\aplan_id\x18\x02 \x01(\tR\x06planId\x12\x1a\n" +
-	"\bprovider\x18\x03 \x01(\tR\bprovider\"\x9e\x01\n" +
+	"\bprovider\x18\x03 \x01(\tR\bprovider\"\xbd\x01\n" +
 	"\x13CreateCheckoutReply\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x1f\n" +
 	"\vpayment_url\x18\x02 \x01(\tR\n" +
 	"paymentUrl\x12\x17\n" +
 	"\aplan_id\x18\x03 \x01(\tR\x06planId\x12\x1a\n" +
 	"\bprovider\x18\x04 \x01(\tR\bprovider\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status\"X\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x06 \x01(\tR\texpiresAt\"X\n" +
 	"\x1cConfirmSandboxPaymentRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1f\n" +
 	"\vcheckout_id\x18\x02 \x01(\tR\n" +
@@ -1592,7 +1610,7 @@ const file_api_billing_service_v1_billing_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\tR\tcreatedAt\x12\x1f\n" +
 	"\vresolved_at\x18\t \x01(\tR\n" +
-	"resolvedAt\"\xd0\x02\n" +
+	"resolvedAt\"\xef\x02\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x17\n" +
@@ -1608,7 +1626,9 @@ const file_api_billing_service_v1_billing_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\tR\tcreatedAt\x12\x17\n" +
 	"\apaid_at\x18\v \x01(\tR\x06paidAt\x12'\n" +
-	"\x0fsubscription_id\x18\f \x01(\tR\x0esubscriptionId2\x96\n" +
+	"\x0fsubscription_id\x18\f \x01(\tR\x0esubscriptionId\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\r \x01(\tR\texpiresAt2\x96\n" +
 	"\n" +
 	"\x0eBillingService\x12e\n" +
 	"\tListPlans\x12,.dramaip.billing.service.v1.ListPlansRequest\x1a*.dramaip.billing.service.v1.ListPlansReply\x12t\n" +

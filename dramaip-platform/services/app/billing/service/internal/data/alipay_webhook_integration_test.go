@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -23,7 +24,7 @@ func TestAlipayWebhookInboxIntegration(t *testing.T) {
 	ctx := context.Background()
 	userID := platform.NewUUID()
 	orderID := platform.NewUUID()
-	checkout, err := repo.CreateAlipayCheckout(ctx, userID, "basic", orderID, orderID)
+	checkout, err := repo.CreateAlipayCheckout(ctx, userID, "basic", orderID, orderID, "alipayqr://fixture", time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("CreateAlipayCheckout: %v", err)
 	}

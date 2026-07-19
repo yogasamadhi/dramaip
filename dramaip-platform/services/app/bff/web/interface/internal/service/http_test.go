@@ -72,6 +72,39 @@ func TestBFFHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestCheckoutForwardsExplicitProviderAndExpiresAt(t *testing.T) {
+	billing := &captureCheckoutBilling{}
+	uc := biz.NewBFFUsecase(&data.Data{
+		Auth: fakeAuth{}, User: fakeUser{}, Billing: billing, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{}},
+	})
+	router := NewHTTPService(uc, &conf.Bootstrap{Session: conf.SessionConfig{RefreshCookieTTL: "720h"}}).Router()
+	session := loginForSession(t, router)
+	req := httptest.NewRequest(http.MethodPost, "/v1/billing/checkout", bytes.NewBufferString(`{"plan_id":"pro","channel":"wechat_pay"}`))
+	req.Header.Set("Authorization", "Bearer "+session.accessToken)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("checkout status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if billing.request == nil || billing.request.GetProvider() != "wechat_pay" || billing.request.GetPlanId() != "pro" {
+		t.Fatalf("billing checkout request = %#v", billing.request)
+	}
+	var response map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&response); err != nil {
+		t.Fatal(err)
+	}
+	if response["checkout_url"] != "weixin://pay.example/order" || response["expires_at"] != "2026-07-20T12:30:00Z" {
+		t.Fatalf("checkout response = %#v", response)
+	}
+}
+
+func TestOrderResponseExposesExpiryWithoutInventingStatus(t *testing.T) {
+	response := orderResponse(&billingv1.Order{Id: "order", Provider: "alipay", Status: "expired", ExpiresAt: "2026-07-20T12:30:00Z"})
+	if response["status"] != "expired" || response["expires_at"] != "2026-07-20T12:30:00Z" {
+		t.Fatalf("order response = %#v", response)
+	}
+}
+
 func TestChatUsesIdempotencyHeader(t *testing.T) {
 	ai := &captureAI{}
 	uc := biz.NewBFFUsecase(&data.Data{
@@ -544,6 +577,16 @@ func (fakeUser) UpdateProfile(_ context.Context, req *userv1.UpdateProfileReques
 }
 
 type fakeBilling struct{}
+
+type captureCheckoutBilling struct {
+	fakeBilling
+	request *billingv1.CreateCheckoutRequest
+}
+
+func (b *captureCheckoutBilling) CreateCheckout(_ context.Context, req *billingv1.CreateCheckoutRequest, _ ...grpc.CallOption) (*billingv1.CreateCheckoutReply, error) {
+	b.request = req
+	return &billingv1.CreateCheckoutReply{OrderId: "order", PlanId: req.PlanId, Provider: req.Provider, Status: "pending", PaymentUrl: "weixin://pay.example/order", ExpiresAt: "2026-07-20T12:30:00Z"}, nil
+}
 
 type flakyBilling struct {
 	fakeBilling

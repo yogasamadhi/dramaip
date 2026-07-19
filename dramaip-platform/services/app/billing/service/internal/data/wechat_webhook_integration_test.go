@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -27,7 +28,7 @@ func TestWechatWebhookInboxIntegration(t *testing.T) {
 	userID := platform.NewUUID()
 	orderID := platform.NewUUID()
 	providerOrderID := "wxorderwechatwebhookintegration0001"
-	checkout, err := repo.CreateWechatCheckout(ctx, userID, "basic", orderID, providerOrderID)
+	checkout, err := repo.CreateWechatCheckout(ctx, userID, "basic", orderID, providerOrderID, "weixin://fixture", time.Now().UTC().Add(time.Hour))
 	if err != nil {
 		t.Fatalf("CreateWechatCheckout: %v", err)
 	}
