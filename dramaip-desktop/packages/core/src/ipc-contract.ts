@@ -448,6 +448,18 @@ const revisionTaskInput = z
   })
   .passthrough()
 const revisionTaskPatch = revisionTaskInput.partial().passthrough()
+const qualityIssueAcknowledgementInput = z
+  .object({
+    projectId: id,
+    adaptationProjectId: maybeId,
+    issueId: id,
+    issueKind: z.string().min(1).max(80),
+    issueTitle: z.string().min(1).max(240),
+    issueDetail: z.string().max(2400).optional(),
+    disposition: z.enum(['accepted', 'ignored']),
+    note: z.string().max(1200).optional(),
+  })
+  .strict()
 const textDiffPreviewInput = z
   .object({
     targetKind: z.enum(['chapter', 'script', 'shot']),
@@ -686,6 +698,8 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'creative:freshness:listByTarget': [id, maybeId],
   'creative:antiTrope:listByTarget': [id, maybeId],
   'creative:qualityGate:list': [maybeId],
+  'creative:qualityIssue:list': [id],
+  'creative:qualityIssue:acknowledge': [qualityIssueAcknowledgementInput],
   'creative:audience:list': [maybeId],
   'creative:curve:list': [maybeId],
   'revisionTask:list': [maybeId],

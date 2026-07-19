@@ -852,6 +852,21 @@ export const qualityGateReports = sqliteTable('quality_gate_reports', {
   updatedAt: text('updated_at').notNull(),
 })
 
+/** 质量项处置审计：追加写入，保留原报告和每次本地风险决策。 */
+export const qualityIssueAcknowledgements = sqliteTable('quality_issue_acknowledgements', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id'),
+  issueId: text('issue_id').notNull(),
+  issueKind: text('issue_kind').notNull(),
+  issueTitle: text('issue_title').notNull(),
+  issueDetail: text('issue_detail'),
+  disposition: text('disposition', { enum: ['accepted', 'ignored'] }).notNull(),
+  note: text('note'),
+  actorLabel: text('actor_label').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
 export const audienceSimulations = sqliteTable('audience_simulations', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),

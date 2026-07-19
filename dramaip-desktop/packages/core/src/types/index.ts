@@ -1226,6 +1226,21 @@ export interface QualityGateReport {
   updatedAt: string
 }
 
+/** 对质量项的本地审计记录。记录不会修改或删除原始质量报告。 */
+export interface QualityIssueAcknowledgement {
+  id: string
+  projectId: string
+  adaptationProjectId?: string
+  issueId: string
+  issueKind: string
+  issueTitle: string
+  issueDetail?: string
+  disposition: 'accepted' | 'ignored'
+  note?: string
+  actorLabel: string
+  createdAt: string
+}
+
 export interface AudienceSimulation {
   id: string
   projectId?: string

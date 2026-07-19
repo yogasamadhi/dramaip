@@ -144,6 +144,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'adaptation_projects').includes('source_chapter_range'))
     assert.ok(columns(raw, 'video_results').includes('local_video_path'))
     assert.ok(tableExists(raw, 'long_tasks'))
+    assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -244,6 +245,47 @@ test('persists a validated active adaptation and safely falls back after deletio
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, adaptation.id)
     repos.adaptationProject.deleteAdaptationProject(db, adaptation.id)
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, null)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('appends quality issue risk decisions without changing the original report', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project } = fixture
+    const report = repos.creative.createQualityGateReport(db, {
+      projectId: project.id,
+      targetKind: 'project',
+      targetId: project.id,
+      stage: 'novel_to_adaptation',
+      score: 58,
+      verdict: 'block',
+      blockingIssues: ['人物动机不够明确'],
+    })
+    const accepted = repos.creative.acknowledgeQualityIssue(db, {
+      projectId: project.id,
+      issueId: `quality-report:${report.id}:block:0`,
+      issueKind: 'quality_report',
+      issueTitle: '人物动机不够明确',
+      issueDetail: '第一季试制阶段接受该风险。',
+      disposition: 'accepted',
+      note: '先验证开场节奏，再进入修订。',
+    })
+    const ignored = repos.creative.acknowledgeQualityIssue(db, {
+      projectId: project.id,
+      issueId: `quality-report:${report.id}:block:0`,
+      issueKind: 'quality_report',
+      issueTitle: '人物动机不够明确',
+      disposition: 'ignored',
+      note: '复检后改为忽略旧项。',
+    })
+
+    assert.equal(accepted.actorLabel, '本地用户')
+    assert.equal(repos.creative.listQualityGateReports(db, project.id)[0]?.blockingIssues[0], '人物动机不够明确')
+    const audit = repos.creative.listQualityIssueAcknowledgements(db, project.id)
+    assert.equal(audit.length, 2)
+    assert.deepEqual(new Set(audit.map((item) => item.id)), new Set([accepted.id, ignored.id]))
   } finally {
     closeRepositoryFixture(fixture)
   }

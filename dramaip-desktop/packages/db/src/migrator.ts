@@ -611,6 +611,31 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 23,
+    name: 'quality-issue-acknowledgement-audit',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS quality_issue_acknowledgements (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          adaptation_project_id TEXT,
+          issue_id TEXT NOT NULL,
+          issue_kind TEXT NOT NULL,
+          issue_title TEXT NOT NULL,
+          issue_detail TEXT,
+          disposition TEXT NOT NULL,
+          note TEXT,
+          actor_label TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_quality_issue_ack_project_issue
+          ON quality_issue_acknowledgements(project_id, issue_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_quality_issue_ack_adaptation
+          ON quality_issue_acknowledgements(adaptation_project_id, created_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

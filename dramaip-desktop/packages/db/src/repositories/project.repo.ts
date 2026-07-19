@@ -36,6 +36,7 @@ import {
   projectAssets,
   templateRuns,
   qualityGateReports,
+  qualityIssueAcknowledgements,
   freshnessReports,
   antiTropeVariants,
   revisionTasks,
@@ -248,6 +249,7 @@ export function getProjectDeletionPreview(db: DB, id: string): ProjectDeletionPr
     db.select({ id: antiTropeVariants.id }).from(antiTropeVariants).where(eq(antiTropeVariants.projectId, id)).all().length +
     db.select({ id: revisionTasks.id }).from(revisionTasks).where(eq(revisionTasks.projectId, id)).all().length +
     db.select({ id: qualityGateReports.id }).from(qualityGateReports).where(eq(qualityGateReports.projectId, id)).all().length +
+    db.select({ id: qualityIssueAcknowledgements.id }).from(qualityIssueAcknowledgements).where(eq(qualityIssueAcknowledgements.projectId, id)).all().length +
     db.select({ id: audienceSimulations.id }).from(audienceSimulations).where(eq(audienceSimulations.projectId, id)).all().length +
     db.select({ id: narrativeCurveReports.id }).from(narrativeCurveReports).where(eq(narrativeCurveReports.projectId, id)).all().length +
     db.select({ id: workflowRuns.id }).from(workflowRuns).where(eq(workflowRuns.projectId, id)).all().length
@@ -312,6 +314,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(revisionTasks).where(eq(revisionTasks.projectId, id)).run()
   db.delete(contentVersions).where(eq(contentVersions.projectId, id)).run()
   db.delete(qualityGateReports).where(eq(qualityGateReports.projectId, id)).run()
+  db.delete(qualityIssueAcknowledgements).where(eq(qualityIssueAcknowledgements.projectId, id)).run()
   db.delete(audienceSimulations).where(eq(audienceSimulations.projectId, id)).run()
   db.delete(narrativeCurveReports).where(eq(narrativeCurveReports.projectId, id)).run()
   db.delete(workflowRuns).where(eq(workflowRuns.projectId, id)).run()

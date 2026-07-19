@@ -143,6 +143,7 @@ export function WorkspacePage() {
   const [paletteCommandRunning, setPaletteCommandRunning] = useState(false)
   const [preflightRunning, setPreflightRunning] = useState(false)
   const requestedAdaptationId = searchParams.get('adaptation') ?? undefined
+  const requestedQualityIssueId = searchParams.get('qualityIssue') ?? undefined
   // 工作流真值依赖正文而不只是“是否非空”：正文变更后，旧质量报告必须立即显示为过期。
   const chapterWorkflowKey = JSON.stringify(chapters.map((chapter) => ({
     id: chapter.id,
@@ -291,7 +292,7 @@ export function WorkspacePage() {
     return () => window.removeEventListener('sdns:open-ai-command-palette', openPalette)
   }, [])
 
-  const openWorkspaceTarget = useCallback((nextSection: string, chapterId?: string | null) => {
+  const openWorkspaceTarget = useCallback((nextSection: string, chapterId?: string | null, qualityIssueId?: string) => {
     setSection(nextSection)
     if (chapterId !== undefined) setSelectedId(chapterId)
     setSearchParams((current) => {
@@ -299,6 +300,8 @@ export function WorkspacePage() {
       next.set('section', nextSection)
       if (chapterId) next.set('chapter', chapterId)
       else if (chapterId !== undefined || nextSection !== 'chapters') next.delete('chapter')
+      if (qualityIssueId) next.set('qualityIssue', qualityIssueId)
+      else if (nextSection !== 'creative-diagnosis') next.delete('qualityIssue')
       return next
     })
   }, [setSearchParams])
@@ -1090,8 +1093,8 @@ export function WorkspacePage() {
               chapters={chapters}
               qualityTruth={projectQualityTruth}
               activeAdaptation={primaryAdaptation}
-              onOpenWorkspaceTarget={(nextSection, chapterId) => {
-                openWorkspaceTarget(nextSection, chapterId)
+              onOpenWorkspaceTarget={(nextSection, chapterId, qualityIssueId) => {
+                openWorkspaceTarget(nextSection, chapterId, qualityIssueId)
               }}
             />
           )}
@@ -1264,6 +1267,8 @@ export function WorkspacePage() {
               chapter={selected}
               qualityTruth={projectQualityTruth}
               activeAdaptation={workflowSnapshot?.activeAdaptation}
+              focusQualityIssueId={requestedQualityIssueId}
+              onQualityGateRechecked={() => setDataVersion((current) => current + 1)}
             />
           )}
 

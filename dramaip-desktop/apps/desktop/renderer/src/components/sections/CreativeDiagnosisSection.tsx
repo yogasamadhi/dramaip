@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Eye, GitCompare, Loader2, PauseCircle, Play, RefreshCw, RotateCcw, Save, Sparkles, Wand2 } from 'lucide-react'
@@ -32,6 +32,8 @@ interface Props {
   chapter: Chapter | null
   qualityTruth: QualityGateTruth | null
   activeAdaptation?: AdaptationProject
+  focusQualityIssueId?: string
+  onQualityGateRechecked?: () => void
 }
 
 function scoreVariant(score: number): 'default' | 'secondary' | 'destructive' {
@@ -56,7 +58,14 @@ const WORKFLOW_STATUS_VARIANT: Record<WorkflowRun['status'], 'default' | 'second
   failed: 'destructive',
 }
 
-export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, activeAdaptation }: Props) {
+export function CreativeDiagnosisSection({
+  projectId,
+  chapter,
+  qualityTruth,
+  activeAdaptation,
+  focusQualityIssueId,
+  onQualityGateRechecked,
+}: Props) {
   const navigate = useNavigate()
   const [freshness, setFreshness] = useState<FreshnessReport[]>([])
   const [variants, setVariants] = useState<AntiTropeVariant[]>([])
@@ -69,6 +78,7 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, act
   const [busy, setBusy] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
   const [pendingRevisionTask, setPendingRevisionTask] = useState<RevisionTask | null>(null)
+  const qualityGateRef = useRef<HTMLDivElement>(null)
 
   const target = useMemo(
     () => (chapter ? { kind: 'chapter', id: chapter.id, label: chapter.title } : { kind: 'project', id: projectId, label: '项目整体' }),
@@ -98,6 +108,11 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, act
     void reload()
   }, [reload])
 
+  useEffect(() => {
+    if (!focusQualityIssueId) return
+    qualityGateRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focusQualityIssueId])
+
   async function runTask(taskType: AiTaskInput['taskType'], instruction?: string) {
     setBusy(taskType)
     const tid = toast.loading(`正在${TASK_TYPE_LABELS[taskType]}…`)
@@ -115,6 +130,9 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, act
         }
         toast.success(`${TASK_TYPE_LABELS[taskType]}完成`, { id: tid })
         await reload()
+        if (taskType === 'run_quality_gate') {
+          onQualityGateRechecked?.()
+        }
       } else {
         toast.error(`${TASK_TYPE_LABELS[taskType]}失败：${res.error ?? '未知错误'}`, { id: tid })
       }
@@ -319,12 +337,18 @@ export function CreativeDiagnosisSection({ projectId, chapter, qualityTruth, act
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
           <MetricCard title="新鲜度" score={latestFreshness?.overallScore} detail={latestFreshness?.clicheSignals.slice(0, 2).join(' / ')} />
           <MetricCard title="套路风险" score={latestFreshness?.tropeRiskScore} invert detail={latestFreshness?.audiencePredictionPoints.slice(0, 2).join(' / ')} />
-          <MetricCard
-            title="质量闸门"
-            score={qualityTruth?.state === 'current' ? qualityTruth.report?.score : undefined}
-            badge={qualityTruth?.state === 'current' ? qualityTruth.report?.verdict : qualityTruth ? '需复检' : undefined}
-            detail={qualityTruth?.detail}
-          />
+          <div
+            ref={qualityGateRef}
+            data-quality-issue-focus={focusQualityIssueId}
+            className={focusQualityIssueId ? 'rounded-md ring-2 ring-primary/60 ring-offset-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200' : undefined}
+          >
+            <MetricCard
+              title="质量闸门"
+              score={qualityTruth?.state === 'current' ? qualityTruth.report?.score : undefined}
+              badge={qualityTruth?.state === 'current' ? qualityTruth.report?.verdict : qualityTruth ? '需复检' : undefined}
+              detail={qualityTruth?.detail}
+            />
+          </div>
           <MetricCard title="观众留存" score={latestAudience?.retentionScore} detail={latestAudience?.summary} />
         </div>
 

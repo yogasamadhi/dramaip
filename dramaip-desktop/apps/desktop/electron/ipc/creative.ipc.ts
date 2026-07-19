@@ -78,6 +78,12 @@ export function registerCreativeIpc(): void {
   ipcMain.handle('creative:qualityGate:list', (_e, projectId?: string) =>
     repos().creative.listQualityGateReports(repos().db, projectId),
   )
+  ipcMain.handle('creative:qualityIssue:list', (_e, projectId: string) =>
+    repos().creative.listQualityIssueAcknowledgements(repos().db, projectId),
+  )
+  ipcMain.handle('creative:qualityIssue:acknowledge', (_e, data: unknown) =>
+    repos().creative.acknowledgeQualityIssue(repos().db, data as never),
+  )
   ipcMain.handle('creative:audience:list', (_e, projectId?: string) =>
     repos().creative.listAudienceSimulations(repos().db, projectId),
   )
