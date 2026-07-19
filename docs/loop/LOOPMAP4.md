@@ -352,7 +352,7 @@ make platform-e2e
 | LM4-18 | P1 | 契约治理 | done | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | done | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
-| LM4-21 | P1 | QA/Release | doing | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
+| LM4-21 | P1 | QA/Release | done | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20、LM4-12R |
 | LM4-12R | P1 | Web/Cloud AI | done | 修复 Web 同步 Chat 的权威预检绑定兼容性 | Web BFF、AI Gateway hash helper、SDK、Web Chat | LM4-12、LM4-18；LM4-21 Gate 阻断记录 |
 | LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
@@ -1305,4 +1305,20 @@ Push: 4d6388d pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-12r-web-preflight-binding deleted after the main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
 Notes: This is a P1 compatibility repair reopened from LM4-12 after LM4-21 exposed a Web-only broken synchronous Chat path. It does not advance LM4-28; LM4-21 must still be rerun before any P2 production-workspace loop can begin.
+```
+
+```text
+Loop: LM4-21
+Target branch: main
+Loop branch: loop/lm4-21-core-experience-gate-rerun
+Commit(s): b9102d6 docs: rerun LM4-21 core gate
+Merge commit: 6cbbae2 merge: LM4-21 core experience gate
+Verification: On the rerun branch, Desktop `pnpm format:check`, `pnpm test` (144 unit tests plus migration/repository smoke), `pnpm test:ui` (21 screenshots, 0 fixed-fixture accessibility observations), `pnpm test:e2e:skip-build`, `pnpm package:smoke:dir`, and signed-artifact-independent `pnpm package:smoke` (macOS DMG and ZIP) all passed. Platform clients `pnpm lint`, `pnpm typecheck`, `pnpm contracts:check`, `pnpm build:web`, and `pnpm build:admin`; services `GOCACHE=/tmp/dramaip-go-build go test ./...`; `make platform-e2e`; and `make web-route-smoke` all passed. The Gate's post-merge Desktop E2E and Platform health E2E passed again; the latter reports `ok: true` and one 22-token charge. `git diff --check` and the tracked secret-name scan were clean.
+UI/manual evidence: Retained isolated UI output at `dramaip-desktop/artifacts/lm4-21-rerun/` covers 1024/1320/1600px, light/dark and reduced-motion scenarios. Manual review of 1024px dark, 1320px light and 1600px script-workspace images found no critical horizontal overflow or unreadable primary action. Automated Electron E2E covers the 300-chapter keyboard/performance path, deep-link history and panels, global task dock, command palette shortcut, atomic preview adoption/undo, immediate-route-leave autosave, failed-task crash/restart/requery, project package roundtrip, mobile-draft adoption state and cloud account boundaries. The Web AI health sequence now preflights before the Provider call, charges once, keeps idempotency replay free of a second charge and rejects a changed request using an old hash.
+Diff review: This Gate contains no product-code workaround: it revalidated the cumulative P1 surface after LM4-12R repaired the detected Web preflight incompatibility. Reviewed the cumulative test evidence, retained screenshots, build output boundary and sensitive-file scan; no credential, prompt, local database, screenshot, package output or other ignored artifact was committed. The full DMG build intentionally skipped signing/notarization because no Apple signing identity or notarization environment was configured; the packaged app smoke nevertheless passed.
+Remote sync: Fetched and fast-forward checked origin/main at 4b0e928 before the rerun branch and again before merge; main had no intervening remote commits.
+Push: 6cbbae2 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-21-core-experience-gate-rerun and the previously retained audit branch loop/lm4-21-core-experience-gate were deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
+Notes: The first LM4-21 attempt truthfully remains recorded above as partial: it exposed the Web Cloud AI binding defect, which was repaired as LM4-12R under the same Gate's block-P2 rule. This rerun closes that blocker; P2 may now start with LM4-22.
 ```
