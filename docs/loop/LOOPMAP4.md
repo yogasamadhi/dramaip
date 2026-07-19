@@ -1010,14 +1010,14 @@ Notes: WeChat/Alipay webhook integrations correctly refused to run without dedic
 Loop: LM4-05
 Target branch: main
 Loop branch: loop/lm4-05-design-foundation
-Commit(s): pending loop commit
-Merge commit: pending merge
+Commit(s): 0e99155 loop: build desktop design system foundation
+Merge commit: 5db6954 merge: LM4-05 design system foundation
 Verification: dramaip-desktop pnpm format:check; pnpm typecheck; pnpm test:unit (125/125); pnpm test:ui (7 screenshots, 0 fixed-fixture AX observations); pnpm test:e2e; git diff --check. All passed before commit.
 UI/manual evidence: Reviewed 1320 dark workspace, system-theme Appearance page, and compact reduced-motion video fixture. Semantic canvas/surface/AI/status colors, clear focus styles, persistent density/font preferences and static reduced-motion behavior are documented in docs/loop/LM4-05-设计系统基础.md.
-Diff review: pending final cumulative review; no generated UI artifacts or local preferences will be committed.
-Remote sync: pending final target-branch sync before merge.
-Push: pending merge and verification.
-Loop branch cleanup: pending merge/push, then delete local loop branch; no remote loop branch was created.
-Current branch/worktree: loop/lm4-05-design-foundation; feature change pending commit.
+Diff review: Staged and merged cumulative diff reviewed; no whitespace errors, secrets, generated UI artifacts or local preferences committed.
+Remote sync: Fetched and fast-forward checked origin/main at 2f459f7 before branch creation and again before merge.
+Push: 5db6954 pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-05-design-foundation deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and temporary UI artifacts excluded).
 Notes: Zero AX observations apply only to the seven fixed baseline pages. Theme-toggle placement and page-level information architecture intentionally remain for LM4-06+; native confirm/prompt replacement remains LM4-17.
 ```
