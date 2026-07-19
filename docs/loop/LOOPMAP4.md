@@ -1386,3 +1386,18 @@ Loop branch cleanup: Local loop/lm4-25-video-production-console deleted after th
 Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
 Notes: This loop provides capability-gated production plumbing and a fully testable mock path, not a false claim of a real domestic provider. LM4-26 and LM4-27 remain separately accountable for sandbox-verified provider adapters, credentials and rollback behavior.
 ```
+
+```text
+Loop: LM4-26 (partial)
+Target branch: main
+Loop branch: loop/lm4-26-seedance-provider
+Commit(s): 762a450 feat: add Hailuo video provider adapter
+Verification: Desktop `pnpm typecheck`; `pnpm test:unit` (156/156); `pnpm format:check`; `pnpm test:e2e`; and `pnpm test:ui:skip-build -- --output=artifacts/lm4-26` (29 screenshots, 0 accessibility observations) all passed. `git diff --check` passed before the implementation commit. Adapter contract coverage verifies the MiniMax Hailuo create → query → official file-retrieval lifecycle, reference safety, resolution fallback and normalized rate-limit error. Service and capability tests prove an API key plus the default-off `featureEnabled` flag are required outside the renderer.
+UI/manual evidence: The 1024px Hailuo settings baseline shows provider-specific MiniMax defaults, a default-off production-channel switch, Keychain-only credential guidance and explicit local-only cancellation semantics; manual review found no critical overflow. The page now has explicit labels for its return, provider fields, selector and destructive action, and the baseline reported no accessibility observations.
+Sandbox evidence: Full official sandbox E2E is NOT RUN. `pnpm test:hailuo:sandbox` correctly stopped before any network request because `HAILUO_SANDBOX_ALLOW_BILLING=1` was absent. No authorized MiniMax Hailuo credential or explicit billable-run authority was provided, so no external task, result archive or local playback assertion is claimed.
+Diff review: Reviewed the provider-only extension points, server-side feature gate, API-key boundary, Hailuo request/state/error mappings, result-URL resolver, restricted reference input and the safety-gated sandbox runner. Provider metadata excludes API keys; no credential, user content, local database, screenshot, build output or ignored artifact was committed. Hailuo cancellation is documented and exposed as local stop-tracking because the selected official API surface has no verified remote-cancel endpoint.
+Remote sync: Fetched and fast-forward checked origin/main at cc4ef5b before creating the loop branch. The required pre-merge sync, merge and target-branch post-merge validation are deliberately deferred until sandbox evidence makes this loop eligible for `done`.
+Push: The loop branch is retained and pushed after this audit record so an authorized sandbox runner can continue from the exact reviewed code; it is not merged into main.
+Current branch/worktree: loop/lm4-26-seedance-provider; clean before this audit-record creation (ignored local build and retained UI artifacts excluded).
+Blocking next action: Run `HAILUO_SANDBOX_ALLOW_BILLING=1 HAILUO_SANDBOX_API_KEY=<securely-injected-key> pnpm test:hailuo:sandbox` only in an approved, billable MiniMax sandbox. Record the redacted result, then complete the mandatory sync/merge/post-merge verification and branch cleanup. Until then LM4-26 remains `partial`, LM4-27 must not start, and no P0/P1/P2 full-completion claim is valid.
+```
