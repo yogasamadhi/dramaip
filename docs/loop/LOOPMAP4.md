@@ -349,7 +349,7 @@ make platform-e2e
 | LM4-15 | P1 | Desktop/改编上下文 | done | 让所有页面共享明确的当前改编和季度 | project/adaptation repo、Workspace、routes | LM4-02、LM4-06 |
 | LM4-16 | P1 | Desktop/质量体验 | done | 将质量闸门改为可定位、可解释、可复检的行动中心 | quality dashboard、charts、diagnostics | LM4-02、LM4-05、LM4-15 |
 | LM4-17 | P1 | Desktop/交互一致性 | done | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
-| LM4-18 | P1 | 契约治理 | todo | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
+| LM4-18 | P1 | 契约治理 | done | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | todo | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
 | LM4-20 | P1 | Web/Reporting | todo | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | todo | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20 |
@@ -1212,4 +1212,20 @@ Push: c32f545 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-17-accessible-dialogs deleted after main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored package and temporary UI artifacts excluded).
 Notes: The confirmation provider intentionally rejects calls before app initialization instead of falling back to native dialogs. Destructive permanent project purge retains its stronger project-name confirmation from LM4-08.
+```
+
+```text
+Loop: LM4-18
+Target branch: main
+Loop branch: loop/lm4-18-versioned-client-contracts
+Commit(s): 8824707 feat: add versioned client contract gate
+Merge commit: 4e1ab2a merge: LM4-18 versioned client contracts
+Verification: Before and after merge: dramaip-platform/clients pnpm contracts:check; pnpm typecheck; Admin test; Web/Admin production builds; dramaip-platform/services make event-contracts; buf lint/generate; GOCACHE=/tmp/dramaip-go-build go test ./...; dramaip-desktop pnpm typecheck and pnpm test:unit (144/144); git diff --check. All executed checks passed.
+UI/manual evidence: This is an API-contract loop with no renderer layout change. HTTP fixtures prove v1 response declaration, unsupported-version HTTP 426 with code/message/trace_id, and Web limit=23/days=31 forwarding into the quota client; full Desktop typecheck/unit coverage verifies the Cloud account, AI and handoff callers send the v1 header.
+Diff review: Reviewed the shared v1 JSON schema/Zod models, Admin/Mobile parser migration, Desktop narrow header boundary, all four BFF middleware registrations, uniform failure body, server-side bounds, CI schema-diff guard and compatibility document. No Desktop core types, user content, credentials, generated build output or local data were committed.
+Remote sync: Fetched and fast-forward checked origin/main at 435820c before branch creation and again before merge; main had no intervening remote commits.
+Push: 4e1ab2a pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-18-versioned-client-contracts deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
+Notes: v1 retains headerless requests during the migration window. Explicit unsupported versions receive HTTP 426. Any future published schema change against origin/main must change the contract version; v1 is documented to remain for two released Desktop/Mobile versions and at least 90 days after v2 production release.
 ```
