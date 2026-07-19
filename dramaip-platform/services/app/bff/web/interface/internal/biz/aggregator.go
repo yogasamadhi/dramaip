@@ -28,6 +28,25 @@ type planCache struct {
 	expires time.Time
 }
 
+// AccountBootstrap is deliberately a read model rather than another domain
+// ownership boundary. Each section is independently loaded so a billing,
+// quota, or notification outage cannot be converted into a plausible-looking
+// zero on the account page.
+type AccountBootstrap struct {
+	GeneratedAt time.Time
+	UsageLimit  int
+	TrendDays   int
+	Sections    map[string]AccountSection
+}
+
+type AccountSection struct {
+	Status      string
+	LastUpdated time.Time
+	TraceID     string
+	ErrorCode   string
+	Data        any
+}
+
 const plansCacheTTL = 5 * time.Minute
 
 func NewBFFUsecase(data *data.Data) *BFFUsecase {
@@ -183,17 +202,88 @@ func (u *BFFUsecase) MarkNotificationRead(ctx context.Context, userID string, no
 	return u.data.MarkNotificationRead(ctx, userID, notificationID)
 }
 
+// AccountBootstrap loads account concerns concurrently. A read model is
+// successful even when an individual downstream section is unavailable: the
+// caller receives the exact section state and trace id instead of fabricated
+// empty data.
+func (u *BFFUsecase) AccountBootstrap(ctx context.Context, userID string, usageLimit, trendDays int) AccountBootstrap {
+	generatedAt := time.Now().UTC()
+	bootstrap := AccountBootstrap{GeneratedAt: generatedAt, UsageLimit: usageLimit, TrendDays: trendDays, Sections: make(map[string]AccountSection, 7)}
+	sections := []struct {
+		name string
+		load func() (any, error)
+	}{
+		{name: "profile", load: func() (any, error) { return u.Profile(ctx, userID) }},
+		{name: "subscription", load: func() (any, error) { return u.Subscription(ctx, userID) }},
+		{name: "token_balance", load: func() (any, error) { return u.TokenBalance(ctx, userID) }},
+		{name: "orders", load: func() (any, error) { return u.Orders(ctx, userID) }},
+		{name: "usage", load: func() (any, error) { return u.TokenUsage(ctx, userID, int32(usageLimit)) }},
+		{name: "usage_trend", load: func() (any, error) { return u.UsageTrend(ctx, userID, int32(trendDays)) }},
+		{name: "notifications", load: func() (any, error) { return u.Notifications(ctx, userID, 100) }},
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, section := range sections {
+		section := section
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			value, err := section.load()
+			result := AccountSection{Status: "ready", LastUpdated: generatedAt, Data: value}
+			if err != nil {
+				result = AccountSection{
+					Status: "unavailable", LastUpdated: generatedAt, TraceID: platform.TraceID(ctx), ErrorCode: accountSectionErrorCode(err),
+				}
+			}
+			mu.Lock()
+			bootstrap.Sections[section.name] = result
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return bootstrap
+}
+
+func accountSectionErrorCode(err error) string {
+	if st, ok := status.FromError(err); ok && st.Code() != codes.OK {
+		return "upstream_" + strings.ToLower(st.Code().String())
+	}
+	return "upstream_unavailable"
+}
+
 func (u *BFFUsecase) CreateNotification(ctx context.Context, userID string, typ string, title string, body string, sourceEventID string) {
 	_ = u.data.CreateNotification(ctx, userID, typ, title, body, sourceEventID)
 }
 
 func (u *BFFUsecase) AccountReport(ctx context.Context, userID string) (map[string]any, error) {
-	sub, _ := u.Subscription(ctx, userID)
-	balance, _ := u.TokenBalance(ctx, userID)
-	orders, _ := u.Orders(ctx, userID)
-	usage, _ := u.TokenUsage(ctx, userID, 100)
-	trend, _ := u.UsageTrend(ctx, userID, 30)
-	notifications, _ := u.Notifications(ctx, userID, 100)
+	// Kept for older consumers. Unlike its original implementation, this
+	// compatibility endpoint never converts a downstream failure into a zero
+	// aggregate; new UIs should use AccountBootstrap for partial availability.
+	sub, err := u.Subscription(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	balance, err := u.TokenBalance(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	orders, err := u.Orders(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	usage, err := u.TokenUsage(ctx, userID, 100)
+	if err != nil {
+		return nil, err
+	}
+	trend, err := u.UsageTrend(ctx, userID, 30)
+	if err != nil {
+		return nil, err
+	}
+	notifications, err := u.Notifications(ctx, userID, 100)
+	if err != nil {
+		return nil, err
+	}
 	var paidOrders, pendingOrders int
 	for _, order := range orders.GetOrders() {
 		switch order.Status {

@@ -30,6 +30,7 @@ export default function OrderDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['orders'] })
       await queryClient.invalidateQueries({ queryKey: ['subscription'] })
       await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
     },
   })
   const retryCheckout = useMutation({

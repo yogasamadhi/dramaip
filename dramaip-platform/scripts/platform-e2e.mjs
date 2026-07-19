@@ -136,6 +136,15 @@ const accountReport = await request('GET', '/v1/me/account-report')
 assert(accountReport.order_summary?.total >= 1, 'account report order summary is invalid')
 assert(accountReport.notification_summary?.total >= 1, 'account report notification summary is invalid')
 
+const accountBootstrap = await request('GET', '/v1/me/account-bootstrap?usage_limit=50&trend_days=30')
+assert(accountBootstrap.usage_limit === 50 && accountBootstrap.trend_days === 30, 'account bootstrap did not preserve requested windows')
+assert(accountBootstrap.cache_ttl_seconds > 0, 'account bootstrap is missing its client cache policy')
+for (const section of ['profile', 'subscription', 'token_balance', 'orders', 'usage', 'usage_trend', 'notifications']) {
+  assert(['ready', 'unavailable'].includes(accountBootstrap.sections?.[section]?.status), `account bootstrap ${section} status is invalid`)
+  assert(accountBootstrap.sections?.[section]?.last_updated, `account bootstrap ${section} is missing last_updated`)
+}
+assert(accountBootstrap.sections?.usage_trend?.data?.points?.length === 30, 'account bootstrap 30-day trend is not semantically complete')
+
 const dashboard = await request('GET', '/v1/me/dashboard')
 assert(dashboard.email === email, 'dashboard email mismatch')
 

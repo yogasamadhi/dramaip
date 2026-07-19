@@ -27,3 +27,12 @@ func TestLegacyCompatibleSnapshotMarksFallback(t *testing.T) {
 		t.Fatalf("legacyCompatibleSnapshot() = %#v", got)
 	}
 }
+
+func TestGetUsageTrendRejectsWindowsOutsidePublicContract(t *testing.T) {
+	uc := &QuotaUsecase{}
+	for _, days := range []int32{0, 366} {
+		if _, err := uc.GetUsageTrend(context.Background(), "user", days); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("GetUsageTrend(days=%d) error = %v, want InvalidArgument", days, err)
+		}
+	}
+}

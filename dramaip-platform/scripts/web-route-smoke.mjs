@@ -37,7 +37,8 @@ const checks = [
   },
   {
     file: 'clients/apps/web/components/AccountDashboard.tsx',
-    patterns: ['apiClient.updateProfile', 'apiClient.getUsageTrend', 'apiClient.getNotifications', 'useReactTable', 'echarts.init', '/account/orders/'],
+    patterns: ['apiClient.updateProfile', 'apiClient.getAccountBootstrap', "queryKey: ['account-bootstrap'", 'SectionUnavailable', 'useReactTable', 'echarts.init', '/account/orders/'],
+    forbidden: ['apiClient.getUsageTrend', 'apiClient.getNotifications'],
   },
   {
     file: 'clients/apps/web/app/account/orders/[orderId]/page.tsx',

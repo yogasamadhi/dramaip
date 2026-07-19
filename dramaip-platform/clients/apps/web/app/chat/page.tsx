@@ -37,6 +37,7 @@ export default function ChatPage() {
       await queryClient.invalidateQueries({ queryKey: ['token-balance'] })
       await queryClient.invalidateQueries({ queryKey: ['token-usage'] })
       await queryClient.invalidateQueries({ queryKey: ['usage-trend'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-bootstrap'] })
     },
   })
 
