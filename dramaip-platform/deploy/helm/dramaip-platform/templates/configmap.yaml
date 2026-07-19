@@ -33,8 +33,10 @@ data:
   REPORTING_HTTP_ADDR: {{ .Values.config.reportingHttpAddr | quote }}
   REPORTING_GRPC_ADDR: {{ .Values.config.reportingGrpcAddr | quote }}
   NOTIFICATION_JOB_HTTP_ADDR: {{ .Values.config.notificationJobHttpAddr | quote }}
+  NOTIFICATION_JOB_GRPC_ADDR: {{ .Values.config.notificationJobGrpcAddr | quote }}
   REPORTING_JOB_HTTP_ADDR: {{ .Values.config.reportingJobHttpAddr | quote }}
   BILLING_JOB_HTTP_ADDR: {{ .Values.config.billingJobHttpAddr | quote }}
+  BILLING_JOB_GRPC_ADDR: {{ .Values.config.billingJobGrpcAddr | quote }}
   QUOTA_JOB_HTTP_ADDR: {{ .Values.config.quotaJobHttpAddr | quote }}
   AUTO_MIGRATE: {{ .Values.config.autoMigrate | quote }}
   MIGRATIONS_DIR: {{ .Values.config.migrationsDir | quote }}
@@ -108,6 +110,8 @@ data:
   QUOTA_GRPC_ENDPOINT: {{ .Values.config.downstream.quotaGrpcEndpoint | quote }}
   AI_GATEWAY_GRPC_ENDPOINT: {{ .Values.config.downstream.aiGatewayGrpcEndpoint | quote }}
   NOTIFICATION_GRPC_ENDPOINT: {{ .Values.config.downstream.notificationGrpcEndpoint | quote }}
+  BILLING_JOB_GRPC_ENDPOINT: {{ .Values.config.downstream.billingJobGrpcEndpoint | quote }}
+  NOTIFICATION_JOB_GRPC_ENDPOINT: {{ .Values.config.downstream.notificationJobGrpcEndpoint | quote }}
   INSPIRATION_GRPC_ENDPOINT: {{ .Values.config.downstream.inspirationGrpcEndpoint | quote }}
   REPORTING_GRPC_ENDPOINT: {{ .Values.config.downstream.reportingGrpcEndpoint | quote }}
   AI_PROVIDERS: {{ .Values.config.ai.providers | quote }}

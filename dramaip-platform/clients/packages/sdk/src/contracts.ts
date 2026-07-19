@@ -126,6 +126,14 @@ export const AdminRefundResponseSchema = z.object({ refund: z.object({ id: Ident
 export const AdminSubscriptionResponseSchema = z.object({ subscription: AdminCustomerSubscriptionSchema })
 export const AdminQuotaAdjustmentResponseSchema = z.object({ adjustment: z.object({ id: IdentifierSchema, delta_tokens: z.number().int(), quota_before: NonnegativeIntegerSchema, quota_after: NonnegativeIntegerSchema, status: z.string() }) })
 export const AdminNotificationResponseSchema = z.object({ notification: AdminNotificationSchema })
+export const AdminReconciliationRunSchema = z.object({ id: IdentifierSchema, trigger: z.string(), requested_by: z.string(), status: z.string(), scanned_items: NonnegativeIntegerSchema, detected_items: NonnegativeIntegerSchema, started_at: z.string(), completed_at: z.string(), failure: z.string() })
+export const AdminReconciliationItemSchema = z.object({ id: IdentifierSchema, order_id: z.string(), subscription_id: z.string(), mismatch_type: z.string(), severity: z.string(), recommendation: z.string(), status: z.string(), occurrences: NonnegativeIntegerSchema, first_detected_at: z.string(), last_detected_at: z.string(), resolved_at: z.string(), resolved_by: z.string(), resolution_note: z.string() })
+export const AdminReconciliationSchema = z.object({ latest_run: AdminReconciliationRunSchema.nullable(), items: z.array(AdminReconciliationItemSchema) })
+export const AdminReconciliationRunResponseSchema = z.object({ run: AdminReconciliationRunSchema })
+export const AdminReconciliationActionResponseSchema = z.object({ action: z.object({ id: IdentifierSchema, item_id: IdentifierSchema, action: z.string(), status: z.string(), outcome_json: z.string(), created_at: z.string(), completed_at: z.string() }) })
+export const AdminDeliveryAttemptSchema = z.object({ id: IdentifierSchema, event_id: z.string(), notification_id: IdentifierSchema, user_id: IdentifierSchema, channel: z.string(), status: z.string(), failure: z.string(), attempted_at: z.string() })
+export const AdminDeliveryAttemptsResponseSchema = z.object({ attempts: z.array(AdminDeliveryAttemptSchema) })
+export const AdminDeliveryRetryResponseSchema = z.object({ event_id: z.string(), notification_id: IdentifierSchema, status: z.string() })
 export type AdminPrincipal = z.infer<typeof AdminPrincipalSchema>
 export type AdminOverview = z.infer<typeof AdminOverviewSchema>
 export type AdminUserSummary = z.infer<typeof AdminUserSummarySchema>
@@ -135,6 +143,8 @@ export type AdminProjectionException = z.infer<typeof AdminProjectionExceptionSc
 export type AdminAuditEntry = z.infer<typeof AdminAuditEntrySchema>
 export type AdminCustomer = z.infer<typeof AdminCustomerResponseSchema>
 export type AdminCostAlert = z.infer<typeof AdminCostAlertSchema>
+export type AdminReconciliation = z.infer<typeof AdminReconciliationSchema>
+export type AdminDeliveryAttempt = z.infer<typeof AdminDeliveryAttemptSchema>
 
 // Desktop receives only cloud-account, model, preflight, chat and handoff
 // shapes; it never receives the platform's internal project/core types.

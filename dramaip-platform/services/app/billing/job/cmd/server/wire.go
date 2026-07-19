@@ -20,6 +20,8 @@ func wireApp() (*kratos.App, func(), error) {
 		biz.NewOutboxUsecase,
 		service.NewOutboxService,
 		server.NewHTTPServer,
+		server.NewReconciliationOperationsService,
+		server.NewGRPCServer,
 		server.NewJobServer,
 		wire.Bind(new(transport.Server), new(*server.JobServer)),
 		newApp,

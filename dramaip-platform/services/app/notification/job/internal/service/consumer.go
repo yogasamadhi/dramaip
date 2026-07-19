@@ -26,3 +26,7 @@ func (s *ConsumerService) Run(ctx context.Context) error {
 	}
 	return err
 }
+
+func (s *ConsumerService) Retry(ctx context.Context, raw []byte) error {
+	return s.uc.Retry(ctx, raw)
+}

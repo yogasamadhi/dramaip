@@ -27,21 +27,23 @@ type JWTConfig struct {
 	AccessTokenTTL string `yaml:"access_token_ttl"`
 }
 type DownstreamConfig struct {
-	ReportingEndpoint    string `yaml:"reporting_grpc_addr"`
-	AuthEndpoint         string `yaml:"auth_grpc_addr"`
-	UserEndpoint         string `yaml:"user_grpc_addr"`
-	BillingEndpoint      string `yaml:"billing_grpc_addr"`
-	QuotaEndpoint        string `yaml:"quota_grpc_addr"`
-	AIGatewayEndpoint    string `yaml:"ai_gateway_grpc_addr"`
-	NotificationEndpoint string `yaml:"notification_grpc_addr"`
-	DialTimeout          string `yaml:"dial_timeout"`
+	ReportingEndpoint       string `yaml:"reporting_grpc_addr"`
+	AuthEndpoint            string `yaml:"auth_grpc_addr"`
+	UserEndpoint            string `yaml:"user_grpc_addr"`
+	BillingEndpoint         string `yaml:"billing_grpc_addr"`
+	QuotaEndpoint           string `yaml:"quota_grpc_addr"`
+	AIGatewayEndpoint       string `yaml:"ai_gateway_grpc_addr"`
+	NotificationEndpoint    string `yaml:"notification_grpc_addr"`
+	BillingJobEndpoint      string `yaml:"billing_job_grpc_addr"`
+	NotificationJobEndpoint string `yaml:"notification_job_grpc_addr"`
+	DialTimeout             string `yaml:"dial_timeout"`
 }
 
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8130"}},
 		AdminJWT:    JWTConfig{Issuer: "dramaip-admin", Audience: "dramaip-admin-api", AccessTokenTTL: "10m"},
-		Downstream:  DownstreamConfig{ReportingEndpoint: "localhost:9108", AuthEndpoint: "localhost:9101", UserEndpoint: "localhost:9102", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", AIGatewayEndpoint: "localhost:9105", NotificationEndpoint: "localhost:9106", DialTimeout: "15s"},
+		Downstream:  DownstreamConfig{ReportingEndpoint: "localhost:9108", AuthEndpoint: "localhost:9101", UserEndpoint: "localhost:9102", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", AIGatewayEndpoint: "localhost:9105", NotificationEndpoint: "localhost:9106", BillingJobEndpoint: "localhost:9110", NotificationJobEndpoint: "localhost:9111", DialTimeout: "15s"},
 		Environment: "development",
 	}
 	if err := kratosx.LoadYAML("", cfg); err != nil {
@@ -62,6 +64,8 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
 	cfg.Downstream.NotificationEndpoint = kratosx.Env("NOTIFICATION_GRPC_ENDPOINT", cfg.Downstream.NotificationEndpoint)
+	cfg.Downstream.BillingJobEndpoint = kratosx.Env("BILLING_JOB_GRPC_ENDPOINT", cfg.Downstream.BillingJobEndpoint)
+	cfg.Downstream.NotificationJobEndpoint = kratosx.Env("NOTIFICATION_JOB_GRPC_ENDPOINT", cfg.Downstream.NotificationJobEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("ADMIN_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {

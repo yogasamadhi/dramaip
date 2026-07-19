@@ -16,6 +16,11 @@ import {
   AdminRefundResponseSchema,
   AdminSubscriptionResponseSchema,
   AdminNotificationResponseSchema,
+  AdminReconciliationSchema,
+  AdminReconciliationRunResponseSchema,
+  AdminReconciliationActionResponseSchema,
+  AdminDeliveryAttemptsResponseSchema,
+  AdminDeliveryRetryResponseSchema,
   AdminUsersResponseSchema,
   DEFAULT_LIST_LIMIT,
   ListQuerySchema,
@@ -29,9 +34,11 @@ import {
   type AdminProjectionException,
   type AdminSubscriptionSummary,
   type AdminUserSummary,
+  type AdminReconciliation,
+  type AdminDeliveryAttempt,
 } from '@dramaip/sdk/contracts'
 
-export type { AdminAuditEntry as AuditEntry, AdminCostAlert as CostAlert, AdminCustomer as Customer, AdminOrderSummary as OrderSummary, AdminOverview as Overview, AdminPrincipal as Principal, AdminProjectionException as ProjectionException, AdminSubscriptionSummary as SubscriptionSummary, AdminUserSummary as UserSummary }
+export type { AdminAuditEntry as AuditEntry, AdminCostAlert as CostAlert, AdminCustomer as Customer, AdminOrderSummary as OrderSummary, AdminOverview as Overview, AdminPrincipal as Principal, AdminProjectionException as ProjectionException, AdminSubscriptionSummary as SubscriptionSummary, AdminUserSummary as UserSummary, AdminReconciliation as Reconciliation, AdminDeliveryAttempt as DeliveryAttempt }
 
 const baseURL = (import.meta.env.VITE_ADMIN_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '')
 const defaultListQuery = ListQuerySchema.parse({ limit: DEFAULT_LIST_LIMIT })
@@ -76,4 +83,9 @@ export const adminAPI = {
   resumeSubscription: (token: string, userID: string, subscriptionID: string, confirmationID: string) => request('/v1/admin/billing/subscriptions/resume', AdminSubscriptionResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, subscription_id: subscriptionID, confirmation_id: confirmationID }) }),
   adjustQuota: (token: string, userID: string, subscriptionID: string, deltaTokens: number, confirmationID: string) => request('/v1/admin/quota/adjustments', AdminQuotaAdjustmentResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, subscription_id: subscriptionID, delta_tokens: deltaTokens, confirmation_id: confirmationID }) }),
   sendNotification: (token: string, userID: string, title: string, body: string, confirmationID: string) => request('/v1/admin/notifications/send', AdminNotificationResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, title, body, confirmation_id: confirmationID }) }),
+  reconciliation: (token: string, status = '') => request(`/v1/admin/billing/reconciliation?limit=${defaultListQuery.limit}${status ? `&status=${encodeURIComponent(status)}` : ''}`, AdminReconciliationSchema, token),
+  startReconciliation: (token: string, confirmationID: string) => request('/v1/admin/billing/reconciliation/runs', AdminReconciliationRunResponseSchema, token, { method: 'POST', body: JSON.stringify({ confirmation_id: confirmationID }) }),
+  applyReconciliationAction: (token: string, itemID: string, action: string, confirmationID: string) => request('/v1/admin/billing/reconciliation/items/actions', AdminReconciliationActionResponseSchema, token, { method: 'POST', body: JSON.stringify({ item_id: itemID, action, confirmation_id: confirmationID }) }),
+  deliveryAttempts: (token: string, status = 'failed') => request(`/v1/admin/notifications/delivery-attempts?limit=${defaultListQuery.limit}${status ? `&status=${encodeURIComponent(status)}` : ''}`, AdminDeliveryAttemptsResponseSchema, token),
+  retryDelivery: (token: string, deliveryAttemptID: string, confirmationID: string) => request('/v1/admin/notifications/delivery-attempts/retry', AdminDeliveryRetryResponseSchema, token, { method: 'POST', body: JSON.stringify({ delivery_attempt_id: deliveryAttemptID, confirmation_id: confirmationID }) }),
 }

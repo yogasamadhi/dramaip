@@ -52,8 +52,8 @@ func TestNotificationEventUsecaseRetriesFailedChannelWithoutDuplicateNotificatio
 	if repo.inbox["event-retry"].completed {
 		t.Fatal("failed delivery must not complete inbox")
 	}
-	if err := usecase.Handle(context.Background(), raw); err != nil {
-		t.Fatalf("retry Handle() error = %v", err)
+	if err := usecase.Retry(context.Background(), raw); err != nil {
+		t.Fatalf("Retry() error = %v", err)
 	}
 	if len(repo.notifications) != 1 {
 		t.Fatalf("notification count = %d, want 1", len(repo.notifications))
@@ -63,6 +63,20 @@ func TestNotificationEventUsecaseRetriesFailedChannelWithoutDuplicateNotificatio
 	}
 	if !repo.inbox["event-retry"].completed {
 		t.Fatal("successful retry must complete inbox")
+	}
+}
+
+func TestNotificationEventUsecaseRejectsRetryOfCompletedEvent(t *testing.T) {
+	usecase, _ := newEventUsecase(t, InAppChannel{})
+	raw := mustEnvelope(t, events.NewNotificationRequested("event-completed", "", time.Now(), &notificationeventsv1.NotificationRequested{
+		NotificationId: "33333333-3333-4333-8333-333333333333", UserId: "user-1", Category: "account",
+		Title: "Complete", Body: "Already delivered.", SourceEventId: "account:completed",
+	}))
+	if err := usecase.Handle(context.Background(), raw); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if err := usecase.Retry(context.Background(), raw); err == nil {
+		t.Fatal("Retry() error = nil, want completed event rejection")
 	}
 }
 

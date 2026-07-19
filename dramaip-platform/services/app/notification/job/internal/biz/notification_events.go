@@ -14,6 +14,8 @@ import (
 	quotaeventsv1 "github.com/dramaip/dramaip-platform/services/events/quota/v1"
 	"github.com/dramaip/dramaip-platform/services/pkg/events"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type EventSource interface {
@@ -110,6 +112,17 @@ func (u *NotificationEventUsecase) Run(ctx context.Context) error {
 }
 
 func (u *NotificationEventUsecase) Handle(ctx context.Context, raw []byte) error {
+	return u.handle(ctx, raw, false)
+}
+
+// Retry uses the original durable event envelope and the exact same inbox and
+// channel workflow as broker consumption. It differs only in reporting an
+// already leased/completed event to the operator instead of silently no-oping.
+func (u *NotificationEventUsecase) Retry(ctx context.Context, raw []byte) error {
+	return u.handle(ctx, raw, true)
+}
+
+func (u *NotificationEventUsecase) handle(ctx context.Context, raw []byte, retry bool) error {
 	envelope, err := events.ParseEnvelope(raw)
 	if err != nil {
 		return err
@@ -123,6 +136,9 @@ func (u *NotificationEventUsecase) Handle(ctx context.Context, raw []byte) error
 		return err
 	}
 	if !claimed {
+		if retry {
+			return status.Error(codes.FailedPrecondition, "delivery_retry_is_not_available")
+		}
 		return nil
 	}
 

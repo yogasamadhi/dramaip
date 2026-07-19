@@ -4,16 +4,19 @@ import (
 	"strings"
 
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
+	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 )
 
 type Bootstrap struct {
-	Environment string       `yaml:"environment"`
-	Server      ServerConfig `yaml:"server"`
-	Job         JobConfig    `yaml:"jobs"`
+	Environment string              `yaml:"environment"`
+	Server      ServerConfig        `yaml:"server"`
+	Job         JobConfig           `yaml:"jobs"`
+	MTLS        platform.MTLSConfig `yaml:"-"`
 }
 
 type ServerConfig struct {
 	HTTP EndpointConfig `yaml:"http"`
+	GRPC EndpointConfig `yaml:"grpc"`
 }
 
 type EndpointConfig struct {
@@ -33,7 +36,7 @@ type JobConfig struct {
 func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Environment: "dev",
-		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8109"}},
+		Server:      ServerConfig{HTTP: EndpointConfig{Addr: ":8109"}, GRPC: EndpointConfig{Addr: ":9111"}},
 		Job: JobConfig{
 			ConsumerQueue: "dramaip.notification.events", DeadLetterExchange: "dramaip.platform.events.dlx",
 			DeadLetterQueue: "dramaip.notification.events.dlq", ConsumerPrefetch: 1, MaxRetries: 3,
@@ -45,6 +48,7 @@ func Load() (*Bootstrap, error) {
 	}
 	cfg.Environment = kratosx.Env("ENV", cfg.Environment)
 	cfg.Server.HTTP.Addr = kratosx.Env("NOTIFICATION_JOB_HTTP_ADDR", cfg.Server.HTTP.Addr)
+	cfg.Server.GRPC.Addr = kratosx.Env("NOTIFICATION_JOB_GRPC_ADDR", cfg.Server.GRPC.Addr)
 	cfg.Job.ConsumerQueue = kratosx.Env("NOTIFICATION_EVENTS_QUEUE", cfg.Job.ConsumerQueue)
 	cfg.Job.DeadLetterExchange = kratosx.Env("NOTIFICATION_DLQ_EXCHANGE", cfg.Job.DeadLetterExchange)
 	cfg.Job.DeadLetterQueue = kratosx.Env("NOTIFICATION_DLQ_QUEUE", cfg.Job.DeadLetterQueue)
@@ -54,5 +58,10 @@ func Load() (*Bootstrap, error) {
 	if channels := kratosx.Env("NOTIFICATION_CHANNELS", ""); channels != "" {
 		cfg.Job.Channels = strings.Split(channels, ",")
 	}
+	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MTLS = mtls
 	return cfg, nil
 }

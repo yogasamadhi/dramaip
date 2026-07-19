@@ -1,6 +1,6 @@
 # LM4-29 Admin 运营操作台审计
 
-状态：`partial`
+状态：`done`
 
 ## 已交付
 
@@ -10,14 +10,17 @@
 - Auth 与 User profile 的状态变更有各自领域内幂等 ledger；重试会先复用领域结果，再补齐 Admin 审计。
 - 报表有受限游标与服务端查询；管理界面提供检索、续页和 `?user=<uuid>` 深链。
 - AI 成本告警只包含 ledger 派生的金额、阈值和 trace，不包含 prompt、响应、真实 IP 或供应商凭据。
+- Billing Job 已移除静态令牌 HTTP 对账入口，改为仅限 `admin-bff` mTLS 的 gRPC 对账操作服务；发起对账和修复动作都传递 operator、reason 和确认 ID 幂等键，并持久化运行/动作结果。
+- Notification Job 已提供仅限 `admin-bff` mTLS 的失败投递查询与重试操作；重试仅复用原始 inbox 事件重新进入既有投递链路，并以确认 ID 持久化幂等结果，不能伪造投递成功。
+- Admin 控制台现可按权限查看对账项、发起对账、执行受限的额度修复或人工确认，并查看/重试失败通知投递；每个写操作仍必须二次确认并写入不可变审计。
 
-## 不能安全交付的项
+## 明确边界
 
-1. Billing Job 的 reconciliation 仍依赖静态 `RECONCILIATION_OPERATOR_TOKEN`。Admin BFF 不会持有或转发该令牌。
-2. Notification 领域没有 delivery-attempt 查询、重试或人工确认 RPC；当前可安全执行的仅是创建运营通知和读取通知状态。
-
-需要由对应领域先提供仅限 `admin-bff` mTLS 身份、带 operator/reason、幂等键、完整审计和状态机校验的 API。未具备这些条件前，不得用 Admin 直连表、静态令牌转发或伪造“已重试”来填补功能。
+- Admin 仍不具备任何 Billing 或 Notification 的数据库连接，也不暴露通用数据库管理能力。
+- 对账动作仅允许既有安全修复 `retry_quota_provision` 或 `manual_confirm`；退款、冻结等跨财务/权益动作必须走其原有领域工作流。
+- 重试仅针对未完成的失败 delivery attempt。已完成、正在处理或无原始 inbox payload 的事件会拒绝重放。
+- mTLS、部署迁移与外部生产演练仍按 LM4-31 发布 Gate 单独验证；本 loop 不以本地测试冒充生产运行证据。
 
 ## 验证摘要
 
-`buf generate/lint`、全量 Go 测试、客户端 lint/typecheck/Admin build/test/contract、Compose 配置与重建、平台 E2E 都已通过。完整命令与证据见 `LOOPMAP4.md` 的 LM4-29 记录。
+`buf generate/lint`、全量 Go 测试、Admin BFF 业务/HTTP 测试、Notification retry 测试、客户端 typecheck/Admin build/test、Compose 配置和 Helm lint/template 均已通过。完整命令与证据见 `LOOPMAP4.md` 的 LM4-29 记录。

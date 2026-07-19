@@ -103,6 +103,12 @@ func (s *OutboxService) Reconcile(ctx context.Context, requestedBy string) (data
 	return s.runReconciliation(ctx, "manual", requestedBy)
 }
 
+func (s *OutboxService) ReconcileIdempotent(ctx context.Context, requestedBy, idempotencyKey string) (data.ReconciliationRun, error) {
+	ctx, cancel := platform.WithDefaultDeadline(ctx, s.operationTimeout)
+	defer cancel()
+	return s.uc.ReconcileIdempotent(ctx, "manual", requestedBy, idempotencyKey)
+}
+
 func (s *OutboxService) LatestReconciliationRun(ctx context.Context) (data.ReconciliationRun, error) {
 	return s.uc.LatestReconciliationRun(ctx)
 }
