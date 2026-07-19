@@ -351,7 +351,7 @@ make platform-e2e
 | LM4-17 | P1 | Desktop/交互一致性 | done | 用统一可访问交互替换全部原生 confirm/prompt | dialogs、forms、toasts、renderer call sites | LM4-05、LM4-06 |
 | LM4-18 | P1 | 契约治理 | done | 建立 Web/Mobile/Admin/Desktop 的版本化客户端契约 Gate | proto/OpenAPI/schema、SDK、BFF、CI | LM4-04 |
 | LM4-19 | P1 | Mobile/Desktop 接续 | done | 完成移动草稿的创建、同步、采用、删除和保留生命周期 | Mobile、Inspiration、Mobile/Desktop BFF、Desktop | LM4-13、LM4-18 |
-| LM4-20 | P1 | Web/Reporting | todo | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
+| LM4-20 | P1 | Web/Reporting | done | 交付可信、低请求数且能表达局部故障的账户 read model | Account UI、Web BFF、reporting、SDK | LM4-18 |
 | LM4-21 | P1 | QA/Release | todo | 通过核心体验、视觉、无障碍和跨端状态 Gate | Desktop/Platform clients/services、UI matrix | LM4-05～20 |
 | LM4-22 | P2 | Desktop/改编产品 | todo | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21 |
 | LM4-23 | P2 | Desktop/剧本编辑 | todo | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
@@ -1244,4 +1244,20 @@ Push: a9008d0 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-19-mobile-draft-lifecycle deleted after successful main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
 Notes: Cloud deletion is a soft delete so adoption evidence remains auditable. Retention cleanup is intentionally deferred to a guarded future job; no automatic purge or cascading adoption deletion is performed.
+```
+
+```text
+Loop: LM4-20
+Target branch: main
+Loop branch: loop/lm4-20-account-read-model
+Commit(s): 518bdac feat: add trustworthy account read model
+Merge commit: c641dcb merge: LM4-20 account read model
+Verification: Before and after merge: dramaip-platform/services GOCACHE=/tmp/dramaip-go-build go test ./...; dramaip-platform/clients pnpm contracts:check, pnpm lint, pnpm typecheck and pnpm build:web; dramaip-platform make test; node --check for both smoke scripts; make web-route-smoke; git diff --check. All listed checks passed. The rebuilt Compose stack executed the new account-bootstrap assertion (windows, cache policy, section states and 30 points) before the existing platform E2E later stopped in the unrelated Web AI request at cloud_preflight_request_mismatch.
+UI/manual evidence: AccountDashboard now makes one account-bootstrap request instead of nine independent account/report requests; plans are lazy-loaded only after opening the subscription tab. BillingOverview shares that query. Each unavailable section visibly says it was not replaced by zero, includes its last checked timestamp and trace id. The BFF HTTP test verifies a quota failure leaves orders available while token balance has unavailable/error_code/trace/last_updated and no data payload. The Compose request confirmed the 30-day read model returns 30 dated points.
+Diff review: Reviewed concurrent BFF section isolation, safe generic error codes, legacy report no longer swallowing errors, SDK Zod parsing, query bounds/cache invalidations, stable empty arrays, zero-filled date series and Web's unavailable-state rendering. No credentials, cookies, prompts, user content, local databases, images or build output were committed.
+Remote sync: Fetched and fast-forward checked origin/main at a06dca2 before branch creation and again before merge; main had no intervening remote commits.
+Push: c641dcb pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-20-account-read-model deleted after successful main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build artifacts excluded).
+Notes: The full platform E2E script's new account assertions executed successfully; it later exposes that the Web chat endpoint lacks the required AI preflight binding. That pre-existing Web AI flow is P2 work owned by LM4-28, so this loop does not bypass, weaken or misclassify it as an account failure.
 ```
