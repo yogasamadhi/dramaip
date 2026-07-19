@@ -57,6 +57,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
+  const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
@@ -64,7 +65,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -1057,4 +1058,58 @@ async function rendererDraftPersistenceMain(input: {
     scriptContent: (await api.script.get(input.scriptId))?.content ?? '',
     shotPrompt: (await api.shot.get(input.shotId))?.videoPrompt ?? '',
   }
+}
+
+async function verifyProductionShellRenderer(win: BrowserWindow, fixture: P0Fixture): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const result = await win.webContents.executeJavaScript(
+      `(${rendererProductionShellMain.toString()})(${JSON.stringify({
+        adaptationId: fixture.adaptation.id,
+        episodeId: fixture.episode.id,
+      })})`,
+      true,
+    ) as { stages: string[] }
+    return {
+      name: 'production-shell-stage-navigation-and-context',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: result,
+    }
+  } catch (error) {
+    return {
+      name: 'production-shell-stage-navigation-and-context',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function rendererProductionShellMain(input: { adaptationId: string; episodeId: string }): Promise<{ stages: string[] }> {
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+  const waitFor = async (label: string, probe: () => boolean, timeoutMs = 8000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (probe()) return
+      await sleep(50)
+    }
+    throw new Error(`生产壳 smoke 等待超时：${label}`)
+  }
+  const bodyText = () => document.body.textContent ?? ''
+  const stepperButtons = () => Array.from(document.querySelectorAll<HTMLButtonElement>('nav[aria-label="改编生产阶段"] button'))
+  const chooseStage = async (label: string, expectedHash: string, expectedText: string) => {
+    const button = stepperButtons().find((item) => (item.textContent ?? '').includes(label))
+    if (!button) throw new Error(`未找到生产阶段入口：${label}`)
+    button.click()
+    await waitFor(`${label} 路由与上下文`, () => window.location.hash === expectedHash && bodyText().includes(expectedText))
+  }
+
+  window.location.hash = `#/adaptations/${input.adaptationId}?section=episodes`
+  await waitFor('分集规划生产壳', () => bodyText().includes('分集大纲') && stepperButtons().length === 5)
+  await chooseStage('剧本', `#/adaptations/${input.adaptationId}/scripts`, '剧本正文')
+  await chooseStage('分镜', `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}`, '在左侧选择一个场景')
+  await chooseStage('视频交付', `#/adaptations/${input.adaptationId}/video?episode=${input.episodeId}`, '选择左侧镜头')
+
+  return { stages: stepperButtons().map((button) => (button.textContent ?? '').replace(/\s+/g, ' ').trim()) }
 }

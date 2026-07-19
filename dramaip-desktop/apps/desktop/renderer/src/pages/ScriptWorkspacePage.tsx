@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  ArrowLeft,
   Download,
   FileJson,
   ListVideo,
@@ -22,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
 import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 import { cn } from '@/lib/utils'
 
@@ -170,46 +170,21 @@ export function ScriptWorkspacePage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" aria-label="返回改编工作台" onClick={() => navigate(`/adaptations/${adaptation.id}`)}>
-          <ArrowLeft />
-        </Button>
-        <div className="min-w-0">
-          <nav aria-label="面包屑" className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span>项目</span><span aria-hidden>›</span><span>改编</span><span aria-hidden>›</span><span>剧本</span>
-            {activeEpisode && <><span aria-hidden>›</span><span>第 {activeEpisode.episodeNumber} 集</span></>}
-          </nav>
-          <h1 className="truncate text-base font-semibold">{adaptation.title} · AI 短剧剧本</h1>
-        </div>
-        <Badge variant="secondary">{scripts.length} / {episodes.length} 集剧本</Badge>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy === 'batch' || episodes.length === 0}
-            onClick={() => runBatch(10)}
-            title="批量生成前 10 集剧本"
-          >
-            {busy === 'batch' ? <Loader2 className="animate-spin" /> : <ListVideo />}
-            批量生成前 10 集
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaEpisodeDeliveryMarkdown(adaptation.id)}>
-            <Download /> 交付包
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaEpisodeDeliveryJson(adaptation.id)}>
-            <FileJson /> 交付 JSON
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.scriptsMarkdown(adaptation.id)}>
-            <Download /> Markdown
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.scriptsJson(adaptation.id)}>
-            <FileJson /> JSON
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
+    <ProductionWorkspaceShell
+      adaptation={adaptation}
+      stage="scripts"
+      counts={{ targetEpisodes: adaptation.targetEpisodeCount, episodes: episodes.length, scripts: scripts.length }}
+      activeEpisodeId={activeEpisode?.id}
+      activeEpisodeLabel={activeEpisode ? `第 ${activeEpisode.episodeNumber} 集` : undefined}
+      actions={<Button size="sm" disabled={busy === 'batch' || episodes.length === 0} onClick={() => runBatch(10)} title="批量生成前 10 集剧本">{busy === 'batch' ? <Loader2 className="animate-spin" /> : <ListVideo />}批量生成前 10 集</Button>}
+      exports={[
+        { label: '分集交付包（Markdown）', onSelect: () => ipc.export.dramaEpisodeDeliveryMarkdown(adaptation.id) },
+        { label: '分集交付包（JSON）', onSelect: () => ipc.export.dramaEpisodeDeliveryJson(adaptation.id) },
+        { label: '剧本（Markdown）', onSelect: () => ipc.export.scriptsMarkdown(adaptation.id) },
+        { label: '剧本（JSON）', onSelect: () => ipc.export.scriptsJson(adaptation.id) },
+      ]}
+    >
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* 左侧：集数列表 */}
         <aside className="w-56 shrink-0 overflow-hidden border-r">
           <ScrollArea className="h-full">
@@ -273,7 +248,7 @@ export function ScriptWorkspacePage() {
         onAdopt={handleTextAdopt}
         onCancel={() => setTextPreview(null)}
       />
-    </div>
+    </ProductionWorkspaceShell>
   )
 }
 

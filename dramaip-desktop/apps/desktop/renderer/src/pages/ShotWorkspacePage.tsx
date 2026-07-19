@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  ArrowLeft,
   AlertTriangle,
   ChevronRight,
   Download,
@@ -29,6 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
 import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 import {
   Select,
@@ -81,7 +81,6 @@ const EMPTY_SHOT_DRAFT: ShotDraft = {
 
 export function ShotWorkspacePage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
@@ -205,31 +204,21 @@ export function ShotWorkspacePage() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/adaptations/${adaptation.id}/scripts`)}>
-          <ArrowLeft />
-        </Button>
-        <h1 className="text-base font-semibold">{adaptation.title} · 分镜与镜头 Prompt</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+    <ProductionWorkspaceShell
+      adaptation={adaptation}
+      stage="shots"
+      counts={{ targetEpisodes: adaptation.targetEpisodeCount, episodes: episodes.length, scripts: scripts.length, scenes: scenes.length, shots: shots.length }}
+      activeEpisodeId={activeEpisode?.id}
+      activeEpisodeLabel={activeEpisode ? `第 ${activeEpisode.episodeNumber} 集` : undefined}
+      actions={<>
           <Button
             size="sm"
-            variant="outline"
             disabled={!activeScript || scenes.length === 0 || busy !== null}
             onClick={() => void runBatchSplit()}
             title="批量拆分本集镜头"
           >
             {busy === 'batch-shots' ? <Loader2 className="animate-spin" /> : <ListVideo />}
             批量拆分镜头
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryMarkdown(adaptation.id)}>
-            <Download /> 分镜包
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryJson(adaptation.id)}>
-            <FileJson /> 分镜 JSON
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => ipc.export.dramaShotDeliveryCsv(adaptation.id)}>
-            <Table /> 分镜 CSV
           </Button>
           <Select
             value={episodeId}
@@ -246,8 +235,13 @@ export function ShotWorkspacePage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </header>
+        </>}
+      exports={[
+        { label: '分镜交付包（Markdown）', onSelect: () => ipc.export.dramaShotDeliveryMarkdown(adaptation.id) },
+        { label: '分镜交付包（JSON）', onSelect: () => ipc.export.dramaShotDeliveryJson(adaptation.id) },
+        { label: '分镜交付表（CSV）', onSelect: () => ipc.export.dramaShotDeliveryCsv(adaptation.id) },
+      ]}
+    >
 
       {!activeEpisode ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -310,7 +304,7 @@ export function ShotWorkspacePage() {
           </section>
         </div>
       )}
-    </div>
+    </ProductionWorkspaceShell>
   )
 }
 

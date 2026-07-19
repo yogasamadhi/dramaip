@@ -54,7 +54,7 @@ function useWorkspaceShellPreferences() {
   return { preferences, updatePreferences, viewportWidth }
 }
 
-function GlobalRail() {
+export function GlobalRail() {
   const navigate = useNavigate()
   const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
@@ -75,7 +75,7 @@ function GlobalRail() {
         {items.map(({ label, icon: Icon, path }) => (
           <Button
             key={path}
-            variant={location.pathname === path ? 'secondary' : 'ghost'}
+            variant={(path === '/' ? location.pathname === '/' || location.pathname.startsWith('/projects/') || location.pathname.startsWith('/adaptations/') : location.pathname === path) ? 'secondary' : 'ghost'}
             size="icon"
             aria-label={label}
             title={label}
