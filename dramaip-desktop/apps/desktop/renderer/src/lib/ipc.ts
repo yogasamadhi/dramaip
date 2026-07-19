@@ -184,6 +184,19 @@ export interface ProjectImportResult {
   project?: Project
 }
 
+export interface CloudProjectSnapshot {
+  id: string
+  encryptedBytes: number
+  encryptedSha256: string
+  createdAt: string
+  expiresAt: string
+  recoveryKeyAvailable: boolean
+}
+
+export interface CreatedCloudProjectSnapshot extends CloudProjectSnapshot {
+  recoveryKey: string
+}
+
 /** v1.0 模型连接测试结果 */
 export interface ModelConnectionTestResult {
   ok: boolean
@@ -444,6 +457,12 @@ export interface StudioApi {
   cloudHandoff: {
     list(input: { projectId: string }): Promise<CloudMobileDraft[]>
     adopt(input: { projectId: string; draftId: string }): Promise<{ draft: CloudMobileDraft; imported: number; skipped: number }>
+  }
+  cloudSnapshot: {
+    list(): Promise<CloudProjectSnapshot[]>
+    create(input: { projectId: string }): Promise<CreatedCloudProjectSnapshot>
+    restore(input: { snapshotId: string; recoveryKey?: string }): Promise<Project>
+    remove(input: { snapshotId: string }): Promise<{ ok: boolean }>
   }
   dataBackup: {
     list(): Promise<DatabaseBackupInfo[]>

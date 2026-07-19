@@ -4,6 +4,7 @@ import {
   createProjectSnapshotRecoveryKey,
   decryptProjectSnapshot,
   encryptProjectSnapshot,
+  parseProjectSnapshotEnvelope,
   PROJECT_SNAPSHOT_FORMAT,
 } from '../apps/desktop/electron/project-snapshot-crypto'
 
@@ -24,4 +25,12 @@ test('wrong recovery keys and tampering cannot decrypt a snapshot', () => {
   assert.throws(() => decryptProjectSnapshot(envelope, wrongKey), /无法验证或恢复密钥错误/)
   const first = envelope.ciphertext[0] === 'A' ? 'B' : 'A'
   assert.throws(() => decryptProjectSnapshot({ ...envelope, ciphertext: `${first}${envelope.ciphertext.slice(1)}` }, key), /无法验证或恢复密钥错误/)
+})
+
+test('serialized envelopes are rejected before decryption when metadata is malformed', () => {
+  const key = createProjectSnapshotRecoveryKey()
+  const envelope = encryptProjectSnapshot('private project body', key, Buffer.alloc(12, 9))
+  assert.equal(parseProjectSnapshotEnvelope(JSON.stringify(envelope)).ciphertext, envelope.ciphertext)
+  assert.throws(() => parseProjectSnapshotEnvelope('{"format":"unknown"}'), /信封格式无效/)
+  assert.throws(() => parseProjectSnapshotEnvelope('not json'), /信封格式无效/)
 })

@@ -585,6 +585,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   // local inspiration favorite after a user picks a draft/project.
   'cloudHandoff:list': [],
   'cloudHandoff:adopt': [z.object({ projectId: id, draftId: id })],
+  'cloudSnapshot:list': [],
+  'cloudSnapshot:create': [z.object({ projectId: id }).strict()],
+  'cloudSnapshot:restore': [z.object({ snapshotId: id, recoveryKey: z.string().min(1).max(256).optional() }).strict()],
+  'cloudSnapshot:delete': [z.object({ snapshotId: id }).strict()],
   'dataBackup:list': [],
   'dataBackup:create': [],
   'dataBackup:restore': [id],

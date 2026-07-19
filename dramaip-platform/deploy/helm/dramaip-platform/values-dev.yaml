@@ -39,6 +39,9 @@ images:
   inspiration:
     repository: dramaip-inspiration
     tag: dev
+  snapshot:
+    repository: dramaip-snapshot
+    tag: dev
   reporting:
     repository: dramaip-reporting
     tag: dev
@@ -98,6 +101,7 @@ secret:
   postgresInspirationPassword: dramaip
   postgresAdminPassword: dramaip
   postgresReportingPassword: dramaip
+  postgresSnapshotPassword: dramaip
   redisPassword: dramaip
   rabbitmqUser: dramaip
   rabbitmqPassword: dramaip

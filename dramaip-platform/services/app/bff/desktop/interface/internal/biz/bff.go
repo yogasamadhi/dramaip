@@ -9,6 +9,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -121,6 +122,49 @@ func (u *BFFUsecase) AdoptMobileHandoff(ctx context.Context, accessToken, draftI
 		return nil, status.Error(codes.Unavailable, "mobile_handoff_reply_invalid")
 	}
 	return reply.Draft, nil
+}
+
+func (u *BFFUsecase) CreateProjectSnapshot(ctx context.Context, accessToken, idempotencyKey string, encryptedEnvelope []byte) (*snapshotv1.ProjectSnapshot, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Snapshot.CreateProjectSnapshot(ctx, &snapshotv1.CreateProjectSnapshotRequest{UserId: identity.UserId, IdempotencyKey: strings.TrimSpace(idempotencyKey), EncryptedEnvelope: encryptedEnvelope})
+	if err != nil {
+		return nil, err
+	}
+	if reply.Snapshot == nil {
+		return nil, status.Error(codes.Unavailable, "project_snapshot_reply_invalid")
+	}
+	return reply.Snapshot, nil
+}
+
+func (u *BFFUsecase) ListProjectSnapshots(ctx context.Context, accessToken string) ([]*snapshotv1.ProjectSnapshot, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	reply, err := u.data.Snapshot.ListProjectSnapshots(ctx, &snapshotv1.ListProjectSnapshotsRequest{UserId: identity.UserId})
+	if err != nil {
+		return nil, err
+	}
+	return reply.Snapshots, nil
+}
+
+func (u *BFFUsecase) GetProjectSnapshot(ctx context.Context, accessToken, snapshotID string) (*snapshotv1.GetProjectSnapshotResponse, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Snapshot.GetProjectSnapshot(ctx, &snapshotv1.GetProjectSnapshotRequest{UserId: identity.UserId, SnapshotId: strings.TrimSpace(snapshotID)})
+}
+
+func (u *BFFUsecase) DeleteProjectSnapshot(ctx context.Context, accessToken, snapshotID string) (*snapshotv1.DeleteProjectSnapshotResponse, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Snapshot.DeleteProjectSnapshot(ctx, &snapshotv1.DeleteProjectSnapshotRequest{UserId: identity.UserId, SnapshotId: strings.TrimSpace(snapshotID)})
 }
 
 func (u *BFFUsecase) authenticate(ctx context.Context, accessToken string) (*authv1.AuthReply, context.Context, error) {

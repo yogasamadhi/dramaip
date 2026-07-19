@@ -16,6 +16,29 @@ export interface ProjectSnapshotEnvelope {
   plaintextSha256: string
 }
 
+/** Parse a remote serialized envelope before attempting authenticated
+ * decryption. Metadata validation never exposes project plaintext. */
+export function parseProjectSnapshotEnvelope(value: string): ProjectSnapshotEnvelope {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new Error('项目快照信封格式无效')
+  }
+  const envelope = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}
+  const format = text(envelope.format)
+  const version = envelope.version
+  const cipher = text(envelope.cipher)
+  const nonce = text(envelope.nonce)
+  const ciphertext = text(envelope.ciphertext)
+  const authTag = text(envelope.authTag)
+  const plaintextSha256 = text(envelope.plaintextSha256)
+  if (format !== PROJECT_SNAPSHOT_FORMAT || version !== PROJECT_SNAPSHOT_VERSION || cipher !== CIPHER || !nonce || !ciphertext || !authTag || !plaintextSha256) {
+    throw new Error('项目快照信封格式无效')
+  }
+  return { format, version, cipher, nonce, ciphertext, authTag, plaintextSha256 }
+}
+
 /**
  * The recovery key is the sole portable decryption capability. It is generated
  * locally and must never be sent to a BFF, written to project data, or logged.
@@ -85,3 +108,5 @@ function sha256Base64url(value: Buffer): string {
 function snapshotAAD(): Buffer {
   return Buffer.from(`${PROJECT_SNAPSHOT_FORMAT}:${PROJECT_SNAPSHOT_VERSION}`, 'utf8')
 }
+
+function text(value: unknown): string | undefined { return typeof value === 'string' && value.length > 0 ? value : undefined }
