@@ -12,7 +12,7 @@ import {
   Wand2,
 } from 'lucide-react'
 import type { AdaptationProject, BatchTaskProgress, Episode, Scene, Script, ScriptReview, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS, TASK_WRITE_POLICIES, renderSceneStructureSnapshot, snapshotScene } from '@sdns/core'
+import { parseStructuredScriptImport, serializeScriptMarkdown, TASK_TYPE_LABELS, TASK_WRITE_POLICIES, renderSceneStructureSnapshot, snapshotScene } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,9 +21,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RadarChart } from '@/components/charts/RadarChart'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { StructuredScriptEditor } from '@/components/StructuredScriptEditor'
 import { ProductionWorkspaceShell } from '@/components/shell/ProductionWorkspaceShell'
+import { confirmAction } from '@/components/ConfirmActionDialog'
 import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type ScriptTaskType =
   | 'rewrite_ai_drama_script'
@@ -284,6 +287,10 @@ interface EditorProps {
 
 function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, busy, onGenerate, onTask, onChanged, onEnterShots }: EditorProps) {
   const [tab, setTab] = useState<'script' | 'scenes' | 'review'>('script')
+  const [editorMode, setEditorMode] = useState<'structured' | 'markdown'>('structured')
+  const [importOpen, setImportOpen] = useState(false)
+  const [importPayload, setImportPayload] = useState('')
+  const [importError, setImportError] = useState<string | null>(null)
   const [scenes, setScenes] = useState<Scene[]>([])
   const [review, setReview] = useState<ScriptReview | undefined>(undefined)
   const [busy2, setBusy2] = useState<string | null>(null)
@@ -337,6 +344,17 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
 
   async function splitScenes() {
     if (!script) return
+    const saved = await flushContent()
+    if (!saved) {
+      toast.error('请先保存剧本正文；恢复草稿会保留在本机。')
+      return
+    }
+    if (scenes.length > 0 && !(await confirmAction({
+      title: '重新拆分场景？',
+      description: '现有场景将被新的拆分结果替换。当前正文已先保存，旧场景和镜头结构会保留为可恢复检查点。',
+      confirmLabel: '继续拆分',
+      destructive: true,
+    }))) return
     setBusy2('split')
     const tid = toast.loading('正在拆分场景…')
     try {
@@ -403,15 +421,34 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
 
   async function saveScriptCheckpoint() {
     if (!script) return
+    const saved = await flushContent()
+    if (!saved) {
+      toast.error('保存失败，暂不能创建检查点；本地恢复草稿仍已保留。')
+      return
+    }
     await ipc.contentVersion.create({
       projectId: sourceProjectId,
       targetKind: 'script',
       targetId: script.id,
       label: `剧本检查点：第 ${episode.episodeNumber} 集`,
       source: 'manual_checkpoint',
-      content: script.content,
+      content: draftContent,
     })
     toast.success('已保存剧本检查点')
+  }
+
+  function importStructuredScript() {
+    try {
+      const document = parseStructuredScriptImport(importPayload)
+      updateDraftContent(serializeScriptMarkdown(document))
+      setImportOpen(false)
+      setImportPayload('')
+      setImportError(null)
+      setEditorMode('structured')
+      toast.success('已导入到结构化草稿；自动保存会在本机完成。')
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error))
+    }
   }
 
   const taskBtns: { type: ScriptTaskType; label: string }[] = [
@@ -472,11 +509,21 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                     <Button size="sm" variant="ghost" onClick={discardRecovery}>放弃恢复草稿</Button>
                   )}
                   <div className="ml-auto flex flex-wrap gap-1.5">
+                    <Button size="sm" variant={editorMode === 'structured' ? 'secondary' : 'outline'} onClick={() => setEditorMode('structured')} aria-pressed={editorMode === 'structured'}>
+                      结构化
+                    </Button>
+                    <Button size="sm" variant={editorMode === 'markdown' ? 'secondary' : 'outline'} onClick={() => setEditorMode('markdown')} aria-pressed={editorMode === 'markdown'}>
+                      Markdown
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setImportError(null); setImportOpen(true) }}>
+                      导入文本/JSON
+                    </Button>
                     {taskBtns.map((b) => (
                       <Button
                         key={b.type}
                         size="sm"
                         variant="ghost"
+                        className="dark:!text-slate-200"
                         disabled={busy !== null || busy2 !== null}
                         onClick={() => onTask(b.type)}
                       >
@@ -484,27 +531,32 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                         {b.label}
                       </Button>
                     ))}
-                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('run_quality_gate')}>
+                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('run_quality_gate')}>
                       <Sparkles className="h-3.5 w-3.5" />
                       质量闸门
                     </Button>
-                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('simulate_audience_reaction')}>
+                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('simulate_audience_reaction')}>
                       <Sparkles className="h-3.5 w-3.5" />
                       观众模拟
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={saveScriptCheckpoint}>
+                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" onClick={saveScriptCheckpoint}>
                       <Pencil className="h-3.5 w-3.5" />
                       检查点
                     </Button>
                   </div>
                 </div>
-                <Textarea
-                  value={draftContent}
-                  onChange={(e) => updateDraftContent(e.target.value)}
-                  rows={26}
-                  className="font-mono text-xs leading-relaxed"
-                  placeholder="剧本正文（Markdown）…"
-                />
+                {editorMode === 'structured' ? (
+                  <StructuredScriptEditor content={draftContent} onChange={updateDraftContent} disabled={busy !== null || busy2 !== null} />
+                ) : (
+                  <Textarea
+                    value={draftContent}
+                    onChange={(e) => updateDraftContent(e.target.value)}
+                    rows={26}
+                    className="font-mono text-xs leading-relaxed"
+                    placeholder="剧本正文（Markdown）…"
+                    aria-label="剧本 Markdown 正文"
+                  />
+                )}
                 <div className="flex justify-end gap-2">
                   <Button size="sm" variant="outline" onClick={() => ipc.export.scriptMarkdown(script.id)}>
                     <Download /> 导出 Markdown
@@ -525,6 +577,20 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                   restoreDisabled={isDirty}
                   onRestored={onChanged}
                 />
+                <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) setImportError(null) }}>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>导入剧本文本或结构化 JSON</DialogTitle>
+                      <DialogDescription>可粘贴旧 Markdown、结构化剧本 JSON，或现有的剧本导出 JSON。导入先进入本地草稿，确认保存前不会覆盖原剧本。</DialogDescription>
+                    </DialogHeader>
+                    <Textarea value={importPayload} onChange={(event) => setImportPayload(event.target.value)} rows={16} className="font-mono text-xs" placeholder="粘贴 Markdown 或 JSON…" aria-label="导入剧本文本" />
+                    {importError && <p className="text-sm text-destructive" role="alert">{importError}</p>}
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setImportOpen(false)}>取消</Button>
+                      <Button onClick={importStructuredScript}>导入到草稿</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
 
