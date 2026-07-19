@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Ban, Bot, Clapperboard, ListChecks, Loader2, RefreshCw, TimerReset } from 'lucide-react'
@@ -8,14 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { isLongTaskActive, LONG_TASK_STATUS_LABEL, longTaskRecoveryMessage } from '@/lib/taskStatus'
 
-const STATUS_LABEL: Record<LongTaskStatus, string> = {
-  pending: '排队中',
-  running: '运行中',
-  success: '成功',
-  failed: '失败',
-  canceled: '已取消',
-}
+const STATUS_LABEL: Record<LongTaskStatus, string> = LONG_TASK_STATUS_LABEL
 
 const STATUS_VARIANT: Record<LongTaskStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   pending: 'secondary',
@@ -56,20 +51,27 @@ export function TaskMonitorPage() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
 
-  async function reload() {
-    setLoading(true)
+  const reload = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true)
     try {
-      setTasks(await ipc.longTask.list())
+      const listed = await ipc.longTask.list()
+      const remoteIds = listed
+        .filter((task) => task.kind === 'video' && task.status === 'pending' && task.relatedEntityId)
+        .map((task) => task.relatedEntityId as string)
+      await Promise.allSettled(remoteIds.map((id) => ipc.videoTask.checkStatus(id)))
+      setTasks(remoteIds.length > 0 ? await ipc.longTask.list() : listed)
     } catch (error) {
-      toast.error('任务列表读取失败：' + (error instanceof Error ? error.message : String(error)))
+      if (showLoading) toast.error('任务列表读取失败：' + (error instanceof Error ? error.message : String(error)))
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void reload()
-  }, [])
+    const timer = window.setInterval(() => void reload(false), 5_000)
+    return () => window.clearInterval(timer)
+  }, [reload])
 
   async function cancelTask(task: LongTask) {
     if (!window.confirm(`取消任务「${task.title}」？`)) return
@@ -81,7 +83,7 @@ export function TaskMonitorPage() {
         return
       }
       toast.success('任务已取消')
-      await reload()
+      await reload(false)
     } finally {
       setBusy(null)
     }
@@ -96,7 +98,7 @@ export function TaskMonitorPage() {
         return
       }
       toast.success('已重新提交任务')
-      await reload()
+      await reload(false)
     } finally {
       setBusy(null)
     }
@@ -105,7 +107,7 @@ export function TaskMonitorPage() {
   return (
     <div className="flex h-screen flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b px-6 py-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+        <Button variant="ghost" size="icon" aria-label="返回设置" onClick={() => navigate('/settings')}>
           <ArrowLeft />
         </Button>
         <TimerReset className="h-5 w-5" />
@@ -153,6 +155,9 @@ export function TaskMonitorPage() {
                             {task.taskType && <span>{task.taskType}</span>}
                             {task.relatedEntityId && <span className="truncate">关联：{task.relatedEntityId}</span>}
                           </div>
+                          {longTaskRecoveryMessage(task) && (
+                            <div className="mt-2 text-xs text-muted-foreground">{longTaskRecoveryMessage(task)}</div>
+                          )}
                           {task.errorMessage && <div className="mt-2 text-xs text-destructive">{task.errorMessage}</div>}
                           <BatchProgressBlock progress={batchProgress(task)} />
                         </div>
@@ -168,7 +173,7 @@ export function TaskMonitorPage() {
                               {task.kind === 'batch' ? '继续' : '重试'}
                             </Button>
                           )}
-                          {(task.status === 'pending' || task.status === 'running') && (
+                          {isLongTaskActive(task) && (
                             <Button
                               variant="outline"
                               size="sm"

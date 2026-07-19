@@ -3,13 +3,14 @@ import { app, BrowserWindow, shell, session } from 'electron'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DB_FILE_NAME } from '@sdns/core'
-import { initDatabase, safeInitDatabase } from './db'
+import { getRepos, initDatabase, safeInitDatabase } from './db'
 import { registerAllIpc } from './ipc'
 import { installProcessLoggers, logger } from './logger'
 import { runDesktopE2eSmoke } from './e2e-smoke'
 import { runDesktopUiBaseline } from './ui-baseline'
 import { canOpenExternalUrl, createContentSecurityPolicy } from './security-policy'
 import { initializeCloudAuth } from './cloud-auth'
+import { reconcileLongTasks } from './task-recovery'
 
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
@@ -78,9 +79,15 @@ function writePackageSmokeResult(payload: Record<string, unknown>): void {
   )
 }
 
+function recoverPersistedLongTasks(): void {
+  const summary = reconcileLongTasks(getRepos())
+  if (summary.scanned > 0) logger.info('tasks', 'startup task recovery completed', summary)
+}
+
 async function runPackageSmoke(): Promise<void> {
   try {
     await initDatabase()
+    recoverPersistedLongTasks()
     registerAllIpc()
     const dbPath = join(app.getPath('userData'), DB_FILE_NAME)
     if (!existsSync(dbPath)) throw new Error(`数据库文件未创建：${dbPath}`)
@@ -146,6 +153,7 @@ function waitForWindowLoaded(mainWindow: BrowserWindow): Promise<void> {
 async function runE2eSmoke(): Promise<void> {
   try {
     await initDatabase()
+    recoverPersistedLongTasks()
     registerAllIpc()
     const mainWindow = createWindow({ show: false })
     await waitForWindowLoaded(mainWindow)
@@ -186,6 +194,7 @@ async function runUiBaseline(): Promise<void> {
     const outputDir = process.env[UI_BASELINE_OUTPUT_ENV] ?? getSmokeArg('sdns-ui-baseline-output')
     if (!outputDir) throw new Error('UI 基线缺少输出目录')
     await initDatabase()
+    recoverPersistedLongTasks()
     registerAllIpc()
     const mainWindow = createWindow({ show: false })
     await waitForWindowLoaded(mainWindow)
@@ -284,6 +293,7 @@ app.whenReady().then(async () => {
     return
   }
   await safeInitDatabase()
+  recoverPersistedLongTasks()
   await initializeCloudAuth()
   registerAllIpc()
   createWindow()

@@ -261,6 +261,17 @@ export async function runDesktopUiBaseline(
       reducedMotion: true,
     },
     {
+      name: 'task-monitor-recovery-1320-light',
+      hash: '#/settings/tasks',
+      expectedText: 'UI 基线失败任务',
+      readyText: '最近任务',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
       name: 'appearance-system-1320-light',
       hash: '#/settings/appearance',
       expectedText: '外观与编辑偏好',

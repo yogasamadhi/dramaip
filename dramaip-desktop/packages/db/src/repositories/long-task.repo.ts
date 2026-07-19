@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { DB } from '../client'
 import { longTasks } from '../schema'
 import type { LongTask, LongTaskKind, LongTaskStatus, OptionalId } from '@sdns/core'
@@ -69,6 +69,21 @@ export function listLongTasks(db: DB, limit = 100): LongTask[] {
     .from(longTasks)
     .orderBy(desc(longTasks.updatedAt))
     .limit(limit)
+    .all()
+    .map((row) => rowToEntity(row as LongTaskRow))
+}
+
+/**
+ * 仅返回应用需要在启动时重新确认的未完成任务。
+ *
+ * 任务恢复不能依赖内存中的 AbortController；进程退出后，只有持久化状态才是可信来源。
+ */
+export function listIncompleteLongTasks(db: DB): LongTask[] {
+  return db
+    .select()
+    .from(longTasks)
+    .where(inArray(longTasks.status, ['pending', 'running']))
+    .orderBy(desc(longTasks.updatedAt))
     .all()
     .map((row) => rowToEntity(row as LongTaskRow))
 }
