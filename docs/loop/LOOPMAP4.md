@@ -357,7 +357,7 @@ make platform-e2e
 | LM4-22 | P2 | Desktop/改编产品 | done | 统一改编到交付的生产壳和分集规划体验 | adaptation/script/shot/video routes、shell | LM4-15、LM4-16、LM4-21、LM4-12R |
 | LM4-23 | P2 | Desktop/剧本编辑 | done | 交付结构化、可保存、可审稿的剧本编辑器 | ScriptWorkspace、script model/version/export | LM4-01、LM4-22 |
 | LM4-24 | P2 | Desktop/分镜产品 | done | 交付 Storyboard 和分镜素材 Inspector | ShotWorkspace、assets、drag/drop、versions | LM4-05、LM4-22、LM4-23 |
-| LM4-25 | P2 | Desktop/视频产品 | doing | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
+| LM4-25 | P2 | Desktop/视频产品 | done | 交付可预估、可排队、自动轮询和多结果对比的视频台 | VideoGeneration、tasks/results、task center | LM4-11、LM4-24 |
 | LM4-26 | P2 | Video Provider | todo | 接通首个真实国内视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-25 |
 | LM4-27 | P2 | Video Provider | todo | 接通第二个独立真实视频供应商 | provider adapter、settings、fixtures、sandbox | LM4-26 |
 | LM4-28 | P2 | Web/AI 产品 | todo | 将 Web AI 交付为作者可用的模型、预检、流式会话体验 | Web chat、Web BFF、AI Gateway、SDK | LM4-12R、LM4-18、LM4-21 |
@@ -1369,4 +1369,20 @@ Push: f4fe7e8 pushed to origin/main successfully on 2026-07-20; this completion 
 Loop branch cleanup: Local loop/lm4-24-storyboard-asset-inspector deleted after the main push; no remote loop branch was created.
 Current branch/worktree: main; clean before completion-record creation (ignored local build, package and retained UI artifacts excluded).
 Notes: Asset selection is deliberately a reference boundary only. Video generation queues and real provider submission remain LM4-25–27 work.
+```
+
+```text
+Loop: LM4-25
+Target branch: main
+Loop branch: loop/lm4-25-video-production-console
+Commit(s): ed664b0 feat: add video production console
+Merge commit: cc4ef5b merge: LM4-25 video production console
+Verification: Before merge: Desktop `pnpm format:check`; `pnpm typecheck`; `pnpm test:unit` (154/154); targeted video capability/estimate, workflow guide, IPC contract and delivery-export tests; Electron-runtime DB migration replay (9/9) and DB smoke; `pnpm test:e2e`; `pnpm test:ui` (28 screenshots, 0 accessibility observations); and `git diff --check`. After merge: `pnpm typecheck`; `pnpm test:unit` (154/154); `pnpm test:e2e:skip-build`; `pnpm test:ui:skip-build -- --output=artifacts/lm4-25` (28 screenshots, 0 accessibility observations); and `git diff --check origin/main...HEAD`. All listed checks passed. The aggregate `pnpm test` wrapper remains unsuitable in this environment because its Node 22 native rebuild cannot download headers through the available HTTPS path; the Electron-runtime migration and DB smoke alternatives passed.
+UI/manual evidence: The Video workspace presents a provider/model preflight with duration, expected wait, reference count, local cost estimate and plain-language cancellation semantics. It blocks unconfigured real providers before submission, supports one-shot and duplicate-safe batch queues, automatically refreshes active work from one global polling loop, and keeps a manual refresh escape hatch. Successful results can be compared in synchronized 2-up/3-up players, viewed fullscreen and explicitly marked as the one best delivery result. The retained `video-production-console-1024-light` and `video-failed-task-1320-reduced` images show the comparison, selection, retry, local-stop-tracking and reduced-motion states; manual review found no critical overflow or unreadable primary action. Result entry and best-selection use one-shot motion; repeating motion is restricted to the global refresh state and is disabled under reduced motion.
+Diff review: Reviewed provider capability preflight, bounded estimate parsing and cost rounding, persisted task/long-task linkage, stale-response guard, duplicate-safe batch queue, task polling, honest local-only cancellation, result comparison and best-result selection. Delivery export only retains the selected successful result as a narrow pointer and excludes raw provider metadata. No remote provider cancellation claim, credential, user content, local database, retained screenshot, package artifact or ignored output was committed.
+Remote sync: Fetched and fast-forward checked origin/main before branch creation and again before merge; main had no intervening remote commits.
+Push: cc4ef5b pushed to origin/main successfully on 2026-07-20; this completion record is pushed immediately after its own commit.
+Loop branch cleanup: Local loop/lm4-25-video-production-console deleted after the main push; no remote loop branch was created.
+Current branch/worktree: main; clean before completion-record creation (ignored local build and retained UI artifacts excluded).
+Notes: This loop provides capability-gated production plumbing and a fully testable mock path, not a false claim of a real domestic provider. LM4-26 and LM4-27 remain separately accountable for sandbox-verified provider adapters, credentials and rollback behavior.
 ```
