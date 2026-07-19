@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	envelopev1 "github.com/dramaip/dramaip-platform/services/events/envelope/v1"
@@ -186,30 +187,38 @@ func (r *ReportingRepo) Overview(ctx context.Context) (Overview, error) {
 	return row, err
 }
 
-func (r *ReportingRepo) ListUsers(ctx context.Context, limit int) ([]UserSummary, error) {
+func (r *ReportingRepo) ListUsers(ctx context.Context, limit int, cursor, query string) ([]UserSummary, string, error) {
 	var rows []UserSummary
-	err := r.data.DB.WithContext(ctx).Raw(`SELECT user_id::text AS user_id, first_seen_at::text AS first_seen_at, last_seen_at::text AS last_seen_at, total_tokens, last_plan_code FROM reporting.user_summaries ORDER BY last_seen_at DESC, user_id DESC LIMIT ?`, boundedLimit(limit)).Scan(&rows).Error
-	return rows, err
+	limit, offset := page(limit, cursor)
+	err := r.data.DB.WithContext(ctx).Raw(`SELECT user_id::text AS user_id, first_seen_at::text AS first_seen_at, last_seen_at::text AS last_seen_at, total_tokens, last_plan_code FROM reporting.user_summaries WHERE (? = '' OR user_id::text ILIKE '%' || ? || '%' OR last_plan_code ILIKE '%' || ? || '%') ORDER BY last_seen_at DESC, user_id DESC LIMIT ? OFFSET ?`, strings.TrimSpace(query), strings.TrimSpace(query), strings.TrimSpace(query), limit+1, offset).Scan(&rows).Error
+	return pageRows(rows, limit, offset), nextCursor(rows, limit, offset), err
 }
-func (r *ReportingRepo) ListOrders(ctx context.Context, limit int) ([]OrderSummary, error) {
+func (r *ReportingRepo) ListOrders(ctx context.Context, limit int, cursor, query string) ([]OrderSummary, string, error) {
 	var rows []OrderSummary
-	err := r.data.DB.WithContext(ctx).Raw(`SELECT order_id::text AS order_id, user_id::text AS user_id, plan_code, provider, amount, currency, status, COALESCE(subscription_id::text, '') AS subscription_id, updated_at::text AS updated_at FROM reporting.order_summaries ORDER BY updated_at DESC, order_id DESC LIMIT ?`, boundedLimit(limit)).Scan(&rows).Error
-	return rows, err
+	limit, offset := page(limit, cursor)
+	err := r.data.DB.WithContext(ctx).Raw(`SELECT order_id::text AS order_id, user_id::text AS user_id, plan_code, provider, amount, currency, status, COALESCE(subscription_id::text, '') AS subscription_id, updated_at::text AS updated_at FROM reporting.order_summaries WHERE (? = '' OR order_id::text ILIKE '%' || ? || '%' OR user_id::text ILIKE '%' || ? || '%' OR plan_code ILIKE '%' || ? || '%') ORDER BY updated_at DESC, order_id DESC LIMIT ? OFFSET ?`, strings.TrimSpace(query), strings.TrimSpace(query), strings.TrimSpace(query), strings.TrimSpace(query), limit+1, offset).Scan(&rows).Error
+	return pageRows(rows, limit, offset), nextCursor(rows, limit, offset), err
 }
-func (r *ReportingRepo) ListSubscriptions(ctx context.Context, limit int) ([]SubscriptionSummary, error) {
+func (r *ReportingRepo) ListSubscriptions(ctx context.Context, limit int, cursor, query string) ([]SubscriptionSummary, string, error) {
 	var rows []SubscriptionSummary
-	err := r.data.DB.WithContext(ctx).Raw(`SELECT subscription_id::text AS subscription_id, user_id::text AS user_id, plan_code, status, COALESCE(period_start::text, '') AS period_start, COALESCE(period_end::text, '') AS period_end, updated_at::text AS updated_at FROM reporting.subscription_summaries ORDER BY updated_at DESC, subscription_id DESC LIMIT ?`, boundedLimit(limit)).Scan(&rows).Error
-	return rows, err
+	limit, offset := page(limit, cursor)
+	err := r.data.DB.WithContext(ctx).Raw(`SELECT subscription_id::text AS subscription_id, user_id::text AS user_id, plan_code, status, COALESCE(period_start::text, '') AS period_start, COALESCE(period_end::text, '') AS period_end, updated_at::text AS updated_at FROM reporting.subscription_summaries WHERE (? = '' OR subscription_id::text ILIKE '%' || ? || '%' OR user_id::text ILIKE '%' || ? || '%' OR plan_code ILIKE '%' || ? || '%') ORDER BY updated_at DESC, subscription_id DESC LIMIT ? OFFSET ?`, strings.TrimSpace(query), strings.TrimSpace(query), strings.TrimSpace(query), strings.TrimSpace(query), limit+1, offset).Scan(&rows).Error
+	return pageRows(rows, limit, offset), nextCursor(rows, limit, offset), err
 }
-func (r *ReportingRepo) ListExceptions(ctx context.Context, limit int, includeResolved bool) ([]ProjectionException, error) {
+func (r *ReportingRepo) ListExceptions(ctx context.Context, limit int, includeResolved bool, cursor, search string) ([]ProjectionException, string, error) {
 	var rows []ProjectionException
+	limit, offset := page(limit, cursor)
 	query := `SELECT id::text AS id, event_id, event_type, status, summary, trace_id, created_at::text AS created_at, COALESCE(resolved_at::text, '') AS resolved_at, COALESCE(resolved_by::text, '') AS resolved_by, resolution_reason FROM reporting.projection_exceptions`
+	args := []any{}
 	if !includeResolved {
 		query += ` WHERE status = 'open'`
+	} else {
+		query += ` WHERE 1 = 1`
 	}
-	query += ` ORDER BY created_at DESC, id DESC LIMIT ?`
-	err := r.data.DB.WithContext(ctx).Raw(query, boundedLimit(limit)).Scan(&rows).Error
-	return rows, err
+	query += ` AND (? = '' OR event_id ILIKE '%' || ? || '%' OR event_type ILIKE '%' || ? || '%' OR summary ILIKE '%' || ? || '%') ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+	args = append(args, strings.TrimSpace(search), strings.TrimSpace(search), strings.TrimSpace(search), strings.TrimSpace(search), limit+1, offset)
+	err := r.data.DB.WithContext(ctx).Raw(query, args...).Scan(&rows).Error
+	return pageRows(rows, limit, offset), nextCursor(rows, limit, offset), err
 }
 
 func (r *ReportingRepo) ResolveException(ctx context.Context, exceptionID, actorID, reason string) (ProjectionException, error) {
@@ -233,4 +242,24 @@ func boundedLimit(value int) int {
 		return 50
 	}
 	return value
+}
+func page(limit int, cursor string) (int, int) {
+	limit = boundedLimit(limit)
+	offset, err := strconv.Atoi(strings.TrimSpace(cursor))
+	if err != nil || offset < 0 || offset > 100000 {
+		offset = 0
+	}
+	return limit, offset
+}
+func nextCursor[T any](rows []T, limit, offset int) string {
+	if len(rows) > limit {
+		return strconv.Itoa(offset + limit)
+	}
+	return ""
+}
+func pageRows[T any](rows []T, limit, _ int) []T {
+	if len(rows) > limit {
+		return rows[:limit]
+	}
+	return rows
 }

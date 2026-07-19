@@ -25,7 +25,7 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *userbiz.UserUsecase) *khttp.Server {
 func NewGRPCServer(cfg *conf.Bootstrap, svc *usersvc.UserService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("user-service")),
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "admin-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("user-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
 		panic(fmt.Sprintf("user gRPC mTLS: %v", err))

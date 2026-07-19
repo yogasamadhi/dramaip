@@ -608,6 +608,12 @@ services:
       ADMIN_JWT_JWKS_FILE: ${ADMIN_JWT_JWKS_FILE:-}
       ADMIN_JWT_ACCESS_TTL: ${ADMIN_JWT_ACCESS_TTL:-10m}
       REPORTING_GRPC_ENDPOINT: reporting:9108
+      AUTH_GRPC_ENDPOINT: auth:9101
+      USER_GRPC_ENDPOINT: user:9102
+      BILLING_GRPC_ENDPOINT: billing:9103
+      QUOTA_GRPC_ENDPOINT: quota:9104
+      AI_GATEWAY_GRPC_ENDPOINT: ai-gateway:9105
+      NOTIFICATION_GRPC_ENDPOINT: notification:9106
       ADMIN_BFF_GRPC_DIAL_TIMEOUT: ${ADMIN_BFF_GRPC_DIAL_TIMEOUT:-15s}
       OTEL_SERVICE_NAME: dramaip-admin-bff
     depends_on:
@@ -618,6 +624,18 @@ services:
       otel-collector:
         condition: service_started
       reporting:
+        condition: service_started
+      auth:
+        condition: service_started
+      user:
+        condition: service_started
+      billing:
+        condition: service_started
+      quota:
+        condition: service_started
+      ai-gateway:
+        condition: service_started
+      notification:
         condition: service_started
 
   # Application external entry — the ONLY API service clients may reach from outside.

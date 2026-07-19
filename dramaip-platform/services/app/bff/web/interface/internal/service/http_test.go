@@ -731,6 +731,9 @@ func (fakeAuth) CreateDesktopAuthorizationCode(_ context.Context, req *authv1.Cr
 func (fakeAuth) ExchangeDesktopAuthorizationCode(context.Context, *authv1.ExchangeDesktopAuthorizationCodeRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
 	return nil, status.Error(codes.Unimplemented, "desktop exchange")
 }
+func (fakeAuth) SetUserStatus(_ context.Context, req *authv1.SetUserStatusRequest, _ ...grpc.CallOption) (*authv1.SetUserStatusReply, error) {
+	return &authv1.SetUserStatusReply{UserId: req.UserId, Status: req.Status}, nil
+}
 
 type fakeUser struct{}
 
@@ -742,6 +745,9 @@ func (fakeUser) EnsureProfile(context.Context, *userv1.EnsureProfileRequest, ...
 }
 func (fakeUser) UpdateProfile(_ context.Context, req *userv1.UpdateProfileRequest, _ ...grpc.CallOption) (*userv1.UserProfile, error) {
 	return &userv1.UserProfile{Id: "u1", Email: "creator@example.com", DisplayName: req.DisplayName, Locale: req.Locale, Timezone: req.Timezone, Status: "active"}, nil
+}
+func (fakeUser) SetProfileStatus(_ context.Context, req *userv1.SetProfileStatusRequest, _ ...grpc.CallOption) (*userv1.UserProfile, error) {
+	return &userv1.UserProfile{Id: req.UserId, Email: "creator@example.com", DisplayName: "Development Creator", Status: req.Status}, nil
 }
 
 type fakeBilling struct{}
@@ -888,7 +894,7 @@ func (fakeAI) Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv
 	return &aiv1.ChatReply{Content: "hello", Provider: "test", Model: "test", TotalTokens: 2, RemainingTokens: 100}, nil
 }
 
-func (fakeAI) ChatStream(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error) {
+func (fakeAI) ChatStream(context.Context, *aiv1.ChatStreamRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error) {
 	return &fakeChatStream{events: []*aiv1.ChatStreamEvent{
 		{Type: "delta", RequestId: "stream-42", Delta: "hello"},
 		{Type: "completed", RequestId: "stream-42", Reply: &aiv1.ChatReply{RequestId: "stream-42", Content: "hello", Provider: "test", Model: "test", Status: "succeeded"}},

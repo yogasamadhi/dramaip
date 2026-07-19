@@ -37,6 +37,8 @@ type AdminRepository interface {
 	CreateSession(context.Context, data.SessionInput) error
 	SessionActive(context.Context, string, string) (bool, error)
 	CreateConfirmation(context.Context, data.ConfirmationInput) (data.Confirmation, error)
+	GetOperationConfirmation(context.Context, string, string, string, string) (data.Confirmation, error)
+	ConsumeOperationConfirmation(context.Context, string, string, string, string, string, string, string) error
 	SuspendWithConfirmation(context.Context, string, string, string, string) (data.Principal, error)
 	ConsumeReportingExceptionConfirmation(context.Context, string, string, string, string) (string, error)
 	ListAuditLogs(context.Context, int) ([]data.AuditLog, error)
@@ -115,7 +117,7 @@ func (u *AdminUsecase) Authenticate(ctx context.Context, rawToken string) (Princ
 
 func (u *AdminUsecase) CreateConfirmation(ctx context.Context, actor Principal, action, targetID, reason string) (Confirmation, error) {
 	action, targetID, reason = strings.TrimSpace(action), strings.TrimSpace(targetID), strings.TrimSpace(reason)
-	allowed := (action == "principal.suspend" && actor.Allows("principal.write")) || (action == "reporting.exception.resolve" && actor.Allows("reporting.write"))
+	allowed := actionPermission(action) != "" && actor.Allows(actionPermission(action))
 	if !allowed {
 		return Confirmation{}, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
@@ -127,6 +129,33 @@ func (u *AdminUsecase) CreateConfirmation(ctx context.Context, actor Principal, 
 		return Confirmation{}, err
 	}
 	return Confirmation{ID: confirmation.ID, Action: confirmation.Action, TargetID: confirmation.TargetID, ExpiresAt: confirmation.ExpiresAt}, nil
+}
+
+// PrepareOperation reads but does not consume the second confirmation. The
+// downstream domain action is idempotent using this confirmation ID; only
+// after it succeeds do we consume the confirmation and append Admin evidence.
+// That ordering makes a network retry safe instead of losing the one-time
+// approval before the domain service can apply the action.
+func (u *AdminUsecase) PrepareOperation(ctx context.Context, actor Principal, action, targetID, confirmationID string) (data.Confirmation, error) {
+	if permission := actionPermission(action); permission == "" || !actor.Allows(permission) {
+		return data.Confirmation{}, status.Error(codes.PermissionDenied, "admin_permission_denied")
+	}
+	confirmation, err := u.repo.GetOperationConfirmation(ctx, actor.ID, strings.TrimSpace(action), strings.TrimSpace(targetID), strings.TrimSpace(confirmationID))
+	if errors.Is(err, data.ErrConfirmationInvalid) {
+		return data.Confirmation{}, status.Error(codes.FailedPrecondition, "admin_confirmation_invalid")
+	}
+	return confirmation, err
+}
+
+func (u *AdminUsecase) CompleteOperation(ctx context.Context, actor Principal, action, targetID, confirmationID, resourceType, afterState string) error {
+	if permission := actionPermission(action); permission == "" || !actor.Allows(permission) {
+		return status.Error(codes.PermissionDenied, "admin_permission_denied")
+	}
+	err := u.repo.ConsumeOperationConfirmation(ctx, actor.ID, strings.TrimSpace(action), strings.TrimSpace(targetID), strings.TrimSpace(confirmationID), strings.TrimSpace(resourceType), strings.TrimSpace(afterState), traceOrRequestID(ctx))
+	if errors.Is(err, data.ErrConfirmationInvalid) {
+		return status.Error(codes.FailedPrecondition, "admin_confirmation_invalid")
+	}
+	return err
 }
 
 // ConsumeReportingExceptionConfirmation records a durable audit request
@@ -199,10 +228,21 @@ func permissionsFor(roles []string) []string {
 			set["audit.read"] = struct{}{}
 		case "operator":
 			set["audit.read"] = struct{}{}
+			set["reporting.write"] = struct{}{}
+			set["customer.write"] = struct{}{}
+			set["notification.write"] = struct{}{}
+		case "finance_admin":
+			set["audit.read"] = struct{}{}
+			set["billing.write"] = struct{}{}
+			set["quota.write"] = struct{}{}
 		case "security_admin":
 			set["audit.read"] = struct{}{}
 			set["principal.write"] = struct{}{}
 			set["reporting.write"] = struct{}{}
+			set["customer.write"] = struct{}{}
+			set["billing.write"] = struct{}{}
+			set["quota.write"] = struct{}{}
+			set["notification.write"] = struct{}{}
 		}
 	}
 	out := make([]string, 0, len(set))
@@ -211,6 +251,25 @@ func permissionsFor(roles []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func actionPermission(action string) string {
+	switch strings.TrimSpace(action) {
+	case "principal.suspend":
+		return "principal.write"
+	case "reporting.exception.resolve":
+		return "reporting.write"
+	case "customer.status.set":
+		return "customer.write"
+	case "billing.refund.request", "billing.subscription.resume":
+		return "billing.write"
+	case "quota.adjust":
+		return "quota.write"
+	case "notification.send":
+		return "notification.write"
+	default:
+		return ""
+	}
 }
 func tokenHash(value string) string {
 	sum := sha256.Sum256([]byte(value))

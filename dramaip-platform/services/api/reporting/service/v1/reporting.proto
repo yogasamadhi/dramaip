@@ -39,9 +39,12 @@ message UserSummary {
 
 message ListUsersRequest {
   int32 limit = 1;
+  string query = 2;
+  string cursor = 3;
 }
 message ListUsersResponse {
   repeated UserSummary users = 1;
+  string next_cursor = 2;
 }
 
 message OrderSummary {
@@ -58,9 +61,12 @@ message OrderSummary {
 
 message ListOrdersRequest {
   int32 limit = 1;
+  string query = 2;
+  string cursor = 3;
 }
 message ListOrdersResponse {
   repeated OrderSummary orders = 1;
+  string next_cursor = 2;
 }
 
 message SubscriptionSummary {
@@ -75,9 +81,12 @@ message SubscriptionSummary {
 
 message ListSubscriptionsRequest {
   int32 limit = 1;
+  string query = 2;
+  string cursor = 3;
 }
 message ListSubscriptionsResponse {
   repeated SubscriptionSummary subscriptions = 1;
+  string next_cursor = 2;
 }
 
 message ProjectionException {
@@ -96,9 +105,12 @@ message ProjectionException {
 message ListExceptionsRequest {
   int32 limit = 1;
   bool include_resolved = 2;
+  string query = 3;
+  string cursor = 4;
 }
 message ListExceptionsResponse {
   repeated ProjectionException exceptions = 1;
+  string next_cursor = 2;
 }
 
 message ResolveExceptionRequest {

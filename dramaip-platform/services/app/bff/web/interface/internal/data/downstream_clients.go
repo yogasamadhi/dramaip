@@ -23,7 +23,7 @@ type AIClient interface {
 	ListModels(context.Context, *aiv1.ListModelsRequest, ...grpc.CallOption) (*aiv1.ListModelsReply, error)
 	Preflight(context.Context, *aiv1.PreflightRequest, ...grpc.CallOption) (*aiv1.PreflightReply, error)
 	Chat(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (*aiv1.ChatReply, error)
-	ChatStream(context.Context, *aiv1.ChatRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error)
+	ChatStream(context.Context, *aiv1.ChatStreamRequest, ...grpc.CallOption) (aiv1.AiGatewayService_ChatStreamClient, error)
 	CancelChat(context.Context, *aiv1.CancelChatRequest, ...grpc.CallOption) (*aiv1.CancelChatReply, error)
 	GetChatStatus(context.Context, *aiv1.GetChatStatusRequest, ...grpc.CallOption) (*aiv1.GetChatStatusReply, error)
 }

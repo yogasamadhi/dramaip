@@ -8,6 +8,9 @@ service UserService {
   rpc GetProfile(GetProfileRequest) returns (UserProfile);
   rpc EnsureProfile(EnsureProfileRequest) returns (UserProfile);
   rpc UpdateProfile(UpdateProfileRequest) returns (UserProfile);
+  // Admin BFF only: mirrors the authoritative auth-account state into the
+  // customer profile after its separate account-status domain write succeeds.
+  rpc SetProfileStatus(SetProfileStatusRequest) returns (UserProfile);
 }
 
 message GetProfileRequest {
@@ -40,4 +43,12 @@ message UpdateProfileRequest {
   string avatar_url = 4;
   string locale = 5;
   string timezone = 6;
+}
+
+message SetProfileStatusRequest {
+  string user_id = 1;
+  string status = 2;
+  string operator_id = 3;
+  string reason = 4;
+  string idempotency_key = 5;
 }

@@ -220,6 +220,8 @@ func (x *UserSummary) GetLastPlanCode() string {
 type ListUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -261,9 +263,24 @@ func (x *ListUsersRequest) GetLimit() int32 {
 	return 0
 }
 
+func (x *ListUsersRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListUsersRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type ListUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*UserSummary         `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -303,6 +320,13 @@ func (x *ListUsersResponse) GetUsers() []*UserSummary {
 		return x.Users
 	}
 	return nil
+}
+
+func (x *ListUsersResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type OrderSummary struct {
@@ -416,6 +440,8 @@ func (x *OrderSummary) GetUpdatedAt() string {
 type ListOrdersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -457,9 +483,24 @@ func (x *ListOrdersRequest) GetLimit() int32 {
 	return 0
 }
 
+func (x *ListOrdersRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListOrdersRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type ListOrdersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Orders        []*OrderSummary        `protobuf:"bytes,1,rep,name=orders,proto3" json:"orders,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -499,6 +540,13 @@ func (x *ListOrdersResponse) GetOrders() []*OrderSummary {
 		return x.Orders
 	}
 	return nil
+}
+
+func (x *ListOrdersResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type SubscriptionSummary struct {
@@ -596,6 +644,8 @@ func (x *SubscriptionSummary) GetUpdatedAt() string {
 type ListSubscriptionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Query         string                 `protobuf:"bytes,2,opt,name=query,proto3" json:"query,omitempty"`
+	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -637,9 +687,24 @@ func (x *ListSubscriptionsRequest) GetLimit() int32 {
 	return 0
 }
 
+func (x *ListSubscriptionsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListSubscriptionsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type ListSubscriptionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Subscriptions []*SubscriptionSummary `protobuf:"bytes,1,rep,name=subscriptions,proto3" json:"subscriptions,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -679,6 +744,13 @@ func (x *ListSubscriptionsResponse) GetSubscriptions() []*SubscriptionSummary {
 		return x.Subscriptions
 	}
 	return nil
+}
+
+func (x *ListSubscriptionsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type ProjectionException struct {
@@ -801,6 +873,8 @@ type ListExceptionsRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Limit           int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	IncludeResolved bool                   `protobuf:"varint,2,opt,name=include_resolved,json=includeResolved,proto3" json:"include_resolved,omitempty"`
+	Query           string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Cursor          string                 `protobuf:"bytes,4,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -849,9 +923,24 @@ func (x *ListExceptionsRequest) GetIncludeResolved() bool {
 	return false
 }
 
+func (x *ListExceptionsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListExceptionsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 type ListExceptionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Exceptions    []*ProjectionException `protobuf:"bytes,1,rep,name=exceptions,proto3" json:"exceptions,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -891,6 +980,13 @@ func (x *ListExceptionsResponse) GetExceptions() []*ProjectionException {
 		return x.Exceptions
 	}
 	return nil
+}
+
+func (x *ListExceptionsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type ResolveExceptionRequest struct {
@@ -1025,11 +1121,15 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\flast_seen_at\x18\x03 \x01(\tR\n" +
 	"lastSeenAt\x12!\n" +
 	"\ftotal_tokens\x18\x04 \x01(\x03R\vtotalTokens\x12$\n" +
-	"\x0elast_plan_code\x18\x05 \x01(\tR\flastPlanCode\"(\n" +
+	"\x0elast_plan_code\x18\x05 \x01(\tR\flastPlanCode\"V\n" +
 	"\x10ListUsersRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit\"T\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"u\n" +
 	"\x11ListUsersResponse\x12?\n" +
-	"\x05users\x18\x01 \x03(\v2).dramaip.reporting.service.v1.UserSummaryR\x05users\"\x8f\x02\n" +
+	"\x05users\x18\x01 \x03(\v2).dramaip.reporting.service.v1.UserSummaryR\x05users\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"\x8f\x02\n" +
 	"\fOrderSummary\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
@@ -1040,11 +1140,15 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\x06status\x18\a \x01(\tR\x06status\x12'\n" +
 	"\x0fsubscription_id\x18\b \x01(\tR\x0esubscriptionId\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\tR\tupdatedAt\")\n" +
+	"updated_at\x18\t \x01(\tR\tupdatedAt\"W\n" +
 	"\x11ListOrdersRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit\"X\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"y\n" +
 	"\x12ListOrdersResponse\x12B\n" +
-	"\x06orders\x18\x01 \x03(\v2*.dramaip.reporting.service.v1.OrderSummaryR\x06orders\"\xed\x01\n" +
+	"\x06orders\x18\x01 \x03(\v2*.dramaip.reporting.service.v1.OrderSummaryR\x06orders\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"\xed\x01\n" +
 	"\x13SubscriptionSummary\x12'\n" +
 	"\x0fsubscription_id\x18\x01 \x01(\tR\x0esubscriptionId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
@@ -1054,11 +1158,15 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\n" +
 	"period_end\x18\x06 \x01(\tR\tperiodEnd\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\a \x01(\tR\tupdatedAt\"0\n" +
+	"updated_at\x18\a \x01(\tR\tupdatedAt\"^\n" +
 	"\x18ListSubscriptionsRequest\x12\x14\n" +
-	"\x05limit\x18\x01 \x01(\x05R\x05limit\"t\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x14\n" +
+	"\x05query\x18\x02 \x01(\tR\x05query\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\x95\x01\n" +
 	"\x19ListSubscriptionsResponse\x12W\n" +
-	"\rsubscriptions\x18\x01 \x03(\v21.dramaip.reporting.service.v1.SubscriptionSummaryR\rsubscriptions\"\xba\x02\n" +
+	"\rsubscriptions\x18\x01 \x03(\v21.dramaip.reporting.service.v1.SubscriptionSummaryR\rsubscriptions\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"\xba\x02\n" +
 	"\x13ProjectionException\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x1d\n" +
@@ -1074,14 +1182,18 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\vresolved_by\x18\t \x01(\tR\n" +
 	"resolvedBy\x12+\n" +
 	"\x11resolution_reason\x18\n" +
-	" \x01(\tR\x10resolutionReason\"X\n" +
+	" \x01(\tR\x10resolutionReason\"\x86\x01\n" +
 	"\x15ListExceptionsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12)\n" +
-	"\x10include_resolved\x18\x02 \x01(\bR\x0fincludeResolved\"k\n" +
+	"\x10include_resolved\x18\x02 \x01(\bR\x0fincludeResolved\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x16\n" +
+	"\x06cursor\x18\x04 \x01(\tR\x06cursor\"\x8c\x01\n" +
 	"\x16ListExceptionsResponse\x12Q\n" +
 	"\n" +
 	"exceptions\x18\x01 \x03(\v21.dramaip.reporting.service.v1.ProjectionExceptionR\n" +
-	"exceptions\"\x8a\x01\n" +
+	"exceptions\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"\x8a\x01\n" +
 	"\x17ResolveExceptionRequest\x12!\n" +
 	"\fexception_id\x18\x01 \x01(\tR\vexceptionId\x12\x19\n" +
 	"\bactor_id\x18\x02 \x01(\tR\aactorId\x12\x16\n" +

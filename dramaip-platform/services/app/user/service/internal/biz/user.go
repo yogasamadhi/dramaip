@@ -7,6 +7,7 @@ import (
 	"github.com/dramaip/dramaip-platform/services/app/user/service/internal/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gorm.io/gorm"
 )
 
 type UserUsecase struct {
@@ -71,4 +72,19 @@ func (u *UserUsecase) UpdateProfile(ctx context.Context, profile Profile) (Profi
 		ID: row.ID, Email: row.Email, Phone: row.Phone, DisplayName: row.DisplayName,
 		AvatarURL: row.AvatarURL, Locale: row.Locale, Timezone: row.Timezone, Status: row.Status,
 	}, nil
+}
+
+func (u *UserUsecase) SetProfileStatus(ctx context.Context, userID, state, operatorID, reason, idempotencyKey string) (Profile, error) {
+	userID, state = strings.TrimSpace(userID), strings.TrimSpace(state)
+	if userID == "" || strings.TrimSpace(operatorID) == "" || strings.TrimSpace(idempotencyKey) == "" || len(strings.TrimSpace(reason)) < 4 || len(strings.TrimSpace(reason)) > 300 || (state != "active" && state != "suspended") {
+		return Profile{}, status.Error(codes.InvalidArgument, "invalid_profile_status_change")
+	}
+	row, err := u.repo.SetProfileStatus(ctx, userID, state, strings.TrimSpace(operatorID), strings.TrimSpace(reason), strings.TrimSpace(idempotencyKey))
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return Profile{}, status.Error(codes.NotFound, "profile not found")
+		}
+		return Profile{}, err
+	}
+	return Profile{ID: row.ID, Email: row.Email, Phone: row.Phone, DisplayName: row.DisplayName, AvatarURL: row.AvatarURL, Locale: row.Locale, Timezone: row.Timezone, Status: row.Status}, nil
 }

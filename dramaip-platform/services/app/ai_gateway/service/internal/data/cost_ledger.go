@@ -58,6 +58,36 @@ type ProviderCostInput struct {
 	ClientIP          string
 }
 
+// CostAlert is intentionally a narrow operational projection. It joins the
+// immutable alert to its request audit only for the trace id; prompts, client
+// IPs, pricing secrets and response payloads remain inside the AI domain.
+type CostAlert struct {
+	ID, AuditID, UserID, EventType, ObservedCostCNY, ThresholdCNY, TraceID, CreatedAt string
+}
+
+func (d *Data) ListCostAlerts(ctx context.Context, limit int, userID string) ([]CostAlert, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var rows []CostAlert
+	query := `
+		SELECT a.id::text AS id, a.audit_id::text AS audit_id, a.user_id::text AS user_id,
+		       a.event_type, a.observed_cost_cny::text AS observed_cost_cny,
+		       a.threshold_cny::text AS threshold_cny, COALESCE(r.trace_id, '') AS trace_id,
+		       a.created_at::text AS created_at
+		FROM ai_gateway.provider_cost_alerts a
+		JOIN ai_gateway.request_audits r ON r.id = a.audit_id`
+	args := []any{}
+	if strings.TrimSpace(userID) != "" {
+		query += ` WHERE a.user_id = ?::uuid`
+		args = append(args, strings.TrimSpace(userID))
+	}
+	query += ` ORDER BY a.created_at DESC, a.id DESC LIMIT ?`
+	args = append(args, limit)
+	err := d.DB.WithContext(ctx).Raw(query, args...).Scan(&rows).Error
+	return rows, err
+}
+
 func (d *Data) PricingFor(provider Provider, model string) (ProviderPricing, error) {
 	if provider.Name == "test" || provider.Name == "test-openai-compatible" {
 		return ProviderPricing{InputUnitPrice: "0.10", OutputUnitPrice: "0.20", Currency: "CNY", ExchangeRateToCNY: "1", PricingSource: "test_fixture"}, nil

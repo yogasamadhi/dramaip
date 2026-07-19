@@ -436,6 +436,116 @@ func (x *ChatRequest) GetPreflightRequestHash() string {
 	return ""
 }
 
+// Kept field-compatible with ChatRequest so the streaming RPC can evolve
+// independently without reusing a request type across two RPC contracts.
+type ChatStreamRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	UserId               string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	RequestId            string                 `protobuf:"bytes,2,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	Model                string                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
+	Messages             []*ChatMessage         `protobuf:"bytes,4,rep,name=messages,proto3" json:"messages,omitempty"`
+	MaxTokens            int64                  `protobuf:"varint,5,opt,name=max_tokens,json=maxTokens,proto3" json:"max_tokens,omitempty"`
+	Provider             string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
+	IdempotencyKey       string                 `protobuf:"bytes,7,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ClientIp             string                 `protobuf:"bytes,8,opt,name=client_ip,json=clientIp,proto3" json:"client_ip,omitempty"`
+	PreflightRequestHash string                 `protobuf:"bytes,9,opt,name=preflight_request_hash,json=preflightRequestHash,proto3" json:"preflight_request_hash,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ChatStreamRequest) Reset() {
+	*x = ChatStreamRequest{}
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatStreamRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatStreamRequest) ProtoMessage() {}
+
+func (x *ChatStreamRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatStreamRequest.ProtoReflect.Descriptor instead.
+func (*ChatStreamRequest) Descriptor() ([]byte, []int) {
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ChatStreamRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetRequestId() string {
+	if x != nil {
+		return x.RequestId
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetModel() string {
+	if x != nil {
+		return x.Model
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetMessages() []*ChatMessage {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
+func (x *ChatStreamRequest) GetMaxTokens() int64 {
+	if x != nil {
+		return x.MaxTokens
+	}
+	return 0
+}
+
+func (x *ChatStreamRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetClientIp() string {
+	if x != nil {
+		return x.ClientIp
+	}
+	return ""
+}
+
+func (x *ChatStreamRequest) GetPreflightRequestHash() string {
+	if x != nil {
+		return x.PreflightRequestHash
+	}
+	return ""
+}
+
 type ChatMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Role          string                 `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
@@ -446,7 +556,7 @@ type ChatMessage struct {
 
 func (x *ChatMessage) Reset() {
 	*x = ChatMessage{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[6]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +568,7 @@ func (x *ChatMessage) String() string {
 func (*ChatMessage) ProtoMessage() {}
 
 func (x *ChatMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[6]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +581,7 @@ func (x *ChatMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
 func (*ChatMessage) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{6}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ChatMessage) GetRole() string {
@@ -506,7 +616,7 @@ type ChatReply struct {
 
 func (x *ChatReply) Reset() {
 	*x = ChatReply{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[7]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +628,7 @@ func (x *ChatReply) String() string {
 func (*ChatReply) ProtoMessage() {}
 
 func (x *ChatReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[7]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +641,7 @@ func (x *ChatReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatReply.ProtoReflect.Descriptor instead.
 func (*ChatReply) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{7}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ChatReply) GetContent() string {
@@ -617,7 +727,7 @@ type ChatStreamEvent struct {
 
 func (x *ChatStreamEvent) Reset() {
 	*x = ChatStreamEvent{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[8]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +739,7 @@ func (x *ChatStreamEvent) String() string {
 func (*ChatStreamEvent) ProtoMessage() {}
 
 func (x *ChatStreamEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[8]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -642,7 +752,7 @@ func (x *ChatStreamEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatStreamEvent.ProtoReflect.Descriptor instead.
 func (*ChatStreamEvent) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{8}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ChatStreamEvent) GetType() string {
@@ -683,7 +793,7 @@ type CancelChatRequest struct {
 
 func (x *CancelChatRequest) Reset() {
 	*x = CancelChatRequest{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[9]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -695,7 +805,7 @@ func (x *CancelChatRequest) String() string {
 func (*CancelChatRequest) ProtoMessage() {}
 
 func (x *CancelChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[9]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -708,7 +818,7 @@ func (x *CancelChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelChatRequest.ProtoReflect.Descriptor instead.
 func (*CancelChatRequest) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{9}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CancelChatRequest) GetUserId() string {
@@ -735,7 +845,7 @@ type CancelChatReply struct {
 
 func (x *CancelChatReply) Reset() {
 	*x = CancelChatReply{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[10]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -747,7 +857,7 @@ func (x *CancelChatReply) String() string {
 func (*CancelChatReply) ProtoMessage() {}
 
 func (x *CancelChatReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[10]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -760,7 +870,7 @@ func (x *CancelChatReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelChatReply.ProtoReflect.Descriptor instead.
 func (*CancelChatReply) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{10}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CancelChatReply) GetStatus() string {
@@ -780,7 +890,7 @@ type GetChatStatusRequest struct {
 
 func (x *GetChatStatusRequest) Reset() {
 	*x = GetChatStatusRequest{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[11]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -792,7 +902,7 @@ func (x *GetChatStatusRequest) String() string {
 func (*GetChatStatusRequest) ProtoMessage() {}
 
 func (x *GetChatStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[11]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -805,7 +915,7 @@ func (x *GetChatStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChatStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetChatStatusRequest) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{11}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetChatStatusRequest) GetUserId() string {
@@ -831,7 +941,7 @@ type GetChatStatusReply struct {
 
 func (x *GetChatStatusReply) Reset() {
 	*x = GetChatStatusReply{}
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[12]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -843,7 +953,7 @@ func (x *GetChatStatusReply) String() string {
 func (*GetChatStatusReply) ProtoMessage() {}
 
 func (x *GetChatStatusReply) ProtoReflect() protoreflect.Message {
-	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[12]
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -856,12 +966,208 @@ func (x *GetChatStatusReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChatStatusReply.ProtoReflect.Descriptor instead.
 func (*GetChatStatusReply) Descriptor() ([]byte, []int) {
-	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{12}
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetChatStatusReply) GetReply() *ChatReply {
 	if x != nil {
 		return x.Reply
+	}
+	return nil
+}
+
+type ListCostAlertsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCostAlertsRequest) Reset() {
+	*x = ListCostAlertsRequest{}
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCostAlertsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCostAlertsRequest) ProtoMessage() {}
+
+func (x *ListCostAlertsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCostAlertsRequest.ProtoReflect.Descriptor instead.
+func (*ListCostAlertsRequest) Descriptor() ([]byte, []int) {
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ListCostAlertsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListCostAlertsRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type CostAlert struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	AuditId         string                 `protobuf:"bytes,2,opt,name=audit_id,json=auditId,proto3" json:"audit_id,omitempty"`
+	UserId          string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	EventType       string                 `protobuf:"bytes,4,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	ObservedCostCny string                 `protobuf:"bytes,5,opt,name=observed_cost_cny,json=observedCostCny,proto3" json:"observed_cost_cny,omitempty"`
+	ThresholdCny    string                 `protobuf:"bytes,6,opt,name=threshold_cny,json=thresholdCny,proto3" json:"threshold_cny,omitempty"`
+	TraceId         string                 `protobuf:"bytes,7,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
+	CreatedAt       string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CostAlert) Reset() {
+	*x = CostAlert{}
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CostAlert) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CostAlert) ProtoMessage() {}
+
+func (x *CostAlert) ProtoReflect() protoreflect.Message {
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CostAlert.ProtoReflect.Descriptor instead.
+func (*CostAlert) Descriptor() ([]byte, []int) {
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CostAlert) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CostAlert) GetAuditId() string {
+	if x != nil {
+		return x.AuditId
+	}
+	return ""
+}
+
+func (x *CostAlert) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CostAlert) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *CostAlert) GetObservedCostCny() string {
+	if x != nil {
+		return x.ObservedCostCny
+	}
+	return ""
+}
+
+func (x *CostAlert) GetThresholdCny() string {
+	if x != nil {
+		return x.ThresholdCny
+	}
+	return ""
+}
+
+func (x *CostAlert) GetTraceId() string {
+	if x != nil {
+		return x.TraceId
+	}
+	return ""
+}
+
+func (x *CostAlert) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type ListCostAlertsReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Alerts        []*CostAlert           `protobuf:"bytes,1,rep,name=alerts,proto3" json:"alerts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCostAlertsReply) Reset() {
+	*x = ListCostAlertsReply{}
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCostAlertsReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCostAlertsReply) ProtoMessage() {}
+
+func (x *ListCostAlertsReply) ProtoReflect() protoreflect.Message {
+	mi := &file_api_ai_gateway_service_v1_ai_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCostAlertsReply.ProtoReflect.Descriptor instead.
+func (*ListCostAlertsReply) Descriptor() ([]byte, []int) {
+	return file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListCostAlertsReply) GetAlerts() []*CostAlert {
+	if x != nil {
+		return x.Alerts
 	}
 	return nil
 }
@@ -905,6 +1211,18 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\bprovider\x18\x06 \x01(\tR\bprovider\x12'\n" +
 	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\x12\x1b\n" +
 	"\tclient_ip\x18\b \x01(\tR\bclientIp\x124\n" +
+	"\x16preflight_request_hash\x18\t \x01(\tR\x14preflightRequestHash\"\xe0\x02\n" +
+	"\x11ChatStreamRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"request_id\x18\x02 \x01(\tR\trequestId\x12\x14\n" +
+	"\x05model\x18\x03 \x01(\tR\x05model\x12F\n" +
+	"\bmessages\x18\x04 \x03(\v2*.dramaip.ai_gateway.service.v1.ChatMessageR\bmessages\x12\x1d\n" +
+	"\n" +
+	"max_tokens\x18\x05 \x01(\x03R\tmaxTokens\x12\x1a\n" +
+	"\bprovider\x18\x06 \x01(\tR\bprovider\x12'\n" +
+	"\x0fidempotency_key\x18\a \x01(\tR\x0eidempotencyKey\x12\x1b\n" +
+	"\tclient_ip\x18\b \x01(\tR\bclientIp\x124\n" +
 	"\x16preflight_request_hash\x18\t \x01(\tR\x14preflightRequestHash\";\n" +
 	"\vChatMessage\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x18\n" +
@@ -937,17 +1255,34 @@ const file_api_ai_gateway_service_v1_ai_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\"T\n" +
 	"\x12GetChatStatusReply\x12>\n" +
-	"\x05reply\x18\x01 \x01(\v2(.dramaip.ai_gateway.service.v1.ChatReplyR\x05reply2\xa2\x05\n" +
+	"\x05reply\x18\x01 \x01(\v2(.dramaip.ai_gateway.service.v1.ChatReplyR\x05reply\"F\n" +
+	"\x15ListCostAlertsRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\xf9\x01\n" +
+	"\tCostAlert\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
+	"\baudit_id\x18\x02 \x01(\tR\aauditId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x04 \x01(\tR\teventType\x12*\n" +
+	"\x11observed_cost_cny\x18\x05 \x01(\tR\x0fobservedCostCny\x12#\n" +
+	"\rthreshold_cny\x18\x06 \x01(\tR\fthresholdCny\x12\x19\n" +
+	"\btrace_id\x18\a \x01(\tR\atraceId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\b \x01(\tR\tcreatedAt\"W\n" +
+	"\x13ListCostAlertsReply\x12@\n" +
+	"\x06alerts\x18\x01 \x03(\v2(.dramaip.ai_gateway.service.v1.CostAlertR\x06alerts2\xa4\x06\n" +
 	"\x10AiGatewayService\x12n\n" +
 	"\n" +
 	"ListModels\x120.dramaip.ai_gateway.service.v1.ListModelsRequest\x1a..dramaip.ai_gateway.service.v1.ListModelsReply\x12k\n" +
 	"\tPreflight\x12/.dramaip.ai_gateway.service.v1.PreflightRequest\x1a-.dramaip.ai_gateway.service.v1.PreflightReply\x12\\\n" +
-	"\x04Chat\x12*.dramaip.ai_gateway.service.v1.ChatRequest\x1a(.dramaip.ai_gateway.service.v1.ChatReply\x12j\n" +
+	"\x04Chat\x12*.dramaip.ai_gateway.service.v1.ChatRequest\x1a(.dramaip.ai_gateway.service.v1.ChatReply\x12p\n" +
 	"\n" +
-	"ChatStream\x12*.dramaip.ai_gateway.service.v1.ChatRequest\x1a..dramaip.ai_gateway.service.v1.ChatStreamEvent0\x01\x12n\n" +
+	"ChatStream\x120.dramaip.ai_gateway.service.v1.ChatStreamRequest\x1a..dramaip.ai_gateway.service.v1.ChatStreamEvent0\x01\x12n\n" +
 	"\n" +
 	"CancelChat\x120.dramaip.ai_gateway.service.v1.CancelChatRequest\x1a..dramaip.ai_gateway.service.v1.CancelChatReply\x12w\n" +
-	"\rGetChatStatus\x123.dramaip.ai_gateway.service.v1.GetChatStatusRequest\x1a1.dramaip.ai_gateway.service.v1.GetChatStatusReplyBTZRgithub.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1;aigatewayv1b\x06proto3"
+	"\rGetChatStatus\x123.dramaip.ai_gateway.service.v1.GetChatStatusRequest\x1a1.dramaip.ai_gateway.service.v1.GetChatStatusReply\x12z\n" +
+	"\x0eListCostAlerts\x124.dramaip.ai_gateway.service.v1.ListCostAlertsRequest\x1a2.dramaip.ai_gateway.service.v1.ListCostAlertsReplyBTZRgithub.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1;aigatewayv1b\x06proto3"
 
 var (
 	file_api_ai_gateway_service_v1_ai_proto_rawDescOnce sync.Once
@@ -961,45 +1296,53 @@ func file_api_ai_gateway_service_v1_ai_proto_rawDescGZIP() []byte {
 	return file_api_ai_gateway_service_v1_ai_proto_rawDescData
 }
 
-var file_api_ai_gateway_service_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_api_ai_gateway_service_v1_ai_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_api_ai_gateway_service_v1_ai_proto_goTypes = []any{
-	(*ListModelsRequest)(nil),    // 0: dramaip.ai_gateway.service.v1.ListModelsRequest
-	(*CloudModel)(nil),           // 1: dramaip.ai_gateway.service.v1.CloudModel
-	(*ListModelsReply)(nil),      // 2: dramaip.ai_gateway.service.v1.ListModelsReply
-	(*PreflightRequest)(nil),     // 3: dramaip.ai_gateway.service.v1.PreflightRequest
-	(*PreflightReply)(nil),       // 4: dramaip.ai_gateway.service.v1.PreflightReply
-	(*ChatRequest)(nil),          // 5: dramaip.ai_gateway.service.v1.ChatRequest
-	(*ChatMessage)(nil),          // 6: dramaip.ai_gateway.service.v1.ChatMessage
-	(*ChatReply)(nil),            // 7: dramaip.ai_gateway.service.v1.ChatReply
-	(*ChatStreamEvent)(nil),      // 8: dramaip.ai_gateway.service.v1.ChatStreamEvent
-	(*CancelChatRequest)(nil),    // 9: dramaip.ai_gateway.service.v1.CancelChatRequest
-	(*CancelChatReply)(nil),      // 10: dramaip.ai_gateway.service.v1.CancelChatReply
-	(*GetChatStatusRequest)(nil), // 11: dramaip.ai_gateway.service.v1.GetChatStatusRequest
-	(*GetChatStatusReply)(nil),   // 12: dramaip.ai_gateway.service.v1.GetChatStatusReply
+	(*ListModelsRequest)(nil),     // 0: dramaip.ai_gateway.service.v1.ListModelsRequest
+	(*CloudModel)(nil),            // 1: dramaip.ai_gateway.service.v1.CloudModel
+	(*ListModelsReply)(nil),       // 2: dramaip.ai_gateway.service.v1.ListModelsReply
+	(*PreflightRequest)(nil),      // 3: dramaip.ai_gateway.service.v1.PreflightRequest
+	(*PreflightReply)(nil),        // 4: dramaip.ai_gateway.service.v1.PreflightReply
+	(*ChatRequest)(nil),           // 5: dramaip.ai_gateway.service.v1.ChatRequest
+	(*ChatStreamRequest)(nil),     // 6: dramaip.ai_gateway.service.v1.ChatStreamRequest
+	(*ChatMessage)(nil),           // 7: dramaip.ai_gateway.service.v1.ChatMessage
+	(*ChatReply)(nil),             // 8: dramaip.ai_gateway.service.v1.ChatReply
+	(*ChatStreamEvent)(nil),       // 9: dramaip.ai_gateway.service.v1.ChatStreamEvent
+	(*CancelChatRequest)(nil),     // 10: dramaip.ai_gateway.service.v1.CancelChatRequest
+	(*CancelChatReply)(nil),       // 11: dramaip.ai_gateway.service.v1.CancelChatReply
+	(*GetChatStatusRequest)(nil),  // 12: dramaip.ai_gateway.service.v1.GetChatStatusRequest
+	(*GetChatStatusReply)(nil),    // 13: dramaip.ai_gateway.service.v1.GetChatStatusReply
+	(*ListCostAlertsRequest)(nil), // 14: dramaip.ai_gateway.service.v1.ListCostAlertsRequest
+	(*CostAlert)(nil),             // 15: dramaip.ai_gateway.service.v1.CostAlert
+	(*ListCostAlertsReply)(nil),   // 16: dramaip.ai_gateway.service.v1.ListCostAlertsReply
 }
 var file_api_ai_gateway_service_v1_ai_proto_depIdxs = []int32{
 	1,  // 0: dramaip.ai_gateway.service.v1.ListModelsReply.models:type_name -> dramaip.ai_gateway.service.v1.CloudModel
 	1,  // 1: dramaip.ai_gateway.service.v1.PreflightReply.model:type_name -> dramaip.ai_gateway.service.v1.CloudModel
-	6,  // 2: dramaip.ai_gateway.service.v1.ChatRequest.messages:type_name -> dramaip.ai_gateway.service.v1.ChatMessage
-	7,  // 3: dramaip.ai_gateway.service.v1.ChatStreamEvent.reply:type_name -> dramaip.ai_gateway.service.v1.ChatReply
-	7,  // 4: dramaip.ai_gateway.service.v1.GetChatStatusReply.reply:type_name -> dramaip.ai_gateway.service.v1.ChatReply
-	0,  // 5: dramaip.ai_gateway.service.v1.AiGatewayService.ListModels:input_type -> dramaip.ai_gateway.service.v1.ListModelsRequest
-	3,  // 6: dramaip.ai_gateway.service.v1.AiGatewayService.Preflight:input_type -> dramaip.ai_gateway.service.v1.PreflightRequest
-	5,  // 7: dramaip.ai_gateway.service.v1.AiGatewayService.Chat:input_type -> dramaip.ai_gateway.service.v1.ChatRequest
-	5,  // 8: dramaip.ai_gateway.service.v1.AiGatewayService.ChatStream:input_type -> dramaip.ai_gateway.service.v1.ChatRequest
-	9,  // 9: dramaip.ai_gateway.service.v1.AiGatewayService.CancelChat:input_type -> dramaip.ai_gateway.service.v1.CancelChatRequest
-	11, // 10: dramaip.ai_gateway.service.v1.AiGatewayService.GetChatStatus:input_type -> dramaip.ai_gateway.service.v1.GetChatStatusRequest
-	2,  // 11: dramaip.ai_gateway.service.v1.AiGatewayService.ListModels:output_type -> dramaip.ai_gateway.service.v1.ListModelsReply
-	4,  // 12: dramaip.ai_gateway.service.v1.AiGatewayService.Preflight:output_type -> dramaip.ai_gateway.service.v1.PreflightReply
-	7,  // 13: dramaip.ai_gateway.service.v1.AiGatewayService.Chat:output_type -> dramaip.ai_gateway.service.v1.ChatReply
-	8,  // 14: dramaip.ai_gateway.service.v1.AiGatewayService.ChatStream:output_type -> dramaip.ai_gateway.service.v1.ChatStreamEvent
-	10, // 15: dramaip.ai_gateway.service.v1.AiGatewayService.CancelChat:output_type -> dramaip.ai_gateway.service.v1.CancelChatReply
-	12, // 16: dramaip.ai_gateway.service.v1.AiGatewayService.GetChatStatus:output_type -> dramaip.ai_gateway.service.v1.GetChatStatusReply
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	7,  // 2: dramaip.ai_gateway.service.v1.ChatRequest.messages:type_name -> dramaip.ai_gateway.service.v1.ChatMessage
+	7,  // 3: dramaip.ai_gateway.service.v1.ChatStreamRequest.messages:type_name -> dramaip.ai_gateway.service.v1.ChatMessage
+	8,  // 4: dramaip.ai_gateway.service.v1.ChatStreamEvent.reply:type_name -> dramaip.ai_gateway.service.v1.ChatReply
+	8,  // 5: dramaip.ai_gateway.service.v1.GetChatStatusReply.reply:type_name -> dramaip.ai_gateway.service.v1.ChatReply
+	15, // 6: dramaip.ai_gateway.service.v1.ListCostAlertsReply.alerts:type_name -> dramaip.ai_gateway.service.v1.CostAlert
+	0,  // 7: dramaip.ai_gateway.service.v1.AiGatewayService.ListModels:input_type -> dramaip.ai_gateway.service.v1.ListModelsRequest
+	3,  // 8: dramaip.ai_gateway.service.v1.AiGatewayService.Preflight:input_type -> dramaip.ai_gateway.service.v1.PreflightRequest
+	5,  // 9: dramaip.ai_gateway.service.v1.AiGatewayService.Chat:input_type -> dramaip.ai_gateway.service.v1.ChatRequest
+	6,  // 10: dramaip.ai_gateway.service.v1.AiGatewayService.ChatStream:input_type -> dramaip.ai_gateway.service.v1.ChatStreamRequest
+	10, // 11: dramaip.ai_gateway.service.v1.AiGatewayService.CancelChat:input_type -> dramaip.ai_gateway.service.v1.CancelChatRequest
+	12, // 12: dramaip.ai_gateway.service.v1.AiGatewayService.GetChatStatus:input_type -> dramaip.ai_gateway.service.v1.GetChatStatusRequest
+	14, // 13: dramaip.ai_gateway.service.v1.AiGatewayService.ListCostAlerts:input_type -> dramaip.ai_gateway.service.v1.ListCostAlertsRequest
+	2,  // 14: dramaip.ai_gateway.service.v1.AiGatewayService.ListModels:output_type -> dramaip.ai_gateway.service.v1.ListModelsReply
+	4,  // 15: dramaip.ai_gateway.service.v1.AiGatewayService.Preflight:output_type -> dramaip.ai_gateway.service.v1.PreflightReply
+	8,  // 16: dramaip.ai_gateway.service.v1.AiGatewayService.Chat:output_type -> dramaip.ai_gateway.service.v1.ChatReply
+	9,  // 17: dramaip.ai_gateway.service.v1.AiGatewayService.ChatStream:output_type -> dramaip.ai_gateway.service.v1.ChatStreamEvent
+	11, // 18: dramaip.ai_gateway.service.v1.AiGatewayService.CancelChat:output_type -> dramaip.ai_gateway.service.v1.CancelChatReply
+	13, // 19: dramaip.ai_gateway.service.v1.AiGatewayService.GetChatStatus:output_type -> dramaip.ai_gateway.service.v1.GetChatStatusReply
+	16, // 20: dramaip.ai_gateway.service.v1.AiGatewayService.ListCostAlerts:output_type -> dramaip.ai_gateway.service.v1.ListCostAlertsReply
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_ai_gateway_service_v1_ai_proto_init() }
@@ -1013,7 +1356,7 @@ func file_api_ai_gateway_service_v1_ai_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_ai_gateway_service_v1_ai_proto_rawDesc), len(file_api_ai_gateway_service_v1_ai_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

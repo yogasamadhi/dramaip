@@ -114,6 +114,37 @@ func (r *AdminRepo) CreateConfirmation(ctx context.Context, input ConfirmationIn
 	return Confirmation{ID: input.ID, Action: input.Action, TargetID: input.TargetID, Reason: input.Reason, ExpiresAt: input.ExpiresAt.UTC().Format(time.RFC3339)}, nil
 }
 
+func (r *AdminRepo) GetOperationConfirmation(ctx context.Context, actorID, action, targetID, confirmationID string) (Confirmation, error) {
+	var confirmation Confirmation
+	err := r.data.DB.WithContext(ctx).Raw(`SELECT id::text AS id, action, target_id::text AS target_id, reason, expires_at::text AS expires_at FROM admin.confirmations WHERE id = ?::uuid AND actor_id = ?::uuid AND action = ? AND target_id = ?::uuid AND consumed_at IS NULL AND expires_at > now() LIMIT 1`, confirmationID, actorID, action, targetID).Scan(&confirmation).Error
+	if err != nil || confirmation.ID == "" {
+		return Confirmation{}, ErrConfirmationInvalid
+	}
+	return confirmation, nil
+}
+
+func (r *AdminRepo) ConsumeOperationConfirmation(ctx context.Context, actorID, action, targetID, confirmationID, resourceType, afterState, traceID string) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var confirmation Confirmation
+		if err := tx.Raw(`SELECT id::text AS id, action, target_id::text AS target_id, reason, expires_at::text AS expires_at FROM admin.confirmations WHERE id = ?::uuid AND actor_id = ?::uuid AND action = ? AND target_id = ?::uuid AND consumed_at IS NULL AND expires_at > now() FOR UPDATE`, confirmationID, actorID, action, targetID).Scan(&confirmation).Error; err != nil || confirmation.ID == "" {
+			return ErrConfirmationInvalid
+		}
+		if err := tx.Exec(`UPDATE admin.confirmations SET consumed_at = now() WHERE id = ?::uuid AND consumed_at IS NULL`, confirmationID).Error; err != nil {
+			return err
+		}
+		before, _ := json.Marshal(map[string]string{"status": "pending"})
+		after, _ := json.Marshal(map[string]string{"status": "consumed"})
+		if err := insertAudit(ctx, tx, actorID, "admin.confirmation.consumed", "confirmation", confirmationID, confirmation.Reason, before, after, traceID); err != nil {
+			return err
+		}
+		requested, _ := json.Marshal(map[string]string{"status": "applied", "action": action})
+		if strings.TrimSpace(afterState) == "" {
+			afterState = "{}"
+		}
+		return insertAudit(ctx, tx, actorID, "admin."+action+".applied", resourceType, targetID, confirmation.Reason, requested, []byte(afterState), traceID)
+	})
+}
+
 // SuspendWithConfirmation consumes the one-time confirmation, changes exactly
 // one admin principal, and appends both confirmation and principal evidence in
 // the same transaction. It never changes a customer-domain record.

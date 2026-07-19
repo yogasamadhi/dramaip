@@ -27,7 +27,7 @@ func (s *ReportingService) GetOverview(ctx context.Context, _ *reportingv1.GetOv
 	return &reportingv1.GetOverviewResponse{UserCount: row.UserCount, PaidOrderCount: row.PaidOrderCount, ActiveSubscriptionCount: row.ActiveSubscriptionCount, TotalTokens: row.TotalTokens, OpenExceptionCount: row.OpenExceptionCount, LastEventAt: row.LastEventAt}, nil
 }
 func (s *ReportingService) ListUsers(ctx context.Context, req *reportingv1.ListUsersRequest) (*reportingv1.ListUsersResponse, error) {
-	rows, err := s.repo.ListUsers(ctx, int(req.GetLimit()))
+	rows, next, err := s.repo.ListUsers(ctx, int(req.GetLimit()), req.GetCursor(), req.GetQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -35,10 +35,11 @@ func (s *ReportingService) ListUsers(ctx context.Context, req *reportingv1.ListU
 	for _, row := range rows {
 		out.Users = append(out.Users, &reportingv1.UserSummary{UserId: row.UserID, FirstSeenAt: row.FirstSeenAt, LastSeenAt: row.LastSeenAt, TotalTokens: row.TotalTokens, LastPlanCode: row.LastPlanCode})
 	}
+	out.NextCursor = next
 	return out, nil
 }
 func (s *ReportingService) ListOrders(ctx context.Context, req *reportingv1.ListOrdersRequest) (*reportingv1.ListOrdersResponse, error) {
-	rows, err := s.repo.ListOrders(ctx, int(req.GetLimit()))
+	rows, next, err := s.repo.ListOrders(ctx, int(req.GetLimit()), req.GetCursor(), req.GetQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +47,11 @@ func (s *ReportingService) ListOrders(ctx context.Context, req *reportingv1.List
 	for _, row := range rows {
 		out.Orders = append(out.Orders, &reportingv1.OrderSummary{OrderId: row.OrderID, UserId: row.UserID, PlanCode: row.PlanCode, Provider: row.Provider, Amount: row.Amount, Currency: row.Currency, Status: row.Status, SubscriptionId: row.SubscriptionID, UpdatedAt: row.UpdatedAt})
 	}
+	out.NextCursor = next
 	return out, nil
 }
 func (s *ReportingService) ListSubscriptions(ctx context.Context, req *reportingv1.ListSubscriptionsRequest) (*reportingv1.ListSubscriptionsResponse, error) {
-	rows, err := s.repo.ListSubscriptions(ctx, int(req.GetLimit()))
+	rows, next, err := s.repo.ListSubscriptions(ctx, int(req.GetLimit()), req.GetCursor(), req.GetQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +59,11 @@ func (s *ReportingService) ListSubscriptions(ctx context.Context, req *reporting
 	for _, row := range rows {
 		out.Subscriptions = append(out.Subscriptions, &reportingv1.SubscriptionSummary{SubscriptionId: row.SubscriptionID, UserId: row.UserID, PlanCode: row.PlanCode, Status: row.Status, PeriodStart: row.PeriodStart, PeriodEnd: row.PeriodEnd, UpdatedAt: row.UpdatedAt})
 	}
+	out.NextCursor = next
 	return out, nil
 }
 func (s *ReportingService) ListExceptions(ctx context.Context, req *reportingv1.ListExceptionsRequest) (*reportingv1.ListExceptionsResponse, error) {
-	rows, err := s.repo.ListExceptions(ctx, int(req.GetLimit()), req.GetIncludeResolved())
+	rows, next, err := s.repo.ListExceptions(ctx, int(req.GetLimit()), req.GetIncludeResolved(), req.GetCursor(), req.GetQuery())
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +71,7 @@ func (s *ReportingService) ListExceptions(ctx context.Context, req *reportingv1.
 	for _, row := range rows {
 		out.Exceptions = append(out.Exceptions, exceptionReply(row))
 	}
+	out.NextCursor = next
 	return out, nil
 }
 func (s *ReportingService) ResolveException(ctx context.Context, req *reportingv1.ResolveExceptionRequest) (*reportingv1.ResolveExceptionResponse, error) {

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gorm.io/gorm"
 )
 
 type AuthUsecase struct {
@@ -68,6 +69,19 @@ func NewAuthUsecase(repo *data.AuthRepo, cfg *conf.Bootstrap) (*AuthUsecase, err
 
 func (u *AuthUsecase) Checks() map[string]func(context.Context) error {
 	return u.repo.Checks()
+}
+
+func (u *AuthUsecase) SetUserStatus(ctx context.Context, userID, state, operatorID, reason, idempotencyKey string) (string, error) {
+	userID, state = strings.TrimSpace(userID), strings.TrimSpace(state)
+	operatorID, reason, idempotencyKey = strings.TrimSpace(operatorID), strings.TrimSpace(reason), strings.TrimSpace(idempotencyKey)
+	if userID == "" || operatorID == "" || idempotencyKey == "" || len(reason) < 4 || len(reason) > 300 || (state != "active" && state != "suspended") {
+		return "", status.Error(codes.InvalidArgument, "invalid_account_status_change")
+	}
+	result, err := u.repo.SetAccountStatus(ctx, data.AccountStatusChange{UserID: userID, Status: state, OperatorID: operatorID, Reason: reason, IdempotencyKey: idempotencyKey})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", status.Error(codes.NotFound, "account_not_found")
+	}
+	return result, err
 }
 
 func (u *AuthUsecase) Register(ctx context.Context, email string, password string, displayName string, deviceID string) (Session, error) {

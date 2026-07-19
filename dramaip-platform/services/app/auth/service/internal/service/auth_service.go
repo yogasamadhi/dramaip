@@ -106,6 +106,17 @@ func (s *AuthService) ExchangeDesktopAuthorizationCode(ctx context.Context, req 
 	return sessionReply(session), nil
 }
 
+func (s *AuthService) SetUserStatus(ctx context.Context, req *authv1.SetUserStatusRequest) (*authv1.SetUserStatusReply, error) {
+	if err := platform.RequireInternalPeer(ctx, "admin-bff"); err != nil {
+		return nil, err
+	}
+	state, err := s.uc.SetUserStatus(ctx, req.UserId, req.Status, req.OperatorId, req.Reason, req.IdempotencyKey)
+	if err != nil {
+		return nil, err
+	}
+	return &authv1.SetUserStatusReply{UserId: req.UserId, Status: state}, nil
+}
+
 func sessionReply(session biz.Session) *authv1.AuthReply {
 	return &authv1.AuthReply{
 		AccessToken: session.AccessToken, RefreshToken: session.RefreshToken, TokenType: session.TokenType,

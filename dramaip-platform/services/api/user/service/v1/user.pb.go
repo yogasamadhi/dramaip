@@ -325,6 +325,82 @@ func (x *UpdateProfileRequest) GetTimezone() string {
 	return ""
 }
 
+type SetProfileStatusRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status         string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	OperatorId     string                 `protobuf:"bytes,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
+	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SetProfileStatusRequest) Reset() {
+	*x = SetProfileStatusRequest{}
+	mi := &file_api_user_service_v1_user_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetProfileStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetProfileStatusRequest) ProtoMessage() {}
+
+func (x *SetProfileStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_user_service_v1_user_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetProfileStatusRequest.ProtoReflect.Descriptor instead.
+func (*SetProfileStatusRequest) Descriptor() ([]byte, []int) {
+	return file_api_user_service_v1_user_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SetProfileStatusRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SetProfileStatusRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SetProfileStatusRequest) GetOperatorId() string {
+	if x != nil {
+		return x.OperatorId
+	}
+	return ""
+}
+
+func (x *SetProfileStatusRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *SetProfileStatusRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
 var File_api_user_service_v1_user_proto protoreflect.FileDescriptor
 
 const file_api_user_service_v1_user_proto_rawDesc = "" +
@@ -355,12 +431,20 @@ const file_api_user_service_v1_user_proto_rawDesc = "" +
 	"\n" +
 	"avatar_url\x18\x04 \x01(\tR\tavatarUrl\x12\x16\n" +
 	"\x06locale\x18\x05 \x01(\tR\x06locale\x12\x1a\n" +
-	"\btimezone\x18\x06 \x01(\tR\btimezone2\xb9\x02\n" +
+	"\btimezone\x18\x06 \x01(\tR\btimezone\"\xac\x01\n" +
+	"\x17SetProfileStatusRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x1f\n" +
+	"\voperator_id\x18\x03 \x01(\tR\n" +
+	"operatorId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey2\xa5\x03\n" +
 	"\vUserService\x12^\n" +
 	"\n" +
 	"GetProfile\x12*.dramaip.user.service.v1.GetProfileRequest\x1a$.dramaip.user.service.v1.UserProfile\x12d\n" +
 	"\rEnsureProfile\x12-.dramaip.user.service.v1.EnsureProfileRequest\x1a$.dramaip.user.service.v1.UserProfile\x12d\n" +
-	"\rUpdateProfile\x12-.dramaip.user.service.v1.UpdateProfileRequest\x1a$.dramaip.user.service.v1.UserProfileBIZGgithub.com/dramaip/dramaip-platform/services/api/user/service/v1;userv1b\x06proto3"
+	"\rUpdateProfile\x12-.dramaip.user.service.v1.UpdateProfileRequest\x1a$.dramaip.user.service.v1.UserProfile\x12j\n" +
+	"\x10SetProfileStatus\x120.dramaip.user.service.v1.SetProfileStatusRequest\x1a$.dramaip.user.service.v1.UserProfileBIZGgithub.com/dramaip/dramaip-platform/services/api/user/service/v1;userv1b\x06proto3"
 
 var (
 	file_api_user_service_v1_user_proto_rawDescOnce sync.Once
@@ -374,22 +458,25 @@ func file_api_user_service_v1_user_proto_rawDescGZIP() []byte {
 	return file_api_user_service_v1_user_proto_rawDescData
 }
 
-var file_api_user_service_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_api_user_service_v1_user_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_api_user_service_v1_user_proto_goTypes = []any{
-	(*GetProfileRequest)(nil),    // 0: dramaip.user.service.v1.GetProfileRequest
-	(*UserProfile)(nil),          // 1: dramaip.user.service.v1.UserProfile
-	(*EnsureProfileRequest)(nil), // 2: dramaip.user.service.v1.EnsureProfileRequest
-	(*UpdateProfileRequest)(nil), // 3: dramaip.user.service.v1.UpdateProfileRequest
+	(*GetProfileRequest)(nil),       // 0: dramaip.user.service.v1.GetProfileRequest
+	(*UserProfile)(nil),             // 1: dramaip.user.service.v1.UserProfile
+	(*EnsureProfileRequest)(nil),    // 2: dramaip.user.service.v1.EnsureProfileRequest
+	(*UpdateProfileRequest)(nil),    // 3: dramaip.user.service.v1.UpdateProfileRequest
+	(*SetProfileStatusRequest)(nil), // 4: dramaip.user.service.v1.SetProfileStatusRequest
 }
 var file_api_user_service_v1_user_proto_depIdxs = []int32{
 	0, // 0: dramaip.user.service.v1.UserService.GetProfile:input_type -> dramaip.user.service.v1.GetProfileRequest
 	2, // 1: dramaip.user.service.v1.UserService.EnsureProfile:input_type -> dramaip.user.service.v1.EnsureProfileRequest
 	3, // 2: dramaip.user.service.v1.UserService.UpdateProfile:input_type -> dramaip.user.service.v1.UpdateProfileRequest
-	1, // 3: dramaip.user.service.v1.UserService.GetProfile:output_type -> dramaip.user.service.v1.UserProfile
-	1, // 4: dramaip.user.service.v1.UserService.EnsureProfile:output_type -> dramaip.user.service.v1.UserProfile
-	1, // 5: dramaip.user.service.v1.UserService.UpdateProfile:output_type -> dramaip.user.service.v1.UserProfile
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	4, // 3: dramaip.user.service.v1.UserService.SetProfileStatus:input_type -> dramaip.user.service.v1.SetProfileStatusRequest
+	1, // 4: dramaip.user.service.v1.UserService.GetProfile:output_type -> dramaip.user.service.v1.UserProfile
+	1, // 5: dramaip.user.service.v1.UserService.EnsureProfile:output_type -> dramaip.user.service.v1.UserProfile
+	1, // 6: dramaip.user.service.v1.UserService.UpdateProfile:output_type -> dramaip.user.service.v1.UserProfile
+	1, // 7: dramaip.user.service.v1.UserService.SetProfileStatus:output_type -> dramaip.user.service.v1.UserProfile
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -406,7 +493,7 @@ func file_api_user_service_v1_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_user_service_v1_user_proto_rawDesc), len(file_api_user_service_v1_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

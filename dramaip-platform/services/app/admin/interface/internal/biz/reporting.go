@@ -32,29 +32,29 @@ func (u *ReportingUsecase) Overview(ctx context.Context, actor Principal) (*repo
 	}
 	return u.client.GetOverview(ctx, &reportingv1.GetOverviewRequest{})
 }
-func (u *ReportingUsecase) Users(ctx context.Context, actor Principal, limit int) (*reportingv1.ListUsersResponse, error) {
+func (u *ReportingUsecase) Users(ctx context.Context, actor Principal, limit int, cursor, query string) (*reportingv1.ListUsersResponse, error) {
 	if !actor.Allows("audit.read") {
 		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
-	return u.client.ListUsers(ctx, &reportingv1.ListUsersRequest{Limit: int32(limit)})
+	return u.client.ListUsers(ctx, &reportingv1.ListUsersRequest{Limit: int32(limit), Cursor: strings.TrimSpace(cursor), Query: strings.TrimSpace(query)})
 }
-func (u *ReportingUsecase) Orders(ctx context.Context, actor Principal, limit int) (*reportingv1.ListOrdersResponse, error) {
+func (u *ReportingUsecase) Orders(ctx context.Context, actor Principal, limit int, cursor, query string) (*reportingv1.ListOrdersResponse, error) {
 	if !actor.Allows("audit.read") {
 		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
-	return u.client.ListOrders(ctx, &reportingv1.ListOrdersRequest{Limit: int32(limit)})
+	return u.client.ListOrders(ctx, &reportingv1.ListOrdersRequest{Limit: int32(limit), Cursor: strings.TrimSpace(cursor), Query: strings.TrimSpace(query)})
 }
-func (u *ReportingUsecase) Subscriptions(ctx context.Context, actor Principal, limit int) (*reportingv1.ListSubscriptionsResponse, error) {
+func (u *ReportingUsecase) Subscriptions(ctx context.Context, actor Principal, limit int, cursor, query string) (*reportingv1.ListSubscriptionsResponse, error) {
 	if !actor.Allows("audit.read") {
 		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
-	return u.client.ListSubscriptions(ctx, &reportingv1.ListSubscriptionsRequest{Limit: int32(limit)})
+	return u.client.ListSubscriptions(ctx, &reportingv1.ListSubscriptionsRequest{Limit: int32(limit), Cursor: strings.TrimSpace(cursor), Query: strings.TrimSpace(query)})
 }
-func (u *ReportingUsecase) Exceptions(ctx context.Context, actor Principal, limit int, includeResolved bool) (*reportingv1.ListExceptionsResponse, error) {
+func (u *ReportingUsecase) Exceptions(ctx context.Context, actor Principal, limit int, includeResolved bool, cursor, query string) (*reportingv1.ListExceptionsResponse, error) {
 	if !actor.Allows("audit.read") {
 		return nil, status.Error(codes.PermissionDenied, "admin_permission_denied")
 	}
-	return u.client.ListExceptions(ctx, &reportingv1.ListExceptionsRequest{Limit: int32(limit), IncludeResolved: includeResolved})
+	return u.client.ListExceptions(ctx, &reportingv1.ListExceptionsRequest{Limit: int32(limit), IncludeResolved: includeResolved, Cursor: strings.TrimSpace(cursor), Query: strings.TrimSpace(query)})
 }
 func (u *ReportingUsecase) ResolveException(ctx context.Context, actor Principal, exceptionID, reason string) (*reportingv1.ResolveExceptionResponse, error) {
 	if !actor.Allows("reporting.write") {

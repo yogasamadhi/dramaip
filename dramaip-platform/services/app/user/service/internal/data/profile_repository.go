@@ -105,3 +105,37 @@ func (r *UserRepo) UpdateProfile(ctx context.Context, row ProfileRow) (ProfileRo
 	}
 	return r.GetProfile(ctx, row.ID)
 }
+
+func (r *UserRepo) SetProfileStatus(ctx context.Context, userID, state, operatorID, reason, idempotencyKey string) (ProfileRow, error) {
+	var result ProfileRow
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing struct{ UserID string }
+		if err := tx.Raw(`SELECT user_id::text AS user_id FROM user_profile.admin_status_operations WHERE idempotency_key = ? FOR UPDATE`, idempotencyKey).Scan(&existing).Error; err != nil {
+			return err
+		}
+		if existing.UserID != "" {
+			return tx.Raw(`SELECT user_id::text AS id, email, phone, COALESCE(NULLIF(display_name, ''), email) AS display_name, COALESCE(avatar_url, '') AS avatar_url, COALESCE(locale, '') AS locale, COALESCE(timezone, '') AS timezone, status FROM user_profile.profiles WHERE user_id = ?::uuid LIMIT 1`, userID).Scan(&result).Error
+		}
+		var before struct{ Status string }
+		if err := tx.Raw(`SELECT status FROM user_profile.profiles WHERE user_id = ?::uuid FOR UPDATE`, userID).Scan(&before).Error; err != nil {
+			return err
+		}
+		if before.Status == "" {
+			return gorm.ErrRecordNotFound
+		}
+		if err := tx.Exec(`UPDATE user_profile.profiles SET status = ?, updated_at = now() WHERE user_id = ?::uuid`, state, userID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`INSERT INTO user_profile.admin_status_operations (idempotency_key, user_id, operator_id, reason, before_status, after_status) VALUES (?, ?::uuid, ?, ?, ?, ?)`, idempotencyKey, userID, operatorID, reason, before.Status, state).Error; err != nil {
+			return err
+		}
+		return tx.Raw(`SELECT user_id::text AS id, email, phone, COALESCE(NULLIF(display_name, ''), email) AS display_name, COALESCE(avatar_url, '') AS avatar_url, COALESCE(locale, '') AS locale, COALESCE(timezone, '') AS timezone, status FROM user_profile.profiles WHERE user_id = ?::uuid LIMIT 1`, userID).Scan(&result).Error
+	})
+	if err != nil {
+		return ProfileRow{}, err
+	}
+	if result.ID == "" {
+		return ProfileRow{}, gorm.ErrRecordNotFound
+	}
+	return result, nil
+}

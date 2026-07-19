@@ -102,6 +102,10 @@ func (u *AiGatewayUsecase) Checks() map[string]func(context.Context) error {
 	return u.data.Checks()
 }
 
+func (u *AiGatewayUsecase) ListCostAlerts(ctx context.Context, limit int, userID string) ([]data.CostAlert, error) {
+	return u.data.ListCostAlerts(ctx, limit, userID)
+}
+
 // ListModels returns only providers that are both callable and priced. A
 // desktop client therefore cannot select an unconfigured or unbillable model
 // and cannot infer any provider credential material.

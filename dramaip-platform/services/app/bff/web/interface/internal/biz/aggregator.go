@@ -438,7 +438,7 @@ func (u *BFFUsecase) ChatModels(ctx context.Context, userID string) (*aiv1.ListM
 }
 
 func (u *BFFUsecase) ChatStream(ctx context.Context, userID string, requestID string, idempotencyKey string, clientIP string, provider string, model string, messages []*aiv1.ChatMessage, maxTokens int64, preflightRequestHash string) (aiv1.AiGatewayService_ChatStreamClient, error) {
-	return u.data.AI.ChatStream(ctx, &aiv1.ChatRequest{
+	return u.data.AI.ChatStream(ctx, &aiv1.ChatStreamRequest{
 		UserId: userID, RequestId: requestID, IdempotencyKey: idempotencyKey, ClientIp: clientIP, Provider: provider,
 		Model: model, Messages: messages, MaxTokens: maxTokens, PreflightRequestHash: preflightRequestHash,
 	})

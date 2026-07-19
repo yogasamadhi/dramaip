@@ -26,7 +26,7 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *notificationbiz.NotificationUsecase)
 func NewGRPCServer(cfg *conf.Bootstrap, svc *notificationsvc.NotificationService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
-		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("notification-service")),
+		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "web-bff", "admin-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("notification-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {
 		panic(fmt.Sprintf("notification gRPC mTLS: %v", err))

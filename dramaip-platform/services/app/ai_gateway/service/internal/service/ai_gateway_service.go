@@ -65,7 +65,7 @@ func (s *AiGatewayService) Chat(ctx context.Context, req *aiv1.ChatRequest) (*ai
 	return chatReply(reply), nil
 }
 
-func (s *AiGatewayService) ChatStream(req *aiv1.ChatRequest, stream aiv1.AiGatewayService_ChatStreamServer) error {
+func (s *AiGatewayService) ChatStream(req *aiv1.ChatStreamRequest, stream aiv1.AiGatewayService_ChatStreamServer) error {
 	ctx := stream.Context()
 	if err := platform.RequireUserIdentity(ctx, req.UserId); err != nil {
 		return err
@@ -112,6 +112,21 @@ func (s *AiGatewayService) GetChatStatus(ctx context.Context, req *aiv1.GetChatS
 		return nil, err
 	}
 	return &aiv1.GetChatStatusReply{Reply: chatReply(reply)}, nil
+}
+
+func (s *AiGatewayService) ListCostAlerts(ctx context.Context, req *aiv1.ListCostAlertsRequest) (*aiv1.ListCostAlertsReply, error) {
+	if err := platform.RequireInternalPeer(ctx, "admin-bff"); err != nil {
+		return nil, err
+	}
+	alerts, err := s.uc.ListCostAlerts(ctx, int(req.GetLimit()), req.GetUserId())
+	if err != nil {
+		return nil, err
+	}
+	reply := &aiv1.ListCostAlertsReply{Alerts: make([]*aiv1.CostAlert, 0, len(alerts))}
+	for _, alert := range alerts {
+		reply.Alerts = append(reply.Alerts, &aiv1.CostAlert{Id: alert.ID, AuditId: alert.AuditID, UserId: alert.UserID, EventType: alert.EventType, ObservedCostCny: alert.ObservedCostCNY, ThresholdCny: alert.ThresholdCNY, TraceId: alert.TraceID, CreatedAt: alert.CreatedAt})
+	}
+	return reply, nil
 }
 
 func chatReply(reply biz.ChatResult) *aiv1.ChatReply {

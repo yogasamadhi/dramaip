@@ -31,6 +31,10 @@ type UserRow struct {
 	EmailVerified bool
 }
 
+type AccountStatusChange struct {
+	UserID, Status, OperatorID, Reason, IdempotencyKey string
+}
+
 type RefreshTokenInput struct {
 	ID        string
 	UserID    string
@@ -138,6 +142,44 @@ func (r *AuthRepo) InsertUser(ctx context.Context, id string, email string, pass
 		return UserRow{}, err
 	}
 	return r.FindUserByEmail(ctx, email)
+}
+
+// SetAccountStatus owns the identity-domain side of an operator freeze. A
+// suspended account cannot log in, refresh, validate a cached access token,
+// or exchange a desktop authorization code. The idempotency key is durable so
+// a BFF retry after a partial downstream failure cannot create another state
+// transition or erase the original operator evidence.
+func (r *AuthRepo) SetAccountStatus(ctx context.Context, change AccountStatusChange) (string, error) {
+	var result struct{ Status string }
+	err := r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var prior struct{ Status string }
+		if err := tx.Raw(`SELECT status FROM auth.admin_status_operations WHERE idempotency_key = ? FOR UPDATE`, change.IdempotencyKey).Scan(&prior).Error; err != nil {
+			return err
+		}
+		if prior.Status != "" {
+			result.Status = prior.Status
+			return nil
+		}
+		var before struct{ Status string }
+		if err := tx.Raw(`SELECT status FROM auth.users WHERE id = ?::uuid FOR UPDATE`, change.UserID).Scan(&before).Error; err != nil {
+			return err
+		}
+		if before.Status == "" {
+			return gorm.ErrRecordNotFound
+		}
+		if err := tx.Exec(`UPDATE auth.users SET status = ?, session_invalidated_at = date_trunc('second', now()) + interval '1 second', updated_at = now() WHERE id = ?::uuid`, change.Status, change.UserID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`UPDATE auth.refresh_tokens SET revoked_at = COALESCE(revoked_at, now()), revoked_reason = CASE WHEN revoked_at IS NULL THEN 'admin_account_status_change' ELSE revoked_reason END WHERE user_id = ?::uuid AND revoked_at IS NULL`, change.UserID).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`INSERT INTO auth.admin_status_operations (idempotency_key, user_id, operator_id, reason, before_status, after_status) VALUES (?, ?::uuid, ?, ?, ?, ?)`, change.IdempotencyKey, change.UserID, change.OperatorID, change.Reason, before.Status, change.Status).Error; err != nil {
+			return err
+		}
+		result.Status = change.Status
+		return nil
+	})
+	return result.Status, err
 }
 
 // CreateDesktopAuthorizationCode invalidates outstanding codes for the same

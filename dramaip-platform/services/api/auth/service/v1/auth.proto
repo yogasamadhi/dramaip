@@ -20,6 +20,10 @@ service AuthService {
   // Desktop BFF exchanges the code after the Electron main process has
   // verified its local callback state and supplies the original PKCE verifier.
   rpc ExchangeDesktopAuthorizationCode(ExchangeDesktopAuthorizationCodeRequest) returns (AuthReply);
+  // This operation is deliberately limited to the Admin BFF's mTLS identity.
+  // It is the authoritative account freeze/recovery boundary and invalidates
+  // existing sessions when an account is suspended.
+  rpc SetUserStatus(SetUserStatusRequest) returns (SetUserStatusReply);
 }
 
 message RegisterRequest {
@@ -106,4 +110,17 @@ message ExchangeDesktopAuthorizationCodeRequest {
   string code_verifier = 2;
   string redirect_uri = 3;
   string device_id = 4;
+}
+
+message SetUserStatusRequest {
+  string user_id = 1;
+  string status = 2;
+  string operator_id = 3;
+  string reason = 4;
+  string idempotency_key = 5;
+}
+
+message SetUserStatusReply {
+  string user_id = 1;
+  string status = 2;
 }

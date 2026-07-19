@@ -30,6 +30,7 @@ const (
 	AuthService_ResetPassword_FullMethodName                    = "/dramaip.auth.service.v1.AuthService/ResetPassword"
 	AuthService_CreateDesktopAuthorizationCode_FullMethodName   = "/dramaip.auth.service.v1.AuthService/CreateDesktopAuthorizationCode"
 	AuthService_ExchangeDesktopAuthorizationCode_FullMethodName = "/dramaip.auth.service.v1.AuthService/ExchangeDesktopAuthorizationCode"
+	AuthService_SetUserStatus_FullMethodName                    = "/dramaip.auth.service.v1.AuthService/SetUserStatus"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -51,6 +52,10 @@ type AuthServiceClient interface {
 	// Desktop BFF exchanges the code after the Electron main process has
 	// verified its local callback state and supplies the original PKCE verifier.
 	ExchangeDesktopAuthorizationCode(ctx context.Context, in *ExchangeDesktopAuthorizationCodeRequest, opts ...grpc.CallOption) (*AuthReply, error)
+	// This operation is deliberately limited to the Admin BFF's mTLS identity.
+	// It is the authoritative account freeze/recovery boundary and invalidates
+	// existing sessions when an account is suspended.
+	SetUserStatus(ctx context.Context, in *SetUserStatusRequest, opts ...grpc.CallOption) (*SetUserStatusReply, error)
 }
 
 type authServiceClient struct {
@@ -171,6 +176,16 @@ func (c *authServiceClient) ExchangeDesktopAuthorizationCode(ctx context.Context
 	return out, nil
 }
 
+func (c *authServiceClient) SetUserStatus(ctx context.Context, in *SetUserStatusRequest, opts ...grpc.CallOption) (*SetUserStatusReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetUserStatusReply)
+	err := c.cc.Invoke(ctx, AuthService_SetUserStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -190,6 +205,10 @@ type AuthServiceServer interface {
 	// Desktop BFF exchanges the code after the Electron main process has
 	// verified its local callback state and supplies the original PKCE verifier.
 	ExchangeDesktopAuthorizationCode(context.Context, *ExchangeDesktopAuthorizationCodeRequest) (*AuthReply, error)
+	// This operation is deliberately limited to the Admin BFF's mTLS identity.
+	// It is the authoritative account freeze/recovery boundary and invalidates
+	// existing sessions when an account is suspended.
+	SetUserStatus(context.Context, *SetUserStatusRequest) (*SetUserStatusReply, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
 
@@ -232,6 +251,9 @@ func (UnimplementedAuthServiceServer) CreateDesktopAuthorizationCode(context.Con
 }
 func (UnimplementedAuthServiceServer) ExchangeDesktopAuthorizationCode(context.Context, *ExchangeDesktopAuthorizationCodeRequest) (*AuthReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExchangeDesktopAuthorizationCode not implemented")
+}
+func (UnimplementedAuthServiceServer) SetUserStatus(context.Context, *SetUserStatusRequest) (*SetUserStatusReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetUserStatus not implemented")
 }
 func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
 func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
@@ -452,6 +474,24 @@ func _AuthService_ExchangeDesktopAuthorizationCode_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_SetUserStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetUserStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SetUserStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SetUserStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SetUserStatus(ctx, req.(*SetUserStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -502,6 +542,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExchangeDesktopAuthorizationCode",
 			Handler:    _AuthService_ExchangeDesktopAuthorizationCode_Handler,
+		},
+		{
+			MethodName: "SetUserStatus",
+			Handler:    _AuthService_SetUserStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -178,6 +178,22 @@ func (r *fakeRepo) ConsumeReportingExceptionConfirmation(_ context.Context, acto
 	}
 	return input.Reason, nil
 }
+func (r *fakeRepo) GetOperationConfirmation(_ context.Context, actorID, action, targetID, confirmationID string) (data.Confirmation, error) {
+	input, ok := r.confirmations[confirmationID]
+	if !ok || input.ActorID != actorID || input.Action != action || input.TargetID != targetID || input.ExpiresAt.Before(time.Now()) {
+		return data.Confirmation{}, data.ErrConfirmationInvalid
+	}
+	return data.Confirmation{ID: input.ID, Action: input.Action, TargetID: input.TargetID, Reason: input.Reason, ExpiresAt: input.ExpiresAt.Format(time.RFC3339)}, nil
+}
+func (r *fakeRepo) ConsumeOperationConfirmation(_ context.Context, actorID, action, targetID, confirmationID, resourceType, _ string, _ string) error {
+	input, ok := r.confirmations[confirmationID]
+	if !ok || input.ActorID != actorID || input.Action != action || input.TargetID != targetID {
+		return data.ErrConfirmationInvalid
+	}
+	r.audits = append(r.audits, data.AuditLog{Action: "admin.confirmation.consumed", ResourceType: resourceType})
+	delete(r.confirmations, confirmationID)
+	return nil
+}
 func (r *fakeRepo) ListAuditLogs(context.Context, int) ([]data.AuditLog, error) {
 	return append([]data.AuditLog(nil), r.audits...), nil
 }

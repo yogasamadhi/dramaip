@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_GetProfile_FullMethodName    = "/dramaip.user.service.v1.UserService/GetProfile"
-	UserService_EnsureProfile_FullMethodName = "/dramaip.user.service.v1.UserService/EnsureProfile"
-	UserService_UpdateProfile_FullMethodName = "/dramaip.user.service.v1.UserService/UpdateProfile"
+	UserService_GetProfile_FullMethodName       = "/dramaip.user.service.v1.UserService/GetProfile"
+	UserService_EnsureProfile_FullMethodName    = "/dramaip.user.service.v1.UserService/EnsureProfile"
+	UserService_UpdateProfile_FullMethodName    = "/dramaip.user.service.v1.UserService/UpdateProfile"
+	UserService_SetProfileStatus_FullMethodName = "/dramaip.user.service.v1.UserService/SetProfileStatus"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -31,6 +32,9 @@ type UserServiceClient interface {
 	GetProfile(ctx context.Context, in *GetProfileRequest, opts ...grpc.CallOption) (*UserProfile, error)
 	EnsureProfile(ctx context.Context, in *EnsureProfileRequest, opts ...grpc.CallOption) (*UserProfile, error)
 	UpdateProfile(ctx context.Context, in *UpdateProfileRequest, opts ...grpc.CallOption) (*UserProfile, error)
+	// Admin BFF only: mirrors the authoritative auth-account state into the
+	// customer profile after its separate account-status domain write succeeds.
+	SetProfileStatus(ctx context.Context, in *SetProfileStatusRequest, opts ...grpc.CallOption) (*UserProfile, error)
 }
 
 type userServiceClient struct {
@@ -71,6 +75,16 @@ func (c *userServiceClient) UpdateProfile(ctx context.Context, in *UpdateProfile
 	return out, nil
 }
 
+func (c *userServiceClient) SetProfileStatus(ctx context.Context, in *SetProfileStatusRequest, opts ...grpc.CallOption) (*UserProfile, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UserProfile)
+	err := c.cc.Invoke(ctx, UserService_SetProfileStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -78,6 +92,9 @@ type UserServiceServer interface {
 	GetProfile(context.Context, *GetProfileRequest) (*UserProfile, error)
 	EnsureProfile(context.Context, *EnsureProfileRequest) (*UserProfile, error)
 	UpdateProfile(context.Context, *UpdateProfileRequest) (*UserProfile, error)
+	// Admin BFF only: mirrors the authoritative auth-account state into the
+	// customer profile after its separate account-status domain write succeeds.
+	SetProfileStatus(context.Context, *SetProfileStatusRequest) (*UserProfile, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -96,6 +113,9 @@ func (UnimplementedUserServiceServer) EnsureProfile(context.Context, *EnsureProf
 }
 func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProfileRequest) (*UserProfile, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateProfile not implemented")
+}
+func (UnimplementedUserServiceServer) SetProfileStatus(context.Context, *SetProfileStatusRequest) (*UserProfile, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetProfileStatus not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +192,24 @@ func _UserService_UpdateProfile_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_SetProfileStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetProfileStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SetProfileStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SetProfileStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SetProfileStatus(ctx, req.(*SetProfileStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -190,6 +228,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateProfile",
 			Handler:    _UserService_UpdateProfile_Handler,
+		},
+		{
+			MethodName: "SetProfileStatus",
+			Handler:    _UserService_SetProfileStatus_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

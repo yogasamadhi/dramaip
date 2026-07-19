@@ -875,6 +875,134 @@ func (x *ExchangeDesktopAuthorizationCodeRequest) GetDeviceId() string {
 	return ""
 }
 
+type SetUserStatusRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserId         string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status         string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	OperatorId     string                 `protobuf:"bytes,3,opt,name=operator_id,json=operatorId,proto3" json:"operator_id,omitempty"`
+	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,5,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SetUserStatusRequest) Reset() {
+	*x = SetUserStatusRequest{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetUserStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetUserStatusRequest) ProtoMessage() {}
+
+func (x *SetUserStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetUserStatusRequest.ProtoReflect.Descriptor instead.
+func (*SetUserStatusRequest) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SetUserStatusRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SetUserStatusRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *SetUserStatusRequest) GetOperatorId() string {
+	if x != nil {
+		return x.OperatorId
+	}
+	return ""
+}
+
+func (x *SetUserStatusRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *SetUserStatusRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+type SetUserStatusReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetUserStatusReply) Reset() {
+	*x = SetUserStatusReply{}
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetUserStatusReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetUserStatusReply) ProtoMessage() {}
+
+func (x *SetUserStatusReply) ProtoReflect() protoreflect.Message {
+	mi := &file_api_auth_service_v1_auth_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetUserStatusReply.ProtoReflect.Descriptor instead.
+func (*SetUserStatusReply) Descriptor() ([]byte, []int) {
+	return file_api_auth_service_v1_auth_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetUserStatusReply) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *SetUserStatusReply) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 var File_api_auth_service_v1_auth_proto protoreflect.FileDescriptor
 
 const file_api_auth_service_v1_auth_proto_rawDesc = "" +
@@ -936,7 +1064,18 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"\x12authorization_code\x18\x01 \x01(\tR\x11authorizationCode\x12#\n" +
 	"\rcode_verifier\x18\x02 \x01(\tR\fcodeVerifier\x12!\n" +
 	"\fredirect_uri\x18\x03 \x01(\tR\vredirectUri\x12\x1b\n" +
-	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId2\xd3\t\n" +
+	"\tdevice_id\x18\x04 \x01(\tR\bdeviceId\"\xa9\x01\n" +
+	"\x14SetUserStatusRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x1f\n" +
+	"\voperator_id\x18\x03 \x01(\tR\n" +
+	"operatorId\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\x12'\n" +
+	"\x0fidempotency_key\x18\x05 \x01(\tR\x0eidempotencyKey\"E\n" +
+	"\x12SetUserStatusReply\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status2\xc0\n" +
+	"\n" +
 	"\vAuthService\x12X\n" +
 	"\bRegister\x12(.dramaip.auth.service.v1.RegisterRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12R\n" +
 	"\x05Login\x12%.dramaip.auth.service.v1.LoginRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12V\n" +
@@ -948,7 +1087,8 @@ const file_api_auth_service_v1_auth_proto_rawDesc = "" +
 	"\x14RequestPasswordReset\x124.dramaip.auth.service.v1.RequestPasswordResetRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12i\n" +
 	"\rResetPassword\x12-.dramaip.auth.service.v1.ResetPasswordRequest\x1a).dramaip.auth.service.v1.EmailActionReply\x12\x9e\x01\n" +
 	"\x1eCreateDesktopAuthorizationCode\x12>.dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest\x1a<.dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply\x12\x88\x01\n" +
-	" ExchangeDesktopAuthorizationCode\x12@.dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest\x1a\".dramaip.auth.service.v1.AuthReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
+	" ExchangeDesktopAuthorizationCode\x12@.dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest\x1a\".dramaip.auth.service.v1.AuthReply\x12k\n" +
+	"\rSetUserStatus\x12-.dramaip.auth.service.v1.SetUserStatusRequest\x1a+.dramaip.auth.service.v1.SetUserStatusReplyBIZGgithub.com/dramaip/dramaip-platform/services/api/auth/service/v1;authv1b\x06proto3"
 
 var (
 	file_api_auth_service_v1_auth_proto_rawDescOnce sync.Once
@@ -962,7 +1102,7 @@ func file_api_auth_service_v1_auth_proto_rawDescGZIP() []byte {
 	return file_api_auth_service_v1_auth_proto_rawDescData
 }
 
-var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_api_auth_service_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_api_auth_service_v1_auth_proto_goTypes = []any{
 	(*RegisterRequest)(nil),                         // 0: dramaip.auth.service.v1.RegisterRequest
 	(*LoginRequest)(nil),                            // 1: dramaip.auth.service.v1.LoginRequest
@@ -979,6 +1119,8 @@ var file_api_auth_service_v1_auth_proto_goTypes = []any{
 	(*CreateDesktopAuthorizationCodeRequest)(nil),   // 12: dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest
 	(*CreateDesktopAuthorizationCodeReply)(nil),     // 13: dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply
 	(*ExchangeDesktopAuthorizationCodeRequest)(nil), // 14: dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest
+	(*SetUserStatusRequest)(nil),                    // 15: dramaip.auth.service.v1.SetUserStatusRequest
+	(*SetUserStatusReply)(nil),                      // 16: dramaip.auth.service.v1.SetUserStatusReply
 }
 var file_api_auth_service_v1_auth_proto_depIdxs = []int32{
 	0,  // 0: dramaip.auth.service.v1.AuthService.Register:input_type -> dramaip.auth.service.v1.RegisterRequest
@@ -992,19 +1134,21 @@ var file_api_auth_service_v1_auth_proto_depIdxs = []int32{
 	10, // 8: dramaip.auth.service.v1.AuthService.ResetPassword:input_type -> dramaip.auth.service.v1.ResetPasswordRequest
 	12, // 9: dramaip.auth.service.v1.AuthService.CreateDesktopAuthorizationCode:input_type -> dramaip.auth.service.v1.CreateDesktopAuthorizationCodeRequest
 	14, // 10: dramaip.auth.service.v1.AuthService.ExchangeDesktopAuthorizationCode:input_type -> dramaip.auth.service.v1.ExchangeDesktopAuthorizationCodeRequest
-	5,  // 11: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
-	5,  // 12: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
-	5,  // 13: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
-	6,  // 14: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
-	5,  // 15: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
-	11, // 16: dramaip.auth.service.v1.AuthService.RequestEmailVerification:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 17: dramaip.auth.service.v1.AuthService.VerifyEmail:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 18: dramaip.auth.service.v1.AuthService.RequestPasswordReset:output_type -> dramaip.auth.service.v1.EmailActionReply
-	11, // 19: dramaip.auth.service.v1.AuthService.ResetPassword:output_type -> dramaip.auth.service.v1.EmailActionReply
-	13, // 20: dramaip.auth.service.v1.AuthService.CreateDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply
-	5,  // 21: dramaip.auth.service.v1.AuthService.ExchangeDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.AuthReply
-	11, // [11:22] is the sub-list for method output_type
-	0,  // [0:11] is the sub-list for method input_type
+	15, // 11: dramaip.auth.service.v1.AuthService.SetUserStatus:input_type -> dramaip.auth.service.v1.SetUserStatusRequest
+	5,  // 12: dramaip.auth.service.v1.AuthService.Register:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 13: dramaip.auth.service.v1.AuthService.Login:output_type -> dramaip.auth.service.v1.AuthReply
+	5,  // 14: dramaip.auth.service.v1.AuthService.Refresh:output_type -> dramaip.auth.service.v1.AuthReply
+	6,  // 15: dramaip.auth.service.v1.AuthService.Logout:output_type -> dramaip.auth.service.v1.LogoutReply
+	5,  // 16: dramaip.auth.service.v1.AuthService.ValidateAccessToken:output_type -> dramaip.auth.service.v1.AuthReply
+	11, // 17: dramaip.auth.service.v1.AuthService.RequestEmailVerification:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 18: dramaip.auth.service.v1.AuthService.VerifyEmail:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 19: dramaip.auth.service.v1.AuthService.RequestPasswordReset:output_type -> dramaip.auth.service.v1.EmailActionReply
+	11, // 20: dramaip.auth.service.v1.AuthService.ResetPassword:output_type -> dramaip.auth.service.v1.EmailActionReply
+	13, // 21: dramaip.auth.service.v1.AuthService.CreateDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.CreateDesktopAuthorizationCodeReply
+	5,  // 22: dramaip.auth.service.v1.AuthService.ExchangeDesktopAuthorizationCode:output_type -> dramaip.auth.service.v1.AuthReply
+	16, // 23: dramaip.auth.service.v1.AuthService.SetUserStatus:output_type -> dramaip.auth.service.v1.SetUserStatusReply
+	12, // [12:24] is the sub-list for method output_type
+	0,  // [0:12] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -1021,7 +1165,7 @@ func file_api_auth_service_v1_auth_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_auth_service_v1_auth_proto_rawDesc), len(file_api_auth_service_v1_auth_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
