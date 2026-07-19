@@ -1,8 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronRight, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, CharacterVisualProfile, CreativeCaseStudy, Project, ProjectSkill, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import {
@@ -22,13 +22,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +54,7 @@ import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibil
 import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/WorkspaceShell'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
+import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
 import { cn } from '@/lib/utils'
 
 const ChapterEditor = lazy(() =>
@@ -108,7 +102,11 @@ export function WorkspacePage() {
   const [caseStudies, setCaseStudies] = useState<CreativeCaseStudy[]>([])
   const [visualProfiles, setVisualProfiles] = useState<CharacterVisualProfile[]>([])
   const [storyArcs, setStoryArcs] = useState<StoryArc[]>([])
+  const [chapterMemories, setChapterMemories] = useState<ChapterMemory[]>([])
+  const [qualityReports, setQualityReports] = useState<QualityGateReport[]>([])
+  const [editorSaveState, setEditorSaveState] = useState<ChapterTreeStatus['saveState']>('clean')
   const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
+  const chapterSearchRef = useRef<HTMLInputElement>(null)
   const [contextControls, setContextControls] = useState<AiContextControls>({})
   const [pendingGenerate, setPendingGenerate] = useState<{
     taskType: PreviewTaskType
@@ -155,6 +153,8 @@ export function WorkspacePage() {
     setVisualProfiles(nextVisualProfiles)
     setCaseStudies(nextCaseStudies)
     setStoryArcs(nextStoryArcs)
+    setChapterMemories(chapterMemories)
+    setQualityReports(qualityReports)
     setProjectSkills(nextProjectSkills)
 
     const primaryAdaptation = adaptations[0]
@@ -219,6 +219,8 @@ export function WorkspacePage() {
       setCaseStudies([])
       setVisualProfiles([])
       setStoryArcs([])
+      setChapterMemories([])
+      setQualityReports([])
       setProjectSkills([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,13 +271,24 @@ export function WorkspacePage() {
     contextControls,
   ) : null
 
-  async function createChapter() {
+  const createChapter = useCallback(async () => {
     if (!id) return
     const c = await ipc.chapter.create({ projectId: id, title: `第 ${chapters.length + 1} 章` })
     setChapters((prev) => [...prev, c])
     openWorkspaceTarget('chapters', c.id)
     setEditorNonce((n) => n + 1)
-  }
+  }, [chapters.length, id, openWorkspaceTarget])
+
+  const reorderChapters = useCallback(async (orderedIds: string[]) => {
+    if (!id) return
+    try {
+      const reordered = await ipc.chapter.reorder(id, orderedIds)
+      setChapters(reordered)
+      toast.success('章节顺序已保存')
+    } catch (error) {
+      toast.error(`章节排序失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [id])
 
   async function deleteChapter(chapterId: string) {
     if (!window.confirm('删除该章节？')) return
@@ -311,6 +324,79 @@ export function WorkspacePage() {
     setChapters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
     setDataVersion((v) => v + 1)
     if (updated.id === selectedId) setEditorNonce((n) => n + 1)
+  }
+
+  const chapterTreeStatuses = useMemo<Record<string, ChapterTreeStatus>>(() => {
+    const memorizedIds = new Set(chapterMemories.map((memory) => memory.chapterId))
+    const qualityByChapter = new Map<string, QualityGateReport>()
+    for (const report of qualityReports) {
+      if (report.targetKind !== 'chapter' || !report.targetId) continue
+      const previous = qualityByChapter.get(report.targetId)
+      if (!previous || report.updatedAt >= previous.updatedAt) qualityByChapter.set(report.targetId, report)
+    }
+    return Object.fromEntries(chapters.map((chapter) => [chapter.id, {
+      words: chapter.content.replace(/\s/g, '').length,
+      hasMemory: memorizedIds.has(chapter.id),
+      quality: qualityByChapter.get(chapter.id)?.verdict,
+      saveState: chapter.id === selectedId ? editorSaveState : 'saved',
+    }]))
+  }, [chapterMemories, chapters, editorSaveState, qualityReports, selectedId])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing) return
+      const isCommand = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
+      if (isCommand && key === 'n') {
+        event.preventDefault()
+        void createChapter()
+        return
+      }
+      if (isCommand && key === 'k') {
+        event.preventDefault()
+        chapterSearchRef.current?.focus()
+        chapterSearchRef.current?.select()
+        return
+      }
+      // 普通方向键仍保留给正文光标和树控件；只有 Alt+方向键跨章节。
+      if (!event.altKey || isCommand || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') || chapters.length < 2) return
+      const currentIndex = chapters.findIndex((chapter) => chapter.id === selectedId)
+      const nextIndex = Math.min(chapters.length - 1, Math.max(0, (currentIndex < 0 ? 0 : currentIndex) + (event.key === 'ArrowUp' ? -1 : 1)))
+      const next = chapters[nextIndex]
+      if (!next || next.id === selectedId) return
+      event.preventDefault()
+      openWorkspaceTarget('chapters', next.id)
+      setEditorNonce((nonce) => nonce + 1)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [chapters, createChapter, openWorkspaceTarget, selectedId])
+
+  async function openSelectedTextAi(selectedText: string) {
+    if (!project || !selected) return
+    const excerpt = selectedText.trim().slice(0, 6000)
+    if (!excerpt) return
+    const toastId = toast.loading('正在为所选片段生成润色预览…')
+    try {
+      const result = await ipc.ai.run({
+        projectId: project.id,
+        chapterId: selected.id,
+        taskType: 'polish_chapter',
+        userInstruction: `请仅润色下面选中的片段，保持人物、事件和叙述事实不变，给出可审阅的替换建议：\n\n${excerpt}`,
+        contextControls,
+      })
+      if (result.ok && result.result?.kind === 'text_preview') {
+        setTextPreview(result.result.data as TextDiffPreviewPayload)
+        toast.success('润色预览已生成，请确认后采用', { id: toastId })
+      } else if (result.ok) {
+        toast.success('AI 操作已完成', { id: toastId })
+        await onChapterUpdated()
+      } else {
+        toast.error(`AI 润色失败：${result.error ?? '未知错误'}`, { id: toastId })
+      }
+    } catch (error) {
+      toast.error(`AI 润色失败：${error instanceof Error ? error.message : String(error)}`, { id: toastId })
+    }
   }
 
   async function handleExport(kind: 'md' | 'json') {
@@ -521,7 +607,60 @@ export function WorkspacePage() {
             </DropdownMenuContent>
           </DropdownMenu>
         }
-        context={(mode) => mode === 'compact' ? (
+        context={(mode) => section === 'chapters' && mode === 'full' ? (
+          <section className="flex h-full min-h-0 flex-col" aria-label="章节导航">
+            <div className="flex gap-1 border-b p-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-w-0 flex-1 justify-start text-xs"
+                title="项目概览"
+                onClick={() => openWorkspaceTarget('overview')}
+              >
+                项目概览
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="打开项目阶段菜单">
+                    <Menu />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
+                  {WORKSPACE_NAV_GROUPS.map((group) => (
+                    <div key={group.key} className="py-1">
+                      <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                      {group.items.map((item) => (
+                        <DropdownMenuItem
+                          key={item.key}
+                          onClick={() => item.key === 'writing-room'
+                            ? navigate(`/projects/${project.id}/writing-room`)
+                            : openWorkspaceTarget(item.key)}
+                        >
+                          {item.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChapterTree
+                chapters={chapters}
+                storyArcs={storyArcs}
+                selectedId={selectedId}
+                statuses={chapterTreeStatuses}
+                onSelect={(chapterId) => {
+                  openWorkspaceTarget('chapters', chapterId)
+                  setEditorNonce((nonce) => nonce + 1)
+                }}
+                onCreate={() => void createChapter()}
+                onReorder={(orderedIds) => void reorderChapters(orderedIds)}
+                searchInputRef={chapterSearchRef}
+              />
+            </div>
+          </section>
+        ) : mode === 'compact' ? (
           <nav className="flex h-full min-w-0 flex-col items-center gap-2 p-2" aria-label="项目阶段导航">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -651,27 +790,19 @@ export function WorkspacePage() {
             <>
               <div className="flex items-center gap-2 border-b px-3 py-2">
                 {chapters.length > 0 ? (
-                  <Select value={selectedId ?? undefined} onValueChange={(v) => { openWorkspaceTarget('chapters', v); setEditorNonce((n) => n + 1) }}>
-                    <SelectTrigger aria-label="选择章节" className="w-64">
-                      <SelectValue placeholder="选择章节" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {chapters.map((c, i) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {i + 1}. {c.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{selected ? `第 ${selected.orderIndex + 1} 章 · ${selected.title}` : '从章节树选择一章'}</div>
+                    <div className="text-xs text-muted-foreground">⌘/Ctrl+K 搜索 · Alt+↑↓ 切章 · ⌘/Ctrl+S 保存</div>
+                  </div>
                 ) : (
                   <span className="text-sm text-muted-foreground">还没有章节</span>
                 )}
-                <Button size="sm" variant="outline" onClick={createChapter}>
+                <Button size="sm" variant="outline" onClick={() => void createChapter()} aria-keyshortcuts="Control+N Meta+N">
                   <FilePlus2 />
                   新建
                 </Button>
                 {selected && (
-                  <Button size="icon" variant="ghost" title="删除章节" onClick={() => deleteChapter(selected.id)}>
+                  <Button size="icon" variant="ghost" title="删除章节" aria-label="删除章节" onClick={() => deleteChapter(selected.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 )}
@@ -694,6 +825,8 @@ export function WorkspacePage() {
                         key={selected.id + ':' + editorNonce}
                         chapter={selected}
                         onContentChange={(markdown) => onContentChange(selected.id, markdown)}
+                        onSaveStateChange={setEditorSaveState}
+                        onSelectedTextAi={openSelectedTextAi}
                       />
                     </Suspense>
                   </div>

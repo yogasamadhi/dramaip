@@ -72,6 +72,15 @@ function main() {
   const c1 = repos.chapter.createChapter(repos.db, { projectId: p1.id, title: '第一章', outline: '归来' })
   const c2 = repos.chapter.createChapter(repos.db, { projectId: p1.id, title: '第二章', outline: '交锋' })
   assert(repos.chapter.listChapters(repos.db, p1.id).length === 2, 'listChapters = 2（顺序保留）')
+  const reorderedChapters = repos.chapter.reorderChapters(repos.db, p1.id, [c2.id, c1.id])
+  assert(reorderedChapters.map((chapter) => chapter.id).join(',') === `${c2.id},${c1.id}`, 'reorderChapters 事务化持久化完整顺序')
+  let rejectedPartialReorder = false
+  try {
+    repos.chapter.reorderChapters(repos.db, p1.id, [c1.id])
+  } catch {
+    rejectedPartialReorder = true
+  }
+  assert(rejectedPartialReorder && repos.chapter.listChapters(repos.db, p1.id).map((chapter) => chapter.id).join(',') === `${c2.id},${c1.id}`, 'reorderChapters 拒绝缺失 id 且不写入半套顺序')
 
   const cUpd = repos.chapter.updateChapterContent(repos.db, c1.id, '这是第一章正文…')
   assert(cUpd?.content === '这是第一章正文…', 'updateChapterContent 写回正文')

@@ -33,6 +33,7 @@ interface UiFixture {
   shotId: string
   emptyProjectId: string
   longTitleProjectId: string
+  longChapterProjectId: string
   staleQualityProjectId: string
 }
 
@@ -165,6 +166,39 @@ export async function runDesktopUiBaseline(
       themePreference: 'dark',
       density: 'comfortable',
       reducedMotion: false,
+    },
+    {
+      name: 'chapter-tree-1060-light',
+      hash: `#/projects/${fixture.longChapterProjectId}?section=chapters`,
+      expectedText: 'UI 长篇章节树项目',
+      readyText: '第一卷 · 导航验证',
+      viewport: { width: 1060, height: 820 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
+      name: 'chapter-tree-1179-dark',
+      hash: `#/projects/${fixture.longChapterProjectId}?section=chapters`,
+      expectedText: 'UI 长篇章节树项目',
+      readyText: '第一卷 · 导航验证',
+      viewport: { width: 1179, height: 820 },
+      theme: 'dark',
+      themePreference: 'dark',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
+      name: 'chapter-tree-1320-light-reduced',
+      hash: `#/projects/${fixture.longChapterProjectId}?section=chapters`,
+      expectedText: 'UI 长篇章节树项目',
+      readyText: '第一卷 · 导航验证',
+      viewport: { width: 1320, height: 860 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: true,
     },
     {
       name: 'workflow-stale-quality-1320-light',
@@ -338,6 +372,31 @@ function seedUiFixture(): UiFixture {
     shortDramaType: '悬疑反转',
     synopsis: '用于窄窗口和长文本视觉回归的脱敏固定内容。',
   })
+  const longChapterProject = repos.project.createProject(repos.db, {
+    title: 'UI 长篇章节树项目',
+    shortDramaType: '长篇都市反击',
+    synopsis: '用于验证 300 章章节树、虚拟滚动和编辑器可用宽度的固定数据。',
+  })
+  for (let index = 0; index < 300; index++) {
+    repos.chapter.createChapter(repos.db, {
+      projectId: longChapterProject.id,
+      title: `第 ${index + 1} 章 · 长篇章节树验证`,
+      content: index === 0 ? '这是用于视觉回归的长篇第一章正文。' : '',
+    })
+  }
+  const longVolume = repos.storyArc.createStoryArc(repos.db, {
+    projectId: longChapterProject.id,
+    kind: 'volume',
+    title: '第一卷 · 导航验证',
+  })
+  repos.storyArc.createStoryArc(repos.db, {
+    projectId: longChapterProject.id,
+    parentId: longVolume.id,
+    kind: 'unit',
+    title: '开篇反击单元',
+    chapterStart: 1,
+    chapterEnd: 100,
+  })
   const staleQualityProject = repos.project.createProject(repos.db, {
     title: 'UI 过期报告项目',
     shortDramaType: '悬疑反转',
@@ -353,6 +412,7 @@ function seedUiFixture(): UiFixture {
     shotId: shot.id,
     emptyProjectId: emptyProject.id,
     longTitleProjectId: longTitleProject.id,
+    longChapterProjectId: longChapterProject.id,
     staleQualityProjectId: staleQualityProject.id,
   }
 }
