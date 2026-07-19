@@ -37,6 +37,9 @@ export function registerProjectIpc(): void {
   ipcMain.handle('chapter:update', (_e, id: string, patch: unknown) =>
     repos().chapter.updateChapter(repos().db, id, patch as never),
   )
+  ipcMain.handle('chapter:reorder', (_e, projectId: string, orderedIds: string[]) =>
+    repos().chapter.reorderChapters(repos().db, projectId, orderedIds),
+  )
   ipcMain.handle('chapter:updateContent', (_e, id: string, content: string) =>
     repos().chapter.updateChapterContent(repos().db, id, content),
   )

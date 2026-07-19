@@ -82,6 +82,7 @@ const api = {
     get: (id: string) => invoke('chapter:get', id),
     create: (data: unknown) => invoke('chapter:create', data),
     update: (id: string, patch: unknown) => invoke('chapter:update', id, patch),
+    reorder: (projectId: string, orderedIds: string[]) => invoke('chapter:reorder', projectId, orderedIds),
     updateContent: (id: string, content: string) => invoke('chapter:updateContent', id, content),
     remove: (id: string) => invoke('chapter:delete', id),
   },

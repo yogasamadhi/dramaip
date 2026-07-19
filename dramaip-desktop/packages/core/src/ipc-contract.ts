@@ -573,6 +573,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'chapter:list': [id],
   'chapter:create': [chapterInput],
   'chapter:update': [id, chapterPatch],
+  'chapter:reorder': [id, stringArray],
   'character:list': [id],
   'character:create': [characterInput],
   'character:update': [id, characterPatch],

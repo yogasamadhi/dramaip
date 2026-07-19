@@ -467,6 +467,7 @@ export interface StudioApi {
     get(id: string): Promise<Chapter | undefined>
     create(data: { projectId: string; title: string } & Partial<Chapter>): Promise<Chapter>
     update(id: string, patch: Partial<Chapter>): Promise<Chapter | undefined>
+    reorder(projectId: string, orderedIds: string[]): Promise<Chapter[]>
     updateContent(id: string, content: string): Promise<Chapter | undefined>
     remove(id: string): Promise<boolean>
   }

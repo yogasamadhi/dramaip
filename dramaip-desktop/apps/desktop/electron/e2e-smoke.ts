@@ -662,6 +662,63 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
   })
 
+  await step('chapter-tree-300-performance-order-and-keyboard', async () => {
+    const api = (window as unknown as {
+      api: {
+        chapter: {
+          list: (projectId: string) => Promise<Array<{ id: string; title: string; orderIndex: number }>>
+          create: (input: { projectId: string; title: string }) => Promise<{ id: string }>
+          reorder: (projectId: string, orderedIds: string[]) => Promise<Array<{ id: string; orderIndex: number }>>
+        }
+        storyArc: {
+          create: (input: { projectId: string; kind: 'volume' | 'unit'; title: string; parentId?: string; chapterStart?: number; chapterEnd?: number }) => Promise<{ id: string }>
+        }
+      }
+    }).api
+    let longProjectChapters = await api.chapter.list(projectId)
+    for (let index = longProjectChapters.length; index < 300; index++) {
+      await api.chapter.create({ projectId, title: `第 ${index + 1} 章 · 长篇导航验证` })
+    }
+    const volume = await api.storyArc.create({ projectId, kind: 'volume', title: '第一卷 · 长篇导航验证' })
+    await api.storyArc.create({
+      projectId,
+      kind: 'unit',
+      parentId: volume.id,
+      title: '开篇反击单元',
+      chapterStart: 1,
+      chapterEnd: 100,
+    })
+    longProjectChapters = await api.chapter.list(projectId)
+    const reordered = await api.chapter.reorder(projectId, [longProjectChapters[1]!.id, longProjectChapters[0]!.id, ...longProjectChapters.slice(2).map((chapter) => chapter.id)])
+    if (reordered[0]?.id !== longProjectChapters[1]?.id || reordered[0]?.orderIndex !== 0) {
+      throw new Error('章节重排没有持久化完整顺序')
+    }
+
+    // 直接通过受限 IPC 造 300 章 fixture 后，按真实用户导航重新打开工作台，
+    // 验证章节树会从 SQLite 重新读取卷/单元和重排结果。
+    window.location.hash = '#/'
+    await waitFor('返回项目列表以刷新长篇 fixture', () => text().includes('项目工作台'))
+    window.location.hash = `#/projects/${projectId}?section=chapters&chapter=${reordered[0]!.id}`
+    await waitFor('300 章章节树', () => Boolean(document.querySelector('[role="tree"][aria-label="按卷和单元分组的章节"]')))
+    const tree = document.querySelector('[role="tree"]') as HTMLElement
+    const renderedRows = tree.querySelectorAll('[role="treeitem"]').length
+    if (renderedRows >= 60) throw new Error(`章节树未虚拟化：渲染了 ${renderedRows} 行`)
+    if (!tree.textContent?.includes('第一卷 · 长篇导航验证')) throw new Error('章节树未显示卷/单元分组')
+
+    const searchInput = document.querySelector('input[aria-label="搜索章节"]') as HTMLInputElement | null
+    if (!searchInput) throw new Error('未找到章节树搜索框')
+    setInputValue(searchInput, '第 300 章')
+    await waitFor('章节树搜索', () => tree.textContent?.includes('第 300 章 · 长篇导航验证'))
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'k', metaKey: true }))
+    await waitFor('Cmd K 聚焦章节搜索', () => document.activeElement === searchInput)
+    setInputValue(searchInput, '')
+    const beforeChapterId = window.location.hash.match(/[?&]chapter=([^&]+)/)?.[1]
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown', altKey: true }))
+    await waitFor('Alt 下方向键切章', () => window.location.hash.includes('chapter=') && !window.location.hash.endsWith(`chapter=${beforeChapterId}`))
+    window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'n', metaKey: true }))
+    await waitFor('Cmd N 新建章节', async () => (await api.chapter.list(projectId)).length === 301)
+  })
+
   await step('project-trash-undo-restore-and-strong-purge', async () => {
     const api = (window as unknown as {
       api: { project: { create: (data: { title: string; shortDramaType: string }) => Promise<{ id: string; title: string }> } }

@@ -17,6 +17,7 @@ function registeredIpcChannels(): string[] {
 test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('project:list', []), [])
   assert.deepEqual(validateIpcArgs('chapter:list', ['project-1']), ['project-1'])
+  assert.deepEqual(validateIpcArgs('chapter:reorder', ['project-1', ['chapter-2', 'chapter-1']]), ['project-1', ['chapter-2', 'chapter-1']])
   assert.deepEqual(validateIpcArgs('outline:list', ['project-1', 'book']), ['project-1', 'book'])
   assert.deepEqual(validateIpcArgs('storyArc:list', ['project-1', 'volume']), ['project-1', 'volume'])
   assert.deepEqual(validateIpcArgs('projectSkill:list', ['project-1']), ['project-1'])
@@ -204,6 +205,7 @@ test('validates exact IPC channel arguments', () => {
 test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('project:list', ['extra']), /参数数量错误/)
   assert.throws(() => validateIpcArgs('chapter:list', []), /参数数量错误/)
+  assert.throws(() => validateIpcArgs('chapter:reorder', ['project-1', 'chapter-1']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('outline:list', ['project-1', 'bad']), /参数校验失败/)
   assert.throws(() => validateIpcArgs('storyArc:create', [{ projectId: 'project-1', kind: 'act', title: 'x' }]), /kind/)
   assert.throws(() => validateIpcArgs('projectSkill:create', [{ projectId: 'project-1', name: 'x', category: 'bad', content: 'x' }]), /category/)

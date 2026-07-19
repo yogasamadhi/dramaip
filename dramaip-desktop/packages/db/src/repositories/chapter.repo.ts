@@ -65,6 +65,34 @@ export function updateChapterContent(db: DB, id: string, content: string): Chapt
   return updateChapter(db, id, { content })
 }
 
+/**
+ * 按传入顺序一次性重排项目章节。
+ *
+ * 不能接受缺失、重复或跨项目 id：调用方必须提交当前项目完整、无重复的章节集合。
+ * 这样拖拽失败时事务会整体回滚，而不是留下半套 orderIndex。
+ */
+export function reorderChapters(db: DB, projectId: string, orderedIds: string[]): Chapter[] {
+  const current = listChapters(db, projectId)
+  const currentIds = new Set(current.map((chapter) => chapter.id))
+  const submittedIds = new Set(orderedIds)
+  if (
+    orderedIds.length !== current.length ||
+    submittedIds.size !== orderedIds.length ||
+    orderedIds.some((id) => !currentIds.has(id))
+  ) {
+    throw new Error('章节重排请求必须包含该项目全部且不重复的章节')
+  }
+
+  db.transaction((tx) => {
+    orderedIds.forEach((id, orderIndex) => {
+      updateRows(tx as DB, chapters, { orderIndex, updatedAt: now() })
+        .where(eq(chapters.id, id))
+        .run()
+    })
+  })
+  return listChapters(db, projectId)
+}
+
 export function deleteChapter(db: DB, id: string): void {
   db.delete(chapters).where(eq(chapters.id, id)).run()
 }
