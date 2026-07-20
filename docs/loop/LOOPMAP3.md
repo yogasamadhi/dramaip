@@ -1327,3 +1327,17 @@ Push: The merge and this completion-record commit are pushed together to origin/
 Loop branch cleanup: `loop/lm3-33-current-pitr-rehearsal` is merged and deleted locally after the target push.
 Remaining blocker: The local kind API was stopped, so no fresh CNPG claim was made. More importantly, LM3-33 still lacks an authorized production-equivalent multi-failure-domain store, KMS/Secret Manager, immutable retention, a real RPO/RTO drill, corruption alert, target-time restore and payment/billing/quota reconciliation evidence. LM3-34 and LM4-30 remain blocked by those conditions.
 ```
+
+```text
+Loop: LM3-34 current local release Gate (partial)
+Target branch: loop/lm4-29-admin-operations (the retained LM4 release-chain target)
+Loop branch: loop/lm3-34-local-gate
+Commit(s): 49fd42c docs: record LM3-34 local release gate
+Merge commit: 8b6493e merge: record LM3-34 local release gate
+Verification: Platform `make test`, `buf lint`, `make observability-config-smoke`, `make observability-rule-test`, `make web-route-smoke`, `make platform-e2e`, and `make observability-smoke` passed. Compose config plus Helm lint/template passed. Desktop `pnpm test` (162 units plus DB migration/backup smoke), `pnpm test:e2e`, `pnpm package:smoke:dir`, `pnpm format:check`, and `pnpm test:ui:skip-build -- --output=artifacts/lm3-34-current` passed; UI produced 31 baselines with 0 accessibility observations. Clients `pnpm lint`, `pnpm typecheck`, `pnpm contracts:check`, `pnpm build:web`, and `pnpm build:admin` passed. The post-merge `make platform-e2e` and cumulative `git diff --check` passed.
+Diff review: Documentation/Gate-only change. It creates the previously missing LM3-34 linked record and corrects the stale map state from `todo` to `partial`; the evidence explicitly distinguishes test plans and local unsigned macOS packaging from real external/payment/provider/production claims. No credential, production endpoint, payment record, account data, package artifact or cache appears in the diff.
+Remote sync: Target was fetched and fast-forward checked against origin before the no-ff merge; no intervening remote commit required conflict resolution.
+Push: The merge and this completion-record commit are pushed together to origin/loop/lm4-29-admin-operations after this record is committed.
+Loop branch cleanup: `loop/lm3-34-local-gate` is merged and deleted locally after the target push.
+Remaining blocker: LM3-33 remains partial; no authorized real payment/AI/video-provider sandbox evidence, production-equivalent load/fault testing, real device/cross-platform signed packaging, formal security/Secret review or production deployment/rollback evidence exists. Current LM4 partial loops and the retained parent chain also prevent `main` release. These are release blockers, not waived requirements.
+```
