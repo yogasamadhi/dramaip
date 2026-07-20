@@ -17,6 +17,15 @@ K8s/Helm files remain in the repository, but the local baseline is Compose:
 Kong -> BFF -> auth/user/billing/quota/ai-gateway/notification, with
 `notification-job` consuming its own RabbitMQ event subscription.
 
+`make platform-up` restarts Kong after Compose recreates services, so its upstream
+resolver cannot retain a retired BFF container address. It then returns only after
+Kong's public `/v1/healthz` reports `{"ok":true}`. The bounded wait prevents an
+immediate E2E request from racing a newly recreated BFF. The default limit is 90
+seconds; a local operator may use `DRAMAIP_PLATFORM_READY_TIMEOUT_MS`,
+`DRAMAIP_PLATFORM_READY_INTERVAL_MS`, and
+`DRAMAIP_PLATFORM_READY_REQUEST_TIMEOUT_MS` to tune only the wait behavior.
+`make platform-wait` exposes the same check after an externally started stack.
+
 | Entry | URL |
 | --- | --- |
 | Web | `http://localhost:3009` |
