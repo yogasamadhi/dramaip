@@ -1341,3 +1341,17 @@ Push: The merge and this completion-record commit are pushed together to origin/
 Loop branch cleanup: `loop/lm3-34-local-gate` is merged and deleted locally after the target push.
 Remaining blocker: LM3-33 remains partial; no authorized real payment/AI/video-provider sandbox evidence, production-equivalent load/fault testing, real device/cross-platform signed packaging, formal security/Secret review or production deployment/rollback evidence exists. Current LM4 partial loops and the retained parent chain also prevent `main` release. These are release blockers, not waived requirements.
 ```
+
+```text
+Loop: LM3-34 Compose readiness continuation (partial)
+Target branch: loop/lm4-29-admin-operations (the retained LM4 release-chain target)
+Loop branch: loop/lm3-34-compose-readiness
+Commit(s): d8d5b5c fix: wait for Compose platform readiness
+Merge commit: 6146658 merge: add Compose readiness gate
+Verification: `node --check dramaip-platform/scripts/wait-for-platform-ready.mjs` passed. The health waiter accepts only `200 {"ok":true}`, retries bounded connection and non-200 failures, honors a positive `Retry-After` on rate limiting, and rejects credential-bearing health URLs. Its short unreachable-endpoint timeout and credential guard both returned the expected nonzero result. `make platform-up` rebuilt the full Compose stack, restarted Kong so it drops a retired Web BFF upstream IP, and waited for public health successfully in two attempts. Immediately afterward `make platform-e2e` passed with the basic plan consuming 22 tokens and `make observability-smoke` found three spans. After the no-ff merge, `make platform-wait`, `make platform-e2e`, `make observability-smoke`, and cumulative `git diff --check` all passed.
+Diff review: Reviewed the 110-line targeted diff: a bounded, credential-safe Node readiness check; Make targets that rebuild, restart Kong and wait; local-development instructions; and LM3-34 evidence. It does not add a credential, token, payment/provider request, image, cache or build artifact.
+Remote sync: Target was fetched and fast-forward checked against origin before the no-ff merge; no intervening remote commit required conflict resolution.
+Push: The merge and this completion-record commit are pushed together to origin/loop/lm4-29-admin-operations after this record is committed.
+Loop branch cleanup: `loop/lm3-34-compose-readiness` is merged and deleted locally after the target push.
+Remaining blocker: This removes a local Compose startup race only. The LM3-34 production Gate remains partial for the external blockers recorded above, including LM3-33 recovery evidence, authorized provider sandbox evidence, production-equivalent fault/load testing, signed cross-platform packaging, formal security/Secret review and production deployment/rollback evidence.
+```
