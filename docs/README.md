@@ -16,6 +16,8 @@
 - [Production Optimization Loop Map](./loop/LOOPMAP.md)
 - [Production Optimization Loop Map 2](./loop/LOOPMAP2.md)
 - [Platform Architecture Convergence Loop Map 3](./loop/LOOPMAP3.md)
+- [Production Optimization Loop Map 4](./loop/LOOPMAP4.md)
+- [LM4-31 发布 Gate 审计](./loop/LM4-31-AUDIT.md)
 
 ## 项目文档
 
