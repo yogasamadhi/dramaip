@@ -1,10 +1,15 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
 COMPOSE_ENV ?= services/.env
 
-.PHONY: platform-up platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
+.PHONY: platform-up platform-wait platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
 
 platform-up:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
+	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) restart kong
+	$(MAKE) platform-wait
+
+platform-wait:
+	node scripts/wait-for-platform-ready.mjs
 
 platform-down:
 	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) down
