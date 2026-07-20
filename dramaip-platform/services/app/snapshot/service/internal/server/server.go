@@ -12,6 +12,7 @@ import (
 	"github.com/go-kratos/kratos/v3/middleware/recovery"
 	kgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	khttp "github.com/go-kratos/kratos/v3/transport/http"
+	"google.golang.org/grpc"
 )
 
 func NewHTTPServer(cfg *conf.Bootstrap, uc *snapshotbiz.ProjectSnapshotUsecase) *khttp.Server {
@@ -23,6 +24,10 @@ func NewHTTPServer(cfg *conf.Bootstrap, uc *snapshotbiz.ProjectSnapshotUsecase) 
 func NewGRPCServer(cfg *conf.Bootstrap, svc *snapshotsvc.SnapshotService) *kgrpc.Server {
 	options := []kgrpc.ServerOption{
 		kgrpc.Address(cfg.Server.GRPC.Addr),
+		// Project snapshots are capped at 64 MiB in the owner domain. Upload
+		// writes are 1 MiB chunks, but bounded encrypted downloads need the
+		// matching server send allowance.
+		kgrpc.Options(grpc.MaxRecvMsgSize(10<<20), grpc.MaxSendMsgSize(66<<20)),
 		kgrpc.Middleware(recovery.Recovery(), platform.GRPCPeerAuthorization(cfg.MTLS, "desktop-bff"), platform.GRPCUserIdentityPropagation(cfg.MTLS), kratosx.TraceMiddleware("snapshot-service")),
 	}
 	if tlsConfig, err := cfg.MTLS.ServerTLSConfig(); err != nil {

@@ -1,4 +1,7 @@
-import { randomUUID } from 'node:crypto'
+import { app } from 'electron'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import * as keytar from 'keytar'
 import { collectProjectPackage, importProjectPackage, parseProjectPackage, serializeProjectPackage } from '@sdns/export'
 import { getRepos } from './db'
@@ -13,7 +16,11 @@ import {
 
 const SNAPSHOT_TIMEOUT_MS = 30_000
 const SNAPSHOT_KEYCHAIN_SERVICE = 'com.sdns.studio.project-snapshot-recovery'
-const MAX_ENCRYPTED_ENVELOPE_BYTES = 8 << 20
+const MAX_INLINE_ENCRYPTED_ENVELOPE_BYTES = 8 << 20
+const MAX_ENCRYPTED_ENVELOPE_BYTES = 64 << 20
+const SNAPSHOT_UPLOAD_CHUNK_BYTES = 1 << 20
+const SNAPSHOT_UPLOAD_STAGING_DIR = 'project-snapshot-uploads'
+const SNAPSHOT_UPLOAD_STAGING_RETENTION_MS = 24 * 60 * 60 * 1000
 
 export interface CloudProjectSnapshot {
   id: string
@@ -31,40 +38,61 @@ export interface CreatedCloudProjectSnapshot extends CloudProjectSnapshot {
   recoveryKey: string
 }
 
+interface StagedCloudProjectSnapshot {
+  version: 1
+  projectID: string
+  idempotencyKey: string
+  encryptedEnvelope: string
+  encryptedSHA256: string
+  createdAt: string
+}
+
+interface CloudProjectSnapshotUpload {
+  id: string
+  encryptedBytes: number
+  encryptedSha256: string
+  receivedChunkIndexes: number[]
+  expiresAt: string
+}
+
 export async function createCloudProjectSnapshot(projectID: string): Promise<CreatedCloudProjectSnapshot> {
-  const repos = getRepos()
-  const project = repos.project.getProject(repos.db, projectID)
-  if (!project) throw new Error('未找到项目')
-
-  const serializedPackage = serializeProjectPackage(collectProjectPackage(repos, projectID, { includeAssets: false }))
-  const recoveryKey = createProjectSnapshotRecoveryKey()
-  const envelope = encryptProjectSnapshot(serializedPackage, recoveryKey)
-  const encryptedEnvelope = Buffer.from(JSON.stringify(envelope), 'utf8')
-  if (encryptedEnvelope.length > MAX_ENCRYPTED_ENVELOPE_BYTES) throw new Error('加密项目快照超过 8 MiB 上限；请先使用本机完整备份或缩减项目内容')
-
-  const idempotencyKey = `desktop-snapshot-${randomUUID()}`
-  const temporaryKeyAccount = `pending:${idempotencyKey}`
-  // A cloud upload is not started until the recovery key is durable locally;
-  // this prevents a successful backup whose user can no longer decrypt it.
-  await keytar.setPassword(SNAPSHOT_KEYCHAIN_SERVICE, temporaryKeyAccount, recoveryKey)
+  await cleanupExpiredStagedUploads()
+  let staged = await findStagedUpload(projectID)
+  let recoveryKey: string | null = staged ? await keytar.getPassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey)) : null
+  if (!staged || !recoveryKey) {
+    if (staged) await clearStagedUpload(staged)
+    const repos = getRepos()
+    const project = repos.project.getProject(repos.db, projectID)
+    if (!project) throw new Error('未找到项目')
+    recoveryKey = createProjectSnapshotRecoveryKey()
+    const serializedPackage = serializeProjectPackage(collectProjectPackage(repos, projectID, { includeAssets: false }))
+    const envelope = encryptProjectSnapshot(serializedPackage, recoveryKey)
+    const encryptedEnvelope = Buffer.from(JSON.stringify(envelope), 'utf8')
+    if (encryptedEnvelope.length > MAX_ENCRYPTED_ENVELOPE_BYTES) throw new Error('加密项目快照超过 64 MiB 上限；请先使用本机完整备份或缩减项目内容')
+    const idempotencyKey = `desktop-snapshot-${randomUUID()}`
+    // Persist only opaque ciphertext and a retry identifier. The recovery key
+    // remains in Keychain before any network request begins.
+    await keytar.setPassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(idempotencyKey), recoveryKey)
+    staged = { version: 1, projectID, idempotencyKey, encryptedEnvelope: encryptedEnvelope.toString('base64'), encryptedSHA256: sha256Hex(encryptedEnvelope), createdAt: new Date().toISOString() }
+    await writeStagedUpload(staged)
+  }
   try {
-    const payload = await snapshotRequest('/v1/desktop/project-snapshots', {
-      method: 'POST', body: JSON.stringify({ idempotency_key: idempotencyKey, encrypted_envelope: encryptedEnvelope.toString('base64') }),
-    }) as { snapshot?: unknown }
-    const snapshot = await parseSnapshot(payload.snapshot)
+    const snapshot = await uploadStagedSnapshot(staged)
     try {
       await keytar.setPassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(snapshot.id), recoveryKey)
     } catch {
-      // The upload already succeeded. Return the one-time key rather than
-      // pretending it failed and leaving a backup that the user cannot find.
-      await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, temporaryKeyAccount)
+      // The upload already succeeded. Keep the encrypted retry staging and
+      // Keychain pending entry so a later retry can recover the same snapshot.
       return { ...snapshot, recoveryKey, recoveryKeyAvailable: false }
     }
-    await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, temporaryKeyAccount)
+    await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey))
+    await clearStagedUpload(staged)
     return { ...snapshot, recoveryKey, recoveryKeyAvailable: true }
   } catch (error) {
-    await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, temporaryKeyAccount)
-    throw error
+    // Keep the opaque staged envelope and Keychain-only recovery key. Selecting
+    // this project again resumes missing chunks instead of creating another key.
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(`云端快照未完成；可再次选择同一项目继续上传（${detail}）`)
   }
 }
 
@@ -94,6 +122,115 @@ export async function deleteCloudProjectSnapshot(snapshotID: string): Promise<vo
   await snapshotRequest(`/v1/desktop/project-snapshots?id=${encodeURIComponent(snapshotID)}`, { method: 'DELETE' })
   await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(snapshotID))
 }
+
+async function uploadStagedSnapshot(staged: StagedCloudProjectSnapshot): Promise<CloudProjectSnapshot> {
+  const encryptedEnvelope = Buffer.from(staged.encryptedEnvelope, 'base64')
+  if (encryptedEnvelope.length === 0 || encryptedEnvelope.length > MAX_ENCRYPTED_ENVELOPE_BYTES || sha256Hex(encryptedEnvelope) !== staged.encryptedSHA256) {
+    throw new Error('本机暂存的加密快照无效')
+  }
+  if (encryptedEnvelope.length <= MAX_INLINE_ENCRYPTED_ENVELOPE_BYTES) {
+    const payload = await snapshotRequest('/v1/desktop/project-snapshots', {
+      method: 'POST', body: JSON.stringify({ idempotency_key: staged.idempotencyKey, encrypted_envelope: staged.encryptedEnvelope }),
+    }) as { snapshot?: unknown }
+    return parseSnapshot(payload.snapshot)
+  }
+
+  const started = await snapshotRequest('/v1/desktop/project-snapshot-uploads', {
+    method: 'POST', body: JSON.stringify({ idempotency_key: staged.idempotencyKey, encrypted_bytes: encryptedEnvelope.length, encrypted_sha256: staged.encryptedSHA256 }),
+  }) as { snapshot?: unknown; upload?: unknown }
+  if (started.snapshot) return parseSnapshot(started.snapshot)
+  const upload = parseUpload(started.upload, encryptedEnvelope.length, staged.encryptedSHA256)
+  const received = new Set(upload.receivedChunkIndexes)
+  const chunks = Math.ceil(encryptedEnvelope.length / SNAPSHOT_UPLOAD_CHUNK_BYTES)
+  for (let index = 0; index < chunks; index += 1) {
+    if (received.has(index)) continue
+    const encryptedChunk = encryptedEnvelope.subarray(index * SNAPSHOT_UPLOAD_CHUNK_BYTES, Math.min(encryptedEnvelope.length, (index + 1) * SNAPSHOT_UPLOAD_CHUNK_BYTES))
+    await snapshotRequest('/v1/desktop/project-snapshot-uploads/chunks', {
+      method: 'POST', body: JSON.stringify({ upload_id: upload.id, chunk_index: index, encrypted_chunk: encryptedChunk.toString('base64'), encrypted_chunk_sha256: sha256Hex(encryptedChunk) }),
+    })
+  }
+  const completed = await snapshotRequest('/v1/desktop/project-snapshot-uploads/complete', {
+    method: 'POST', body: JSON.stringify({ upload_id: upload.id }),
+  }) as { snapshot?: unknown }
+  return parseSnapshot(completed.snapshot)
+}
+
+async function cleanupExpiredStagedUploads(): Promise<void> {
+  try {
+    const dir = stagedUploadDirectory()
+    const names = await readdir(dir)
+    for (const name of names) {
+      if (!name.endsWith('.json')) continue
+      const file = join(dir, name)
+      const staged = await readStagedUploadFile(file)
+      if (!staged || Date.now() - Date.parse(staged.createdAt) > SNAPSHOT_UPLOAD_STAGING_RETENTION_MS) {
+        if (staged) await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey))
+        await rm(file, { force: true })
+      }
+    }
+  } catch {
+    // A missing or unreadable local staging directory must never block a
+    // fresh user-initiated snapshot.
+  }
+}
+
+async function findStagedUpload(projectID: string): Promise<StagedCloudProjectSnapshot | undefined> {
+  try {
+    const names = await readdir(stagedUploadDirectory())
+    const candidates = await Promise.all(names.filter((name) => name.endsWith('.json')).map(async (name) => readStagedUploadFile(join(stagedUploadDirectory(), name))))
+    return candidates.filter((item): item is StagedCloudProjectSnapshot => Boolean(item && item.projectID === projectID)).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
+  } catch {
+    return undefined
+  }
+}
+
+async function writeStagedUpload(staged: StagedCloudProjectSnapshot): Promise<void> {
+  const directory = stagedUploadDirectory()
+  await mkdir(directory, { recursive: true })
+  const destination = stagedUploadFile(staged.idempotencyKey)
+  const temporary = `${destination}.${randomUUID()}.tmp`
+  await writeFile(temporary, JSON.stringify(staged), { encoding: 'utf8', mode: 0o600 })
+  await rename(temporary, destination)
+}
+
+async function clearStagedUpload(staged: StagedCloudProjectSnapshot): Promise<void> {
+  await rm(stagedUploadFile(staged.idempotencyKey), { force: true })
+}
+
+async function readStagedUploadFile(file: string): Promise<StagedCloudProjectSnapshot | undefined> {
+  try {
+    const value = JSON.parse(await readFile(file, 'utf8')) as Partial<StagedCloudProjectSnapshot>
+    const projectID = text(value.projectID)
+    const encryptedEnvelopeBase64 = text(value.encryptedEnvelope)
+    const createdAt = text(value.createdAt)
+    if (value.version !== 1 || !projectID || !validIdempotencyKey(value.idempotencyKey) || !encryptedEnvelopeBase64 || !validSHA256(value.encryptedSHA256) || !createdAt || !Number.isFinite(Date.parse(createdAt))) return undefined
+    const encryptedEnvelope = Buffer.from(encryptedEnvelopeBase64, 'base64')
+    if (encryptedEnvelope.length === 0 || encryptedEnvelope.length > MAX_ENCRYPTED_ENVELOPE_BYTES || sha256Hex(encryptedEnvelope) !== value.encryptedSHA256) return undefined
+    return { version: 1, projectID, idempotencyKey: value.idempotencyKey, encryptedEnvelope: encryptedEnvelopeBase64, encryptedSHA256: value.encryptedSHA256, createdAt }
+  } catch {
+    return undefined
+  }
+}
+
+function parseUpload(value: unknown, encryptedBytes: number, encryptedSHA256: string): CloudProjectSnapshotUpload {
+  const upload = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const id = text(upload.id)
+  const bytes = upload.encrypted_bytes
+  const digest = text(upload.encrypted_sha256)
+  const expiresAt = text(upload.expires_at)
+  const received = Array.isArray(upload.received_chunk_indexes) ? upload.received_chunk_indexes : []
+  if (!id || bytes !== encryptedBytes || digest !== encryptedSHA256 || !expiresAt || received.some((index) => !Number.isInteger(index) || index < 0 || index >= Math.ceil(encryptedBytes / SNAPSHOT_UPLOAD_CHUNK_BYTES))) {
+    throw new Error('云端续传状态无效')
+  }
+  return { id, encryptedBytes: bytes, encryptedSha256: digest, receivedChunkIndexes: [...new Set(received as number[])], expiresAt }
+}
+
+function stagedUploadDirectory(): string { return join(app.getPath('userData'), SNAPSHOT_UPLOAD_STAGING_DIR) }
+function stagedUploadFile(idempotencyKey: string): string { return join(stagedUploadDirectory(), `${createHash('sha256').update(idempotencyKey).digest('hex')}.json`) }
+function pendingKeychainAccount(idempotencyKey: string): string { return `pending:${idempotencyKey}` }
+function sha256Hex(value: Buffer): string { return createHash('sha256').update(value).digest('hex') }
+function validIdempotencyKey(value: unknown): value is string { return typeof value === 'string' && /^desktop-snapshot-[0-9a-f-]{36}$/.test(value) }
+function validSHA256(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value) }
 
 async function snapshotRequest(path: string, init: RequestInit): Promise<unknown> {
   return withCloudAccessToken(async ({ bffOrigin }, accessToken) => {

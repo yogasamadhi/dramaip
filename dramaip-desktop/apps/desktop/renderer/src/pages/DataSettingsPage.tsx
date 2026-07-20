@@ -271,7 +271,7 @@ export function DataSettingsPage() {
               <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base"><Cloud className="h-4 w-4 text-primary" />端到端加密云端快照</CardTitle>
-                  <p className="mt-2 text-sm font-normal text-muted-foreground">手动创建；项目包先在本机加密，云端只保留密文 30 天。恢复始终导入为新项目。</p>
+				  <p className="mt-2 text-sm font-normal text-muted-foreground">手动创建；项目包先在本机加密，云端只保留密文 30 天。大于 8 MiB 的密文会安全分片，网络中断后再次选择同一项目即可续传；恢复始终导入为新项目。</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => void reloadCloudSnapshots()} disabled={cloudLoading || busy !== null}><RefreshCw />刷新</Button>
               </CardHeader>

@@ -139,6 +139,30 @@ func (u *BFFUsecase) CreateProjectSnapshot(ctx context.Context, accessToken, ide
 	return reply.Snapshot, nil
 }
 
+func (u *BFFUsecase) StartProjectSnapshotUpload(ctx context.Context, accessToken, idempotencyKey string, encryptedBytes int64, encryptedSHA256 string) (*snapshotv1.StartProjectSnapshotUploadResponse, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Snapshot.StartProjectSnapshotUpload(ctx, &snapshotv1.StartProjectSnapshotUploadRequest{UserId: identity.UserId, IdempotencyKey: strings.TrimSpace(idempotencyKey), EncryptedBytes: encryptedBytes, EncryptedSha256: strings.TrimSpace(encryptedSHA256)})
+}
+
+func (u *BFFUsecase) UploadProjectSnapshotChunk(ctx context.Context, accessToken, uploadID string, chunkIndex int32, encryptedChunkSHA256 string, encryptedChunk []byte) (*snapshotv1.UploadProjectSnapshotChunkResponse, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Snapshot.UploadProjectSnapshotChunk(ctx, &snapshotv1.UploadProjectSnapshotChunkRequest{UserId: identity.UserId, UploadId: strings.TrimSpace(uploadID), ChunkIndex: chunkIndex, EncryptedChunkSha256: strings.TrimSpace(encryptedChunkSHA256), EncryptedChunk: encryptedChunk})
+}
+
+func (u *BFFUsecase) CompleteProjectSnapshotUpload(ctx context.Context, accessToken, uploadID string) (*snapshotv1.CompleteProjectSnapshotUploadResponse, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Snapshot.CompleteProjectSnapshotUpload(ctx, &snapshotv1.CompleteProjectSnapshotUploadRequest{UserId: identity.UserId, UploadId: strings.TrimSpace(uploadID)})
+}
+
 func (u *BFFUsecase) ListProjectSnapshots(ctx context.Context, accessToken string) ([]*snapshotv1.ProjectSnapshot, error) {
 	identity, ctx, err := u.authenticate(ctx, accessToken)
 	if err != nil {

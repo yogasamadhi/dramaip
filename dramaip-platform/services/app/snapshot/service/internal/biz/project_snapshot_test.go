@@ -53,6 +53,29 @@ func TestProjectSnapshotUsecaseRejectsInvalidRequestsAndDeletedDownloads(t *test
 	}
 }
 
+func TestProjectSnapshotUsecaseAcceptsOnlyBoundedResumableCiphertext(t *testing.T) {
+	repo := &fakeProjectSnapshotRepo{row: snapshotRow()}
+	uc := NewProjectSnapshotUsecase(repo)
+	const digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	start, err := uc.StartUpload(context.Background(), "user-1", "snapshot-resume-0001", data.MaxInlineProjectSnapshotBytes+1, digest)
+	if err != nil || start.Upload == nil || start.Upload.ID != "upload-1" {
+		t.Fatalf("start = %#v, %v", start, err)
+	}
+	if _, err := uc.UploadChunk(context.Background(), "user-1", "upload-1", 0, digest, []byte("opaque")); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("short chunk code = %v", status.Code(err))
+	}
+	chunk := make([]byte, data.ProjectSnapshotChunkBytes)
+	if _, err := uc.UploadChunk(context.Background(), "user-1", "upload-1", 0, digest, chunk); err != nil {
+		t.Fatalf("chunk = %v", err)
+	}
+	if _, err := uc.CompleteUpload(context.Background(), "user-1", "upload-1"); err != nil {
+		t.Fatalf("complete = %v", err)
+	}
+	if _, err := uc.StartUpload(context.Background(), "user-1", "snapshot-resume-0001", data.MaxInlineProjectSnapshotBytes, digest); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("inline upload code = %v", status.Code(err))
+	}
+}
+
 type fakeProjectSnapshotRepo struct {
 	row                                     data.ProjectSnapshotRow
 	err                                     error
@@ -84,6 +107,28 @@ func (f *fakeProjectSnapshotRepo) DeleteProjectSnapshot(context.Context, string,
 		return time.Time{}, f.err
 	}
 	return time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), nil
+}
+func (f *fakeProjectSnapshotRepo) StartProjectSnapshotUpload(_ context.Context, _ string, _ string, encryptedBytes int64, encryptedSHA256 string) (data.ProjectSnapshotUploadStart, error) {
+	if f.err != nil {
+		return data.ProjectSnapshotUploadStart{}, f.err
+	}
+	upload := data.ProjectSnapshotUploadRow{ID: "upload-1", EncryptedBytes: encryptedBytes, EncryptedSHA256: encryptedSHA256, CreatedAt: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 7, 21, 0, 0, 0, 0, time.UTC)}
+	return data.ProjectSnapshotUploadStart{Upload: &upload}, nil
+}
+func (f *fakeProjectSnapshotRepo) UploadProjectSnapshotChunk(_ context.Context, _ string, _ string, _ int32, encryptedChunkSHA256 string, encryptedChunk []byte) (data.ProjectSnapshotUploadRow, error) {
+	if f.err != nil {
+		return data.ProjectSnapshotUploadRow{}, f.err
+	}
+	if len(encryptedChunk) != data.ProjectSnapshotChunkBytes {
+		return data.ProjectSnapshotUploadRow{}, data.ErrProjectSnapshotUploadIncomplete
+	}
+	return data.ProjectSnapshotUploadRow{ID: "upload-1", EncryptedBytes: data.MaxInlineProjectSnapshotBytes + 1, EncryptedSHA256: encryptedChunkSHA256, ReceivedChunkIndexes: []int32{0}, CreatedAt: time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), ExpiresAt: time.Date(2026, 7, 21, 0, 0, 0, 0, time.UTC)}, nil
+}
+func (f *fakeProjectSnapshotRepo) CompleteProjectSnapshotUpload(context.Context, string, string) (data.ProjectSnapshotRow, error) {
+	if f.err != nil {
+		return data.ProjectSnapshotRow{}, f.err
+	}
+	return f.row, nil
 }
 func (f *fakeProjectSnapshotRepo) PurgeExpiredProjectSnapshots(context.Context) (int64, error) {
 	return 0, f.err

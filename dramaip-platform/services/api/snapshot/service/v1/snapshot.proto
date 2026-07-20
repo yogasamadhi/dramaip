@@ -8,6 +8,9 @@ option go_package = "github.com/dramaip/dramaip-platform/services/api/snapshot/s
 // It never accepts a recovery key or interprets project-package plaintext.
 service SnapshotService {
   rpc CreateProjectSnapshot(CreateProjectSnapshotRequest) returns (CreateProjectSnapshotResponse);
+  rpc StartProjectSnapshotUpload(StartProjectSnapshotUploadRequest) returns (StartProjectSnapshotUploadResponse);
+  rpc UploadProjectSnapshotChunk(UploadProjectSnapshotChunkRequest) returns (UploadProjectSnapshotChunkResponse);
+  rpc CompleteProjectSnapshotUpload(CompleteProjectSnapshotUploadRequest) returns (CompleteProjectSnapshotUploadResponse);
   rpc ListProjectSnapshots(ListProjectSnapshotsRequest) returns (ListProjectSnapshotsResponse);
   rpc GetProjectSnapshot(GetProjectSnapshotRequest) returns (GetProjectSnapshotResponse);
   rpc DeleteProjectSnapshot(DeleteProjectSnapshotRequest) returns (DeleteProjectSnapshotResponse);
@@ -30,6 +33,53 @@ message CreateProjectSnapshotRequest {
 }
 
 message CreateProjectSnapshotResponse {
+  ProjectSnapshot snapshot = 1;
+}
+
+// ProjectSnapshotUpload describes a short-lived, opaque ciphertext upload.
+// The service never interprets the uploaded encrypted envelope.
+message ProjectSnapshotUpload {
+  string id = 1;
+  int64 encrypted_bytes = 2;
+  string encrypted_sha256 = 3;
+  repeated int32 received_chunk_indexes = 4;
+  string expires_at = 5;
+  string created_at = 6;
+}
+
+message StartProjectSnapshotUploadRequest {
+  string user_id = 1;
+  // Retry-stable across all chunks and completion attempts.
+  string idempotency_key = 2;
+  int64 encrypted_bytes = 3;
+  string encrypted_sha256 = 4;
+}
+
+message StartProjectSnapshotUploadResponse {
+  // Set when the same idempotency key already completed successfully.
+  ProjectSnapshot snapshot = 1;
+  // Set while the client should continue uploading missing chunks.
+  ProjectSnapshotUpload upload = 2;
+}
+
+message UploadProjectSnapshotChunkRequest {
+  string user_id = 1;
+  string upload_id = 2;
+  int32 chunk_index = 3;
+  bytes encrypted_chunk = 4;
+  string encrypted_chunk_sha256 = 5;
+}
+
+message UploadProjectSnapshotChunkResponse {
+  ProjectSnapshotUpload upload = 1;
+}
+
+message CompleteProjectSnapshotUploadRequest {
+  string user_id = 1;
+  string upload_id = 2;
+}
+
+message CompleteProjectSnapshotUploadResponse {
   ProjectSnapshot snapshot = 1;
 }
 

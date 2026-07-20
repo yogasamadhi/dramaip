@@ -203,6 +203,33 @@ func TestDesktopProjectSnapshotsStayOpaqueAndUseAuthenticatedIdentity(t *testing
 	}
 }
 
+func TestDesktopProjectSnapshotUploadResumesOpaqueChunks(t *testing.T) {
+	router := newTestHTTPService().Router()
+	start := httptest.NewRequest(http.MethodPost, "/v1/desktop/project-snapshot-uploads", bytes.NewBufferString(`{"idempotency_key":"snapshot-resume-0001","encrypted_bytes":8388609,"encrypted_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`))
+	start.Header.Set("Authorization", "Bearer desktop-access")
+	startRecorder := httptest.NewRecorder()
+	router.ServeHTTP(startRecorder, start)
+	if startRecorder.Code != http.StatusCreated || !bytes.Contains(startRecorder.Body.Bytes(), []byte(`"received_chunk_indexes":[0]`)) || bytes.Contains(startRecorder.Body.Bytes(), []byte("opaque-chunk")) {
+		t.Fatalf("upload start = %d: %s", startRecorder.Code, startRecorder.Body.String())
+	}
+
+	chunk := httptest.NewRequest(http.MethodPost, "/v1/desktop/project-snapshot-uploads/chunks", bytes.NewBufferString(`{"upload_id":"upload-1","chunk_index":0,"encrypted_chunk":"b3BhcXVlLWNodW5r","encrypted_chunk_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`))
+	chunk.Header.Set("Authorization", "Bearer desktop-access")
+	chunkRecorder := httptest.NewRecorder()
+	router.ServeHTTP(chunkRecorder, chunk)
+	if chunkRecorder.Code != http.StatusOK || !bytes.Contains(chunkRecorder.Body.Bytes(), []byte(`"upload"`)) || bytes.Contains(chunkRecorder.Body.Bytes(), []byte("opaque-chunk")) {
+		t.Fatalf("upload chunk = %d: %s", chunkRecorder.Code, chunkRecorder.Body.String())
+	}
+
+	complete := httptest.NewRequest(http.MethodPost, "/v1/desktop/project-snapshot-uploads/complete", bytes.NewBufferString(`{"upload_id":"upload-1"}`))
+	complete.Header.Set("Authorization", "Bearer desktop-access")
+	completeRecorder := httptest.NewRecorder()
+	router.ServeHTTP(completeRecorder, complete)
+	if completeRecorder.Code != http.StatusCreated || !bytes.Contains(completeRecorder.Body.Bytes(), []byte(`"snapshot"`)) {
+		t.Fatalf("upload complete = %d: %s", completeRecorder.Code, completeRecorder.Body.String())
+	}
+}
+
 func newTestHTTPService() *HTTPService {
 	return newTestHTTPServiceWith(fakeQuota{}, fakeAI{})
 }
@@ -325,6 +352,27 @@ func (fakeSnapshot) CreateProjectSnapshot(ctx context.Context, req *snapshotv1.C
 	return &snapshotv1.CreateProjectSnapshotResponse{Snapshot: fakeProjectSnapshot()}, nil
 }
 
+func (fakeSnapshot) StartProjectSnapshotUpload(ctx context.Context, req *snapshotv1.StartProjectSnapshotUploadRequest, _ ...grpc.CallOption) (*snapshotv1.StartProjectSnapshotUploadResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.IdempotencyKey != "snapshot-resume-0001" || req.EncryptedBytes != 8<<20+1 {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.StartProjectSnapshotUploadResponse{Upload: fakeProjectSnapshotUpload()}, nil
+}
+
+func (fakeSnapshot) UploadProjectSnapshotChunk(ctx context.Context, req *snapshotv1.UploadProjectSnapshotChunkRequest, _ ...grpc.CallOption) (*snapshotv1.UploadProjectSnapshotChunkResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.UploadId != "upload-1" || req.ChunkIndex != 0 || string(req.EncryptedChunk) != "opaque-chunk" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.UploadProjectSnapshotChunkResponse{Upload: fakeProjectSnapshotUpload()}, nil
+}
+
+func (fakeSnapshot) CompleteProjectSnapshotUpload(ctx context.Context, req *snapshotv1.CompleteProjectSnapshotUploadRequest, _ ...grpc.CallOption) (*snapshotv1.CompleteProjectSnapshotUploadResponse, error) {
+	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" || req.UploadId != "upload-1" {
+		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
+	}
+	return &snapshotv1.CompleteProjectSnapshotUploadResponse{Snapshot: fakeProjectSnapshot()}, nil
+}
+
 func (fakeSnapshot) ListProjectSnapshots(ctx context.Context, req *snapshotv1.ListProjectSnapshotsRequest, _ ...grpc.CallOption) (*snapshotv1.ListProjectSnapshotsResponse, error) {
 	if platform.UserIdentity(ctx) != "u1" || req.UserId != "u1" {
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
@@ -344,6 +392,10 @@ func (fakeSnapshot) DeleteProjectSnapshot(ctx context.Context, req *snapshotv1.D
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
 	return &snapshotv1.DeleteProjectSnapshotResponse{SnapshotId: req.SnapshotId, DeletedAt: "2026-07-20T00:00:00Z"}, nil
+}
+
+func fakeProjectSnapshotUpload() *snapshotv1.ProjectSnapshotUpload {
+	return &snapshotv1.ProjectSnapshotUpload{Id: "upload-1", EncryptedBytes: 8<<20 + 1, EncryptedSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ReceivedChunkIndexes: []int32{0}, CreatedAt: "2026-07-20T00:00:00Z", ExpiresAt: "2026-07-21T00:00:00Z"}
 }
 
 func fakeProjectSnapshot() *snapshotv1.ProjectSnapshot {

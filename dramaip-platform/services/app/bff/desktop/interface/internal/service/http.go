@@ -42,6 +42,9 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/desktop/mobile-handoff/adopt", s.handleAdoptMobileHandoff)
 	mux.HandleFunc("/v1/desktop/project-snapshots", s.handleProjectSnapshots)
 	mux.HandleFunc("/v1/desktop/project-snapshots/download", s.handleDownloadProjectSnapshot)
+	mux.HandleFunc("/v1/desktop/project-snapshot-uploads", s.handleProjectSnapshotUploads)
+	mux.HandleFunc("/v1/desktop/project-snapshot-uploads/chunks", s.handleProjectSnapshotUploadChunks)
+	mux.HandleFunc("/v1/desktop/project-snapshot-uploads/complete", s.handleCompleteProjectSnapshotUpload)
 	return platform.TraceMiddleware("desktop-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
@@ -360,10 +363,99 @@ func (s *HTTPService) handleDownloadProjectSnapshot(w http.ResponseWriter, r *ht
 	writeJSON(w, http.StatusOK, map[string]any{"snapshot": projectSnapshotJSON(reply.Snapshot), "encrypted_envelope": reply.EncryptedEnvelope})
 }
 
+func (s *HTTPService) handleProjectSnapshotUploads(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		IdempotencyKey  string `json:"idempotency_key"`
+		EncryptedBytes  int64  `json:"encrypted_bytes"`
+		EncryptedSHA256 string `json:"encrypted_sha256"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.StartProjectSnapshotUpload(r.Context(), r.Header.Get("Authorization"), req.IdempotencyKey, req.EncryptedBytes, req.EncryptedSHA256)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_project_snapshot_upload_unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Idempotency-Key", req.IdempotencyKey)
+	if reply.Snapshot != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"snapshot": projectSnapshotJSON(reply.Snapshot)})
+		return
+	}
+	if reply.Upload == nil {
+		writeError(w, http.StatusServiceUnavailable, "desktop_project_snapshot_upload_reply_invalid")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"upload": projectSnapshotUploadJSON(reply.Upload)})
+}
+
+func (s *HTTPService) handleProjectSnapshotUploadChunks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		UploadID             string `json:"upload_id"`
+		ChunkIndex           int32  `json:"chunk_index"`
+		EncryptedChunk       []byte `json:"encrypted_chunk"`
+		EncryptedChunkSHA256 string `json:"encrypted_chunk_sha256"`
+	}
+	if !decodeJSONLimit(w, r, &req, 2<<20) {
+		return
+	}
+	reply, err := s.uc.UploadProjectSnapshotChunk(r.Context(), r.Header.Get("Authorization"), req.UploadID, req.ChunkIndex, req.EncryptedChunkSHA256, req.EncryptedChunk)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_project_snapshot_chunk_unavailable")
+		return
+	}
+	if reply.Upload == nil {
+		writeError(w, http.StatusServiceUnavailable, "desktop_project_snapshot_chunk_reply_invalid")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, map[string]any{"upload": projectSnapshotUploadJSON(reply.Upload)})
+}
+
+func (s *HTTPService) handleCompleteProjectSnapshotUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		UploadID string `json:"upload_id"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.CompleteProjectSnapshotUpload(r.Context(), r.Header.Get("Authorization"), req.UploadID)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_project_snapshot_complete_unavailable")
+		return
+	}
+	if reply.Snapshot == nil {
+		writeError(w, http.StatusServiceUnavailable, "desktop_project_snapshot_complete_reply_invalid")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusCreated, map[string]any{"snapshot": projectSnapshotJSON(reply.Snapshot)})
+}
+
 func projectSnapshotJSON(snapshot *snapshotv1.ProjectSnapshot) map[string]any {
 	return map[string]any{
 		"id": snapshot.Id, "encrypted_bytes": snapshot.EncryptedBytes, "encrypted_sha256": snapshot.EncryptedSha256,
 		"created_at": snapshot.CreatedAt, "expires_at": snapshot.ExpiresAt,
+	}
+}
+
+func projectSnapshotUploadJSON(upload *snapshotv1.ProjectSnapshotUpload) map[string]any {
+	return map[string]any{
+		"id": upload.Id, "encrypted_bytes": upload.EncryptedBytes, "encrypted_sha256": upload.EncryptedSha256,
+		"received_chunk_indexes": upload.ReceivedChunkIndexes, "created_at": upload.CreatedAt, "expires_at": upload.ExpiresAt,
 	}
 }
 
