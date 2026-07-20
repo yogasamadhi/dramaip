@@ -1533,3 +1533,17 @@ Push: The merge commit and this completion-record commit are pushed together to 
 Loop branch cleanup: `loop/lm4-31-release-gate-continuation` is merged and deleted locally after the target push. Historical provider/parent branches stay retained because their documented external gates are unresolved; they are not represented as merged into main.
 Remaining blocker: G5 cannot be `done` while LM4-26 Hailuo and LM4-27 Wan lack authorized billable-sandbox evidence; LM4-28 remains partial; LM4-30 lacks approved production migration/mTLS, cloud-account recovery, storage/KMS/retention and LM3-33/34 disaster-recovery evidence; Windows/Linux package smoke and formal signing/notarization evidence are absent; and the retained parent chain is not merged into main. No local fixture, mock or unsigned macOS build waives these conditions.
 ```
+
+```text
+Loop: LM4-31 Gate evidence refresh (partial)
+Target branch: loop/lm4-29-admin-operations
+Loop branch: loop/lm4-31-audit-evidence-refresh
+Commit(s): 202a3de docs: refresh release gate evidence
+Merge commit: 0cfd1a0 merge: refresh release gate evidence
+Verification: On the merged target, `git diff --check origin/loop/lm4-29-admin-operations...HEAD` passed. The audit and release-candidate documents were read back with exact assertions for the Compose Kong-restart/bounded-health-wait evidence, LM3-33/34 `partial` state, and the production-equivalent disaster-recovery condition. The referenced current LM3-33 record contains the isolated 77-second physical PITR evidence; the current LM3-34 record contains the local Platform/Desktop/Client Gate and post-rebuild Compose readiness verification. Neither reference is reclassified as production evidence.
+Diff review: Reviewed the six-insert/four-delete documentation-only correction. It removes the superseded first-start 502 description now that `make platform-up` restarts Kong and waits for the public health response, and corrects stale LM3-33/34 `todo` wording to `partial` while retaining every production release condition. No source code, credential, recovery key, project content, package, image or generated artifact changed.
+Remote sync: Target was fetched and fast-forward checked against origin before the no-ff merge; no intervening remote commit required conflict resolution.
+Push: The merge and this completion-record commit are pushed together to origin/loop/lm4-29-admin-operations after this record is committed.
+Loop branch cleanup: `loop/lm4-31-audit-evidence-refresh` is merged and deleted locally after the target push.
+Remaining blocker: This makes the Gate audit accurate but does not close it. LM4-26/27 require authorized billable provider sandboxes; LM4-28 requires its own release evidence; LM4-30, LM3-33 and LM3-34 need the production-equivalent deployment, recovery, KMS/retention, reconciliation and RPO/RTO evidence; signed cross-platform packages and a normal merge to `main` remain mandatory.
+```
