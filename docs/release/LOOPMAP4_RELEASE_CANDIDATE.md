@@ -12,7 +12,8 @@
 - Desktop 全量测试、Electron E2E、31 个 UI/a11y 基线（0 条观察）和本机 macOS arm64 DMG/ZIP
   package smoke 已通过。
 - Platform clients lint/typecheck/contracts/build、全量 Go 服务测试、健康 Compose E2E 和
-  trace/observability smoke 已通过。
+  trace/observability smoke 已通过；`make platform-up` 会重启 Kong 并有界等待健康端点，避免
+  重建后命中已退休的 Web BFF 上游地址。
 - 端到端加密项目快照的本地安全边界已验证：密钥仅在本机 Keychain，服务端只处理不透明密文；
   8–64 MiB 上传可续传、暂存 24 小时过期、正式快照 30 天留存。
 
@@ -22,7 +23,8 @@
    回滚结果；不得使用 mock 代替。
 2. 完成 Snapshot migration/mTLS 的受控部署、真实云账号上传/列表/下载/删除/恢复演练，以及
    存储、KMS 与备份保留审查。
-3. 完成 LM3-33/LM3-34 的备份、PITR/恢复、账本核对和 RPO/RTO 演练。
+3. 在生产等价环境完成 LM3-33/LM3-34 的备份、PITR/恢复、账本核对、损坏告警和 RPO/RTO
+   演练；当前仅有已记录的本地隔离 PITR 和本地发布 Gate 证据，不能替代这一条件。
 4. 在 macOS、Windows、Linux 的受控 CI runner 上完成 `pnpm package:smoke`；为正式 macOS/Windows
    产物注入签名凭据，并完成 macOS notarization。
 5. 将所有 LM4 `partial` 变为 `done`，合入 `main`，再由获授权发布者创建 tag、上传校验和与

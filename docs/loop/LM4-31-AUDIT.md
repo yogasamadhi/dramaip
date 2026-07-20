@@ -15,7 +15,7 @@ mock、fixture、本机 macOS 打包或缺失的环境变量替换成生产验�
 | Desktop 打包 | `pnpm package:smoke`、`pnpm format:check` | 通过；本机 macOS arm64 的 DMG/ZIP 生成、包内容边界检查、已打包应用启动与临时数据库初始化均通过。该构建未签名、未公证。 |
 | Platform clients | `pnpm lint`、`pnpm typecheck`、`pnpm contracts:check`、`pnpm build:web`、`pnpm build:admin` | 通过。Admin 构建仅给出既有 ECharts 大于 500 kB 的 Vite 性能提示，不是构建失败。 |
 | Platform services | `make test`、`make observability-config-smoke`、`make web-route-smoke` | 通过；Go 服务测试、客户端契约检查、7 条 Web 路由和 11 条告警/12 个面板配置均可验证。 |
-| 健康 Compose | `make platform-up` 后 `make platform-e2e && make observability-smoke` | 通过；Kong `/v1/healthz`、基础用量链路和 trace（3 spans）均正常。首次紧接 `platform-up` 的请求在 web-bff 监听前收到 502；迁移日志为 `migrations_applied`，服务就绪后复跑通过，故这是启动就绪时序而不是功能失败。 |
+| 健康 Compose | `make platform-up` 后 `make platform-e2e && make observability-smoke` | 通过；`platform-up` 现在会在重建后重启 Kong（消除其缓存的旧 Web BFF 上游地址），并以有界、无凭据的 `/v1/healthz` 检查等待服务就绪。实际等待在两次尝试后成功，随后 Kong `/v1/healthz`、基础用量链路和 trace（3 spans）均正常。 |
 | 迁移/部署静态检查 | Snapshot migration 045 在本地 Compose 成功应用；此前已通过 `buf lint`、全量 Go 测试、Compose config 与 Helm lint/template。 | 通过本地范围；不等同于生产迁移批准。 |
 | 版本库卫生 | `git diff --check`、受跟踪 `.env`/构建包扫描、远端 fetch | 通过；未发现受跟踪凭据、环境文件或安装包。当前 Gate 分支未合入 `origin/main`，且支撑 LM4-26～30 的保留分支/提交均有下列明确原因。 |
 
@@ -27,7 +27,7 @@ mock、fixture、本机 macOS 打包或缺失的环境变量替换成生产验�
 | LM4-27：Wan 真实渠道 | `WAN_SANDBOX_API_KEY` 与 `WAN_SANDBOX_ALLOW_BILLING` 在本环境均不存在；该 smoke 是显式计费操作，未执行。 | 经批准的 Wan sandbox 注入密钥与计费授权，保留独立提交、轮询、取消/归档、费用和错误路径证据。 |
 | LM4-28：Web AI 作者化发布链 | 该 loop 仍为 `partial`；同时，LM4-26/27 的真实渠道证据也独立阻断 Full Gate。 | 按 LM4-28 自身验收补齐端到端发布验证；Full Gate 还须分别完成两项 provider 证据并合入主线。 |
 | LM4-30：加密快照生产准入 | 本地的加密、8–64 MiB 可续传、留存和删除测试已通过；尚无批准的生产 migration/mTLS、真实 Desktop 云账号恢复演练、存储/KMS/备份保留审查。 | 在受控环境完成 migration 与 mTLS 部署，执行上传/列表/下载/删除/恢复，审查存储与密钥保留，并保存不含内容/密钥的记录。 |
-| LM3-33/LM3-34 灾备 | `LOOPMAP3.md` 中 LM3-33、LM3-34 仍为 `todo`；LM4-30 明确依赖此 Gate。 | 完成生产等价备份、PITR/恢复、账本核对、RPO/RTO 与演练记录。 |
+| LM3-33/LM3-34 灾备 | 两项均为 `partial`，不再是 `todo`：隔离 Docker 的物理 PITR 演练在 77 秒内通过本地 3600 秒 RTO 守卫，并验证支付/订阅/额度在目标时间点为 `1:1:1:0`；LM3-34 的本地 Platform/Desktop/Client Gate 和 Compose 就绪修复均已记录。这些均不是生产等价证据。 | 完成生产等价多故障域备份、PITR/恢复、账本核对、RPO/RTO、损坏告警和演练记录。 |
 | 跨平台与正式分发 | 本机仅验证 macOS arm64；现有 `package-smoke` 支持 Windows/Linux，但未获得三平台 CI runner 的本轮结果。正式签名/公证凭据也未被授权注入。 | macOS、Windows、Linux 的 CI package-smoke 全绿；macOS/Windows 签名和 macOS notarization 的受控发布证据齐全。 |
 | 主线与发布标签 | `git merge-base --is-ancestor HEAD origin/main` 返回非零；保留的 LM4-26～29 远端链尚未满足 Full Gate。 | 所有 partial loop 均变为 `done`、父链正常合入 `main`，再由获授权人员创建并推送发布标签。 |
 
