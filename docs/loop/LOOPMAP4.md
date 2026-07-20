@@ -1518,3 +1518,18 @@ Remote sync: Target was fetched and fast-forward checked before the no-ff merge.
 Branch cleanup: `loop/lm4-30-resumable-upload` is merged and can be deleted after the target push. Historical LM4-30 branches remain retained until the inherited partial chain reaches main.
 Remaining blocker: Local implementation is complete, but production admission still requires approved migration and mTLS deployment evidence; a real Desktop cloud-account upload/list/download/delete recovery exercise; a reviewed storage/KMS/backup-retention decision; and LM3-34 disaster-recovery evidence. These external gates prevent `done`; LM4-31 must surface rather than waive them.
 ```
+
+```text
+Loop: LM4-31 (partial — Full Gate audit)
+Target branch: loop/lm4-29-admin-operations
+Loop branch: loop/lm4-31-release-gate-continuation
+Commit(s): a56ba21 docs: audit LM4-31 release gate
+Merge commit: 17c93a9 merge: audit LM4-31 release gate
+Verification: Desktop `pnpm test`, `pnpm test:e2e`, `pnpm test:ui:skip-build -- --output=artifacts/lm4-31-current` (31 baselines, 0 a11y observations), `pnpm package:smoke` (macOS arm64 DMG/ZIP plus packaged-app/SQLite boundary smoke), and `pnpm format:check` passed. Platform clients `pnpm lint`, `pnpm typecheck`, `pnpm contracts:check`, `pnpm build:web`, and `pnpm build:admin` passed. Platform `make test`, `make observability-config-smoke`, `make web-route-smoke`, Compose `make platform-up`, `make platform-e2e`, and `make observability-smoke` passed; the post-merge `make platform-e2e` also passed. `git diff --check`, tracked env/package scan and the cumulative target diff are clean.
+UI/manual evidence: The current Desktop matrix covers project creation/workspace, AI states, chapter tree, stale quality, production planning, script, storyboard, video failure/recovery, Hailuo/Wan settings, appearance, reduced motion and encrypted snapshots at 1024/1179/1320/1600 widths. The macOS package was generated and launched locally without signing or notarization; this is local evidence only.
+Diff review: Added an explicit audit and a non-publish release-candidate draft, linked LOOPMAP4 from the common docs index, and changed LM4-31 from `todo` to accurate `partial`. The documents distinguish reproducible local/Compose evidence from production evidence; no credentials, account identifiers, ciphertext, recovery key, project content, build artifact or production claim is committed.
+Remote sync: Target was fetched and fast-forward checked against origin before the no-ff merge; no intervening remote commit required conflict resolution.
+Push: The merge commit and this completion-record commit are pushed together to origin/loop/lm4-29-admin-operations immediately after this record is committed.
+Loop branch cleanup: `loop/lm4-31-release-gate-continuation` is merged and deleted locally after the target push. Historical provider/parent branches stay retained because their documented external gates are unresolved; they are not represented as merged into main.
+Remaining blocker: G5 cannot be `done` while LM4-26 Hailuo and LM4-27 Wan lack authorized billable-sandbox evidence; LM4-28 remains partial; LM4-30 lacks approved production migration/mTLS, cloud-account recovery, storage/KMS/retention and LM3-33/34 disaster-recovery evidence; Windows/Linux package smoke and formal signing/notarization evidence are absent; and the retained parent chain is not merged into main. No local fixture, mock or unsigned macOS build waives these conditions.
+```
