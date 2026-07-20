@@ -24,7 +24,7 @@ func ServeGRPC(addr string, register func(*grpc.Server)) error {
 	return server.Serve(listener)
 }
 
-func DialGRPC(ctx context.Context, target string, mtls MTLSConfig) (*grpc.ClientConn, error) {
+func DialGRPC(ctx context.Context, target string, mtls MTLSConfig, options ...grpc.DialOption) (*grpc.ClientConn, error) {
 	transportCredentials := credentials.TransportCredentials(insecure.NewCredentials())
 	if mtls.Enabled {
 		tlsConfig, err := mtls.ClientTLSConfig()
@@ -33,9 +33,7 @@ func DialGRPC(ctx context.Context, target string, mtls MTLSConfig) (*grpc.Client
 		}
 		transportCredentials = credentials.NewTLS(tlsConfig)
 	}
-	return grpc.DialContext(
-		ctx,
-		target,
+	dialOptions := []grpc.DialOption{
 		grpc.WithBlock(),
 		grpc.WithTransportCredentials(transportCredentials),
 		grpc.WithChainUnaryInterceptor(
@@ -43,7 +41,9 @@ func DialGRPC(ctx context.Context, target string, mtls MTLSConfig) (*grpc.Client
 			unaryClientUserIdentityInterceptor,
 			UnaryClientResilienceInterceptor(target),
 		),
-	)
+	}
+	dialOptions = append(dialOptions, options...)
+	return grpc.DialContext(ctx, target, dialOptions...)
 }
 
 func unaryClientUserIdentityInterceptor(ctx context.Context, method string, req any, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {

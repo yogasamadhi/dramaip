@@ -44,6 +44,9 @@ type InspirationClient interface {
 
 type SnapshotClient interface {
 	CreateProjectSnapshot(context.Context, *snapshotv1.CreateProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.CreateProjectSnapshotResponse, error)
+	StartProjectSnapshotUpload(context.Context, *snapshotv1.StartProjectSnapshotUploadRequest, ...grpc.CallOption) (*snapshotv1.StartProjectSnapshotUploadResponse, error)
+	UploadProjectSnapshotChunk(context.Context, *snapshotv1.UploadProjectSnapshotChunkRequest, ...grpc.CallOption) (*snapshotv1.UploadProjectSnapshotChunkResponse, error)
+	CompleteProjectSnapshotUpload(context.Context, *snapshotv1.CompleteProjectSnapshotUploadRequest, ...grpc.CallOption) (*snapshotv1.CompleteProjectSnapshotUploadResponse, error)
 	ListProjectSnapshots(context.Context, *snapshotv1.ListProjectSnapshotsRequest, ...grpc.CallOption) (*snapshotv1.ListProjectSnapshotsResponse, error)
 	GetProjectSnapshot(context.Context, *snapshotv1.GetProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.GetProjectSnapshotResponse, error)
 	DeleteProjectSnapshot(context.Context, *snapshotv1.DeleteProjectSnapshotRequest, ...grpc.CallOption) (*snapshotv1.DeleteProjectSnapshotResponse, error)
@@ -92,7 +95,11 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = aiConn.Close()
 		return nil, nil, err
 	}
-	snapshotConn, err := platform.DialGRPC(ctx, cfg.Downstream.SnapshotEndpoint, cfg.MTLS)
+	// Snapshot downloads are bounded at 64 MiB by the owner service. All upload
+	// writes remain 1 MiB chunks, while this explicit limit keeps the opaque
+	// download response usable without weakening other internal RPC clients.
+	snapshotConn, err := platform.DialGRPC(ctx, cfg.Downstream.SnapshotEndpoint, cfg.MTLS,
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(66<<20), grpc.MaxCallSendMsgSize(10<<20)))
 	if err != nil {
 		_ = authConn.Close()
 		_ = billingConn.Close()

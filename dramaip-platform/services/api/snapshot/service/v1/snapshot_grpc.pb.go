@@ -19,10 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SnapshotService_CreateProjectSnapshot_FullMethodName = "/dramaip.snapshot.service.v1.SnapshotService/CreateProjectSnapshot"
-	SnapshotService_ListProjectSnapshots_FullMethodName  = "/dramaip.snapshot.service.v1.SnapshotService/ListProjectSnapshots"
-	SnapshotService_GetProjectSnapshot_FullMethodName    = "/dramaip.snapshot.service.v1.SnapshotService/GetProjectSnapshot"
-	SnapshotService_DeleteProjectSnapshot_FullMethodName = "/dramaip.snapshot.service.v1.SnapshotService/DeleteProjectSnapshot"
+	SnapshotService_CreateProjectSnapshot_FullMethodName         = "/dramaip.snapshot.service.v1.SnapshotService/CreateProjectSnapshot"
+	SnapshotService_StartProjectSnapshotUpload_FullMethodName    = "/dramaip.snapshot.service.v1.SnapshotService/StartProjectSnapshotUpload"
+	SnapshotService_UploadProjectSnapshotChunk_FullMethodName    = "/dramaip.snapshot.service.v1.SnapshotService/UploadProjectSnapshotChunk"
+	SnapshotService_CompleteProjectSnapshotUpload_FullMethodName = "/dramaip.snapshot.service.v1.SnapshotService/CompleteProjectSnapshotUpload"
+	SnapshotService_ListProjectSnapshots_FullMethodName          = "/dramaip.snapshot.service.v1.SnapshotService/ListProjectSnapshots"
+	SnapshotService_GetProjectSnapshot_FullMethodName            = "/dramaip.snapshot.service.v1.SnapshotService/GetProjectSnapshot"
+	SnapshotService_DeleteProjectSnapshot_FullMethodName         = "/dramaip.snapshot.service.v1.SnapshotService/DeleteProjectSnapshot"
 )
 
 // SnapshotServiceClient is the client API for SnapshotService service.
@@ -33,6 +36,9 @@ const (
 // It never accepts a recovery key or interprets project-package plaintext.
 type SnapshotServiceClient interface {
 	CreateProjectSnapshot(ctx context.Context, in *CreateProjectSnapshotRequest, opts ...grpc.CallOption) (*CreateProjectSnapshotResponse, error)
+	StartProjectSnapshotUpload(ctx context.Context, in *StartProjectSnapshotUploadRequest, opts ...grpc.CallOption) (*StartProjectSnapshotUploadResponse, error)
+	UploadProjectSnapshotChunk(ctx context.Context, in *UploadProjectSnapshotChunkRequest, opts ...grpc.CallOption) (*UploadProjectSnapshotChunkResponse, error)
+	CompleteProjectSnapshotUpload(ctx context.Context, in *CompleteProjectSnapshotUploadRequest, opts ...grpc.CallOption) (*CompleteProjectSnapshotUploadResponse, error)
 	ListProjectSnapshots(ctx context.Context, in *ListProjectSnapshotsRequest, opts ...grpc.CallOption) (*ListProjectSnapshotsResponse, error)
 	GetProjectSnapshot(ctx context.Context, in *GetProjectSnapshotRequest, opts ...grpc.CallOption) (*GetProjectSnapshotResponse, error)
 	DeleteProjectSnapshot(ctx context.Context, in *DeleteProjectSnapshotRequest, opts ...grpc.CallOption) (*DeleteProjectSnapshotResponse, error)
@@ -50,6 +56,36 @@ func (c *snapshotServiceClient) CreateProjectSnapshot(ctx context.Context, in *C
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateProjectSnapshotResponse)
 	err := c.cc.Invoke(ctx, SnapshotService_CreateProjectSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) StartProjectSnapshotUpload(ctx context.Context, in *StartProjectSnapshotUploadRequest, opts ...grpc.CallOption) (*StartProjectSnapshotUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartProjectSnapshotUploadResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_StartProjectSnapshotUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) UploadProjectSnapshotChunk(ctx context.Context, in *UploadProjectSnapshotChunkRequest, opts ...grpc.CallOption) (*UploadProjectSnapshotChunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UploadProjectSnapshotChunkResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_UploadProjectSnapshotChunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *snapshotServiceClient) CompleteProjectSnapshotUpload(ctx context.Context, in *CompleteProjectSnapshotUploadRequest, opts ...grpc.CallOption) (*CompleteProjectSnapshotUploadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteProjectSnapshotUploadResponse)
+	err := c.cc.Invoke(ctx, SnapshotService_CompleteProjectSnapshotUpload_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +130,9 @@ func (c *snapshotServiceClient) DeleteProjectSnapshot(ctx context.Context, in *D
 // It never accepts a recovery key or interprets project-package plaintext.
 type SnapshotServiceServer interface {
 	CreateProjectSnapshot(context.Context, *CreateProjectSnapshotRequest) (*CreateProjectSnapshotResponse, error)
+	StartProjectSnapshotUpload(context.Context, *StartProjectSnapshotUploadRequest) (*StartProjectSnapshotUploadResponse, error)
+	UploadProjectSnapshotChunk(context.Context, *UploadProjectSnapshotChunkRequest) (*UploadProjectSnapshotChunkResponse, error)
+	CompleteProjectSnapshotUpload(context.Context, *CompleteProjectSnapshotUploadRequest) (*CompleteProjectSnapshotUploadResponse, error)
 	ListProjectSnapshots(context.Context, *ListProjectSnapshotsRequest) (*ListProjectSnapshotsResponse, error)
 	GetProjectSnapshot(context.Context, *GetProjectSnapshotRequest) (*GetProjectSnapshotResponse, error)
 	DeleteProjectSnapshot(context.Context, *DeleteProjectSnapshotRequest) (*DeleteProjectSnapshotResponse, error)
@@ -109,6 +148,15 @@ type UnimplementedSnapshotServiceServer struct{}
 
 func (UnimplementedSnapshotServiceServer) CreateProjectSnapshot(context.Context, *CreateProjectSnapshotRequest) (*CreateProjectSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateProjectSnapshot not implemented")
+}
+func (UnimplementedSnapshotServiceServer) StartProjectSnapshotUpload(context.Context, *StartProjectSnapshotUploadRequest) (*StartProjectSnapshotUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartProjectSnapshotUpload not implemented")
+}
+func (UnimplementedSnapshotServiceServer) UploadProjectSnapshotChunk(context.Context, *UploadProjectSnapshotChunkRequest) (*UploadProjectSnapshotChunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UploadProjectSnapshotChunk not implemented")
+}
+func (UnimplementedSnapshotServiceServer) CompleteProjectSnapshotUpload(context.Context, *CompleteProjectSnapshotUploadRequest) (*CompleteProjectSnapshotUploadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CompleteProjectSnapshotUpload not implemented")
 }
 func (UnimplementedSnapshotServiceServer) ListProjectSnapshots(context.Context, *ListProjectSnapshotsRequest) (*ListProjectSnapshotsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProjectSnapshots not implemented")
@@ -154,6 +202,60 @@ func _SnapshotService_CreateProjectSnapshot_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SnapshotServiceServer).CreateProjectSnapshot(ctx, req.(*CreateProjectSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_StartProjectSnapshotUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartProjectSnapshotUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).StartProjectSnapshotUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_StartProjectSnapshotUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).StartProjectSnapshotUpload(ctx, req.(*StartProjectSnapshotUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_UploadProjectSnapshotChunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadProjectSnapshotChunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).UploadProjectSnapshotChunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_UploadProjectSnapshotChunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).UploadProjectSnapshotChunk(ctx, req.(*UploadProjectSnapshotChunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SnapshotService_CompleteProjectSnapshotUpload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteProjectSnapshotUploadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SnapshotServiceServer).CompleteProjectSnapshotUpload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SnapshotService_CompleteProjectSnapshotUpload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SnapshotServiceServer).CompleteProjectSnapshotUpload(ctx, req.(*CompleteProjectSnapshotUploadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -222,6 +324,18 @@ var SnapshotService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateProjectSnapshot",
 			Handler:    _SnapshotService_CreateProjectSnapshot_Handler,
+		},
+		{
+			MethodName: "StartProjectSnapshotUpload",
+			Handler:    _SnapshotService_StartProjectSnapshotUpload_Handler,
+		},
+		{
+			MethodName: "UploadProjectSnapshotChunk",
+			Handler:    _SnapshotService_UploadProjectSnapshotChunk_Handler,
+		},
+		{
+			MethodName: "CompleteProjectSnapshotUpload",
+			Handler:    _SnapshotService_CompleteProjectSnapshotUpload_Handler,
 		},
 		{
 			MethodName: "ListProjectSnapshots",

@@ -203,6 +203,431 @@ func (x *CreateProjectSnapshotResponse) GetSnapshot() *ProjectSnapshot {
 	return nil
 }
 
+// ProjectSnapshotUpload describes a short-lived, opaque ciphertext upload.
+// The service never interprets the uploaded encrypted envelope.
+type ProjectSnapshotUpload struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Id                   string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	EncryptedBytes       int64                  `protobuf:"varint,2,opt,name=encrypted_bytes,json=encryptedBytes,proto3" json:"encrypted_bytes,omitempty"`
+	EncryptedSha256      string                 `protobuf:"bytes,3,opt,name=encrypted_sha256,json=encryptedSha256,proto3" json:"encrypted_sha256,omitempty"`
+	ReceivedChunkIndexes []int32                `protobuf:"varint,4,rep,packed,name=received_chunk_indexes,json=receivedChunkIndexes,proto3" json:"received_chunk_indexes,omitempty"`
+	ExpiresAt            string                 `protobuf:"bytes,5,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	CreatedAt            string                 `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ProjectSnapshotUpload) Reset() {
+	*x = ProjectSnapshotUpload{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProjectSnapshotUpload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProjectSnapshotUpload) ProtoMessage() {}
+
+func (x *ProjectSnapshotUpload) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProjectSnapshotUpload.ProtoReflect.Descriptor instead.
+func (*ProjectSnapshotUpload) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ProjectSnapshotUpload) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ProjectSnapshotUpload) GetEncryptedBytes() int64 {
+	if x != nil {
+		return x.EncryptedBytes
+	}
+	return 0
+}
+
+func (x *ProjectSnapshotUpload) GetEncryptedSha256() string {
+	if x != nil {
+		return x.EncryptedSha256
+	}
+	return ""
+}
+
+func (x *ProjectSnapshotUpload) GetReceivedChunkIndexes() []int32 {
+	if x != nil {
+		return x.ReceivedChunkIndexes
+	}
+	return nil
+}
+
+func (x *ProjectSnapshotUpload) GetExpiresAt() string {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return ""
+}
+
+func (x *ProjectSnapshotUpload) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+type StartProjectSnapshotUploadRequest struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Retry-stable across all chunks and completion attempts.
+	IdempotencyKey  string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	EncryptedBytes  int64  `protobuf:"varint,3,opt,name=encrypted_bytes,json=encryptedBytes,proto3" json:"encrypted_bytes,omitempty"`
+	EncryptedSha256 string `protobuf:"bytes,4,opt,name=encrypted_sha256,json=encryptedSha256,proto3" json:"encrypted_sha256,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *StartProjectSnapshotUploadRequest) Reset() {
+	*x = StartProjectSnapshotUploadRequest{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartProjectSnapshotUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartProjectSnapshotUploadRequest) ProtoMessage() {}
+
+func (x *StartProjectSnapshotUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartProjectSnapshotUploadRequest.ProtoReflect.Descriptor instead.
+func (*StartProjectSnapshotUploadRequest) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *StartProjectSnapshotUploadRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *StartProjectSnapshotUploadRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *StartProjectSnapshotUploadRequest) GetEncryptedBytes() int64 {
+	if x != nil {
+		return x.EncryptedBytes
+	}
+	return 0
+}
+
+func (x *StartProjectSnapshotUploadRequest) GetEncryptedSha256() string {
+	if x != nil {
+		return x.EncryptedSha256
+	}
+	return ""
+}
+
+type StartProjectSnapshotUploadResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Set when the same idempotency key already completed successfully.
+	Snapshot *ProjectSnapshot `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	// Set while the client should continue uploading missing chunks.
+	Upload        *ProjectSnapshotUpload `protobuf:"bytes,2,opt,name=upload,proto3" json:"upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartProjectSnapshotUploadResponse) Reset() {
+	*x = StartProjectSnapshotUploadResponse{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartProjectSnapshotUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartProjectSnapshotUploadResponse) ProtoMessage() {}
+
+func (x *StartProjectSnapshotUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartProjectSnapshotUploadResponse.ProtoReflect.Descriptor instead.
+func (*StartProjectSnapshotUploadResponse) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *StartProjectSnapshotUploadResponse) GetSnapshot() *ProjectSnapshot {
+	if x != nil {
+		return x.Snapshot
+	}
+	return nil
+}
+
+func (x *StartProjectSnapshotUploadResponse) GetUpload() *ProjectSnapshotUpload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+type UploadProjectSnapshotChunkRequest struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	UserId               string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UploadId             string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	ChunkIndex           int32                  `protobuf:"varint,3,opt,name=chunk_index,json=chunkIndex,proto3" json:"chunk_index,omitempty"`
+	EncryptedChunk       []byte                 `protobuf:"bytes,4,opt,name=encrypted_chunk,json=encryptedChunk,proto3" json:"encrypted_chunk,omitempty"`
+	EncryptedChunkSha256 string                 `protobuf:"bytes,5,opt,name=encrypted_chunk_sha256,json=encryptedChunkSha256,proto3" json:"encrypted_chunk_sha256,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UploadProjectSnapshotChunkRequest) Reset() {
+	*x = UploadProjectSnapshotChunkRequest{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadProjectSnapshotChunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadProjectSnapshotChunkRequest) ProtoMessage() {}
+
+func (x *UploadProjectSnapshotChunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadProjectSnapshotChunkRequest.ProtoReflect.Descriptor instead.
+func (*UploadProjectSnapshotChunkRequest) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *UploadProjectSnapshotChunkRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UploadProjectSnapshotChunkRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *UploadProjectSnapshotChunkRequest) GetChunkIndex() int32 {
+	if x != nil {
+		return x.ChunkIndex
+	}
+	return 0
+}
+
+func (x *UploadProjectSnapshotChunkRequest) GetEncryptedChunk() []byte {
+	if x != nil {
+		return x.EncryptedChunk
+	}
+	return nil
+}
+
+func (x *UploadProjectSnapshotChunkRequest) GetEncryptedChunkSha256() string {
+	if x != nil {
+		return x.EncryptedChunkSha256
+	}
+	return ""
+}
+
+type UploadProjectSnapshotChunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Upload        *ProjectSnapshotUpload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadProjectSnapshotChunkResponse) Reset() {
+	*x = UploadProjectSnapshotChunkResponse{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadProjectSnapshotChunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadProjectSnapshotChunkResponse) ProtoMessage() {}
+
+func (x *UploadProjectSnapshotChunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadProjectSnapshotChunkResponse.ProtoReflect.Descriptor instead.
+func (*UploadProjectSnapshotChunkResponse) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *UploadProjectSnapshotChunkResponse) GetUpload() *ProjectSnapshotUpload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+type CompleteProjectSnapshotUploadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UploadId      string                 `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteProjectSnapshotUploadRequest) Reset() {
+	*x = CompleteProjectSnapshotUploadRequest{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteProjectSnapshotUploadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteProjectSnapshotUploadRequest) ProtoMessage() {}
+
+func (x *CompleteProjectSnapshotUploadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteProjectSnapshotUploadRequest.ProtoReflect.Descriptor instead.
+func (*CompleteProjectSnapshotUploadRequest) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CompleteProjectSnapshotUploadRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CompleteProjectSnapshotUploadRequest) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+type CompleteProjectSnapshotUploadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Snapshot      *ProjectSnapshot       `protobuf:"bytes,1,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompleteProjectSnapshotUploadResponse) Reset() {
+	*x = CompleteProjectSnapshotUploadResponse{}
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteProjectSnapshotUploadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteProjectSnapshotUploadResponse) ProtoMessage() {}
+
+func (x *CompleteProjectSnapshotUploadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompleteProjectSnapshotUploadResponse.ProtoReflect.Descriptor instead.
+func (*CompleteProjectSnapshotUploadResponse) Descriptor() ([]byte, []int) {
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CompleteProjectSnapshotUploadResponse) GetSnapshot() *ProjectSnapshot {
+	if x != nil {
+		return x.Snapshot
+	}
+	return nil
+}
+
 type ListProjectSnapshotsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -212,7 +637,7 @@ type ListProjectSnapshotsRequest struct {
 
 func (x *ListProjectSnapshotsRequest) Reset() {
 	*x = ListProjectSnapshotsRequest{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[3]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +649,7 @@ func (x *ListProjectSnapshotsRequest) String() string {
 func (*ListProjectSnapshotsRequest) ProtoMessage() {}
 
 func (x *ListProjectSnapshotsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[3]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -237,7 +662,7 @@ func (x *ListProjectSnapshotsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProjectSnapshotsRequest.ProtoReflect.Descriptor instead.
 func (*ListProjectSnapshotsRequest) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{3}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListProjectSnapshotsRequest) GetUserId() string {
@@ -256,7 +681,7 @@ type ListProjectSnapshotsResponse struct {
 
 func (x *ListProjectSnapshotsResponse) Reset() {
 	*x = ListProjectSnapshotsResponse{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[4]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +693,7 @@ func (x *ListProjectSnapshotsResponse) String() string {
 func (*ListProjectSnapshotsResponse) ProtoMessage() {}
 
 func (x *ListProjectSnapshotsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[4]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +706,7 @@ func (x *ListProjectSnapshotsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListProjectSnapshotsResponse.ProtoReflect.Descriptor instead.
 func (*ListProjectSnapshotsResponse) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{4}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListProjectSnapshotsResponse) GetSnapshots() []*ProjectSnapshot {
@@ -301,7 +726,7 @@ type GetProjectSnapshotRequest struct {
 
 func (x *GetProjectSnapshotRequest) Reset() {
 	*x = GetProjectSnapshotRequest{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[5]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +738,7 @@ func (x *GetProjectSnapshotRequest) String() string {
 func (*GetProjectSnapshotRequest) ProtoMessage() {}
 
 func (x *GetProjectSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[5]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +751,7 @@ func (x *GetProjectSnapshotRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectSnapshotRequest.ProtoReflect.Descriptor instead.
 func (*GetProjectSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{5}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetProjectSnapshotRequest) GetUserId() string {
@@ -353,7 +778,7 @@ type GetProjectSnapshotResponse struct {
 
 func (x *GetProjectSnapshotResponse) Reset() {
 	*x = GetProjectSnapshotResponse{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[6]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +790,7 @@ func (x *GetProjectSnapshotResponse) String() string {
 func (*GetProjectSnapshotResponse) ProtoMessage() {}
 
 func (x *GetProjectSnapshotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[6]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -378,7 +803,7 @@ func (x *GetProjectSnapshotResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProjectSnapshotResponse.ProtoReflect.Descriptor instead.
 func (*GetProjectSnapshotResponse) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{6}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetProjectSnapshotResponse) GetSnapshot() *ProjectSnapshot {
@@ -405,7 +830,7 @@ type DeleteProjectSnapshotRequest struct {
 
 func (x *DeleteProjectSnapshotRequest) Reset() {
 	*x = DeleteProjectSnapshotRequest{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[7]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +842,7 @@ func (x *DeleteProjectSnapshotRequest) String() string {
 func (*DeleteProjectSnapshotRequest) ProtoMessage() {}
 
 func (x *DeleteProjectSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[7]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +855,7 @@ func (x *DeleteProjectSnapshotRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProjectSnapshotRequest.ProtoReflect.Descriptor instead.
 func (*DeleteProjectSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{7}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteProjectSnapshotRequest) GetUserId() string {
@@ -457,7 +882,7 @@ type DeleteProjectSnapshotResponse struct {
 
 func (x *DeleteProjectSnapshotResponse) Reset() {
 	*x = DeleteProjectSnapshotResponse{}
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[8]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -469,7 +894,7 @@ func (x *DeleteProjectSnapshotResponse) String() string {
 func (*DeleteProjectSnapshotResponse) ProtoMessage() {}
 
 func (x *DeleteProjectSnapshotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[8]
+	mi := &file_api_snapshot_service_v1_snapshot_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +907,7 @@ func (x *DeleteProjectSnapshotResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteProjectSnapshotResponse.ProtoReflect.Descriptor instead.
 func (*DeleteProjectSnapshotResponse) Descriptor() ([]byte, []int) {
-	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{8}
+	return file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteProjectSnapshotResponse) GetSnapshotId() string {
@@ -517,6 +942,37 @@ const file_api_snapshot_service_v1_snapshot_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12-\n" +
 	"\x12encrypted_envelope\x18\x03 \x01(\fR\x11encryptedEnvelope\"i\n" +
 	"\x1dCreateProjectSnapshotResponse\x12H\n" +
+	"\bsnapshot\x18\x01 \x01(\v2,.dramaip.snapshot.service.v1.ProjectSnapshotR\bsnapshot\"\xef\x01\n" +
+	"\x15ProjectSnapshotUpload\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0fencrypted_bytes\x18\x02 \x01(\x03R\x0eencryptedBytes\x12)\n" +
+	"\x10encrypted_sha256\x18\x03 \x01(\tR\x0fencryptedSha256\x124\n" +
+	"\x16received_chunk_indexes\x18\x04 \x03(\x05R\x14receivedChunkIndexes\x12\x1d\n" +
+	"\n" +
+	"expires_at\x18\x05 \x01(\tR\texpiresAt\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\tR\tcreatedAt\"\xb9\x01\n" +
+	"!StartProjectSnapshotUploadRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12'\n" +
+	"\x0fencrypted_bytes\x18\x03 \x01(\x03R\x0eencryptedBytes\x12)\n" +
+	"\x10encrypted_sha256\x18\x04 \x01(\tR\x0fencryptedSha256\"\xba\x01\n" +
+	"\"StartProjectSnapshotUploadResponse\x12H\n" +
+	"\bsnapshot\x18\x01 \x01(\v2,.dramaip.snapshot.service.v1.ProjectSnapshotR\bsnapshot\x12J\n" +
+	"\x06upload\x18\x02 \x01(\v22.dramaip.snapshot.service.v1.ProjectSnapshotUploadR\x06upload\"\xd9\x01\n" +
+	"!UploadProjectSnapshotChunkRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tupload_id\x18\x02 \x01(\tR\buploadId\x12\x1f\n" +
+	"\vchunk_index\x18\x03 \x01(\x05R\n" +
+	"chunkIndex\x12'\n" +
+	"\x0fencrypted_chunk\x18\x04 \x01(\fR\x0eencryptedChunk\x124\n" +
+	"\x16encrypted_chunk_sha256\x18\x05 \x01(\tR\x14encryptedChunkSha256\"p\n" +
+	"\"UploadProjectSnapshotChunkResponse\x12J\n" +
+	"\x06upload\x18\x01 \x01(\v22.dramaip.snapshot.service.v1.ProjectSnapshotUploadR\x06upload\"\\\n" +
+	"$CompleteProjectSnapshotUploadRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tupload_id\x18\x02 \x01(\tR\buploadId\"q\n" +
+	"%CompleteProjectSnapshotUploadResponse\x12H\n" +
 	"\bsnapshot\x18\x01 \x01(\v2,.dramaip.snapshot.service.v1.ProjectSnapshotR\bsnapshot\"6\n" +
 	"\x1bListProjectSnapshotsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"j\n" +
@@ -537,9 +993,12 @@ const file_api_snapshot_service_v1_snapshot_proto_rawDesc = "" +
 	"\vsnapshot_id\x18\x01 \x01(\tR\n" +
 	"snapshotId\x12\x1d\n" +
 	"\n" +
-	"deleted_at\x18\x02 \x01(\tR\tdeletedAt2\xc9\x04\n" +
+	"deleted_at\x18\x02 \x01(\tR\tdeletedAt2\xb2\b\n" +
 	"\x0fSnapshotService\x12\x8e\x01\n" +
-	"\x15CreateProjectSnapshot\x129.dramaip.snapshot.service.v1.CreateProjectSnapshotRequest\x1a:.dramaip.snapshot.service.v1.CreateProjectSnapshotResponse\x12\x8b\x01\n" +
+	"\x15CreateProjectSnapshot\x129.dramaip.snapshot.service.v1.CreateProjectSnapshotRequest\x1a:.dramaip.snapshot.service.v1.CreateProjectSnapshotResponse\x12\x9d\x01\n" +
+	"\x1aStartProjectSnapshotUpload\x12>.dramaip.snapshot.service.v1.StartProjectSnapshotUploadRequest\x1a?.dramaip.snapshot.service.v1.StartProjectSnapshotUploadResponse\x12\x9d\x01\n" +
+	"\x1aUploadProjectSnapshotChunk\x12>.dramaip.snapshot.service.v1.UploadProjectSnapshotChunkRequest\x1a?.dramaip.snapshot.service.v1.UploadProjectSnapshotChunkResponse\x12\xa6\x01\n" +
+	"\x1dCompleteProjectSnapshotUpload\x12A.dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadRequest\x1aB.dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadResponse\x12\x8b\x01\n" +
 	"\x14ListProjectSnapshots\x128.dramaip.snapshot.service.v1.ListProjectSnapshotsRequest\x1a9.dramaip.snapshot.service.v1.ListProjectSnapshotsResponse\x12\x85\x01\n" +
 	"\x12GetProjectSnapshot\x126.dramaip.snapshot.service.v1.GetProjectSnapshotRequest\x1a7.dramaip.snapshot.service.v1.GetProjectSnapshotResponse\x12\x8e\x01\n" +
 	"\x15DeleteProjectSnapshot\x129.dramaip.snapshot.service.v1.DeleteProjectSnapshotRequest\x1a:.dramaip.snapshot.service.v1.DeleteProjectSnapshotResponseBQZOgithub.com/dramaip/dramaip-platform/services/api/snapshot/service/v1;snapshotv1b\x06proto3"
@@ -556,35 +1015,52 @@ func file_api_snapshot_service_v1_snapshot_proto_rawDescGZIP() []byte {
 	return file_api_snapshot_service_v1_snapshot_proto_rawDescData
 }
 
-var file_api_snapshot_service_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_api_snapshot_service_v1_snapshot_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_snapshot_service_v1_snapshot_proto_goTypes = []any{
-	(*ProjectSnapshot)(nil),               // 0: dramaip.snapshot.service.v1.ProjectSnapshot
-	(*CreateProjectSnapshotRequest)(nil),  // 1: dramaip.snapshot.service.v1.CreateProjectSnapshotRequest
-	(*CreateProjectSnapshotResponse)(nil), // 2: dramaip.snapshot.service.v1.CreateProjectSnapshotResponse
-	(*ListProjectSnapshotsRequest)(nil),   // 3: dramaip.snapshot.service.v1.ListProjectSnapshotsRequest
-	(*ListProjectSnapshotsResponse)(nil),  // 4: dramaip.snapshot.service.v1.ListProjectSnapshotsResponse
-	(*GetProjectSnapshotRequest)(nil),     // 5: dramaip.snapshot.service.v1.GetProjectSnapshotRequest
-	(*GetProjectSnapshotResponse)(nil),    // 6: dramaip.snapshot.service.v1.GetProjectSnapshotResponse
-	(*DeleteProjectSnapshotRequest)(nil),  // 7: dramaip.snapshot.service.v1.DeleteProjectSnapshotRequest
-	(*DeleteProjectSnapshotResponse)(nil), // 8: dramaip.snapshot.service.v1.DeleteProjectSnapshotResponse
+	(*ProjectSnapshot)(nil),                       // 0: dramaip.snapshot.service.v1.ProjectSnapshot
+	(*CreateProjectSnapshotRequest)(nil),          // 1: dramaip.snapshot.service.v1.CreateProjectSnapshotRequest
+	(*CreateProjectSnapshotResponse)(nil),         // 2: dramaip.snapshot.service.v1.CreateProjectSnapshotResponse
+	(*ProjectSnapshotUpload)(nil),                 // 3: dramaip.snapshot.service.v1.ProjectSnapshotUpload
+	(*StartProjectSnapshotUploadRequest)(nil),     // 4: dramaip.snapshot.service.v1.StartProjectSnapshotUploadRequest
+	(*StartProjectSnapshotUploadResponse)(nil),    // 5: dramaip.snapshot.service.v1.StartProjectSnapshotUploadResponse
+	(*UploadProjectSnapshotChunkRequest)(nil),     // 6: dramaip.snapshot.service.v1.UploadProjectSnapshotChunkRequest
+	(*UploadProjectSnapshotChunkResponse)(nil),    // 7: dramaip.snapshot.service.v1.UploadProjectSnapshotChunkResponse
+	(*CompleteProjectSnapshotUploadRequest)(nil),  // 8: dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadRequest
+	(*CompleteProjectSnapshotUploadResponse)(nil), // 9: dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadResponse
+	(*ListProjectSnapshotsRequest)(nil),           // 10: dramaip.snapshot.service.v1.ListProjectSnapshotsRequest
+	(*ListProjectSnapshotsResponse)(nil),          // 11: dramaip.snapshot.service.v1.ListProjectSnapshotsResponse
+	(*GetProjectSnapshotRequest)(nil),             // 12: dramaip.snapshot.service.v1.GetProjectSnapshotRequest
+	(*GetProjectSnapshotResponse)(nil),            // 13: dramaip.snapshot.service.v1.GetProjectSnapshotResponse
+	(*DeleteProjectSnapshotRequest)(nil),          // 14: dramaip.snapshot.service.v1.DeleteProjectSnapshotRequest
+	(*DeleteProjectSnapshotResponse)(nil),         // 15: dramaip.snapshot.service.v1.DeleteProjectSnapshotResponse
 }
 var file_api_snapshot_service_v1_snapshot_proto_depIdxs = []int32{
-	0, // 0: dramaip.snapshot.service.v1.CreateProjectSnapshotResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
-	0, // 1: dramaip.snapshot.service.v1.ListProjectSnapshotsResponse.snapshots:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
-	0, // 2: dramaip.snapshot.service.v1.GetProjectSnapshotResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
-	1, // 3: dramaip.snapshot.service.v1.SnapshotService.CreateProjectSnapshot:input_type -> dramaip.snapshot.service.v1.CreateProjectSnapshotRequest
-	3, // 4: dramaip.snapshot.service.v1.SnapshotService.ListProjectSnapshots:input_type -> dramaip.snapshot.service.v1.ListProjectSnapshotsRequest
-	5, // 5: dramaip.snapshot.service.v1.SnapshotService.GetProjectSnapshot:input_type -> dramaip.snapshot.service.v1.GetProjectSnapshotRequest
-	7, // 6: dramaip.snapshot.service.v1.SnapshotService.DeleteProjectSnapshot:input_type -> dramaip.snapshot.service.v1.DeleteProjectSnapshotRequest
-	2, // 7: dramaip.snapshot.service.v1.SnapshotService.CreateProjectSnapshot:output_type -> dramaip.snapshot.service.v1.CreateProjectSnapshotResponse
-	4, // 8: dramaip.snapshot.service.v1.SnapshotService.ListProjectSnapshots:output_type -> dramaip.snapshot.service.v1.ListProjectSnapshotsResponse
-	6, // 9: dramaip.snapshot.service.v1.SnapshotService.GetProjectSnapshot:output_type -> dramaip.snapshot.service.v1.GetProjectSnapshotResponse
-	8, // 10: dramaip.snapshot.service.v1.SnapshotService.DeleteProjectSnapshot:output_type -> dramaip.snapshot.service.v1.DeleteProjectSnapshotResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0,  // 0: dramaip.snapshot.service.v1.CreateProjectSnapshotResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
+	0,  // 1: dramaip.snapshot.service.v1.StartProjectSnapshotUploadResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
+	3,  // 2: dramaip.snapshot.service.v1.StartProjectSnapshotUploadResponse.upload:type_name -> dramaip.snapshot.service.v1.ProjectSnapshotUpload
+	3,  // 3: dramaip.snapshot.service.v1.UploadProjectSnapshotChunkResponse.upload:type_name -> dramaip.snapshot.service.v1.ProjectSnapshotUpload
+	0,  // 4: dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
+	0,  // 5: dramaip.snapshot.service.v1.ListProjectSnapshotsResponse.snapshots:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
+	0,  // 6: dramaip.snapshot.service.v1.GetProjectSnapshotResponse.snapshot:type_name -> dramaip.snapshot.service.v1.ProjectSnapshot
+	1,  // 7: dramaip.snapshot.service.v1.SnapshotService.CreateProjectSnapshot:input_type -> dramaip.snapshot.service.v1.CreateProjectSnapshotRequest
+	4,  // 8: dramaip.snapshot.service.v1.SnapshotService.StartProjectSnapshotUpload:input_type -> dramaip.snapshot.service.v1.StartProjectSnapshotUploadRequest
+	6,  // 9: dramaip.snapshot.service.v1.SnapshotService.UploadProjectSnapshotChunk:input_type -> dramaip.snapshot.service.v1.UploadProjectSnapshotChunkRequest
+	8,  // 10: dramaip.snapshot.service.v1.SnapshotService.CompleteProjectSnapshotUpload:input_type -> dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadRequest
+	10, // 11: dramaip.snapshot.service.v1.SnapshotService.ListProjectSnapshots:input_type -> dramaip.snapshot.service.v1.ListProjectSnapshotsRequest
+	12, // 12: dramaip.snapshot.service.v1.SnapshotService.GetProjectSnapshot:input_type -> dramaip.snapshot.service.v1.GetProjectSnapshotRequest
+	14, // 13: dramaip.snapshot.service.v1.SnapshotService.DeleteProjectSnapshot:input_type -> dramaip.snapshot.service.v1.DeleteProjectSnapshotRequest
+	2,  // 14: dramaip.snapshot.service.v1.SnapshotService.CreateProjectSnapshot:output_type -> dramaip.snapshot.service.v1.CreateProjectSnapshotResponse
+	5,  // 15: dramaip.snapshot.service.v1.SnapshotService.StartProjectSnapshotUpload:output_type -> dramaip.snapshot.service.v1.StartProjectSnapshotUploadResponse
+	7,  // 16: dramaip.snapshot.service.v1.SnapshotService.UploadProjectSnapshotChunk:output_type -> dramaip.snapshot.service.v1.UploadProjectSnapshotChunkResponse
+	9,  // 17: dramaip.snapshot.service.v1.SnapshotService.CompleteProjectSnapshotUpload:output_type -> dramaip.snapshot.service.v1.CompleteProjectSnapshotUploadResponse
+	11, // 18: dramaip.snapshot.service.v1.SnapshotService.ListProjectSnapshots:output_type -> dramaip.snapshot.service.v1.ListProjectSnapshotsResponse
+	13, // 19: dramaip.snapshot.service.v1.SnapshotService.GetProjectSnapshot:output_type -> dramaip.snapshot.service.v1.GetProjectSnapshotResponse
+	15, // 20: dramaip.snapshot.service.v1.SnapshotService.DeleteProjectSnapshot:output_type -> dramaip.snapshot.service.v1.DeleteProjectSnapshotResponse
+	14, // [14:21] is the sub-list for method output_type
+	7,  // [7:14] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_api_snapshot_service_v1_snapshot_proto_init() }
@@ -598,7 +1074,7 @@ func file_api_snapshot_service_v1_snapshot_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_snapshot_service_v1_snapshot_proto_rawDesc), len(file_api_snapshot_service_v1_snapshot_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

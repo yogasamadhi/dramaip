@@ -341,6 +341,9 @@ func (d *Data) CallProvider(ctx context.Context, p Provider, model string, messa
 	resilienceKey := p.Name + "\x00" + model
 	release, acquireErr := bulkhead.Acquire(callCtx, resilienceKey)
 	if acquireErr != nil {
+		if errors.Is(acquireErr, context.Canceled) {
+			return ProviderReply{}, acquireErr
+		}
 		return ProviderReply{}, status.Error(codes.Unavailable, "provider is busy; retry later")
 	}
 	defer release()
@@ -373,6 +376,9 @@ func (d *Data) CallProviderStream(ctx context.Context, p Provider, model string,
 	resilienceKey := p.Name + "\x00" + model
 	release, acquireErr := bulkhead.Acquire(callCtx, resilienceKey)
 	if acquireErr != nil {
+		if errors.Is(acquireErr, context.Canceled) {
+			return ProviderReply{}, acquireErr
+		}
 		return ProviderReply{}, status.Error(codes.Unavailable, "provider is busy; retry later")
 	}
 	defer release()
