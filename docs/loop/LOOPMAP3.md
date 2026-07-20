@@ -1313,3 +1313,17 @@ Push: Push the closing main merge with ordinary `git push origin main`; no hoste
 Loop branch cleanup: Delete `loop/lm3-32-production-delivery` after the main push confirms local and origin are aligned.
 Notes: This is evidence for disposable isolated staging only. It does not claim production readiness: temporary dependencies are emptyDir-backed, runtime Secrets are short-lived, real payment and AI Provider calls remain disabled, metrics-server is absent, and LM3-33/LM3-34 still own backup/PITR and full production Gate evidence.
 ```
+
+```text
+Loop: LM3-33 current PITR rehearsal (partial)
+Target branch: loop/lm4-29-admin-operations (the retained LM4 release-chain target)
+Loop branch: loop/lm3-33-current-pitr-rehearsal
+Commit(s): 5c3dd69 docs: record LM3-33 PITR rehearsal
+Merge commit: c907789 merge: record LM3-33 PITR rehearsal
+Verification: In a separate local Docker network, `DRAMAIP_PITR_DRILL_AUTHORIZED=1 DRAMAIP_PITR_IMAGE=docker.m.daocloud.io/library/postgres:18-alpine bash dramaip-platform/deploy/recovery/postgres-pitr-drill.sh` passed in 77 seconds against its 3600-second local RTO guard. The physical base backup plus independently archived WAL restored the named point with the payment/subscription/quota transaction assertion `1:1:1:0`; the later payment was excluded. The random `dramaip-pitr-*` containers, volumes and network were confirmed absent after exit. `bash -n dramaip-platform/deploy/recovery/*.sh` passed, and an unapproved invocation returned the expected exit-2 authorization guard. The post-merge target diff passed `git diff --check`.
+Diff review: This is a documentation/state correction only. It adds the previously missing LM3-33 record linked by the map, records only generated local evidence, and changes the stale `todo` state to accurate `partial`. No production object-store endpoint, Secret, KMS reference, database content, recovery credential or build artifact appears in the diff.
+Remote sync: Target was fetched and fast-forward checked against origin before the no-ff merge; no intervening remote commit required conflict resolution.
+Push: The merge and this completion-record commit are pushed together to origin/loop/lm4-29-admin-operations after this record is committed.
+Loop branch cleanup: `loop/lm3-33-current-pitr-rehearsal` is merged and deleted locally after the target push.
+Remaining blocker: The local kind API was stopped, so no fresh CNPG claim was made. More importantly, LM3-33 still lacks an authorized production-equivalent multi-failure-domain store, KMS/Secret Manager, immutable retention, a real RPO/RTO drill, corruption alert, target-time restore and payment/billing/quota reconciliation evidence. LM3-34 and LM4-30 remain blocked by those conditions.
+```
