@@ -240,7 +240,7 @@ make platform-down
 | LM3-30 | P1 | Admin/安全 | done | 建立 Admin BFF、独立认证和 RBAC | admin contracts/service/audit | LM3-07、LM3-19 |
 | LM3-31 | P2 | Admin/Web | done | 交付管理后台与 reporting/read-model | admin app、报表、运维查询 | LM3-30 |
 | LM3-32 | P1 | Platform/SRE | done | 建立生产部署、密钥和受控发布 | Docker、K8s、Helm、Kong、Secret Manager、运维发布脚本、HPA | G1～G5 |
-| LM3-33 | P0 | DBA/SRE | todo | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
+| LM3-33 | P0 | DBA/SRE | partial | 建立 PostgreSQL 灾备与恢复能力 | HA、backup、WAL、PITR、演练 | LM3-32 |
 | LM3-34 | P0 | Release | todo | 通过核心平台生产就绪 Gate | 全端 E2E、压测、故障/恢复演练 | LM3-20～LM3-33 |
 | LM3-35 | P2 | Sync | todo | 交付本地优先云同步与冲突处理 | sync service、Desktop/Mobile、审计 | LM3-27、LM3-29、LM3-34 |
 | LM3-36 | P3 | Marketplace | todo | 交付受控资源市场 | package、审核、版本、授权 | LM3-30、LM3-35 |
