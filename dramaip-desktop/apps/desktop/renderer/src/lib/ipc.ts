@@ -57,6 +57,8 @@ import type {
   Shot,
   ShotReview,
   StoryArc,
+  StoryBibleChangeSet,
+  StoryBibleSettings,
   StoryEvent,
   TaskModelBinding,
   AiRunUsageSummaryRow,
@@ -708,6 +710,17 @@ export interface StudioApi {
     create(data: unknown): Promise<Foreshadowing>
     update(id: string, patch: unknown): Promise<Foreshadowing | undefined>
     remove(id: string): Promise<boolean>
+  }
+  storyBible: {
+    getSettings(projectId: string): Promise<StoryBibleSettings>
+    updateSettings(projectId: string, patch: { autoSuggest: boolean }): Promise<StoryBibleSettings>
+    listChangeSets(projectId: string): Promise<StoryBibleChangeSet[]>
+    queueChangeSet(input: { projectId: string; chapterId: string }): Promise<StoryBibleChangeSet>
+    applyChangeSet(id: string): Promise<StoryBibleChangeSet>
+    undoChangeSet(id: string): Promise<StoryBibleChangeSet>
+    failChangeSet(id: string, message: string): Promise<StoryBibleChangeSet | undefined>
+    setChangeSetStatus(id: string, status: 'paused' | 'queued' | 'skipped' | 'discarded'): Promise<StoryBibleChangeSet | undefined>
+    listStaleMarks(projectId: string): Promise<Array<{ id: string; chapterId: string; targetKind: 'story_bible' | 'diagnostic'; reason: string }>>
   }
   // v0.3 AI 短剧小说强化系统
   beat: {

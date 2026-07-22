@@ -51,6 +51,9 @@ const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile',
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
+const storyBibleSettingsPatch = z.object({ autoSuggest: z.boolean() }).strict()
+const storyBibleQueueInput = z.object({ projectId: id, chapterId: id }).strict()
+const storyBibleChangeSetStatus = z.enum(['paused', 'queued', 'skipped', 'discarded'])
 const logLevel = z.enum(['debug', 'info', 'warn', 'error'])
 const diagnosticExportOptions = z
   .object({
@@ -700,6 +703,15 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'visualSetting:list': [id],
   'storyEvent:list': [id],
   'foreshadowing:list': [id],
+  'storyBible:settings:get': [id],
+  'storyBible:settings:update': [id, storyBibleSettingsPatch],
+  'storyBible:changeSet:list': [id],
+  'storyBible:changeSet:queue': [storyBibleQueueInput],
+  'storyBible:changeSet:apply': [id],
+  'storyBible:changeSet:undo': [id],
+  'storyBible:changeSet:fail': [id, z.string().min(1)],
+  'storyBible:changeSet:setStatus': [id, storyBibleChangeSetStatus],
+  'storyBible:stale:list': [id],
   'beat:list': [id],
   'highlight:list': [id],
   'feasibility:list': [id],

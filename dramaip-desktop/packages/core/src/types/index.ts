@@ -518,6 +518,97 @@ export interface Foreshadowing {
   updatedAt: string
 }
 
+/** 故事圣经建议包的生命周期。草案不会直接改写用户的故事圣经记录。 */
+export type StoryBibleChangeSetStatus =
+  | 'queued'
+  | 'draft'
+  | 'applied'
+  | 'stale'
+  | 'paused'
+  | 'failed'
+  | 'skipped'
+  | 'discarded'
+
+/** 一项可审查的故事圣经新增或待人工处理的冲突。 */
+export interface StoryBibleChangeItem {
+  id: string
+  kind: 'memory' | 'character_state' | 'story_event' | 'foreshadowing' | 'visual_setting'
+  action: 'add' | 'resolve' | 'conflict'
+  title: string
+  detail: string
+  targetId?: string
+}
+
+/** AI 对一章稳定正文提出的结构化变更；只在用户采用后写入实体表。 */
+export interface StoryBibleChangeSetPayload {
+  summary: string
+  memories: Array<{
+    summary: string
+    importantEvents: string[]
+    characterChanges: string[]
+    revealedSecrets: string[]
+    newForeshadowing: string[]
+    resolvedForeshadowing: string[]
+    keyVisualElements: string[]
+  }>
+  characterStates: Array<{
+    characterId: string
+    currentStatus: string
+    emotionalState?: string
+    relationshipChanges?: string
+    knownSecrets: string[]
+    hiddenSecrets: string[]
+    visualContinuityNotes?: string
+  }>
+  storyEvents: Array<{
+    title: string
+    description: string
+    eventType: StoryEvent['eventType']
+    relatedCharacterIds: string[]
+  }>
+  foreshadowings: Array<{
+    title: string
+    description: string
+    status: Foreshadowing['status']
+    payoffPlan?: string
+    relatedCharacterIds: string[]
+    action: 'add' | 'resolve'
+    targetId?: string
+  }>
+  visualSettings: Array<{
+    title: string
+    type: VisualSetting['type']
+    visualPrompt: string
+    notes?: string
+  }>
+}
+
+export interface StoryBibleChangeSet {
+  id: string
+  projectId: string
+  chapterId: string
+  sourceChapterUpdatedAt: string
+  sourceContentHash: string
+  taskId?: string
+  status: StoryBibleChangeSetStatus
+  estimatedTokens?: number
+  estimatedCost?: number
+  currency?: string
+  payload?: StoryBibleChangeSetPayload
+  conflicts: StoryBibleChangeItem[]
+  errorMessage?: string
+  appliedAt?: string
+  undoneAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StoryBibleSettings {
+  projectId: string
+  autoSuggest: boolean
+  updatedAt: string
+}
+
 /** 一致性检查结果（不落库为实体，仅回传 UI） */
 export interface ConsistencyResult {
   issues: string[]
@@ -1378,6 +1469,7 @@ export type NovelTaskType =
   | 'evaluate_ai_drama_fit'
   // v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2）
   | 'summarize_chapter'
+  | 'propose_story_bible_changes'
   | 'update_character_state'
   | 'extract_story_events'
   | 'extract_foreshadowing'

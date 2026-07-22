@@ -55,6 +55,7 @@ import { VisualProfileSection } from '@/components/sections/VisualProfileSection
 import { VisualSettingSection } from '@/components/sections/VisualSettingSection'
 import { TimelineSection } from '@/components/sections/TimelineSection'
 import { ForeshadowingSection } from '@/components/sections/ForeshadowingSection'
+import { StoryBibleChangeSetsSection } from '@/components/sections/StoryBibleChangeSetsSection'
 import { ConsistencySection } from '@/components/sections/ConsistencySection'
 import { AiDashboardSection } from '@/components/sections/AiDashboardSection'
 import { BeatSection } from '@/components/sections/BeatSection'
@@ -82,6 +83,7 @@ const WORKSPACE_SECTION_BY_TASK: Partial<Record<NovelTaskType, string>> = {
   chat_project: 'chat',
   evaluate_ai_drama_fit: 'evaluation',
   summarize_chapter: 'memory',
+  propose_story_bible_changes: 'story-bible',
   update_character_state: 'character-state',
   extract_story_events: 'timeline',
   extract_foreshadowing: 'foreshadowing',
@@ -1023,18 +1025,7 @@ export function WorkspacePage() {
             />
           )}
 
-          {section === 'story-bible' && (
-            <TaskZonePanel
-              title="故事圣经"
-              description="在一个入口管理已发生的事、人物变化、视觉约束与待核对线索；高级页仍可逐项深入。"
-              items={[
-                { title: '章节记忆', detail: '回看已保存的章节摘要与上下文。', action: () => openWorkspaceTarget('memory') },
-                { title: '人物与关系状态', detail: '核对人物当前处境和关系变化。', action: () => openWorkspaceTarget('character-state') },
-                { title: '视觉与场景设定', detail: '统一人物视觉档案和世界场景。', action: () => openWorkspaceTarget('visual-profile') },
-                { title: '时间线、伏笔与一致性', detail: '检查事件顺序、待回收线索与矛盾。', action: () => openWorkspaceTarget('consistency') },
-              ]}
-            />
-          )}
+          {section === 'story-bible' && <StoryBibleChangeSetsSection projectId={project.id} chapter={selected} />}
 
           {section === 'action-center' && (
             <TaskZonePanel

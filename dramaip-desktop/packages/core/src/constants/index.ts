@@ -186,6 +186,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   evaluate_ai_drama_fit: 'AI 短剧适配度评分',
   // v0.2 长篇一致性
   summarize_chapter: '生成章节记忆',
+  propose_story_bible_changes: '生成故事圣经变更建议',
   update_character_state: '更新人物状态',
   extract_story_events: '提取故事事件',
   extract_foreshadowing: '提取伏笔',
@@ -282,6 +283,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   enhance_author_style: taskPolicy('preview_then_adopt', '强化作者风格，用户确认差异后写入。'),
   evaluate_ai_drama_fit: taskPolicy('auto_write', '生成评分报告并自动写入评分记录。'),
   summarize_chapter: taskPolicy('auto_write', '生成章节记忆并自动写入记忆记录。'),
+  propose_story_bible_changes: taskPolicy('preview_then_adopt', '生成故事圣经变更草案，用户确认后才一次写入相关记录。'),
   update_character_state: taskPolicy('auto_write', '生成人物状态快照并自动写入。'),
   extract_story_events: taskPolicy('auto_write', '提取故事事件并自动追加。'),
   extract_foreshadowing: taskPolicy('auto_write', '提取伏笔并自动追加。'),
@@ -502,6 +504,7 @@ export const TASK_GROUPS: TaskGroup[] = [
     taskTypes: [
       'evaluate_ai_drama_fit',
       'summarize_chapter',
+      'propose_story_bible_changes',
       'update_character_state',
       'extract_story_events',
       'extract_foreshadowing',

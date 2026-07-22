@@ -44,6 +44,9 @@ import {
   audienceSimulations,
   narrativeCurveReports,
   workflowRuns,
+  storyBibleChangeSets,
+  storyBibleSettings,
+  storyBibleStaleMarks,
 } from '../schema'
 import {
   createCompatibleProjectProductionBrief,
@@ -364,6 +367,9 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(visualSettings).where(eq(visualSettings.projectId, id)).run()
   db.delete(storyEvents).where(eq(storyEvents.projectId, id)).run()
   db.delete(foreshadowings).where(eq(foreshadowings.projectId, id)).run()
+  db.delete(storyBibleChangeSets).where(eq(storyBibleChangeSets.projectId, id)).run()
+  db.delete(storyBibleSettings).where(eq(storyBibleSettings.projectId, id)).run()
+  db.delete(storyBibleStaleMarks).where(eq(storyBibleStaleMarks.projectId, id)).run()
   db.delete(beats).where(eq(beats.projectId, id)).run()
   db.delete(highlightAnalyses).where(eq(highlightAnalyses.projectId, id)).run()
   db.delete(aiVideoFeasibilityReports).where(eq(aiVideoFeasibilityReports.projectId, id)).run()

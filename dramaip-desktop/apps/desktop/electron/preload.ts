@@ -260,6 +260,18 @@ const api = {
     update: (id: string, patch: unknown) => invoke('foreshadowing:update', id, patch),
     remove: (id: string) => invoke('foreshadowing:delete', id),
   },
+  storyBible: {
+    getSettings: (projectId: string) => invoke('storyBible:settings:get', projectId),
+    updateSettings: (projectId: string, patch: { autoSuggest: boolean }) => invoke('storyBible:settings:update', projectId, patch),
+    listChangeSets: (projectId: string) => invoke('storyBible:changeSet:list', projectId),
+    queueChangeSet: (input: { projectId: string; chapterId: string }) => invoke('storyBible:changeSet:queue', input),
+    applyChangeSet: (id: string) => invoke('storyBible:changeSet:apply', id),
+    undoChangeSet: (id: string) => invoke('storyBible:changeSet:undo', id),
+    failChangeSet: (id: string, message: string) => invoke('storyBible:changeSet:fail', id, message),
+    setChangeSetStatus: (id: string, status: 'paused' | 'queued' | 'skipped' | 'discarded') =>
+      invoke('storyBible:changeSet:setStatus', id, status),
+    listStaleMarks: (projectId: string) => invoke('storyBible:stale:list', projectId),
+  },
   // v0.3 AI 短剧小说强化系统
   beat: {
     list: (projectId: string) => invoke('beat:list', projectId),

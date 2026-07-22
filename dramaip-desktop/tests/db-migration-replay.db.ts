@@ -182,6 +182,9 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'inspiration_favorites').includes('card_key'))
     assert.ok(columns(raw, 'inspiration_favorites').includes('source_kind'))
     assert.ok(tableExists(raw, 'genre_market_snapshots'))
+    assert.ok(tableExists(raw, 'story_bible_settings'))
+    assert.ok(tableExists(raw, 'story_bible_change_sets'))
+    assert.ok(tableExists(raw, 'story_bible_stale_marks'))
 
     assert.deepEqual(runMigrations(migrationRaw(raw)), [])
     assert.deepEqual(appliedVersions(raw), applied)
