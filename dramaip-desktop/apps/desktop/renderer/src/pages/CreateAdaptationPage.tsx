@@ -158,7 +158,7 @@ export function CreateAdaptationPage() {
           </div>
 
           <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-            当前生产建议：{productionProfile.presentation === 'ai_2d_animation' ? 'AI 2D 漫剧' : productionProfile.presentation === 'ai_3d_animation' ? 'AI 3D 动画' : productionProfile.presentation === 'live_action_style' ? '仿真人 / 实拍感' : productionProfile.presentation === 'motion_comic' ? '动态漫画' : '静态解说'} · {formatProductionDuration(productionProfile.episodeDuration)} · 先做 {productionProfile.pilotEpisodeCount} 集试播。可在此页修改，不由章节数强制换算。
+            当前生产建议：{productionProfile.presentation === 'ai_2d_animation' ? 'AI 2D 漫剧' : productionProfile.presentation === 'ai_3d_animation' ? 'AI 3D 动画' : productionProfile.presentation === 'live_action_style' ? '仿真人 / 实拍感' : productionProfile.presentation === 'motion_comic' ? '动态漫画' : '静态解说'} · {formatProductionDuration(productionProfile.episodeDuration)} · 先做 {productionProfile.pilotEpisodeCount} 集试播（可在项目生产 Profile 中选择 1～3 集）。本季目标集数独立保留，不由章节数强制换算。
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -166,7 +166,7 @@ export function CreateAdaptationPage() {
               <Label>目标集数</Label>
               <Input type="number" min={1} value={targetEpisodeCount} onChange={(event) => setTargetEpisodeCount(Math.max(1, Number(event.target.value) || 1))} />
               <p className="text-xs text-muted-foreground">
-                默认采用项目 Profile 的 {productionProfile.pilotEpisodeCount} 集试播建议，可直接修改。
+                默认采用项目 Profile 的 {productionProfile.pilotEpisodeCount} 集试播建议；这里填写的是整季目标，不会自动创建整季任务。
               </p>
             </div>
             <div className="space-y-2">

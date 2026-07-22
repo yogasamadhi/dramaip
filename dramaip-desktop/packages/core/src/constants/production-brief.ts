@@ -111,7 +111,9 @@ export function createProjectProductionBrief(input: {
       ...fallback,
       ...input.profile,
       episodeDuration: { minSeconds, maxSeconds },
-      pilotEpisodeCount: positiveInteger(input.profile?.pilotEpisodeCount, fallback.pilotEpisodeCount),
+      // 试播是验证生产路径的最小范围，而非缩小版整季排期。把历史或手工输入
+      // 收敛到 1–3 集，避免一次操作意外扩展为整季高成本任务。
+      pilotEpisodeCount: Math.min(3, positiveInteger(input.profile?.pilotEpisodeCount, fallback.pilotEpisodeCount)),
     },
     nextStep: nextStepFor(creationGoal),
   }

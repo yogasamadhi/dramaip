@@ -32,6 +32,7 @@ export function AdaptationWorkspacePage() {
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
+  const [pilotEpisodeCount, setPilotEpisodeCount] = useState(3)
   const [analysis, setAnalysis] = useState<EpisodeAnalysis | undefined>(undefined)
   const [version, setVersion] = useState(0)
   const requestedNav = searchParams.get('section')
@@ -67,7 +68,11 @@ export function AdaptationWorkspacePage() {
       ipc.script.list(id),
     ])
     setAdaptation(a ?? null)
-    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
+    if (a?.sourceProjectId) {
+      const sourceProject = await ipc.project.get(a.sourceProjectId)
+      setPilotEpisodeCount(Math.min(3, Math.max(1, sourceProject?.productionBrief?.profile.pilotEpisodeCount ?? 3)))
+      await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
+    }
     setEpisodes(eps)
     setAnalysis(an)
     setScripts(scs)
@@ -215,6 +220,11 @@ export function AdaptationWorkspacePage() {
 
   async function runSelectedScripts(episodeIds: string[]) {
     if (!adaptation) return
+    const pilotIds = new Set(episodes.slice(0, pilotEpisodeCount).map((episode) => episode.id))
+    if (episodeIds.some((episodeId) => !pilotIds.has(episodeId))) {
+      toast.error(`当前只可为前 ${pilotEpisodeCount} 集试播范围生成批量剧本；后续集需先创建计划，不会自动提交高费用任务。`)
+      return
+    }
     const targetIds = episodeIds.filter((episodeId) => !scripts.some((script) => script.episodeId === episodeId))
     if (targetIds.length === 0) {
       toast.message('已选分集都已有剧本，可直接进入剧本审阅')
@@ -364,6 +374,7 @@ export function AdaptationWorkspacePage() {
                   ) : <EpisodePlanningBoard
                     episodes={episodes}
                     scripts={scripts}
+                    pilotEpisodeIds={new Set(episodes.slice(0, pilotEpisodeCount).map((episode) => episode.id))}
                     busy={busy}
                     onEdit={setEditing}
                     onTask={runEpisodeTask}
@@ -441,6 +452,7 @@ export function AdaptationWorkspacePage() {
 function EpisodePlanningBoard({
   episodes,
   scripts,
+  pilotEpisodeIds,
   busy,
   onEdit,
   onTask,
@@ -449,6 +461,7 @@ function EpisodePlanningBoard({
 }: {
   episodes: Episode[]
   scripts: Script[]
+  pilotEpisodeIds: Set<string>
   busy: string | null
   onEdit: (episode: Episode) => void
   onTask: (episode: Episode, taskType: 'rewrite_episode_outline' | 'enhance_episode_hook' | 'enhance_episode_visuals') => void
@@ -475,6 +488,7 @@ function EpisodePlanningBoard({
   }, [episodes])
 
   function toggleSelected(episodeId: string) {
+    if (!pilotEpisodeIds.has(episodeId)) return
     setSelectedIds((current) => {
       const next = new Set(current)
       if (next.has(episodeId)) next.delete(episodeId)
@@ -486,8 +500,9 @@ function EpisodePlanningBoard({
   function toggleVisible() {
     setSelectedIds((current) => {
       const next = new Set(current)
-      const everyVisibleSelected = visibleEpisodes.every((episode) => next.has(episode.id))
-      for (const episode of visibleEpisodes) {
+      const selectableEpisodes = visibleEpisodes.filter((episode) => pilotEpisodeIds.has(episode.id))
+      const everyVisibleSelected = selectableEpisodes.length > 0 && selectableEpisodes.every((episode) => next.has(episode.id))
+      for (const episode of selectableEpisodes) {
         if (everyVisibleSelected) next.delete(episode.id)
         else next.add(episode.id)
       }
@@ -515,7 +530,7 @@ function EpisodePlanningBoard({
           </select>
         </label>
         <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
-          <span>{visibleEpisodes.length} 集可见 · 已选 {selectedIds.size} 集</span>
+          <span>{visibleEpisodes.length} 集可见 · 试播范围 {pilotEpisodeIds.size} 集 · 已选 {selectedIds.size} 集</span>
           <Button size="sm" variant="ghost" onClick={toggleVisible}>{selectedVisible.length === visibleEpisodes.length ? '取消本页选择' : '选择本页'}</Button>
           {selectedIds.size > 0 && (
             <Button size="sm" onClick={() => onGenerateSelectedScripts([...selectedIds])} disabled={busy !== null}>
@@ -532,6 +547,7 @@ function EpisodePlanningBoard({
             key={episode.id}
             episode={episode}
             selected={selectedIds.has(episode.id)}
+            inPilotScope={pilotEpisodeIds.has(episode.id)}
             hasScript={scriptEpisodeIds.has(episode.id)}
             disabled={busy !== null}
             onToggle={() => toggleSelected(episode.id)}
@@ -545,6 +561,7 @@ function EpisodePlanningBoard({
       {view === 'table' && <EpisodePlanningTable
         episodes={visibleEpisodes}
         selectedIds={selectedIds}
+        pilotEpisodeIds={pilotEpisodeIds}
         scriptEpisodeIds={scriptEpisodeIds}
         onToggle={toggleSelected}
         onEdit={onEdit}
@@ -563,6 +580,7 @@ function PlannerViewButton({ active, label, icon, onClick }: { active: boolean; 
 function EpisodePlanningCard({
   episode,
   selected,
+  inPilotScope,
   hasScript,
   disabled,
   onToggle,
@@ -572,6 +590,7 @@ function EpisodePlanningCard({
 }: {
   episode: Episode
   selected: boolean
+  inPilotScope: boolean
   hasScript: boolean
   disabled: boolean
   onToggle: () => void
@@ -583,10 +602,11 @@ function EpisodePlanningCard({
   return (
     <article className={cn('studio-card-interactive rounded-lg border bg-card p-3', selected && 'border-primary ring-1 ring-primary/30')}>
       <div className="flex items-start gap-2">
-        <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={selected} onChange={onToggle} aria-label={`选择第 ${episode.episodeNumber} 集`} />
+        <input className="mt-1 h-4 w-4 accent-primary" type="checkbox" checked={selected} onChange={onToggle} disabled={!inPilotScope} aria-label={`选择第 ${episode.episodeNumber} 集${inPilotScope ? '' : '（不在试播范围）'}`} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">第 {episode.episodeNumber} 集</Badge>
+            {!inPilotScope && <Badge variant="outline">后续计划</Badge>}
             <span className="font-medium">{episode.title}</span>
             {hasScript && <Badge variant="secondary"><CheckCircle2 className="h-3 w-3" /> 已有剧本</Badge>}
             {gaps.length > 0 && <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300"><CircleAlert className="h-3 w-3" /> 缺 {gaps.join('、')}</Badge>}
@@ -612,9 +632,10 @@ function EpisodePlanningCard({
   )
 }
 
-function EpisodePlanningTable({ episodes, selectedIds, scriptEpisodeIds, onToggle, onEdit, onOpenScript }: {
+function EpisodePlanningTable({ episodes, selectedIds, pilotEpisodeIds, scriptEpisodeIds, onToggle, onEdit, onOpenScript }: {
   episodes: Episode[]
   selectedIds: Set<string>
+  pilotEpisodeIds: Set<string>
   scriptEpisodeIds: Set<string>
   onToggle: (id: string) => void
   onEdit: (episode: Episode) => void
@@ -627,7 +648,7 @@ function EpisodePlanningTable({ episodes, selectedIds, scriptEpisodeIds, onToggl
         <tbody>{episodes.map((episode) => {
           const gaps = episodePlanningGaps(episode)
           return <tr key={episode.id} className="border-t hover:bg-muted/30">
-            <td className="p-3"><input className="h-4 w-4 accent-primary" type="checkbox" checked={selectedIds.has(episode.id)} onChange={() => onToggle(episode.id)} aria-label={`选择第 ${episode.episodeNumber} 集`} /></td>
+            <td className="p-3"><input className="h-4 w-4 accent-primary" type="checkbox" checked={selectedIds.has(episode.id)} onChange={() => onToggle(episode.id)} disabled={!pilotEpisodeIds.has(episode.id)} aria-label={`选择第 ${episode.episodeNumber} 集${pilotEpisodeIds.has(episode.id) ? '' : '（不在试播范围）'}`} /></td>
             <td className="p-3"><div className="font-medium">第 {episode.episodeNumber} 集 · {episode.title}</div><div className="mt-1 max-w-[18rem] truncate text-muted-foreground">{episode.summary || '待补梗概'}</div></td>
             <td className="p-3"><div>{episode.hook || '待补钩子'}</div><div className="mt-1 text-muted-foreground">{episode.reversal || '待补反转'}</div></td>
             <td className="p-3"><div>{episode.mainConflict || '待补冲突'}</div><div className="mt-1 text-muted-foreground">{episode.cliffhanger || '待补悬念'}</div></td>

@@ -21,9 +21,11 @@ import {
 } from '@/lib/projectWorkflowGuide'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
 import { buildProjectQualityGateTruth } from '@/lib/qualityGateTruth'
+import { buildPilotProductionTruth } from '@/lib/pilotProductionTruth'
 import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
+import { PilotProductionPanel } from '@/components/PilotProductionPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
@@ -197,6 +199,7 @@ export function WorkspacePage() {
       nextCaseStudies,
       nextStoryArcs,
       nextProjectSkills,
+      longTasks,
     ] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
@@ -207,6 +210,7 @@ export function WorkspacePage() {
       ipc.caseStudy.list(),
       ipc.storyArc.list(currentProject.id),
       ipc.projectSkill.list(currentProject.id),
+      ipc.longTask.list(currentProject.id),
     ])
     setVisualProfiles(nextVisualProfiles)
     setCaseStudies(nextCaseStudies)
@@ -258,6 +262,7 @@ export function WorkspacePage() {
       shots,
       videoTasks,
       videoResults,
+      longTasks,
     })
     setAdaptationReadiness(buildAdaptationReadiness({
       project: snapshotProject,
@@ -695,6 +700,23 @@ export function WorkspacePage() {
         characters: workflowSnapshot.characters,
         outlines: workflowSnapshot.outlines,
         reports: workflowSnapshot.qualityReports,
+      })
+    : null
+  const pilotProductionTruth = workflowSnapshot
+    ? buildPilotProductionTruth({
+        project: workflowSnapshot.project,
+        chapters: workflowSnapshot.chapters,
+        characters: workflowSnapshot.characters,
+        outlines: workflowSnapshot.outlines,
+        qualityReports: workflowSnapshot.qualityReports,
+        activeAdaptation: workflowSnapshot.activeAdaptation,
+        episodes: workflowSnapshot.episodes,
+        scripts: workflowSnapshot.scripts,
+        scenes: workflowSnapshot.scenes,
+        shots: workflowSnapshot.shots,
+        videoTasks: workflowSnapshot.videoTasks,
+        videoResults: workflowSnapshot.videoResults,
+        longTasks: workflowSnapshot.longTasks,
       })
     : null
   const primaryAdaptation = workflowSnapshot?.activeAdaptation
@@ -1149,6 +1171,11 @@ export function WorkspacePage() {
                   </div>
                 )}
                 {adaptationReadiness && <AdaptationReadinessPanel readiness={adaptationReadiness} />}
+                {pilotProductionTruth && <PilotProductionPanel
+                  adaptationId={workflowSnapshot?.activeAdaptation?.id}
+                  truth={pilotProductionTruth}
+                  onOpenTaskCenter={() => navigate(`/settings/tasks?project=${encodeURIComponent(project.id)}`)}
+                />}
                 {project.productionBrief && (() => {
                   const brief = project.productionBrief
                   const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)

@@ -6,13 +6,13 @@ import {
   formatProductionDuration,
 } from '@sdns/core'
 
-test('production briefs expose three creation goals with editable duration and pilot suggestions', () => {
+test('production briefs expose three creation goals, editable duration, and a 1–3 episode pilot boundary', () => {
   const direct = createProjectProductionBrief({
     creationGoal: 'direct_drama',
     profile: { pilotEpisodeCount: 5, episodeDuration: { minSeconds: 45, maxSeconds: 90 } },
   })
   assert.equal(direct.nextStep, 'create_direct_adaptation')
-  assert.equal(direct.profile.pilotEpisodeCount, 5)
+  assert.equal(direct.profile.pilotEpisodeCount, 3)
   assert.equal(formatProductionDuration(direct.profile.episodeDuration), '45–90 秒')
 
   const imported = createProjectProductionBrief({ creationGoal: 'adapt_existing_ip' })
