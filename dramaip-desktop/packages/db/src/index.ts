@@ -49,6 +49,7 @@ export * as projectAssetRepo from './repositories/project-asset.repo'
 export * as agentProfileRepo from './repositories/agent-profile.repo'
 export * as templateRepo from './repositories/template.repo'
 export * as genrePresetRepo from './repositories/genre-preset.repo'
+export * as genreMarketSnapshotRepo from './repositories/genre-market-snapshot.repo'
 export * as templateRunRepo from './repositories/template-run.repo'
 // v1.0 模型配置增强
 export * as taskModelBindingRepo from './repositories/task-model-binding.repo'
@@ -98,6 +99,7 @@ import * as projectAssetRepo from './repositories/project-asset.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
 import * as genrePresetRepo from './repositories/genre-preset.repo'
+import * as genreMarketSnapshotRepo from './repositories/genre-market-snapshot.repo'
 import * as templateRunRepo from './repositories/template-run.repo'
 import * as taskModelBindingRepo from './repositories/task-model-binding.repo'
 import * as creativeRepo from './repositories/creative.repo'
@@ -152,6 +154,7 @@ export function createRepositories(db: DB) {
     agentProfile: { ...agentProfileRepo },
     template: { ...templateRepo },
     genrePreset: { ...genrePresetRepo },
+    genreMarketSnapshot: { ...genreMarketSnapshotRepo },
     templateRun: { ...templateRunRepo },
     // v1.0
     taskModelBinding: { ...taskModelBindingRepo },

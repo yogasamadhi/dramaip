@@ -802,7 +802,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
   })
 
   await step('create-project', async () => {
-    setInputValue(inputByPlaceholder('重生之千金归来'), title)
+    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), title)
     clickButton('创建项目')
     await waitFor('项目工作台路由', () =>
       window.location.hash.startsWith('#/projects/') && !window.location.hash.startsWith('#/projects/new'),

@@ -9,6 +9,24 @@ import type {
 } from '../types'
 import { BUILT_IN_GENRE_PRESETS } from './genre-presets'
 
+export {
+  DEFAULT_GENRE_MARKET_SNAPSHOT,
+  createGenreOpportunitySelection,
+  resolveGenreMarketSnapshot,
+  selectGenreOpportunity,
+  validateGenreMarketSnapshot,
+  type GenreAudience,
+  type GenreMarketSnapshot,
+  type GenreMarketSource,
+  type GenreMarketSourceKind,
+  type GenreMarketStatus,
+  type GenreOpportunity,
+  type GenreOpportunitySelection,
+  type GenrePresentation,
+  type GenreProductionCost,
+  type GenreSaturation,
+} from './genre-market-snapshot'
+
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = BUILT_IN_GENRE_PRESETS.map((preset) => preset.name)
 

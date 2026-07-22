@@ -1,4 +1,5 @@
 // 核心领域类型 —— 对应 PROJECT_BRIEF.md §7 / §8 / §9 / §10
+import type { GenreOpportunitySelection } from '../constants/genre-market-snapshot'
 
 /** 短剧小说项目 */
 export interface Project {
@@ -17,6 +18,8 @@ export interface Project {
   visualStyleDirection?: string
   /** 当前工作的改编项目；为空时由仓库按季号和更新时间确定兼容默认值。 */
   activeAdaptationId?: string
+  /** 创建时采用的离线题材机会快照，保留版本和依据，避免把历史选择改写成“当前爆款”。 */
+  genreOpportunity?: GenreOpportunitySelection
   createdAt: string
   updatedAt: string
 }

@@ -15,6 +15,7 @@ import {
   BUILT_IN_AGENTS,
   BUILT_IN_GENRE_PRESETS,
   BUILT_IN_TEMPLATES,
+  DEFAULT_GENRE_MARKET_SNAPSHOT,
   DB_FILE_NAME,
   RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
 } from '@sdns/core'
@@ -313,6 +314,7 @@ function seedBuiltInPresets(r: Repositories): void {
       BUILT_IN_GENRE_PRESETS,
       RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
     )
+    r.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(r.db, DEFAULT_GENRE_MARKET_SNAPSHOT)
   } catch {
     // seed 失败不应阻断启动（用户仍可手动在设置页创建）
   }

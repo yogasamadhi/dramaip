@@ -415,6 +415,12 @@ const api = {
     update: (id: string, patch: unknown) => invoke('genrePreset:update', id, patch),
     remove: (id: string) => invoke('genrePreset:delete', id),
   },
+  genreMarketSnapshot: {
+    list: () => invoke('genreMarketSnapshot:list'),
+    getActive: () => invoke('genreMarketSnapshot:getActive'),
+    import: (snapshot: unknown) => invoke('genreMarketSnapshot:import', snapshot),
+    activate: (version: string) => invoke('genreMarketSnapshot:activate', version),
+  },
   templateRun: {
     list: () => invoke('templateRun:list'),
     listByTemplate: (templateId: string) => invoke('templateRun:listByTemplate', templateId),
