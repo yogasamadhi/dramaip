@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 
-export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'videoAsset'
+export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'sourceDocument' | 'videoAsset'
 
 export interface FileImportPolicy {
   label: string
@@ -35,6 +35,13 @@ export const FILE_IMPORT_POLICIES: Record<FileImportKind, FileImportPolicy> = {
     allowedExtensions: ['.md', '.txt', '.docx'],
     maxBytes: 10 * MB,
     maxTextChars: 80_000,
+  },
+  sourceDocument: {
+    label: '小说或剧本文稿',
+    allowedExtensions: ['.txt', '.md', '.markdown', '.docx', '.epub', '.json'],
+    // 源文件只会在主进程读取；压缩文档还会逐条限制解压后的 entry 大小。
+    maxBytes: 30 * MB,
+    maxTextChars: 1_500_000,
   },
   videoAsset: {
     label: '视频素材',

@@ -28,6 +28,7 @@ import { getRepos } from './db'
 import { PRODUCTION_OUTCOME_BASELINE } from './production-outcome-baseline'
 import { deleteModelConfigWithSecret, migrateLegacySecretsToKeychain } from './secrets'
 import { reconcileLongTasks } from './task-recovery'
+import { applySourceImport, parseSourceImportBuffer } from './source-import'
 
 export interface E2eSmokeStep {
   name: string
@@ -65,12 +66,14 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const videoProductionStep = await verifyVideoProductionConsoleRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
+  const sourceImportStep = runSourceImportRoundTrip(renderer.projectId)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
+  if (!sourceImportStep.ok) throw new Error(sourceImportStep.error ?? '主内容导入往返失败')
   if (!projectPackageStep.ok) throw new Error(projectPackageStep.error ?? '项目包往返失败')
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
   }
 }
 
@@ -681,6 +684,41 @@ function verifyNovelSubmissionExport(projectId: string): void {
   const json = JSON.parse(exportNovelSubmissionJson(data, { chapterLimit: 1 })) as { sampleChapters?: unknown[]; chapterCatalog?: unknown[] }
   if (json.sampleChapters?.length !== 1) throw new Error('submission json chapter limit not applied')
   if ((json.chapterCatalog?.length ?? 0) < 2) throw new Error('submission json catalog missing chapters')
+}
+
+function runSourceImportRoundTrip(projectId: string): E2eSmokeStep {
+  const started = Date.now()
+  try {
+    const repos = getRepos()
+    const novel = parseSourceImportBuffer('授权小说.md', Buffer.from('第1章 归来\n她踏进旧宅。\n\n第2章 反击\n她拿出证据。'))
+    const novelResult = applySourceImport(repos, { projectId, strategy: 'append', preview: novel })
+    if (novelResult.createdChapters !== 2) throw new Error('小说导入未创建预期章节')
+    const script = parseSourceImportBuffer('授权剧本.json', Buffer.from(JSON.stringify({
+      episodes: [{
+        episodeNumber: 1,
+        title: '归来',
+        content: '林晚：我回来了。',
+        scenes: [{ title: '客厅', location: '客厅', content: '林晚：我回来了。', characters: ['林晚'], summary: '归来' }],
+      }],
+    })))
+    const scriptResult = applySourceImport(repos, { projectId, strategy: 'append', preview: script })
+    if (!scriptResult.adaptationProjectId || scriptResult.createdScripts !== 1 || scriptResult.createdScenes !== 1) {
+      throw new Error('结构化剧本导入未创建改编、剧本和场景')
+    }
+    return {
+      name: 'source-import-novel-and-script-roundtrip',
+      ok: true,
+      durationMs: Date.now() - started,
+      detail: { createdChapters: novelResult.createdChapters, adaptationProjectId: scriptResult.adaptationProjectId },
+    }
+  } catch (error) {
+    return {
+      name: 'source-import-novel-and-script-roundtrip',
+      ok: false,
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 function runProjectPackageRoundTrip(projectId: string): E2eSmokeStep {

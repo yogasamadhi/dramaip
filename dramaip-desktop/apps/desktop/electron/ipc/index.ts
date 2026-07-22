@@ -20,6 +20,7 @@ import { registerAssetIpc } from './asset.ipc'
 import { registerCloudAuthIpc } from './cloud-auth.ipc'
 import { registerCloudHandoffIpc } from './cloud-handoff.ipc'
 import { registerCloudSnapshotIpc } from './cloud-snapshot.ipc'
+import { registerSourceImportIpc } from './source-import.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -35,6 +36,7 @@ export function registerAllIpc(): void {
 	registerCloudHandoffIpc()
 	registerCloudSnapshotIpc()
   registerProjectIpc()
+  registerSourceImportIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()
