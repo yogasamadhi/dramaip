@@ -102,7 +102,7 @@ export async function runDesktopUiBaseline(
       name: 'create-project-1024-light',
       hash: '#/projects/new',
       expectedText: '创建项目',
-      readyText: '带着灵感创建',
+      readyText: '从灵感写小说',
       viewport: { width: 1024, height: 760 },
       theme: 'light',
       themePreference: 'light',

@@ -27,6 +27,19 @@ export {
   type GenreSaturation,
 } from './genre-market-snapshot'
 
+export {
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_ASPECT_RATIO_OPTIONS,
+  PRODUCTION_BUDGET_TIER_OPTIONS,
+  PRODUCTION_DURATION_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  PRODUCTION_REGION_OPTIONS,
+  createCompatibleProjectProductionBrief,
+  createProjectProductionBrief,
+  formatProductionDuration,
+} from './production-brief'
+
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = BUILT_IN_GENRE_PRESETS.map((preset) => preset.name)
 

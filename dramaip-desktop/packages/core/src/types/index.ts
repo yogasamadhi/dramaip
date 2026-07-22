@@ -20,8 +20,42 @@ export interface Project {
   activeAdaptationId?: string
   /** 创建时采用的离线题材机会快照，保留版本和依据，避免把历史选择改写成“当前爆款”。 */
   genreOpportunity?: GenreOpportunitySelection
+  /** 创建目标与可编辑的制作 Profile；旧项目会在读取时得到兼容默认值。 */
+  productionBrief?: ProjectProductionBrief
   createdAt: string
   updatedAt: string
+}
+
+/** 从哪一条用户路径启动项目。导入正文与剧本解析在后续流程中执行，不在这里伪造已导入内容。 */
+export type ProjectCreationGoal = 'novel_to_drama' | 'adapt_existing_ip' | 'direct_drama'
+export type ProductionPresentation = 'ai_2d_animation' | 'ai_3d_animation' | 'live_action_style' | 'motion_comic' | 'static_story'
+export type ProductionPlatform = 'short_video_vertical' | 'short_drama_app' | 'video_platform'
+export type ProductionRegion = 'mainland_china' | 'global_chinese' | 'overseas'
+export type ProductionAspectRatio = '9:16' | '16:9' | '1:1'
+export type ProductionBudgetTier = 'starter' | 'standard' | 'premium'
+
+export interface ProductionEpisodeDurationRange {
+  minSeconds: number
+  maxSeconds: number
+}
+
+/** 用户可修改的生产目标；这些是规划值，不是对供应商、成本或播放效果的承诺。 */
+export interface ProjectProductionProfile {
+  presentation: ProductionPresentation
+  platform: ProductionPlatform
+  region: ProductionRegion
+  aspectRatio: ProductionAspectRatio
+  episodeDuration: ProductionEpisodeDurationRange
+  pilotEpisodeCount: number
+  budgetTier: ProductionBudgetTier
+}
+
+export interface ProjectProductionBrief {
+  version: 1
+  creationGoal: ProjectCreationGoal
+  profile: ProjectProductionProfile
+  /** 创建完成后应显示给用户的真实下一步，而不是假装正文或剧本已存在。 */
+  nextStep: 'write_or_plan' | 'import_source' | 'create_direct_adaptation'
 }
 
 /** 项目首页只读摘要：由本地数据库聚合，避免列表页 N×多次 IPC 请求。 */

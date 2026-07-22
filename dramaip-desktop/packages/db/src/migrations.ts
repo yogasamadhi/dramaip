@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS projects (
   style_guide TEXT,
   visual_style_direction TEXT,
   genre_opportunity TEXT,
+  production_brief TEXT,
   deleted_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL

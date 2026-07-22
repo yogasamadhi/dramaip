@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, Sparkles } from 'lucide-react'
-import type { Project } from '@sdns/core'
+import {
+  createProjectProductionBrief,
+  formatProductionDuration,
+  type Project,
+  type ProjectProductionProfile,
+} from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction } from '@/components/ConfirmActionDialog'
 import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
@@ -18,17 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-// 1 章 → 2 集：默认集数 ≈ 章数 × 2。这里提供常见档位 + 用户可选手动调整。
-const EPISODE_COUNTS = [20, 24, 40, 50, 60, 80, 100, 120]
 const STYLES = ['快节奏爽剧', '细腻情感', '强反转悬疑', '甜宠轻喜', '暗黑复仇']
 
 export function CreateAdaptationPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
+  const directMode = params.get('mode') === 'direct'
   const [projects, setProjects] = useState<Project[]>([])
   const [sourceProjectId, setSourceProjectId] = useState<string>('')
   const [title, setTitle] = useState('')
-  const [targetEpisodeCount, setTargetEpisodeCount] = useState<number>(60)
+  const [targetEpisodeCount, setTargetEpisodeCount] = useState<number>(3)
   const [adaptationStyle, setAdaptationStyle] = useState<string>(STYLES[0])
   const [submitting, setSubmitting] = useState(false)
   const [chapterCount, setChapterCount] = useState<number>(0)
@@ -36,6 +40,8 @@ export function CreateAdaptationPage() {
   const [chapterFrom, setChapterFrom] = useState<number>(1)
   const [chapterTo, setChapterTo] = useState<number>(50)
   const [readiness, setReadiness] = useState<AdaptationReadinessSummary | null>(null)
+  const [productionProfile, setProductionProfile] = useState<ProjectProductionProfile>(createProjectProductionBrief().profile)
+  const [episodeDuration, setEpisodeDuration] = useState(formatProductionDuration(createProjectProductionBrief().profile.episodeDuration))
 
   useEffect(() => {
     void (async () => {
@@ -46,8 +52,7 @@ export function CreateAdaptationPage() {
     })()
   }, [params])
 
-  // 选定源项目后：按章数自动推算「第 1 季」的章节范围与目标集数
-  // （1 季约 50 章、1 章 → 2 集 → 1 季约 100 集；200~300 章小说 → 4~6 季）
+  // 选择项目后读取其创建时保存的生产 Profile。章节范围仅定位来源，不再把“章数=集数”写成规则。
   useEffect(() => {
     if (!sourceProjectId) {
       setReadiness(null)
@@ -63,42 +68,24 @@ export function CreateAdaptationPage() {
         ipc.creative.listQualityGates(sourceProjectId),
       ])
       if (!sourceProject) return
+      const profile = sourceProject.productionBrief?.profile ?? createProjectProductionBrief().profile
+      setProductionProfile(profile)
+      setEpisodeDuration(formatProductionDuration(profile.episodeDuration))
+      setTargetEpisodeCount(sourceProject.targetEpisodeCount ?? profile.pilotEpisodeCount)
       setChapterCount(chapters.length)
-      setReadiness(buildAdaptationReadiness({ project: sourceProject, chapters, characters, outlines, chapterMemories, qualityReports }))
-      const perSeason = 50 // 每季约 50 章
-      const from = 1
-      const to = Math.min(perSeason, chapters.length)
-      setChapterFrom(from)
-      setChapterTo(to)
-      // 本季章数 × 2 ≈ 本季目标集数
-      const seasonChapters = Math.max(0, to - from + 1)
-      const recommended = seasonChapters * 2
-      if (recommended > 0) setTargetEpisodeCount(recommended)
+      setReadiness(directMode ? null : buildAdaptationReadiness({ project: sourceProject, chapters, characters, outlines, chapterMemories, qualityReports }))
+      if (!directMode && chapters.length > 0) {
+        setChapterFrom(1)
+        setChapterTo(chapters.length)
+      }
     })()
-  }, [sourceProjectId])
-
-  // 改章节范围时同步重算目标集数（章数 × 2）
-  useEffect(() => {
-    const seasonChapters = Math.max(0, chapterTo - chapterFrom + 1)
-    const recommended = seasonChapters * 2
-    if (recommended > 0) setTargetEpisodeCount(recommended)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapterFrom, chapterTo])
+  }, [directMode, sourceProjectId])
 
   useEffect(() => {
     // 默认标题跟随源项目
     const src = projects.find((p) => p.id === sourceProjectId)
-    if (src && !title) setTitle(`${src.title} · AI短剧改编`)
-  }, [sourceProjectId, projects, title])
-
-  // 目标集数选项 = 固定档位 ∪ 推荐值(章数×2)，保证推荐值可选
-  const episodeOptions = useMemo(() => {
-    const recommended = chapterCount * 2
-    const merged = Array.from(new Set([...EPISODE_COUNTS, recommended].filter((n) => n > 0))).sort(
-      (a, b) => a - b,
-    )
-    return merged
-  }, [chapterCount])
+    if (src && !title) setTitle(`${src.title} · ${directMode ? '第一季' : 'AI短剧改编'}`)
+  }, [directMode, sourceProjectId, projects, title])
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -121,11 +108,10 @@ export function CreateAdaptationPage() {
         title: title.trim(),
         targetEpisodeCount,
         adaptationStyle,
-        // 2 分钟一集：短剧标准体量
-        episodeDuration: '2分钟',
+        episodeDuration,
         // 多季连载：本季季号 + 改编章节范围
         seasonNumber,
-        sourceChapterRange: { from: chapterFrom, to: chapterTo },
+        sourceChapterRange: !directMode && chapterCount > 0 ? { from: chapterFrom, to: chapterTo } : undefined,
       })
       toast.success('改编项目已创建')
       navigate(`/adaptations/${created.id}`)
@@ -142,16 +128,16 @@ export function CreateAdaptationPage() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-lg font-semibold">创建 AI 短剧改编项目</h1>
+        <h1 className="text-lg font-semibold">{directMode ? '创建漫剧第一季' : '创建 AI 短剧改编项目'}</h1>
       </header>
 
       <main className="flex flex-1 items-center justify-center overflow-auto p-6">
         <div className="w-full max-w-xl space-y-5">
           <div className="space-y-2">
-            <Label>源小说项目</Label>
+            <Label>{directMode ? '项目生产简报' : '源小说项目'}</Label>
             <Select value={sourceProjectId} onValueChange={setSourceProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="选择一个已有小说项目" />
+                <SelectValue placeholder={directMode ? '选择刚创建的漫剧项目' : '选择一个已有小说项目'} />
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (
@@ -161,35 +147,32 @@ export function CreateAdaptationPage() {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">AI 会读取该小说的设定、人物与章节来生成改编分集大纲。</p>
+            <p className="text-xs text-muted-foreground">{directMode ? '直接漫剧只读取项目的题材与生产 Profile，不要求先有小说章节。' : 'AI 会读取该小说的设定、人物与章节来生成改编分集大纲。'}</p>
           </div>
 
-          {readiness && <AdaptationReadinessPanel readiness={readiness} />}
+          {!directMode && readiness && <AdaptationReadinessPanel readiness={readiness} />}
 
           <div className="space-y-2">
             <Label>改编标题 *</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：天劫将至 · AI短剧改编" />
           </div>
 
+          <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+            当前生产建议：{productionProfile.presentation === 'ai_2d_animation' ? 'AI 2D 漫剧' : productionProfile.presentation === 'ai_3d_animation' ? 'AI 3D 动画' : productionProfile.presentation === 'live_action_style' ? '仿真人 / 实拍感' : productionProfile.presentation === 'motion_comic' ? '动态漫画' : '静态解说'} · {formatProductionDuration(productionProfile.episodeDuration)} · 先做 {productionProfile.pilotEpisodeCount} 集试播。可在此页修改，不由章节数强制换算。
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>目标集数</Label>
-              <Select value={String(targetEpisodeCount)} onValueChange={(v) => setTargetEpisodeCount(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {episodeOptions.map((c) => (
-                    <SelectItem key={c} value={String(c)}>
-                      {c} 集
-                      {c === (chapterTo - chapterFrom + 1) * 2 && chapterCount > 0 ? '（推荐：本季章数×2）' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input type="number" min={1} value={targetEpisodeCount} onChange={(event) => setTargetEpisodeCount(Math.max(1, Number(event.target.value) || 1))} />
               <p className="text-xs text-muted-foreground">
-                默认按「1 章 → 2 集（每集 2 分钟）」估算；情节密度不均时可自行调整。
+                默认采用项目 Profile 的 {productionProfile.pilotEpisodeCount} 集试播建议，可直接修改。
               </p>
+            </div>
+            <div className="space-y-2">
+              <Label>单集时长</Label>
+              <Input value={episodeDuration} onChange={(event) => setEpisodeDuration(event.target.value)} placeholder="例如：60–120 秒" />
+              <p className="text-xs text-muted-foreground">时长是本季的可编辑目标，不会覆盖旧季的既有时长。</p>
             </div>
             <div className="space-y-2">
               <Label>改编风格</Label>
@@ -208,11 +191,10 @@ export function CreateAdaptationPage() {
             </div>
           </div>
 
-          {/* 多季连载：季号 + 本季改编章节范围 */}
-          <div className="rounded-md border p-4">
+          {!directMode && <div className="rounded-md border p-4">
             <div className="mb-2 text-sm font-medium">多季连载设置</div>
             <p className="mb-3 text-xs text-muted-foreground">
-              200~300 章的长篇小说切成多季短剧，每季约 50 章 ≈ 100 集。本季只改编下方指定章节范围。
+              章节范围仅说明本季取材范围，不会自动决定集数或单集时长；请按故事密度自行调整。
             </p>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
@@ -247,11 +229,10 @@ export function CreateAdaptationPage() {
             </div>
             {chapterCount > 0 && (
               <p className="mt-2 text-xs text-muted-foreground">
-                源小说共 {chapterCount} 章；本季改编第 {chapterFrom}~{chapterTo} 章（{(chapterTo - chapterFrom + 1)} 章），
-                预计 {(chapterTo - chapterFrom + 1) * 2} 集。
+                源小说共 {chapterCount} 章；本季取材第 {chapterFrom}~{chapterTo} 章（{(chapterTo - chapterFrom + 1)} 章），目标 {targetEpisodeCount} 集。
               </p>
             )}
-          </div>
+          </div>}
 
           <Button size="lg" onClick={handleSubmit} disabled={submitting}>
             <Sparkles />

@@ -679,6 +679,14 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 27,
+    name: 'project-production-brief',
+    up(raw) {
+      // 旧项目在读取时计算兼容 Profile；迁移只加字段，绝不重写已有章节、季、集或时长。
+      addColumnIfMissing(raw, 'projects', 'production_brief', 'production_brief TEXT')
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

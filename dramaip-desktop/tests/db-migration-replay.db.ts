@@ -12,7 +12,7 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import { DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
+import { createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
 
@@ -131,6 +131,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'projects').includes('deleted_at'))
     assert.ok(columns(raw, 'projects').includes('active_adaptation_id'))
     assert.ok(columns(raw, 'projects').includes('genre_opportunity'))
+    assert.ok(columns(raw, 'projects').includes('production_brief'))
     assert.ok(columns(raw, 'characters').includes('appearance_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('casting_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))
@@ -286,6 +287,33 @@ test('persists a selected genre opportunity snapshot without changing older proj
     assert.deepEqual(pkg.project.genreOpportunity, selection)
     const imported = importProjectPackage(fixture.repos, serializeProjectPackage(pkg))
     assert.deepEqual(fixture.repos.project.getProject(fixture.db, imported.id)?.genreOpportunity, selection)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('persists creation goals and gives older projects a compatible production profile', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, raw } = fixture
+    raw.exec(`UPDATE projects SET production_brief = NULL WHERE id = '${project.id}'`)
+    const compatible = repos.project.getProject(db, project.id)
+    assert.equal(compatible?.productionBrief?.creationGoal, 'novel_to_drama')
+    assert.equal(compatible?.productionBrief?.profile.pilotEpisodeCount, 3)
+
+    const directBrief = createProjectProductionBrief({
+      creationGoal: 'direct_drama',
+      profile: { pilotEpisodeCount: 5, episodeDuration: { minSeconds: 30, maxSeconds: 75 } },
+    })
+    const direct = repos.project.createProject(db, {
+      title: '直接漫剧项目',
+      shortDramaType: '规则怪谈·无限流',
+      productionBrief: directBrief,
+    } as never)
+    assert.deepEqual(repos.project.getProject(db, direct.id)?.productionBrief, directBrief)
+    const pkg = collectProjectPackage(repos, direct.id)
+    const restored = importProjectPackage(repos, serializeProjectPackage(pkg))
+    assert.deepEqual(repos.project.getProject(db, restored.id)?.productionBrief, directBrief)
   } finally {
     closeRepositoryFixture(fixture)
   }

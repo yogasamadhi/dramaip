@@ -1073,6 +1073,44 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     modelConfigId = config.id
   })
 
+  await step('creation-goals-import-ip-and-direct-drama-without-empty-chapters', async () => {
+    const api = (window as unknown as {
+      api: {
+        project: { get: (id: string) => Promise<{ productionBrief?: { creationGoal?: string } } | undefined> }
+        chapter: { list: (projectId: string) => Promise<unknown[]> }
+      }
+    }).api
+
+    const importedIpTitle = `E2E 受权 IP ${Date.now()}`
+    window.location.hash = '#/projects/new'
+    await waitFor('导入 IP 创建页', () => text().includes('导入已有小说 / IP'))
+    clickButton('导入已有小说 / IP')
+    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), importedIpTitle)
+    clickButton('创建项目')
+    await waitFor('受权 IP 项目概览', () => window.location.hash.startsWith('#/projects/') && text().includes('下一步：导入拥有授权的小说或剧本正文'))
+    const importedIpId = window.location.hash.match(/^#\/projects\/([^/?#]+)/)?.[1] ?? ''
+    if (!importedIpId || (await api.project.get(importedIpId))?.productionBrief?.creationGoal !== 'adapt_existing_ip') {
+      throw new Error('导入 IP 路径未保存 creationGoal')
+    }
+    if ((await api.chapter.list(importedIpId)).length !== 0) throw new Error('导入 IP 路径不应先创建空章节')
+
+    const directTitle = `E2E 直接漫剧 ${Date.now()}`
+    window.location.hash = '#/projects/new'
+    await waitFor('直接漫剧创建页', () => text().includes('直接制作漫剧'))
+    clickButton('直接制作漫剧')
+    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), directTitle)
+    clickButton('创建并设置第一季')
+    await waitFor('第一季设置页', () => window.location.hash.startsWith('#/adaptations/new') && text().includes('创建漫剧第一季'))
+    const directProjectId = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('source') ?? ''
+    if (!directProjectId || (await api.project.get(directProjectId))?.productionBrief?.creationGoal !== 'direct_drama') {
+      throw new Error('直接漫剧路径未保存 creationGoal')
+    }
+    if ((await api.chapter.list(directProjectId)).length !== 0) throw new Error('直接漫剧不应要求或创建小说章节')
+    if (!text().includes('不要求先有小说章节')) throw new Error('直接漫剧入口未说明可跳过小说章节')
+    clickButton('创建并进入')
+    await waitFor('直接漫剧第一季工作台', () => window.location.hash.startsWith('#/adaptations/'))
+  })
+
   return { projectId, modelConfigId, steps }
 }
 
