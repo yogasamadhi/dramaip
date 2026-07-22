@@ -15,8 +15,8 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
-import { analyzeVisualContinuity, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
+import { analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
@@ -685,7 +685,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
               })}
               onReorder={reorderStoryboard}
             />
-            {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} shots={shots} />}
+            {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} shots={shots} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1172,22 +1172,26 @@ function ShotStillCandidatesPanel({ projectId, shotId }: { projectId: string; sh
   </section>
 }
 
-function VisualContinuityPanel({ projectId, shots }: { projectId: string; shots: Shot[] }) {
+function VisualContinuityPanel({ projectId, adaptationProjectId, shots }: { projectId: string; adaptationProjectId: string; shots: Shot[] }) {
   const [versions, setVersions] = useState<VisualAssetVersion[]>([])
   const [locks, setLocks] = useState<ShotVisualAssetLock[]>([])
   const [stillCandidates, setStillCandidates] = useState<ShotStillCandidate[]>([])
+  const [acknowledgements, setAcknowledgements] = useState<QualityIssueAcknowledgement[]>([])
+  const [riskNotes, setRiskNotes] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   async function load() {
     setLoading(true)
     try {
-      const [nextVersions, lockGroups, stillGroups] = await Promise.all([
+      const [nextVersions, lockGroups, stillGroups, nextAcknowledgements] = await Promise.all([
         ipc.visualAsset.listByProject(projectId),
         Promise.all(shots.map((shot) => ipc.visualAsset.listLocksByShot(shot.id))),
         Promise.all(shots.map((shot) => ipc.shotStill.listByShot(shot.id))),
+        ipc.creative.listQualityIssueAcknowledgements(projectId),
       ])
       setVersions(nextVersions)
       setLocks(lockGroups.flat())
       setStillCandidates(stillGroups.flat())
+      setAcknowledgements(nextAcknowledgements)
     } catch (error) {
       toast.error(`读取视觉连续性失败：${error instanceof Error ? error.message : String(error)}`)
     } finally {
@@ -1196,10 +1200,74 @@ function VisualContinuityPanel({ projectId, shots }: { projectId: string; shots:
   }
   useEffect(() => { void load() }, [projectId, shots])
   const report = useMemo(() => analyzeVisualContinuity({ shots, locks, versions, stillCandidates }), [shots, locks, versions, stillCandidates])
+  const latestAcknowledgements = useMemo(() => {
+    const latest = new Map<string, QualityIssueAcknowledgement>()
+    for (const acknowledgement of acknowledgements) {
+      const previous = latest.get(acknowledgement.issueId)
+      if (!previous || acknowledgement.createdAt > previous.createdAt || (acknowledgement.createdAt === previous.createdAt && acknowledgement.id > previous.id)) latest.set(acknowledgement.issueId, acknowledgement)
+    }
+    return latest
+  }, [acknowledgements])
+  async function acceptRisk(issue: (typeof report.issues)[number]) {
+    const issueId = visualContinuityIssueId(issue)
+    const note = riskNotes[issueId]?.trim()
+    if (!note) return toast.error('请先记录接受该视觉风险的理由，便于后续复检。')
+    try {
+      await ipc.creative.acknowledgeQualityIssue({
+        projectId,
+        adaptationProjectId,
+        issueId,
+        issueKind: `visual_${issue.kind}`,
+        issueTitle: `镜头视觉检查：${issue.kind}`,
+        issueDetail: issue.message,
+        disposition: 'accepted',
+        note,
+      })
+      await load()
+      toast.success('已记录人工风险接受；原始检查项仍会保留。')
+    } catch (error) {
+      toast.error(`记录风险接受失败：${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-visual-continuity>
     <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">静帧与视觉连续性</h3><p className="text-xs text-muted-foreground">{report.checkedShots} 镜头 · {report.lockedShots} 已锁定 · {report.stillCoveredShots} 已采用静帧 · {report.staleShots} 需重做确认。像素级人脸/文字识别尚未安装，以下为可解释的版本与提示词预检。</p></div><Button size="sm" variant="outline" disabled={loading} onClick={() => void load()}>复核本场景</Button></div>
-    {report.issues.length === 0 ? <p className="text-xs text-emerald-700 dark:text-emerald-300">当前没有版本锁或画幅提示问题。</p> : <div className="space-y-1">{report.issues.map((issue, index) => <p key={`${issue.shotId}:${issue.kind}:${index}`} className={issue.severity === 'blocking' ? 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive' : 'rounded border bg-background/60 p-2 text-xs text-muted-foreground'}>{issue.message}</p>)}</div>}
+    {report.issues.length === 0 ? <p className="text-xs text-emerald-700 dark:text-emerald-300">当前没有版本锁或画幅提示问题。</p> : <div className="space-y-1">{report.issues.map((issue) => {
+      const issueId = visualContinuityIssueId(issue)
+      const acknowledgement = latestAcknowledgements.get(issueId)
+      return <div key={issueId} className={issue.severity === 'blocking' ? 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive' : 'rounded border bg-background/60 p-2 text-xs text-muted-foreground'}><p>{issue.message}</p>{acknowledgement?.disposition === 'accepted' ? <p className="mt-1">已接受风险：{acknowledgement.note}</p> : <div className="mt-2 flex flex-wrap gap-2"><Input aria-label={`${issueId} 风险理由`} value={riskNotes[issueId] ?? ''} onChange={(event) => setRiskNotes((current) => ({ ...current, [issueId]: event.target.value }))} placeholder="接受风险的理由（必填）" className="h-8 max-w-sm bg-background text-xs text-foreground" /><Button size="sm" variant="outline" onClick={() => void acceptRisk(issue)}>记录接受风险</Button></div>}</div>
+    })}</div>}
+    <ShotStillBatchPlanner shots={shots} candidates={stillCandidates} locks={locks} versions={versions} />
   </section>
+}
+
+function visualContinuityIssueId(issue: { shotId: string; kind: string; visualAssetVersionId?: string; message: string }): string {
+  return `visual-continuity:${issue.shotId}:${issue.kind}:${issue.visualAssetVersionId ?? issue.message}`
+}
+
+function ShotStillBatchPlanner({ shots, candidates, locks, versions }: { shots: Shot[]; candidates: ShotStillCandidate[]; locks: ShotVisualAssetLock[]; versions: VisualAssetVersion[] }) {
+  const [mode, setMode] = useState<ShotStillBatchMode>('missing_only')
+  const [selectedShotIds, setSelectedShotIds] = useState<string[]>([])
+  const [kinds, setKinds] = useState<ShotStillKind[]>(['still', 'first_frame'])
+  const plan = useMemo(() => planShotStillBatch({ shots, candidates, locks, versions, mode, selectedShotIds, kinds }), [shots, candidates, locks, versions, mode, selectedShotIds, kinds])
+  function toggleShot(shotId: string) { setSelectedShotIds((current) => current.includes(shotId) ? current.filter((id) => id !== shotId) : [...current, shotId]) }
+  function toggleKind(kind: ShotStillKind) { setKinds((current) => current.includes(kind) ? current.filter((value) => value !== kind) : [...current, kind]) }
+  async function copyPlan() {
+    const text = plan.planned.map((item) => `镜头 ${item.shotNumber} · ${stillKindLabel(item.kind)}\n${item.input.prompt}`).join('\n\n')
+    if (!text) return toast.error('当前没有可生成的静帧任务。')
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('已复制不含密钥的图片任务提示词，可交给已授权的图片工作流或人工制图。')
+    } catch {
+      toast.error('无法写入剪贴板；请展开下方任务清单手动复制。')
+    }
+  }
+  return <details className="rounded border bg-background/60 p-3" data-shot-still-batch-plan>
+    <summary className="cursor-pointer text-sm font-medium">静帧批量任务预检 · {plan.planned.length} 项待生成 / {plan.skipped.length} 项安全跳过</summary>
+    <p className="mt-2 text-xs text-muted-foreground">批量计划只构造可审阅输入并保留“新建候选、绝不覆盖已采用”的策略。当前真实图片 Provider 的归档与密钥设置尚未完成，本页面不会提交计费请求或伪造生成成功。</p>
+    <div className="mt-2 flex flex-wrap gap-2"><select aria-label="静帧批量范围" value={mode} onChange={(event) => setMode(event.target.value as ShotStillBatchMode)} className="h-8 rounded border bg-background px-2 text-xs"><option value="missing_only">只补缺（默认）</option><option value="selected">仅显式选中</option></select>{SHOT_STILL_KINDS.map(([kind, label]) => <label key={kind} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={kinds.includes(kind)} onChange={() => toggleKind(kind)} />{label}</label>)}<Button size="sm" variant="outline" onClick={() => void copyPlan()} disabled={!plan.planned.length}>复制任务清单</Button></div>
+    {mode === 'selected' && <div className="mt-2 flex flex-wrap gap-2">{shots.map((shot) => <label key={shot.id} className="flex items-center gap-1 rounded border px-2 py-1 text-xs"><input type="checkbox" checked={selectedShotIds.includes(shot.id)} onChange={() => toggleShot(shot.id)} />镜头 {shot.shotNumber}</label>)}</div>}
+    <div className="mt-2 space-y-1">{plan.planned.map((item) => <div key={`${item.shotId}:${item.kind}`} className="rounded border p-2 text-xs"><div className="flex flex-wrap gap-2"><Badge variant="outline">镜头 {item.shotNumber} · {stillKindLabel(item.kind)}</Badge><span>费用：未知（未提交）</span><span>输出：新候选，不覆盖已采用版本</span></div><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{item.input.prompt}</p></div>)}{plan.skipped.map((item) => <p key={`${item.shotId}:${item.kind}`} className="rounded border border-dashed p-2 text-xs text-muted-foreground">镜头 {shots.find((shot) => shot.id === item.shotId)?.shotNumber ?? item.shotId} · {stillKindLabel(item.kind)}：{item.reason}</p>)}</div>
+  </details>
 }
 
 function ShotVisualAssetLocksPanel({ projectId, shotId }: { projectId: string; shotId: string }) {
