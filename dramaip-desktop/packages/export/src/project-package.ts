@@ -65,6 +65,8 @@ import type {
   Script,
   Shot,
   StoryEvent,
+  ShotVisualAssetLock,
+  VisualAssetVersion,
   VisualSetting,
   WorkflowRun,
 } from '@sdns/core'
@@ -72,7 +74,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 8
+export const PACKAGE_VERSION = 9
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -120,6 +122,10 @@ export interface ProjectPackage {
   assets: ProjectAsset[]
   /** 权利台账只含结构化清单、受控证据引用与 hash，永不包含证明正文。 */
   assetRightsRecords?: AssetRightsRecord[]
+  /** 角色 / 场景生产资产的不可变候选与已采用版本；随资产清单一起导入导出。 */
+  visualAssetVersions?: VisualAssetVersion[]
+  /** 分镜锁定的精确视觉版本；上游改版不会静默替换这些锁。 */
+  shotVisualAssetLocks?: ShotVisualAssetLock[]
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
@@ -208,6 +214,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
   const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
   const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
+  const visualAssetVersions = options.includeAssets ? repos.visualAsset.listVisualAssetVersionsByProject(db, projectId) : []
+  const shotVisualAssetLocks = options.includeAssets ? repos.visualAsset.listShotVisualAssetLocksByProject(db, projectId) : []
 
   // 衍生改编项目
   const adaptations = repos.adaptationProject
@@ -260,6 +268,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     workflowRuns,
     assets: packageAssets,
     assetRightsRecords,
+    visualAssetVersions,
+    shotVisualAssetLocks,
     generationLineages,
     generationCostEntries,
     adaptations,
@@ -753,6 +763,48 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         assetId,
         evidenceAssetId: rights.evidenceAssetId ? assetIdMap.get(rights.evidenceAssetId) : undefined,
       })
+    }
+
+    // 18.06 版本化角色 / 场景生产资产：素材、设定和镜头都必须成功重映射才可恢复。
+    // 即便本地文件在新机器上暂时 missing，版本身份与分镜锁仍会被保留，避免静默换图。
+    const visualAssetVersionIdMap = new Map<string, string>()
+    const adoptedVisualVersionIds: string[] = []
+    const orderedVisualVersions = [...(pkg.visualAssetVersions ?? [])].sort((left, right) =>
+      `${left.ownerKind}:${left.ownerId}:${left.slot}:${left.versionNumber}`.localeCompare(
+        `${right.ownerKind}:${right.ownerId}:${right.slot}:${right.versionNumber}`,
+        undefined,
+        { numeric: true },
+      ),
+    )
+    for (const version of orderedVisualVersions) {
+      const assetId = assetIdMap.get(version.assetId)
+      const ownerId = idMap.get(version.ownerId)
+      if (!assetId || !ownerId) continue
+      const created = repos.visualAsset.createVisualAssetVersion(db, {
+        ...stripId(version),
+        projectId: newProject.id,
+        ownerId,
+        assetId,
+        status: version.status === 'adopted' ? 'candidate' : version.status,
+      })
+      if (version.status === 'adopted') adoptedVisualVersionIds.push(created.id)
+      visualAssetVersionIdMap.set(version.id, created.id)
+    }
+    for (const versionId of adoptedVisualVersionIds) repos.visualAsset.adoptVisualAssetVersion(db, versionId)
+    for (const lock of pkg.shotVisualAssetLocks ?? []) {
+      const shotId = idMap.get(lock.shotId)
+      const visualAssetVersionId = visualAssetVersionIdMap.get(lock.visualAssetVersionId)
+      if (!shotId || !visualAssetVersionId) continue
+      const created = repos.visualAsset.lockShotVisualAsset(db, {
+        projectId: newProject.id,
+        shotId,
+        visualAssetVersionId,
+        role: lock.role,
+      })
+      if (lock.staleReason) {
+        // 导入后资产引用仍可能是 missing；保留历史 stale 文案，交由用户重新确认。
+        repos.visualAsset.setShotVisualAssetLockStaleState(db, created.id, lock.staleAt, lock.staleReason)
+      }
     }
 
     // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它

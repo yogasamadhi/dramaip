@@ -914,6 +914,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     overviewButton.click()
     await waitFor('项目概览深链', () => window.location.hash.includes('section=overview'))
     await waitFor('版权授权台账入口', () => Boolean(document.querySelector('[data-rights-ledger]')))
+    await waitFor('生产资产包入口', () => Boolean(document.querySelector('[data-visual-asset-packs]')))
     window.history.back()
     await waitFor('章节深链历史恢复', () => window.location.hash === chapterHash)
 
@@ -1472,6 +1473,7 @@ async function rendererStoryboardMain(input: { adaptationId: string; episodeId: 
   window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.orderedIds[0]}`
   await waitFor('Storyboard 画布', () => document.querySelectorAll('[data-storyboard-shot]').length === 3)
   if (!document.querySelector('[data-storyboard-assets]')) throw new Error('未找到镜头素材 Inspector')
+  if (!document.querySelector('[data-shot-visual-locks]')) throw new Error('未找到镜头生产资产版本锁')
   const firstCard = document.querySelector(`[data-storyboard-shot="${input.orderedIds[0]}"]`) as HTMLElement
   firstCard.focus()
   firstCard.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight', altKey: true }))

@@ -867,6 +867,46 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 31,
+    name: 'versioned-visual-asset-packs',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS visual_asset_versions (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          owner_kind TEXT NOT NULL,
+          owner_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          slot TEXT NOT NULL,
+          label TEXT NOT NULL,
+          version_number INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'candidate',
+          notes TEXT,
+          adopted_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS shot_visual_asset_locks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          shot_id TEXT NOT NULL,
+          visual_asset_version_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          stale_at TEXT,
+          stale_reason TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_visual_asset_versions_owner_slot_version
+          ON visual_asset_versions(owner_kind, owner_id, slot, version_number);
+        CREATE INDEX IF NOT EXISTS idx_visual_asset_versions_project_owner
+          ON visual_asset_versions(project_id, owner_kind, owner_id, slot, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_shot_visual_asset_locks_shot ON shot_visual_asset_locks(shot_id, updated_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_shot_visual_asset_locks_role ON shot_visual_asset_locks(shot_id, role);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

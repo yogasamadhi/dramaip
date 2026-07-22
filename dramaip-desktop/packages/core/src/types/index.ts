@@ -490,6 +490,39 @@ export interface VisualSetting {
   updatedAt: string
 }
 
+/** 可复用的角色/场景生产资产版本；采用只切换指针，绝不覆盖旧媒体。 */
+export type VisualAssetOwnerKind = 'visual_profile' | 'visual_setting'
+export type VisualAssetSlot = 'face_anchor' | 'turnaround' | 'expression' | 'pose' | 'costume' | 'prop' | 'scene_layout' | 'scene_variant' | 'style_frame' | 'voice_reference'
+export type VisualAssetVersionStatus = 'candidate' | 'adopted' | 'superseded' | 'rejected'
+export interface VisualAssetVersion {
+  id: string
+  projectId: string
+  ownerKind: VisualAssetOwnerKind
+  ownerId: string
+  assetId: string
+  slot: VisualAssetSlot
+  label: string
+  versionNumber: number
+  status: VisualAssetVersionStatus
+  notes?: string
+  adoptedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 镜头锁定具体资产版本；上游采用新版本时仅标记旧锁定为 stale，不替换历史镜头。 */
+export interface ShotVisualAssetLock {
+  id: string
+  projectId: string
+  shotId: string
+  visualAssetVersionId: string
+  role: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 故事事件（时间线） */
 export interface StoryEvent {
   id: string

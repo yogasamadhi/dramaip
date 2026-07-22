@@ -47,6 +47,7 @@ export * as videoGenerationTaskRepo from './repositories/video-generation-task.r
 export * as videoResultRepo from './repositories/video-result.repo'
 export * as projectAssetRepo from './repositories/project-asset.repo'
 export * as assetRightsRepo from './repositories/asset-rights.repo'
+export * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
 export * as generationLineageRepo from './repositories/generation-lineage.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
@@ -101,6 +102,7 @@ import * as videoGenerationTaskRepo from './repositories/video-generation-task.r
 import * as videoResultRepo from './repositories/video-result.repo'
 import * as projectAssetRepo from './repositories/project-asset.repo'
 import * as assetRightsRepo from './repositories/asset-rights.repo'
+import * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
 import * as generationLineageRepo from './repositories/generation-lineage.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
@@ -158,6 +160,7 @@ export function createRepositories(db: DB) {
     videoResult: { ...videoResultRepo },
     asset: { ...projectAssetRepo },
     rights: { ...assetRightsRepo },
+    visualAsset: { ...visualAssetVersionRepo },
     generation: { ...generationLineageRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },

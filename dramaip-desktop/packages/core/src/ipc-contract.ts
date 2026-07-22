@@ -52,6 +52,25 @@ const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile',
 const assetRightsStatus = z.enum(['verified', 'declared', 'unknown', 'expired', 'restricted'])
 const assetRightsType = z.enum(['ownership', 'license', 'talent_release', 'voice_consent', 'provider_terms', 'public_domain', 'other'])
 const assetPermittedUse = z.enum(['commercial', 'adaptation', 'generative', 'voice_cloning'])
+const visualAssetOwnerKind = z.enum(['visual_profile', 'visual_setting'])
+const visualAssetSlot = z.enum(['face_anchor', 'turnaround', 'expression', 'pose', 'costume', 'prop', 'scene_layout', 'scene_variant', 'style_frame', 'voice_reference'])
+const visualAssetVersionStatus = z.enum(['candidate', 'adopted', 'superseded', 'rejected'])
+const visualAssetVersionInput = z.object({
+  projectId: id,
+  ownerKind: visualAssetOwnerKind,
+  ownerId: id,
+  assetId: id,
+  slot: visualAssetSlot,
+  label: z.string().min(1).max(200),
+  notes: z.string().max(2_000).optional(),
+  status: visualAssetVersionStatus.optional(),
+}).strict()
+const shotVisualAssetLockInput = z.object({
+  projectId: id,
+  shotId: id,
+  visualAssetVersionId: id,
+  role: z.string().min(1).max(100),
+}).strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -665,11 +684,17 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'generation:listCostsByProject': [id],
   'generation:updateCost': [id, updateGenerationCostInput],
   'asset:delete': [id],
-  'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file', 'rights_evidence'])],
+  'asset:chooseLocalFile': [z.enum(['character_reference', 'casting_reference', 'voice_reference', 'scene_reference', 'style_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file', 'rights_evidence'])],
   'rights:listByProject': [id],
   'rights:create': [assetRightsInput],
   'rights:update': [id, assetRightsPatch],
   'rights:preflight': [rightsPreflightInput],
+  'visualAsset:listByProject': [id],
+  'visualAsset:listByOwner': [visualAssetOwnerKind, id],
+  'visualAsset:create': [visualAssetVersionInput],
+  'visualAsset:adopt': [id],
+  'visualAsset:listLocksByShot': [id],
+  'visualAsset:lockShot': [shotVisualAssetLockInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

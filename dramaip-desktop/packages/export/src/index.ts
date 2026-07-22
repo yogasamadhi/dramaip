@@ -59,6 +59,7 @@ export {
   type DramaProposalPackage,
   type DramaShotDeliveryPackage,
   type DramaVideoRiskSummary,
+  type DramaVisualAssetLockReference,
 } from './drama-delivery'
 // v1.0 完整项目包导出 / 导入
 export {

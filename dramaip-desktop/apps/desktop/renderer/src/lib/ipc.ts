@@ -76,6 +76,10 @@ import type {
   VideoProviderConfig,
   VideoResult,
   VisualSetting,
+  VisualAssetOwnerKind,
+  VisualAssetSlot,
+  VisualAssetVersion,
+  ShotVisualAssetLock,
   WritingRoomResult,
   WritingRoomTargetKind,
   WorkflowRun,
@@ -522,6 +526,14 @@ export interface StudioApi {
     create(data: Partial<AssetRightsRecord> & { projectId: string; assetId: string }): Promise<AssetRightsRecord>
     update(id: string, patch: Partial<AssetRightsRecord>): Promise<AssetRightsRecord | undefined>
     preflight(input: RightsPreflightInput): Promise<RightsPreflightResult>
+  }
+  visualAsset: {
+    listByProject(projectId: string): Promise<VisualAssetVersion[]>
+    listByOwner(ownerKind: VisualAssetOwnerKind, ownerId: string): Promise<VisualAssetVersion[]>
+    create(data: Pick<VisualAssetVersion, 'projectId' | 'ownerKind' | 'ownerId' | 'assetId' | 'slot' | 'label'> & Partial<Pick<VisualAssetVersion, 'notes' | 'status'>>): Promise<VisualAssetVersion>
+    adopt(id: string): Promise<VisualAssetVersion | undefined>
+    listLocksByShot(shotId: string): Promise<ShotVisualAssetLock[]>
+    lockShot(data: Pick<ShotVisualAssetLock, 'projectId' | 'shotId' | 'visualAssetVersionId' | 'role'>): Promise<ShotVisualAssetLock>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

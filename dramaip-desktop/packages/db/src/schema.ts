@@ -719,6 +719,34 @@ export const assetRightsRecords = sqliteTable('asset_rights_records', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const visualAssetVersions = sqliteTable('visual_asset_versions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  ownerKind: text('owner_kind', { enum: ['visual_profile', 'visual_setting'] }).notNull(),
+  ownerId: text('owner_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  slot: text('slot').notNull(),
+  label: text('label').notNull(),
+  versionNumber: integer('version_number').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  notes: text('notes'),
+  adoptedAt: text('adopted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotVisualAssetLocks = sqliteTable('shot_visual_asset_locks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  shotId: text('shot_id').notNull(),
+  visualAssetVersionId: text('visual_asset_version_id').notNull(),
+  role: text('role').notNull(),
+  staleAt: text('stale_at'),
+  staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
 // 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
 export const generationLineages = sqliteTable('generation_lineages', {
