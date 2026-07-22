@@ -113,7 +113,8 @@ export function WorkspacePage() {
   const [project, setProject] = useState<Project | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [section, setSection] = useState<string>('chapters')
+  const [section, setSection] = useState<string>('overview')
+  const [advancedNavigation, setAdvancedNavigation] = useState(() => window.localStorage.getItem('sdns.workspace.advanced-navigation') === 'true')
   const [editorNonce, setEditorNonce] = useState(0)
   const [aiRuns, setAiRuns] = useState<AiRun[]>([])
   const [preview, setPreview] = useState<{
@@ -168,6 +169,16 @@ export function WorkspacePage() {
     reversal: chapter.reversal,
     cliffhanger: chapter.cliffhanger,
   })))
+  const visibleNavigationGroups = useMemo(
+    () => WORKSPACE_NAV_GROUPS.map((group) => ({
+      ...group,
+      items: advancedNavigation ? group.items : group.items.filter((item) => group.basicItemKeys.includes(item.key)),
+    })),
+    [advancedNavigation],
+  )
+  const activeNavigationItem = WORKSPACE_NAV_GROUPS
+    .flatMap((group) => group.items)
+    .find((item) => item.key === section)
 
   const loadWorkflowSnapshot = useCallback(async (
     currentProject: Project,
@@ -290,10 +301,13 @@ export function WorkspacePage() {
   }, [loadProject])
   useEffect(() => {
     const requestedSection = searchParams.get('section')
-    setSection(requestedSection && WORKSPACE_SECTION_KEYS.has(requestedSection) ? requestedSection : 'chapters')
+    setSection(requestedSection && WORKSPACE_SECTION_KEYS.has(requestedSection) ? requestedSection : 'overview')
     const requestedChapter = searchParams.get('chapter')
     if (requestedChapter) setSelectedId(requestedChapter)
   }, [searchParams])
+  useEffect(() => {
+    window.localStorage.setItem('sdns.workspace.advanced-navigation', String(advancedNavigation))
+  }, [advancedNavigation])
   useEffect(() => {
     const importIntent = searchParams.get('next') === 'import-source' && id ? id : undefined
     if (importIntent && handledImportIntentRef.current !== importIntent) {
@@ -316,6 +330,8 @@ export function WorkspacePage() {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set('section', nextSection)
+      const zone = WORKSPACE_NAV_GROUPS.find((group) => group.items.some((item) => item.key === nextSection))?.key
+      if (zone) next.set('zone', zone)
       if (chapterId) next.set('chapter', chapterId)
       else if (chapterId !== undefined || nextSection !== 'chapters') next.delete('chapter')
       if (qualityIssueId) next.set('qualityIssue', qualityIssueId)
@@ -825,7 +841,7 @@ export function WorkspacePage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                  {WORKSPACE_NAV_GROUPS.map((group) => (
+                  {visibleNavigationGroups.map((group) => (
                     <div key={group.key} className="py-1">
                       <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
                       {group.items.map((item) => (
@@ -840,6 +856,9 @@ export function WorkspacePage() {
                       ))}
                     </div>
                   ))}
+                  <DropdownMenuItem onClick={() => setAdvancedNavigation((value) => !value)}>
+                    {advancedNavigation ? '收起高级功能' : '显示全部高级功能'}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -868,7 +887,7 @@ export function WorkspacePage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                {WORKSPACE_NAV_GROUPS.map((group) => (
+                {visibleNavigationGroups.map((group) => (
                   <div key={group.key} className="py-1">
                     <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
                     {group.items.map((item) => (
@@ -883,10 +902,13 @@ export function WorkspacePage() {
                     ))}
                   </div>
                 ))}
+                <DropdownMenuItem onClick={() => setAdvancedNavigation((value) => !value)}>
+                  {advancedNavigation ? '收起高级功能' : '显示全部高级功能'}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="rounded-md bg-accent px-1.5 py-2 text-center text-xs font-medium text-accent-foreground" title="当前工作区">
-              {(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.key === section)?.label ?? '当前').slice(0, 2)}
+              {(activeNavigationItem?.label ?? '当前').slice(0, 2)}
             </div>
             <div className="mt-auto">
               <Button variant="outline" size="icon" aria-label="新建章节" title="新建章节" onClick={createChapter}>
@@ -899,7 +921,7 @@ export function WorkspacePage() {
           <nav className="flex h-full min-w-0 flex-col" aria-label="项目阶段导航">
             <ScrollArea className="flex-1">
               <div className="space-y-3 p-2">
-                {WORKSPACE_NAV_GROUPS.map((group) => (
+                {visibleNavigationGroups.map((group) => (
                   <div key={group.key} className="space-y-1">
                     <div className="px-3 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
                     {group.items.map((item) => {
@@ -935,6 +957,9 @@ export function WorkspacePage() {
               </div>
             </ScrollArea>
             <div className="border-t p-2">
+              <Button variant="ghost" size="sm" className="mb-1 w-full text-xs" onClick={() => setAdvancedNavigation((value) => !value)}>
+                {advancedNavigation ? '收起高级功能' : '显示高级功能'}
+              </Button>
               <Button variant="outline" size="sm" className="w-full" title="新建章节" onClick={createChapter}>
                 <FilePlus2 />
                 新建章节
@@ -985,6 +1010,68 @@ export function WorkspacePage() {
 
         {/* 中：主区 */}
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {section === 'content' && (
+            <TaskZonePanel
+              title="内容"
+              description="从灵感、人物和大纲到可编辑正文；先完成眼前的一步，不必理解底层 Agent 或记忆术语。"
+              items={[
+                { title: '项目概览', detail: '查看当前结果、阻塞与下一步。', action: () => openWorkspaceTarget('overview') },
+                { title: '写正文', detail: chapters.length ? `继续编辑 ${chapters.length} 个章节。` : '从第一章或导入已有主稿开始。', action: () => openWorkspaceTarget('chapters', selectedId) },
+                { title: '人物与大纲', detail: '整理人物关系和故事走向。', action: () => openWorkspaceTarget(chapters.length ? 'outline' : 'characters') },
+                { title: '导入授权内容', detail: '导入 TXT、Markdown、DOCX、EPUB 或结构化剧本。', action: () => setSourceImportOpen(true) },
+              ]}
+            />
+          )}
+
+          {section === 'story-bible' && (
+            <TaskZonePanel
+              title="故事圣经"
+              description="在一个入口管理已发生的事、人物变化、视觉约束与待核对线索；高级页仍可逐项深入。"
+              items={[
+                { title: '章节记忆', detail: '回看已保存的章节摘要与上下文。', action: () => openWorkspaceTarget('memory') },
+                { title: '人物与关系状态', detail: '核对人物当前处境和关系变化。', action: () => openWorkspaceTarget('character-state') },
+                { title: '视觉与场景设定', detail: '统一人物视觉档案和世界场景。', action: () => openWorkspaceTarget('visual-profile') },
+                { title: '时间线、伏笔与一致性', detail: '检查事件顺序、待回收线索与矛盾。', action: () => openWorkspaceTarget('consistency') },
+              ]}
+            />
+          )}
+
+          {section === 'action-center' && (
+            <TaskZonePanel
+              title="行动中心"
+              description="把评分、节拍、爽点、质量问题和制作可行性汇总为下一步可执行的检查，而不是分散的分析页面。"
+              items={[
+                { title: '质量闸门', detail: '查看当前阻塞与需要处理的问题。', action: () => openWorkspaceTarget('quality-gates') },
+                { title: '短剧适配与节奏', detail: '检查短剧评分、节拍和爽点。', action: () => openWorkspaceTarget('evaluation') },
+                { title: '创意诊断', detail: '处理创意风险与修订建议。', action: () => openWorkspaceTarget('creative-diagnosis') },
+                { title: 'AI 制作可行性', detail: '确认镜头与视频生产的可执行性。', action: () => openWorkspaceTarget('ai-video') },
+              ]}
+            />
+          )}
+
+          {section === 'production' && (
+            <TaskZonePanel
+              title="制作"
+              description={primaryAdaptation ? `当前制作对象：第 ${primaryAdaptation.seasonNumber ?? 1} 季《${primaryAdaptation.title}》。` : '先确定第一季范围；无论是小说改编还是直接制作漫剧，都不要求先创建空章节。'}
+              items={[
+                { title: primaryAdaptation ? '进入分集与剧本制作' : '创建第一季', detail: primaryAdaptation ? '继续分集、剧本、分镜与视频生产。' : '按项目生产简报建立可编辑的第一季。', action: () => openAdaptationPath('overview') },
+                { title: '处理制作阻塞', detail: '从行动中心查看质量、节奏和可行性问题。', action: () => openWorkspaceTarget('action-center') },
+              ]}
+            />
+          )}
+
+          {section === 'delivery' && (
+            <TaskZonePanel
+              title="交付"
+              description="导出当前可用内容包；完整剪辑、平台交付与运营反馈将在后续生产 loop 中接入。"
+              items={[
+                { title: '导出小说投稿包', detail: '生成 Markdown 或 JSON 投稿包。', action: () => void handleSubmissionExport('md') },
+                { title: '导出完整项目包', detail: '备份项目数据，并可在另一设备导入。', action: () => void handleExportPackage() },
+                { title: '查看 AI 调用记录', detail: '查看已执行的 AI 任务与结果。', action: () => openWorkspaceTarget('ai-runs') },
+              ]}
+            />
+          )}
+
           {section === 'chapters' && (
             <>
               <div className="flex items-center gap-2 border-b px-3 py-2">
@@ -1042,6 +1129,11 @@ export function WorkspacePage() {
             <ScrollArea className="h-full">
               <div className="space-y-3 p-6 text-sm">
                 <h2 className="text-lg font-semibold">{project.title}</h2>
+                <div className="grid gap-2 rounded-md border bg-muted/30 p-3 md:grid-cols-3">
+                  <div><div className="text-xs text-muted-foreground">当前结果</div><div className="font-medium">{chapters.length} 章 · {chapters.reduce((sum, chapter) => sum + chapter.content.replace(/\s/g, '').length, 0).toLocaleString('zh-CN')} 字</div></div>
+                  <div><div className="text-xs text-muted-foreground">主要下一步</div><div className="font-medium">{workflowStages.find((stage) => !stage.complete)?.actionLabel ?? '检查交付内容'}</div></div>
+                  <div><div className="text-xs text-muted-foreground">制作预算</div><div className="font-medium">{project.productionBrief?.profile.budgetTier === 'premium' ? '高规格制作' : project.productionBrief?.profile.budgetTier === 'standard' ? '标准制作' : '试播 / 低预算'}</div></div>
+                </div>
                 {workflowStages.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
@@ -1397,6 +1489,41 @@ function Meta({ label, value }: { label: string; value?: string | number }) {
       <span className="text-muted-foreground">{label}：</span>
       <span>{value ?? '—'}</span>
     </div>
+  )
+}
+
+function TaskZonePanel({
+  title,
+  description,
+  items,
+}: {
+  title: string
+  description: string
+  items: Array<{ title: string; detail: string; action: () => void }>
+}) {
+  return (
+    <ScrollArea className="h-full">
+      <div className="mx-auto max-w-3xl space-y-4 p-6">
+        <div>
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {items.map((item) => (
+            <button
+              key={item.title}
+              type="button"
+              onClick={item.action}
+              className="rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <div className="font-medium">{item.title}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{item.detail}</div>
+              <div className="mt-3 text-xs font-medium text-primary">打开 →</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </ScrollArea>
   )
 }
 

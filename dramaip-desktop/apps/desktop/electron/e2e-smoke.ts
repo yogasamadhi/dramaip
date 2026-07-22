@@ -904,6 +904,25 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
   })
 
+  await step('four-zone-navigation-basic-advanced-and-legacy-deep-link', async () => {
+    window.localStorage.setItem('sdns.workspace.advanced-navigation', 'false')
+    window.location.hash = `#/projects/${projectId}?section=overview`
+    await waitFor('四区任务导航', () => {
+      const navText = normalize(document.querySelector('nav[aria-label="项目阶段导航"]')?.textContent)
+      return ['内容', '故事圣经', '制作', '交付'].every((label) => navText.includes(label)) && !navText.includes('Agent 方案')
+    })
+    clickButton('故事圣经')
+    await waitFor('故事圣经聚合入口', () => window.location.hash.includes('section=story-bible') && text().includes('故事圣经'))
+    window.location.hash = `#/projects/${projectId}?section=memory`
+    await waitFor('旧记忆深链仍可打开', () => window.location.hash.includes('section=memory') && text().includes('记忆'))
+    const advanced = buttonByText('显示高级功能')
+    if (!advanced) throw new Error('未找到高级功能切换')
+    advanced.click()
+    await waitFor('高级功能保留旧入口', () => normalize(document.querySelector('nav[aria-label="项目阶段导航"]')?.textContent).includes('Agent 方案'))
+    window.location.hash = `#/projects/${projectId}?section=overview`
+    await waitFor('恢复项目概览', () => window.location.hash.includes('section=overview'))
+  })
+
   await step('global-task-dock-is-available-across-workspace', async () => {
     const dock = document.querySelector('button[aria-label^="任务状态"]') as HTMLButtonElement | null
     if (!dock) throw new Error('未找到全局任务状态入口')

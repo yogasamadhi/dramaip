@@ -70,9 +70,16 @@ export interface WorkspaceNavGroup {
   key: string
   label: string
   items: WorkspaceNavKey[]
+  /** 默认模式只展示任务入口；全部旧功能仍在高级模式和原深链可访问。 */
+  basicItemKeys: string[]
 }
 
 export const WORKSPACE_NAV: WorkspaceNavKey[] = [
+  { key: 'content', label: '内容' },
+  { key: 'story-bible', label: '故事圣经' },
+  { key: 'production', label: '制作' },
+  { key: 'delivery', label: '交付' },
+  { key: 'action-center', label: '行动中心' },
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
   { key: 'chat', label: 'Agent 指挥台' },
@@ -115,14 +122,16 @@ function workspaceNavItems(keys: string[]): WorkspaceNavKey[] {
 
 export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
-    key: 'creation',
-    label: '创作',
-    items: workspaceNavItems(['chapters', 'overview', 'chat', 'inspiration', 'characters', 'outline', 'story-planning', 'project-skills', 'agent-schemes']),
+    key: 'content',
+    label: '内容',
+    items: workspaceNavItems(['content', 'overview', 'chapters', 'inspiration', 'characters', 'outline', 'story-planning', 'chat', 'project-skills', 'agent-schemes']),
+    basicItemKeys: ['content', 'overview', 'chapters', 'inspiration', 'characters', 'outline'],
   },
   {
-    key: 'memory',
-    label: '记忆',
+    key: 'story-bible',
+    label: '故事圣经',
     items: workspaceNavItems([
+      'story-bible',
       'memory',
       'character-state',
       'visual-profile',
@@ -131,28 +140,30 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
       'foreshadowing',
       'consistency',
     ]),
+    basicItemKeys: ['story-bible'],
   },
   {
-    key: 'diagnosis',
-    label: '诊断',
+    key: 'production',
+    label: '制作',
     items: workspaceNavItems([
+      'production',
+      'action-center',
       'quality-gates',
       'evaluation',
       'ai-dashboard',
       'creative-diagnosis',
       'beats',
       'highlights',
+      'ai-video',
+      'writing-room',
     ]),
+    basicItemKeys: ['production', 'action-center'],
   },
   {
-    key: 'adaptation',
-    label: '改编准备',
-    items: workspaceNavItems(['ai-video', 'writing-room']),
-  },
-  {
-    key: 'records',
-    label: '记录',
-    items: workspaceNavItems(['ai-runs']),
+    key: 'delivery',
+    label: '交付',
+    items: workspaceNavItems(['delivery', 'ai-runs']),
+    basicItemKeys: ['delivery'],
   },
 ]
 
