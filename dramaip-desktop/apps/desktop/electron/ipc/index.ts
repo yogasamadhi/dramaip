@@ -23,6 +23,7 @@ import { registerCloudSnapshotIpc } from './cloud-snapshot.ipc'
 import { registerSourceImportIpc } from './source-import.ipc'
 import { registerStoryBibleIpc } from './story-bible.ipc'
 import { registerGenerationIpc } from './generation.ipc'
+import { registerRightsIpc } from './rights.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -41,6 +42,7 @@ export function registerAllIpc(): void {
   registerSourceImportIpc()
   registerStoryBibleIpc()
   registerGenerationIpc()
+  registerRightsIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

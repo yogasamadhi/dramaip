@@ -149,6 +149,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'video_generation_tasks').includes('lineage_id'))
     assert.ok(tableExists(raw, 'generation_lineages'))
     assert.ok(tableExists(raw, 'generation_cost_entries'))
+    assert.ok(tableExists(raw, 'asset_rights_records'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -660,6 +661,81 @@ test('keeps generation lineage and separate estimated/actual costs through a pro
     assert.equal(importedLineage?.taskId, undefined)
     assert.equal(importedCost?.estimatedCost, 1.25)
     assert.equal(importedCost?.actualCost, 1.5)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('keeps a rights ledger manifest through a project package roundtrip and fails closed until evidence is relocalized', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project } = fixture
+    const source = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'source_media',
+      title: '授权原著',
+      remoteUrl: 'https://example.test/source.md',
+      tags: ['原著'],
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const evidence = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'rights_evidence',
+      title: '授权书',
+      localPath: '/tmp/license.pdf',
+      sha256: 'a'.repeat(64),
+      tags: ['授权证明'],
+      status: 'available',
+      packagePolicy: 'reference_only',
+    })
+    const rights = repos.rights.createAssetRightsRecord(db, {
+      projectId: project.id,
+      assetId: source.id,
+      rightsholder: '作者',
+      source: '授权合同',
+      rightsTypes: ['license'],
+      permittedUses: ['commercial', 'adaptation'],
+      platforms: ['全部'],
+      regions: ['全部'],
+      evidenceAssetId: evidence.id,
+      evidenceSha256: evidence.sha256,
+      status: 'verified',
+    })
+    const casting = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'casting_reference',
+      title: '演员参考',
+      remoteUrl: 'https://example.test/casting.png',
+      tags: ['选角'],
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    repos.rights.createAssetRightsRecord(db, {
+      projectId: project.id,
+      assetId: casting.id,
+      rightsTypes: ['talent_release'],
+      permittedUses: ['commercial', 'generative'],
+      platforms: ['全部'],
+      regions: ['全部'],
+      status: 'verified',
+    })
+    assert.throws(() => repos.rights.assertReferenceAssetRights(db, project.id, [casting]), /不能提交/)
+    const castingRights = repos.rights.getAssetRightsByAsset(db, casting.id)
+    assert(castingRights)
+    repos.rights.updateAssetRightsRecord(db, castingRights.id, { evidenceAssetId: evidence.id, evidenceSha256: evidence.sha256 })
+    assert.doesNotThrow(() => repos.rights.assertReferenceAssetRights(db, project.id, [casting]))
+    assert.equal(repos.rights.preflightProjectRights(db, { projectId: project.id, platform: '抖音', region: '中国大陆' }).status, 'pass')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.assetRightsRecords?.[0]?.id, rights.id)
+    assert.doesNotMatch(serializeProjectPackage(pkg), /license\.pdf/)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedRights = repos.rights.listAssetRightsByProject(db, imported.id)
+    assert.equal(importedRights.length, 2)
+    assert(importedRights.every((record) => record.status === 'verified'))
+    assert(importedRights.every((record) => record.evidenceSha256 === 'a'.repeat(64)))
+    assert.equal(repos.rights.preflightProjectRights(db, { projectId: imported.id, platform: '抖音', region: '中国大陆' }).status, 'blocked')
   } finally {
     closeRepositoryFixture(fixture)
   }

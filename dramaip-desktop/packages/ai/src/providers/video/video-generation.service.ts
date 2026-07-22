@@ -76,6 +76,9 @@ export async function createVideoGenerationTask(
   }
 
   const scope = resolveGenerationScope(repos, input)
+  // 仅对已登记的人脸/选角参考执行硬性授权检查；未知 URL 不会被伪装成已授权，
+  // 但仍可作为普通草稿参考，由 LM5-08 的交付预检统一阻断最终交付。
+  assertReferenceRights(repos, scope.projectId, input.referenceImageUrls ?? [])
   const lineage = createVideoLineage(repos, {
     ...input,
     ...scope,
@@ -429,6 +432,14 @@ function resolveReferenceAssets(
       role: index === 0 ? 'reference' : 'reference_variant',
     }
   })
+}
+
+function assertReferenceRights(repos: VideoServiceDeps['repos'], projectId: string | undefined, urls: string[]): void {
+  const safe = repos as Partial<VideoServiceDeps['repos']>
+  if (!projectId || !safe.asset || !safe.rights || urls.length === 0) return
+  const assets = safe.asset.listProjectAssets(repos.db, projectId)
+    .filter((asset) => urls.includes(asset.remoteUrl ?? '') || urls.includes(asset.localPath ?? '') || urls.includes(asset.relativePath ?? ''))
+  safe.rights.assertReferenceAssetRights(repos.db, projectId, assets)
 }
 
 function parseProviderParams(raw: string | undefined): Record<string, unknown> {

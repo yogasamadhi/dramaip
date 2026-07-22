@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, GenerationCostEntry, GenerationLineage, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, AiRun, AssetRightsRecord, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, GenerationCostEntry, GenerationLineage, NovelTaskType, Project, ProjectAsset, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import {
   PROJECT_CREATION_GOAL_OPTIONS,
   PRODUCTION_PLATFORM_OPTIONS,
@@ -27,6 +27,7 @@ import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { PilotProductionPanel } from '@/components/PilotProductionPanel'
 import { GenerationLedgerPanel } from '@/components/GenerationLedgerPanel'
+import { RightsLedgerPanel } from '@/components/RightsLedgerPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
@@ -149,6 +150,8 @@ export function WorkspacePage() {
   const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
   const [generationLineages, setGenerationLineages] = useState<GenerationLineage[]>([])
   const [generationCosts, setGenerationCosts] = useState<GenerationCostEntry[]>([])
+  const [projectAssets, setProjectAssets] = useState<ProjectAsset[]>([])
+  const [assetRights, setAssetRights] = useState<AssetRightsRecord[]>([])
   const chapterSearchRef = useRef<HTMLInputElement>(null)
   const handledImportIntentRef = useRef<string | undefined>(undefined)
   const [contextControls, setContextControls] = useState<AiContextControls>({})
@@ -205,6 +208,8 @@ export function WorkspacePage() {
       longTasks,
       nextGenerationLineages,
       nextGenerationCosts,
+      nextProjectAssets,
+      nextAssetRights,
     ] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
@@ -218,6 +223,8 @@ export function WorkspacePage() {
       ipc.longTask.list(currentProject.id),
       ipc.generation.listLineagesByProject(currentProject.id),
       ipc.generation.listCostsByProject(currentProject.id),
+      ipc.asset.listByProject(currentProject.id),
+      ipc.rights.listByProject(currentProject.id),
     ])
     setVisualProfiles(nextVisualProfiles)
     setCaseStudies(nextCaseStudies)
@@ -227,6 +234,8 @@ export function WorkspacePage() {
     setProjectSkills(nextProjectSkills)
     setGenerationLineages(nextGenerationLineages)
     setGenerationCosts(nextGenerationCosts)
+    setProjectAssets(nextProjectAssets)
+    setAssetRights(nextAssetRights)
 
     const activeResolution = await ipc.project.resolveActiveAdaptation(
       currentProject.id,
@@ -303,6 +312,8 @@ export function WorkspacePage() {
       setChapterMemories([])
       setQualityReports([])
       setProjectSkills([])
+      setProjectAssets([])
+      setAssetRights([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot, requestedAdaptationId])
@@ -1200,6 +1211,7 @@ export function WorkspacePage() {
                   costs={generationCosts}
                   onUpdateCost={updateGenerationCost}
                 />
+                <RightsLedgerPanel projectId={project.id} assets={projectAssets} records={assetRights} onChanged={() => setDataVersion((value) => value + 1)} />
                 {project.productionBrief && (() => {
                   const brief = project.productionBrief
                   const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)

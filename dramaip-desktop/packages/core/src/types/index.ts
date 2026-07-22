@@ -1156,6 +1156,7 @@ export type ProjectAssetKind =
   | 'narration_audio'
   | 'subtitle_file'
   | 'source_media'
+  | 'rights_evidence'
   | 'other'
 export type ProjectAssetStatus = 'available' | 'missing' | 'remote_only'
 export type ProjectAssetPackagePolicy = 'exclude' | 'reference_only' | 'include_binary'
@@ -1185,6 +1186,61 @@ export interface ProjectAsset {
   packagePolicy: ProjectAssetPackagePolicy
   createdAt: string
   updatedAt: string
+}
+
+/** 资产权利状态永远显式保存；声明不等于核验，未知不等于可交付。 */
+export type AssetRightsStatus = 'verified' | 'declared' | 'unknown' | 'expired' | 'restricted'
+export type AssetRightsType = 'ownership' | 'license' | 'talent_release' | 'voice_consent' | 'provider_terms' | 'public_domain' | 'other'
+export type AssetPermittedUse = 'commercial' | 'adaptation' | 'generative' | 'voice_cloning'
+
+/** 单一资产的权利台账；证据只引用受控本地资产及其 hash，不存证明正文。 */
+export interface AssetRightsRecord {
+  id: string
+  projectId: string
+  assetId: string
+  rightsholder?: string
+  source?: string
+  rightsTypes: AssetRightsType[]
+  permittedUses: AssetPermittedUse[]
+  platforms: string[]
+  regions: string[]
+  validFrom?: string
+  validUntil?: string
+  evidenceAssetId?: string
+  evidenceSha256?: string
+  aiGenerated: boolean
+  status: AssetRightsStatus
+  reviewedAt?: string
+  reviewNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RightsPreflightInput {
+  projectId: string
+  platform?: string
+  region?: string
+  deliveryAt?: string
+}
+
+export interface RightsPreflightIssue {
+  assetId: string
+  assetTitle: string
+  severity: 'blocker' | 'warning'
+  code: string
+  message: string
+}
+
+export interface RightsPreflightResult {
+  projectId: string
+  platform?: string
+  region?: string
+  deliveryAt: string
+  status: 'pass' | 'blocked'
+  reviewedAssetCount: number
+  verifiedAssetCount: number
+  blockers: RightsPreflightIssue[]
+  warnings: RightsPreflightIssue[]
 }
 
 /** 模型配置（对应 model_configs 表，§8） */

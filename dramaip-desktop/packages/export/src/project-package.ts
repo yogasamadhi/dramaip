@@ -33,6 +33,7 @@ import type {
   AiRun,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
+  AssetRightsRecord,
   AudienceSimulation,
   Beat,
   Chapter,
@@ -71,7 +72,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 7
+export const PACKAGE_VERSION = 8
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -117,6 +118,8 @@ export interface ProjectPackage {
   narrativeCurveReports: NarrativeCurveReport[]
   workflowRuns: WorkflowRun[]
   assets: ProjectAsset[]
+  /** 权利台账只含结构化清单、受控证据引用与 hash，永不包含证明正文。 */
+  assetRightsRecords?: AssetRightsRecord[]
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
@@ -197,9 +200,14 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const assets = options.includeAssets
     ? repos.asset.listProjectAssets(db, projectId).filter((asset) => asset.packagePolicy !== 'exclude')
     : []
+  // 权利证明默认只导出清单与 hash：绝对路径、相对路径和证明二进制均不会随项目包外发。
+  const packageAssets = assets.map((asset) => asset.kind === 'rights_evidence'
+    ? { ...asset, localPath: undefined, relativePath: undefined, status: 'missing' as const }
+    : asset)
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
   const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
   const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
+  const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
 
   // 衍生改编项目
   const adaptations = repos.adaptationProject
@@ -250,7 +258,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     audienceSimulations,
     narrativeCurveReports,
     workflowRuns,
-    assets,
+    assets: packageAssets,
+    assetRightsRecords,
     generationLineages,
     generationCostEntries,
     adaptations,
@@ -711,10 +720,11 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     }
 
     // 18. 本地资产库清单：项目包当前只携带引用清单，不承诺旧机器绝对路径可恢复。
+    const assetIdMap = new Map<string, string>()
     for (const a of pkg.assets ?? []) {
       const sourceEntityId = remapTargetId(a.sourceEntityId, idMap, oldProjectId, newProject.id)
       if (a.sourceEntityId && !sourceEntityId) continue
-      repos.asset.createAsset(db, {
+      const created = repos.asset.createAsset(db, {
         ...stripId(a),
         projectId: newProject.id,
         sourceEntityId,
@@ -729,6 +739,20 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
           originalPackagePolicy: a.packagePolicy,
         },
       })
+      assetIdMap.set(a.id, created.id)
+    }
+
+    // 18.05 权利台账只还原清单和证据 hash；本地证据二进制不会静默进入项目包。
+    // 导入后的证据路径保持 missing，用户需显式重新定位后才能通过最终预检。
+    for (const rights of pkg.assetRightsRecords ?? []) {
+      const assetId = assetIdMap.get(rights.assetId)
+      if (!assetId) continue
+      repos.rights.createAssetRightsRecord(db, {
+        ...stripId(rights),
+        projectId: newProject.id,
+        assetId,
+        evidenceAssetId: rights.evidenceAssetId ? assetIdMap.get(rights.evidenceAssetId) : undefined,
+      })
     }
 
     // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它
@@ -738,7 +762,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       const sourceEntityId = remapTargetId(lineage.sourceEntityId, idMap, oldProjectId, newProject.id)
       const references = lineage.referenceAssets.map((reference) => ({
         ...reference,
-        assetId: reference.assetId ? idMap.get(reference.assetId) : undefined,
+        assetId: reference.assetId ? assetIdMap.get(reference.assetId) : undefined,
       }))
       const created = repos.generation.createGenerationLineage(db, {
         ...stripId(lineage),

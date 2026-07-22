@@ -97,7 +97,8 @@ export const PRODUCTION_OUTCOME_BASELINE: ProductionOutcomeBaseline = {
     blockingState: 'available',
     // 本地账本可显示估算、实际与未知；未知不再被压成 0 或“已结算”。
     budget: 'available',
-    rights: 'known_gap',
+    // LM5-08 provides an explicit rights ledger and fail-closed delivery preflight.
+    rights: 'available',
     providerAvailability: 'available',
   },
   privacyBoundary: {

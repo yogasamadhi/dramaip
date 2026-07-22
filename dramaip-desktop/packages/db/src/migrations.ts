@@ -588,6 +588,28 @@ CREATE TABLE IF NOT EXISTS project_assets (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS asset_rights_records (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  rightsholder TEXT,
+  source TEXT,
+  rights_types TEXT NOT NULL DEFAULT '[]',
+  permitted_uses TEXT NOT NULL DEFAULT '[]',
+  platforms TEXT NOT NULL DEFAULT '[]',
+  regions TEXT NOT NULL DEFAULT '[]',
+  valid_from TEXT,
+  valid_until TEXT,
+  evidence_asset_id TEXT,
+  evidence_sha256 TEXT,
+  ai_generated INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  reviewed_at TEXT,
+  review_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generation_lineages (
   id TEXT PRIMARY KEY,
   project_id TEXT,

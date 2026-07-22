@@ -14,6 +14,7 @@ import {
 interface ImportSession {
   projectId: string
   preview: SourceImportPreview
+  sourcePath: string
   expiresAt: number
 }
 
@@ -51,7 +52,7 @@ async function chooseSourceImport(projectId: string) {
     await assertReadableImportFile('sourceDocument', path)
     const preview = parseSourceImportBuffer(basename(path), await readFile(path))
     const importId = randomUUID()
-    importSessions.set(importId, { projectId, preview, expiresAt: Date.now() + IMPORT_SESSION_TTL_MS })
+    importSessions.set(importId, { projectId, preview, sourcePath: path, expiresAt: Date.now() + IMPORT_SESSION_TTL_MS })
     pruneExpiredSessions()
     return {
       ok: true,
@@ -77,10 +78,33 @@ function commitSourceImport(input: SourceImportCommitInput) {
     return { ok: false, error: '合并或覆盖会修改已有内容，请完成二次确认' }
   }
   try {
-    const result = applySourceImport(getRepos(), {
+    const repos = getRepos()
+    const result = applySourceImport(repos, {
       projectId: input.projectId,
       strategy: input.strategy,
       preview: sanitizeEditedPreview(session.preview, input.preview),
+    })
+    // 导入时的勾选只记录为“已声明”，绝不自动升级为已核验；最终交付仍需证据和范围预检。
+    const sourceAsset = repos.asset.createAsset(repos.db, {
+      projectId: input.projectId,
+      kind: 'source_media',
+      title: `导入原稿：${session.preview.fileName}`,
+      sourceEntityKind: 'project',
+      sourceEntityId: input.projectId,
+      localPath: session.sourcePath,
+      originalName: session.preview.fileName,
+      tags: ['导入原稿', '待权利核验'],
+      metadata: { sourceType: session.preview.sourceType, importedAt: new Date().toISOString() },
+      status: 'available',
+      packagePolicy: 'reference_only',
+    })
+    repos.rights.upsertAssetRightsRecord(repos.db, {
+      projectId: input.projectId,
+      assetId: sourceAsset.id,
+      source: '导入时由用户声明拥有使用权或已获得授权',
+      status: 'declared',
+      rightsTypes: [],
+      permittedUses: [],
     })
     importSessions.delete(input.importId)
     return { ok: true, result }

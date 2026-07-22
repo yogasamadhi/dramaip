@@ -91,7 +91,7 @@ function verifyProductionOutcomeBaseline(): E2eSmokeStep {
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.blockingState !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'available' ||
-      PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.providerAvailability !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.privacyBoundary.diagnosticContentDefault !== 'redacted' ||
       PRODUCTION_OUTCOME_BASELINE.privacyBoundary.rendererCredentialAccess !== 'restricted'
@@ -913,6 +913,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     if (!overviewButton) throw new Error('未找到项目概览导航入口')
     overviewButton.click()
     await waitFor('项目概览深链', () => window.location.hash.includes('section=overview'))
+    await waitFor('版权授权台账入口', () => Boolean(document.querySelector('[data-rights-ledger]')))
     window.history.back()
     await waitFor('章节深链历史恢复', () => window.location.hash === chapterHash)
 
