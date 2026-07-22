@@ -71,6 +71,15 @@ const shotVisualAssetLockInput = z.object({
   visualAssetVersionId: id,
   role: z.string().min(1).max(100),
 }).strict()
+const shotStillKind = z.enum(['still', 'first_frame', 'last_frame', 'cover'])
+const shotStillCandidateInput = z.object({
+  projectId: id,
+  shotId: id,
+  assetId: id,
+  kind: shotStillKind,
+  label: z.string().min(1).max(200),
+  notes: z.string().max(2_000).optional(),
+}).strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -695,6 +704,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'visualAsset:adopt': [id],
   'visualAsset:listLocksByShot': [id],
   'visualAsset:lockShot': [shotVisualAssetLockInput],
+  'shotStill:listByShot': [id],
+  'shotStill:create': [shotStillCandidateInput],
+  'shotStill:adopt': [id],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

@@ -25,6 +25,7 @@ import { registerStoryBibleIpc } from './story-bible.ipc'
 import { registerGenerationIpc } from './generation.ipc'
 import { registerRightsIpc } from './rights.ipc'
 import { registerVisualAssetIpc } from './visual-asset.ipc'
+import { registerShotStillIpc } from './shot-still.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -45,6 +46,7 @@ export function registerAllIpc(): void {
   registerGenerationIpc()
   registerRightsIpc()
   registerVisualAssetIpc()
+  registerShotStillIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()
