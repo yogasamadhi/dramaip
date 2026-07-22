@@ -1478,7 +1478,7 @@ export interface Template {
 /** 类型预设（对应 genre_presets 表，ROADMAP v0.8 §4） */
 export interface GenrePreset {
   id: string
-  /** 类型名（女频复仇 / 真假千金 …） */
+  /** 类型名（奇幻玄幻·修仙逆袭 / 游戏系统·副本升级 …） */
   name: string
   description?: string
   commonRelationships: string[]

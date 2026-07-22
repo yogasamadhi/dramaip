@@ -12,9 +12,9 @@
     --surface-sunken: 222 24% 94%;
     --foreground: 224 31% 14%;
     --muted-foreground: 220 14% 40%;
-    --brand: 262 83% 53%;
+    --brand: 215 25% 27%;
     --brand-foreground: 0 0% 100%;
-    --brand-soft: 258 100% 96%;
+    --brand-soft: 214 32% 96%;
     --ai: 198 88% 40%;
     --ai-foreground: 0 0% 100%;
     --ai-soft: 195 100% 96%;
@@ -29,7 +29,7 @@
     --block-soft: 0 86% 96%;
     --border: 220 21% 86%;
     --input: 220 21% 82%;
-    --ring: 262 83% 53%;
+    --ring: 215 25% 27%;
 
     --background: var(--canvas);
     --card: var(--surface);
@@ -42,7 +42,7 @@
     --secondary-foreground: var(--foreground);
     --muted: var(--surface-sunken);
     --accent: var(--brand-soft);
-    --accent-foreground: 260 62% 31%;
+    --accent-foreground: 215 30% 24%;
     --destructive: var(--block);
     --destructive-foreground: var(--block-foreground);
 
@@ -67,9 +67,9 @@
     --surface-sunken: 223 27% 11%;
     --foreground: 220 28% 94%;
     --muted-foreground: 217 17% 74%;
-    --brand: 264 91% 74%;
-    --brand-foreground: 258 45% 13%;
-    --brand-soft: 260 38% 21%;
+    --brand: 214 20% 72%;
+    --brand-foreground: 215 30% 14%;
+    --brand-soft: 214 25% 20%;
     --ai: 194 88% 64%;
     --ai-foreground: 199 62% 12%;
     --ai-soft: 198 39% 19%;
@@ -84,7 +84,7 @@
     --block-soft: 0 43% 20%;
     --border: 219 17% 29%;
     --input: 219 16% 34%;
-    --ring: 264 91% 74%;
+    --ring: 214 20% 72%;
 
     --background: var(--canvas);
     --card: var(--surface);
@@ -97,7 +97,7 @@
     --secondary-foreground: var(--foreground);
     --muted: var(--surface-sunken);
     --accent: var(--brand-soft);
-    --accent-foreground: 264 91% 82%;
+    --accent-foreground: 214 20% 82%;
     --destructive: var(--block);
     --destructive-foreground: var(--block-foreground);
     color-scheme: dark;

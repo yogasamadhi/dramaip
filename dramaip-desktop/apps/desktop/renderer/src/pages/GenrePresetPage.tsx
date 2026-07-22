@@ -3,7 +3,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, BookText, Library, Plus, Sparkles, Trash2 } from 'lucide-react'
-import type { GenrePreset } from '@sdns/core'
+import {
+  BUILT_IN_GENRE_PRESETS,
+  CLASSIC_GENRE_PRESET_NAMES,
+  HOT_GENRE_PRESET_NAMES,
+  type GenrePreset,
+} from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -13,6 +18,10 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+
+const genreOrder = new Map(BUILT_IN_GENRE_PRESETS.map((preset, index) => [preset.name, index]))
+const hotGenres = new Set(HOT_GENRE_PRESET_NAMES)
+const classicGenres = new Set(CLASSIC_GENRE_PRESET_NAMES)
 
 function ListField({ label, items }: { label: string; items: string[] }) {
   if (!items?.length) return null
@@ -39,7 +48,13 @@ export function GenrePresetPage() {
   const [desc, setDesc] = useState('')
 
   async function reload() {
-    setPresets(await ipc.genrePreset.list())
+    const items = await ipc.genrePreset.list()
+    items.sort((a, b) => {
+      const aOrder = genreOrder.get(a.name) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = genreOrder.get(b.name) ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder
+    })
+    setPresets(items)
   }
   useEffect(() => {
     void reload()
@@ -91,7 +106,7 @@ export function GenrePresetPage() {
         </Button>
         <Library className="h-5 w-5" />
         <h1 className="text-lg font-semibold">类型库</h1>
-        <p className="text-sm text-muted-foreground">内置 11 种主流 AI 短剧类型预设，可增删改</p>
+        <p className="text-sm text-muted-foreground">当前热门优先，少量常青经典保留；支持新增自定义题材</p>
       </header>
 
       <main className="flex-1 overflow-hidden">
@@ -130,7 +145,11 @@ export function GenrePresetPage() {
                       <CardTitle className="flex items-center gap-2 text-base">
                         <BookText className="h-4 w-4 text-primary" />
                         {p.name}
-                        {p.builtIn && <Badge variant="outline">内置</Badge>}
+                        {p.builtIn && hotGenres.has(p.name) && <Badge>当前热门</Badge>}
+                        {p.builtIn && classicGenres.has(p.name) && <Badge variant="outline">经典保留</Badge>}
+                        {p.builtIn && !hotGenres.has(p.name) && !classicGenres.has(p.name) && (
+                          <Badge variant="outline">内置</Badge>
+                        )}
                       </CardTitle>
                       {!p.builtIn && (
                         <Button

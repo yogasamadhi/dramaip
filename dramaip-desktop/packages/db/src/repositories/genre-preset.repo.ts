@@ -91,19 +91,47 @@ export function deleteGenrePreset(db: DB, id: string): void {
   db.delete(genrePresets).where(eq(genrePresets.id, id)).run()
 }
 
-/** 首次启动 seed：按 name 幂等 upsert 内置类型预设（已存在则不动用户改动） */
-export function upsertBuiltInGenrePresets(db: DB, presets: BuiltInGenrePreset[]): GenrePreset[] {
+/**
+ * 启动时同步内置题材：更新当前 built-in、移除已退役 built-in，同时保留所有用户自定义项。
+ * 项目只保存题材名称而不引用预设 id，因此退役预设不会改写已有项目。
+ */
+export function upsertBuiltInGenrePresets(
+  db: DB,
+  presets: BuiltInGenrePreset[],
+  retiredNames: readonly string[] = [],
+): GenrePreset[] {
   const ts = now()
   const result: GenrePreset[] = []
+  const currentNames = new Set(presets.map((preset) => preset.name))
+
+  for (const name of retiredNames) {
+    if (currentNames.has(name)) continue
+    const retired = getGenrePresetByName(db, name)
+    if (retired?.builtIn) deleteGenrePreset(db, retired.id)
+  }
+
   for (const p of presets) {
     const existing = getGenrePresetByName(db, p.name)
     if (existing) {
       if (!existing.builtIn) {
-        const updated = updateGenrePreset(db, existing.id, { builtIn: true })
-        result.push(updated ?? existing)
-      } else {
+        // 用户可能先创建了同名自定义项；不夺取所有权，也不覆盖内容。
         result.push(existing)
+        continue
       }
+      const updated = updateGenrePreset(db, existing.id, {
+        name: p.name,
+        description: p.description,
+        commonRelationships: p.commonRelationships,
+        commonHighlights: p.commonHighlights,
+        commonReversals: p.commonReversals,
+        commonOpenings: p.commonOpenings,
+        commonCliffhangers: p.commonCliffhangers,
+        visualStyle: p.visualStyle,
+        shotPromptAdvice: p.shotPromptAdvice,
+        aiVideoRisks: p.aiVideoRisks,
+        builtIn: true,
+      })
+      result.push(updated ?? existing)
     } else {
       const value: typeof genrePresets.$inferInsert = {
         id: genId(),

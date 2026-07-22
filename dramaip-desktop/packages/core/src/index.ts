@@ -15,4 +15,10 @@ export {
   type BuiltInTemplatePreset,
   type WritingRoomTaskType,
 } from './constants/agents'
-export { BUILT_IN_GENRE_PRESETS, type BuiltInGenrePreset } from './constants/genre-presets'
+export {
+  BUILT_IN_GENRE_PRESETS,
+  CLASSIC_GENRE_PRESET_NAMES,
+  HOT_GENRE_PRESET_NAMES,
+  RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+  type BuiltInGenrePreset,
+} from './constants/genre-presets'
