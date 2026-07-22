@@ -3,7 +3,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
 import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
+import {
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  formatProductionDuration,
+  TASK_TYPE_LABELS,
+  WORKSPACE_NAV_GROUPS,
+} from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import {
@@ -1045,6 +1052,29 @@ export function WorkspacePage() {
                   </div>
                 )}
                 {adaptationReadiness && <AdaptationReadinessPanel readiness={adaptationReadiness} />}
+                {project.productionBrief && (() => {
+                  const brief = project.productionBrief
+                  const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)
+                  const presentation = PRODUCTION_PRESENTATION_OPTIONS.find((option) => option.value === brief.profile.presentation)
+                  const platform = PRODUCTION_PLATFORM_OPTIONS.find((option) => option.value === brief.profile.platform)
+                  return (
+                    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                      <div className="mb-2 flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><span className="font-medium">项目生产简报</span></div>
+                      <div className="grid grid-cols-2 gap-y-1 text-xs text-muted-foreground">
+                        <div>创建路径：{goal?.label ?? brief.creationGoal}</div>
+                        <div>表现形式：{presentation?.label ?? brief.profile.presentation}</div>
+                        <div>目标平台：{platform?.label ?? brief.profile.platform}</div>
+                        <div>画幅 / 时长：{brief.profile.aspectRatio} / {formatProductionDuration(brief.profile.episodeDuration)}</div>
+                        <div>试播：{brief.profile.pilotEpisodeCount} 集</div>
+                        <div>预算档位：{brief.profile.budgetTier === 'starter' ? '试播 / 低预算' : brief.profile.budgetTier === 'standard' ? '标准制作' : '高规格制作'}</div>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {brief.nextStep === 'import_source' ? '下一步：导入拥有授权的小说或剧本正文；目前未创建任何空章节。' : brief.nextStep === 'create_direct_adaptation' ? '下一步：直接创建第一季与剧本生产路径，无需先写小说章节。' : '下一步：补全故事设定或开始写第一章，再进入改编。'}
+                      </p>
+                      {brief.nextStep === 'create_direct_adaptation' && <Button size="sm" variant="outline" className="mt-2" onClick={() => navigate(`/adaptations/new?source=${project.id}&mode=direct`)}>创建第一季</Button>}
+                    </div>
+                  )
+                })()}
                 <div className="rounded-md border bg-muted/30 p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />

@@ -45,7 +45,18 @@ import {
   narrativeCurveReports,
   workflowRuns,
 } from '../schema'
-import type { AdaptationProject, GenreOpportunitySelection, OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
+import {
+  createCompatibleProjectProductionBrief,
+  createProjectProductionBrief,
+  type AdaptationProject,
+  type GenreOpportunitySelection,
+  type OptionalId,
+  type Project,
+  type ProjectDeletionPreview,
+  type ProjectHomeSummary,
+  type ProjectProductionBrief,
+  type TrashedProject,
+} from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
@@ -67,11 +78,22 @@ function parseGenreOpportunity(value: string | null): GenreOpportunitySelection 
   }
 }
 
+function parseProductionBrief(value: string | null, project: Pick<Project, 'shortDramaType'>): ProjectProductionBrief {
+  if (!value) return createCompatibleProjectProductionBrief(project)
+  try {
+    return createProjectProductionBrief(JSON.parse(value) as ProjectProductionBrief)
+  } catch {
+    return createCompatibleProjectProductionBrief(project)
+  }
+}
+
 function projectRowToEntity(row: ProjectRow): Project {
-  const { genreOpportunity, ...project } = row
+  const { genreOpportunity, productionBrief, ...project } = row
+  const projectEntity = project as unknown as Project
   return {
-    ...(project as unknown as Project),
+    ...projectEntity,
     genreOpportunity: parseGenreOpportunity(genreOpportunity),
+    productionBrief: parseProductionBrief(productionBrief, projectEntity),
   }
 }
 
@@ -209,6 +231,7 @@ export function createProject(db: DB, data: OptionalId<Project>): Project {
     styleGuide: data.styleGuide ?? null,
     visualStyleDirection: data.visualStyleDirection ?? null,
     genreOpportunity: data.genreOpportunity ? JSON.stringify(data.genreOpportunity) : null,
+    productionBrief: JSON.stringify(createProjectProductionBrief(data.productionBrief)),
     deletedAt: null,
   }
   const [row] = insertRow(db, projects, value)
@@ -220,17 +243,19 @@ export function updateProject(
   id: string,
   patch: Partial<OptionalId<Project>>,
 ): Project | undefined {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, genreOpportunity, ...safePatch } = patch as Partial<OptionalId<Project>> & {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, genreOpportunity, productionBrief, ...safePatch } = patch as Partial<OptionalId<Project>> & {
     id?: string
     createdAt?: string
     updatedAt?: string
     deletedAt?: string
     activeAdaptationId?: string
     genreOpportunity?: GenreOpportunitySelection
+    productionBrief?: ProjectProductionBrief
   }
   const fields = {
     ...safePatch,
     ...(genreOpportunity === undefined ? {} : { genreOpportunity: genreOpportunity ? JSON.stringify(genreOpportunity) : null }),
+    ...(productionBrief === undefined ? {} : { productionBrief: JSON.stringify(createProjectProductionBrief(productionBrief)) }),
     updatedAt: now(),
   }
   const [row] = updateRows(db, projects, fields)

@@ -5,10 +5,21 @@ import { ArrowLeft, ChevronDown, ChevronUp, FilePlus2, Library, Lightbulb, Messa
 import type { GenrePreset } from '@sdns/core'
 import {
   DEFAULT_GENRE_MARKET_SNAPSHOT,
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_ASPECT_RATIO_OPTIONS,
+  PRODUCTION_BUDGET_TIER_OPTIONS,
+  PRODUCTION_DURATION_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  PRODUCTION_REGION_OPTIONS,
   SHORT_DRAMA_TYPES,
   createGenreOpportunitySelection,
+  createProjectProductionBrief,
+  formatProductionDuration,
   selectGenreOpportunity,
+  type ProjectCreationGoal,
   type GenreMarketSnapshot,
+  type ProjectProductionProfile,
 } from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
 import { ipc } from '@/lib/ipc'
@@ -46,6 +57,8 @@ export function CreateProjectPage() {
   const [genrePresets, setGenrePresets] = useState<GenrePreset[]>([])
   const [genreOpportunityId, setGenreOpportunityId] = useState(requestedOpportunityId)
   const [marketSnapshot, setMarketSnapshot] = useState<GenreMarketSnapshot>(DEFAULT_GENRE_MARKET_SNAPSHOT)
+  const [creationGoal, setCreationGoal] = useState<ProjectCreationGoal>('novel_to_drama')
+  const [productionBrief, setProductionBrief] = useState(() => createProjectProductionBrief())
 
   // v0.8：合并内置类型常量与类型库（DB）预设，去重
   useEffect(() => {
@@ -86,6 +99,25 @@ export function CreateProjectPage() {
     if (selectedOpportunity?.genreName !== type) setGenreOpportunityId('')
   }
 
+  function chooseCreationGoal(goal: ProjectCreationGoal) {
+    setCreationGoal(goal)
+    setProductionBrief(createProjectProductionBrief({ creationGoal: goal }))
+    if (goal !== 'novel_to_drama') setAdvanced(true)
+  }
+
+  function updateProductionProfile(patch: Partial<ProjectProductionProfile>) {
+    setProductionBrief((current) => createProjectProductionBrief({
+      creationGoal: current.creationGoal,
+      profile: {
+        ...current.profile,
+        ...patch,
+        episodeDuration: patch.episodeDuration
+          ? { ...current.profile.episodeDuration, ...patch.episodeDuration }
+          : current.profile.episodeDuration,
+      },
+    }))
+  }
+
   async function handleSubmit() {
     if (!title.trim()) {
       toast.error('请填写作品名称')
@@ -106,9 +138,18 @@ export function CreateProjectPage() {
         genreOpportunity: selectedOpportunity
           ? createGenreOpportunitySelection(marketSnapshot, selectedOpportunity)
           : undefined,
+        productionBrief,
       })
-      toast.success('项目已创建，去和 AI 聊聊设定吧')
-      navigate(`/projects/${project.id}`)
+      if (creationGoal === 'direct_drama') {
+        toast.success('项目简报已创建，接着建立第一季')
+        navigate(`/adaptations/new?source=${project.id}&mode=direct`)
+      } else if (creationGoal === 'adapt_existing_ip') {
+        toast.success('项目简报已创建，下一步导入受权小说或 IP 正文')
+        navigate(`/projects/${project.id}?section=overview&next=import-source`)
+      } else {
+        toast.success('项目简报已创建，去和 AI 聊聊设定吧')
+        navigate(`/projects/${project.id}`)
+      }
     } catch (e) {
       toast.error('创建失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -137,16 +178,13 @@ export function CreateProjectPage() {
 
       <main className="flex flex-1 items-center justify-center overflow-auto p-6">
         <div className="w-full max-w-xl space-y-6">
-          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建方式">
-            <Button variant="secondary" className="h-auto justify-start py-3 text-left" onClick={() => { setTitle(''); setIdea(''); setAdvanced(false) }}>
-              <FilePlus2 /><span><span className="block">空白项目</span><span className="block text-xs font-normal text-muted-foreground">从名称开始</span></span>
-            </Button>
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => setAdvanced(true)}>
-              <Lightbulb /><span><span className="block">带着灵感创建</span><span className="block text-xs font-normal text-muted-foreground">补充钩子和方向</span></span>
-            </Button>
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => void handleImport()}>
-              <Upload /><span><span className="block">导入项目包</span><span className="block text-xs font-normal text-muted-foreground">继续已有创作</span></span>
-            </Button>
+          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建路径">
+            {PROJECT_CREATION_GOAL_OPTIONS.map((option) => (
+              <Button key={option.value} variant={creationGoal === option.value ? 'secondary' : 'outline'} className="h-auto justify-start py-3 text-left" onClick={() => chooseCreationGoal(option.value)}>
+                {option.value === 'novel_to_drama' ? <Lightbulb /> : option.value === 'adapt_existing_ip' ? <Library /> : <FilePlus2 />}
+                <span><span className="block">{option.label}</span><span className="block text-xs font-normal text-muted-foreground">{option.description}</span></span>
+              </Button>
+            ))}
           </section>
           <div className="space-y-2">
             <Label className="text-base">作品名称 *</Label>
@@ -164,7 +202,11 @@ export function CreateProjectPage() {
               className="h-12 text-lg"
             />
             <p className="text-xs text-muted-foreground">
-              只需要起个名字就能创建。其余设定（类型、卖点、钩子、受众等）进入工作台后，在和 AI 的「项目对话」里慢慢聊清楚即可。
+              {creationGoal === 'adapt_existing_ip'
+                ? '先建立受权 IP 的项目简报，不会生成空章节；下一步再导入小说或剧本正文。'
+                : creationGoal === 'direct_drama'
+                  ? '创建后直接进入第一季设置，不要求先创建小说章节。'
+                  : '只需要起个名字就能创建。其余设定可进入工作台后继续补全。'}
             </p>
           </div>
 
@@ -232,6 +274,22 @@ export function CreateProjectPage() {
                   管理类型库
                 </Button>
               </div>
+              <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                <div>
+                  <Label>生产 Profile</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">这些是可编辑的制作建议，会随项目简报保存；不是平台热度、费用或效果承诺。</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><Label className="text-xs">表现形式</Label><Select value={productionBrief.profile.presentation} onValueChange={(value) => updateProductionProfile({ presentation: value as ProjectProductionProfile['presentation'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_PRESENTATION_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">目标平台</Label><Select value={productionBrief.profile.platform} onValueChange={(value) => updateProductionProfile({ platform: value as ProjectProductionProfile['platform'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_PLATFORM_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">目标地区</Label><Select value={productionBrief.profile.region} onValueChange={(value) => updateProductionProfile({ region: value as ProjectProductionProfile['region'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_REGION_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">画幅</Label><Select value={productionBrief.profile.aspectRatio} onValueChange={(value) => updateProductionProfile({ aspectRatio: value as ProjectProductionProfile['aspectRatio'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_ASPECT_RATIO_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">单集时长建议</Label><Select value={`${productionBrief.profile.episodeDuration.minSeconds}-${productionBrief.profile.episodeDuration.maxSeconds}`} onValueChange={(value) => { const [minSeconds, maxSeconds] = value.split('-').map(Number); updateProductionProfile({ episodeDuration: { minSeconds, maxSeconds } }) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_DURATION_OPTIONS.map((option) => <SelectItem key={`${option.minSeconds}-${option.maxSeconds}`} value={`${option.minSeconds}-${option.maxSeconds}`}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">预算档位</Label><Select value={productionBrief.profile.budgetTier} onValueChange={(value) => updateProductionProfile({ budgetTier: value as ProjectProductionProfile['budgetTier'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_BUDGET_TIER_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">试播集数</Label><Input type="number" min={1} max={12} value={productionBrief.profile.pilotEpisodeCount} onChange={(event) => updateProductionProfile({ pilotEpisodeCount: Math.max(1, Number(event.target.value) || 1) })} /></div>
+                </div>
+                <p className="text-xs text-muted-foreground">当前建议：{formatProductionDuration(productionBrief.profile.episodeDuration)} / 先做 {productionBrief.profile.pilotEpisodeCount} 集试播。后续可在改编设置中继续修改。</p>
+              </div>
               <div className="space-y-2">
                 <Label>目标受众</Label>
                 <Input
@@ -271,7 +329,10 @@ export function CreateProjectPage() {
           <div className="flex items-center gap-3">
             <Button size="lg" onClick={handleSubmit} disabled={submitting}>
               <Sparkles />
-              创建项目
+              {creationGoal === 'direct_drama' ? '创建并设置第一季' : '创建项目'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => void handleImport()}>
+              <Upload className="h-3.5 w-3.5" /> 导入已有项目包
             </Button>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <MessageSquare className="h-3.5 w-3.5" />

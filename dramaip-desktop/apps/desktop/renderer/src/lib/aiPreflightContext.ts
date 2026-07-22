@@ -149,6 +149,12 @@ function buildRawSections(data: AiPreflightContextData, controls: AiContextContr
       line('一句话卖点', data.project.coreHook),
       line('故事简介', data.project.synopsis),
       line('视觉风格方向', data.project.visualStyleDirection),
+      line('创建路径', data.project.productionBrief?.creationGoal),
+      line('表现形式', data.project.productionBrief?.profile.presentation),
+      line('目标平台', data.project.productionBrief?.profile.platform),
+      data.project.productionBrief
+        ? line('生产 Profile', `${data.project.productionBrief.profile.aspectRatio}，${data.project.productionBrief.profile.episodeDuration.minSeconds}–${data.project.productionBrief.profile.episodeDuration.maxSeconds} 秒，试播 ${data.project.productionBrief.profile.pilotEpisodeCount} 集`)
+        : undefined,
     ].filter(Boolean).join('\n')))
   }
 
