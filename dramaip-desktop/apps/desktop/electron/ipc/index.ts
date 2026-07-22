@@ -28,6 +28,7 @@ import { registerVisualAssetIpc } from './visual-asset.ipc'
 import { registerShotStillIpc } from './shot-still.ipc'
 import { registerAnimaticIpc } from './animatic.ipc'
 import { registerAudioIpc } from './audio.ipc'
+import { registerEpisodeRenderIpc } from './episode-render.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -51,6 +52,7 @@ export function registerAllIpc(): void {
   registerShotStillIpc()
   registerAnimaticIpc()
   registerAudioIpc()
+  registerEpisodeRenderIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

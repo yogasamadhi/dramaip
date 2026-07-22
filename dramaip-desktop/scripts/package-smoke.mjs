@@ -213,6 +213,21 @@ function validatePackageContents(resourcesDir) {
   }
 }
 
+/** Final MP4 export is offline; package smoke must prove it does not depend on a developer PATH. */
+function validateBundledFfmpegRuntime(resourcesDir) {
+  const executable = join(
+    resourcesDir,
+    'app.asar.unpacked',
+    'node_modules',
+    'ffmpeg-static',
+    process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg',
+  )
+  assert(existsSync(executable), `Bundled FFmpeg executable not found: ${executable}`)
+  assert(statSync(executable).size > 1_000_000, `Bundled FFmpeg executable is unexpectedly small: ${executable}`)
+  const result = spawnSync(executable, ['-hide_banner', '-version'], { stdio: 'pipe' })
+  assert(result.status === 0, `Bundled FFmpeg cannot start: ${result.stderr?.toString() ?? ''}`)
+}
+
 function runPackagedAppSmoke(executable, resourcesDir) {
   if (skipStart) return Promise.resolve()
   const smokeDir = mkdtempSync(join(tmpdir(), 'sdns-package-smoke-'))
@@ -277,6 +292,7 @@ run(localBin('electron-builder'), builderArgsForCurrentPlatform(), { cwd: deskto
 validateInstallers()
 const unpacked = findUnpackedApp()
 validatePackageContents(unpacked.resourcesDir)
+validateBundledFfmpegRuntime(unpacked.resourcesDir)
 await runPackagedAppSmoke(unpacked.executable, unpacked.resourcesDir)
 
 console.log('\nPackage smoke OK')

@@ -9,6 +9,8 @@ directories:
 # 原生模块必须从 asar 中解包；只解包二进制，避免把依赖源码目录散落进 unpacked 产物
 asarUnpack:
   - '**/*.node'
+  # FFmpeg must be a real executable, not a virtual file inside app.asar.
+  - '**/node_modules/ffmpeg-static/**'
 # 应用文件
 files:
   - 'out/**/*'
@@ -18,6 +20,9 @@ files:
   - '!**/node_modules/**/*.md'
   - '!**/node_modules/**/LICENSE*'
   - '!**/node_modules/**/*.{map,test.js,spec.js}'
+extraResources:
+  - from: build/third-party-notices
+    to: third-party-notices
 # .sdnspkg 项目包文件关联（双击可在应用内打开导入）
 fileAssociations:
   - ext: sdnspkg

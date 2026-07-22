@@ -3,6 +3,8 @@ import type {
   AdaptationProject,
   AnimaticDraft,
   AudioTrack,
+  EpisodeRenderArchive,
+  EpisodeRenderPreflight,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -80,7 +82,6 @@ import type {
   VideoResult,
   VisualSetting,
   VisualAssetOwnerKind,
-  VisualAssetSlot,
   VisualAssetVersion,
   ShotVisualAssetLock,
   ShotStillCandidate,
@@ -557,6 +558,11 @@ export interface StudioApi {
     listTracksByEpisode(episodeId: string): Promise<AudioTrack[]>
     saveTrack(data: Pick<AudioTrack, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'kind' | 'label' | 'sourceFingerprint' | 'clips'>): Promise<AudioTrack>
     adoptTrack(id: string): Promise<AudioTrack | undefined>
+  }
+  episodeRender: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<EpisodeRenderPreflight>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeRenderArchive }>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

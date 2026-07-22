@@ -59,6 +59,11 @@ const api = {
     saveTrack: (data: unknown) => invoke('audio:saveTrack', data),
     adoptTrack: (id: string) => invoke('audio:adoptTrack', id),
   },
+  episodeRender: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:listByEpisode', input),
+    preflight: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:preflight', input),
+    start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:start', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

@@ -444,6 +444,15 @@ const updateGenerationCostInput = z
   })
   .strict()
 
+const episodeRenderInput = z
+  .object({
+    projectId: id,
+    adaptationProjectId: id,
+    episodeId: id,
+    mutedTrackIds: stringArray.optional(),
+  })
+  .strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -770,6 +779,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'audio:listTracksByEpisode': [id],
   'audio:saveTrack': [audioTrackSaveInput],
   'audio:adoptTrack': [id],
+  'episodeRender:listByEpisode': [episodeRenderInput],
+  'episodeRender:preflight': [episodeRenderInput],
+  'episodeRender:start': [episodeRenderInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

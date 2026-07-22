@@ -17,7 +17,7 @@ export function registerAudioIpc(): void {
     const episode = r.episode.getEpisode(r.db, episodeId)
     if (!episode) return []
     const adaptation = r.adaptationProject.getAdaptationProject(r.db, episode.adaptationProjectId)
-    if (!adaptation) return []
+    if (!adaptation?.sourceProjectId) return []
     const { shots } = assertEpisodeProject(r, adaptation.sourceProjectId, episodeId)
     const sourceFingerprint = initializeAnimaticClips(shots, []).sourceFingerprint
     for (const track of r.audio.listAudioTracksByEpisode(r.db, episodeId)) {
