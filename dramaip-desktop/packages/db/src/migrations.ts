@@ -530,6 +530,7 @@ CREATE TABLE IF NOT EXISTS video_generation_tasks (
   episode_id TEXT,
   scene_id TEXT,
   shot_id TEXT,
+  lineage_id TEXT,
   provider TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt TEXT NOT NULL DEFAULT '',
@@ -583,6 +584,54 @@ CREATE TABLE IF NOT EXISTS project_assets (
   metadata TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'available',
   package_policy TEXT NOT NULL DEFAULT 'reference_only',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS generation_lineages (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  adaptation_project_id TEXT,
+  episode_id TEXT,
+  scene_id TEXT,
+  shot_id TEXT,
+  media_type TEXT NOT NULL,
+  task_kind TEXT NOT NULL,
+  task_id TEXT,
+  parent_lineage_id TEXT,
+  retry_of_lineage_id TEXT,
+  source_entity_kind TEXT,
+  source_entity_id TEXT,
+  source_version TEXT,
+  source_snapshot TEXT NOT NULL DEFAULT '{}',
+  provider_snapshot TEXT NOT NULL DEFAULT '{}',
+  parameter_snapshot TEXT NOT NULL DEFAULT '{}',
+  reference_assets TEXT NOT NULL DEFAULT '[]',
+  seed TEXT,
+  completeness TEXT NOT NULL DEFAULT 'unknown',
+  adopted_output_kind TEXT,
+  adopted_output_id TEXT,
+  adopted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS generation_cost_entries (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  adaptation_project_id TEXT,
+  episode_id TEXT,
+  scene_id TEXT,
+  shot_id TEXT,
+  lineage_id TEXT,
+  task_id TEXT,
+  media_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  currency TEXT,
+  estimated_cost REAL,
+  actual_cost REAL,
+  estimate_basis TEXT,
+  actual_cost_note TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

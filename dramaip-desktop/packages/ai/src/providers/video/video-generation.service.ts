@@ -3,7 +3,9 @@
 // 这是操作性服务（不经过 LangGraph LLM 流水线）：create/check/retry/compare/select 都是
 // 对 Provider 的网络调用 + DB 记账，因此单独成模块而非注册成 NovelTaskType。
 import {
+  estimateVideoProduction,
   getVideoProviderCapability,
+  type GenerationReferenceAsset,
   type VideoGenerationInput,
   type VideoGenerationTask,
   type VideoProvider,
@@ -52,6 +54,9 @@ export async function createVideoGenerationTask(
     negativePrompt?: string
     referenceImageUrls?: string[]
     note?: string
+    /** retry/clone 会创建新谱系，绝不覆盖旧任务的参数或结果。 */
+    parentLineageId?: string
+    retryOfLineageId?: string
   },
 ): Promise<{ task: VideoGenerationTask; results: VideoResult[] }> {
   const { repos } = deps
@@ -70,12 +75,21 @@ export async function createVideoGenerationTask(
     defaultParams: config.defaultParams,
   }
 
+  const scope = resolveGenerationScope(repos, input)
+  const lineage = createVideoLineage(repos, {
+    ...input,
+    ...scope,
+    parentLineageId: input.parentLineageId,
+    retryOfLineageId: input.retryOfLineageId,
+  }, config, capability)
+
   // 先落库一条 pending 任务（即使提交失败也有记录，便于排查/重试）
   const task = repos.videoTask.createVideoTask(db, {
-    projectId: input.projectId,
-    episodeId: input.episodeId,
-    sceneId: input.sceneId,
-    shotId: input.shotId,
+    projectId: scope.projectId,
+    episodeId: scope.episodeId,
+    sceneId: scope.sceneId,
+    shotId: scope.shotId,
+    lineageId: lineage?.id,
     provider: config.name,
     model: config.model ?? providerInput.model,
     prompt: input.prompt,
@@ -84,6 +98,27 @@ export async function createVideoGenerationTask(
     status: 'pending',
     note: input.note,
   })
+  const generation = generationRepo(repos)
+  if (lineage && generation) {
+    generation.updateGenerationLineage(db, lineage.id, { taskId: task.id })
+    const estimate = estimateVideoProduction(config)
+    generation.createGenerationCostEntry(db, {
+      projectId: scope.projectId,
+      adaptationProjectId: scope.adaptationProjectId,
+      episodeId: scope.episodeId,
+      sceneId: scope.sceneId,
+      shotId: scope.shotId,
+      lineageId: lineage.id,
+      taskId: task.id,
+      mediaType: 'video',
+      status: estimate.estimatedCost === undefined ? 'unknown' : 'estimated',
+      currency: estimate.currency,
+      estimatedCost: estimate.estimatedCost,
+      estimateBasis: estimate.estimatedCost === undefined
+        ? 'Provider 未提供本地估值；实际账单未知'
+        : `提交时 Provider 参数快照（${estimate.durationSeconds} 秒，本地估算，非账单）`,
+    })
+  }
 
   let results: VideoResult[] = []
   try {
@@ -194,6 +229,8 @@ export async function retryVideoTask(
     negativePrompt: original.negativePrompt,
     referenceImageUrls: original.referenceImageUrls,
     note: `重试自 ${original.id.slice(0, 8)}`,
+    parentLineageId: original.lineageId,
+    retryOfLineageId: original.lineageId,
   })
 }
 
@@ -204,7 +241,22 @@ export function compareVideoResults(deps: VideoServiceDeps, shotId: string): Vid
 
 /** 人工选择最佳结果（acceptance #6）—— 标记 isBest（保证镜头级唯一） */
 export function selectBestVideoResult(deps: VideoServiceDeps, resultId: string): VideoResult | undefined {
-  return deps.repos.videoResult.markBestVideoResult(deps.repos.db, resultId)
+  const result = deps.repos.videoResult.markBestVideoResult(deps.repos.db, resultId)
+  if (!result) return undefined
+  const task = deps.repos.videoTask.getVideoTask(deps.repos.db, result.taskId)
+  if (!task?.lineageId) return result
+  const generation = generationRepo(deps.repos)
+  if (!generation) return result
+  const lineage = generation.getGenerationLineage(deps.repos.db, task.lineageId)
+  if (lineage?.sourceEntityKind && lineage.sourceEntityId) {
+    generation.clearGenerationLineageAdoptionForSource(deps.repos.db, lineage.sourceEntityKind, lineage.sourceEntityId)
+  }
+  generation.updateGenerationLineage(deps.repos.db, task.lineageId, {
+    adoptedOutputKind: 'video_result',
+    adoptedOutputId: result.id,
+    adoptedAt: new Date().toISOString(),
+  })
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +305,159 @@ function resolveProviderConfigId(repos: VideoServiceDeps['repos'], providerName:
 
 function createProvider(deps: VideoServiceDeps, config: VideoProviderConfig): VideoProvider {
   return deps.videoProviderFactory?.(config) ?? videoProviderFromConfig(config)
+}
+
+function createVideoLineage(
+  repos: VideoServiceDeps['repos'],
+  input: {
+    projectId?: string
+    adaptationProjectId?: string
+    episodeId?: string
+    sceneId?: string
+    shotId?: string
+    prompt: string
+    negativePrompt?: string
+    referenceImageUrls?: string[]
+    parentLineageId?: string
+    retryOfLineageId?: string
+  },
+  config: VideoProviderConfig,
+  capability: ReturnType<typeof getVideoProviderCapability>,
+) {
+  const generation = generationRepo(repos)
+  if (!generation) return undefined
+  const source = resolveSourceSnapshot(repos, input)
+  const parameters = parseProviderParams(config.defaultParams)
+  const references = resolveReferenceAssets(repos, input.projectId, input.referenceImageUrls ?? [], parameters)
+  const seed = scalarString(parameters.seed)
+  return generation.createGenerationLineage(repos.db, {
+    projectId: input.projectId,
+    adaptationProjectId: input.adaptationProjectId,
+    episodeId: input.episodeId,
+    sceneId: input.sceneId,
+    shotId: input.shotId,
+    mediaType: 'video',
+    taskKind: 'video_generation',
+    parentLineageId: input.parentLineageId,
+    retryOfLineageId: input.retryOfLineageId,
+    sourceEntityKind: source.kind,
+    sourceEntityId: source.id,
+    sourceVersion: source.version,
+    sourceSnapshot: source.snapshot,
+    // 凭据只在 Keychain；快照刻意排除 apiKey 和 baseUrl，避免项目包/诊断泄漏。
+    providerSnapshot: {
+      providerConfigId: config.id,
+      providerName: config.name,
+      providerKind: config.kind,
+      model: config.model ?? 'default',
+      capability,
+      defaultParams: parameters,
+    },
+    parameterSnapshot: {
+      prompt: input.prompt,
+      negativePrompt: input.negativePrompt,
+      referenceImageUrls: input.referenceImageUrls ?? [],
+      providerDefaults: parameters,
+    },
+    referenceAssets: references,
+    seed,
+    completeness: source.kind ? 'complete' : 'partial',
+  })
+}
+
+function resolveGenerationScope(
+  repos: VideoServiceDeps['repos'],
+  input: { projectId?: string; episodeId?: string; sceneId?: string; shotId?: string },
+): { projectId?: string; adaptationProjectId?: string; episodeId?: string; sceneId?: string; shotId?: string } {
+  const safe = repos as Partial<VideoServiceDeps['repos']>
+  const episode = input.episodeId ? safe.episode?.getEpisode(repos.db, input.episodeId) : undefined
+  const scene = input.sceneId ? safe.scene?.getScene(repos.db, input.sceneId) : undefined
+  const shot = input.shotId ? safe.shot?.getShot(repos.db, input.shotId) : undefined
+  const episodeId = input.episodeId ?? scene?.episodeId ?? shot?.episodeId
+  const resolvedEpisode = episodeId === input.episodeId ? episode : episodeId ? safe.episode?.getEpisode(repos.db, episodeId) : undefined
+  const adaptationProjectId = resolvedEpisode?.adaptationProjectId
+  const adaptation = adaptationProjectId ? safe.adaptationProject?.getAdaptationProject(repos.db, adaptationProjectId) : undefined
+  return {
+    projectId: input.projectId ?? adaptation?.sourceProjectId,
+    adaptationProjectId,
+    episodeId,
+    sceneId: input.sceneId ?? shot?.sceneId,
+    shotId: input.shotId,
+  }
+}
+
+function resolveSourceSnapshot(
+  repos: VideoServiceDeps['repos'],
+  input: { projectId?: string; episodeId?: string; sceneId?: string; shotId?: string },
+): { kind?: string; id?: string; version?: string; snapshot: Record<string, unknown> } {
+  const safe = repos as Partial<VideoServiceDeps['repos']>
+  if (input.shotId) {
+    const shot = safe.shot?.getShot(repos.db, input.shotId)
+    if (shot) return { kind: 'shot', id: shot.id, version: shot.updatedAt, snapshot: { kind: 'shot', id: shot.id, updatedAt: shot.updatedAt, promptVersion: shot.videoPrompt } }
+  }
+  if (input.sceneId) {
+    const scene = safe.scene?.getScene(repos.db, input.sceneId)
+    if (scene) return { kind: 'scene', id: scene.id, version: scene.updatedAt, snapshot: { kind: 'scene', id: scene.id, updatedAt: scene.updatedAt, scriptId: scene.scriptId } }
+  }
+  if (input.episodeId) {
+    const episode = safe.episode?.getEpisode(repos.db, input.episodeId)
+    if (episode) return { kind: 'episode', id: episode.id, version: episode.updatedAt, snapshot: { kind: 'episode', id: episode.id, updatedAt: episode.updatedAt } }
+  }
+  if (input.projectId) {
+    const project = safe.project?.getProject(repos.db, input.projectId)
+    if (project) return { kind: 'project', id: project.id, version: project.updatedAt, snapshot: { kind: 'project', id: project.id, updatedAt: project.updatedAt } }
+  }
+  return { snapshot: { status: 'unknown', reason: '任务没有可读取的源实体版本' } }
+}
+
+function resolveReferenceAssets(
+  repos: VideoServiceDeps['repos'],
+  projectId: string | undefined,
+  urls: string[],
+  parameters: Record<string, unknown>,
+): GenerationReferenceAsset[] {
+  const safe = repos as Partial<VideoServiceDeps['repos']>
+  const weights = Array.isArray(parameters.referenceWeights) ? parameters.referenceWeights : []
+  const assets = projectId ? safe.asset?.listProjectAssets(repos.db, projectId) ?? [] : []
+  return urls.map((url, index) => {
+    const asset = assets.find((candidate) => candidate.remoteUrl === url || candidate.localPath === url || candidate.relativePath === url)
+    const rawWeight = weights[index]
+    return {
+      assetId: asset?.id,
+      url,
+      weight: typeof rawWeight === 'number' && Number.isFinite(rawWeight) ? rawWeight : undefined,
+      role: index === 0 ? 'reference' : 'reference_variant',
+    }
+  })
+}
+
+function parseProviderParams(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? sanitizeSnapshot(parsed as Record<string, unknown>) : {}
+  } catch {
+    return { parseStatus: 'invalid_json' }
+  }
+}
+
+function scalarString(value: unknown): string | undefined {
+  if (typeof value === 'string' || typeof value === 'number') return String(value)
+  return undefined
+}
+
+function sanitizeSnapshot(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+    if (/(api[-_]?key|authorization|token|secret|password|credential)/i.test(key)) return [key, '[redacted]']
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) return [key, sanitizeSnapshot(entry as Record<string, unknown>)]
+    if (Array.isArray(entry)) return [key, entry.map((item) => item && typeof item === 'object' && !Array.isArray(item) ? sanitizeSnapshot(item as Record<string, unknown>) : item)]
+    return [key, entry]
+  }))
+}
+
+/** Unit fixtures from pre-LM5-07 intentionally lack this optional runtime capability. */
+function generationRepo(repos: VideoServiceDeps['repos']): VideoServiceDeps['repos']['generation'] | undefined {
+  return (repos as Partial<VideoServiceDeps['repos']>).generation
 }
 
 async function archiveVideoResult(

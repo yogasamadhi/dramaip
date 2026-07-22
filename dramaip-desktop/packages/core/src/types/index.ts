@@ -974,6 +974,72 @@ export interface VideoProviderConfig {
 /** 视频生成任务状态 */
 export type VideoTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 
+/** 跨图片、视频、音频和渲染任务的可追溯生产媒体类型。 */
+export type GenerationMediaType = 'image' | 'video' | 'audio' | 'render'
+export type GenerationLineageCompleteness = 'complete' | 'partial' | 'unknown'
+export type GenerationCostStatus = 'unknown' | 'estimated' | 'actual' | 'unavailable'
+
+/** 生成时引用的资产或 URL；不会包含二进制本体。 */
+export interface GenerationReferenceAsset {
+  assetId?: string
+  url?: string
+  weight?: number
+  role?: string
+}
+
+/**
+ * 生成谱系是不可覆盖的提交时快照。它不保存 API Key、私有响应或媒体二进制，
+ * 但保留足以理解和复现一次本地生产决定的源版本、能力、参数、seed 和引用关系。
+ */
+export interface GenerationLineage {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  mediaType: GenerationMediaType
+  taskKind: string
+  taskId?: string
+  parentLineageId?: string
+  retryOfLineageId?: string
+  sourceEntityKind?: string
+  sourceEntityId?: string
+  sourceVersion?: string
+  sourceSnapshot: Record<string, unknown>
+  providerSnapshot: Record<string, unknown>
+  parameterSnapshot: Record<string, unknown>
+  referenceAssets: GenerationReferenceAsset[]
+  seed?: string
+  completeness: GenerationLineageCompleteness
+  adoptedOutputKind?: string
+  adoptedOutputId?: string
+  adoptedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 项目/季/集/镜头维度的费用条目；估算和实际值分开保存，未知绝不补零。 */
+export interface GenerationCostEntry {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  lineageId?: string
+  taskId?: string
+  mediaType: GenerationMediaType
+  status: GenerationCostStatus
+  currency?: string
+  estimatedCost?: number
+  actualCost?: number
+  estimateBasis?: string
+  actualCostNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 视频生成任务（对应 video_generation_tasks 表，ROADMAP v0.7 §2） */
 export interface VideoGenerationTask {
   id: string
@@ -981,6 +1047,8 @@ export interface VideoGenerationTask {
   episodeId?: string
   sceneId?: string
   shotId?: string
+  /** LM5-07 谱系记录；旧任务可能尚未回填，读取时保持 unknown。 */
+  lineageId?: string
 
   provider: string
   model: string

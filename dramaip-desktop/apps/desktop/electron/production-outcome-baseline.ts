@@ -95,7 +95,8 @@ export const PRODUCTION_OUTCOME_BASELINE: ProductionOutcomeBaseline = {
   operationalTruth: {
     coverage: 'available',
     blockingState: 'available',
-    budget: 'known_gap',
+    // 本地账本可显示估算、实际与未知；未知不再被压成 0 或“已结算”。
+    budget: 'available',
     rights: 'known_gap',
     providerAvailability: 'available',
   },

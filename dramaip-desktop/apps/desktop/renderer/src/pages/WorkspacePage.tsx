@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, GenerationCostEntry, GenerationLineage, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
 import {
   PROJECT_CREATION_GOAL_OPTIONS,
   PRODUCTION_PLATFORM_OPTIONS,
@@ -26,6 +26,7 @@ import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPrefli
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { PilotProductionPanel } from '@/components/PilotProductionPanel'
+import { GenerationLedgerPanel } from '@/components/GenerationLedgerPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
@@ -146,6 +147,8 @@ export function WorkspacePage() {
   const [qualityReports, setQualityReports] = useState<QualityGateReport[]>([])
   const [editorSaveState, setEditorSaveState] = useState<ChapterTreeStatus['saveState']>('clean')
   const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
+  const [generationLineages, setGenerationLineages] = useState<GenerationLineage[]>([])
+  const [generationCosts, setGenerationCosts] = useState<GenerationCostEntry[]>([])
   const chapterSearchRef = useRef<HTMLInputElement>(null)
   const handledImportIntentRef = useRef<string | undefined>(undefined)
   const [contextControls, setContextControls] = useState<AiContextControls>({})
@@ -200,6 +203,8 @@ export function WorkspacePage() {
       nextStoryArcs,
       nextProjectSkills,
       longTasks,
+      nextGenerationLineages,
+      nextGenerationCosts,
     ] = await Promise.all([
       ipc.character.list(currentProject.id),
       ipc.outline.list(currentProject.id),
@@ -211,6 +216,8 @@ export function WorkspacePage() {
       ipc.storyArc.list(currentProject.id),
       ipc.projectSkill.list(currentProject.id),
       ipc.longTask.list(currentProject.id),
+      ipc.generation.listLineagesByProject(currentProject.id),
+      ipc.generation.listCostsByProject(currentProject.id),
     ])
     setVisualProfiles(nextVisualProfiles)
     setCaseStudies(nextCaseStudies)
@@ -218,6 +225,8 @@ export function WorkspacePage() {
     setChapterMemories(chapterMemories)
     setQualityReports(qualityReports)
     setProjectSkills(nextProjectSkills)
+    setGenerationLineages(nextGenerationLineages)
+    setGenerationCosts(nextGenerationCosts)
 
     const activeResolution = await ipc.project.resolveActiveAdaptation(
       currentProject.id,
@@ -737,6 +746,16 @@ export function WorkspacePage() {
     toast.success('已切换当前改编，相关分集、剧本、分镜和视频数据已同步刷新')
   }
 
+  async function updateGenerationCost(id: string, patch: { actualCost?: number; currency?: string; actualCostNote?: string }) {
+    const updated = await ipc.generation.updateCost(id, patch)
+    if (!updated) {
+      toast.error('费用账本更新失败')
+      return
+    }
+    setGenerationCosts((current) => current.map((cost) => cost.id === updated.id ? updated : cost))
+    toast.success('已记录实际费用；不会覆盖原始估算')
+  }
+
   function openAdaptationPath(path: 'overview' | 'scripts' | 'shots' | 'video') {
     if (!project) return
     if (!primaryAdaptation) {
@@ -1176,6 +1195,11 @@ export function WorkspacePage() {
                   truth={pilotProductionTruth}
                   onOpenTaskCenter={() => navigate(`/settings/tasks?project=${encodeURIComponent(project.id)}`)}
                 />}
+                <GenerationLedgerPanel
+                  lineages={generationLineages}
+                  costs={generationCosts}
+                  onUpdateCost={updateGenerationCost}
+                />
                 {project.productionBrief && (() => {
                   const brief = project.productionBrief
                   const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)

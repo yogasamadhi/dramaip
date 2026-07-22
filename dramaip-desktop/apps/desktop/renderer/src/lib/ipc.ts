@@ -25,6 +25,8 @@ import type {
   Evaluation,
   Foreshadowing,
   FreshnessReport,
+  GenerationCostEntry,
+  GenerationLineage,
   GenrePreset,
   GenreMarketSnapshot,
   GlobalSearchResponse,
@@ -506,6 +508,11 @@ export interface StudioApi {
     update(id: string, patch: Partial<ProjectAsset>): Promise<ProjectAsset | undefined>
     remove(id: string): Promise<boolean>
     chooseLocalFile(kind: ProjectAsset['kind']): Promise<{ ok: boolean; canceled?: boolean; path?: string; name?: string; error?: string }>
+  }
+  generation: {
+    listLineagesByProject(projectId: string): Promise<GenerationLineage[]>
+    listCostsByProject(projectId: string): Promise<GenerationCostEntry[]>
+    updateCost(id: string, patch: { actualCost?: number; currency?: string; actualCostNote?: string }): Promise<GenerationCostEntry | undefined>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

@@ -21,6 +21,11 @@ const api = {
     remove: (id: string) => invoke('asset:delete', id),
     chooseLocalFile: (kind: string) => invoke('asset:chooseLocalFile', kind),
   },
+  generation: {
+    listLineagesByProject: (projectId: string) => invoke('generation:listLineagesByProject', projectId),
+    listCostsByProject: (projectId: string) => invoke('generation:listCostsByProject', projectId),
+    updateCost: (id: string, patch: unknown) => invoke('generation:updateCost', id, patch),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

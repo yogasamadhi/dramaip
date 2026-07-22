@@ -43,6 +43,8 @@ export interface DramaDeliveryExportData {
 export interface DramaBestVideoDelivery {
   resultId: string
   taskId: string
+  /** Links the delivered asset to its immutable generation record when available. */
+  lineageId?: string
   source: 'local' | 'result' | 'remote'
   url: string
   archivedAt?: string
@@ -465,6 +467,7 @@ function buildBestVideosByShot(data: DramaDeliveryExportData): Map<string, Drama
     selectedByShot.set(shotId, {
       resultId: result.id,
       taskId: task.id,
+      lineageId: task.lineageId,
       source,
       url,
       archivedAt: result.archivedAt,

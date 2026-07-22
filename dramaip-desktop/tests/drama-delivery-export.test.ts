@@ -284,6 +284,7 @@ test('exports episode delivery package with scripts, scenes, shots, and prompts'
   assert.deepEqual(pkg.episodes[0].scenes[0].shots[0].bestVideo, {
     resultId: 'video-result-1',
     taskId: 'video-task-1',
+    lineageId: undefined,
     source: 'result',
     url: 'https://cdn.example.test/result.mp4',
     archivedAt: undefined,

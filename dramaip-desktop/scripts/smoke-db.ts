@@ -15,6 +15,7 @@ import {
   serializeProjectPackage,
   parseProjectPackage,
   importProjectPackage,
+  PACKAGE_VERSION,
 } from '@sdns/export'
 
 const dbPath = path.join(os.tmpdir(), `sdns-db-smoke-${process.pid}.sqlite`)
@@ -1059,7 +1060,7 @@ function main() {
   assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
   assert(pkg.projectAgentSchemes.length === 1 && pkg.projectAgentSchemes[0].skillIds[0] === exportSkill.id, 'collectProjectPackage Agent 方案')
   assert(pkg.inspirationFavorites.length === 1 && pkg.inspirationFavorites[0].title === '样本开局卡', 'collectProjectPackage 灵感收藏')
-  assert(pkg.meta.version === 6, 'collectProjectPackage 版本 = 6')
+  assert(pkg.meta.version === PACKAGE_VERSION, `collectProjectPackage 版本 = ${PACKAGE_VERSION}`)
   assert(
     pkg.adaptations.length === 1 && pkg.adaptations[0].scripts[0].shots[0]?.id === shot3.id,
     'collectProjectPackage 改编镜头正确',

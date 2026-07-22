@@ -331,6 +331,14 @@ const updateVideoResultInput = z
   })
   .passthrough()
 
+const updateGenerationCostInput = z
+  .object({
+    actualCost: z.number().nonnegative().optional(),
+    currency: z.string().min(1).max(12).optional(),
+    actualCostNote: z.string().max(500).optional(),
+  })
+  .strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -629,6 +637,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'asset:update': [id, projectAssetPatch],
   'asset:listByProject': [id],
   'asset:listBySource': [projectAssetSourceKind, id],
+  'generation:listLineagesByProject': [id],
+  'generation:listCostsByProject': [id],
+  'generation:updateCost': [id, updateGenerationCostInput],
   'asset:delete': [id],
   'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file'])],
   'security:getSecretStorageStatus': [],
