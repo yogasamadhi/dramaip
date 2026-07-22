@@ -916,6 +916,16 @@ export const MIGRATIONS: Migration[] = [
     CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_shot ON shot_still_candidates(shot_id, kind, updated_at);
     CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_project ON shot_still_candidates(project_id, status, updated_at);
   `) } },
+  { version: 33, name: 'animatic-drafts', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS animatic_drafts (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', source_fingerprint TEXT NOT NULL,
+      clips TEXT NOT NULL DEFAULT '[]', annotations TEXT NOT NULL DEFAULT '[]', review_note TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_animatic_drafts_episode_version ON animatic_drafts(episode_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_animatic_drafts_project_episode ON animatic_drafts(project_id, adaptation_project_id, episode_id, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

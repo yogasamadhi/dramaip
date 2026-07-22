@@ -543,6 +543,46 @@ export interface ShotStillCandidate {
   updatedAt: string
 }
 
+/** 低成本 Animatic 的镜头时间线；它只引用静帧/临时音频，不伪装为最终视频。 */
+export type AnimaticStatus = 'draft' | 'approved' | 'returned'
+export type AnimaticTransition = 'cut' | 'fade' | 'push' | 'pull'
+export interface AnimaticClip {
+  id: string
+  shotId: string
+  orderIndex: number
+  durationSeconds: number
+  stillCandidateId?: string
+  assetId?: string
+  transition: AnimaticTransition
+  /** 静帧在 9:16 预览中的人工取景，避免为了试播节奏而改写原图。 */
+  crop?: { zoom: number; x: number; y: number }
+  dialogue?: string
+  narration?: string
+  temporaryAudioAssetId?: string
+}
+export interface AnimaticAnnotation {
+  id: string
+  atSeconds: number
+  shotId?: string
+  category: 'pacing' | 'information' | 'hook' | 'shot'
+  note: string
+  createdAt: string
+}
+export interface AnimaticDraft {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  versionNumber: number
+  status: AnimaticStatus
+  sourceFingerprint: string
+  clips: AnimaticClip[]
+  annotations: AnimaticAnnotation[]
+  reviewNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 故事事件（时间线） */
 export interface StoryEvent {
   id: string

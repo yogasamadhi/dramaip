@@ -1,6 +1,7 @@
 // window.api 类型契约（由 preload 经 contextBridge 暴露）
 import type {
   AdaptationProject,
+  AnimaticDraft,
   AgentProfile,
   AiRun,
   AiContextPreview,
@@ -540,6 +541,12 @@ export interface StudioApi {
     listByShot(shotId: string): Promise<ShotStillCandidate[]>
     create(data: Pick<ShotStillCandidate, 'projectId' | 'shotId' | 'assetId' | 'kind' | 'label'> & Pick<Partial<ShotStillCandidate>, 'notes'>): Promise<ShotStillCandidate>
     adopt(id: string): Promise<ShotStillCandidate | undefined>
+  }
+  animatic: {
+    listByEpisode(episodeId: string): Promise<AnimaticDraft[]>
+    initialize(projectId: string, episodeId: string): Promise<Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips'>>
+    save(data: Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips' | 'annotations'>): Promise<AnimaticDraft>
+    review(id: string, review: { status: 'approved' | 'returned'; reviewNote?: string }): Promise<AnimaticDraft | undefined>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

@@ -154,6 +154,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'shot_visual_asset_locks'))
     assert.ok(tableExists(raw, 'shot_still_candidates'))
     assert.ok(columns(raw, 'shot_still_candidates').includes('source_fingerprint'))
+    assert.ok(tableExists(raw, 'animatic_drafts'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -748,7 +749,7 @@ test('keeps a rights ledger manifest through a project package roundtrip and fai
 test('versions visual production packs and shot still candidates without overwriting history through project package roundtrip', () => {
   const fixture = createRepositoryFixture()
   try {
-    const { db, repos, project, shot } = fixture
+    const { db, repos, project, adaptation, episode, shot } = fixture
     const character = repos.character.createCharacter(db, { projectId: project.id, name: '林晚', role: '女主' })
     const profile = repos.visualProfile.createVisualProfile(db, {
       projectId: project.id,
@@ -824,6 +825,42 @@ test('versions visual production packs and shot still candidates without overwri
     assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillA.id)?.status, 'adopted')
     assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillB.id)?.status, 'superseded')
     repos.shotStill.setShotStillCandidateStaleState(db, stillA.id, '2026-07-23T00:00:00.000Z', '镜头 Prompt 已更新；仅需复核本镜头。')
+    const returnedAnimatic = repos.animatic.createAnimaticDraft(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      sourceFingerprint: `${shot.id}@${shot.updatedAt}`,
+      clips: [{
+        id: `clip:${shot.id}`,
+        shotId: shot.id,
+        orderIndex: 0,
+        durationSeconds: 3.5,
+        stillCandidateId: stillA.id,
+        assetId: firstFrame.id,
+        transition: 'cut',
+        dialogue: '你终于来了。',
+      }],
+      annotations: [{ id: 'note-returned', atSeconds: 1.2, shotId: shot.id, category: 'pacing', note: '开场再快一点', createdAt: '2026-07-23T00:00:00.000Z' }],
+    })
+    repos.animatic.reviewAnimaticDraft(db, returnedAnimatic.id, 'returned', '开场节奏需加快')
+    const approvedAnimatic = repos.animatic.createAnimaticDraft(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      sourceFingerprint: `${shot.id}@${shot.updatedAt}`,
+      clips: [{
+        id: `clip:${shot.id}`,
+        shotId: shot.id,
+        orderIndex: 0,
+        durationSeconds: 2.5,
+        stillCandidateId: stillA.id,
+        assetId: firstFrame.id,
+        transition: 'fade',
+        narration: '雨夜，真相浮出水面。',
+      }],
+      annotations: [{ id: 'note-approved', atSeconds: 0, shotId: shot.id, category: 'hook', note: '保留第一秒的反转信息', createdAt: '2026-07-23T00:00:00.000Z' }],
+    })
+    repos.animatic.reviewAnimaticDraft(db, approvedAnimatic.id, 'approved', '可进入试播审批')
 
     const staleLock = repos.visualAsset.listShotVisualAssetLocks(db, shot.id)[0]
     assert.equal(staleLock.id, lock.id)
@@ -835,6 +872,7 @@ test('versions visual production packs and shot still candidates without overwri
     assert.equal(pkg.visualAssetVersions?.length, 2)
     assert.equal(pkg.shotVisualAssetLocks?.[0]?.staleReason, staleLock.staleReason)
     assert.equal(pkg.shotStillCandidates?.length, 2)
+    assert.equal(pkg.animaticDrafts?.length, 2)
     assert.equal(pkg.shotStillCandidates?.find((candidate) => candidate.label === '首帧 A')?.staleReason, '镜头 Prompt 已更新；仅需复核本镜头。')
     const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
     const importedVersions = repos.visualAsset.listVisualAssetVersionsByProject(db, imported.id)
@@ -850,6 +888,18 @@ test('versions visual production packs and shot still candidates without overwri
     assert.equal(importedStills.filter((candidate) => candidate.status === 'adopted').length, 1)
     assert.equal(importedStills.filter((candidate) => candidate.status === 'superseded').length, 1)
     assert.match(importedStills.find((candidate) => candidate.status === 'adopted')?.staleReason ?? '', /仅需复核本镜头/)
+    const importedAdaptation = repos.adaptationProject.listAdaptationsByProject(db, imported.id)[0]
+    assert.ok(importedAdaptation)
+    const importedEpisode = repos.episode.listEpisodes(db, importedAdaptation.id)[0]
+    assert.ok(importedEpisode)
+    const importedAnimatics = repos.animatic.listAnimaticDraftsByEpisode(db, importedEpisode.id)
+    assert.equal(importedAnimatics.length, 2)
+    assert.equal(importedAnimatics[0].versionNumber, 2)
+    assert.equal(importedAnimatics[0].status, 'approved')
+    assert.equal(importedAnimatics[0].reviewNote, '可进入试播审批')
+    assert.equal(importedAnimatics[0].clips[0].stillCandidateId, importedStills.find((candidate) => candidate.status === 'adopted')?.id)
+    assert.equal(importedAnimatics[1].status, 'returned')
+    assert.equal(importedAnimatics[1].annotations[0].category, 'pacing')
   } finally {
     closeRepositoryFixture(fixture)
   }

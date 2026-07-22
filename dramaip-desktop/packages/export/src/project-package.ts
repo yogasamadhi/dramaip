@@ -30,6 +30,7 @@
 // 导入时：用事务整体写入；所有 id 重新生成，并维护「旧id → 新id」映射以正确还原外键。
 import type {
   AdaptationProject,
+  AnimaticDraft,
   AiRun,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
@@ -75,7 +76,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 10
+export const PACKAGE_VERSION = 11
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -129,6 +130,8 @@ export interface ProjectPackage {
   shotVisualAssetLocks?: ShotVisualAssetLock[]
   /** 每镜头的静帧 / 首尾帧 / 封面候选与采用历史；素材本体仍由 assets 引用。 */
   shotStillCandidates?: ShotStillCandidate[]
+  /** 可播放 Animatic 的不可变版本与批注；仅在导出素材清单时一并携带。 */
+  animaticDrafts?: AnimaticDraft[]
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
@@ -234,6 +237,9 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
       const episodeAnalysis = repos.episodeAnalysis.getEpisodeAnalysis(db, adaptation.id) ?? undefined
       return { adaptation, episodes, scripts, episodeAnalysis }
     })
+  const animaticDrafts = options.includeAssets
+    ? adaptations.flatMap(({ episodes }) => episodes.flatMap((episode) => repos.animatic.listAnimaticDraftsByEpisode(db, episode.id)))
+    : []
 
   return {
     meta: {
@@ -275,6 +281,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     visualAssetVersions,
     shotVisualAssetLocks,
     shotStillCandidates,
+    animaticDrafts,
     generationLineages,
     generationCostEntries,
     adaptations,
@@ -814,6 +821,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
 
     // 18.07 静帧候选：只重建候选和采用关系，不把历史媒体覆盖进镜头字段。
     // 新库的镜头时间戳不同但内容相同，因此重新锚定 sourceFingerprint；原有 stale 状态仍保留。
+    const stillCandidateIdMap = new Map<string, string>()
     const adoptedStillCandidateIds: string[] = []
     const staleStillCandidates: Array<{ id: string; staleAt?: string; staleReason: string }> = []
     const orderedStillCandidates = [...(pkg.shotStillCandidates ?? [])].sort((left, right) =>
@@ -833,6 +841,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         sourceFingerprint: importedShot.updatedAt,
         status: candidate.status === 'adopted' ? 'candidate' : candidate.status,
       })
+      stillCandidateIdMap.set(candidate.id, created.id)
       if (candidate.status === 'adopted') adoptedStillCandidateIds.push(created.id)
       if (candidate.staleReason) {
         staleStillCandidates.push({ id: created.id, staleAt: candidate.staleAt, staleReason: candidate.staleReason })
@@ -847,6 +856,50 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     }
     for (const candidate of staleStillCandidates) {
       repos.shotStill.setShotStillCandidateStaleState(db, candidate.id, candidate.staleAt, candidate.staleReason)
+    }
+
+    // 18.08 Animatic 版本：重映射镜头、候选和资产引用，保留逐版审批结果。
+    // 没有能还原的镜头片段时不导入该版本，避免在新项目中出现不可播放的空时间线。
+    const orderedAnimatics = [...(pkg.animaticDrafts ?? [])].sort((left, right) =>
+      `${left.episodeId}:${left.versionNumber}`.localeCompare(`${right.episodeId}:${right.versionNumber}`, undefined, { numeric: true }),
+    )
+    for (const draft of orderedAnimatics) {
+      const adaptationProjectId = idMap.get(draft.adaptationProjectId)
+      const episodeId = idMap.get(draft.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const clips = draft.clips.flatMap((clip) => {
+        const shotId = idMap.get(clip.shotId)
+        if (!shotId) return []
+        return [{
+          ...clip,
+          shotId,
+          stillCandidateId: clip.stillCandidateId ? stillCandidateIdMap.get(clip.stillCandidateId) : undefined,
+          assetId: clip.assetId ? assetIdMap.get(clip.assetId) : undefined,
+          temporaryAudioAssetId: clip.temporaryAudioAssetId ? assetIdMap.get(clip.temporaryAudioAssetId) : undefined,
+        }]
+      })
+      if (clips.length === 0) continue
+      const annotations = draft.annotations.map((annotation) => ({
+        ...annotation,
+        shotId: annotation.shotId ? idMap.get(annotation.shotId) : undefined,
+      }))
+      const sourceFingerprint = clips
+        .flatMap((clip) => {
+          const shot = repos.shot.getShot(db, clip.shotId)
+          return shot ? [shot] : []
+        })
+        .sort((left, right) => left.shotNumber - right.shotNumber)
+        .map((shot) => `${shot.id}@${shot.updatedAt}`)
+        .join('|')
+      const created = repos.animatic.createAnimaticDraft(db, {
+        projectId: newProject.id,
+        adaptationProjectId,
+        episodeId,
+        sourceFingerprint,
+        clips,
+        annotations,
+      })
+      if (draft.status !== 'draft') repos.animatic.reviewAnimaticDraft(db, created.id, draft.status, draft.reviewNote)
     }
 
     // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它
