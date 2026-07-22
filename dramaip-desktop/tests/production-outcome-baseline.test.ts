@@ -28,7 +28,7 @@ test('keeps production and privacy baseline truthful and safe to include in a te
   assert.equal(baseline.productionTruth.finalDelivery, 'known_gap')
   assert.equal(baseline.operationalTruth.coverage, 'available')
   assert.equal(baseline.operationalTruth.blockingState, 'available')
-  assert.equal(baseline.operationalTruth.budget, 'known_gap')
+  assert.equal(baseline.operationalTruth.budget, 'available')
   assert.equal(baseline.operationalTruth.rights, 'known_gap')
   assert.equal(baseline.operationalTruth.providerAvailability, 'available')
   assert.equal(baseline.privacyBoundary.diagnosticContentDefault, 'redacted')

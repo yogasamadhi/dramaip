@@ -48,6 +48,8 @@ import type {
   Evaluation,
   Foreshadowing,
   FreshnessReport,
+  GenerationCostEntry,
+  GenerationLineage,
   HighlightAnalysis,
   InspirationFavorite,
   NarrativeCurveReport,
@@ -69,7 +71,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 6
+export const PACKAGE_VERSION = 7
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -115,6 +117,9 @@ export interface ProjectPackage {
   narrativeCurveReports: NarrativeCurveReport[]
   workflowRuns: WorkflowRun[]
   assets: ProjectAsset[]
+  /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
+  generationLineages?: GenerationLineage[]
+  generationCostEntries?: GenerationCostEntry[]
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -193,6 +198,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     ? repos.asset.listProjectAssets(db, projectId).filter((asset) => asset.packagePolicy !== 'exclude')
     : []
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
+  const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
+  const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
 
   // 衍生改编项目
   const adaptations = repos.adaptationProject
@@ -244,6 +251,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     narrativeCurveReports,
     workflowRuns,
     assets,
+    generationLineages,
+    generationCostEntries,
     adaptations,
     aiRuns,
   }
@@ -719,6 +728,57 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
           originalRelativePath: a.relativePath,
           originalPackagePolicy: a.packagePolicy,
         },
+      })
+    }
+
+    // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它
+    // 伪装成新机器可轮询的任务。先创建全部谱系，再补 parent/retry 关系和费用账本。
+    const lineageIdMap = new Map<string, string>()
+    for (const lineage of pkg.generationLineages ?? []) {
+      const sourceEntityId = remapTargetId(lineage.sourceEntityId, idMap, oldProjectId, newProject.id)
+      const references = lineage.referenceAssets.map((reference) => ({
+        ...reference,
+        assetId: reference.assetId ? idMap.get(reference.assetId) : undefined,
+      }))
+      const created = repos.generation.createGenerationLineage(db, {
+        ...stripId(lineage),
+        projectId: newProject.id,
+        adaptationProjectId: lineage.adaptationProjectId ? idMap.get(lineage.adaptationProjectId) : undefined,
+        episodeId: lineage.episodeId ? idMap.get(lineage.episodeId) : undefined,
+        sceneId: lineage.sceneId ? idMap.get(lineage.sceneId) : undefined,
+        shotId: lineage.shotId ? idMap.get(lineage.shotId) : undefined,
+        sourceEntityId,
+        taskId: undefined,
+        parentLineageId: undefined,
+        retryOfLineageId: undefined,
+        adoptedOutputKind: undefined,
+        adoptedOutputId: undefined,
+        adoptedAt: undefined,
+        referenceAssets: references,
+        providerSnapshot: { ...lineage.providerSnapshot, importedFromPackage: true },
+        parameterSnapshot: { ...lineage.parameterSnapshot, importedTaskId: lineage.taskId },
+      })
+      lineageIdMap.set(lineage.id, created.id)
+    }
+    for (const lineage of pkg.generationLineages ?? []) {
+      const createdId = lineageIdMap.get(lineage.id)
+      if (!createdId) continue
+      repos.generation.updateGenerationLineage(db, createdId, {
+        parentLineageId: lineage.parentLineageId ? lineageIdMap.get(lineage.parentLineageId) : undefined,
+        retryOfLineageId: lineage.retryOfLineageId ? lineageIdMap.get(lineage.retryOfLineageId) : undefined,
+      })
+    }
+    for (const cost of pkg.generationCostEntries ?? []) {
+      repos.generation.createGenerationCostEntry(db, {
+        ...stripId(cost),
+        projectId: newProject.id,
+        adaptationProjectId: cost.adaptationProjectId ? idMap.get(cost.adaptationProjectId) : undefined,
+        episodeId: cost.episodeId ? idMap.get(cost.episodeId) : undefined,
+        sceneId: cost.sceneId ? idMap.get(cost.sceneId) : undefined,
+        shotId: cost.shotId ? idMap.get(cost.shotId) : undefined,
+        lineageId: cost.lineageId ? lineageIdMap.get(cost.lineageId) : undefined,
+        taskId: undefined,
+        actualCostNote: cost.actualCostNote ? `${cost.actualCostNote}（导入自项目包）` : undefined,
       })
     }
 

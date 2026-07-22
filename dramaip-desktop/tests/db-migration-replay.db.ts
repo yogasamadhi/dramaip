@@ -146,6 +146,9 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'adaptation_projects').includes('season_number'))
     assert.ok(columns(raw, 'adaptation_projects').includes('source_chapter_range'))
     assert.ok(columns(raw, 'video_results').includes('local_video_path'))
+    assert.ok(columns(raw, 'video_generation_tasks').includes('lineage_id'))
+    assert.ok(tableExists(raw, 'generation_lineages'))
+    assert.ok(tableExists(raw, 'generation_cost_entries'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -214,6 +217,41 @@ test('rolls back a failed pending migration without recording its version', () =
   } finally {
     const index = MIGRATIONS.indexOf(failingMigration)
     if (index >= 0) MIGRATIONS.splice(index, 1)
+    closeAndRemove(raw, dir)
+  }
+})
+
+test('backfills legacy video tasks with known provider fields and explicitly partial source/cost truth', () => {
+  const { raw, dir } = createRawDb()
+  try {
+    const baseline = MIGRATIONS.find((migration) => migration.version === 1)
+    const lineageMigration = MIGRATIONS.find((migration) => migration.version === 29)
+    assert.ok(baseline)
+    assert.ok(lineageMigration)
+    baseline!.up(migrationRaw(raw))
+    raw.exec(`
+      INSERT INTO video_generation_tasks (
+        id, project_id, episode_id, shot_id, provider, model, prompt, reference_image_urls,
+        status, created_at, updated_at
+      ) VALUES (
+        'legacy-video-task', 'project-legacy', 'episode-legacy', 'shot-legacy', 'Legacy Provider',
+        'legacy-model', '旧 Prompt', '["https://example.test/reference.png"]', 'success',
+        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'
+      );
+    `)
+    lineageMigration!.up(migrationRaw(raw))
+    const task = raw.prepare('SELECT lineage_id FROM video_generation_tasks WHERE id = ?').get('legacy-video-task') as { lineage_id?: string }
+    const lineage = raw.prepare('SELECT source_entity_kind, provider_snapshot, parameter_snapshot, completeness FROM generation_lineages WHERE task_id = ?').get('legacy-video-task') as { source_entity_kind?: string; provider_snapshot?: string; parameter_snapshot?: string; completeness?: string }
+    const cost = raw.prepare('SELECT status, estimated_cost, actual_cost FROM generation_cost_entries WHERE task_id = ?').get('legacy-video-task') as { status?: string; estimated_cost?: number; actual_cost?: number }
+    assert.equal(task.lineage_id, 'legacy-video-legacy-video-task')
+    assert.equal(lineage.source_entity_kind, 'shot')
+    assert.match(lineage.provider_snapshot ?? '', /Legacy Provider/)
+    assert.match(lineage.parameter_snapshot ?? '', /旧 Prompt/)
+    assert.equal(lineage.completeness, 'partial')
+    assert.equal(cost.status, 'unknown')
+    assert.equal(cost.estimated_cost, null)
+    assert.equal(cost.actual_cost, null)
+  } finally {
     closeAndRemove(raw, dir)
   }
 })
@@ -569,6 +607,59 @@ test('atomically adopts a shot preview including all prompt fields', () => {
     assert.equal(updated?.videoPrompt, '新视频 Prompt')
     assert.equal(updated?.negativePrompt, '新负面 Prompt')
     assert.equal(updated?.imagePrompt, '新图片 Prompt')
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('keeps generation lineage and separate estimated/actual costs through a project package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode, shot } = fixture
+    const lineage = repos.generation.createGenerationLineage(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      shotId: shot.id,
+      mediaType: 'video',
+      taskKind: 'video_generation',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      sourceVersion: shot.updatedAt,
+      sourceSnapshot: { kind: 'shot', updatedAt: shot.updatedAt },
+      providerSnapshot: { providerKind: 'mock', capability: { canSubmit: true } },
+      parameterSnapshot: { prompt: '原始视频 Prompt', seed: 42 },
+      referenceAssets: [{ url: 'https://example.test/reference.png', weight: 0.8 }],
+      seed: '42',
+      completeness: 'complete',
+    })
+    const cost = repos.generation.createGenerationCostEntry(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      shotId: shot.id,
+      lineageId: lineage.id,
+      mediaType: 'video',
+      status: 'estimated',
+      currency: 'CNY',
+      estimatedCost: 1.25,
+      estimateBasis: '本地参数快照，非账单',
+    })
+    const actual = repos.generation.updateGenerationCostEntry(db, cost.id, { actualCost: 1.5, actualCostNote: 'Provider 账单回填' })
+    assert.equal(actual?.estimatedCost, 1.25)
+    assert.equal(actual?.actualCost, 1.5)
+    assert.equal(actual?.status, 'actual')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.generationLineages?.[0]?.seed, '42')
+    assert.equal(pkg.generationCostEntries?.[0]?.actualCost, 1.5)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedLineage = repos.generation.listGenerationLineagesByProject(db, imported.id)[0]
+    const importedCost = repos.generation.listGenerationCostEntriesByProject(db, imported.id)[0]
+    assert.equal(importedLineage?.sourceEntityKind, 'shot')
+    assert.equal(importedLineage?.taskId, undefined)
+    assert.equal(importedCost?.estimatedCost, 1.25)
+    assert.equal(importedCost?.actualCost, 1.5)
   } finally {
     closeRepositoryFixture(fixture)
   }

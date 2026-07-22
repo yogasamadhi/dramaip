@@ -736,6 +736,105 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 29,
+    name: 'generation-lineage-and-cost-ledger',
+    up(raw) {
+      addColumnIfMissing(raw, 'video_generation_tasks', 'lineage_id', 'lineage_id TEXT')
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS generation_lineages (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          episode_id TEXT,
+          scene_id TEXT,
+          shot_id TEXT,
+          media_type TEXT NOT NULL,
+          task_kind TEXT NOT NULL,
+          task_id TEXT,
+          parent_lineage_id TEXT,
+          retry_of_lineage_id TEXT,
+          source_entity_kind TEXT,
+          source_entity_id TEXT,
+          source_version TEXT,
+          source_snapshot TEXT NOT NULL DEFAULT '{}',
+          provider_snapshot TEXT NOT NULL DEFAULT '{}',
+          parameter_snapshot TEXT NOT NULL DEFAULT '{}',
+          reference_assets TEXT NOT NULL DEFAULT '[]',
+          seed TEXT,
+          completeness TEXT NOT NULL DEFAULT 'unknown',
+          adopted_output_kind TEXT,
+          adopted_output_id TEXT,
+          adopted_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS generation_cost_entries (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          episode_id TEXT,
+          scene_id TEXT,
+          shot_id TEXT,
+          lineage_id TEXT,
+          task_id TEXT,
+          media_type TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'unknown',
+          currency TEXT,
+          estimated_cost REAL,
+          actual_cost REAL,
+          estimate_basis TEXT,
+          actual_cost_note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_project_created
+          ON generation_lineages(project_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_task
+          ON generation_lineages(task_id);
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_source
+          ON generation_lineages(source_entity_kind, source_entity_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_cost_project_scope
+          ON generation_cost_entries(project_id, adaptation_project_id, episode_id, shot_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_cost_lineage
+          ON generation_cost_entries(lineage_id);
+
+        -- 旧任务只能如实回填为 unknown；不猜测 seed、Provider 能力、源版本或账单。
+        INSERT INTO generation_lineages (
+          id, project_id, episode_id, scene_id, shot_id, media_type, task_kind, task_id,
+          source_entity_kind, source_entity_id, source_snapshot, provider_snapshot, parameter_snapshot, reference_assets, completeness,
+          created_at, updated_at
+        )
+        SELECT
+          'legacy-video-' || id, project_id, episode_id, scene_id, shot_id, 'video', 'video_generation', id,
+          CASE WHEN shot_id IS NOT NULL THEN 'shot' WHEN scene_id IS NOT NULL THEN 'scene' WHEN episode_id IS NOT NULL THEN 'episode' WHEN project_id IS NOT NULL THEN 'project' END,
+          COALESCE(shot_id, scene_id, episode_id, project_id),
+          json_object('status', 'partial', 'reason', 'legacy task predates source-version capture'),
+          json_object('providerName', provider, 'model', model, 'status', 'legacy snapshot partial'),
+          json_object('prompt', prompt, 'negativePrompt', negative_prompt, 'referenceImageUrlsState', 'legacy list retained on task'),
+          '[]', 'partial', created_at, updated_at
+        FROM video_generation_tasks
+        WHERE lineage_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM generation_lineages g WHERE g.task_id = video_generation_tasks.id);
+
+        UPDATE video_generation_tasks
+        SET lineage_id = 'legacy-video-' || id
+        WHERE lineage_id IS NULL
+          AND EXISTS (SELECT 1 FROM generation_lineages g WHERE g.task_id = video_generation_tasks.id);
+
+        INSERT INTO generation_cost_entries (
+          id, project_id, episode_id, scene_id, shot_id, lineage_id, task_id, media_type, status,
+          estimate_basis, created_at, updated_at
+        )
+        SELECT
+          'legacy-video-cost-' || id, project_id, episode_id, scene_id, shot_id,
+          lineage_id, id, 'video', 'unknown', '历史任务未保存报价或账单', created_at, updated_at
+        FROM video_generation_tasks
+        WHERE lineage_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM generation_cost_entries c WHERE c.task_id = video_generation_tasks.id);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

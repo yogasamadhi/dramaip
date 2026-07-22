@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { VideoGenerationTask, VideoProviderConfig, VideoResult } from '../packages/core/src'
+import type { GenerationCostEntry, GenerationLineage, VideoGenerationTask, VideoProviderConfig, VideoResult } from '../packages/core/src'
 import { cancelVideoGenerationTask, createVideoGenerationTask } from '../packages/ai/src/providers/video/video-generation.service'
 
 function providerConfig(): VideoProviderConfig {
@@ -20,6 +20,8 @@ function providerConfig(): VideoProviderConfig {
 function createVideoServiceRepos(config: VideoProviderConfig) {
   let task: VideoGenerationTask | undefined
   const results: VideoResult[] = []
+  const lineages: GenerationLineage[] = []
+  const costs: GenerationCostEntry[] = []
   return {
     repos: {
       db: {},
@@ -37,6 +39,7 @@ function createVideoServiceRepos(config: VideoProviderConfig) {
             episodeId: data.episodeId,
             sceneId: data.sceneId,
             shotId: data.shotId,
+            lineageId: data.lineageId,
             provider: data.provider,
             model: data.model,
             prompt: data.prompt ?? '',
@@ -79,11 +82,40 @@ function createVideoServiceRepos(config: VideoProviderConfig) {
           return result
         },
       },
+      generation: {
+        createGenerationLineage: (_db: unknown, data: Partial<GenerationLineage>) => {
+          const lineage = {
+            id: `lineage-${lineages.length + 1}`,
+            mediaType: 'video',
+            taskKind: 'video_generation',
+            sourceSnapshot: {}, providerSnapshot: {}, parameterSnapshot: {}, referenceAssets: [], completeness: 'unknown',
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+            ...data,
+          } as GenerationLineage
+          lineages.push(lineage)
+          return lineage
+        },
+        updateGenerationLineage: (_db: unknown, id: string, patch: Partial<GenerationLineage>) => {
+          const index = lineages.findIndex((lineage) => lineage.id === id)
+          if (index < 0) return undefined
+          lineages[index] = { ...lineages[index], ...patch, updatedAt: '2026-01-01T00:00:01.000Z' }
+          return lineages[index]
+        },
+        getGenerationLineage: (_db: unknown, id: string) => lineages.find((lineage) => lineage.id === id),
+        clearGenerationLineageAdoptionForSource: () => undefined,
+        createGenerationCostEntry: (_db: unknown, data: Partial<GenerationCostEntry>) => {
+          const cost = { id: `cost-${costs.length + 1}`, mediaType: 'video', status: 'unknown', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', ...data } as GenerationCostEntry
+          costs.push(cost)
+          return cost
+        },
+      },
     } as never,
     get task() {
       return task
     },
     results,
+    lineages,
+    costs,
   }
 }
 
@@ -115,6 +147,28 @@ test('video generation create preserves provider failed status', async () => {
   assert.equal(result.task.remoteTaskId, 'remote-fail')
   assert.equal(result.task.errorMessage, 'prompt rejected by provider')
   assert.equal(result.results.length, 0)
+})
+
+test('video generation freezes a credential-free capability snapshot and local estimate', async () => {
+  const config = { ...providerConfig(), defaultParams: '{"seed":42,"seconds":4,"estimatedCost":1.25,"currency":"cny","apiKey":"must-not-persist"}' }
+  const fixture = createVideoServiceRepos(config)
+  const result = await createVideoGenerationTask({
+    repos: fixture.repos,
+    videoProviderFactory: () => ({
+      kind: 'custom', name: 'Custom Video',
+      async createTask() { return { status: 'pending', remoteTaskId: 'snapshot-1', results: [] } },
+      async getTaskStatus() { throw new Error('not used') },
+    }),
+  }, { providerConfigId: 'provider-1', projectId: 'project-1', prompt: '保留在本地项目账本的参数', referenceImageUrls: ['https://example.test/ref.png'] })
+
+  assert.equal(result.task.lineageId, fixture.lineages[0]?.id)
+  assert.equal(fixture.lineages[0]?.seed, '42')
+  assert.equal(fixture.lineages[0]?.parameterSnapshot.prompt, '保留在本地项目账本的参数')
+  assert.equal(fixture.lineages[0]?.providerSnapshot.apiKey, undefined)
+  assert.equal((fixture.lineages[0]?.providerSnapshot.defaultParams as { apiKey?: string }).apiKey, '[redacted]')
+  assert.equal(fixture.costs[0]?.estimatedCost, 1.25)
+  assert.equal(fixture.costs[0]?.currency, 'CNY')
+  assert.equal(fixture.costs[0]?.status, 'estimated')
 })
 
 test('video generation service enforces a real-provider feature gate outside the renderer', async () => {

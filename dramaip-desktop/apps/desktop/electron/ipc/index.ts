@@ -22,6 +22,7 @@ import { registerCloudHandoffIpc } from './cloud-handoff.ipc'
 import { registerCloudSnapshotIpc } from './cloud-snapshot.ipc'
 import { registerSourceImportIpc } from './source-import.ipc'
 import { registerStoryBibleIpc } from './story-bible.ipc'
+import { registerGenerationIpc } from './generation.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -39,6 +40,7 @@ export function registerAllIpc(): void {
   registerProjectIpc()
   registerSourceImportIpc()
   registerStoryBibleIpc()
+  registerGenerationIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

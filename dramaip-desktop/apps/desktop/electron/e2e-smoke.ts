@@ -90,7 +90,7 @@ function verifyProductionOutcomeBaseline(): E2eSmokeStep {
       PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery !== 'known_gap' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.blockingState !== 'available' ||
-      PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'known_gap' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.providerAvailability !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.privacyBoundary.diagnosticContentDefault !== 'redacted' ||
