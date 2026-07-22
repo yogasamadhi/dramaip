@@ -93,27 +93,62 @@ export async function startBatchLongTask(
   repos: ReturnType<typeof getRepos>,
   input: BatchTaskRunInput,
 ): Promise<LongTaskOpResult> {
-  const progress = createBatchProgress(input.kind, batchTitle(input.kind), createBatchItems(repos, input))
+  const scoped = scopeBatchInputToPilot(repos, input)
+  if ('error' in scoped) return { ok: false, error: scoped.error }
+  const safeInput = scoped.input
+  const progress = createBatchProgress(safeInput.kind, batchTitle(safeInput.kind), createBatchItems(repos, safeInput))
   const longTask = repos.longTask.createLongTask(repos.db, {
     kind: 'batch',
     title: progress.title,
-    taskType: input.kind === 'scripts' ? 'batch_generate_ai_drama_script' : 'batch_split_scene_to_shots',
-    projectId: input.projectId,
-    adaptationProjectId: input.adaptationProjectId,
+    taskType: safeInput.kind === 'scripts' ? 'batch_generate_ai_drama_script' : 'batch_split_scene_to_shots',
+    projectId: safeInput.projectId,
+    adaptationProjectId: safeInput.adaptationProjectId,
     input: {
       batchInput: {
-        kind: input.kind,
-        projectId: input.projectId,
-        adaptationProjectId: input.adaptationProjectId,
-        episodeIds: input.episodeIds,
-        sceneIds: input.sceneIds,
-        limit: input.limit,
+        kind: safeInput.kind,
+        projectId: safeInput.projectId,
+        adaptationProjectId: safeInput.adaptationProjectId,
+        episodeIds: safeInput.episodeIds,
+        sceneIds: safeInput.sceneIds,
+        limit: safeInput.limit,
       },
       itemCount: progress.total,
     },
     output: progress,
   })
   return runBatchLongTask(repos, longTask.id, progress)
+}
+
+/**
+ * 批处理是最容易不小心扩成整季的高消耗入口。无论请求来自页面、工作流还是未来
+ * 调用方，都只允许当前 Profile 的前 1–3 集；越界必须由后续“试播通过→复制计划”
+ * 流程显式处理，而不是悄悄提交。
+ */
+function scopeBatchInputToPilot(
+  repos: ReturnType<typeof getRepos>,
+  input: BatchTaskRunInput,
+): { input: BatchTaskRunInput } | { error: string } {
+  const adaptation = repos.adaptationProject.getAdaptationProject(repos.db, input.adaptationProjectId)
+  if (!adaptation) return { error: '未找到改编项目' }
+  const sourceProject = adaptation.sourceProjectId ? repos.project.getProject(repos.db, adaptation.sourceProjectId) : undefined
+  const pilotCount = Math.min(3, Math.max(1, sourceProject?.productionBrief?.profile.pilotEpisodeCount ?? 3))
+  const pilotEpisodes = repos.episode.listEpisodes(repos.db, input.adaptationProjectId).slice(0, pilotCount)
+  const pilotEpisodeIds = new Set(pilotEpisodes.map((episode) => episode.id))
+  if (input.kind === 'scripts') {
+    const requested = input.episodeIds?.length ? input.episodeIds : pilotEpisodes.map((episode) => episode.id)
+    if (requested.some((episodeId) => !pilotEpisodeIds.has(episodeId))) {
+      return { error: `当前仅允许为前 ${pilotCount} 集试播范围创建批量剧本；请先完成试播审核，再创建后续计划。` }
+    }
+    return { input: { ...input, episodeIds: requested } }
+  }
+  const requestedScenes = input.sceneIds?.length
+    ? input.sceneIds.map((sceneId) => repos.scene.getScene(repos.db, sceneId)).filter((scene): scene is NonNullable<typeof scene> => Boolean(scene))
+    : []
+  if (requestedScenes.some((scene) => !pilotEpisodeIds.has(scene.episodeId))) {
+    return { error: `当前仅允许为前 ${pilotCount} 集试播范围批量拆镜；请先完成试播审核，再创建后续计划。` }
+  }
+  if (input.sceneIds?.length && requestedScenes.length !== input.sceneIds.length) return { error: '部分目标场景不存在' }
+  return { input: { ...input, episodeIds: input.episodeIds?.length ? input.episodeIds : pilotEpisodes.map((episode) => episode.id) } }
 }
 
 async function resumeBatchLongTask(

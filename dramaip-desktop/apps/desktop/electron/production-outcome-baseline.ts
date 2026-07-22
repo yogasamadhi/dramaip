@@ -93,7 +93,7 @@ export const PRODUCTION_OUTCOME_BASELINE: ProductionOutcomeBaseline = {
     ],
   },
   operationalTruth: {
-    coverage: 'known_gap',
+    coverage: 'available',
     blockingState: 'available',
     budget: 'known_gap',
     rights: 'known_gap',

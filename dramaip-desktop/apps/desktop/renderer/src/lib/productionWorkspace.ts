@@ -41,11 +41,13 @@ function progressDetail(current: number, total: number, unit: string): string {
 export function buildProductionStageSummaries(counts: ProductionWorkspaceCounts): ProductionStageSummary[] {
   const targetEpisodes = Math.max(0, counts.targetEpisodes)
   const episodeComplete = completed(counts.episodes, targetEpisodes)
-  const scriptComplete = episodeComplete && completed(counts.scripts, counts.episodes)
+  // 不能因为当前只生成了 3 集大纲和 3 集剧本，就把 20 集季目标标记为完成。
+  const scriptComplete = episodeComplete && completed(counts.scripts, targetEpisodes)
   const sceneCount = counts.scenes ?? 0
   const shotCount = counts.shots ?? 0
   const videoCount = counts.videos ?? 0
-  const sceneReady = counts.scripts > 0 && sceneCount > 0
+  const sceneReady = scriptComplete && sceneCount > 0
+  const storyboardComplete = scriptComplete && completed(sceneCount, targetEpisodes) && completed(shotCount, targetEpisodes)
 
   return [
     {
@@ -64,19 +66,19 @@ export function buildProductionStageSummaries(counts: ProductionWorkspaceCounts)
       key: 'scripts',
       label: STAGE_LABELS.scripts,
       state: counts.episodes === 0 ? 'blocked' : scriptComplete ? 'complete' : 'in_progress',
-      detail: counts.episodes === 0 ? '先完成分集规划' : progressDetail(counts.scripts, counts.episodes, '集剧本'),
+      detail: counts.episodes === 0 ? '先完成分集规划' : progressDetail(counts.scripts, targetEpisodes, '集剧本'),
     },
     {
       key: 'shots',
       label: STAGE_LABELS.shots,
-      state: counts.scripts === 0 ? 'blocked' : 'in_progress',
-      detail: counts.scripts === 0 ? '先完成剧本' : `${shotCount}/${sceneCount || '—'} 个场景已拆镜头`,
+      state: counts.scripts === 0 ? 'blocked' : storyboardComplete ? 'complete' : 'in_progress',
+      detail: counts.scripts === 0 ? '先完成剧本' : `场景 ${sceneCount}/${targetEpisodes || '—'} 集 · 镜头 ${shotCount}/${targetEpisodes || '—'} 集（最低覆盖）`,
     },
     {
       key: 'video',
       label: STAGE_LABELS.video,
       state: !sceneReady || shotCount === 0 ? 'blocked' : 'in_progress',
-      detail: !sceneReady || shotCount === 0 ? '先准备可生成镜头' : `${videoCount} 个视频结果`,
+      detail: !sceneReady || shotCount === 0 ? '先准备可生成镜头' : `${videoCount}/${targetEpisodes || '—'} 集视频候选；不代表最终交付`,
     },
   ]
 }

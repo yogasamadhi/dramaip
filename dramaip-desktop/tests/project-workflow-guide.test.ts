@@ -20,6 +20,7 @@ import {
   buildProjectWorkflowStages,
   type ProjectWorkflowSnapshot,
 } from '../apps/desktop/renderer/src/lib/projectWorkflowGuide'
+import { buildPilotProductionTruth } from '../apps/desktop/renderer/src/lib/pilotProductionTruth'
 
 const baseProject = {
   id: 'p1',
@@ -55,7 +56,7 @@ test('marks setup as the active first step for an empty project', () => {
   assert.equal(stages.every((stage) => stage.status !== 'done'), true)
 })
 
-test('advances through novel and adaptation production stages', () => {
+test('keeps a partially produced season active instead of treating one episode as full coverage', () => {
   const project = { ...baseProject, coreHook: '复仇钩子', synopsis: '女主重生反击。' }
   const characters = [{ id: 'c1', projectId: 'p1', name: '女主', role: '主角', createdAt: '', updatedAt: '' } as Character]
   const outlines = [{ id: 'o1', projectId: 'p1', type: 'book', title: '全书', content: '三幕结构', orderIndex: 0, createdAt: '', updatedAt: '' } as Outline]
@@ -108,10 +109,10 @@ test('advances through novel and adaptation production stages', () => {
     'done',
     'done',
     'done',
-    'done',
-    'done',
-    'done',
     'active',
+    'todo',
+    'todo',
+    'todo',
   ])
 })
 
@@ -128,7 +129,7 @@ test('does not combine another adaptation into the current workflow progress', (
   assert.match(stages.find((stage) => stage.key === 'adaptation')?.detail ?? '', /第一季/)
 })
 
-test('requires a usable result before video delivery is complete', () => {
+test('does not count an unscoped best result as season delivery', () => {
   const stages = buildProjectWorkflowStages(snapshot({
     videoTasks: [
       { id: 'v1', provider: 'mock', model: 'mock', prompt: 'p', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask,
@@ -137,8 +138,44 @@ test('requires a usable result before video delivery is complete', () => {
   }))
   const video = stages.find((stage) => stage.key === 'video')
 
-  assert.equal(video?.complete, true)
-  assert.equal(video?.detail, '成功任务 1 个，已选最佳视频 1 个')
+  assert.equal(video?.complete, false)
+  assert.match(video?.detail ?? '', /0\/3/)
+})
+
+test('shows 3/20 script coverage and prevents one best shot from completing a season', () => {
+  const project = {
+    ...baseProject,
+    targetEpisodeCount: 20,
+    productionBrief: { version: 1, creationGoal: 'novel_to_drama', profile: { presentation: 'ai_2d_animation', platform: 'short_video_vertical', region: 'mainland_china', aspectRatio: '9:16', episodeDuration: { minSeconds: 60, maxSeconds: 120 }, pilotEpisodeCount: 3, budgetTier: 'starter' }, nextStep: 'write_or_plan' },
+  } as Project
+  const adaptation = { id: 'a1', sourceProjectId: 'p1', title: '第一季', targetEpisodeCount: 20, adaptationStyle: '爽剧', createdAt: '', updatedAt: '' } as AdaptationProject
+  const episodes = [1, 2, 3].map((episodeNumber) => ({ id: `e${episodeNumber}`, adaptationProjectId: 'a1', episodeNumber })) as Episode[]
+  const scripts = episodes.map((episode) => ({ id: `s${episode.episodeNumber}`, adaptationProjectId: 'a1', episodeId: episode.id, episodeNumber: episode.episodeNumber, title: `第${episode.episodeNumber}集`, content: '剧本', createdAt: '', updatedAt: '' } as Script))
+  const scenes = episodes.map((episode) => ({ id: `sc${episode.episodeNumber}`, scriptId: `s${episode.episodeNumber}`, episodeId: episode.id, sceneNumber: 1, title: '场景', location: '室内', visualDescription: '画面', characters: [], summary: '剧情', orderIndex: 0, createdAt: '', updatedAt: '' } as Scene))
+  const shots = episodes.map((episode) => ({ id: `sh${episode.episodeNumber}`, sceneId: `sc${episode.episodeNumber}`, episodeId: episode.id, shotNumber: 1, visualDescription: '特写', characterIds: [], videoPrompt: 'prompt', createdAt: '', updatedAt: '' } as Shot))
+  const truth = buildPilotProductionTruth({
+    project,
+    chapters: [],
+    qualityReports: [],
+    activeAdaptation: adaptation,
+    episodes,
+    scripts,
+    scenes,
+    shots,
+    videoTasks: [{ id: 'v1', episodeId: 'e1', provider: 'mock', model: 'mock', prompt: 'p', referenceImageUrls: [], status: 'success', createdAt: '', updatedAt: '' } as VideoGenerationTask],
+    videoResults: [{ id: 'r1', taskId: 'v1', resultVideoUrl: 'https://example.test/video.mp4', isBest: true, createdAt: '' } as VideoResult],
+  })
+
+  assert.deepEqual(truth.coverage.map((coverage) => [coverage.key, coverage.detail]), [
+    ['episodes', '3/20 集'],
+    ['scripts', '3/20 集'],
+    ['scenes', '3/20 集'],
+    ['shots', '3/20 集'],
+    ['video', '1/20 集'],
+  ])
+  assert.equal(truth.pilotCoverage.find((coverage) => coverage.key === 'video')?.detail, '1/3 集')
+  assert.equal(truth.coverage.find((coverage) => coverage.key === 'video')?.complete, false)
+  assert.equal(truth.canCreateExpansionPlan, false)
 })
 
 test('uses the latest matching quality report and marks changed sources stale', () => {

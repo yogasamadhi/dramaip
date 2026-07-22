@@ -42,6 +42,7 @@ export function ScriptWorkspacePage() {
   const [adaptation, setAdaptation] = useState<AdaptationProject | null>(null)
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [scripts, setScripts] = useState<Script[]>([])
+  const [pilotEpisodeCount, setPilotEpisodeCount] = useState(3)
   const [activeEpisodeId, setActiveEpisodeId] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
   const [busy, setBusy] = useState<string | null>(null)
@@ -56,7 +57,11 @@ export function ScriptWorkspacePage() {
       ipc.script.list(id),
     ])
     setAdaptation(a ?? null)
-    if (a?.sourceProjectId) await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
+    if (a?.sourceProjectId) {
+      const sourceProject = await ipc.project.get(a.sourceProjectId)
+      setPilotEpisodeCount(Math.min(3, Math.max(1, sourceProject?.productionBrief?.profile.pilotEpisodeCount ?? 3)))
+      await ipc.project.setActiveAdaptation(a.sourceProjectId, a.id)
+    }
     setEpisodes(eps)
     setScripts(scs)
     setActiveEpisodeId((cur) => {
@@ -117,16 +122,16 @@ export function ScriptWorkspacePage() {
     }
   }
 
-  // ===== AI：批量生成前 N 集 =====
+  // ===== AI：只批量生成项目 Profile 选定的 1–3 集试播 =====
   async function runBatch(count: number) {
     if (!adaptation || episodes.length === 0) return
-    const targets = episodes.slice(0, count).filter((ep) => !scripts.some((script) => script.episodeId === ep.id))
+    const targets = episodes.slice(0, Math.min(count, pilotEpisodeCount)).filter((ep) => !scripts.some((script) => script.episodeId === ep.id))
     if (targets.length === 0) {
-      toast.message(`前 ${Math.min(count, episodes.length)} 集已生成剧本`)
+      toast.message(`试播范围前 ${Math.min(count, pilotEpisodeCount, episodes.length)} 集已生成剧本`)
       return
     }
     setBusy('batch')
-    const tid = toast.loading(`正在批量生成前 ${targets.length} 集剧本…（可能需要较长时间）`)
+    const tid = toast.loading(`正在批量生成试播范围内的 ${targets.length} 集剧本…（可能需要较长时间）`)
     try {
       const res = await ipc.batchTask.run({
         kind: 'scripts',
@@ -179,7 +184,7 @@ export function ScriptWorkspacePage() {
       counts={{ targetEpisodes: adaptation.targetEpisodeCount, episodes: episodes.length, scripts: scripts.length }}
       activeEpisodeId={activeEpisode?.id}
       activeEpisodeLabel={activeEpisode ? `第 ${activeEpisode.episodeNumber} 集` : undefined}
-      actions={<Button size="sm" disabled={busy === 'batch' || episodes.length === 0} onClick={() => runBatch(10)} title="批量生成前 10 集剧本">{busy === 'batch' ? <Loader2 className="animate-spin" /> : <ListVideo />}批量生成前 10 集</Button>}
+      actions={<Button size="sm" disabled={busy === 'batch' || episodes.length === 0} onClick={() => runBatch(pilotEpisodeCount)} title={`批量生成前 ${pilotEpisodeCount} 集试播剧本`}>{busy === 'batch' ? <Loader2 className="animate-spin" /> : <ListVideo />}生成 {pilotEpisodeCount} 集试播剧本</Button>}
       exports={[
         { label: '分集交付包（Markdown）', onSelect: () => ipc.export.dramaEpisodeDeliveryMarkdown(adaptation.id) },
         { label: '分集交付包（JSON）', onSelect: () => ipc.export.dramaEpisodeDeliveryJson(adaptation.id) },

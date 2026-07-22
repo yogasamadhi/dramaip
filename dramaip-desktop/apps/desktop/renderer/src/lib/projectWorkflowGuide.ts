@@ -3,6 +3,7 @@ import type {
   Chapter,
   Character,
   Episode,
+  LongTask,
   Outline,
   Project,
   QualityGateReport,
@@ -12,7 +13,7 @@ import type {
   VideoGenerationTask,
   VideoResult,
 } from '@sdns/core'
-import { buildProjectQualityGateTruth } from './qualityGateTruth'
+import { buildPilotProductionTruth } from './pilotProductionTruth'
 
 export type ProjectWorkflowStageKey =
   | 'setup'
@@ -42,6 +43,7 @@ export interface ProjectWorkflowSnapshot {
   shots: Shot[]
   videoTasks: VideoGenerationTask[]
   videoResults: VideoResult[]
+  longTasks?: LongTask[]
 }
 
 export interface ProjectWorkflowStage {
@@ -89,47 +91,34 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     shots,
     videoTasks,
     videoResults,
+    longTasks = [],
   } = snapshot
 
   const chaptersWithContent = chapters.filter((chapter) => hasText(chapter.content))
   const bookOutlineCount = outlines.filter((outline) => outline.type === 'book' && hasText(outline.content)).length
   const chapterOutlineCount = outlines.filter((outline) => outline.type === 'chapter' && hasText(outline.content)).length
   // 即使调用方误把多季数组传入，也只用当前改编的完整下游链路计算进度。
-  const scopedEpisodes = activeAdaptation
-    ? episodes.filter((episode) => episode.adaptationProjectId === activeAdaptation.id)
-    : episodes
-  const scopedEpisodeIds = new Set(scopedEpisodes.map((episode) => episode.id))
-  const scopedScripts = activeAdaptation
-    ? scripts.filter((script) => script.adaptationProjectId === activeAdaptation.id)
-    : scripts
-  const scopedScriptIds = new Set(scopedScripts.map((script) => script.id))
-  const scopedScenes = activeAdaptation
-    ? scenes.filter((scene) => scopedScriptIds.has(scene.scriptId))
-    : scenes
-  const scopedSceneIds = new Set(scopedScenes.map((scene) => scene.id))
-  const scopedShots = activeAdaptation
-    ? shots.filter((shot) => scopedSceneIds.has(shot.sceneId) || scopedEpisodeIds.has(shot.episodeId))
-    : shots
-  const scopedShotIds = new Set(scopedShots.map((shot) => shot.id))
-  const scopedVideoTasks = activeAdaptation
-    ? videoTasks.filter((task) =>
-      (task.episodeId && scopedEpisodeIds.has(task.episodeId)) ||
-      (task.sceneId && scopedSceneIds.has(task.sceneId)) ||
-      (task.shotId && scopedShotIds.has(task.shotId)),
-    )
-    : videoTasks
-  const scopedVideoTaskIds = new Set(scopedVideoTasks.map((task) => task.id))
-  const scopedVideoResults = activeAdaptation
-    ? videoResults.filter((result) => scopedVideoTaskIds.has(result.taskId))
-    : videoResults
-  const qualityTruth = buildProjectQualityGateTruth({
+  const productionTruth = buildPilotProductionTruth({
     project,
     chapters,
     characters,
     outlines,
-    reports: qualityReports,
+    qualityReports,
+    activeAdaptation,
+    episodes,
+    scripts,
+    scenes,
+    shots,
+    videoTasks,
+    videoResults,
+    longTasks,
   })
-  const videoTruth = buildVideoDeliveryTruth(scopedVideoTasks, scopedVideoResults)
+  const coverage = new Map(productionTruth.coverage.map((item) => [item.key, item]))
+  const episodeCoverage = coverage.get('episodes')!
+  const scriptCoverage = coverage.get('scripts')!
+  const sceneCoverage = coverage.get('scenes')!
+  const shotCoverage = coverage.get('shots')!
+  const videoCoverage = coverage.get('video')!
 
   return withStatus([
     {
@@ -169,38 +158,38 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     {
       key: 'quality',
       title: '质量闸门',
-      complete: qualityTruth.state === 'current' && qualityTruth.report?.verdict !== 'block',
-      detail: qualityTruth.detail,
+      complete: productionTruth.source.state === 'approved',
+      detail: productionTruth.source.detail,
       actionLabel: '查质量',
     },
     {
       key: 'adaptation',
       title: '改编',
-      complete: Boolean(activeAdaptation && scopedEpisodes.length > 0),
+      complete: Boolean(activeAdaptation && episodeCoverage.complete),
       detail: activeAdaptation
-        ? `当前第 ${activeAdaptation.seasonNumber ?? 1} 季「${activeAdaptation.title}」，分集 ${scopedEpisodes.length} 集`
+        ? `当前第 ${activeAdaptation.seasonNumber ?? 1} 季「${activeAdaptation.title}」，分集 ${episodeCoverage.detail}（本季目标）`
         : '创建短剧改编项目',
       actionLabel: activeAdaptation ? '看分集' : '建改编',
     },
     {
       key: 'scripts',
       title: '剧本',
-      complete: scopedScripts.length > 0,
-      detail: scopedScripts.length > 0 ? `已有 ${scopedScripts.length} 集剧本` : '生成或编写分集剧本',
+      complete: scriptCoverage.complete,
+      detail: scriptCoverage.completed > 0 ? `剧本覆盖 ${scriptCoverage.detail}（本季目标）` : `生成或编写分集剧本（目标 ${scriptCoverage.target} 集）`,
       actionLabel: '写剧本',
     },
     {
       key: 'shots',
       title: '分镜',
-      complete: scopedScenes.length > 0 && scopedShots.length > 0,
-      detail: scopedShots.length > 0 ? `场景 ${scopedScenes.length} 个，镜头 ${scopedShots.length} 个` : '拆分场景和镜头',
+      complete: sceneCoverage.complete && shotCoverage.complete,
+      detail: `场景覆盖 ${sceneCoverage.detail} · 镜头覆盖 ${shotCoverage.detail}（按集计）`,
       actionLabel: '拆分镜',
     },
     {
       key: 'video',
-      title: '视频',
-      complete: videoTruth.complete,
-      detail: videoTruth.detail,
+      title: '视频候选',
+      complete: videoCoverage.complete,
+      detail: `已选视频覆盖 ${videoCoverage.detail}（按集计；不代表含音频/字幕的最终交付）`,
       actionLabel: '做视频',
     },
   ])

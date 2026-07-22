@@ -13,7 +13,7 @@ test('production shell only marks downstream stages complete from their real loc
   assert.equal(inProgress.find((stage) => stage.key === 'shots')?.state, 'in_progress')
 
   const downstreamPreview = buildProductionStageSummaries({ targetEpisodes: 2, episodes: 2, scripts: 2, scenes: 3, shots: 3, videos: 1 })
-  assert.deepEqual(downstreamPreview.map((stage) => stage.state), ['complete', 'complete', 'complete', 'in_progress', 'in_progress'])
+  assert.deepEqual(downstreamPreview.map((stage) => stage.state), ['complete', 'complete', 'complete', 'complete', 'in_progress'])
 })
 
 test('production shell keeps an episode context when moving between downstream stages', () => {

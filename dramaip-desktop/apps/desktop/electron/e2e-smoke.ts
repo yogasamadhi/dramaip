@@ -59,6 +59,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const outcomeBaselineStep = verifyProductionOutcomeBaseline()
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
+  const coverageTruthStep = verifySeasonCoverageTruth(p0.fixture)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
   const structuredScriptStep = await verifyStructuredScriptRenderer(win, p0.fixture)
@@ -73,7 +74,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
   }
 }
 
@@ -87,7 +88,7 @@ function verifyProductionOutcomeBaseline(): E2eSmokeStep {
       manuscript?.state !== 'known_gap' ||
       script?.state !== 'known_gap' ||
       PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery !== 'known_gap' ||
-      PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.blockingState !== 'available' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'known_gap' ||
       PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'known_gap' ||
@@ -530,12 +531,43 @@ function verifyMainWorkflowGuide(fixture: P0Fixture): void {
     videoResults: [],
   })
   const done = new Set(stages.filter((stage) => stage.complete).map((stage) => stage.key))
-  const requiredStages = ['setup', 'characters', 'outline', 'chapters', 'quality', 'adaptation', 'scripts'] as const
+  const requiredStages = ['setup', 'characters', 'outline', 'chapters', 'quality'] as const
   for (const key of requiredStages) {
     if (!done.has(key)) throw new Error(`workflow stage not complete: ${key}`)
   }
-  const shotsStage = stages.find((stage) => stage.key === 'shots')
-  if (shotsStage?.status !== 'active') throw new Error(`shots stage should be active, got ${shotsStage?.status}`)
+  const adaptationStage = stages.find((stage) => stage.key === 'adaptation')
+  if (adaptationStage?.complete || adaptationStage?.status !== 'active') throw new Error(`partial season should remain active, got ${adaptationStage?.status}`)
+}
+
+/** E2E fixture 固定为 24 集目标但只建立前三集，覆盖率必须反映目标而不是已有记录。 */
+function verifySeasonCoverageTruth(fixture: P0Fixture): E2eSmokeStep {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const stages = buildProjectWorkflowStages({
+      project: fixture.project,
+      chapters: repos.chapter.listChapters(repos.db, fixture.project.id),
+      characters: repos.character.listCharacters(repos.db, fixture.project.id),
+      outlines: repos.outline.listOutlines(repos.db, fixture.project.id),
+      qualityReports: repos.creative.listQualityGateReports(repos.db, fixture.project.id),
+      adaptations: [fixture.adaptation],
+      activeAdaptation: fixture.adaptation,
+      episodes: repos.episode.listEpisodes(repos.db, fixture.adaptation.id),
+      scripts: repos.script.listScripts(repos.db, fixture.adaptation.id),
+      scenes: repos.scene.listScenesByScript(repos.db, fixture.script.id),
+      shots: [],
+      videoTasks: [],
+      videoResults: [],
+    })
+    const adaptation = stages.find((stage) => stage.key === 'adaptation')
+    const scripts = stages.find((stage) => stage.key === 'scripts')
+    if (adaptation?.complete || scripts?.complete || !/3\/24/.test(adaptation?.detail ?? '') || !/1\/24/.test(scripts?.detail ?? '')) {
+      throw new Error(`season coverage is not target-based: adaptation=${adaptation?.detail ?? 'missing'}; scripts=${scripts?.detail ?? 'missing'}`)
+    }
+    return { name: 'season-target-coverage-not-record-existence', ok: true, durationMs: Date.now() - startedAt, detail: { adaptation: adaptation?.detail ?? 'missing', scripts: scripts?.detail ?? 'missing' } }
+  } catch (error) {
+    return { name: 'season-target-coverage-not-record-existence', ok: false, durationMs: Date.now() - startedAt, error: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 function verifyAgentCommandPlans(fixture: P0Fixture): void {
