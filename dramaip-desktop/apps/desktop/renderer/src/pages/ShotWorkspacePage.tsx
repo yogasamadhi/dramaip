@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -689,6 +689,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             {sourceProjectId && <AnimaticPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <AudioProductionPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <EpisodeQualityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1540,6 +1541,125 @@ function EpisodeDeliveryPanel({ projectId, adaptationProjectId, episodeId }: { p
     {taskStaleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史成片仍可回看，但已过期：{taskStaleReason}</p>}
     {task?.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{task.errorMessage}</p>}
     {task?.status === 'success' && archive?.mp4Path && <div className="flex flex-wrap gap-2 rounded border border-emerald-500/40 bg-background/60 p-2 text-xs"><span>归档完成：</span><a className="underline" href={localFileUrl(archive.mp4Path)}>MP4</a>{archive.srtPath && <a className="underline" href={localFileUrl(archive.srtPath)}>SRT</a>}{archive.vttPath && <a className="underline" href={localFileUrl(archive.vttPath)}>VTT</a>}{archive.audioPath && <a className="underline" href={localFileUrl(archive.audioPath)}>混音 M4A</a>}{archive.manifestPath && <a className="underline" href={localFileUrl(archive.manifestPath)}>Manifest</a>}</div>}
+  </section>
+}
+
+function EpisodeQualityPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [renders, setRenders] = useState<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>([])
+  const [reports, setReports] = useState<Array<{ task: LongTask; report?: EpisodeQualityReport; reportPath?: string; stale: boolean; staleReason?: string }>>([])
+  const [acknowledgements, setAcknowledgements] = useState<QualityIssueAcknowledgement[]>([])
+  const [renderTaskId, setRenderTaskId] = useState('')
+  const [riskNotes, setRiskNotes] = useState<Record<string, string>>({})
+  const [busy, setBusy] = useState<'start' | 'redo' | 'retry' | 'cancel' | null>(null)
+  const listInput = useMemo(() => ({ projectId, adaptationProjectId, episodeId }), [adaptationProjectId, episodeId, projectId])
+  const load = useCallback(async () => {
+    const [nextRenders, nextReports, nextAcknowledgements] = await Promise.all([
+      ipc.episodeRender.listByEpisode(listInput),
+      ipc.episodeQuality.listByEpisode(listInput),
+      ipc.creative.listQualityIssueAcknowledgements(projectId),
+    ])
+    setRenders(nextRenders)
+    setReports(nextReports)
+    setAcknowledgements(nextAcknowledgements)
+    const usable = nextRenders.filter((item) => item.task.status === 'success' && !item.stale)
+    setRenderTaskId((current) => usable.some((item) => item.task.id === current) ? current : usable[0]?.task.id ?? '')
+  }, [listInput, projectId])
+
+  useEffect(() => { void load().catch((error) => toast.error(`读取媒体质检状态失败：${error instanceof Error ? error.message : String(error)}`)) }, [load])
+  useEffect(() => {
+    if (!reports.some((item) => item.task.status === 'pending' || item.task.status === 'running')) return
+    const timer = window.setInterval(() => { void load() }, 1_000)
+    return () => window.clearInterval(timer)
+  }, [load, reports])
+
+  const latest = reports[0]
+  const report = latest?.report
+  const latestAcknowledgements = useMemo(() => {
+    const values = new Map<string, QualityIssueAcknowledgement>()
+    for (const acknowledgement of acknowledgements) {
+      const previous = values.get(acknowledgement.issueId)
+      if (!previous || acknowledgement.createdAt > previous.createdAt || (acknowledgement.createdAt === previous.createdAt && acknowledgement.id > previous.id)) values.set(acknowledgement.issueId, acknowledgement)
+    }
+    return values
+  }, [acknowledgements])
+
+  async function start() {
+    if (!renderTaskId) return toast.error('没有可用的当前成片；请先通过交付预检并完成 MP4 渲染。')
+    setBusy('start')
+    try {
+      const result = await ipc.episodeQuality.start({ ...listInput, renderTaskId })
+      if (!result.ok) return toast.error(result.error ?? '无法开始媒体质检。')
+      toast.success('已开始只读媒体质检：不会替换素材，也不会自动重跑已通过镜头。')
+      await load()
+    } catch (error) { toast.error(`开始媒体质检失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function retry() {
+    if (!latest) return
+    setBusy('retry')
+    try {
+      const result = await ipc.longTask.retry(latest.task.id)
+      if (!result.ok) toast.error(result.error ?? '无法重试媒体质检。')
+      await load()
+    } catch (error) { toast.error(`重试媒体质检失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function cancel() {
+    if (!latest) return
+    setBusy('cancel')
+    try {
+      const result = await ipc.longTask.cancel(latest.task.id)
+      if (!result.ok) toast.error(result.error ?? '媒体质检无法取消。')
+      await load()
+    } catch (error) { toast.error(`取消媒体质检失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function acceptRisk(issue: EpisodeQualityReport['issues'][number]) {
+    const note = riskNotes[issue.id]?.trim()
+    if (!note) return toast.error('请填写接受风险的理由；它会与当前交付版本和时间戳一并审计。')
+    try {
+      await ipc.creative.acknowledgeQualityIssue({
+        projectId,
+        adaptationProjectId,
+        issueId: issue.id,
+        issueKind: `episode_media_${issue.kind}`,
+        issueTitle: `${report?.deliveryVersion ?? '未知交付'}：${issue.title}`,
+        issueDetail: issue.detail,
+        disposition: 'accepted',
+        note,
+      })
+      await load()
+      toast.success(issue.severity === 'blocker' ? '已记录风险接受；blocker 仍不会被自动放行。' : '已记录风险接受及审计时间。')
+    } catch (error) { toast.error(`记录风险接受失败：${error instanceof Error ? error.message : String(error)}`) }
+  }
+
+  async function createRedoPlan() {
+    if (!latest) return
+    setBusy('redo')
+    try {
+      const result = await ipc.episodeQuality.createMinimalRedoPlan({ ...listInput, qualityTaskId: latest.task.id })
+      if (!result.ok) return toast.error(result.error ?? '无法创建返工清单。')
+      toast.success(`已创建最小返工清单：只包含 ${report?.redoTargets.length ?? 0} 个失败目标。`)
+      await load()
+    } catch (error) { toast.error(`创建返工清单失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  const usableRenders = renders.filter((item) => item.task.status === 'success' && !item.stale)
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-episode-quality-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">成片媒体质检与最小返工</h3><p className="text-xs text-muted-foreground">检查文件可读性、时长、720×1280 画幅、黑帧/冻结、静音/削波/响度、字幕时序及连续性。嘴型同步未接入可靠模型，仅明确标示为人工核对项。</p></div><div className="flex flex-wrap gap-2"><select aria-label="待质检成片" value={renderTaskId} onChange={(event) => setRenderTaskId(event.target.value)} className="h-8 max-w-56 rounded border bg-background px-2 text-xs"><option value="">选择当前成片</option>{usableRenders.map((item) => <option key={item.task.id} value={item.task.id}>渲染 {item.task.id.slice(0, 8)} · {item.task.finishedAt ?? item.task.updatedAt}</option>)}</select><Button size="sm" disabled={busy !== null || !renderTaskId || latest?.task.status === 'running' || latest?.task.status === 'pending'} onClick={() => void start()}>{busy === 'start' ? <Loader2 className="animate-spin" /> : null}运行媒体质检</Button></div></div>
+    {usableRenders.length === 0 && <p className="rounded border border-dashed p-2 text-xs text-amber-700">尚无当前 MP4。过期的历史成片不能作为质检或交付真值，请重新渲染后再执行检查。</p>}
+    {latest && <div className="flex flex-wrap items-center gap-2 rounded border bg-background/60 p-2 text-xs"><Badge variant={latest.stale || latest.task.status === 'failed' ? 'destructive' : latest.task.status === 'success' ? 'default' : 'outline'}>{latest.stale ? '报告 stale' : `质检：${latest.task.status}`}</Badge><span>交付版本：{report?.deliveryVersion ?? (latest.task.input?.episodeQuality as { renderTaskId?: string } | undefined)?.renderTaskId?.slice(0, 8) ?? '待解析'}</span>{(latest.task.status === 'pending' || latest.task.status === 'running') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void cancel()}>取消质检</Button>}{(latest.task.status === 'failed' || latest.task.status === 'canceled') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void retry()}>重试质检</Button>}</div>}
+    {latest?.staleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史报告仍可审计，但不能继续用于交付：{latest.staleReason}</p>}
+    {latest?.task.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{latest.task.errorMessage}</p>}
+    {report && <div className="space-y-2 rounded border bg-background/60 p-2 text-xs">
+      <div className="flex flex-wrap items-center gap-2"><Badge variant={report.blockerCount ? 'destructive' : report.warningCount ? 'outline' : 'default'}>{report.blockerCount ? `${report.blockerCount} blocker` : '无 blocker'}</Badge><span>{report.warningCount} warning</span><span>版本：{report.deliveryVersion}</span><span>生成：{report.generatedAt}</span>{latest.reportPath && <a className="underline" href={localFileUrl(latest.reportPath)}>JSON 报告</a>}</div>
+      {report.redoTargets.length > 0 && <div className="flex flex-wrap items-center gap-2 rounded border border-destructive/30 p-2"><span>仅返工失败目标：{report.redoTargets.map((target) => `${target.kind}${target.targetId ? `:${target.targetId.slice(0, 8)}` : ''}`).join('、')}</span><Button size="sm" variant="outline" disabled={busy !== null || latest.stale} onClick={() => void createRedoPlan()}>{busy === 'redo' ? <Loader2 className="animate-spin" /> : null}创建最小返工清单</Button></div>}
+      <div className="space-y-1">{report.issues.map((issue) => {
+        const acknowledgement = latestAcknowledgements.get(issue.id)
+        return <div key={issue.id} className={issue.severity === 'blocker' ? 'rounded border border-destructive/40 bg-destructive/5 p-2' : issue.severity === 'warning' ? 'rounded border border-amber-500/40 p-2' : 'rounded border p-2 text-muted-foreground'}><div className="flex flex-wrap gap-2"><Badge variant={issue.severity === 'blocker' ? 'destructive' : 'outline'}>{issue.severity}</Badge><span className="font-medium">{issue.title}</span>{issue.startSeconds !== undefined && <span>{issue.startSeconds.toFixed(2)}–{issue.endSeconds?.toFixed(2)} 秒</span>}</div><p className="mt-1">{issue.detail}</p>{acknowledgement?.disposition === 'accepted' ? <p className="mt-1 text-muted-foreground">已接受风险 · Owner：{acknowledgement.actorLabel} · {acknowledgement.createdAt} · {acknowledgement.note}</p> : issue.severity !== 'info' ? <div className="mt-2 flex flex-wrap gap-2"><Input aria-label={`${issue.id} 风险理由`} value={riskNotes[issue.id] ?? ''} onChange={(event) => setRiskNotes((current) => ({ ...current, [issue.id]: event.target.value }))} placeholder="接受风险理由（必填）" className="h-8 max-w-sm text-xs" /><Button size="sm" variant="outline" onClick={() => void acceptRisk(issue)}>记录接受风险{issue.severity === 'blocker' ? '（不放行）' : ''}</Button></div> : null}</div>
+      })}</div>
+      <p className="text-muted-foreground">{report.limitations.join(' ')}</p>
+    </div>}
   </section>
 }
 

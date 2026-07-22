@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import { buildEpisodeRenderPlan, type AnimaticDraft, type AudioTrack, type Shot } from '../packages/core/src'
 import { renderEpisodeFiles, type EpisodeRenderAudioSource } from '../apps/desktop/electron/episode-render'
+import { inspectEpisodeMedia } from '../apps/desktop/electron/episode-quality'
 
 const requireFromDesktop = createRequire(join(process.cwd(), 'apps/desktop/package.json'))
 const bundledFfmpegPath = requireFromDesktop('ffmpeg-static') as string | null
@@ -42,6 +43,12 @@ test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix 
     assert.ok((await stat(archive.vttPath)).size > 0)
     assert.ok((await stat(archive.audioPath)).size > 1_000)
     assert.ok((await stat(archive.manifestPath)).size > 0)
+    const inspection = await inspectEpisodeMedia(ffmpegPath!, archive.mp4Path, new AbortController().signal)
+    assert.equal(inspection.readable, true)
+    assert.equal(inspection.width, 720)
+    assert.equal(inspection.height, 1280)
+    assert.equal(inspection.hasVideo, true)
+    assert.equal(inspection.hasAudio, true)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
