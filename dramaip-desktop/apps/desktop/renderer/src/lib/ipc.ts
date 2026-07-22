@@ -80,6 +80,7 @@ import type {
   VisualAssetSlot,
   VisualAssetVersion,
   ShotVisualAssetLock,
+  ShotStillCandidate,
   WritingRoomResult,
   WritingRoomTargetKind,
   WorkflowRun,
@@ -534,6 +535,11 @@ export interface StudioApi {
     adopt(id: string): Promise<VisualAssetVersion | undefined>
     listLocksByShot(shotId: string): Promise<ShotVisualAssetLock[]>
     lockShot(data: Pick<ShotVisualAssetLock, 'projectId' | 'shotId' | 'visualAssetVersionId' | 'role'>): Promise<ShotVisualAssetLock>
+  }
+  shotStill: {
+    listByShot(shotId: string): Promise<ShotStillCandidate[]>
+    create(data: Pick<ShotStillCandidate, 'projectId' | 'shotId' | 'assetId' | 'kind' | 'label'> & Pick<Partial<ShotStillCandidate>, 'notes'>): Promise<ShotStillCandidate>
+    adopt(id: string): Promise<ShotStillCandidate | undefined>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

@@ -638,6 +638,22 @@ CREATE TABLE IF NOT EXISTS shot_visual_asset_locks (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS shot_still_candidates (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  shot_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'candidate',
+  label TEXT NOT NULL,
+  notes TEXT,
+  source_fingerprint TEXT,
+  stale_at TEXT,
+  stale_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generation_lineages (
   id TEXT PRIMARY KEY,
   project_id TEXT,

@@ -747,6 +747,14 @@ export const shotVisualAssetLocks = sqliteTable('shot_visual_asset_locks', {
   updatedAt: text('updated_at').notNull(),
 })
 
+export const shotStillCandidates = sqliteTable('shot_still_candidates', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), shotId: text('shot_id').notNull(), assetId: text('asset_id').notNull(),
+  kind: text('kind', { enum: ['still', 'first_frame', 'last_frame', 'cover'] }).notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  label: text('label').notNull(), notes: text('notes'), sourceFingerprint: text('source_fingerprint'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
 // LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
 // 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
 export const generationLineages = sqliteTable('generation_lineages', {

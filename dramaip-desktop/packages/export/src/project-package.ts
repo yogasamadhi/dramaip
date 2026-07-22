@@ -64,6 +64,7 @@ import type {
   Scene,
   Script,
   Shot,
+  ShotStillCandidate,
   StoryEvent,
   ShotVisualAssetLock,
   VisualAssetVersion,
@@ -74,7 +75,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 9
+export const PACKAGE_VERSION = 10
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -126,6 +127,8 @@ export interface ProjectPackage {
   visualAssetVersions?: VisualAssetVersion[]
   /** 分镜锁定的精确视觉版本；上游改版不会静默替换这些锁。 */
   shotVisualAssetLocks?: ShotVisualAssetLock[]
+  /** 每镜头的静帧 / 首尾帧 / 封面候选与采用历史；素材本体仍由 assets 引用。 */
+  shotStillCandidates?: ShotStillCandidate[]
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
@@ -216,6 +219,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
   const visualAssetVersions = options.includeAssets ? repos.visualAsset.listVisualAssetVersionsByProject(db, projectId) : []
   const shotVisualAssetLocks = options.includeAssets ? repos.visualAsset.listShotVisualAssetLocksByProject(db, projectId) : []
+  const shotStillCandidates = options.includeAssets ? repos.shotStill.listShotStillCandidatesByProject(db, projectId) : []
 
   // 衍生改编项目
   const adaptations = repos.adaptationProject
@@ -270,6 +274,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     assetRightsRecords,
     visualAssetVersions,
     shotVisualAssetLocks,
+    shotStillCandidates,
     generationLineages,
     generationCostEntries,
     adaptations,
@@ -805,6 +810,43 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         // 导入后资产引用仍可能是 missing；保留历史 stale 文案，交由用户重新确认。
         repos.visualAsset.setShotVisualAssetLockStaleState(db, created.id, lock.staleAt, lock.staleReason)
       }
+    }
+
+    // 18.07 静帧候选：只重建候选和采用关系，不把历史媒体覆盖进镜头字段。
+    // 新库的镜头时间戳不同但内容相同，因此重新锚定 sourceFingerprint；原有 stale 状态仍保留。
+    const adoptedStillCandidateIds: string[] = []
+    const staleStillCandidates: Array<{ id: string; staleAt?: string; staleReason: string }> = []
+    const orderedStillCandidates = [...(pkg.shotStillCandidates ?? [])].sort((left, right) =>
+      `${left.shotId}:${left.kind}:${left.createdAt}`.localeCompare(`${right.shotId}:${right.kind}:${right.createdAt}`),
+    )
+    for (const candidate of orderedStillCandidates) {
+      const shotId = idMap.get(candidate.shotId)
+      const assetId = assetIdMap.get(candidate.assetId)
+      if (!shotId || !assetId) continue
+      const importedShot = repos.shot.getShot(db, shotId)
+      if (!importedShot) continue
+      const created = repos.shotStill.createShotStillCandidate(db, {
+        ...stripId(candidate),
+        projectId: newProject.id,
+        shotId,
+        assetId,
+        sourceFingerprint: importedShot.updatedAt,
+        status: candidate.status === 'adopted' ? 'candidate' : candidate.status,
+      })
+      if (candidate.status === 'adopted') adoptedStillCandidateIds.push(created.id)
+      if (candidate.staleReason) {
+        staleStillCandidates.push({ id: created.id, staleAt: candidate.staleAt, staleReason: candidate.staleReason })
+      }
+    }
+    for (const candidateId of adoptedStillCandidateIds) {
+      const current = repos.shotStill.getShotStillCandidate(db, candidateId)
+      if (current) {
+        const importedShot = repos.shot.getShot(db, current.shotId)
+        repos.shotStill.adoptShotStillCandidate(db, candidateId, importedShot?.updatedAt)
+      }
+    }
+    for (const candidate of staleStillCandidates) {
+      repos.shotStill.setShotStillCandidateStaleState(db, candidate.id, candidate.staleAt, candidate.staleReason)
     }
 
     // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它

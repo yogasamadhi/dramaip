@@ -40,6 +40,11 @@ const api = {
     listLocksByShot: (shotId: string) => invoke('visualAsset:listLocksByShot', shotId),
     lockShot: (data: unknown) => invoke('visualAsset:lockShot', data),
   },
+  shotStill: {
+    listByShot: (shotId: string) => invoke('shotStill:listByShot', shotId),
+    create: (data: unknown) => invoke('shotStill:create', data),
+    adopt: (id: string) => invoke('shotStill:adopt', id),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

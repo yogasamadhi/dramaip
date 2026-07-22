@@ -162,6 +162,9 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('visualAsset:lockShot', [{
     projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: 'costume',
   }]), [{ projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: 'costume' }])
+  assert.deepEqual(validateIpcArgs('shotStill:create', [{
+    projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本',
+  }]), [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本' }])
   assert.deepEqual(
     validateIpcArgs('asset:create', [
       {
@@ -232,6 +235,7 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('asset:update', ['a1', { status: 'lost' }]), /status/)
   assert.throws(() => validateIpcArgs('visualAsset:create', [{ projectId: 'p1', ownerKind: 'bad', ownerId: 'vp1', assetId: 'asset1', slot: 'costume', label: 'x' }]), /ownerKind/)
   assert.throws(() => validateIpcArgs('visualAsset:lockShot', [{ projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: '' }]), /role/)
+  assert.throws(() => validateIpcArgs('shotStill:create', [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'bad', label: 'x' }]), /kind/)
   assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
   assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
 })

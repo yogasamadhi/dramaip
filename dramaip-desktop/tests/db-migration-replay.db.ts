@@ -152,6 +152,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'asset_rights_records'))
     assert.ok(tableExists(raw, 'visual_asset_versions'))
     assert.ok(tableExists(raw, 'shot_visual_asset_locks'))
+    assert.ok(tableExists(raw, 'shot_still_candidates'))
+    assert.ok(columns(raw, 'shot_still_candidates').includes('source_fingerprint'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -743,7 +745,7 @@ test('keeps a rights ledger manifest through a project package roundtrip and fai
   }
 })
 
-test('versions visual production packs without overwriting a locked shot and preserves stale locks through project package roundtrip', () => {
+test('versions visual production packs and shot still candidates without overwriting history through project package roundtrip', () => {
   const fixture = createRepositoryFixture()
   try {
     const { db, repos, project, shot } = fixture
@@ -788,6 +790,41 @@ test('versions visual production packs without overwriting a locked shot and pre
     })
     repos.visualAsset.adoptVisualAssetVersion(db, v2.id)
 
+    const firstFrame = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'first_frame_image',
+      title: '天台对峙首帧 A',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      remoteUrl: 'https://example.test/shot-a.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const secondFrame = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'first_frame_image',
+      title: '天台对峙首帧 B',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      remoteUrl: 'https://example.test/shot-b.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const stillA = repos.shotStill.createShotStillCandidate(db, {
+      projectId: project.id, shotId: shot.id, assetId: firstFrame.id, kind: 'first_frame', label: '首帧 A', sourceFingerprint: shot.updatedAt,
+    })
+    repos.shotStill.adoptShotStillCandidate(db, stillA.id, shot.updatedAt)
+    const stillB = repos.shotStill.createShotStillCandidate(db, {
+      projectId: project.id, shotId: shot.id, assetId: secondFrame.id, kind: 'first_frame', label: '首帧 B', sourceFingerprint: shot.updatedAt,
+    })
+    repos.shotStill.adoptShotStillCandidate(db, stillB.id, shot.updatedAt)
+    // 采用历史候选即回退，不删除 B，也不重写 A 的资产引用。
+    repos.shotStill.adoptShotStillCandidate(db, stillA.id, shot.updatedAt)
+    const stillsBeforePackage = repos.shotStill.listShotStillCandidates(db, shot.id)
+    assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillA.id)?.status, 'adopted')
+    assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillB.id)?.status, 'superseded')
+    repos.shotStill.setShotStillCandidateStaleState(db, stillA.id, '2026-07-23T00:00:00.000Z', '镜头 Prompt 已更新；仅需复核本镜头。')
+
     const staleLock = repos.visualAsset.listShotVisualAssetLocks(db, shot.id)[0]
     assert.equal(staleLock.id, lock.id)
     assert.match(staleLock.staleReason ?? '', /上游已采用/)
@@ -797,6 +834,8 @@ test('versions visual production packs without overwriting a locked shot and pre
     const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
     assert.equal(pkg.visualAssetVersions?.length, 2)
     assert.equal(pkg.shotVisualAssetLocks?.[0]?.staleReason, staleLock.staleReason)
+    assert.equal(pkg.shotStillCandidates?.length, 2)
+    assert.equal(pkg.shotStillCandidates?.find((candidate) => candidate.label === '首帧 A')?.staleReason, '镜头 Prompt 已更新；仅需复核本镜头。')
     const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
     const importedVersions = repos.visualAsset.listVisualAssetVersionsByProject(db, imported.id)
     const importedLocks = repos.visualAsset.listShotVisualAssetLocksByProject(db, imported.id)
@@ -806,6 +845,11 @@ test('versions visual production packs without overwriting a locked shot and pre
     assert.equal(importedLocks.length, 1)
     assert.match(importedLocks[0].staleReason ?? '', /上游已采用/)
     assert.ok(importedVersions.some((version) => version.id === importedLocks[0].visualAssetVersionId && version.status === 'superseded'))
+    const importedStills = repos.shotStill.listShotStillCandidatesByProject(db, imported.id)
+    assert.equal(importedStills.length, 2)
+    assert.equal(importedStills.filter((candidate) => candidate.status === 'adopted').length, 1)
+    assert.equal(importedStills.filter((candidate) => candidate.status === 'superseded').length, 1)
+    assert.match(importedStills.find((candidate) => candidate.status === 'adopted')?.staleReason ?? '', /仅需复核本镜头/)
   } finally {
     closeRepositoryFixture(fixture)
   }

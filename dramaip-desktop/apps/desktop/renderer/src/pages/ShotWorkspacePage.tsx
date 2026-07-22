@@ -15,8 +15,8 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
-import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
+import { analyzeVisualContinuity, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
@@ -685,6 +685,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
               })}
               onReorder={reorderStoryboard}
             />
+            {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} shots={shots} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -921,6 +922,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     draft={draft}
                     onUpdate={updateDraft}
                   />
+                  {sourceProjectId && <ShotStillCandidatesPanel projectId={sourceProjectId} shotId={activeShot.id} />}
                   {sourceProjectId && <ShotVisualAssetLocksPanel projectId={sourceProjectId} shotId={activeShot.id} />}
                   <div className="mt-3 flex justify-end">
                     <Button size="sm" onClick={() => void saveShot()} disabled={!isDirty}><Pencil className="h-3.5 w-3.5" />保存素材引用</Button>
@@ -1066,6 +1068,139 @@ const SHOT_LOCK_ROLES = [
   ['prop', '关键道具'],
   ['voice', '声音参考'],
 ] as const
+
+const SHOT_STILL_KINDS: Array<[ShotStillKind, string]> = [
+  ['still', '分镜静帧'],
+  ['first_frame', '视频首帧'],
+  ['last_frame', '视频尾帧'],
+  ['cover', '镜头封面'],
+]
+
+const SHOT_STILL_STATUS_LABEL: Record<ShotStillCandidate['status'], string> = {
+  candidate: '候选',
+  adopted: '已采用',
+  superseded: '历史采用',
+  rejected: '未采用',
+}
+
+function ShotStillCandidatesPanel({ projectId, shotId }: { projectId: string; shotId: string }) {
+  const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [candidates, setCandidates] = useState<ShotStillCandidate[]>([])
+  const [kind, setKind] = useState<ShotStillKind>('first_frame')
+  const [assetId, setAssetId] = useState('')
+  const [label, setLabel] = useState('')
+  const [notes, setNotes] = useState('')
+  const [busy, setBusy] = useState(false)
+  const availableAssets = useMemo(
+    () => assets.filter((asset) => asset.status !== 'missing' && isVideoReferenceImageAsset(asset)),
+    [assets],
+  )
+  const assetsById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets])
+
+  async function load() {
+    const [nextAssets, nextCandidates] = await Promise.all([
+      ipc.asset.listByProject(projectId),
+      ipc.shotStill.listByShot(shotId),
+    ])
+    setAssets(nextAssets)
+    setCandidates(nextCandidates)
+  }
+  useEffect(() => { void load().catch((error) => toast.error(`读取静帧候选失败：${error instanceof Error ? error.message : String(error)}`)) }, [projectId, shotId])
+  useEffect(() => {
+    if (assetId && availableAssets.some((asset) => asset.id === assetId)) return
+    setAssetId(availableAssets[0]?.id ?? '')
+  }, [assetId, availableAssets])
+
+  async function addCandidate() {
+    const asset = assetsById.get(assetId)
+    if (!asset) return toast.error('请先选择一个已归档的图片素材')
+    setBusy(true)
+    try {
+      const kindLabel = SHOT_STILL_KINDS.find(([value]) => value === kind)?.[1] ?? kind
+      await ipc.shotStill.create({
+        projectId,
+        shotId,
+        assetId,
+        kind,
+        label: label.trim() || `${kindLabel} · ${asset.title}`,
+        notes: notes.trim() || undefined,
+      })
+      setLabel('')
+      setNotes('')
+      await load()
+      toast.success('已收录为静帧候选；采用前不会改动当前镜头。')
+    } catch (error) {
+      toast.error(`收录候选失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function adopt(candidate: ShotStillCandidate) {
+    setBusy(true)
+    try {
+      await ipc.shotStill.adopt(candidate.id)
+      await load()
+      toast.success(candidate.status === 'superseded' ? '已采用历史候选并完成可回退切换。' : '已采用静帧候选；同类旧采用版本已保留为历史记录。')
+    } catch (error) {
+      toast.error(`采用静帧失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <section className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3" data-shot-still-candidates>
+    <div><h3 className="text-sm font-medium">静帧 / 首尾帧 / 封面候选</h3><p className="text-xs text-muted-foreground">先收录多个候选，再人工采用。采用旧候选可回退；不会覆盖任何历史图片。镜头 Prompt 更新后，系统只提示复核本镜头。</p></div>
+    <div className="grid gap-2 lg:grid-cols-[8rem_1fr_1fr_auto]">
+      <select aria-label="静帧类型" value={kind} onChange={(event) => setKind(event.target.value as ShotStillKind)} className="h-9 rounded-md border bg-background px-2 text-xs">{SHOT_STILL_KINDS.map(([value, title]) => <option key={value} value={value}>{title}</option>)}</select>
+      <select aria-label="静帧候选素材" value={assetId} onChange={(event) => setAssetId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="">选择已归档图片</option>{availableAssets.map((asset) => <option key={asset.id} value={asset.id}>{ASSET_KIND_LABEL[asset.kind]} · {asset.title}</option>)}</select>
+      <Input aria-label="静帧候选名称" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="候选名称（可选）" className="text-xs" />
+      <Button size="sm" onClick={() => void addCandidate()} disabled={!assetId || busy}>收录候选</Button>
+    </div>
+    <Textarea aria-label="静帧候选备注" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="可选：说明适用镜头、构图或需要人工检查的风险" className="min-h-14 text-xs" />
+    {availableAssets.length === 0 && <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚无可用图片素材。先在上方保存首帧、封面或画面参考素材引用，再收录为候选。</p>}
+    {candidates.length === 0 ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">还没有候选。建议至少保留一个分镜静帧和一个首帧候选，再进入视频生成。</p> : <div className="space-y-1">{candidates.map((candidate) => {
+      const asset = assetsById.get(candidate.assetId)
+      const typeLabel = SHOT_STILL_KINDS.find(([value]) => value === candidate.kind)?.[1] ?? candidate.kind
+      return <div key={candidate.id} className="rounded border bg-background/70 p-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2"><Badge variant={candidate.status === 'adopted' ? 'default' : candidate.staleReason ? 'destructive' : 'outline'}>{typeLabel} · {SHOT_STILL_STATUS_LABEL[candidate.status]}</Badge><span className="font-medium">{candidate.label}</span><span className="text-muted-foreground">{asset?.title ?? '素材记录不可用'}</span>{candidate.status !== 'adopted' && <Button size="sm" variant="outline" disabled={busy || !asset} onClick={() => void adopt(candidate)}>{candidate.status === 'superseded' ? '采用此历史版本' : '采用此候选'}</Button>}</div>
+        {asset && assetReferenceUrl(asset) && <img src={assetReferenceUrl(asset)} alt={`${candidate.label}预览`} className="mt-2 h-20 rounded border object-cover" />}
+        {candidate.notes && <p className="mt-1 text-muted-foreground">备注：{candidate.notes}</p>}
+        {candidate.staleReason && <p className="mt-1 text-destructive">需复核：{candidate.staleReason}</p>}
+      </div>
+    })}</div>}
+  </section>
+}
+
+function VisualContinuityPanel({ projectId, shots }: { projectId: string; shots: Shot[] }) {
+  const [versions, setVersions] = useState<VisualAssetVersion[]>([])
+  const [locks, setLocks] = useState<ShotVisualAssetLock[]>([])
+  const [stillCandidates, setStillCandidates] = useState<ShotStillCandidate[]>([])
+  const [loading, setLoading] = useState(false)
+  async function load() {
+    setLoading(true)
+    try {
+      const [nextVersions, lockGroups, stillGroups] = await Promise.all([
+        ipc.visualAsset.listByProject(projectId),
+        Promise.all(shots.map((shot) => ipc.visualAsset.listLocksByShot(shot.id))),
+        Promise.all(shots.map((shot) => ipc.shotStill.listByShot(shot.id))),
+      ])
+      setVersions(nextVersions)
+      setLocks(lockGroups.flat())
+      setStillCandidates(stillGroups.flat())
+    } catch (error) {
+      toast.error(`读取视觉连续性失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => { void load() }, [projectId, shots])
+  const report = useMemo(() => analyzeVisualContinuity({ shots, locks, versions, stillCandidates }), [shots, locks, versions, stillCandidates])
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-visual-continuity>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">静帧与视觉连续性</h3><p className="text-xs text-muted-foreground">{report.checkedShots} 镜头 · {report.lockedShots} 已锁定 · {report.stillCoveredShots} 已采用静帧 · {report.staleShots} 需重做确认。像素级人脸/文字识别尚未安装，以下为可解释的版本与提示词预检。</p></div><Button size="sm" variant="outline" disabled={loading} onClick={() => void load()}>复核本场景</Button></div>
+    {report.issues.length === 0 ? <p className="text-xs text-emerald-700 dark:text-emerald-300">当前没有版本锁或画幅提示问题。</p> : <div className="space-y-1">{report.issues.map((issue, index) => <p key={`${issue.shotId}:${issue.kind}:${index}`} className={issue.severity === 'blocking' ? 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive' : 'rounded border bg-background/60 p-2 text-xs text-muted-foreground'}>{issue.message}</p>)}</div>}
+  </section>
+}
 
 function ShotVisualAssetLocksPanel({ projectId, shotId }: { projectId: string; shotId: string }) {
   const [versions, setVersions] = useState<VisualAssetVersion[]>([])

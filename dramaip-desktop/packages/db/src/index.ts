@@ -48,6 +48,7 @@ export * as videoResultRepo from './repositories/video-result.repo'
 export * as projectAssetRepo from './repositories/project-asset.repo'
 export * as assetRightsRepo from './repositories/asset-rights.repo'
 export * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
+export * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
 export * as generationLineageRepo from './repositories/generation-lineage.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
@@ -103,6 +104,7 @@ import * as videoResultRepo from './repositories/video-result.repo'
 import * as projectAssetRepo from './repositories/project-asset.repo'
 import * as assetRightsRepo from './repositories/asset-rights.repo'
 import * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
+import * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
 import * as generationLineageRepo from './repositories/generation-lineage.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
@@ -161,6 +163,7 @@ export function createRepositories(db: DB) {
     asset: { ...projectAssetRepo },
     rights: { ...assetRightsRepo },
     visualAsset: { ...visualAssetVersionRepo },
+    shotStill: { ...shotStillCandidateRepo },
     generation: { ...generationLineageRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },

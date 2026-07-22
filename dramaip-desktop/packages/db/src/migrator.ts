@@ -907,6 +907,15 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  { version: 32, name: 'shot-still-candidates', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS shot_still_candidates (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, shot_id TEXT NOT NULL, asset_id TEXT NOT NULL,
+      kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate', label TEXT NOT NULL, notes TEXT,
+      source_fingerprint TEXT, stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_shot ON shot_still_candidates(shot_id, kind, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_project ON shot_still_candidates(project_id, status, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

@@ -523,6 +523,26 @@ export interface ShotVisualAssetLock {
   updatedAt: string
 }
 
+export type ShotStillKind = 'still' | 'first_frame' | 'last_frame' | 'cover'
+export type ShotStillCandidateStatus = 'candidate' | 'adopted' | 'superseded' | 'rejected'
+/** 不可变静帧候选；媒体仍归 project_assets 管理，采用关系独立保存。 */
+export interface ShotStillCandidate {
+  id: string
+  projectId: string
+  shotId: string
+  assetId: string
+  kind: ShotStillKind
+  status: ShotStillCandidateStatus
+  label: string
+  notes?: string
+  /** 创建候选时对应的镜头版本；镜头更新后系统据此提示最小重做范围。 */
+  sourceFingerprint?: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 故事事件（时间线） */
 export interface StoryEvent {
   id: string
