@@ -155,6 +155,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'shot_still_candidates'))
     assert.ok(columns(raw, 'shot_still_candidates').includes('source_fingerprint'))
     assert.ok(tableExists(raw, 'animatic_drafts'))
+    assert.ok(tableExists(raw, 'voice_profiles'))
+    assert.ok(tableExists(raw, 'audio_tracks'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -903,4 +905,43 @@ test('versions visual production packs and shot still candidates without overwri
   } finally {
     closeRepositoryFixture(fixture)
   }
+})
+
+test('versions voice profiles and episode audio tracks without overwriting adopted history', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode, shot } = fixture
+    const character = repos.character.createCharacter(db, { projectId: project.id, name: '林晚', role: '女主' })
+    const firstVoice = repos.audio.createVoiceProfile(db, { projectId: project.id, characterId: character.id, label: '林晚 · 克制', voiceTone: '冷静', pronunciationDictionary: { 林晚: 'lín wǎn' } })
+    repos.audio.adoptVoiceProfile(db, firstVoice.id)
+    const replacementVoice = repos.audio.createVoiceProfile(db, { projectId: project.id, characterId: character.id, label: '林晚 · 爆发', voiceTone: '压抑后爆发', pronunciationDictionary: {} })
+    repos.audio.adoptVoiceProfile(db, replacementVoice.id)
+    const voices = repos.audio.listVoiceProfilesByProject(db, project.id)
+    assert.equal(voices.filter((voice) => voice.status === 'adopted').length, 1)
+    assert.equal(voices.find((voice) => voice.id === firstVoice.id)?.status, 'superseded')
+    const base = { projectId: project.id, adaptationProjectId: adaptation.id, episodeId: episode.id, kind: 'dialogue' as const, label: '对白', sourceFingerprint: `${shot.id}@${shot.updatedAt}`, clips: [{ id: 'audio-1', shotId: shot.id, characterId: character.id, voiceProfileId: replacementVoice.id, text: '别走。', startSeconds: 0, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }] }
+    const firstTrack = repos.audio.createAudioTrack(db, base)
+    repos.audio.adoptAudioTrack(db, firstTrack.id)
+    const secondTrack = repos.audio.createAudioTrack(db, { ...base, label: '对白修订' })
+    repos.audio.adoptAudioTrack(db, secondTrack.id)
+    const tracks = repos.audio.listAudioTracksByEpisode(db, episode.id)
+    assert.equal(tracks.filter((track) => track.status === 'adopted').length, 1)
+    assert.equal(tracks.find((track) => track.id === firstTrack.id)?.status, 'superseded')
+    repos.audio.setAudioTrackStaleState(db, firstTrack.id, '2026-07-23T00:00:00.000Z', '对白已更新')
+    assert.equal(repos.audio.getAudioTrack(db, firstTrack.id)?.status, 'stale')
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.voiceProfiles?.length, 2)
+    assert.equal(pkg.audioTracks?.length, 2)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedCharacter = repos.character.listCharacters(db, imported.id).find((candidate) => candidate.name === '林晚')
+    assert.ok(importedCharacter)
+    const importedVoice = repos.audio.listVoiceProfilesByProject(db, imported.id).find((voice) => voice.status === 'adopted')
+    assert.equal(importedVoice?.characterId, importedCharacter.id)
+    const importedAdaptation = repos.adaptationProject.listAdaptationsByProject(db, imported.id)[0]
+    const importedEpisode = repos.episode.listEpisodes(db, importedAdaptation.id)[0]
+    const importedTrack = repos.audio.listAudioTracksByEpisode(db, importedEpisode.id).find((track) => track.status === 'adopted')
+    assert.equal(importedTrack?.clips[0].voiceProfileId, importedVoice?.id)
+    assert.equal(importedTrack?.clips[0].characterId, importedCharacter.id)
+    assert.equal(repos.audio.listAudioTracksByEpisode(db, importedEpisode.id).some((track) => track.status === 'stale'), true)
+  } finally { closeRepositoryFixture(fixture) }
 })

@@ -51,6 +51,14 @@ const api = {
     save: (data: unknown) => invoke('animatic:save', data),
     review: (id: string, review: unknown) => invoke('animatic:review', id, review),
   },
+  audio: {
+    listVoiceProfiles: (projectId: string) => invoke('audio:listVoiceProfiles', projectId),
+    createVoiceProfile: (data: unknown) => invoke('audio:createVoiceProfile', data),
+    adoptVoiceProfile: (id: string) => invoke('audio:adoptVoiceProfile', id),
+    listTracksByEpisode: (episodeId: string) => invoke('audio:listTracksByEpisode', episodeId),
+    saveTrack: (data: unknown) => invoke('audio:saveTrack', data),
+    adoptTrack: (id: string) => invoke('audio:adoptTrack', id),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

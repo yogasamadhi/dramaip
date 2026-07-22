@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -687,6 +687,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             />
             {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} shots={shots} />}
             {sourceProjectId && <AnimaticPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <AudioProductionPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1394,6 +1395,50 @@ function AnimaticPanel({ projectId, adaptationProjectId, episodeId }: { projectI
       <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="试播通过或退回的理由（必填，便于后续只返工问题镜头）" className="min-h-16 text-xs" />
       <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy || !drafts[0] || drafts[0].status !== 'draft'} onClick={() => void review('returned')}>退回试播</Button><Button size="sm" disabled={busy || !drafts[0] || drafts[0].status !== 'draft'} onClick={() => void review('approved')}>通过试播</Button></div>
     </>}
+  </section>
+}
+
+function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [voices, setVoices] = useState<VoiceProfile[]>([])
+  const [tracks, setTracks] = useState<AudioTrack[]>([])
+  const [characters, setCharacters] = useState<Character[]>([])
+  const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [label, setLabel] = useState('默认旁白')
+  const [characterId, setCharacterId] = useState('')
+  const [voiceTone, setVoiceTone] = useState('自然、清晰')
+  const [kind, setKind] = useState<AudioTrack['kind']>('narration')
+  const [busy, setBusy] = useState(false)
+  async function load() {
+    const [nextVoices, nextTracks, nextCharacters, nextAssets] = await Promise.all([ipc.audio.listVoiceProfiles(projectId), ipc.audio.listTracksByEpisode(episodeId), ipc.character.list(projectId), ipc.asset.listByProject(projectId)])
+    setVoices(nextVoices); setTracks(nextTracks); setCharacters(nextCharacters); setAssets(nextAssets)
+  }
+  useEffect(() => { void load().catch((error) => toast.error(`读取音频制作数据失败：${error instanceof Error ? error.message : String(error)}`)) }, [episodeId, projectId])
+  async function createVoice() {
+    setBusy(true)
+    try { await ipc.audio.createVoiceProfile({ projectId, characterId: characterId || undefined, label: label.trim() || '未命名声音', voiceTone: voiceTone.trim() || undefined, pronunciationDictionary: {} }); await load(); toast.success('已保存声音 Profile；声音样本仍须在权利台账中确认授权。') } catch (error) { toast.error(`保存声音 Profile 失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(false) }
+  }
+  async function initializeTrack() {
+    setBusy(true)
+    try {
+      const initial = await ipc.animatic.initialize(projectId, episodeId)
+      const audioAssets = assets.filter((asset) => ({ dialogue: 'dialogue_audio', narration: 'narration_audio', bgm: 'bgm_audio', sfx: 'sfx_audio' } as const)[kind] === asset.kind)
+      const clips = (kind === 'bgm' || kind === 'sfx') ? [] : initial.clips.flatMap((clip) => {
+        const text = kind === 'dialogue' ? clip.dialogue : kind === 'narration' ? clip.narration : undefined
+        if (!text) return []
+        return [{ id: globalThis.crypto?.randomUUID?.() ?? `audio:${clip.id}`, shotId: clip.shotId, text, assetId: audioAssets[0]?.id, startSeconds: initial.clips.slice(0, clip.orderIndex).reduce((total, item) => total + item.durationSeconds, 0), durationSeconds: clip.durationSeconds, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }]
+      })
+      if (!clips.length && kind !== 'bgm' && kind !== 'sfx') return toast.error('当前分集没有可初始化的对应台词；请先在镜头中填写对白或旁白。')
+      if (!clips.length) clips.push({ id: globalThis.crypto?.randomUUID?.() ?? `audio:${kind}`, startSeconds: 0, volume: kind === 'bgm' ? 0.35 : 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: kind === 'bgm', duckingIntent: kind === 'bgm', assetId: audioAssets[0]?.id })
+      const saved = await ipc.audio.saveTrack({ projectId, adaptationProjectId, episodeId, kind, label: `${kind === 'dialogue' ? '对白' : kind === 'narration' ? '旁白' : kind === 'bgm' ? 'BGM' : '音效'} v${tracks.filter((track) => track.kind === kind).length + 1}`, sourceFingerprint: initial.sourceFingerprint, clips })
+      await load(); toast.success(`已保存 ${saved.label}；可在后续版本替换人工导入音频。`)
+    } catch (error) { toast.error(`初始化音轨失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(false) }
+  }
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-audio-production-panel>
+    <div><h3 className="text-sm font-medium">声音与音频轨</h3><p className="text-xs text-muted-foreground">手工导入的对白、旁白、BGM、音效可先形成可追溯轨道；此处不调用 TTS 或声音克隆。</p></div>
+    <div className="grid gap-2 md:grid-cols-3"><Input aria-label="声音 Profile 名称" value={label} onChange={(event) => setLabel(event.target.value)} /><select aria-label="声音 Profile 角色" value={characterId} onChange={(event) => setCharacterId(event.target.value)} className="h-9 rounded border bg-background px-2 text-xs"><option value="">旁白/通用声音</option>{characters.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}</select><Input aria-label="音色描述" value={voiceTone} onChange={(event) => setVoiceTone(event.target.value)} /></div>
+    <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || !label.trim()} onClick={() => void createVoice()}>新建声音 Profile</Button>{voices.map((voice) => <Button key={voice.id} size="sm" variant={voice.status === 'adopted' ? 'default' : 'outline'} disabled={busy} onClick={() => void ipc.audio.adoptVoiceProfile(voice.id).then(load)}>采用 {voice.label}</Button>)}</div>
+    <div className="flex flex-wrap gap-2"><select aria-label="音轨类型" value={kind} onChange={(event) => setKind(event.target.value as AudioTrack['kind'])} className="h-9 rounded border bg-background px-2 text-xs"><option value="dialogue">对白</option><option value="narration">旁白</option><option value="bgm">BGM</option><option value="sfx">音效</option></select><Button size="sm" disabled={busy} onClick={() => void initializeTrack()}>从当前分集另存音轨版本</Button><span className="self-center text-xs text-muted-foreground">已导入匹配素材：{assets.filter((asset) => asset.kind.endsWith('_audio')).length}</span></div>
+    <div className="space-y-1">{tracks.length === 0 ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚无音轨。先导入音频素材，或从镜头对白/旁白初始化一版临时轨。</p> : tracks.map((track) => <div key={track.id} className="flex flex-wrap items-center gap-2 rounded border bg-background/70 p-2 text-xs"><Badge variant={track.status === 'adopted' ? 'default' : track.status === 'stale' ? 'destructive' : 'outline'}>{track.kind} · v{track.versionNumber}</Badge><span>{track.label} · {track.clips.length} 段</span>{track.staleReason && <span className="text-destructive">{track.staleReason}</span>}<Button size="sm" variant="outline" disabled={busy || track.status === 'adopted' || track.status === 'stale'} onClick={() => void ipc.audio.adoptTrack(track.id).then(load)}>采用此轨</Button></div>)}</div>
   </section>
 }
 

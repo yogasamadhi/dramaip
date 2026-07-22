@@ -2,6 +2,8 @@
 import type {
   AdaptationProject,
   AnimaticDraft,
+  AudioTrack,
+  VoiceProfile,
   AgentProfile,
   AiRun,
   AiContextPreview,
@@ -547,6 +549,14 @@ export interface StudioApi {
     initialize(projectId: string, episodeId: string): Promise<Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips'>>
     save(data: Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips' | 'annotations'>): Promise<AnimaticDraft>
     review(id: string, review: { status: 'approved' | 'returned'; reviewNote?: string }): Promise<AnimaticDraft | undefined>
+  }
+  audio: {
+    listVoiceProfiles(projectId: string): Promise<VoiceProfile[]>
+    createVoiceProfile(data: Omit<VoiceProfile, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<VoiceProfile>
+    adoptVoiceProfile(id: string): Promise<VoiceProfile | undefined>
+    listTracksByEpisode(episodeId: string): Promise<AudioTrack[]>
+    saveTrack(data: Pick<AudioTrack, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'kind' | 'label' | 'sourceFingerprint' | 'clips'>): Promise<AudioTrack>
+    adoptTrack(id: string): Promise<AudioTrack | undefined>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

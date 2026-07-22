@@ -763,6 +763,8 @@ export const ProjectPackageSchema = z
     shotVisualAssetLocks: packageEntityArray.default([]),
     shotStillCandidates: packageEntityArray.default([]),
     animaticDrafts: packageEntityArray.default([]),
+    voiceProfiles: packageEntityArray.default([]),
+    audioTracks: packageEntityArray.default([]),
     generationLineages: packageEntityArray.default([]),
     generationCostEntries: packageEntityArray.default([]),
     adaptations: z.array(PackageAdaptationSchema).default([]),

@@ -41,6 +41,9 @@ const projectAssetKind = z.enum([
   'cover_image',
   'first_frame_image',
   'narration_audio',
+  'dialogue_audio',
+  'bgm_audio',
+  'sfx_audio',
   'subtitle_file',
   'source_media',
   'rights_evidence',
@@ -116,6 +119,19 @@ const animaticSaveInput = z.object({
 const animaticReviewInput = z.object({
   status: z.enum(['approved', 'returned']),
   reviewNote: z.string().min(1).max(2_000).optional(),
+}).strict()
+const voiceProfileInput = z.object({
+  projectId: id, characterId: maybeId, label: z.string().min(1).max(200), voiceTone: z.string().max(500).optional(),
+  speed: z.number().min(0.5).max(2).optional(), emotion: z.string().max(200).optional(), language: z.string().max(80).optional(),
+  pronunciationDictionary: z.record(z.string().max(200)).default({}), sampleAssetId: maybeId, notes: z.string().max(2_000).optional(),
+}).strict()
+const audioClipInput = z.object({
+  id, shotId: maybeId, characterId: maybeId, assetId: maybeId, voiceProfileId: maybeId, text: z.string().max(4_000).optional(),
+  startSeconds: z.number().nonnegative(), durationSeconds: z.number().positive().max(3_600).optional(), volume: z.number().min(0).max(2).default(1),
+  fadeInSeconds: z.number().nonnegative().max(60).default(0), fadeOutSeconds: z.number().nonnegative().max(60).default(0), loop: z.boolean().default(false), duckingIntent: z.boolean().default(false),
+}).strict()
+const audioTrackSaveInput = z.object({
+  projectId: id, adaptationProjectId: id, episodeId: id, kind: z.enum(['dialogue', 'narration', 'bgm', 'sfx']), label: z.string().min(1).max(200), sourceFingerprint: z.string().min(1), clips: z.array(audioClipInput).max(1_000),
 }).strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
@@ -730,7 +746,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'generation:listCostsByProject': [id],
   'generation:updateCost': [id, updateGenerationCostInput],
   'asset:delete': [id],
-  'asset:chooseLocalFile': [z.enum(['character_reference', 'casting_reference', 'voice_reference', 'scene_reference', 'style_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file', 'rights_evidence'])],
+  'asset:chooseLocalFile': [z.enum(['character_reference', 'casting_reference', 'voice_reference', 'scene_reference', 'style_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'dialogue_audio', 'bgm_audio', 'sfx_audio', 'subtitle_file', 'rights_evidence'])],
   'rights:listByProject': [id],
   'rights:create': [assetRightsInput],
   'rights:update': [id, assetRightsPatch],
@@ -748,6 +764,12 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'animatic:initialize': [id, id],
   'animatic:save': [animaticSaveInput],
   'animatic:review': [id, animaticReviewInput],
+  'audio:listVoiceProfiles': [id],
+  'audio:createVoiceProfile': [voiceProfileInput],
+  'audio:adoptVoiceProfile': [id],
+  'audio:listTracksByEpisode': [id],
+  'audio:saveTrack': [audioTrackSaveInput],
+  'audio:adoptTrack': [id],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

@@ -47,7 +47,7 @@ export function registerAssetIpc(): void {
 }
 
 function assetFileFilters(kind: ProjectAsset['kind']) {
-  if (kind === 'narration_audio' || kind === 'voice_reference') return [{ name: '音频文件', extensions: ['mp3', 'wav', 'm4a', 'aac', 'flac'] }]
+  if (kind === 'narration_audio' || kind === 'dialogue_audio' || kind === 'bgm_audio' || kind === 'sfx_audio' || kind === 'voice_reference') return [{ name: '音频文件', extensions: ['mp3', 'wav', 'm4a', 'aac', 'flac'] }]
   if (kind === 'subtitle_file') return [{ name: '字幕文件', extensions: ['srt', 'vtt', 'ass', 'ssa'] }]
   if (kind === 'rights_evidence') return [{ name: '授权证明', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'docx'] }]
   return [{ name: '图片文件', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'] }]
