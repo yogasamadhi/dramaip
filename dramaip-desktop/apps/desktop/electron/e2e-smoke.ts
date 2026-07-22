@@ -25,6 +25,7 @@ import { eq, sql } from 'drizzle-orm'
 import { buildAgentCommandPlan } from '../renderer/src/lib/agentCommandPlanner'
 import { buildProjectWorkflowStages } from '../renderer/src/lib/projectWorkflowGuide'
 import { getRepos } from './db'
+import { PRODUCTION_OUTCOME_BASELINE } from './production-outcome-baseline'
 import { deleteModelConfigWithSecret, migrateLegacySecretsToKeychain } from './secrets'
 import { reconcileLongTasks } from './task-recovery'
 
@@ -55,6 +56,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   ) as RendererSmokeResult
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
+  const outcomeBaselineStep = verifyProductionOutcomeBaseline()
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
@@ -68,7 +70,48 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+  }
+}
+
+function verifyProductionOutcomeBaseline(): E2eSmokeStep {
+  const startedAt = Date.now()
+  try {
+    const [idea, manuscript, script] = PRODUCTION_OUTCOME_BASELINE.journeys
+    if (
+      idea?.state !== 'available' ||
+      idea.entryRoute !== '#/projects/new' ||
+      manuscript?.state !== 'known_gap' ||
+      script?.state !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.blockingState !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.providerAvailability !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.privacyBoundary.diagnosticContentDefault !== 'redacted' ||
+      PRODUCTION_OUTCOME_BASELINE.privacyBoundary.rendererCredentialAccess !== 'restricted'
+    ) {
+      throw new Error('LM5 生产结果基线不再反映当前实际能力')
+    }
+    return {
+      name: 'lm5-production-outcome-baseline',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: {
+        availableJourney: idea.id,
+        knownGaps: [manuscript.id, script.id],
+        finalDelivery: PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery,
+        operationalTruth: PRODUCTION_OUTCOME_BASELINE.operationalTruth,
+      },
+    }
+  } catch (error) {
+    return {
+      name: 'lm5-production-outcome-baseline',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 
@@ -238,6 +281,7 @@ export interface P0Fixture {
   qualityGate: QualityGateReport
   adaptation: AdaptationProject
   episode: Episode
+  episodes: Episode[]
   script: Script
   scene: Scene
   caseStudy?: CreativeCaseStudy
@@ -408,6 +452,28 @@ export function seedP0Fixture(projectId: string): P0Fixture {
     keyVisuals: ['开机横幅', '证据投屏'],
     relatedChapterIds: [chapter.id],
   })
+  const episodeTwo = repos.episode.createEpisode(repos.db, {
+    adaptationProjectId: adaptation.id,
+    episodeNumber: 2,
+    title: '第2集 围读反击',
+    summary: '女主在围读现场改掉致命桥段，反派逼她承认抄袭。',
+    hook: '所有人都在等她出错。',
+    mainConflict: '反派逼她当众承认抄袭。',
+    cliffhanger: '投资人要求立刻试拍。',
+    keyVisuals: ['围读长桌', '投资人沉默'],
+    relatedChapterIds: [secondChapter.id],
+  })
+  const episodeThree = repos.episode.createEpisode(repos.db, {
+    adaptationProjectId: adaptation.id,
+    episodeNumber: 3,
+    title: '第3集 热搜反转',
+    summary: '试拍片段流出，女主用原始记录完成第一次舆论反转。',
+    hook: '热搜把她推到风口。',
+    mainConflict: '反派先一步放出剪辑过的录音。',
+    cliffhanger: '原始存档即将公开。',
+    keyVisuals: ['热搜榜单', '原始存档'],
+    relatedChapterIds: [secondChapter.id],
+  })
   const script = repos.script.createScript(repos.db, {
     adaptationProjectId: adaptation.id,
     episodeId: episode.id,
@@ -437,6 +503,7 @@ export function seedP0Fixture(projectId: string): P0Fixture {
     qualityGate,
     adaptation,
     episode,
+    episodes: [episode, episodeTwo, episodeThree],
     script,
     scene,
   }
