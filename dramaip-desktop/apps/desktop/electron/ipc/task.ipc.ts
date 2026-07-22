@@ -3,6 +3,7 @@ import { getRepos } from '../db'
 import { retryVideoTask } from '@sdns/ai'
 import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
+import { EPISODE_RENDER_TASK_TYPE, retryEpisodeRender } from '../episode-render'
 import {
   beginLongTaskRetry,
   beginLongTaskRun,
@@ -48,7 +49,7 @@ export function registerTaskIpc(): void {
     if (task.status !== 'pending' && task.status !== 'running') return { ok: false, error: '任务已结束，不能取消' }
     cancelLongTaskRun(task.id)
     const updated = r.longTask.finishLongTask(r.db, task.id, 'canceled', { errorMessage: '任务已取消' })
-    if (task.kind === 'video' && task.relatedEntityId) {
+    if (task.kind === 'video' && task.relatedEntityId && task.taskType !== EPISODE_RENDER_TASK_TYPE) {
       r.videoTask.updateVideoTask(r.db, task.relatedEntityId, { status: 'canceled' })
     }
     return { ok: true, task: updated }
@@ -73,6 +74,7 @@ async function retryLongTask(
 ): Promise<LongTaskOpResult> {
   const task = r.longTask.getLongTask(r.db, id)
   if (!task) return { ok: false, error: '未找到任务' }
+  if (task.taskType === EPISODE_RENDER_TASK_TYPE) return retryEpisodeRender(r, id)
   if (task.kind === 'batch') {
     if (task.status === 'success') return { ok: false, error: '批量任务已完成，无需重跑' }
     if (task.status === 'running' && isLongTaskRunActive(task.id)) return { ok: false, error: '批量任务正在运行' }

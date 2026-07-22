@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -688,6 +688,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} shots={shots} />}
             {sourceProjectId && <AnimaticPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <AudioProductionPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <EpisodeDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1315,7 +1316,7 @@ function AnimaticPanel({ projectId, adaptationProjectId, episodeId }: { projectI
   const current = working ?? saved
   const currentClip = current?.clips[clipIndex]
   const assetsById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets])
-  useEffect(() => { setClipIndex(0); setPlaying(false) }, [current?.id, current?.sourceFingerprint])
+  useEffect(() => { setClipIndex(0); setPlaying(false) }, [current?.sourceFingerprint])
 
   useEffect(() => {
     if (!playing || !currentClip || !current) return
@@ -1422,7 +1423,7 @@ function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { p
     try {
       const initial = await ipc.animatic.initialize(projectId, episodeId)
       const audioAssets = assets.filter((asset) => ({ dialogue: 'dialogue_audio', narration: 'narration_audio', bgm: 'bgm_audio', sfx: 'sfx_audio' } as const)[kind] === asset.kind)
-      const clips = (kind === 'bgm' || kind === 'sfx') ? [] : initial.clips.flatMap((clip) => {
+      const clips: AudioTrack['clips'] = (kind === 'bgm' || kind === 'sfx') ? [] : initial.clips.flatMap((clip) => {
         const text = kind === 'dialogue' ? clip.dialogue : kind === 'narration' ? clip.narration : undefined
         if (!text) return []
         return [{ id: globalThis.crypto?.randomUUID?.() ?? `audio:${clip.id}`, shotId: clip.shotId, text, assetId: audioAssets[0]?.id, startSeconds: initial.clips.slice(0, clip.orderIndex).reduce((total, item) => total + item.durationSeconds, 0), durationSeconds: clip.durationSeconds, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }]
@@ -1440,6 +1441,112 @@ function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { p
     <div className="flex flex-wrap gap-2"><select aria-label="音轨类型" value={kind} onChange={(event) => setKind(event.target.value as AudioTrack['kind'])} className="h-9 rounded border bg-background px-2 text-xs"><option value="dialogue">对白</option><option value="narration">旁白</option><option value="bgm">BGM</option><option value="sfx">音效</option></select><Button size="sm" disabled={busy} onClick={() => void initializeTrack()}>从当前分集另存音轨版本</Button><span className="self-center text-xs text-muted-foreground">已导入匹配素材：{assets.filter((asset) => asset.kind.endsWith('_audio')).length}</span></div>
     <div className="space-y-1">{tracks.length === 0 ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚无音轨。先导入音频素材，或从镜头对白/旁白初始化一版临时轨。</p> : tracks.map((track) => <div key={track.id} className="flex flex-wrap items-center gap-2 rounded border bg-background/70 p-2 text-xs"><Badge variant={track.status === 'adopted' ? 'default' : track.status === 'stale' ? 'destructive' : 'outline'}>{track.kind} · v{track.versionNumber}</Badge><span>{track.label} · {track.clips.length} 段</span>{track.staleReason && <span className="text-destructive">{track.staleReason}</span>}<Button size="sm" variant="outline" disabled={busy || track.status === 'adopted' || track.status === 'stale'} onClick={() => void ipc.audio.adoptTrack(track.id).then(load)}>采用此轨</Button></div>)}</div>
   </section>
+}
+
+function EpisodeDeliveryPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [preflight, setPreflight] = useState<EpisodeRenderPreflight | null>(null)
+  const [tracks, setTracks] = useState<AudioTrack[]>([])
+  const [mutedTrackIds, setMutedTrackIds] = useState<string[]>([])
+  const [task, setTask] = useState<LongTask | undefined>()
+  const [taskStaleReason, setTaskStaleReason] = useState<string | undefined>()
+  const [busy, setBusy] = useState<'preflight' | 'render' | 'cancel' | 'retry' | null>(null)
+  const input = useMemo(() => ({ projectId, adaptationProjectId, episodeId, mutedTrackIds }), [adaptationProjectId, episodeId, mutedTrackIds, projectId])
+
+  const refreshTask = useCallback(async () => {
+    const history = await ipc.episodeRender.listByEpisode(input)
+    const latest = history[0]
+    setTask(latest?.task)
+    setTaskStaleReason(latest?.staleReason)
+  }, [input])
+
+  useEffect(() => {
+    void Promise.all([ipc.audio.listTracksByEpisode(episodeId), refreshTask()])
+      .then(([nextTracks]) => setTracks(nextTracks))
+      .catch((error) => toast.error(`读取交付状态失败：${error instanceof Error ? error.message : String(error)}`))
+  }, [episodeId, refreshTask])
+
+  useEffect(() => {
+    if (!task || (task.status !== 'pending' && task.status !== 'running')) return
+    const timer = window.setInterval(() => { void refreshTask() }, 1_000)
+    return () => window.clearInterval(timer)
+  }, [refreshTask, task])
+
+  async function inspect() {
+    setBusy('preflight')
+    try {
+      const next = await ipc.episodeRender.preflight(input)
+      setPreflight(next)
+      if (next.ok) toast.success('交付预检通过：已锁定当前版本、音轨和字幕谱系。')
+      else toast.error(`交付预检发现 ${next.blockers.length} 项阻塞；不会输出占位 MP4。`)
+    } catch (error) {
+      toast.error(`交付预检失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function render() {
+    if (!preflight?.ok) return toast.error('请先运行并通过交付预检。')
+    setBusy('render')
+    try {
+      const result = await ipc.episodeRender.start(input)
+      if (!result.ok) {
+        toast.error(result.error ?? '无法开始渲染。')
+        return
+      }
+      setTask(result.task)
+      setTaskStaleReason(undefined)
+      toast.success('已创建本地 MP4 渲染任务；可取消，应用重启后可安全重试。')
+    } catch (error) {
+      toast.error(`开始渲染失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function cancel() {
+    if (!task) return
+    setBusy('cancel')
+    try {
+      const result = await ipc.longTask.cancel(task.id)
+      if (!result.ok) toast.error(result.error ?? '任务无法取消。')
+      await refreshTask()
+    } catch (error) { toast.error(`取消失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function retry() {
+    if (!task) return
+    setBusy('retry')
+    try {
+      const result = await ipc.longTask.retry(task.id)
+      if (!result.ok) toast.error(result.error ?? '任务无法重试。')
+      await refreshTask()
+    } catch (error) { toast.error(`重试失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  function toggleMute(trackId: string) {
+    setMutedTrackIds((current) => current.includes(trackId) ? current.filter((id) => id !== trackId) : [...current, trackId])
+    setPreflight(null)
+  }
+
+  const archive = task?.output?.archive as { mp4Path?: string; srtPath?: string; vttPath?: string; audioPath?: string; manifestPath?: string } | undefined
+  const adoptedTracks = tracks.filter((track) => track.status === 'adopted')
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-episode-delivery-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">最终交付：时间线、字幕与 MP4</h3><p className="text-xs text-muted-foreground">只使用已审核 Animatic、已采用且未过期音轨、项目资产库中的本地媒体。成片为 720×1280 / H.264 + AAC，字幕烧录在竖屏安全区；不会把静帧空位或无声占位伪装成成片。</p></div><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void inspect()}>{busy === 'preflight' ? <Loader2 className="animate-spin" /> : null}运行交付预检</Button></div>
+    <div className="rounded border bg-background/60 p-2"><p className="mb-1 text-xs font-medium">音轨版本与静音（采用=锁定版本）</p>{adoptedTracks.length === 0 ? <p className="text-xs text-amber-700">尚无已采用音轨；正式交付将被阻止。</p> : <div className="flex flex-wrap gap-2">{adoptedTracks.map((track) => <label key={track.id} className="flex items-center gap-1 rounded border px-2 py-1 text-xs"><input type="checkbox" checked={!mutedTrackIds.includes(track.id)} onChange={() => toggleMute(track.id)} />{track.kind} · v{track.versionNumber} · {track.label}</label>)}</div>}<p className="mt-1 text-xs text-muted-foreground">取消勾选会以“静音”写入本次渲染任务的谱系，不会改写原音轨版本。</p></div>
+    {preflight && <div className={preflight.ok ? 'rounded border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs' : 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs'}>
+      <div className="flex flex-wrap items-center gap-2"><Badge variant={preflight.ok ? 'default' : 'destructive'}>{preflight.ok ? '可交付' : '已阻止'}</Badge>{preflight.plan && <span>{preflight.plan.visualClips.length} 段画面 · {preflight.plan.subtitles.length} 条字幕 · {preflight.plan.durationSeconds.toFixed(1)} 秒</span>}{preflight.ffmpegPath && <span className="text-muted-foreground">FFmpeg 已就绪</span>}</div>
+      {preflight.blockers.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-destructive">{preflight.blockers.map((message) => <li key={message}>{message}</li>)}</ul>}
+      {preflight.warnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-muted-foreground">{preflight.warnings.map((message) => <li key={message}>{message}</li>)}</ul>}
+      {preflight.plan && <div className="mt-2 flex flex-wrap gap-1">{preflight.plan.visualClips.map((clip) => <Badge key={clip.id} variant="outline">镜头 {clip.orderIndex + 1} · {clip.source.kind === 'video' ? '视频' : clip.source.kind === 'still' ? '静帧合成' : '缺素材'} · {clip.transition}</Badge>)}</div>}
+    </div>}
+    <div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy !== null || !preflight?.ok || task?.status === 'running' || task?.status === 'pending'} onClick={() => void render()}>{busy === 'render' ? <Loader2 className="animate-spin" /> : <Video className="h-3.5 w-3.5" />}渲染 MP4</Button>{(task?.status === 'pending' || task?.status === 'running') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void cancel()}>取消渲染</Button>}{(task?.status === 'failed' || task?.status === 'canceled') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void retry()}>修正后重试</Button>}{task && <Badge variant={taskStaleReason ? 'destructive' : task.status === 'success' ? 'default' : task.status === 'failed' ? 'destructive' : 'outline'}>任务：{taskStaleReason ? 'stale' : task.status}</Badge>}</div>
+    {taskStaleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史成片仍可回看，但已过期：{taskStaleReason}</p>}
+    {task?.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{task.errorMessage}</p>}
+    {task?.status === 'success' && archive?.mp4Path && <div className="flex flex-wrap gap-2 rounded border border-emerald-500/40 bg-background/60 p-2 text-xs"><span>归档完成：</span><a className="underline" href={localFileUrl(archive.mp4Path)}>MP4</a>{archive.srtPath && <a className="underline" href={localFileUrl(archive.srtPath)}>SRT</a>}{archive.vttPath && <a className="underline" href={localFileUrl(archive.vttPath)}>VTT</a>}{archive.audioPath && <a className="underline" href={localFileUrl(archive.audioPath)}>混音 M4A</a>}{archive.manifestPath && <a className="underline" href={localFileUrl(archive.manifestPath)}>Manifest</a>}</div>}
+  </section>
+}
+
+function localFileUrl(path: string): string {
+  if (path.startsWith('file://')) return path
+  const normalized = path.replace(/\\/g, '/')
+  return `file://${normalized.split('/').map(encodeURIComponent).join('/')}`
 }
 
 function ShotStillBatchPlanner({ shots, candidates, locks, versions }: { shots: Shot[]; candidates: ShotStillCandidate[]; locks: ShotVisualAssetLock[]; versions: VisualAssetVersion[] }) {
