@@ -687,6 +687,55 @@ export const MIGRATIONS: Migration[] = [
       addColumnIfMissing(raw, 'projects', 'production_brief', 'production_brief TEXT')
     },
   },
+  {
+    version: 28,
+    name: 'story-bible-change-sets',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS story_bible_settings (
+          project_id TEXT PRIMARY KEY,
+          auto_suggest INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS story_bible_change_sets (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          chapter_id TEXT NOT NULL,
+          source_chapter_updated_at TEXT NOT NULL,
+          source_content_hash TEXT NOT NULL,
+          task_id TEXT,
+          status TEXT NOT NULL,
+          estimated_tokens INTEGER,
+          estimated_cost REAL,
+          currency TEXT,
+          payload TEXT,
+          conflicts TEXT NOT NULL DEFAULT '[]',
+          undo_payload TEXT,
+          error_message TEXT,
+          applied_at TEXT,
+          undone_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS story_bible_stale_marks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          chapter_id TEXT NOT NULL,
+          target_kind TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          resolved_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_story_bible_change_sets_project_status
+          ON story_bible_change_sets(project_id, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_story_bible_change_sets_chapter
+          ON story_bible_change_sets(chapter_id, source_chapter_updated_at);
+        CREATE INDEX IF NOT EXISTS idx_story_bible_stale_marks_project_chapter
+          ON story_bible_stale_marks(project_id, chapter_id, resolved_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

@@ -923,6 +923,18 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     await waitFor('恢复项目概览', () => window.location.hash.includes('section=overview'))
   })
 
+  await step('story-bible-change-set-review-controls', async () => {
+    window.location.hash = `#/projects/${projectId}?section=story-bible`
+    await waitFor('故事圣经变更审阅入口', () => text().includes('故事圣经变更') && text().includes('先看差异，再一次确认'))
+    const autoSuggest = buttonByText('自动建议：关')
+    if (!autoSuggest) throw new Error('未找到故事圣经自动建议开关')
+    if (autoSuggest.getAttribute('aria-pressed') !== 'false') throw new Error('自动建议默认不应开启')
+    autoSuggest.click()
+    await waitFor('开启稳定保存后建议排队', () => buttonByText('自动建议：开')?.getAttribute('aria-pressed') === 'true')
+    buttonByText('自动建议：开')?.click()
+    await waitFor('关闭自动建议', () => buttonByText('自动建议：关')?.getAttribute('aria-pressed') === 'false')
+  })
+
   await step('global-task-dock-is-available-across-workspace', async () => {
     const dock = document.querySelector('button[aria-label^="任务状态"]') as HTMLButtonElement | null
     if (!dock) throw new Error('未找到全局任务状态入口')

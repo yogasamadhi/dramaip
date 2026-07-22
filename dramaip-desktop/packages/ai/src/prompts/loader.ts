@@ -33,6 +33,7 @@ import {
   ShotPromptResultSchema,
   ShotReviewResultSchema,
   ShotsResultSchema,
+  StoryBibleChangeSetPayloadSchema,
   StoryEventsResultSchema,
   TextQualityReportResultSchema,
   VideoAssetDraftResultSchema,
@@ -62,6 +63,7 @@ import enhanceAuthorStyle from './zh-CN/chapter/enhance-author-style.md?raw'
 import evaluateAiDramaFit from './zh-CN/evaluation/evaluate-ai-drama-fit.md?raw'
 // v0.2 长篇一致性与视觉记忆系统
 import summarizeChapter from './zh-CN/memory/summarize-chapter.md?raw'
+import proposeStoryBibleChanges from './zh-CN/memory/propose-story-bible-changes.md?raw'
 import updateCharacterState from './zh-CN/memory/update-character-state.md?raw'
 import extractStoryEvents from './zh-CN/memory/extract-story-events.md?raw'
 import extractForeshadowing from './zh-CN/memory/extract-foreshadowing.md?raw'
@@ -145,6 +147,7 @@ export const TASK_DEFINITIONS: Record<NovelTaskType, TaskDefinition> = {
   evaluate_ai_drama_fit: { prompt: evaluateAiDramaFit, output: 'json', schema: EvaluationResultSchema },
   // v0.2
   summarize_chapter: { prompt: summarizeChapter, output: 'json', schema: ChapterMemoryResultSchema },
+  propose_story_bible_changes: { prompt: proposeStoryBibleChanges, output: 'json', schema: StoryBibleChangeSetPayloadSchema },
   update_character_state: { prompt: updateCharacterState, output: 'json', schema: CharacterStateResultSchema },
   extract_story_events: { prompt: extractStoryEvents, output: 'json', schema: StoryEventsResultSchema },
   extract_foreshadowing: { prompt: extractForeshadowing, output: 'json', schema: ForeshadowingResultSchema },

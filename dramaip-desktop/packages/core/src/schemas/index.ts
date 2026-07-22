@@ -177,6 +177,33 @@ export const ForeshadowingItemSchema = z.object({
 export const ForeshadowingResultSchema = z.array(ForeshadowingItemSchema).min(1).max(200)
 export type ForeshadowingResult = z.infer<typeof ForeshadowingResultSchema>
 
+/** LM5-05：一章稳定正文对应的一次故事圣经变更建议。 */
+export const StoryBibleChangeSetPayloadSchema = z.object({
+  summary: z.string().min(1),
+  memories: z.array(ChapterMemoryResultSchema).max(1).default([]),
+  characterStates: z.array(z.object({
+    characterId: z.string().min(1),
+    currentStatus: z.string().min(1),
+    emotionalState: z.string().optional(),
+    relationshipChanges: z.string().optional(),
+    knownSecrets: strArr.default([]),
+    hiddenSecrets: strArr.default([]),
+    visualContinuityNotes: z.string().optional(),
+  })).max(50).default([]),
+  storyEvents: z.array(StoryEventItemSchema).max(100).default([]),
+  foreshadowings: z.array(ForeshadowingItemSchema.extend({
+    action: z.enum(['add', 'resolve']).default('add'),
+    targetId: z.string().optional(),
+    status: z.enum(['planned', 'setup', 'paid_off', 'abandoned']),
+  })).max(100).default([]),
+  visualSettings: z.array(z.object({
+    title: z.string().min(1),
+    type: z.enum(['world', 'location', 'style', 'object']),
+    visualPrompt: z.string().min(1),
+    notes: z.string().optional(),
+  })).max(50).default([]),
+})
+
 /** generate_character_visual_profile：人物视觉档案 */
 export const VisualProfileResultSchema = z.object({
   appearancePrompt: z.string().min(1),
@@ -744,6 +771,7 @@ export const ALL_RESULT_SCHEMAS = {
   generate_story_arc_outline: GenerateStoryArcOutlineResultSchema,
   evaluate_ai_drama_fit: EvaluationResultSchema,
   summarize_chapter: ChapterMemoryResultSchema,
+  propose_story_bible_changes: StoryBibleChangeSetPayloadSchema,
   update_character_state: CharacterStateResultSchema,
   extract_story_events: StoryEventsResultSchema,
   extract_foreshadowing: ForeshadowingResultSchema,

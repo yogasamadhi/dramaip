@@ -132,6 +132,17 @@ export async function runDesktopUiBaseline(
       reducedMotion: false,
     },
     {
+      name: 'story-bible-1024-light',
+      hash: `#/projects/${fixture.projectId}?section=story-bible`,
+      expectedText: '故事圣经变更',
+      readyText: '自动建议：关',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
       name: 'workspace-1024-dark-reduced',
       hash: `#/projects/${fixture.projectId}`,
       expectedText: 'UI 基线项目',

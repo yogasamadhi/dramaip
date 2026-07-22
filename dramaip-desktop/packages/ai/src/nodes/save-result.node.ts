@@ -23,6 +23,7 @@ import type {
   ShotPromptResult,
   ShotReviewResult,
   ShotsResult,
+  StoryBibleChangeSetPayload,
   StoryEventsResult,
   TextDiffPreviewPayload,
   VideoCostRiskResult,
@@ -101,6 +102,19 @@ export function createSaveResultNode(deps: NodeDeps) {
         ? repos.chapterMemory.updateChapterMemory(db, existing.id, payload)
         : repos.chapterMemory.createChapterMemory(db, { projectId: state.projectId, chapterId: state.chapterId, ...payload })
       return { result: { kind: 'chapter_memory', data: created } }
+    }
+
+    // LM5-05：AI 只生成故事圣经草案。实际记忆/人物/事件/伏笔/视觉写入必须由用户采用。
+    if (taskType === 'propose_story_bible_changes' && state.projectId && state.chapterId) {
+      const budget = repos.aiBudget.getAiBudgetSettings(db)
+      const created = repos.storyBible.saveStoryBibleDraft(db, {
+        projectId: state.projectId,
+        chapterId: state.chapterId,
+        payload: state.parsedOutput as StoryBibleChangeSetPayload,
+        costPer1kTokens: budget.costPer1kTokens,
+        currency: budget.currency,
+      })
+      return { result: { kind: 'story_bible_change_set', data: created } }
     }
 
     // v0.2：更新人物状态（按 characterId 追加一条快照）

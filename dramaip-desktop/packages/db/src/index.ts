@@ -24,6 +24,7 @@ export * as characterVisualProfileRepo from './repositories/character-visual-pro
 export * as visualSettingRepo from './repositories/visual-setting.repo'
 export * as storyEventRepo from './repositories/story-event.repo'
 export * as foreshadowingRepo from './repositories/foreshadowing.repo'
+export * as storyBibleRepo from './repositories/story-bible.repo'
 // v0.3 AI 短剧小说强化系统
 export * as beatRepo from './repositories/beat.repo'
 export * as highlightRepo from './repositories/highlight-analysis.repo'
@@ -80,6 +81,7 @@ import * as characterVisualProfileRepo from './repositories/character-visual-pro
 import * as visualSettingRepo from './repositories/visual-setting.repo'
 import * as storyEventRepo from './repositories/story-event.repo'
 import * as foreshadowingRepo from './repositories/foreshadowing.repo'
+import * as storyBibleRepo from './repositories/story-bible.repo'
 import * as beatRepo from './repositories/beat.repo'
 import * as highlightRepo from './repositories/highlight-analysis.repo'
 import * as feasibilityRepo from './repositories/ai-video-feasibility.repo'
@@ -129,6 +131,7 @@ export function createRepositories(db: DB) {
     visualSetting: { ...visualSettingRepo },
     storyEvent: { ...storyEventRepo },
     foreshadowing: { ...foreshadowingRepo },
+    storyBible: { ...storyBibleRepo },
     // v0.3
     beat: { ...beatRepo },
     highlight: { ...highlightRepo },

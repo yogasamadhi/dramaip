@@ -321,6 +321,46 @@ export const foreshadowings = sqliteTable('foreshadowings', {
   updatedAt: text('updated_at').notNull(),
 })
 
+// LM5-05：故事圣经变更包。AI 结果先以草案保存，采用时才写入记忆/状态/时间线等实体。
+export const storyBibleSettings = sqliteTable('story_bible_settings', {
+  projectId: text('project_id').primaryKey(),
+  autoSuggest: integer('auto_suggest', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const storyBibleChangeSets = sqliteTable('story_bible_change_sets', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  sourceChapterUpdatedAt: text('source_chapter_updated_at').notNull(),
+  sourceContentHash: text('source_content_hash').notNull(),
+  taskId: text('task_id'),
+  status: text('status').notNull(),
+  estimatedTokens: integer('estimated_tokens'),
+  estimatedCost: real('estimated_cost'),
+  currency: text('currency'),
+  payload: text('payload'),
+  conflicts: text('conflicts').notNull().default('[]'),
+  undoPayload: text('undo_payload'),
+  errorMessage: text('error_message'),
+  appliedAt: text('applied_at'),
+  undoneAt: text('undone_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** 章节变化产生的下游回填提醒；不改写原有诊断记录。 */
+export const storyBibleStaleMarks = sqliteTable('story_bible_stale_marks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  targetKind: text('target_kind', { enum: ['story_bible', 'diagnostic'] }).notNull(),
+  reason: text('reason').notNull(),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // v0.3 AI 短剧小说强化系统（ROADMAP v0.3 §2-4）
 
 export const beats = sqliteTable('beats', {

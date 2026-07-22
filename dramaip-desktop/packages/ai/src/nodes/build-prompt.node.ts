@@ -134,6 +134,7 @@ function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): stri
       return buildShotContext(common)
     // v0.2：记忆/视觉/一致性任务使用记忆上下文（含历史状态、事件、伏笔）
     case 'summarize_chapter':
+    case 'propose_story_bible_changes':
     case 'update_character_state':
     case 'extract_story_events':
     case 'extract_foreshadowing':
