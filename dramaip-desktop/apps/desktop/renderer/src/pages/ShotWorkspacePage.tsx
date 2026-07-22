@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, TextDiffPreviewPayload, VideoAssetDraftResult } from '@sdns/core'
+import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, Scene, Script, Shot, ShotReview, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
 import { TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -921,6 +921,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     draft={draft}
                     onUpdate={updateDraft}
                   />
+                  {sourceProjectId && <ShotVisualAssetLocksPanel projectId={sourceProjectId} shotId={activeShot.id} />}
                   <div className="mt-3 flex justify-end">
                     <Button size="sm" onClick={() => void saveShot()} disabled={!isDirty}><Pencil className="h-3.5 w-3.5" />保存素材引用</Button>
                   </div>
@@ -1055,6 +1056,66 @@ function StoryboardAssetInspector({ assets, draft, onUpdate }: {
       <AssetBadges assets={assets} />
     </section>
   )
+}
+
+const SHOT_LOCK_ROLES = [
+  ['character', '角色外观'],
+  ['costume', '服装阶段'],
+  ['scene', '场景布局'],
+  ['style', '布光 / 色彩'],
+  ['prop', '关键道具'],
+  ['voice', '声音参考'],
+] as const
+
+function ShotVisualAssetLocksPanel({ projectId, shotId }: { projectId: string; shotId: string }) {
+  const [versions, setVersions] = useState<VisualAssetVersion[]>([])
+  const [locks, setLocks] = useState<ShotVisualAssetLock[]>([])
+  const [role, setRole] = useState<(typeof SHOT_LOCK_ROLES)[number][0]>('character')
+  const [versionId, setVersionId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const adopted = versions.filter((version) => version.status === 'adopted')
+  const versionsById = useMemo(() => new Map(versions.map((version) => [version.id, version])), [versions])
+
+  async function load() {
+    const [nextVersions, nextLocks] = await Promise.all([
+      ipc.visualAsset.listByProject(projectId),
+      ipc.visualAsset.listLocksByShot(shotId),
+    ])
+    setVersions(nextVersions)
+    setLocks(nextLocks)
+  }
+  useEffect(() => { void load() }, [projectId, shotId])
+  useEffect(() => {
+    if (versionId && adopted.some((version) => version.id === versionId)) return
+    setVersionId(adopted[0]?.id ?? '')
+  }, [adopted, versionId])
+
+  async function lockVersion() {
+    if (!versionId) return toast.error('请先在项目概览的生产资产包中采用一个版本')
+    setSaving(true)
+    try {
+      await ipc.visualAsset.lockShot({ projectId, shotId, visualAssetVersionId: versionId, role })
+      await load()
+      toast.success('此分镜已锁定精确版本；上游换版后只会提示，不会静默替换。')
+    } catch (error) {
+      toast.error(`锁定版本失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <section className="mt-3 space-y-2 rounded-md border bg-muted/20 p-3" data-shot-visual-locks>
+    <div><h3 className="text-sm font-medium">生产资产版本锁</h3><p className="text-xs text-muted-foreground">本镜头只使用这里明确锁定的资产版本；未锁定不等于自动追随角色或场景的新版本。</p></div>
+    <div className="grid gap-2 md:grid-cols-[9rem_1fr_auto]">
+      <select aria-label="锁定用途" value={role} onChange={(event) => setRole(event.target.value as typeof role)} className="h-9 rounded-md border bg-background px-2 text-xs">{SHOT_LOCK_ROLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+      <select aria-label="采用的视觉资产版本" value={versionId} onChange={(event) => setVersionId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs"><option value="">选择已采用版本</option>{adopted.map((version) => <option key={version.id} value={version.id}>{version.label} · v{version.versionNumber}</option>)}</select>
+      <Button size="sm" onClick={() => void lockVersion()} disabled={!versionId || saving}>锁定版本</Button>
+    </div>
+    {locks.length === 0 ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚未锁定生产资产。为角色、服装、场景等选择精确版本后再生成视频，可避免上游换图影响已完成镜头。</p> : <div className="space-y-1">{locks.map((lock) => {
+      const version = versionsById.get(lock.visualAssetVersionId)
+      return <div key={lock.id} className="rounded border bg-background/70 p-2 text-xs"><div className="flex flex-wrap gap-2"><Badge variant={lock.staleReason ? 'destructive' : 'default'}>{SHOT_LOCK_ROLES.find(([value]) => value === lock.role)?.[1] ?? lock.role}</Badge><span className="font-medium">{version ? `${version.label} · v${version.versionNumber}` : '版本记录不可用'}</span>{!lock.staleReason && <span className="text-muted-foreground">已锁定</span>}</div>{lock.staleReason && <p className="mt-1 text-destructive">待确认更新：{lock.staleReason}</p>}</div>
+    })}</div>}
+  </section>
 }
 
 function AssetReferenceControl({ asset, value, label, description, kind, onChange }: {

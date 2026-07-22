@@ -610,6 +610,34 @@ CREATE TABLE IF NOT EXISTS asset_rights_records (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS visual_asset_versions (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  owner_kind TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  label TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'candidate',
+  notes TEXT,
+  adopted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shot_visual_asset_locks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  shot_id TEXT NOT NULL,
+  visual_asset_version_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  stale_at TEXT,
+  stale_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generation_lineages (
   id TEXT PRIMARY KEY,
   project_id TEXT,

@@ -759,6 +759,8 @@ export const ProjectPackageSchema = z
     workflowRuns: packageEntityArray,
     assets: packageEntityArray.default([]),
     assetRightsRecords: packageEntityArray.default([]),
+    visualAssetVersions: packageEntityArray.default([]),
+    shotVisualAssetLocks: packageEntityArray.default([]),
     generationLineages: packageEntityArray.default([]),
     generationCostEntries: packageEntityArray.default([]),
     adaptations: z.array(PackageAdaptationSchema).default([]),

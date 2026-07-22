@@ -28,6 +28,7 @@ import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { PilotProductionPanel } from '@/components/PilotProductionPanel'
 import { GenerationLedgerPanel } from '@/components/GenerationLedgerPanel'
 import { RightsLedgerPanel } from '@/components/RightsLedgerPanel'
+import { VisualAssetPackPanel } from '@/components/VisualAssetPackPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
@@ -1212,6 +1213,7 @@ export function WorkspacePage() {
                   onUpdateCost={updateGenerationCost}
                 />
                 <RightsLedgerPanel projectId={project.id} assets={projectAssets} records={assetRights} onChanged={() => setDataVersion((value) => value + 1)} />
+                <VisualAssetPackPanel projectId={project.id} assets={projectAssets} onChanged={() => setDataVersion((value) => value + 1)} />
                 {project.productionBrief && (() => {
                   const brief = project.productionBrief
                   const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)

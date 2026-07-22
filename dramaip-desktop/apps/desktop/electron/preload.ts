@@ -32,6 +32,14 @@ const api = {
     update: (id: string, patch: unknown) => invoke('rights:update', id, patch),
     preflight: (input: unknown) => invoke('rights:preflight', input),
   },
+  visualAsset: {
+    listByProject: (projectId: string) => invoke('visualAsset:listByProject', projectId),
+    listByOwner: (ownerKind: string, ownerId: string) => invoke('visualAsset:listByOwner', ownerKind, ownerId),
+    create: (data: unknown) => invoke('visualAsset:create', data),
+    adopt: (id: string) => invoke('visualAsset:adopt', id),
+    listLocksByShot: (shotId: string) => invoke('visualAsset:listLocksByShot', shotId),
+    lockShot: (data: unknown) => invoke('visualAsset:lockShot', data),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

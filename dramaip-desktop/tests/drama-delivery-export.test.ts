@@ -2,21 +2,26 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type {
   AdaptationProject,
+  AssetRightsRecord,
   Character,
   Episode,
   EpisodeAnalysis,
   Project,
+  ProjectAsset,
   Scene,
   Script,
   ScriptReview,
   Shot,
   ShotReview,
+  ShotVisualAssetLock,
   VideoGenerationTask,
   VideoResult,
+  VisualAssetVersion,
 } from '../packages/core/src'
 import {
   buildDramaEpisodeDeliveryPackage,
   buildDramaProposalPackage,
+  buildDramaShotDeliveryPackage,
   DRAMA_EPISODE_DELIVERY_PACKAGE_FORMAT,
   DRAMA_PROPOSAL_PACKAGE_FORMAT,
   DRAMA_SHOT_DELIVERY_PACKAGE_FORMAT,
@@ -25,6 +30,7 @@ import {
   exportDramaProposalMarkdown,
   exportDramaShotDeliveryCsv,
   exportDramaShotDeliveryJson,
+  exportDramaShotDeliveryMarkdown,
   type DramaDeliveryExportData,
 } from '../packages/export/src'
 
@@ -315,6 +321,37 @@ test('exports shot delivery json and csv for video production handoff', () => {
   assert.match(csv, /"blurred face, extra fingers"/)
   assert.match(csv, /雨夜和推镜头叠加/)
   assert.match(csv, /https:\/\/cdn.example.test\/result.mp4/)
+})
+
+test('keeps exact visual asset locks, stale reasons, and rights status in production delivery exports', () => {
+  const version: VisualAssetVersion = {
+    id: 'visual-v1', projectId: 'p1', ownerKind: 'visual_profile', ownerId: 'profile-1', assetId: 'asset-look-1',
+    slot: 'costume', label: '红裙晚宴款', versionNumber: 2, status: 'superseded', notes: '第 2 集起替换', createdAt: now, updatedAt: now,
+  }
+  const lock: ShotVisualAssetLock = {
+    id: 'lock-1', projectId: 'p1', shotId: 'shot-1', visualAssetVersionId: version.id, role: 'costume',
+    staleAt: now, staleReason: '上游已采用 红裙晚宴款 v3；原锁定版本仍保留，需人工确认是否替换。', createdAt: now, updatedAt: now,
+  }
+  const asset: ProjectAsset = {
+    id: version.assetId, projectId: 'p1', kind: 'character_reference', title: '红裙晚宴款 v2', tags: ['服装'], metadata: {},
+    status: 'available', packagePolicy: 'reference_only', createdAt: now, updatedAt: now,
+  }
+  const rights: AssetRightsRecord = {
+    id: 'rights-1', projectId: 'p1', assetId: asset.id, rightsTypes: ['ownership'], permittedUses: ['commercial', 'generative'],
+    platforms: ['全部'], regions: ['全部'], aiGenerated: false, status: 'verified', createdAt: now, updatedAt: now,
+  }
+  const lockedData: DramaDeliveryExportData = { ...data, visualAssetVersions: [version], shotVisualAssetLocks: [lock], assets: [asset], assetRightsRecords: [rights] }
+  const pkg = buildDramaShotDeliveryPackage(lockedData, { episodeLimit: 1, exportedAt: now })
+  const exportedLock = pkg.scenes[0].shots[0].visualAssetLocks[0]
+  assert.deepEqual(exportedLock, {
+    role: 'costume', visualAssetVersionId: version.id, label: '红裙晚宴款', versionNumber: 2, slot: 'costume',
+    ownerKind: 'visual_profile', ownerId: 'profile-1', assetId: asset.id, assetTitle: asset.title,
+    assetStatus: 'available', rightsStatus: 'verified', staleAt: now, staleReason: lock.staleReason,
+  })
+  assert.match(exportDramaShotDeliveryMarkdown(lockedData, { episodeLimit: 1 }), /视觉资产版本锁/)
+  const csv = exportDramaShotDeliveryCsv(lockedData, { episodeLimit: 1 })
+  assert.match(csv, /visualAssetVersions,visualAssetStaleReasons/)
+  assert.match(csv, /costume:红裙晚宴款@v2/)
 })
 
 test('keeps shot delivery exports in persisted storyboard order', () => {

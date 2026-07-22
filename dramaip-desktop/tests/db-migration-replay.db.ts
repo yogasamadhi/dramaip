@@ -150,6 +150,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'generation_lineages'))
     assert.ok(tableExists(raw, 'generation_cost_entries'))
     assert.ok(tableExists(raw, 'asset_rights_records'))
+    assert.ok(tableExists(raw, 'visual_asset_versions'))
+    assert.ok(tableExists(raw, 'shot_visual_asset_locks'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
@@ -728,7 +730,7 @@ test('keeps a rights ledger manifest through a project package roundtrip and fai
     assert.equal(repos.rights.preflightProjectRights(db, { projectId: project.id, platform: '抖音', region: '中国大陆' }).status, 'pass')
 
     const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
-    assert.equal(pkg.assetRightsRecords?.[0]?.id, rights.id)
+    assert.ok(pkg.assetRightsRecords?.some((record) => record.id === rights.id))
     assert.doesNotMatch(serializeProjectPackage(pkg), /license\.pdf/)
     const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
     const importedRights = repos.rights.listAssetRightsByProject(db, imported.id)
@@ -736,6 +738,74 @@ test('keeps a rights ledger manifest through a project package roundtrip and fai
     assert(importedRights.every((record) => record.status === 'verified'))
     assert(importedRights.every((record) => record.evidenceSha256 === 'a'.repeat(64)))
     assert.equal(repos.rights.preflightProjectRights(db, { projectId: imported.id, platform: '抖音', region: '中国大陆' }).status, 'blocked')
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('versions visual production packs without overwriting a locked shot and preserves stale locks through project package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, shot } = fixture
+    const character = repos.character.createCharacter(db, { projectId: project.id, name: '林晚', role: '女主' })
+    const profile = repos.visualProfile.createVisualProfile(db, {
+      projectId: project.id,
+      characterId: character.id,
+      appearancePrompt: '红裙都市女主',
+      negativePrompt: '不要换脸',
+    })
+    const firstLook = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'character_reference',
+      title: '红裙晚宴款 v1',
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: profile.id,
+      remoteUrl: 'https://example.test/heroine-v1.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const replacementLook = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'character_reference',
+      title: '红裙晚宴款 v2',
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: profile.id,
+      remoteUrl: 'https://example.test/heroine-v2.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const v1 = repos.visualAsset.createVisualAssetVersion(db, {
+      projectId: project.id, ownerKind: 'visual_profile', ownerId: profile.id,
+      assetId: firstLook.id, slot: 'costume', label: '红裙晚宴款', notes: '第 1 集晚宴',
+    })
+    repos.visualAsset.adoptVisualAssetVersion(db, v1.id)
+    const lock = repos.visualAsset.lockShotVisualAsset(db, {
+      projectId: project.id, shotId: shot.id, visualAssetVersionId: v1.id, role: 'costume',
+    })
+    const v2 = repos.visualAsset.createVisualAssetVersion(db, {
+      projectId: project.id, ownerKind: 'visual_profile', ownerId: profile.id,
+      assetId: replacementLook.id, slot: 'costume', label: '红裙晚宴款', notes: '第 2 集起替换',
+    })
+    repos.visualAsset.adoptVisualAssetVersion(db, v2.id)
+
+    const staleLock = repos.visualAsset.listShotVisualAssetLocks(db, shot.id)[0]
+    assert.equal(staleLock.id, lock.id)
+    assert.match(staleLock.staleReason ?? '', /上游已采用/)
+    assert.equal(repos.visualAsset.getVisualAssetVersion(db, v1.id)?.status, 'superseded')
+    assert.equal(repos.visualAsset.getVisualAssetVersion(db, v2.id)?.status, 'adopted')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.visualAssetVersions?.length, 2)
+    assert.equal(pkg.shotVisualAssetLocks?.[0]?.staleReason, staleLock.staleReason)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedVersions = repos.visualAsset.listVisualAssetVersionsByProject(db, imported.id)
+    const importedLocks = repos.visualAsset.listShotVisualAssetLocksByProject(db, imported.id)
+    assert.equal(importedVersions.length, 2)
+    assert.equal(importedVersions.filter((version) => version.status === 'adopted').length, 1)
+    assert.equal(importedVersions.filter((version) => version.status === 'superseded').length, 1)
+    assert.equal(importedLocks.length, 1)
+    assert.match(importedLocks[0].staleReason ?? '', /上游已采用/)
+    assert.ok(importedVersions.some((version) => version.id === importedLocks[0].visualAssetVersionId && version.status === 'superseded'))
   } finally {
     closeRepositoryFixture(fixture)
   }

@@ -1,22 +1,26 @@
 import type {
   AdaptationProject,
+  AssetRightsRecord,
   Character,
   Episode,
   EpisodeAnalysis,
   Project,
+  ProjectAsset,
   Scene,
   Script,
   ScriptReview,
   Shot,
   ShotReview,
+  ShotVisualAssetLock,
   VideoGenerationTask,
   VideoResult,
+  VisualAssetVersion,
 } from '@sdns/core'
 
 export const DRAMA_PROPOSAL_PACKAGE_FORMAT = 'sdns-drama-proposal-package'
 export const DRAMA_EPISODE_DELIVERY_PACKAGE_FORMAT = 'sdns-drama-episode-delivery-package'
 export const DRAMA_SHOT_DELIVERY_PACKAGE_FORMAT = 'sdns-drama-shot-delivery-package'
-export const DRAMA_DELIVERY_PACKAGE_VERSION = 1
+export const DRAMA_DELIVERY_PACKAGE_VERSION = 2
 export const DEFAULT_DRAMA_PROPOSAL_EPISODE_LIMIT = 10
 export const DEFAULT_DRAMA_DELIVERY_EPISODE_LIMIT = 100
 
@@ -37,6 +41,11 @@ export interface DramaDeliveryExportData {
   shotReviews?: ShotReview[]
   videoTasks?: VideoGenerationTask[]
   videoResults?: VideoResult[]
+  /** 仅结构化版本/权利引用，不随交付包发送本地媒体或授权证明正文。 */
+  visualAssetVersions?: VisualAssetVersion[]
+  shotVisualAssetLocks?: ShotVisualAssetLock[]
+  assets?: ProjectAsset[]
+  assetRightsRecords?: AssetRightsRecord[]
 }
 
 /** The explicitly selected, successful video delivery pointer. Raw provider metadata is excluded. */
@@ -55,6 +64,24 @@ export interface DramaDeliveryShotItem {
   review?: ShotReview
   riskFlags: string[]
   bestVideo?: DramaBestVideoDelivery
+  visualAssetLocks: DramaVisualAssetLockReference[]
+}
+
+/** 交付侧可复核的精确视觉版本、素材状态和权利状态，不含路径、二进制或证据正文。 */
+export interface DramaVisualAssetLockReference {
+  role: string
+  visualAssetVersionId: string
+  label: string
+  versionNumber: number
+  slot: VisualAssetVersion['slot']
+  ownerKind: VisualAssetVersion['ownerKind']
+  ownerId: string
+  assetId: string
+  assetTitle?: string
+  assetStatus?: ProjectAsset['status']
+  rightsStatus?: AssetRightsRecord['status']
+  staleAt?: string
+  staleReason?: string
 }
 
 export interface DramaDeliverySceneItem {
@@ -383,6 +410,8 @@ export function exportDramaShotDeliveryCsv(
     'riskFlags',
     'reviewIssues',
     'reviewSuggestions',
+    'visualAssetVersions',
+    'visualAssetStaleReasons',
   ]
   const rows = pkg.scenes.flatMap((scene) =>
     scene.shots.map((item) =>
@@ -413,6 +442,8 @@ export function exportDramaShotDeliveryCsv(
         item.riskFlags.join(' / '),
         item.review?.issues.join(' / ') ?? '',
         item.review?.suggestions.join(' / ') ?? '',
+        item.visualAssetLocks.map((lock) => `${lock.role}:${lock.label}@v${lock.versionNumber}`).join(' / '),
+        item.visualAssetLocks.filter((lock) => lock.staleReason).map((lock) => `${lock.role}:${lock.staleReason}`).join(' / '),
       ].map(csvField).join(','),
     ),
   )
@@ -426,6 +457,7 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
   const shotsByScene = groupBy(data.shots ?? [], (shot) => shot.sceneId)
   const shotReviewsByShot = new Map((data.shotReviews ?? []).map((review) => [review.shotId, review]))
   const bestVideosByShot = buildBestVideosByShot(data)
+  const visualAssetLocksByShot = buildVisualAssetLocksByShot(data)
   return episodes.map((episode) => {
     const script = scriptsByEpisode.get(episode.id)
     const scenes = script
@@ -433,7 +465,13 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
           scene,
           shots: sortShots(shotsByScene.get(scene.id) ?? []).map((shot) => {
             const review = shotReviewsByShot.get(shot.id)
-            return { shot, review, riskFlags: buildShotRiskFlags(shot, review), bestVideo: bestVideosByShot.get(shot.id) }
+            return {
+              shot,
+              review,
+              riskFlags: buildShotRiskFlags(shot, review),
+              bestVideo: bestVideosByShot.get(shot.id),
+              visualAssetLocks: visualAssetLocksByShot.get(shot.id) ?? [],
+            }
           }),
         }))
       : []
@@ -444,6 +482,35 @@ function buildEpisodeItems(data: DramaDeliveryExportData, episodes: Episode[]): 
       scenes,
     }
   })
+}
+
+function buildVisualAssetLocksByShot(data: DramaDeliveryExportData): Map<string, DramaVisualAssetLockReference[]> {
+  const versionsById = new Map((data.visualAssetVersions ?? []).map((version) => [version.id, version]))
+  const assetsById = new Map((data.assets ?? []).map((asset) => [asset.id, asset]))
+  const rightsByAssetId = new Map((data.assetRightsRecords ?? []).map((record) => [record.assetId, record]))
+  const byShot = new Map<string, DramaVisualAssetLockReference[]>()
+  for (const lock of data.shotVisualAssetLocks ?? []) {
+    const version = versionsById.get(lock.visualAssetVersionId)
+    if (!version) continue
+    const asset = assetsById.get(version.assetId)
+    const reference: DramaVisualAssetLockReference = {
+      role: lock.role,
+      visualAssetVersionId: version.id,
+      label: version.label,
+      versionNumber: version.versionNumber,
+      slot: version.slot,
+      ownerKind: version.ownerKind,
+      ownerId: version.ownerId,
+      assetId: version.assetId,
+      assetTitle: asset?.title,
+      assetStatus: asset?.status,
+      rightsStatus: rightsByAssetId.get(version.assetId)?.status,
+      staleAt: lock.staleAt,
+      staleReason: lock.staleReason,
+    }
+    byShot.set(lock.shotId, [...(byShot.get(lock.shotId) ?? []), reference])
+  }
+  return byShot
 }
 
 function buildBestVideosByShot(data: DramaDeliveryExportData): Map<string, DramaBestVideoDelivery> {
@@ -666,6 +733,7 @@ function renderDeliveryShot(item: DramaDeliveryShotItem): string {
       line('AI 视频难度', review?.aiVideoDifficulty ?? shot.aiVideoDifficulty),
       line('镜头审查得分', review?.overallScore),
       line('风险标记', item.riskFlags.join('；')),
+      item.visualAssetLocks.length ? `- **视觉资产版本锁**：${item.visualAssetLocks.map((lock) => `${lock.role}=${lock.label} v${lock.versionNumber}${lock.staleReason ? `（待确认：${lock.staleReason}）` : ''}`).join('；')}` : '',
       review?.issues.length ? `- **审查问题**：${review.issues.join('；')}` : '',
       review?.suggestions.length ? `- **审查建议**：${review.suggestions.join('；')}` : '',
     ].filter(Boolean).join('\n'),
