@@ -185,6 +185,75 @@ export interface ProjectImportResult {
   project?: Project
 }
 
+export type SourceImportStrategy = 'append' | 'merge' | 'replace'
+
+export interface SourceImportChapter {
+  key: string
+  title: string
+  content: string
+  orderIndex: number
+  wordCount: number
+  warning?: string
+}
+
+export interface SourceImportScene {
+  key: string
+  title: string
+  location: string
+  timeOfDay?: string
+  visualDescription: string
+  characters: string[]
+  summary: string
+  content: string
+  orderIndex: number
+  dialogueCount: number
+  actionCount: number
+}
+
+export interface SourceImportEpisode {
+  key: string
+  episodeNumber: number
+  title: string
+  content: string
+  scenes: SourceImportScene[]
+}
+
+export interface SourceImportPreview {
+  fileName: string
+  sourceType: 'txt' | 'markdown' | 'docx' | 'epub' | 'script-json' | 'draft'
+  contentKind: 'novel' | 'script' | 'draft'
+  title: string
+  charCount: number
+  chapters: SourceImportChapter[]
+  episodes: SourceImportEpisode[]
+  warnings: string[]
+}
+
+export interface SourceImportChooseResult {
+  ok: boolean
+  canceled?: boolean
+  error?: string
+  importId?: string
+  preview?: SourceImportPreview
+  duplicates?: { chapters: string[]; episodes: number[] }
+  note?: string
+}
+
+export interface SourceImportCommitResult {
+  ok: boolean
+  error?: string
+  result?: {
+    createdChapters: number
+    updatedChapters: number
+    createdEpisodes: number
+    createdScripts: number
+    updatedScripts: number
+    createdScenes: number
+    adaptationProjectId?: string
+    checkpointCount: number
+  }
+}
+
 export interface CloudProjectSnapshot {
   id: string
   encryptedBytes: number
@@ -497,6 +566,18 @@ export interface StudioApi {
     purge(id: string, confirmationTitle: string): Promise<boolean>
     /** v1.0：导入完整项目包 */
     importPackage(): Promise<ProjectImportResult>
+  }
+  sourceImport: {
+    choose(projectId: string): Promise<SourceImportChooseResult>
+    commit(input: {
+      importId: string
+      projectId: string
+      strategy: SourceImportStrategy
+      rightsConfirmed: true
+      destructiveConfirmed?: boolean
+      preview: SourceImportPreview
+    }): Promise<SourceImportCommitResult>
+    discard(importId: string): Promise<{ ok: boolean }>
   }
   chapter: {
     list(projectId: string): Promise<Chapter[]>

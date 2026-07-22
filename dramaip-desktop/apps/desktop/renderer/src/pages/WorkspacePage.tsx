@@ -64,6 +64,7 @@ import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/Workspac
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
 import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
+import { SourceImportDialog } from '@/components/SourceImportDialog'
 import type { AiCommandDefinition } from '@/lib/aiCommandCatalog'
 import { cn } from '@/lib/utils'
 
@@ -128,6 +129,7 @@ export function WorkspacePage() {
   })
   const [generating, setGenerating] = useState<PreviewTaskType | null>(null)
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
+  const [sourceImportOpen, setSourceImportOpen] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
   const [generateIdea, setGenerateIdea] = useState('')
   const [workflowSnapshot, setWorkflowSnapshot] = useState<ProjectWorkflowSnapshot | null>(null)
@@ -140,6 +142,7 @@ export function WorkspacePage() {
   const [editorSaveState, setEditorSaveState] = useState<ChapterTreeStatus['saveState']>('clean')
   const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
   const chapterSearchRef = useRef<HTMLInputElement>(null)
+  const handledImportIntentRef = useRef<string | undefined>(undefined)
   const [contextControls, setContextControls] = useState<AiContextControls>({})
   const [pendingGenerate, setPendingGenerate] = useState<{
     taskType: PreviewTaskType
@@ -291,6 +294,13 @@ export function WorkspacePage() {
     const requestedChapter = searchParams.get('chapter')
     if (requestedChapter) setSelectedId(requestedChapter)
   }, [searchParams])
+  useEffect(() => {
+    const importIntent = searchParams.get('next') === 'import-source' && id ? id : undefined
+    if (importIntent && handledImportIntentRef.current !== importIntent) {
+      handledImportIntentRef.current = importIntent
+      setSourceImportOpen(true)
+    }
+  }, [id, searchParams])
   useEffect(() => {
     if (section === 'ai-runs') void loadAiRuns()
   }, [section, loadAiRuns])
@@ -769,6 +779,10 @@ export function WorkspacePage() {
               <Command />
               AI 命令
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setSourceImportOpen(true)}>
+              <FilePlus2 />
+              导入正文
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -1071,7 +1085,10 @@ export function WorkspacePage() {
                       <p className="mt-2 text-xs text-muted-foreground">
                         {brief.nextStep === 'import_source' ? '下一步：导入拥有授权的小说或剧本正文；目前未创建任何空章节。' : brief.nextStep === 'create_direct_adaptation' ? '下一步：直接创建第一季与剧本生产路径，无需先写小说章节。' : '下一步：补全故事设定或开始写第一章，再进入改编。'}
                       </p>
-                      {brief.nextStep === 'create_direct_adaptation' && <Button size="sm" variant="outline" className="mt-2" onClick={() => navigate(`/adaptations/new?source=${project.id}&mode=direct`)}>创建第一季</Button>}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {brief.nextStep === 'import_source' && <Button size="sm" variant="outline" onClick={() => setSourceImportOpen(true)}><FilePlus2 />导入授权正文</Button>}
+                        {brief.nextStep === 'create_direct_adaptation' && <Button size="sm" variant="outline" onClick={() => navigate(`/adaptations/new?source=${project.id}&mode=direct`)}>创建第一季</Button>}
+                      </div>
                     </div>
                   )
                 })()}
@@ -1359,6 +1376,16 @@ export function WorkspacePage() {
         runLabel={pendingPaletteCommand ? `执行 ${TASK_TYPE_LABELS[pendingPaletteCommand]}` : '执行 AI'}
         running={paletteCommandRunning}
         onClose={() => setPendingPaletteCommand(null)}
+      />
+      <SourceImportDialog
+        projectId={project.id}
+        open={sourceImportOpen}
+        onOpenChange={setSourceImportOpen}
+        onImported={({ adaptationProjectId }) => {
+          void loadProject()
+          setDataVersion((value) => value + 1)
+          if (adaptationProjectId) navigate(`/adaptations/${adaptationProjectId}`)
+        }}
       />
     </>
   )

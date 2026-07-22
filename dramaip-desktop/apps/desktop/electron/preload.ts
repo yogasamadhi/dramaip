@@ -88,6 +88,11 @@ const api = {
     // v1.0：导入项目包
     importPackage: () => invoke('project:importPackage'),
   },
+  sourceImport: {
+    choose: (projectId: string) => invoke('sourceImport:choose', projectId),
+    commit: (input: unknown) => invoke('sourceImport:commit', input),
+    discard: (importId: string) => invoke('sourceImport:discard', importId),
+  },
   chapter: {
     list: (projectId: string) => invoke('chapter:list', projectId),
     get: (id: string) => invoke('chapter:get', id),

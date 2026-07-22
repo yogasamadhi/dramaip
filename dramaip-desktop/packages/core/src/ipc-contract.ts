@@ -554,6 +554,63 @@ const caseStudyDocumentChapterPatch = z
   })
   .passthrough()
 
+const sourceImportSceneInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    title: z.string().min(1),
+    location: z.string().min(1),
+    timeOfDay: z.string().optional(),
+    visualDescription: z.string().optional(),
+    characters: looseStringArray.optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    orderIndex: z.number().int().nonnegative().optional(),
+    dialogueCount: z.number().int().nonnegative().optional(),
+    actionCount: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+const sourceImportEpisodeInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    episodeNumber: z.number().int().positive(),
+    title: z.string().min(1),
+    content: z.string().max(1_500_000),
+    scenes: z.array(sourceImportSceneInput).max(2_000),
+  })
+  .strict()
+const sourceImportChapterInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    title: z.string().min(1),
+    content: z.string().max(1_500_000),
+    orderIndex: z.number().int().nonnegative().optional(),
+    wordCount: z.number().int().nonnegative().optional(),
+    warning: z.string().optional(),
+  })
+  .strict()
+const sourceImportPreviewInput = z
+  .object({
+    fileName: z.string().min(1),
+    sourceType: z.enum(['txt', 'markdown', 'docx', 'epub', 'script-json', 'draft']),
+    contentKind: z.enum(['novel', 'script', 'draft']),
+    title: z.string().min(1),
+    charCount: z.number().int().nonnegative(),
+    chapters: z.array(sourceImportChapterInput).max(2_000),
+    episodes: z.array(sourceImportEpisodeInput).max(1_000),
+    warnings: looseStringArray,
+  })
+  .strict()
+const sourceImportCommitInput = z
+  .object({
+    importId: id,
+    projectId: id,
+    strategy: z.enum(['append', 'merge', 'replace']),
+    rightsConfirmed: z.literal(true),
+    destructiveConfirmed: z.boolean().optional(),
+    preview: sourceImportPreviewInput,
+  })
+  .strict()
+
 const globalSearchInput = z
   .object({
     query: z.string().max(120),
@@ -649,6 +706,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'episode:list': [id],
   'script:list': [id],
   'project:importPackage': [],
+  'sourceImport:choose': [id],
+  'sourceImport:commit': [sourceImportCommitInput],
+  'sourceImport:discard': [id],
   'caseStudy:importDocuments': [],
   'evaluation:list': [id],
   'aiRun:list': [id],
