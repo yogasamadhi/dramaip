@@ -12,8 +12,9 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import type { TextDiffPreviewPayload } from '@sdns/core'
+import { DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
+import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
 
 interface RawBetterSqliteDatabase {
   close(): void
@@ -129,6 +130,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'projects').includes('visual_style_direction'))
     assert.ok(columns(raw, 'projects').includes('deleted_at'))
     assert.ok(columns(raw, 'projects').includes('active_adaptation_id'))
+    assert.ok(columns(raw, 'projects').includes('genre_opportunity'))
     assert.ok(columns(raw, 'characters').includes('appearance_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('casting_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))
@@ -178,6 +180,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'inspiration_favorites'))
     assert.ok(columns(raw, 'inspiration_favorites').includes('card_key'))
     assert.ok(columns(raw, 'inspiration_favorites').includes('source_kind'))
+    assert.ok(tableExists(raw, 'genre_market_snapshots'))
 
     assert.deepEqual(runMigrations(migrationRaw(raw)), [])
     assert.deepEqual(appliedVersions(raw), applied)
@@ -245,6 +248,80 @@ test('persists a validated active adaptation and safely falls back after deletio
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, adaptation.id)
     repos.adaptationProject.deleteAdaptationProject(db, adaptation.id)
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, null)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('persists a selected genre opportunity snapshot without changing older projects', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const selection = {
+      snapshotVersion: 'cn-ai-drama-market-2026-07-22-v1',
+      snapshotObservedAt: '2026-07-22',
+      opportunity: {
+        id: 'genre-market-20260722-01',
+        genreName: '奇幻玄幻·修仙逆袭',
+        status: 'hot',
+        audiences: ['male', 'general'],
+        presentations: ['ai_animation', 'live_action'],
+        platforms: ['短剧 App', '短视频竖屏', 'AI 漫剧'],
+        productionCost: 'high',
+        saturation: 'medium',
+        whyRecommended: ['适合试播'],
+        primaryRisks: ['奇观成本高'],
+        differentiationIdeas: ['固定视觉锚点'],
+      },
+    }
+    const project = fixture.repos.project.createProject(fixture.db, {
+      title: '机会快照项目',
+      shortDramaType: selection.opportunity.genreName,
+      genreOpportunity: selection,
+    } as never)
+
+    const saved = fixture.repos.project.getProject(fixture.db, project.id)
+    assert.deepEqual(saved?.genreOpportunity, selection)
+    assert.equal(fixture.repos.project.getProject(fixture.db, fixture.project.id)?.genreOpportunity, undefined)
+    const pkg = collectProjectPackage(fixture.repos, project.id)
+    assert.deepEqual(pkg.project.genreOpportunity, selection)
+    const imported = importProjectPackage(fixture.repos, serializeProjectPackage(pkg))
+    assert.deepEqual(fixture.repos.project.getProject(fixture.db, imported.id)?.genreOpportunity, selection)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('imports validated market snapshot history and rolls back active version without rewriting projects', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos } = fixture
+    const builtIn = repos.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(db, DEFAULT_GENRE_MARKET_SNAPSHOT)
+    assert.equal(builtIn.active, true)
+    assert.equal(repos.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(db, DEFAULT_GENRE_MARKET_SNAPSHOT).active, true)
+    const importedVersion = 'cn-ai-drama-market-2026-07-23-v1'
+    const imported = repos.genreMarketSnapshot.importGenreMarketSnapshot(db, {
+      ...DEFAULT_GENRE_MARKET_SNAPSHOT,
+      version: importedVersion,
+      observedAt: '2026-07-23',
+    })
+    assert.equal(imported.active, true)
+    assert.ok(imported.sources.some((source) => source.kind === 'user_imported'))
+    assert.equal(repos.genreMarketSnapshot.getActiveGenreMarketSnapshot(db)?.version, importedVersion)
+
+    const project = repos.project.createProject(db, {
+      title: '采用新快照的项目',
+      shortDramaType: imported.opportunities[0]!.genreName,
+      genreOpportunity: {
+        snapshotVersion: imported.version,
+        snapshotObservedAt: imported.observedAt,
+        opportunity: imported.opportunities[0]!,
+      },
+    } as never)
+    const rolledBack = repos.genreMarketSnapshot.activateGenreMarketSnapshot(db, builtIn.version)
+    assert.equal(rolledBack?.active, true)
+    assert.equal(repos.genreMarketSnapshot.getActiveGenreMarketSnapshot(db)?.version, builtIn.version)
+    assert.equal(repos.project.getProject(db, project.id)?.genreOpportunity?.snapshotVersion, importedVersion)
+    assert.equal(repos.genreMarketSnapshot.listGenreMarketSnapshots(db).length, 2)
   } finally {
     closeRepositoryFixture(fixture)
   }

@@ -119,6 +119,14 @@ export function registerWritingRoomIpc(): void {
     repos().genrePreset.deleteGenrePreset(repos().db, id)
     return true
   })
+  ipcMain.handle('genreMarketSnapshot:list', () => repos().genreMarketSnapshot.listGenreMarketSnapshots(repos().db))
+  ipcMain.handle('genreMarketSnapshot:getActive', () => repos().genreMarketSnapshot.getActiveGenreMarketSnapshot(repos().db))
+  ipcMain.handle('genreMarketSnapshot:import', (_e, snapshot: unknown) =>
+    repos().genreMarketSnapshot.importGenreMarketSnapshot(repos().db, snapshot),
+  )
+  ipcMain.handle('genreMarketSnapshot:activate', (_e, version: string) =>
+    repos().genreMarketSnapshot.activateGenreMarketSnapshot(repos().db, version),
+  )
 
   // ---------- 模板运行记录 ----------
   ipcMain.handle('templateRun:list', () => repos().templateRun.listTemplateRuns(repos().db))

@@ -168,7 +168,7 @@ export function CreateAdaptationPage() {
 
           <div className="space-y-2">
             <Label>改编标题 *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：重生千金 · AI短剧改编" />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="例如：天劫将至 · AI短剧改编" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

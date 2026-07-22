@@ -26,6 +26,7 @@ import type {
   Foreshadowing,
   FreshnessReport,
   GenrePreset,
+  GenreMarketSnapshot,
   GlobalSearchResponse,
   HighlightAnalysis,
   InspirationFavorite,
@@ -793,6 +794,12 @@ export interface StudioApi {
     create(data: Partial<GenrePreset> & { name: string; visualStyle: string; shotPromptAdvice: string; aiVideoRisks: string }): Promise<GenrePreset>
     update(id: string, patch: Partial<GenrePreset>): Promise<GenrePreset | undefined>
     remove(id: string): Promise<boolean>
+  }
+  genreMarketSnapshot: {
+    list(): Promise<Array<GenreMarketSnapshot & { active: boolean }>>
+    getActive(): Promise<(GenreMarketSnapshot & { active: boolean }) | undefined>
+    import(snapshot: unknown): Promise<GenreMarketSnapshot & { active: boolean }>
+    activate(version: string): Promise<(GenreMarketSnapshot & { active: boolean }) | undefined>
   }
   templateRun: {
     list(): Promise<TemplateRun[]>

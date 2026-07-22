@@ -15,6 +15,7 @@ export const projects = sqliteTable('projects', {
   styleGuide: text('style_guide'),
   visualStyleDirection: text('visual_style_direction'),
   activeAdaptationId: text('active_adaptation_id'),
+  genreOpportunity: text('genre_opportunity'),
   /** 移入废纸篓的时间；为空表示项目正常可用。 */
   deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
@@ -694,6 +695,20 @@ export const genrePresets = sqliteTable('genre_presets', {
   shotPromptAdvice: text('shot_prompt_advice').notNull(),
   aiVideoRisks: text('ai_video_risks').notNull(),
   builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/**
+ * 离线题材市场快照：保留每一个导入版本，active 仅指向当前用于新项目的版本。
+ * 项目自身会保存选择时的副本，切换 active 不会改写历史项目。
+ */
+export const genreMarketSnapshots = sqliteTable('genre_market_snapshots', {
+  version: text('version').primaryKey(),
+  observedAt: text('observed_at').notNull(),
+  sources: text('sources').notNull(),
+  opportunities: text('opportunities').notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

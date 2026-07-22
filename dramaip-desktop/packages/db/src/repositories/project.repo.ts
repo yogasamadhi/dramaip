@@ -45,10 +45,35 @@ import {
   narrativeCurveReports,
   workflowRuns,
 } from '../schema'
-import type { AdaptationProject, OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
+import type { AdaptationProject, GenreOpportunitySelection, OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
+
+function parseGenreOpportunity(value: string | null): GenreOpportunitySelection | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as Partial<GenreOpportunitySelection>
+    if (
+      typeof parsed.snapshotVersion !== 'string' ||
+      typeof parsed.snapshotObservedAt !== 'string' ||
+      !parsed.opportunity ||
+      typeof parsed.opportunity.id !== 'string' ||
+      typeof parsed.opportunity.genreName !== 'string'
+    ) return undefined
+    return parsed as GenreOpportunitySelection
+  } catch {
+    return undefined
+  }
+}
+
+function projectRowToEntity(row: ProjectRow): Project {
+  const { genreOpportunity, ...project } = row
+  return {
+    ...(project as unknown as Project),
+    genreOpportunity: parseGenreOpportunity(genreOpportunity),
+  }
+}
 
 export interface ActiveAdaptationResolution {
   adaptation?: AdaptationProject
@@ -68,12 +93,13 @@ function preferredAdaptation(adaptations: AdaptationProject[]): AdaptationProjec
 }
 
 export function listProjects(db: DB): Project[] {
-  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all() as unknown as Project[]
+  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all()
+    .map((row) => projectRowToEntity(row as ProjectRow))
 }
 
 export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
   return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all().map((row) => {
-    const project = row as unknown as Project
+    const project = projectRowToEntity(row as ProjectRow)
     const projectChapters = db.select().from(chapters).where(eq(chapters.projectId, project.id)).orderBy(desc(chapters.updatedAt)).all()
     const projectAdaptations = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).all()
     const adaptation = project.activeAdaptationId
@@ -157,12 +183,12 @@ export function setActiveAdaptation(
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 export function getProject(db: DB, id: string): Project | undefined {
   const row = db.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))).get()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 export function createProject(db: DB, data: OptionalId<Project>): Project {
@@ -182,10 +208,11 @@ export function createProject(db: DB, data: OptionalId<Project>): Project {
     synopsis: data.synopsis ?? null,
     styleGuide: data.styleGuide ?? null,
     visualStyleDirection: data.visualStyleDirection ?? null,
+    genreOpportunity: data.genreOpportunity ? JSON.stringify(data.genreOpportunity) : null,
     deletedAt: null,
   }
   const [row] = insertRow(db, projects, value)
-  return row as unknown as Project
+  return projectRowToEntity(row as ProjectRow)
 }
 
 export function updateProject(
@@ -193,18 +220,24 @@ export function updateProject(
   id: string,
   patch: Partial<OptionalId<Project>>,
 ): Project | undefined {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, ...safePatch } = patch as Partial<OptionalId<Project>> & {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, genreOpportunity, ...safePatch } = patch as Partial<OptionalId<Project>> & {
     id?: string
     createdAt?: string
     updatedAt?: string
     deletedAt?: string
     activeAdaptationId?: string
+    genreOpportunity?: GenreOpportunitySelection
   }
-  const [row] = updateRows(db, projects, { ...safePatch, updatedAt: now() })
+  const fields = {
+    ...safePatch,
+    ...(genreOpportunity === undefined ? {} : { genreOpportunity: genreOpportunity ? JSON.stringify(genreOpportunity) : null }),
+    updatedAt: now(),
+  }
+  const [row] = updateRows(db, projects, fields)
     .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 /** 移入废纸篓不会触碰任何关联记录，恢复后所有内容保持原样。 */
@@ -214,11 +247,12 @@ export function trashProject(db: DB, id: string): TrashedProject | undefined {
     .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return row ? row as unknown as TrashedProject : undefined
+  return row ? projectRowToEntity(row as ProjectRow) as TrashedProject : undefined
 }
 
 export function listTrashedProjects(db: DB): TrashedProject[] {
-  return db.select().from(projects).where(isNotNull(projects.deletedAt)).orderBy(desc(projects.deletedAt)).all() as unknown as TrashedProject[]
+  return db.select().from(projects).where(isNotNull(projects.deletedAt)).orderBy(desc(projects.deletedAt)).all()
+    .map((row) => projectRowToEntity(row as ProjectRow) as TrashedProject)
 }
 
 export function restoreProject(db: DB, id: string): Project | undefined {
@@ -226,7 +260,7 @@ export function restoreProject(db: DB, id: string): Project | undefined {
     .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 /**

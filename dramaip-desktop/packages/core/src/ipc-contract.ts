@@ -682,6 +682,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'writingRoom:run': [writingRoomInput],
   'genrePreset:create': [genrePresetInput],
   'genrePreset:update': [id, genrePresetPatch],
+  // 结构与来源校验由 core 的 validateGenreMarketSnapshot 在主进程落库前执行；
+  // 此处只负责把通道纳入统一 IPC 白名单与参数数量校验。
+  'genreMarketSnapshot:import': [objectPayload],
+  'genreMarketSnapshot:activate': [id],
   'workflow:run': [workflowRunInput],
   'workflow:resume': [workflowResumeInput],
   'workflow:retryStep': [workflowRetryStepInput],
@@ -755,6 +759,8 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'caseStudy:list',
       'caseStudy:listDocuments',
       'genrePreset:list',
+      'genreMarketSnapshot:list',
+      'genreMarketSnapshot:getActive',
       'template:list',
       'templateRun:list',
       'videoProvider:getDefault',

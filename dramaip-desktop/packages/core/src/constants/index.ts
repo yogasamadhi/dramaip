@@ -7,25 +7,36 @@ import type {
   WorkflowRunStepKind,
   WritingRoomTargetKind,
 } from '../types'
+import { BUILT_IN_GENRE_PRESETS } from './genre-presets'
+
+export {
+  DEFAULT_GENRE_MARKET_SNAPSHOT,
+  createGenreOpportunitySelection,
+  resolveGenreMarketSnapshot,
+  selectGenreOpportunity,
+  validateGenreMarketSnapshot,
+  type GenreAudience,
+  type GenreMarketSnapshot,
+  type GenreMarketSource,
+  type GenreMarketSourceKind,
+  type GenreMarketStatus,
+  type GenreOpportunity,
+  type GenreOpportunitySelection,
+  type GenrePresentation,
+  type GenreProductionCost,
+  type GenreSaturation,
+} from './genre-market-snapshot'
 
 /** 短剧类型预设（§5.2） */
-export const SHORT_DRAMA_TYPES: string[] = [
-  '女频复仇',
-  '真假千金',
-  '重生逆袭',
-  '先婚后爱',
-  '霸总追妻',
-  '豪门恩怨',
-  '赘婿打脸',
-  '战神归来',
-  '玄学直播',
-  '古装权谋',
-  '悬疑反转',
-  '甜宠爽文',
-]
+export const SHORT_DRAMA_TYPES: string[] = BUILT_IN_GENRE_PRESETS.map((preset) => preset.name)
 
 /** 视觉风格方向预设（§5.2）—— 面向 AI 短剧视频生成 */
 export const VISUAL_STYLE_DIRECTIONS: string[] = [
+  '东方玄幻奇观',
+  '游戏副本世界',
+  '末世废土生存',
+  '规则怪谈空间',
+  '民俗悬疑氛围',
   '现代都市短剧',
   '豪门精致感',
   '古风国风',

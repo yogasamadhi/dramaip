@@ -652,6 +652,33 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 25,
+    name: 'project-genre-opportunity-snapshot',
+    up(raw) {
+      // 只保存用户在创建时采用的离线机会快照；不在迁移期猜测或改写旧项目的题材判断。
+      addColumnIfMissing(raw, 'projects', 'genre_opportunity', 'genre_opportunity TEXT')
+    },
+  },
+  {
+    version: 26,
+    name: 'genre-market-snapshot-history',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS genre_market_snapshots (
+          version TEXT PRIMARY KEY,
+          observed_at TEXT NOT NULL,
+          sources TEXT NOT NULL,
+          opportunities TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_genre_market_snapshots_active
+          ON genre_market_snapshots(active, observed_at);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

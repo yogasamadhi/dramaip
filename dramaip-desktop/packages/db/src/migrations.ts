@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS projects (
   synopsis TEXT,
   style_guide TEXT,
   visual_style_direction TEXT,
+  genre_opportunity TEXT,
   deleted_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -585,6 +586,16 @@ CREATE TABLE IF NOT EXISTS genre_presets (
   shot_prompt_advice TEXT NOT NULL,
   ai_video_risks TEXT NOT NULL,
   built_in INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS genre_market_snapshots (
+  version TEXT PRIMARY KEY,
+  observed_at TEXT NOT NULL,
+  sources TEXT NOT NULL,
+  opportunities TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
