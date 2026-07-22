@@ -231,7 +231,7 @@ function ProductionTaskSummary({ tasks }: { tasks: LongTask[] }) {
           const active = groupTasks.filter(isLongTaskActive).length
           return <div key={group.key} className="rounded-md border p-3 text-xs"><div className="flex items-center justify-between gap-2"><span className="font-medium">{group.label}</span><Badge variant={group.installed ? 'secondary' : 'outline'}>{group.installed ? '可用' : '能力未安装'}</Badge></div><p className="mt-2 text-muted-foreground">{group.installed ? `任务 ${groupTasks.length} 个 · 进行中 ${active} · 失败/取消 ${failed}` : '不会伪造任务或成功状态'}</p></div>
         })}
-      </div><p className="mt-3 text-xs text-muted-foreground">成本账本、版权台账与最终交付尚未安装；未安装不等于通过，也不会被计入完成率。</p></CardContent>
+      </div><p className="mt-3 text-xs text-muted-foreground">成本账本和版权台账可在项目概览查看；最终成片交付尚未安装，未安装不等于通过，也不会被计入完成率。</p></CardContent>
     </Card>
   )
 }

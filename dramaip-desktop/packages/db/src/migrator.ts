@@ -835,6 +835,38 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 30,
+    name: 'asset-rights-ledger',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS asset_rights_records (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          rightsholder TEXT,
+          source TEXT,
+          rights_types TEXT NOT NULL DEFAULT '[]',
+          permitted_uses TEXT NOT NULL DEFAULT '[]',
+          platforms TEXT NOT NULL DEFAULT '[]',
+          regions TEXT NOT NULL DEFAULT '[]',
+          valid_from TEXT,
+          valid_until TEXT,
+          evidence_asset_id TEXT,
+          evidence_sha256 TEXT,
+          ai_generated INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'unknown',
+          reviewed_at TEXT,
+          review_note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_rights_asset ON asset_rights_records(asset_id);
+        CREATE INDEX IF NOT EXISTS idx_asset_rights_project_status ON asset_rights_records(project_id, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_asset_rights_evidence ON asset_rights_records(evidence_asset_id);
+      `)
+    },
+  },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

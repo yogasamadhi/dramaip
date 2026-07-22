@@ -43,11 +43,15 @@ const projectAssetKind = z.enum([
   'narration_audio',
   'subtitle_file',
   'source_media',
+  'rights_evidence',
   'other',
 ])
 const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
 const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])
+const assetRightsStatus = z.enum(['verified', 'declared', 'unknown', 'expired', 'restricted'])
+const assetRightsType = z.enum(['ownership', 'license', 'talent_release', 'voice_consent', 'provider_terms', 'public_domain', 'other'])
+const assetPermittedUse = z.enum(['commercial', 'adaptation', 'generative', 'voice_cloning'])
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -104,6 +108,26 @@ const projectAssetInput = z
   })
   .strict()
 const projectAssetPatch = projectAssetInput.partial().strict()
+const assetRightsInput = z.object({
+  projectId: id,
+  assetId: id,
+  rightsholder: z.string().max(300).optional(),
+  source: z.string().max(1_000).optional(),
+  rightsTypes: z.array(assetRightsType).max(12).optional(),
+  permittedUses: z.array(assetPermittedUse).max(8).optional(),
+  platforms: looseStringArray.optional(),
+  regions: looseStringArray.optional(),
+  validFrom: z.string().max(40).optional(),
+  validUntil: z.string().max(40).optional(),
+  evidenceAssetId: maybeId,
+  evidenceSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  aiGenerated: z.boolean().optional(),
+  status: assetRightsStatus.optional(),
+  reviewedAt: z.string().max(40).optional(),
+  reviewNote: z.string().max(2_000).optional(),
+}).strict()
+const assetRightsPatch = assetRightsInput.partial().strict()
+const rightsPreflightInput = z.object({ projectId: id, platform: z.string().max(100).optional(), region: z.string().max(100).optional(), deliveryAt: z.string().max(40).optional() }).strict()
 
 const projectInput = z
   .object({
@@ -641,7 +665,11 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'generation:listCostsByProject': [id],
   'generation:updateCost': [id, updateGenerationCostInput],
   'asset:delete': [id],
-  'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file'])],
+  'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file', 'rights_evidence'])],
+  'rights:listByProject': [id],
+  'rights:create': [assetRightsInput],
+  'rights:update': [id, assetRightsPatch],
+  'rights:preflight': [rightsPreflightInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

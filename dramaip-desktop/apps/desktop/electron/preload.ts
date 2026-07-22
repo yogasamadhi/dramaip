@@ -26,6 +26,12 @@ const api = {
     listCostsByProject: (projectId: string) => invoke('generation:listCostsByProject', projectId),
     updateCost: (id: string, patch: unknown) => invoke('generation:updateCost', id, patch),
   },
+  rights: {
+    listByProject: (projectId: string) => invoke('rights:listByProject', projectId),
+    create: (data: unknown) => invoke('rights:create', data),
+    update: (id: string, patch: unknown) => invoke('rights:update', id, patch),
+    preflight: (input: unknown) => invoke('rights:preflight', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

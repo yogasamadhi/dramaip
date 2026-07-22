@@ -12,6 +12,7 @@ export const ASSET_KIND_LABEL: Record<ProjectAsset['kind'], string> = {
   narration_audio: '旁白音频',
   subtitle_file: '字幕文件',
   source_media: '源媒体',
+  rights_evidence: '授权证明',
   other: '其他',
 }
 

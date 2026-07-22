@@ -758,6 +758,7 @@ export const ProjectPackageSchema = z
     narrativeCurveReports: packageEntityArray,
     workflowRuns: packageEntityArray,
     assets: packageEntityArray.default([]),
+    assetRightsRecords: packageEntityArray.default([]),
     generationLineages: packageEntityArray.default([]),
     generationCostEntries: packageEntityArray.default([]),
     adaptations: z.array(PackageAdaptationSchema).default([]),

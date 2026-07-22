@@ -171,6 +171,28 @@ test('video generation freezes a credential-free capability snapshot and local e
   assert.equal(fixture.costs[0]?.status, 'estimated')
 })
 
+test('video generation refuses registered face references without a verified generation release', async () => {
+  const fixture = createVideoServiceRepos(providerConfig())
+  const guardedRepos = {
+    ...fixture.repos,
+    asset: {
+      listProjectAssets: () => [{
+        id: 'casting-1', projectId: 'project-1', kind: 'casting_reference', title: '演员参考', remoteUrl: 'https://asset.example.test/casting.png',
+        tags: [], metadata: {}, status: 'available', packagePolicy: 'reference_only', createdAt: '', updatedAt: '',
+      }],
+    },
+    rights: {
+      assertReferenceAssetRights: () => { throw new Error('参考资产“演员参考”缺少已核验的生成授权或肖像授权，不能提交。') },
+    },
+  }
+  await assert.rejects(
+    createVideoGenerationTask({ repos: guardedRepos as never }, {
+      providerConfigId: 'provider-1', projectId: 'project-1', prompt: '人物转身', referenceImageUrls: ['https://asset.example.test/casting.png'],
+    }),
+    /缺少已核验的生成授权或肖像授权/,
+  )
+})
+
 test('video generation service enforces a real-provider feature gate outside the renderer', async () => {
   const config = {
     ...providerConfig(),

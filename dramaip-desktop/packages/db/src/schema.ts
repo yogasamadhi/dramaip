@@ -670,6 +670,7 @@ export const projectAssets = sqliteTable('project_assets', {
       'narration_audio',
       'subtitle_file',
       'source_media',
+      'rights_evidence',
       'other',
     ],
   }).notNull(),
@@ -691,6 +692,29 @@ export const projectAssets = sqliteTable('project_assets', {
   metadata: text('metadata').notNull().default('{}'),
   status: text('status', { enum: ['available', 'missing', 'remote_only'] }).notNull().default('available'),
   packagePolicy: text('package_policy', { enum: ['exclude', 'reference_only', 'include_binary'] }).notNull().default('reference_only'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-08：证据与媒体本体分离的权利台账。每个资产最多一条当前权利记录。 */
+export const assetRightsRecords = sqliteTable('asset_rights_records', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  rightsholder: text('rightsholder'),
+  source: text('source'),
+  rightsTypes: text('rights_types').notNull().default('[]'),
+  permittedUses: text('permitted_uses').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  regions: text('regions').notNull().default('[]'),
+  validFrom: text('valid_from'),
+  validUntil: text('valid_until'),
+  evidenceAssetId: text('evidence_asset_id'),
+  evidenceSha256: text('evidence_sha256'),
+  aiGenerated: integer('ai_generated', { mode: 'boolean' }).notNull().default(false),
+  status: text('status', { enum: ['verified', 'declared', 'unknown', 'expired', 'restricted'] }).notNull().default('unknown'),
+  reviewedAt: text('reviewed_at'),
+  reviewNote: text('review_note'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

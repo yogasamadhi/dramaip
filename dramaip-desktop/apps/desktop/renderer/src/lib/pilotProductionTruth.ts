@@ -249,8 +249,8 @@ export function buildPilotProductionTruth(input: PilotProductionTruthInput): Pil
   else if (!storyboardComplete) blockers.push(`试播范围缺少场景或镜头（场景 ${pilotScenes.detail}；镜头 ${pilotShots.detail}）`)
   else if (!pilotVideo.complete) blockers.push(`试播范围缺少已选视频候选（${pilotVideo.detail}）`)
   if (failedTaskCount > 0) blockers.push(`任务失败/取消 ${failedTaskCount} 个，请在任务中心处理`)
-  blockers.push('版权：未建立版权与授权台账（当前不能据此宣告可交付）')
-  blockers.push('费用：预计与实际成本账本未安装，费用未知')
+  blockers.push('版权：请在项目概览运行版权与授权交付预检；未知、过期或缺证据会阻止最终交付')
+  blockers.push('费用：请在项目概览检查预计、实际与未知成本；未知费用不会被按 0 计入')
   blockers.push('最终交付：图片、音频、剪辑与交付能力未安装')
   let nextAction = `补齐第 ${pilotEpisodeNumbers.join('、')} 集分集大纲`
   if (pilotEpisodes.complete && !pilotScripts.complete) nextAction = `生成或审阅第 ${pilotEpisodeNumbers.join('、')} 集剧本`
@@ -270,8 +270,8 @@ export function buildPilotProductionTruth(input: PilotProductionTruthInput): Pil
     failedTaskCount,
     activeTaskCount,
     nextAction,
-    costDetail: '费用未知：预计与实际成本账本将在后续生产谱系模块提供。',
-    rightsDetail: '版权未知：尚未建立授权台账，不能将当前产物标记为可发布。',
+    costDetail: '费用账本已可用：显示本地估算、实际回填与未知项；估算不是 Provider 账单。',
+    rightsDetail: '版权台账已可用；最终交付前仍需针对目标平台、地区和日期运行预检。',
     canCreateExpansionPlan: pilotCandidateReady && source.state === 'approved' && failedTaskCount === 0,
   }
 }

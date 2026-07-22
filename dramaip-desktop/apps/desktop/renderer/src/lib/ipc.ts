@@ -7,6 +7,7 @@ import type {
   AiBudgetSettings,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
+  AssetRightsRecord,
   AudienceSimulation,
   Beat,
   Chapter,
@@ -53,6 +54,8 @@ import type {
   RevisionTaskAdoptResult,
   RevisionTaskPreviewUpdateResult,
   RevisionTaskUndoResult,
+  RightsPreflightInput,
+  RightsPreflightResult,
   Scene,
   Script,
   ScriptReview,
@@ -513,6 +516,12 @@ export interface StudioApi {
     listLineagesByProject(projectId: string): Promise<GenerationLineage[]>
     listCostsByProject(projectId: string): Promise<GenerationCostEntry[]>
     updateCost(id: string, patch: { actualCost?: number; currency?: string; actualCostNote?: string }): Promise<GenerationCostEntry | undefined>
+  }
+  rights: {
+    listByProject(projectId: string): Promise<AssetRightsRecord[]>
+    create(data: Partial<AssetRightsRecord> & { projectId: string; assetId: string }): Promise<AssetRightsRecord>
+    update(id: string, patch: Partial<AssetRightsRecord>): Promise<AssetRightsRecord | undefined>
+    preflight(input: RightsPreflightInput): Promise<RightsPreflightResult>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
