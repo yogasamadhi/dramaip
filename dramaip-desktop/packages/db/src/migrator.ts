@@ -926,6 +926,25 @@ export const MIGRATIONS: Migration[] = [
     CREATE UNIQUE INDEX IF NOT EXISTS idx_animatic_drafts_episode_version ON animatic_drafts(episode_id, version_number);
     CREATE INDEX IF NOT EXISTS idx_animatic_drafts_project_episode ON animatic_drafts(project_id, adaptation_project_id, episode_id, updated_at);
   `) } },
+  { version: 34, name: 'audio-production-tracks', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS voice_profiles (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, character_id TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate',
+      voice_tone TEXT, speed REAL, emotion TEXT, language TEXT, pronunciation_dictionary TEXT NOT NULL DEFAULT '{}', sample_asset_id TEXT, notes TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_voice_profiles_project_character ON voice_profiles(project_id, character_id, status, updated_at);
+    CREATE TABLE IF NOT EXISTS audio_tracks (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      kind TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version_number INTEGER NOT NULL,
+      source_fingerprint TEXT NOT NULL, clips TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_audio_tracks_episode_kind_version ON audio_tracks(episode_id, kind, version_number);
+    CREATE INDEX IF NOT EXISTS idx_audio_tracks_project_episode ON audio_tracks(project_id, adaptation_project_id, episode_id, updated_at);
+  `) } },
+  { version: 35, name: 'audio-track-stale-state', up(raw) {
+    addColumnIfMissing(raw, 'audio_tracks', 'stale_at', 'stale_at TEXT')
+    addColumnIfMissing(raw, 'audio_tracks', 'stale_reason', 'stale_reason TEXT')
+  } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

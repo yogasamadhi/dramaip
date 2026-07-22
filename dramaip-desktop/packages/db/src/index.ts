@@ -50,6 +50,7 @@ export * as assetRightsRepo from './repositories/asset-rights.repo'
 export * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
 export * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
 export * as animaticDraftRepo from './repositories/animatic-draft.repo'
+export * as audioProductionRepo from './repositories/audio-production.repo'
 export * as generationLineageRepo from './repositories/generation-lineage.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
@@ -107,6 +108,7 @@ import * as assetRightsRepo from './repositories/asset-rights.repo'
 import * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
 import * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
 import * as animaticDraftRepo from './repositories/animatic-draft.repo'
+import * as audioProductionRepo from './repositories/audio-production.repo'
 import * as generationLineageRepo from './repositories/generation-lineage.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
@@ -167,6 +169,7 @@ export function createRepositories(db: DB) {
     visualAsset: { ...visualAssetVersionRepo },
     shotStill: { ...shotStillCandidateRepo },
     animatic: { ...animaticDraftRepo },
+    audio: { ...audioProductionRepo },
     generation: { ...generationLineageRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },

@@ -669,6 +669,18 @@ CREATE TABLE IF NOT EXISTS animatic_drafts (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS voice_profiles (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, character_id TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate',
+  voice_tone TEXT, speed REAL, emotion TEXT, language TEXT, pronunciation_dictionary TEXT NOT NULL DEFAULT '{}', sample_asset_id TEXT, notes TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audio_tracks (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+  kind TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version_number INTEGER NOT NULL,
+  source_fingerprint TEXT NOT NULL, clips TEXT NOT NULL DEFAULT '[]', stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generation_lineages (
   id TEXT PRIMARY KEY,
   project_id TEXT,

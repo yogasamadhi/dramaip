@@ -31,6 +31,7 @@
 import type {
   AdaptationProject,
   AnimaticDraft,
+  AudioTrack,
   AiRun,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
@@ -70,13 +71,14 @@ import type {
   ShotVisualAssetLock,
   VisualAssetVersion,
   VisualSetting,
+  VoiceProfile,
   WorkflowRun,
 } from '@sdns/core'
 import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 11
+export const PACKAGE_VERSION = 12
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -132,6 +134,8 @@ export interface ProjectPackage {
   shotStillCandidates?: ShotStillCandidate[]
   /** 可播放 Animatic 的不可变版本与批注；仅在导出素材清单时一并携带。 */
   animaticDrafts?: AnimaticDraft[]
+  voiceProfiles?: VoiceProfile[]
+  audioTracks?: AudioTrack[]
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
@@ -240,6 +244,10 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const animaticDrafts = options.includeAssets
     ? adaptations.flatMap(({ episodes }) => episodes.flatMap((episode) => repos.animatic.listAnimaticDraftsByEpisode(db, episode.id)))
     : []
+  const voiceProfiles = options.includeAssets ? repos.audio.listVoiceProfilesByProject(db, projectId) : []
+  const audioTracks = options.includeAssets
+    ? adaptations.flatMap(({ episodes }) => episodes.flatMap((episode) => repos.audio.listAudioTracksByEpisode(db, episode.id)))
+    : []
 
   return {
     meta: {
@@ -282,6 +290,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     shotVisualAssetLocks,
     shotStillCandidates,
     animaticDrafts,
+    voiceProfiles,
+    audioTracks,
     generationLineages,
     generationCostEntries,
     adaptations,
@@ -858,6 +868,16 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       repos.shotStill.setShotStillCandidateStaleState(db, candidate.id, candidate.staleAt, candidate.staleReason)
     }
 
+    const voiceProfileIdMap = new Map<string, string>()
+    for (const profile of pkg.voiceProfiles ?? []) {
+      const characterId = profile.characterId ? idMap.get(profile.characterId) : undefined
+      if (profile.characterId && !characterId) continue
+      const sampleAssetId = profile.sampleAssetId ? assetIdMap.get(profile.sampleAssetId) : undefined
+      const created = repos.audio.createVoiceProfile(db, { ...stripId(profile), projectId: newProject.id, characterId, sampleAssetId, status: profile.status })
+      if (profile.status === 'adopted') repos.audio.adoptVoiceProfile(db, created.id)
+      voiceProfileIdMap.set(profile.id, created.id)
+    }
+
     // 18.08 Animatic 版本：重映射镜头、候选和资产引用，保留逐版审批结果。
     // 没有能还原的镜头片段时不导入该版本，避免在新项目中出现不可播放的空时间线。
     const orderedAnimatics = [...(pkg.animaticDrafts ?? [])].sort((left, right) =>
@@ -900,6 +920,20 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         annotations,
       })
       if (draft.status !== 'draft') repos.animatic.reviewAnimaticDraft(db, created.id, draft.status, draft.reviewNote)
+    }
+
+    for (const track of [...(pkg.audioTracks ?? [])].sort((left, right) => `${left.episodeId}:${left.kind}:${left.versionNumber}`.localeCompare(`${right.episodeId}:${right.kind}:${right.versionNumber}`, undefined, { numeric: true }))) {
+      const adaptationProjectId = idMap.get(track.adaptationProjectId)
+      const episodeId = idMap.get(track.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const clips = track.clips.flatMap((clip) => {
+        const shotId = clip.shotId ? idMap.get(clip.shotId) : undefined
+        if (clip.shotId && !shotId) return []
+        return [{ ...clip, shotId, characterId: clip.characterId ? idMap.get(clip.characterId) : undefined, assetId: clip.assetId ? assetIdMap.get(clip.assetId) : undefined, voiceProfileId: clip.voiceProfileId ? voiceProfileIdMap.get(clip.voiceProfileId) : undefined }]
+      })
+      const created = repos.audio.createAudioTrack(db, { ...stripId(track), projectId: newProject.id, adaptationProjectId, episodeId, clips })
+      if (track.status === 'adopted') repos.audio.adoptAudioTrack(db, created.id)
+      if (track.status === 'stale') repos.audio.setAudioTrackStaleState(db, created.id, track.staleAt, track.staleReason)
     }
 
     // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它

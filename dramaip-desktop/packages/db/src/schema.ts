@@ -668,6 +668,9 @@ export const projectAssets = sqliteTable('project_assets', {
       'cover_image',
       'first_frame_image',
       'narration_audio',
+      'dialogue_audio',
+      'bgm_audio',
+      'sfx_audio',
       'subtitle_file',
       'source_media',
       'rights_evidence',
@@ -759,6 +762,19 @@ export const animaticDrafts = sqliteTable('animatic_drafts', {
   id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
   versionNumber: integer('version_number').notNull(), status: text('status', { enum: ['draft', 'approved', 'returned'] }).notNull().default('draft'),
   sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), annotations: text('annotations').notNull().default('[]'), reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const voiceProfiles = sqliteTable('voice_profiles', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), characterId: text('character_id'), label: text('label').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  voiceTone: text('voice_tone'), speed: real('speed'), emotion: text('emotion'), language: text('language'), pronunciationDictionary: text('pronunciation_dictionary').notNull().default('{}'), sampleAssetId: text('sample_asset_id'), notes: text('notes'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const audioTracks = sqliteTable('audio_tracks', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  kind: text('kind', { enum: ['dialogue', 'narration', 'bgm', 'sfx'] }).notNull(), label: text('label').notNull(), status: text('status', { enum: ['draft', 'adopted', 'superseded', 'stale'] }).notNull().default('draft'), versionNumber: integer('version_number').notNull(), sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
   createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
 })
 

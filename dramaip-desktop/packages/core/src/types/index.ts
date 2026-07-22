@@ -1247,6 +1247,9 @@ export type ProjectAssetKind =
   | 'cover_image'
   | 'first_frame_image'
   | 'narration_audio'
+  | 'dialogue_audio'
+  | 'bgm_audio'
+  | 'sfx_audio'
   | 'subtitle_file'
   | 'source_media'
   | 'rights_evidence'
@@ -1277,6 +1280,61 @@ export interface ProjectAsset {
   metadata: Record<string, unknown>
   status: ProjectAssetStatus
   packagePolicy: ProjectAssetPackagePolicy
+  createdAt: string
+  updatedAt: string
+}
+
+/** LM5-13：声音档案只描述经授权的创作意图；不等同于声音克隆授权。 */
+export interface VoiceProfile {
+  id: string
+  projectId: string
+  characterId?: string
+  label: string
+  status: 'candidate' | 'adopted' | 'superseded' | 'rejected'
+  voiceTone?: string
+  speed?: number
+  emotion?: string
+  language?: string
+  pronunciationDictionary: Record<string, string>
+  sampleAssetId?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type AudioTrackKind = 'dialogue' | 'narration' | 'bgm' | 'sfx'
+export type AudioTrackStatus = 'draft' | 'adopted' | 'superseded' | 'stale'
+export interface AudioClip {
+  id: string
+  shotId?: string
+  characterId?: string
+  assetId?: string
+  voiceProfileId?: string
+  text?: string
+  startSeconds: number
+  durationSeconds?: number
+  volume: number
+  fadeInSeconds: number
+  fadeOutSeconds: number
+  loop: boolean
+  duckingIntent: boolean
+  sourceFingerprint?: string
+  staleAt?: string
+  staleReason?: string
+}
+export interface AudioTrack {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  kind: AudioTrackKind
+  label: string
+  status: AudioTrackStatus
+  versionNumber: number
+  sourceFingerprint: string
+  clips: AudioClip[]
+  staleAt?: string
+  staleReason?: string
   createdAt: string
   updatedAt: string
 }
