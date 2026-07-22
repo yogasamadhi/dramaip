@@ -79,6 +79,8 @@ temp/
 # ---- Test / coverage ----
 coverage/
 .nyc_output/
+.trivy/
+trivy-reports/
 
 # ---- Local databases & generated data ----
 *.db

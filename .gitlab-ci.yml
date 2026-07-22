@@ -1,0 +1,134 @@
+stages:
+  - validate
+  - quality
+
+default:
+  tags:
+    - docker
+    - private
+  interruptible: true
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+variables:
+  GIT_DEPTH: "0"
+  GIT_TERMINAL_PROMPT: "0"
+  GOCACHE: "${CI_PROJECT_DIR}/.cache/go-build"
+  PNPM_HOME: "${CI_PROJECT_DIR}/.cache/pnpm"
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+
+static_checks:
+  stage: validate
+  image:
+    name: harbor.home.arpa/ci-tools/git-yq:4.44.3
+    entrypoint: [""]
+  script:
+    - git diff --check
+    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 19"
+    - "test \"$(awk -F '|' '$3 == \"go\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 18"
+    - "test \"$(awk -F '|' '$3 == \"web\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 1"
+    - bash -n dramaip-platform/deploy/release/build-images.sh dramaip-platform/deploy/release/scan-images.sh dramaip-platform/deploy/release/push-images.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+platform_services:
+  stage: validate
+  image:
+    name: harbor.home.arpa/ci-tools/go-buf:1.26.0-buf1.47.2
+    entrypoint: [""]
+  script:
+    - cd dramaip-platform/services
+    - make event-contracts
+    - go test -coverprofile=coverage.out ./...
+  artifacts:
+    when: always
+    paths:
+      - dramaip-platform/services/coverage.out
+    expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+platform_clients:
+  stage: validate
+  image:
+    name: harbor.home.arpa/ci-tools/node:24.18.0-bookworm-slim
+    entrypoint: [""]
+  cache:
+    key:
+      files:
+        - dramaip-platform/clients/pnpm-lock.yaml
+      prefix: platform-clients-${CI_PROJECT_ID}
+    paths:
+      - .cache/pnpm/
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir "${PNPM_HOME}"
+    - cd dramaip-platform/clients
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm contracts:check
+    - pnpm build:web
+    - pnpm build:admin
+    - cd ..
+    - make web-route-smoke
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+desktop_linux:
+  stage: validate
+  image:
+    name: harbor.home.arpa/ci-tools/node-desktop:22.16.0-bookworm
+    entrypoint: [""]
+  cache:
+    key:
+      files:
+        - dramaip-desktop/pnpm-lock.yaml
+      prefix: desktop-linux-${CI_PROJECT_ID}
+    paths:
+      - .cache/pnpm/
+      - .cache/electron/
+      - .cache/electron-builder/
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir "${PNPM_HOME}"
+    - cd dramaip-desktop
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm lint
+    - pnpm test:unit
+    - pnpm test:db
+    - pnpm build
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+sonarqube_platform:
+  stage: quality
+  image:
+    name: harbor.home.arpa/ci-tools/sonar-scanner:7.0.1
+    entrypoint: [""]
+  needs:
+    - job: platform_services
+      artifacts: true
+  script:
+    - >-
+      sonar-scanner
+      -Dsonar.projectBaseDir=dramaip-platform
+      -Dsonar.host.url="${SONAR_HOST_URL}"
+      -Dsonar.token="${SONAR_TOKEN}"
+      -Dsonar.qualitygate.wait=true
+      -Dsonar.qualitygate.timeout=300
+      -Dsonar.scanner.truststorePath=/opt/sonar-truststore/truststore.p12
+      -Dsonar.scanner.truststorePassword=changeit
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

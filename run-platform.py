@@ -645,7 +645,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--api-base-url",
         default=None,
-        help="NEXT_PUBLIC_API_BASE_URL for the web app. Defaults to the Kong proxy at http://localhost:8000.",
+        help="Kong or compatible API origin for the local Web proxy. Defaults to http://localhost:8000.",
     )
     args = parser.parse_args()
 
@@ -686,7 +686,12 @@ def main() -> int:
 
         release_port(WEB_PORT, "Web", kill_ports)
         web_env = env.copy()
-        web_env["NEXT_PUBLIC_API_BASE_URL"] = api_base_url
+        # Keep browser API requests on the Web origin and proxy them from the
+        # Next dev server.  A LAN browser's localhost refers to that browser's
+        # device, not this Mac; same-origin requests avoid that trap and also
+        # preserve Cookie-session semantics without a development CORS rule.
+        web_env["NEXT_PUBLIC_API_BASE_URL"] = ""
+        web_env["DRAMAIP_WEB_API_PROXY_TARGET"] = api_base_url
         web_env.setdefault("NEXT_PUBLIC_PAYMENT_MODE", "simulated")
         # web dev 端口固定在 package.json 的 `next dev -p 3009`；不要再设 PORT
         # 环境变量，否则会与 -p 冲突。

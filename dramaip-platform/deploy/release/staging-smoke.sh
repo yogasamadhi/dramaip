@@ -17,6 +17,9 @@ namespace="${DRAMAIP_NAMESPACE:-$default_namespace}"
 release="${DRAMAIP_RELEASE:-dramaip-platform}"
 mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-$default_mtls_secret}"
 timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+manifest="${DRAMAIP_IMAGE_MANIFEST:-$script_dir/images.tsv}"
+[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
 kubectl_cmd=(kubectl)
 helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
@@ -26,14 +29,21 @@ fi
 
 "${helm_cmd[@]}" status "$release" --namespace "$namespace" >/dev/null
 
-components=(
-  web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification inspiration reporting notification-job reporting-job billing-job quota-job
-)
-for component in "${components[@]}"; do
+component_count=0
+while IFS='|' read -r key component kind target; do
+  [[ -z "${key// }" || "$key" == \#* || "$key" == "migration" ]] && continue
+  deployment_count="$("${kubectl_cmd[@]}" -n "$namespace" get deployment -l "app.kubernetes.io/instance=$release,app.kubernetes.io/component=$component" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+  if [[ "$component" == "web" && "$deployment_count" == "0" ]]; then
+    continue
+  fi
+  [[ "$deployment_count" == "1" ]] || { echo "expected one deployment for $component; found $deployment_count" >&2; exit 1; }
   "${kubectl_cmd[@]}" -n "$namespace" rollout status deployment \
     -l "app.kubernetes.io/instance=$release,app.kubernetes.io/component=$component" \
     --timeout="$timeout"
+  if [[ "$component" == "web" ]]; then
+    component_count=$((component_count + 1))
+    continue
+  fi
   actual_secret="$("${kubectl_cmd[@]}" -n "$namespace" get deployment \
     -l "app.kubernetes.io/instance=$release,app.kubernetes.io/component=$component" \
     -o jsonpath='{.items[0].spec.template.spec.volumes[?(@.name=="internal-mtls")].secret.secretName}')"
@@ -41,7 +51,9 @@ for component in "${components[@]}"; do
     echo "$component does not mount expected internal mTLS Secret $mtls_secret" >&2
     exit 1
   }
-done
+  component_count=$((component_count + 1))
+done < "$manifest"
+[[ "$component_count" -ge "17" ]] || { echo "expected at least 17 running Staging workloads; found $component_count" >&2; exit 1; }
 
 base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required, e.g. https://api.staging.example.com}"
 base_url="${base_url%/}"

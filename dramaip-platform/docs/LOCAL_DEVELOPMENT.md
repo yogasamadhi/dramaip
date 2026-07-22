@@ -35,6 +35,11 @@ seconds; a local operator may use `DRAMAIP_PLATFORM_READY_TIMEOUT_MS`,
 | Jaeger | `http://localhost:16686` |
 | RabbitMQ management | `http://localhost:15672` |
 
+When opening the Web address from another device on the same LAN, use the
+Network URL printed by Next.js. The launcher keeps `/v1` requests on that Web
+origin and proxies them to the local Kong instance, so a phone or tablet does
+not need direct access to its own `localhost:8000`.
+
 Development account:
 
 - Email: `creator@example.com`

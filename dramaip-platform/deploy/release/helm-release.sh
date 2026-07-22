@@ -5,7 +5,14 @@ set -euo pipefail
 # pipeline and requires explicit authorization for every stateful cluster
 # operation.
 root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
-chart="$root/deploy/helm/dramaip-platform"
+manifest="${DRAMAIP_IMAGE_MANIFEST:-$root/deploy/release/images.tsv}"
+if [[ -n "${DRAMAIP_GITOPS_DIR:-}" ]]; then
+  chart="$DRAMAIP_GITOPS_DIR/helm/dramaip-platform"
+else
+  chart="$root/deploy/helm/dramaip-platform"
+fi
+[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
+[[ -f "$chart/Chart.yaml" ]] || { echo "Helm Chart not found: $chart" >&2; exit 2; }
 environment="${1:?usage: helm-release.sh <staging|production> <apply|rollback> [revision]}"
 action="${2:?usage: helm-release.sh <staging|production> <apply|rollback> [revision]}"
 namespace="${DRAMAIP_NAMESPACE:-dramaip-$environment}"
@@ -18,13 +25,7 @@ if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
   helm_cmd+=(--kube-context "$DRAMAIP_KUBE_CONTEXT")
   kubectl_cmd+=(--context "$DRAMAIP_KUBE_CONTEXT")
 fi
-images=(
-  "webBff:web-bff" "desktopBff:desktop-bff" "mobileBff:mobile-bff" "adminBff:admin-bff"
-  "auth:auth" "user:user" "billing:billing" "quota:quota" "aiGateway:ai-gateway"
-  "notification:notification" "inspiration:inspiration" "reporting:reporting"
-  "notificationJob:notification-job" "reportingJob:reporting-job" "billingJob:billing-job"
-  "quotaJob:quota-job" "migration:migrate"
-)
+echo "warning: helm-release.sh is an emergency operator fallback; normal Staging delivery is run-platform-cicd.py release -> Argo CD" >&2
 
 case "$environment" in
   staging) values="$chart/values-staging.yaml" ;;
@@ -128,14 +129,19 @@ if [[ "$action" == "apply" ]]; then
     --set-string "config.rabbitmq.port=$rabbitmq_port"
     --set-string "config.otel.endpoint=$otel_endpoint"
   )
-  for image in "${images[@]}"; do
-    key="${image%%:*}"
-    name="${image#*:}"
-    image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
-    image_overrides+=(--set-string "images.$key.tag=$image_tag")
-  done
-  image_overrides+=(--set-string "web.image.repository=$image_registry/web")
-  image_overrides+=(--set-string "web.image.tag=$image_tag")
+  image_count=0
+  while IFS='|' read -r key name kind target; do
+    [[ -z "${key// }" || "$key" == \#* ]] && continue
+    if [[ "$kind" == "web" ]]; then
+      image_overrides+=(--set-string "web.image.repository=$image_registry/$name")
+      image_overrides+=(--set-string "web.image.tag=$image_tag")
+    else
+      image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
+      image_overrides+=(--set-string "images.$key.tag=$image_tag")
+    fi
+    image_count=$((image_count + 1))
+  done < "$manifest"
+  [[ "$image_count" == "19" ]] || { echo "image manifest must contain 19 images; found $image_count" >&2; exit 2; }
   if [[ "$diagnostic_retain" == "1" ]]; then
     # This diagnostic escape hatch is deliberately limited to the explicitly
     # authorized disposable staging namespace.  It lets an operator inspect

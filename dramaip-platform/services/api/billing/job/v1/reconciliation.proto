@@ -62,16 +62,22 @@ message StartReconciliationRequest {
   string actor_id = 1;
   string idempotency_key = 2;
 }
-message StartReconciliationResponse { ReconciliationRun run = 1; }
+message StartReconciliationResponse {
+  ReconciliationRun run = 1;
+}
 
 message GetLatestReconciliationRunRequest {}
-message GetLatestReconciliationRunResponse { ReconciliationRun run = 1; }
+message GetLatestReconciliationRunResponse {
+  ReconciliationRun run = 1;
+}
 
 message ListReconciliationItemsRequest {
   string status = 1;
   int32 limit = 2;
 }
-message ListReconciliationItemsResponse { repeated ReconciliationItem items = 1; }
+message ListReconciliationItemsResponse {
+  repeated ReconciliationItem items = 1;
+}
 
 message ApplyReconciliationActionRequest {
   string item_id = 1;
@@ -80,4 +86,6 @@ message ApplyReconciliationActionRequest {
   string reason = 4;
   string idempotency_key = 5;
 }
-message ApplyReconciliationActionResponse { ReconciliationAction action = 1; }
+message ApplyReconciliationActionResponse {
+  ReconciliationAction action = 1;
+}

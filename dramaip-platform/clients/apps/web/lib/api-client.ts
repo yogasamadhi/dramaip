@@ -10,7 +10,11 @@ declare module 'axios' {
 
 export const DEVICE_ID_STORAGE_KEY = 'dramaip.device_id'
 const CSRF_COOKIE_NAME = 'dramaip_web_csrf'
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
+// An empty value intentionally means the current Web origin.  In local
+// development run-platform.py configures a server-side rewrite to Kong; in
+// deployment the ingress routes /v1 itself.  This keeps Cookie sessions and
+// LAN development on one browser origin.
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 
 if (typeof window !== 'undefined') {
   // Cookie migration intentionally invalidates legacy JavaScript-readable

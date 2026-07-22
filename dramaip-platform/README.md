@@ -68,8 +68,10 @@ cd clients
 pnpm dev:web
 ```
 
-The Web app defaults to `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (Kong)
-and displays BFF health plus plan data on the home page. Verify the proxy with:
+`run-platform.py` serves browser API requests through the Next.js dev server,
+which proxies them to Kong at `http://localhost:8000`. This also works when the
+Web URL is opened from another device on the LAN: the browser does not try to
+call that device's own `localhost:8000`. Verify the proxy with:
 
 ```bash
 make platform-e2e

@@ -27,7 +27,9 @@ message ListDeliveryAttemptsRequest {
   string status = 1;
   int32 limit = 2;
 }
-message ListDeliveryAttemptsResponse { repeated DeliveryAttempt attempts = 1; }
+message ListDeliveryAttemptsResponse {
+  repeated DeliveryAttempt attempts = 1;
+}
 
 message RetryDeliveryRequest {
   string delivery_attempt_id = 1;

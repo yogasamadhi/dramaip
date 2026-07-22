@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { apiClient } from '../../../lib/api-client'
 import { loginPath, safeNextPath } from '../../../lib/routes'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 
 // This page is intentionally only a browser-session bridge. It never receives
 // a verifier or token: the Electron main process owns those values and opens
@@ -35,7 +35,9 @@ export default function DesktopAuthorizePage() {
         await apiClient.getSession()
         if (!active) return
         setMessage('正在安全返回桌面应用…')
-        const target = new URL('/v1/auth/desktop/authorize', API_BASE_URL)
+        // Empty API base means same-origin /v1.  Resolve against the current
+        // page so the local Web proxy is used instead of an invalid URL.
+        const target = new URL('/v1/auth/desktop/authorize', API_BASE_URL || window.location.origin)
         target.searchParams.set('code_challenge', codeChallenge)
         target.searchParams.set('state', state)
         target.searchParams.set('redirect_uri', redirectURI)

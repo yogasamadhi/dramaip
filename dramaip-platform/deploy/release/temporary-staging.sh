@@ -18,6 +18,8 @@ kong_release="${DRAMAIP_KONG_RELEASE:-dramaip-staging-kong}"
 image_registry="${IMAGE_REGISTRY:-dramaip-staging.local}"
 image_tag="${IMAGE_TAG:-}"
 loader_image="${DRAMAIP_IMAGE_LOADER_IMAGE:-docker:29-cli}"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+manifest="${DRAMAIP_IMAGE_MANIFEST:-$script_dir/images.tsv}"
 kubectl_cmd=(kubectl)
 helm_cmd=("${DRAMAIP_HELM_BIN:-helm}")
 if [[ -n "${DRAMAIP_KUBE_CONTEXT:-}" ]]; then
@@ -41,15 +43,17 @@ fi
   echo "temporary staging only supports DRAMAIP_KONG_RELEASE=dramaip-staging-kong" >&2
   exit 2
 }
+[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
 
-images=(
-  web web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification inspiration reporting notification-job reporting-job billing-job
-  quota-job migrate
-)
+images=()
+while IFS='|' read -r chart_key image_name kind target; do
+  [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
+  images+=("$image_name")
+done < "$manifest"
+[[ "${#images[@]}" == "19" ]] || { echo "image manifest must contain 19 images; found ${#images[@]}" >&2; exit 2; }
 cert_components=(
   web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification-service inspiration-service reporting-service notification-job
+  notification-service inspiration-service snapshot-service reporting-service notification-job
   reporting-job billing-job quota-job
 )
 # EXIT traps can run after function-local variables have been unwound by

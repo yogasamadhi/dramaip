@@ -8,6 +8,8 @@ archive="${1:?usage: load-worker-images.sh <archive> <sha256> <tag>}"
 expected_sha="${2:?usage: load-worker-images.sh <archive> <sha256> <tag>}"
 image_tag="${3:?usage: load-worker-images.sh <archive> <sha256> <tag>}"
 image_registry="dramaip-staging.local"
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+manifest="${DRAMAIP_IMAGE_MANIFEST:-$script_dir/images.tsv}"
 
 [[ "$archive" == /tmp/dramaip-app-*-linux-amd64.tar ]] || {
   echo "archive must be a temporary /tmp dramaip amd64 archive" >&2
@@ -16,6 +18,7 @@ image_registry="dramaip-staging.local"
 [[ -f "$archive" ]] || { echo "archive does not exist: $archive" >&2; exit 2; }
 [[ "$expected_sha" =~ ^[a-f0-9]{64}$ ]] || { echo "invalid archive SHA-256" >&2; exit 2; }
 [[ "$image_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || { echo "invalid immutable image tag" >&2; exit 2; }
+[[ -f "$manifest" ]] || { echo "image manifest does not exist: $manifest" >&2; exit 2; }
 
 actual_sha="$(sha256sum "$archive" | awk '{print $1}')"
 [[ "$actual_sha" == "$expected_sha" ]] || {
@@ -23,11 +26,12 @@ actual_sha="$(sha256sum "$archive" | awk '{print $1}')"
   exit 1
 }
 
-images=(
-  web web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification inspiration reporting notification-job reporting-job billing-job
-  quota-job migrate
-)
+images=()
+while IFS='|' read -r chart_key image_name kind target; do
+  [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
+  images+=("$image_name")
+done < "$manifest"
+[[ "${#images[@]}" == "19" ]] || { echo "image manifest must contain 19 images; found ${#images[@]}" >&2; exit 2; }
 
 docker load -i "$archive"
 for image in "${images[@]}"; do
