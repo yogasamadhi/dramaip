@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { getImageProviderCapability } from '../packages/core/src'
+import { MockImageProvider } from '../packages/ai/src/providers/image/mock.provider'
+import { OpenAIImageProvider } from '../packages/ai/src/providers/image/openai-image.provider'
+
+test('OpenAI Image stays disabled without both a key and explicit production feature switch', () => {
+  assert.equal(getImageProviderCapability({ kind: 'openai_image' }).canSubmit, false)
+  assert.match(getImageProviderCapability({ kind: 'openai_image', apiKey: 'test-key' }).reason ?? '', /开关/)
+  assert.equal(getImageProviderCapability({ kind: 'openai_image', apiKey: 'test-key', featureEnabled: true }).canSubmit, true)
+})
+
+test('OpenAI Image sends the documented synchronous images generation request and preserves b64 output', async () => {
+  const requests: Array<{ url: string; headers: Record<string, string>; body: Record<string, unknown> }> = []
+  const provider = new OpenAIImageProvider({ kind: 'openai_image', apiKey: 'test-key', featureEnabled: true }, {
+    async request(input) {
+      requests.push(input)
+      return { data: [{ b64_json: 'ZmFrZS1pbWFnZQ==', revised_prompt: 'revised prompt' }], usage: { input_tokens: 12, output_tokens: 34, total_tokens: 46 } }
+    },
+  })
+  const [result] = await provider.generate({ prompt: 'vertical anime heroine', size: '1024x1536', quality: 'medium', outputFormat: 'webp' })
+  assert.deepEqual(requests[0], {
+    url: 'https://api.openai.com/v1/images/generations',
+    headers: { Authorization: 'Bearer test-key', 'Content-Type': 'application/json' },
+    body: { model: 'gpt-image-2', prompt: 'vertical anime heroine', size: '1024x1536', quality: 'medium', output_format: 'webp', n: 1 },
+  })
+  assert.equal(result.mimeType, 'image/webp')
+  assert.equal(result.b64Json, 'ZmFrZS1pbWFnZQ==')
+  assert.equal(result.usage?.totalTokens, 46)
+})
+
+test('OpenAI text-to-image refuses local reference upload until the separate edits path is reviewed', async () => {
+  const provider = new OpenAIImageProvider({ kind: 'openai_image', apiKey: 'test-key', featureEnabled: true })
+  await assert.rejects(() => provider.generate({ prompt: 'x', referenceImages: ['file:///private/ref.png'] }), /不会上传本地参考图/)
+  assert.equal((await new MockImageProvider().generate({ prompt: 'fixture' }))[0].mimeType, 'image/png')
+})
