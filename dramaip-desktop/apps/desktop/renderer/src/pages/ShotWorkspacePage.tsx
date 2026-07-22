@@ -15,8 +15,8 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
-import { analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, BatchTaskProgress, Episode, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion } from '@sdns/core'
+import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
@@ -686,6 +686,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
               onReorder={reorderStoryboard}
             />
             {sourceProjectId && <VisualContinuityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} shots={shots} />}
+            {sourceProjectId && <AnimaticPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1242,6 +1243,158 @@ function VisualContinuityPanel({ projectId, adaptationProjectId, shots }: { proj
 
 function visualContinuityIssueId(issue: { shotId: string; kind: string; visualAssetVersionId?: string; message: string }): string {
   return `visual-continuity:${issue.shotId}:${issue.kind}:${issue.visualAssetVersionId ?? issue.message}`
+}
+
+function AnimaticPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [drafts, setDrafts] = useState<AnimaticDraft[]>([])
+  const [working, setWorking] = useState<Pick<AnimaticDraft, 'sourceFingerprint' | 'clips' | 'annotations'> | null>(null)
+  const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [playing, setPlaying] = useState(false)
+  const [clipIndex, setClipIndex] = useState(0)
+  const [draggedClipIndex, setDraggedClipIndex] = useState<number | null>(null)
+  const [annotationNote, setAnnotationNote] = useState('')
+  const [annotationCategory, setAnnotationCategory] = useState<AnimaticDraft['annotations'][number]['category']>('pacing')
+  const [reviewNote, setReviewNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function load() {
+    const [nextDrafts, nextAssets] = await Promise.all([ipc.animatic.listByEpisode(episodeId), ipc.asset.listByProject(projectId)])
+    setDrafts(nextDrafts)
+    setAssets(nextAssets)
+  }
+
+  useEffect(() => { void load().catch((error) => toast.error(`读取 Animatic 失败：${error instanceof Error ? error.message : String(error)}`)) }, [episodeId])
+
+  async function initialize() {
+    setBusy(true)
+    try {
+      const initial = await ipc.animatic.initialize(projectId, episodeId)
+      setWorking({ sourceFingerprint: initial.sourceFingerprint, clips: initial.clips, annotations: [] })
+      toast.success('已从当前分集初始化 Animatic；缺少静帧的镜头保留为空位。')
+    } catch (error) {
+      toast.error(`初始化失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function save() {
+    if (!working) return
+    setBusy(true)
+    try {
+      const saved = await ipc.animatic.save({ projectId, adaptationProjectId, episodeId, ...working })
+      setWorking({ sourceFingerprint: saved.sourceFingerprint, clips: saved.clips, annotations: saved.annotations })
+      await load()
+      toast.success(`已保存 Animatic v${saved.versionNumber}；旧版本仍可回看。`)
+    } catch (error) {
+      toast.error(`保存失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function review(status: 'approved' | 'returned') {
+    const latest = drafts[0]
+    if (!latest) return
+    if (!reviewNote.trim()) return toast.error('请记录通过或退回试播的理由。')
+    setBusy(true)
+    try {
+      await ipc.animatic.review(latest.id, { status, reviewNote: reviewNote.trim() })
+      await load()
+      toast.success(status === 'approved' ? '已记录试播通过。' : '已记录退回；请只修改对应镜头后另存新版本。')
+    } catch (error) {
+      toast.error(`记录审核失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saved = drafts.find((draft) => draft.id === selectedVersionId) ?? drafts[0]
+  const current = working ?? saved
+  const currentClip = current?.clips[clipIndex]
+  const assetsById = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets])
+  useEffect(() => { setClipIndex(0); setPlaying(false) }, [current?.id, current?.sourceFingerprint])
+
+  useEffect(() => {
+    if (!playing || !currentClip || !current) return
+    const timer = window.setTimeout(() => setClipIndex((index) => index + 1 < current.clips.length ? index + 1 : 0), currentClip.durationSeconds * 1_000)
+    return () => window.clearTimeout(timer)
+  }, [current, currentClip, playing])
+
+  function updateClip(clipId: string, patch: Partial<AnimaticDraft['clips'][number]>) {
+    setWorking((value) => value ? {
+      ...value,
+      clips: value.clips.map((clip) => clip.id === clipId ? { ...clip, ...patch } : clip),
+    } : value)
+  }
+
+  function moveClip(fromIndex: number, toIndex: number) {
+    if (!working || fromIndex === toIndex) return
+    const clips = [...working.clips]
+    const [moved] = clips.splice(fromIndex, 1)
+    clips.splice(toIndex, 0, moved)
+    setWorking({ ...working, clips: clips.map((clip, index) => ({ ...clip, orderIndex: index })) })
+    setClipIndex(toIndex)
+    setDraggedClipIndex(null)
+  }
+
+  function updateCurrentCrop(patch: Partial<NonNullable<AnimaticDraft['clips'][number]['crop']>>) {
+    if (!currentClip) return
+    const next = { zoom: 1, x: 0, y: 0, ...currentClip.crop, ...patch }
+    updateClip(currentClip.id, {
+      crop: {
+        zoom: Math.min(2, Math.max(0.8, next.zoom)),
+        x: Math.min(50, Math.max(-50, next.x)),
+        y: Math.min(50, Math.max(-50, next.y)),
+      },
+    })
+  }
+
+  function addAnnotation() {
+    if (!working || !currentClip || !annotationNote.trim()) return toast.error('请先填写批注内容。')
+    const atSeconds = working.clips.slice(0, clipIndex).reduce((sum, clip) => sum + clip.durationSeconds, 0)
+    setWorking((value) => value ? { ...value, annotations: [...value.annotations, { id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${clipIndex}`, atSeconds, shotId: currentClip.shotId, category: annotationCategory, note: annotationNote.trim(), createdAt: new Date().toISOString() }] } : value)
+    setAnnotationNote('')
+  }
+
+  const crop = currentClip?.crop ?? { zoom: 1, x: 0, y: 0 }
+
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-animatic-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div><h3 className="text-sm font-medium">试播 Animatic</h3><p className="text-xs text-muted-foreground">低成本静帧时间线，仅用于节奏与信息量评审；不生成高清视频、不调用 TTS 或图片 Provider。</p></div>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void initialize()}>从当前分集初始化</Button>
+    </div>
+    {!current ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚无 Animatic。初始化后可调整时长、拖拽顺序和静帧取景，再另存版本。</p> : <>
+      <div className="grid gap-3 lg:grid-cols-[13rem_1fr]">
+        <div className="overflow-hidden rounded border bg-black">
+          <div className="flex aspect-[9/16] items-center justify-center overflow-hidden text-center text-xs text-white">
+            {currentClip?.assetId && assetsById.get(currentClip.assetId) && assetReferenceUrl(assetsById.get(currentClip.assetId)!)
+              ? <img src={assetReferenceUrl(assetsById.get(currentClip.assetId)!)} alt={`Animatic 镜头 ${clipIndex + 1}`} className="h-full w-full object-cover" style={{ objectPosition: `${50 + crop.x}% ${50 + crop.y}%`, transform: `scale(${crop.zoom})` }} />
+              : <span>镜头 {clipIndex + 1} 静帧空位<br />导入并采用图片后重新初始化</span>}
+          </div>
+          <div className="flex items-center justify-between p-2 text-xs text-white"><Button size="sm" variant="secondary" onClick={() => setPlaying((value) => !value)}>{playing ? '暂停' : '播放'}</Button><span>{clipIndex + 1} / {current.clips.length} · {animaticDurationSeconds(current.clips).toFixed(1)} 秒</span></div>
+        </div>
+        <div className="space-y-1">
+          {current.clips.map((clip, index) => <div key={clip.id} draggable={Boolean(working)} onDragStart={() => setDraggedClipIndex(index)} onDragOver={(event) => { if (working) event.preventDefault() }} onDrop={() => { if (draggedClipIndex !== null) moveClip(draggedClipIndex, index) }} className={`grid grid-cols-[4rem_6rem_1fr] items-center gap-2 rounded border p-2 text-xs ${index === clipIndex ? 'border-primary bg-primary/5' : 'bg-background/70'} ${working ? 'cursor-grab' : ''}`}>
+            <button className="text-left" onClick={() => setClipIndex(index)}>镜头 {index + 1}</button>
+            <Input aria-label={`镜头 ${index + 1} 时长`} type="number" min="1" max="15" step="0.1" value={clip.durationSeconds} disabled={!working} onChange={(event) => updateClip(clip.id, { durationSeconds: Math.min(15, Math.max(1, Number(event.target.value) || 1)) })} />
+            <span className={clip.assetId ? 'text-emerald-700' : 'text-amber-700'}>{clip.assetId ? `已引用静帧 · ${clip.transition}` : '静帧空位：导入并采用后重新初始化'}</span>
+          </div>)}
+        </div>
+      </div>
+      {working && currentClip && <div className="grid gap-2 rounded border bg-background/60 p-2 md:grid-cols-3">
+        <Input aria-label="当前静帧缩放" type="number" min="0.8" max="2" step="0.05" value={crop.zoom} onChange={(event) => updateCurrentCrop({ zoom: Number(event.target.value) || 1 })} />
+        <Input aria-label="当前静帧横向取景" type="number" min="-50" max="50" step="1" value={crop.x} onChange={(event) => updateCurrentCrop({ x: Number(event.target.value) || 0 })} />
+        <Input aria-label="当前静帧纵向取景" type="number" min="-50" max="50" step="1" value={crop.y} onChange={(event) => updateCurrentCrop({ y: Number(event.target.value) || 0 })} />
+        <p className="md:col-span-3 text-xs text-muted-foreground">拖拽右侧镜头卡调整顺序；当前镜头可调整缩放、横向和纵向取景，原始静帧不会被改写。</p>
+      </div>}
+      <div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy || !working} onClick={() => void save()}>另存 Animatic 版本</Button><select aria-label="回看 Animatic 版本" value={selectedVersionId} onChange={(event) => { setWorking(null); setSelectedVersionId(event.target.value) }} className="h-8 rounded border bg-background px-2 text-xs"><option value="">最新已存版本</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>v{draft.versionNumber} · {draft.status}</option>)}</select><span className="self-center text-xs text-muted-foreground">临时声音：未配置时以静音预览，正式音轨在 LM5-13 处理。</span></div>
+      <div className="rounded border bg-background/60 p-2"><div className="mb-1 text-xs font-medium">时间点批注（定位到当前镜头）</div><div className="flex flex-wrap gap-2"><select aria-label="Animatic 批注类别" value={annotationCategory} onChange={(event) => setAnnotationCategory(event.target.value as typeof annotationCategory)} className="h-8 rounded border bg-background px-2 text-xs"><option value="pacing">节奏</option><option value="information">信息量</option><option value="hook">钩子</option><option value="shot">镜头</option></select><Input aria-label="Animatic 批注内容" value={annotationNote} onChange={(event) => setAnnotationNote(event.target.value)} placeholder="当前镜头的批注" className="h-8 max-w-sm text-xs" /><Button size="sm" variant="outline" disabled={!working} onClick={addAnnotation}>添加批注</Button></div>{current.annotations.length > 0 && <div className="mt-2 space-y-1">{current.annotations.map((annotation) => <p key={annotation.id} className="text-xs text-muted-foreground">{annotation.atSeconds.toFixed(1)} 秒 · {annotation.category}：{annotation.note}</p>)}</div>}</div>
+      <Textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="试播通过或退回的理由（必填，便于后续只返工问题镜头）" className="min-h-16 text-xs" />
+      <div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy || !drafts[0] || drafts[0].status !== 'draft'} onClick={() => void review('returned')}>退回试播</Button><Button size="sm" disabled={busy || !drafts[0] || drafts[0].status !== 'draft'} onClick={() => void review('approved')}>通过试播</Button></div>
+    </>}
+  </section>
 }
 
 function ShotStillBatchPlanner({ shots, candidates, locks, versions }: { shots: Shot[]; candidates: ShotStillCandidate[]; locks: ShotVisualAssetLock[]; versions: VisualAssetVersion[] }) {

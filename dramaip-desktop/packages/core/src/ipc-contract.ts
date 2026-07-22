@@ -80,6 +80,43 @@ const shotStillCandidateInput = z.object({
   label: z.string().min(1).max(200),
   notes: z.string().max(2_000).optional(),
 }).strict()
+const animaticClipInput = z.object({
+  id,
+  shotId: id,
+  orderIndex: z.number().int().nonnegative(),
+  durationSeconds: z.number().positive().max(15),
+  stillCandidateId: maybeId,
+  assetId: maybeId,
+  transition: z.enum(['cut', 'fade', 'push', 'pull']),
+  crop: z.object({
+    zoom: z.number().min(0.8).max(2),
+    x: z.number().min(-50).max(50),
+    y: z.number().min(-50).max(50),
+  }).strict().optional(),
+  dialogue: z.string().max(4_000).optional(),
+  narration: z.string().max(4_000).optional(),
+  temporaryAudioAssetId: maybeId,
+}).strict()
+const animaticAnnotationInput = z.object({
+  id,
+  atSeconds: z.number().nonnegative(),
+  shotId: maybeId,
+  category: z.enum(['pacing', 'information', 'hook', 'shot']),
+  note: z.string().min(1).max(2_000),
+  createdAt: z.string().min(1),
+}).strict()
+const animaticSaveInput = z.object({
+  projectId: id,
+  adaptationProjectId: id,
+  episodeId: id,
+  sourceFingerprint: z.string().min(1),
+  clips: z.array(animaticClipInput).max(500),
+  annotations: z.array(animaticAnnotationInput).max(500),
+}).strict()
+const animaticReviewInput = z.object({
+  status: z.enum(['approved', 'returned']),
+  reviewNote: z.string().min(1).max(2_000).optional(),
+}).strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -707,6 +744,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'shotStill:listByShot': [id],
   'shotStill:create': [shotStillCandidateInput],
   'shotStill:adopt': [id],
+  'animatic:listByEpisode': [id],
+  'animatic:initialize': [id, id],
+  'animatic:save': [animaticSaveInput],
+  'animatic:review': [id, animaticReviewInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

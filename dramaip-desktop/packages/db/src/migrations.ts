@@ -654,6 +654,21 @@ CREATE TABLE IF NOT EXISTS shot_still_candidates (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS animatic_drafts (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  adaptation_project_id TEXT NOT NULL,
+  episode_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  source_fingerprint TEXT NOT NULL,
+  clips TEXT NOT NULL DEFAULT '[]',
+  annotations TEXT NOT NULL DEFAULT '[]',
+  review_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS generation_lineages (
   id TEXT PRIMARY KEY,
   project_id TEXT,

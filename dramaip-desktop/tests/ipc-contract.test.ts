@@ -165,6 +165,13 @@ test('validates exact IPC channel arguments', () => {
   assert.deepEqual(validateIpcArgs('shotStill:create', [{
     projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本',
   }]), [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本' }])
+  assert.deepEqual(validateIpcArgs('animatic:save', [{
+    projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [],
+    clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 2.5, assetId: 'asset1', transition: 'fade', crop: { zoom: 1.2, x: 10, y: -5 } }],
+  }]), [{
+    projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [],
+    clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 2.5, assetId: 'asset1', transition: 'fade', crop: { zoom: 1.2, x: 10, y: -5 } }],
+  }])
   assert.deepEqual(
     validateIpcArgs('asset:create', [
       {
@@ -236,6 +243,7 @@ test('rejects IPC calls with invalid arity or shape', () => {
   assert.throws(() => validateIpcArgs('visualAsset:create', [{ projectId: 'p1', ownerKind: 'bad', ownerId: 'vp1', assetId: 'asset1', slot: 'costume', label: 'x' }]), /ownerKind/)
   assert.throws(() => validateIpcArgs('visualAsset:lockShot', [{ projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: '' }]), /role/)
   assert.throws(() => validateIpcArgs('shotStill:create', [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'bad', label: 'x' }]), /kind/)
+  assert.throws(() => validateIpcArgs('animatic:save', [{ projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [], clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 16, transition: 'fade' }] }]), /durationSeconds/)
   assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
   assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
 })

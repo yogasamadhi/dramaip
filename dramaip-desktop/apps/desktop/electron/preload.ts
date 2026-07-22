@@ -45,6 +45,12 @@ const api = {
     create: (data: unknown) => invoke('shotStill:create', data),
     adopt: (id: string) => invoke('shotStill:adopt', id),
   },
+  animatic: {
+    listByEpisode: (episodeId: string) => invoke('animatic:listByEpisode', episodeId),
+    initialize: (projectId: string, episodeId: string) => invoke('animatic:initialize', projectId, episodeId),
+    save: (data: unknown) => invoke('animatic:save', data),
+    review: (id: string, review: unknown) => invoke('animatic:review', id, review),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

@@ -755,6 +755,13 @@ export const shotStillCandidates = sqliteTable('shot_still_candidates', {
   createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
 })
 
+export const animaticDrafts = sqliteTable('animatic_drafts', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  versionNumber: integer('version_number').notNull(), status: text('status', { enum: ['draft', 'approved', 'returned'] }).notNull().default('draft'),
+  sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), annotations: text('annotations').notNull().default('[]'), reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
 // LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
 // 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
 export const generationLineages = sqliteTable('generation_lineages', {
