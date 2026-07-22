@@ -64,6 +64,11 @@ const api = {
     preflight: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:preflight', input),
     start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:start', input),
   },
+  episodeQuality: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('episodeQuality:listByEpisode', input),
+    start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }) => invoke('episodeQuality:start', input),
+    createMinimalRedoPlan: (input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }) => invoke('episodeQuality:createMinimalRedoPlan', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

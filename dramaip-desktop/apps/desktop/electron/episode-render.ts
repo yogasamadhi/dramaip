@@ -216,7 +216,7 @@ async function prepareEpisodeRender(repos: Repositories, input: EpisodeRenderInp
 
   let ffmpegPath: string | undefined
   if (options.checkFfmpeg) {
-    ffmpegPath = await discoverFfmpeg()
+    ffmpegPath = await discoverEpisodeFfmpeg()
     if (!ffmpegPath) blockers.push('未找到可用 FFmpeg。请安装 FFmpeg，或由桌面应用包提供受控运行时后再导出 MP4。')
   }
   if (mutedTrackIds.size) warnings.push(`已静音 ${mutedTrackIds.size} 条音轨；该选择会写入本次渲染谱系。`)
@@ -387,7 +387,8 @@ function mixFilter(filters: string[], labels: string[], output: string): string 
   return output
 }
 
-async function discoverFfmpeg(): Promise<string | undefined> {
+/** Shared by local delivery and the read-only media QC worker. */
+export async function discoverEpisodeFfmpeg(): Promise<string | undefined> {
   const candidates = unique([
     process.env.SDNS_FFMPEG_PATH,
     process.resourcesPath ? join(process.resourcesPath, 'ffmpeg', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg') : undefined,

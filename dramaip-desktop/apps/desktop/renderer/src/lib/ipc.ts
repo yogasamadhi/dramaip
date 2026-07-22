@@ -5,6 +5,7 @@ import type {
   AudioTrack,
   EpisodeRenderArchive,
   EpisodeRenderPreflight,
+  EpisodeQualityReport,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -563,6 +564,11 @@ export interface StudioApi {
     listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
     preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<EpisodeRenderPreflight>
     start(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeRenderArchive }>
+  }
+  episodeQuality: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; report?: EpisodeQualityReport; reportPath?: string; stale: boolean; staleReason?: string }>>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask }>
+    createMinimalRedoPlan(input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }): Promise<{ ok: boolean; error?: string; task?: LongTask }>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
