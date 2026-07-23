@@ -465,6 +465,23 @@ const episodeQualityInput = episodeQualityListInput.extend({ renderTaskId: id })
 
 const episodeMinimalRedoInput = episodeQualityListInput.extend({ qualityTaskId: id }).strict()
 
+const episodeComplianceListInput = z
+  .object({ projectId: id, adaptationProjectId: id, episodeId: id })
+  .strict()
+
+const episodeComplianceInput = episodeComplianceListInput.extend({
+  renderTaskId: id,
+  qualityTaskId: id,
+  profileId: id,
+  title: z.string().max(300),
+  subtitleLanguage: z.string().max(64),
+  targetPlatform: z.string().max(120).optional(),
+  targetRegion: z.string().max(120).optional(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  aigcDeclared: z.boolean(),
+  manualContentReviewConfirmed: z.boolean(),
+}).strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -797,6 +814,11 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'episodeQuality:listByEpisode': [episodeQualityListInput],
   'episodeQuality:start': [episodeQualityInput],
   'episodeQuality:createMinimalRedoPlan': [episodeMinimalRedoInput],
+  'compliance:listProfiles': [],
+  'compliance:activateProfile': [id],
+  'episodeCompliance:listByEpisode': [episodeComplianceListInput],
+  'episodeCompliance:preflight': [episodeComplianceInput],
+  'episodeCompliance:start': [episodeComplianceInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

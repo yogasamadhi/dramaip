@@ -945,6 +945,19 @@ export const MIGRATIONS: Migration[] = [
     addColumnIfMissing(raw, 'audio_tracks', 'stale_at', 'stale_at TEXT')
     addColumnIfMissing(raw, 'audio_tracks', 'stale_reason', 'stale_reason TEXT')
   } },
+  { version: 36, name: 'versioned-compliance-rule-profiles', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS compliance_rule_profiles (
+      id TEXT PRIMARY KEY, version TEXT NOT NULL UNIQUE, title TEXT NOT NULL, source_url TEXT NOT NULL,
+      source_status TEXT NOT NULL, published_at TEXT NOT NULL, effective_at TEXT,
+      regions TEXT NOT NULL DEFAULT '[]', platforms TEXT NOT NULL DEFAULT '[]',
+      required_visible_label TEXT NOT NULL, required_metadata_keys TEXT NOT NULL DEFAULT '[]',
+      content_checksum TEXT NOT NULL, signature TEXT NOT NULL, integrity_status TEXT NOT NULL DEFAULT 'unchecked',
+      active INTEGER NOT NULL DEFAULT 0, built_in INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_compliance_rule_profiles_active
+      ON compliance_rule_profiles(active, integrity_status, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

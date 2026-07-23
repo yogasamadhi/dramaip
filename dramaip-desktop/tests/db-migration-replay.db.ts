@@ -12,7 +12,7 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import { createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
+import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
 
@@ -159,6 +159,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'audio_tracks'))
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
+    assert.ok(tableExists(raw, 'compliance_rule_profiles'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -201,6 +202,27 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.deepEqual(appliedVersions(raw), applied)
   } finally {
     closeAndRemove(raw, dir)
+  }
+})
+
+test('verifies signed offline rule profiles and never promotes consultation or tampered packs', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const official = BUILT_IN_COMPLIANCE_RULE_PROFILES[0]
+    const consultation = BUILT_IN_COMPLIANCE_RULE_PROFILES[1]
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, [official, consultation])
+    assert.equal(fixture.repos.compliance.getActiveComplianceRuleProfile(fixture.db)?.id, official.id)
+    assert.equal(fixture.repos.compliance.activateComplianceRuleProfile(fixture.db, consultation.id), undefined)
+    const persistedOfficial = fixture.repos.compliance.getComplianceRuleProfile(fixture.db, official.id)
+    assert.equal(persistedOfficial && fixture.repos.compliance.isVerifiedComplianceRuleProfile({ ...persistedOfficial, title: '已篡改标题' }), false)
+
+    const previousOfficial = { ...official, id: 'cn-aigc-identification-previous', version: 'cn-aigc-identification/2025-08-01', active: false }
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, [previousOfficial])
+    assert.equal(fixture.repos.compliance.activateComplianceRuleProfile(fixture.db, previousOfficial.id), undefined)
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, BUILT_IN_COMPLIANCE_RULE_PROFILES)
+    assert.equal(fixture.repos.compliance.getActiveComplianceRuleProfile(fixture.db)?.id, official.id)
+  } finally {
+    closeRepositoryFixture(fixture)
   }
 })
 

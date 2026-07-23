@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { buildEpisodeRenderPlan, type AnimaticDraft, type AudioTrack, type Shot } from '../packages/core/src'
+import { BUILT_IN_COMPLIANCE_RULE_PROFILES, buildEpisodeRenderPlan, type AnimaticDraft, type AudioTrack, type ComplianceRuleProfile, type Shot } from '../packages/core/src'
 import { renderEpisodeFiles, type EpisodeRenderAudioSource } from '../apps/desktop/electron/episode-render'
 import { inspectEpisodeMedia } from '../apps/desktop/electron/episode-quality'
+import { renderCompliantEpisode } from '../apps/desktop/electron/episode-compliance'
 
 const requireFromDesktop = createRequire(join(process.cwd(), 'apps/desktop/package.json'))
 const bundledFfmpegPath = requireFromDesktop('ffmpeg-static') as string | null
@@ -49,6 +50,48 @@ test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix 
     assert.equal(inspection.height, 1280)
     assert.equal(inspection.hasVideo, true)
     assert.equal(inspection.hasAudio, true)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('compliance transcode writes mandatory visible labeling pipeline and verified hidden AIGC metadata', { skip: !ffmpegPath && 'FFmpeg is not installed on this test host' }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'sdns-episode-compliance-'))
+  try {
+    const sourceMp4Path = join(directory, 'source.mp4')
+    await run(ffmpegPath!, ['-y', '-f', 'lavfi', '-i', 'color=c=navy:s=720x1280:r=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100', '-t', '1.2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', sourceMp4Path])
+    const profile: ComplianceRuleProfile = { ...BUILT_IN_COMPLIANCE_RULE_PROFILES[0], createdAt: '', updatedAt: '' }
+    const archive = await renderCompliantEpisode({
+      ffmpegPath: ffmpegPath!,
+      sourceMp4Path,
+      taskId: 'compliance-task-1',
+      sourceFingerprint: 'render-fingerprint@1',
+      profile,
+      visibleLabel: profile.requiredVisibleLabel,
+      metadata: {
+        'sdns:aigc': 'true',
+        'sdns:rule-profile': profile.version,
+        'sdns:source-fingerprint': 'render-fingerprint@1',
+        'sdns:subtitle-language': 'zh-CN',
+        title: '合规样本',
+      },
+      contentRecord: {
+        userAigcDeclaration: true,
+        text: { subtitleLanguage: 'zh-CN', contentMarker: 'sdns:aigc' },
+        images: [{ assetId: 'image-1', kind: 'first_frame_image', title: '关键帧', aiGenerated: true, provider: 'fixture', rightsStatus: 'verified' }],
+        audio: [{ assetId: 'audio-1', kind: 'dialogue_audio', title: '对白', aiGenerated: null, rightsStatus: 'verified' }],
+        video: [{ assetId: 'video-1', kind: 'video_result', title: '视频', aiGenerated: true, provider: 'fixture', contentMarker: 'source-1', rightsStatus: 'verified' }],
+        finalFile: { contentMarker: 'SDNS-AIGC', metadataKeys: ['sdns:aigc'] },
+      },
+      signal: new AbortController().signal,
+      directory: join(directory, 'compliance'),
+    })
+    assert.ok((await stat(archive.mp4Path)).size > 1_000)
+    const manifest = JSON.parse(await readFile(archive.manifestPath, 'utf8')) as { explicitLabel?: string; hiddenMetadata?: Record<string, string>; contentDeclaration?: { finalFile?: { contentMarker?: string } } }
+    assert.equal(manifest.explicitLabel, 'AI Generated')
+    assert.equal(manifest.hiddenMetadata?.['sdns:aigc'], 'true')
+    assert.equal(manifest.hiddenMetadata?.['sdns:rule-profile'], profile.version)
+    assert.equal(manifest.contentDeclaration?.finalFile?.contentMarker, 'SDNS-AIGC')
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

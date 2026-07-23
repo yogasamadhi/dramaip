@@ -69,6 +69,15 @@ const api = {
     start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }) => invoke('episodeQuality:start', input),
     createMinimalRedoPlan: (input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }) => invoke('episodeQuality:createMinimalRedoPlan', input),
   },
+  compliance: {
+    listProfiles: () => invoke('compliance:listProfiles'),
+    activateProfile: (id: string) => invoke('compliance:activateProfile', id),
+  },
+  episodeCompliance: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('episodeCompliance:listByEpisode', input),
+    preflight: (input: unknown) => invoke('episodeCompliance:preflight', input),
+    start: (input: unknown) => invoke('episodeCompliance:start', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

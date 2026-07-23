@@ -1063,6 +1063,28 @@ export const qualityIssueAcknowledgements = sqliteTable('quality_issue_acknowled
   createdAt: text('created_at').notNull(),
 })
 
+/** Versioned, offline compliance profiles. The selected delivery task snapshots its exact version. */
+export const complianceRuleProfiles = sqliteTable('compliance_rule_profiles', {
+  id: text('id').primaryKey(),
+  version: text('version').notNull().unique(),
+  title: text('title').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  sourceStatus: text('source_status', { enum: ['official', 'consultation', 'platform_guidance', 'unknown'] }).notNull(),
+  publishedAt: text('published_at').notNull(),
+  effectiveAt: text('effective_at'),
+  regions: text('regions').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  requiredVisibleLabel: text('required_visible_label').notNull(),
+  requiredMetadataKeys: text('required_metadata_keys').notNull().default('[]'),
+  contentChecksum: text('content_checksum').notNull(),
+  signature: text('signature').notNull(),
+  integrityStatus: text('integrity_status', { enum: ['verified', 'unchecked', 'invalid'] }).notNull().default('unchecked'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const audienceSimulations = sqliteTable('audience_simulations', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),
