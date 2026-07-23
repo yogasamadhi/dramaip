@@ -420,3 +420,15 @@ test('validates high-risk business IPC payload schemas', () => {
     [{ targetKind: 'chapter', targetId: 'c1', label: '恢复', source: 'restore', content: '正文' }],
   )
 })
+
+test('platform delivery IPC accepts scoped creative inputs and rejects unknown fields', () => {
+  const input = {
+    projectId: 'p1', adaptationProjectId: 'a1', label: '方案 A', title: '归来反击', description: '第一集公开反击。',
+    tags: ['反转'], coverAssetId: 'asset1', source: 'manual',
+  }
+  assert.deepEqual(validateIpcArgs('platformDelivery:createVariant', [input]), [input])
+  assert.deepEqual(validateIpcArgs('platformDelivery:preflight', [{
+    projectId: 'p1', adaptationProjectId: 'a1', episodeId: 'e1', profileId: 'douyin-manual-submission-2026-07', creativeVariantId: 'variant1', complianceTaskId: 'task1', manualFieldsConfirmed: true,
+  }]), [{ projectId: 'p1', adaptationProjectId: 'a1', episodeId: 'e1', profileId: 'douyin-manual-submission-2026-07', creativeVariantId: 'variant1', complianceTaskId: 'task1', manualFieldsConfirmed: true }])
+  assert.throws(() => validateIpcArgs('platformDelivery:createVariant', [{ ...input, credential: 'forbidden' }]), /Unrecognized|unrecognized|无法识别/)
+})

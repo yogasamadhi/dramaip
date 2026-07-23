@@ -1085,6 +1085,39 @@ export const complianceRuleProfiles = sqliteTable('compliance_rule_profiles', {
   updatedAt: text('updated_at').notNull(),
 })
 
+/** Creative metadata variants and immutable platform-delivery archive pointers. */
+export const deliveryCreativeVariants = sqliteTable('delivery_creative_variants', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  label: text('label').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  tags: text('tags').notNull().default('[]'),
+  coverAssetId: text('cover_asset_id'),
+  source: text('source', { enum: ['manual', 'ai_draft'] }).notNull().default('manual'),
+  status: text('status', { enum: ['candidate', 'adopted', 'archived'] }).notNull().default('candidate'),
+  versionNumber: integer('version_number').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const platformDeliveryExports = sqliteTable('platform_delivery_exports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  profileId: text('profile_id').notNull(),
+  profileVersion: text('profile_version').notNull(),
+  creativeVariantId: text('creative_variant_id').notNull(),
+  complianceTaskId: text('compliance_task_id').notNull(),
+  deliveryVersion: integer('delivery_version').notNull(),
+  outputDirectory: text('output_directory').notNull(),
+  manifestPath: text('manifest_path').notNull(),
+  sourceFingerprint: text('source_fingerprint').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
 export const audienceSimulations = sqliteTable('audience_simulations', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),

@@ -482,6 +482,24 @@ const episodeComplianceInput = episodeComplianceListInput.extend({
   manualContentReviewConfirmed: z.boolean(),
 }).strict()
 
+const platformDeliveryVariantInput = episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).extend({
+  label: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(300),
+  description: z.string().trim().min(1).max(2000),
+  tags: stringArray,
+  coverAssetId: id.optional(),
+  source: z.enum(['manual', 'ai_draft']),
+}).strict()
+
+const platformDeliveryScopedIdInput = episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).extend({ id }).strict()
+
+const platformDeliveryExportInput = episodeComplianceListInput.extend({
+  profileId: id,
+  creativeVariantId: id,
+  complianceTaskId: id,
+  manualFieldsConfirmed: z.boolean(),
+}).strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -819,6 +837,14 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'episodeCompliance:listByEpisode': [episodeComplianceListInput],
   'episodeCompliance:preflight': [episodeComplianceInput],
   'episodeCompliance:start': [episodeComplianceInput],
+  'platformDelivery:listProfiles': [],
+  'platformDelivery:listVariants': [episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).strict()],
+  'platformDelivery:createVariant': [platformDeliveryVariantInput],
+  'platformDelivery:adoptVariant': [platformDeliveryScopedIdInput],
+  'platformDelivery:listExports': [episodeComplianceListInput],
+  'platformDelivery:preflight': [platformDeliveryExportInput],
+  'platformDelivery:export': [platformDeliveryExportInput],
+  'platformDelivery:openExportDirectory': [platformDeliveryScopedIdInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

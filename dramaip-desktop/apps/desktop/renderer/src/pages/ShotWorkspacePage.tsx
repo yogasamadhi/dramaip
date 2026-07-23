@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -691,6 +691,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             {sourceProjectId && <EpisodeDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeQualityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeCompliancePanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <PlatformDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1806,6 +1807,112 @@ function EpisodeCompliancePanel({ projectId, adaptationProjectId, episodeId }: {
     {latest?.staleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史合规文件可审计，但已不能作为当前交付：{latest.staleReason}</p>}
     {latest?.task.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{latest.task.errorMessage}</p>}
     {latest?.task.status === 'success' && !latest.stale && archive?.mp4Path && <div className="flex flex-wrap gap-2 rounded border border-emerald-500/40 bg-background/60 p-2 text-xs"><span>合规归档已验证：</span><a className="underline" href={localFileUrl(archive.mp4Path)}>带标识 MP4</a>{archive.manifestPath && <a className="underline" href={localFileUrl(archive.manifestPath)}>合规 Manifest</a>}<span>Profile：{archive.profileVersion ?? selectedProfile?.version ?? '已归档'}</span></div>}
+  </section>
+}
+
+function PlatformDeliveryPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [profiles, setProfiles] = useState<PlatformDeliveryProfile[]>([])
+  const [variants, setVariants] = useState<DeliveryCreativeVariant[]>([])
+  const [exports, setExports] = useState<PlatformDeliveryExport[]>([])
+  const [complianceHistory, setComplianceHistory] = useState<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>([])
+  const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [profileId, setProfileId] = useState('')
+  const [variantId, setVariantId] = useState('')
+  const [complianceTaskId, setComplianceTaskId] = useState('')
+  const [manualFieldsConfirmed, setManualFieldsConfirmed] = useState(false)
+  const [label, setLabel] = useState('方案 A')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [tagsText, setTagsText] = useState('')
+  const [coverAssetId, setCoverAssetId] = useState('')
+  const [preflight, setPreflight] = useState<PlatformDeliveryPreflight | null>(null)
+  const [busy, setBusy] = useState<'save' | 'adopt' | 'preflight' | 'export' | 'open' | null>(null)
+  const listInput = useMemo(() => ({ projectId, adaptationProjectId, episodeId }), [adaptationProjectId, episodeId, projectId])
+  const sourceAssets = assets.filter((asset) => asset.status === 'available' && Boolean(asset.localPath) && (asset.kind === 'cover_image' || asset.kind === 'first_frame_image'))
+  const usableCompliance = complianceHistory.filter((item) => item.task.status === 'success' && !item.stale)
+  const selectedProfile = profiles.find((profile) => profile.id === profileId)
+  const selectedVariant = variants.find((variant) => variant.id === variantId)
+  const input = useMemo(() => ({ ...listInput, profileId, creativeVariantId: variantId, complianceTaskId, manualFieldsConfirmed }), [complianceTaskId, listInput, manualFieldsConfirmed, profileId, variantId])
+
+  const load = useCallback(async () => {
+    const [nextProfiles, nextVariants, nextExports, nextCompliance, nextAssets] = await Promise.all([
+      ipc.platformDelivery.listProfiles(), ipc.platformDelivery.listVariants({ projectId, adaptationProjectId }), ipc.platformDelivery.listExports(listInput), ipc.episodeCompliance.listByEpisode(listInput), ipc.asset.listByProject(projectId),
+    ])
+    setProfiles(nextProfiles); setVariants(nextVariants); setExports(nextExports); setComplianceHistory(nextCompliance); setAssets(nextAssets)
+    setProfileId((current) => nextProfiles.some((profile) => profile.id === current) ? current : nextProfiles[0]?.id ?? '')
+    setVariantId((current) => nextVariants.some((variant) => variant.id === current) ? current : nextVariants.find((variant) => variant.status === 'adopted')?.id ?? nextVariants[0]?.id ?? '')
+    setComplianceTaskId((current) => nextCompliance.some((item) => item.task.id === current && item.task.status === 'success' && !item.stale) ? current : nextCompliance.find((item) => item.task.status === 'success' && !item.stale)?.task.id ?? '')
+  }, [adaptationProjectId, listInput, projectId])
+
+  useEffect(() => { void load().catch((error) => toast.error(`读取平台交付状态失败：${error instanceof Error ? error.message : String(error)}`)) }, [load])
+  function resetPreflight() { setPreflight(null) }
+
+  async function saveVariant() {
+    const tags = tagsText.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean)
+    if (!label.trim() || !title.trim() || !description.trim() || !tags.length) return toast.error('候选必须填写标签、标题、简介和至少一个标签词。')
+    setBusy('save')
+    try {
+      const created = await ipc.platformDelivery.createVariant({ projectId, adaptationProjectId, label: label.trim(), title: title.trim(), description: description.trim(), tags, coverAssetId: coverAssetId || undefined, source: 'manual' })
+      setVariantId(created.id); setTitle(''); setDescription(''); setTagsText(''); setLabel(`方案 ${String.fromCharCode(65 + Math.min(variants.length + 1, 25))}`); resetPreflight()
+      await load(); toast.success(`已保存候选 ${created.label}；仍需显式采用后才能导出。`)
+    } catch (error) { toast.error(`保存候选失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function adoptVariant(id: string) {
+    setBusy('adopt')
+    try {
+      const adopted = await ipc.platformDelivery.adoptVariant({ projectId, adaptationProjectId, id })
+      if (!adopted) return toast.error('候选不存在或已被删除。')
+      setVariantId(adopted.id); resetPreflight(); await load(); toast.success(`已采用 ${adopted.label}；此前采用版本已归档但保留可追溯历史。`)
+    } catch (error) { toast.error(`采用候选失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function inspect() {
+    if (!profileId || !variantId || !complianceTaskId) return toast.error('请选择 Profile、采用的创意候选和当前合规 MP4。')
+    setBusy('preflight')
+    try {
+      const next = await ipc.platformDelivery.preflight(input); setPreflight(next)
+      if (next.ok) toast.success('平台交付预检通过；会建立新的独立版本目录。')
+      else toast.error(`平台交付被 ${next.blockers.length} 项条件阻止。`)
+    } catch (error) { toast.error(`平台交付预检失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function createExport() {
+    if (!preflight?.ok) return toast.error('请先通过平台交付预检。')
+    setBusy('export')
+    try {
+      const result = await ipc.platformDelivery.export(input)
+      setPreflight(result.preflight)
+      if (!result.ok) return toast.error(result.error ?? '平台交付包未能创建。')
+      await load(); toast.success(`已创建交付包 v${String(result.archive?.deliveryVersion ?? 0).padStart(3, '0')}；不会覆盖历史目录。`)
+    } catch (error) { toast.error(`创建平台交付包失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function copyListing() {
+    if (!selectedVariant || !selectedProfile) return toast.error('先选择 Profile 与创意候选。')
+    const text = `${selectedVariant.title}\n\n${selectedVariant.description}\n\n标签：${selectedVariant.tags.join('、')}\nProfile：${selectedProfile.title} (${selectedProfile.version})`
+    try { await navigator.clipboard.writeText(text); toast.success('已复制标题、简介、标签和 Profile 信息，可粘贴至平台后台。') } catch { toast.error('无法写入剪贴板，请从候选卡片手动复制。') }
+  }
+
+  async function openDirectory(id: string) {
+    setBusy('open')
+    try {
+      const result = await ipc.platformDelivery.openExportDirectory({ projectId, adaptationProjectId, id })
+      if (result) toast.error(`无法打开目录：${result}`)
+    } catch (error) { toast.error(`打开目录失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-platform-delivery-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">平台交付包：文案 A/B、封面与人工提交</h3><p className="text-xs text-muted-foreground">把可核验的成片、字幕、封面、文案、权利/合规/质检证据打入独立目录；不保存平台账号、不登录、不代投，也不伪称已发布。</p></div><div className="flex gap-2"><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void copyListing()}>复制提交文案</Button><Button size="sm" disabled={busy !== null} onClick={() => void inspect()}>{busy === 'preflight' ? <Loader2 className="animate-spin" /> : null}运行交付预检</Button></div></div>
+    <div className="grid gap-2 rounded border bg-background/60 p-2 md:grid-cols-2"><select aria-label="平台交付 Profile" value={profileId} onChange={(event) => { setProfileId(event.target.value); resetPreflight() }} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择 Profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.video.width}×{profile.video.height} · {profile.version}</option>)}</select><select aria-label="当前合规 MP4" value={complianceTaskId} onChange={(event) => { setComplianceTaskId(event.target.value); resetPreflight() }} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择当前合规 MP4</option>{usableCompliance.map((item) => <option key={item.task.id} value={item.task.id}>合规 {item.task.id.slice(0, 8)} · {item.task.finishedAt ?? item.task.updatedAt}</option>)}</select></div>
+    {selectedProfile && <div className="rounded border bg-background/60 p-2 text-xs"><div className="flex flex-wrap items-center gap-2"><Badge variant={selectedProfile.sourceStatus === 'platform_portal' ? 'outline' : 'secondary'}>{selectedProfile.sourceStatus === 'platform_portal' ? '平台入口可核验' : '内部母版'}</Badge><span>{selectedProfile.platform} · {selectedProfile.region} · H.264/AAC · {selectedProfile.video.width}×{selectedProfile.video.height}</span><a className="underline" href={selectedProfile.sourceUrl} target="_blank" rel="noreferrer">Profile 来源</a><span className="text-muted-foreground">核验日 {selectedProfile.checkedAt}</span></div><p className="mt-1 text-muted-foreground">时长：{selectedProfile.duration.status === 'verified' ? `${selectedProfile.duration.minSeconds ?? '—'}–${selectedProfile.duration.maxSeconds ?? '—'} 秒` : '人工确认'}（{selectedProfile.duration.note}）；字幕安全区：底部 {selectedProfile.subtitleSafeZone.bottomMarginPx}px（{selectedProfile.subtitleSafeZone.note}）。</p><p className="mt-1 text-muted-foreground">平台的实时上传规格、资质/备案和审核字段不会猜测或写死，必须由人工在提交前复核。</p>{selectedProfile.manualFields.length > 0 && <label className="mt-2 flex items-start gap-2"><input type="checkbox" checked={manualFieldsConfirmed} onChange={(event) => { setManualFieldsConfirmed(event.target.checked); resetPreflight() }} /><span>我已核对：{selectedProfile.manualFields.join('；')}。</span></label>}</div>}
+    <div className="grid gap-2 rounded border bg-background/60 p-2 md:grid-cols-2"><Input aria-label="候选标签" value={label} onChange={(event) => setLabel(event.target.value)} placeholder="候选标签，例如 方案 A" /><select aria-label="候选封面" value={coverAssetId} onChange={(event) => setCoverAssetId(event.target.value)} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择封面资产（预检必填）</option>{sourceAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.title} · {ASSET_KIND_LABEL[asset.kind]}</option>)}</select><Input aria-label="候选标题" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="标题：直接写用户会看到的成品标题" /><Input aria-label="候选标签词" value={tagsText} onChange={(event) => setTagsText(event.target.value)} placeholder="标签词，用逗号分隔" /><Textarea aria-label="候选简介" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="简介：冲突、钩子与卖点；不会自动发布" className="min-h-20 md:col-span-2" /></div>
+    <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void saveVariant()}>{busy === 'save' ? <Loader2 className="animate-spin" /> : null}保存为新候选</Button><span className="text-xs text-muted-foreground">每次保存都新建版本；采用一个候选不会删除旧候选。</span></div>
+    <div className="space-y-1 rounded border bg-background/60 p-2 text-xs"><p className="font-medium">创意候选与采用历史</p>{variants.length === 0 ? <p className="text-muted-foreground">尚无候选。先保存至少一个标题/封面/简介/标签组合。</p> : variants.map((variant) => <div key={variant.id} className={variant.id === variantId ? 'rounded border border-primary/50 p-2' : 'rounded border p-2'}><div className="flex flex-wrap items-center gap-2"><Badge variant={variant.status === 'adopted' ? 'default' : variant.status === 'archived' ? 'secondary' : 'outline'}>{variant.status === 'adopted' ? '已采用' : variant.status === 'archived' ? '历史采用' : '候选'}</Badge><span>{variant.label} · v{variant.versionNumber} · {variant.title}</span><span className="text-muted-foreground">{variant.updatedAt}</span>{variant.status !== 'adopted' && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void adoptVariant(variant.id)}>{busy === 'adopt' ? <Loader2 className="animate-spin" /> : null}采用此候选</Button>}</div><p className="mt-1">{variant.description}</p><p className="mt-1 text-muted-foreground">标签：{variant.tags.join('、')} · 封面：{variant.coverAssetId ? sourceAssets.find((asset) => asset.id === variant.coverAssetId)?.title ?? '已引用的历史资产' : '未选（预检会阻止）'}</p></div>)}</div>
+    {usableCompliance.length === 0 && <p className="rounded border border-dashed p-2 text-xs text-amber-700">需要先有当前且成功的合规 MP4；stale 或失败的历史记录只保留审计用途，不能重新打包。</p>}
+    {preflight && <div className={preflight.ok ? 'rounded border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs' : 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs'}><div className="flex flex-wrap gap-2"><Badge variant={preflight.ok ? 'default' : 'destructive'}>{preflight.ok ? '可以创建新交付目录' : '已阻止'}</Badge>{preflight.finalBaseName && <span>成品命名：{preflight.finalBaseName}</span>}</div>{preflight.blockers.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-destructive">{preflight.blockers.map((item) => <li key={item}>{item}</li>)}</ul>}{preflight.warnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-amber-700">{preflight.warnings.map((item) => <li key={item}>{item}</li>)}</ul>}<p className="mt-2 text-muted-foreground">将包含：{preflight.expectedFiles.join('、')}，以及 listing.md、质检报告和带 SHA-256 校验清单。</p></div>}
+    <div className="flex flex-wrap items-center gap-2"><Button size="sm" disabled={busy !== null || !preflight?.ok} onClick={() => void createExport()}>{busy === 'export' ? <Loader2 className="animate-spin" /> : <Download className="h-3.5 w-3.5" />}创建独立交付包</Button><span className="text-xs text-muted-foreground">每次导出都会分配新的 delivery-vNNN 目录，绝不覆盖既有交付。</span></div>
+    {exports.length > 0 && <div className="space-y-1 rounded border bg-background/60 p-2 text-xs"><p className="font-medium">交付包历史</p>{exports.map((record) => <div key={record.id} className="flex flex-wrap items-center gap-2 rounded border p-2"><Badge variant="outline">v{String(record.deliveryVersion).padStart(3, '0')}</Badge><span>{record.profileId} · {record.createdAt}</span><a className="underline" href={localFileUrl(record.manifestPath)}>Manifest</a><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void openDirectory(record.id)}>{busy === 'open' ? <Loader2 className="animate-spin" /> : null}打开目录</Button></div>)}</div>}
   </section>
 }
 

@@ -15,6 +15,7 @@ export * from './audio-generation'
 export * from './episode-render'
 export * from './episode-quality'
 export * from './compliance'
+export * from './platform-delivery'
 // v0.8 内置 Agent / 类型预设种子数据（仅在 db seed 时使用，不进 UI 常量）
 export {
   BUILT_IN_AGENTS,

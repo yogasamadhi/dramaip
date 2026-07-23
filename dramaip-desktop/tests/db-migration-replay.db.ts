@@ -160,6 +160,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'long_tasks'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'compliance_rule_profiles'))
+    assert.ok(tableExists(raw, 'delivery_creative_variants'))
+    assert.ok(tableExists(raw, 'platform_delivery_exports'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -221,6 +223,28 @@ test('verifies signed offline rule profiles and never promotes consultation or t
     assert.equal(fixture.repos.compliance.activateComplianceRuleProfile(fixture.db, previousOfficial.id), undefined)
     fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, BUILT_IN_COMPLIANCE_RULE_PROFILES)
     assert.equal(fixture.repos.compliance.getActiveComplianceRuleProfile(fixture.db)?.id, official.id)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('versions platform delivery creative variants and preserves distinct delivery archives', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const base = { projectId: fixture.project.id, adaptationProjectId: fixture.adaptation.id, description: '第一集公开反击。', tags: ['反转'], source: 'manual' as const }
+    const first = fixture.repos.platformDelivery.createDeliveryCreativeVariant(fixture.db, { ...base, label: '方案 A', title: '归来反击' })
+    const second = fixture.repos.platformDelivery.createDeliveryCreativeVariant(fixture.db, { ...base, label: '方案 B', title: '先婚后爱反转' })
+    assert.equal(first.versionNumber, 1)
+    assert.equal(second.versionNumber, 2)
+    assert.equal(fixture.repos.platformDelivery.adoptDeliveryCreativeVariant(fixture.db, first.id)?.status, 'adopted')
+    assert.equal(fixture.repos.platformDelivery.adoptDeliveryCreativeVariant(fixture.db, second.id)?.status, 'adopted')
+    assert.equal(fixture.repos.platformDelivery.getDeliveryCreativeVariant(fixture.db, first.id)?.status, 'archived')
+    const common = { projectId: fixture.project.id, adaptationProjectId: fixture.adaptation.id, episodeId: fixture.episode.id, profileId: 'douyin-manual-submission-2026-07', profileVersion: 'douyin-manual-submission/2026-07', creativeVariantId: second.id, complianceTaskId: 'compliance-1', sourceFingerprint: 'delivery@1' }
+    const export1 = fixture.repos.platformDelivery.createPlatformDeliveryExport(fixture.db, { ...common, deliveryVersion: 1, outputDirectory: '/tmp/delivery-v001', manifestPath: '/tmp/delivery-v001/delivery-manifest.json' })
+    const export2 = fixture.repos.platformDelivery.createPlatformDeliveryExport(fixture.db, { ...common, deliveryVersion: 2, outputDirectory: '/tmp/delivery-v002', manifestPath: '/tmp/delivery-v002/delivery-manifest.json' })
+    assert.equal(fixture.repos.platformDelivery.listPlatformDeliveryExports(fixture.db, fixture.project.id, fixture.episode.id).length, 2)
+    assert.equal(fixture.repos.platformDelivery.getPlatformDeliveryExport(fixture.db, export1.id)?.outputDirectory, '/tmp/delivery-v001')
+    assert.equal(fixture.repos.platformDelivery.getPlatformDeliveryExport(fixture.db, export2.id)?.deliveryVersion, 2)
   } finally {
     closeRepositoryFixture(fixture)
   }

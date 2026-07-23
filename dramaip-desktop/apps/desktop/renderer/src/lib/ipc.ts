@@ -9,6 +9,10 @@ import type {
   ComplianceRuleProfile,
   EpisodeComplianceArchive,
   EpisodeCompliancePreflight,
+  DeliveryCreativeVariant,
+  PlatformDeliveryExport,
+  PlatformDeliveryPreflight,
+  PlatformDeliveryProfile,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -581,6 +585,16 @@ export interface StudioApi {
     listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
     preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<EpisodeCompliancePreflight>
     start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeComplianceArchive; preflight?: EpisodeCompliancePreflight }>
+  }
+  platformDelivery: {
+    listProfiles(): Promise<PlatformDeliveryProfile[]>
+    listVariants(input: { projectId: string; adaptationProjectId: string }): Promise<DeliveryCreativeVariant[]>
+    createVariant(input: { projectId: string; adaptationProjectId: string; label: string; title: string; description: string; tags: string[]; coverAssetId?: string; source: 'manual' | 'ai_draft' }): Promise<DeliveryCreativeVariant>
+    adoptVariant(input: { projectId: string; adaptationProjectId: string; id: string }): Promise<DeliveryCreativeVariant | undefined>
+    listExports(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<PlatformDeliveryExport[]>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; profileId: string; creativeVariantId: string; complianceTaskId: string; manualFieldsConfirmed: boolean }): Promise<PlatformDeliveryPreflight>
+    export(input: { projectId: string; adaptationProjectId: string; episodeId: string; profileId: string; creativeVariantId: string; complianceTaskId: string; manualFieldsConfirmed: boolean }): Promise<{ ok: boolean; error?: string; archive?: PlatformDeliveryExport; preflight: PlatformDeliveryPreflight }>
+    openExportDirectory(input: { projectId: string; adaptationProjectId: string; id: string }): Promise<string>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
