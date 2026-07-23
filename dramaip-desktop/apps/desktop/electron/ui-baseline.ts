@@ -438,6 +438,17 @@ export async function runDesktopUiBaseline(
       reducedMotion: false,
     },
     {
+      name: 'tts-settings-1024-light',
+      hash: '#/settings/tts',
+      expectedText: 'TTS 配音设置',
+      readyText: '新增 OpenAI TTS 配置',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
       name: 'task-monitor-recovery-1320-light',
       hash: '#/settings/tasks',
       expectedText: 'UI 基线失败任务',

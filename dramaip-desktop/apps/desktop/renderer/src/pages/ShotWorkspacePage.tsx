@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, ImageProviderConfigRecord, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, ImageProviderConfigRecord, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, TtsProviderConfigRecord, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction, promptAction } from '@/components/ConfirmActionDialog'
@@ -1403,6 +1403,7 @@ function AnimaticPanel({ projectId, adaptationProjectId, episodeId }: { projectI
 }
 
 function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const navigate = useNavigate()
   const [voices, setVoices] = useState<VoiceProfile[]>([])
   const [tracks, setTracks] = useState<AudioTrack[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
@@ -1411,10 +1412,17 @@ function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { p
   const [characterId, setCharacterId] = useState('')
   const [voiceTone, setVoiceTone] = useState('自然、清晰')
   const [kind, setKind] = useState<AudioTrack['kind']>('narration')
+  const [ttsProvider, setTtsProvider] = useState<TtsProviderConfigRecord | undefined>()
+  const [ttsText, setTtsText] = useState('')
+  const [ttsKind, setTtsKind] = useState<'dialogue' | 'narration'>('narration')
+  const [ttsVoice, setTtsVoice] = useState('alloy')
+  const [ttsVoiceProfileId, setTtsVoiceProfileId] = useState('')
+  const [ttsInstructions, setTtsInstructions] = useState('')
+  const [ttsBusy, setTtsBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   async function load() {
-    const [nextVoices, nextTracks, nextCharacters, nextAssets] = await Promise.all([ipc.audio.listVoiceProfiles(projectId), ipc.audio.listTracksByEpisode(episodeId), ipc.character.list(projectId), ipc.asset.listByProject(projectId)])
-    setVoices(nextVoices); setTracks(nextTracks); setCharacters(nextCharacters); setAssets(nextAssets)
+    const [nextVoices, nextTracks, nextCharacters, nextAssets, defaultTtsProvider] = await Promise.all([ipc.audio.listVoiceProfiles(projectId), ipc.audio.listTracksByEpisode(episodeId), ipc.character.list(projectId), ipc.asset.listByProject(projectId), ipc.ttsProvider.getDefault()])
+    setVoices(nextVoices); setTracks(nextTracks); setCharacters(nextCharacters); setAssets(nextAssets); setTtsProvider(defaultTtsProvider)
   }
   useEffect(() => { void load().catch((error) => toast.error(`读取音频制作数据失败：${error instanceof Error ? error.message : String(error)}`)) }, [episodeId, projectId])
   async function createVoice() {
@@ -1437,10 +1445,37 @@ function AudioProductionPanel({ projectId, adaptationProjectId, episodeId }: { p
       await load(); toast.success(`已保存 ${saved.label}；可在后续版本替换人工导入音频。`)
     } catch (error) { toast.error(`初始化音轨失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(false) }
   }
+  async function submitTts() {
+    if (!ttsProvider) return toast.error('请先在设置中保存 TTS Provider；未配置时可继续使用人工导入音频。')
+    if (!ttsProvider.featureEnabled) return toast.error('默认 TTS Provider 的计费开关尚未开启；应用不会提交请求。')
+    if (!ttsText.trim()) return toast.error('请填写要生成的台词或旁白。')
+    if (!ttsVoice.trim()) return toast.error('请填写内置声音名称。')
+    if (!(await confirmAction({ title: `提交${ttsKind === 'dialogue' ? '对白' : '旁白'}配音？`, description: '将调用已启用的外部 TTS 服务，可能产生费用。任务只能停止本地等待，远端费用需以 Provider 账单为准；生成结果会另存为新音频资产，不覆盖人工录音。', confirmLabel: '提交配音' }))) return
+    setTtsBusy(true)
+    try {
+      const result = await ipc.ttsTask.create({
+        providerConfigId: ttsProvider.id, projectId, episodeId, voiceProfileId: ttsVoiceProfileId || undefined,
+        kind: ttsKind, input: ttsText.trim(), voice: ttsVoice.trim(), instructions: ttsInstructions.trim() || undefined,
+      })
+      if (!result.ok) return toast.error(`提交配音失败：${result.error ?? '未知错误'}`)
+      setTtsText('')
+      await load()
+      toast.success('配音已归档为新的候选音频资产；请将它加入音轨并人工复核后采用。')
+    } catch (error) {
+      toast.error(`提交配音失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setTtsBusy(false) }
+  }
   return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-audio-production-panel>
-    <div><h3 className="text-sm font-medium">声音与音频轨</h3><p className="text-xs text-muted-foreground">手工导入的对白、旁白、BGM、音效可先形成可追溯轨道；此处不调用 TTS 或声音克隆。</p></div>
+    <div><h3 className="text-sm font-medium">声音与音频轨</h3><p className="text-xs text-muted-foreground">手工导入的对白、旁白、BGM、音效可先形成可追溯轨道；已启用的官方 TTS 只生成新的候选音频，不提供声音克隆。</p></div>
     <div className="grid gap-2 md:grid-cols-3"><Input aria-label="声音 Profile 名称" value={label} onChange={(event) => setLabel(event.target.value)} /><select aria-label="声音 Profile 角色" value={characterId} onChange={(event) => setCharacterId(event.target.value)} className="h-9 rounded border bg-background px-2 text-xs"><option value="">旁白/通用声音</option>{characters.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}</select><Input aria-label="音色描述" value={voiceTone} onChange={(event) => setVoiceTone(event.target.value)} /></div>
     <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" disabled={busy || !label.trim()} onClick={() => void createVoice()}>新建声音 Profile</Button>{voices.map((voice) => <Button key={voice.id} size="sm" variant={voice.status === 'adopted' ? 'default' : 'outline'} disabled={busy} onClick={() => void ipc.audio.adoptVoiceProfile(voice.id).then(load)}>采用 {voice.label}</Button>)}</div>
+    <div className="space-y-2 rounded border bg-background/60 p-3" data-tts-generation-panel>
+      <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium">受控 TTS 配音</span><Badge variant={ttsProvider?.featureEnabled ? 'destructive' : 'secondary'}>{ttsProvider?.featureEnabled ? `已启用：${ttsProvider.name}` : ttsProvider ? '已配置但已关闭' : '未配置'}</Badge><Button size="sm" variant="outline" onClick={() => navigate('/settings/tts')}>管理 TTS 设置</Button><span className="text-xs text-muted-foreground">只支持内置声音；读音词典来自选定的声音 Profile。</span></div>
+      <div className="grid gap-2 md:grid-cols-3"><select aria-label="TTS 音频类型" value={ttsKind} onChange={(event) => setTtsKind(event.target.value as typeof ttsKind)} className="h-9 rounded border bg-background px-2 text-xs"><option value="narration">旁白</option><option value="dialogue">对白</option></select><Input aria-label="TTS 内置声音" value={ttsVoice} onChange={(event) => setTtsVoice(event.target.value)} placeholder="内置声音，例如 alloy" /><select aria-label="TTS 声音 Profile" value={ttsVoiceProfileId} onChange={(event) => setTtsVoiceProfileId(event.target.value)} className="h-9 rounded border bg-background px-2 text-xs"><option value="">不使用声音 Profile</option>{voices.map((voice) => <option key={voice.id} value={voice.id}>{voice.label}{voice.status === 'adopted' ? '（已采用）' : ''}</option>)}</select></div>
+      <Textarea aria-label="TTS 配音文本" value={ttsText} onChange={(event) => setTtsText(event.target.value)} maxLength={4096} placeholder="输入已获得授权的台词或旁白（最多 4096 字符）" className="min-h-20 text-xs" />
+      <Input aria-label="TTS 额外指令" value={ttsInstructions} onChange={(event) => setTtsInstructions(event.target.value)} maxLength={4000} placeholder="可选：节奏、语气等额外指令；声音 Profile 的音色/情绪会一并记录" className="text-xs" />
+      <div className="flex flex-wrap items-center gap-2"><Button size="sm" disabled={ttsBusy || !ttsProvider?.featureEnabled} onClick={() => void submitTts()}>生成候选配音</Button><span className="text-xs text-muted-foreground">同步请求可停止本地等待；远端取消与实际费用无法在未核对 Provider 账单前承诺。</span></div>
+    </div>
     <div className="flex flex-wrap gap-2"><select aria-label="音轨类型" value={kind} onChange={(event) => setKind(event.target.value as AudioTrack['kind'])} className="h-9 rounded border bg-background px-2 text-xs"><option value="dialogue">对白</option><option value="narration">旁白</option><option value="bgm">BGM</option><option value="sfx">音效</option></select><Button size="sm" disabled={busy} onClick={() => void initializeTrack()}>从当前分集另存音轨版本</Button><span className="self-center text-xs text-muted-foreground">已导入匹配素材：{assets.filter((asset) => asset.kind.endsWith('_audio')).length}</span></div>
     <div className="space-y-1">{tracks.length === 0 ? <p className="rounded border border-dashed p-2 text-xs text-muted-foreground">尚无音轨。先导入音频素材，或从镜头对白/旁白初始化一版临时轨。</p> : tracks.map((track) => <div key={track.id} className="flex flex-wrap items-center gap-2 rounded border bg-background/70 p-2 text-xs"><Badge variant={track.status === 'adopted' ? 'default' : track.status === 'stale' ? 'destructive' : 'outline'}>{track.kind} · v{track.versionNumber}</Badge><span>{track.label} · {track.clips.length} 段</span>{track.staleReason && <span className="text-destructive">{track.staleReason}</span>}<Button size="sm" variant="outline" disabled={busy || track.status === 'adopted' || track.status === 'stale'} onClick={() => void ipc.audio.adoptTrack(track.id).then(load)}>采用此轨</Button></div>)}</div>
   </section>

@@ -1,11 +1,11 @@
 import { ipcMain } from 'electron'
 import { getRepos } from '../db'
-import { retryVideoTask } from '@sdns/ai'
-import { retryImageGenerationTask } from '@sdns/ai'
+import { retryVideoTask, retryImageGenerationTask, retryTtsGenerationTask } from '@sdns/ai'
 import { randomUUID } from 'node:crypto'
 import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
 import { createImageAssetArchiver } from '../image-assets'
+import { createTtsAssetArchiver } from '../audio-assets'
 import { EPISODE_RENDER_TASK_TYPE, retryEpisodeRender } from '../episode-render'
 import { EPISODE_QUALITY_TASK_TYPE, retryEpisodeQuality } from '../episode-quality'
 import { EPISODE_COMPLIANCE_TASK_TYPE, retryEpisodeCompliance } from '../episode-compliance'
@@ -42,6 +42,7 @@ export function registerTaskIpc(): void {
   const repos = () => getRepos()
   const videoAssetArchiver = createVideoAssetArchiver()
   const imageAssetArchiver = createImageAssetArchiver()
+  const ttsAssetArchiver = createTtsAssetArchiver()
 
   ipcMain.handle('longTask:list', (_e, projectId?: string) => {
     const r = repos()
@@ -63,7 +64,7 @@ export function registerTaskIpc(): void {
   ipcMain.handle('longTask:retry', async (_e, id: string) => {
     if (!beginLongTaskRetry(id)) return { ok: false, error: '该任务正在重试，请勿重复提交。' }
     try {
-      return await retryLongTask(repos(), id, videoAssetArchiver, imageAssetArchiver)
+      return await retryLongTask(repos(), id, videoAssetArchiver, imageAssetArchiver, ttsAssetArchiver)
     } finally {
       finishLongTaskRetry(id)
     }
@@ -78,6 +79,7 @@ async function retryLongTask(
   id: string,
   videoAssetArchiver: ReturnType<typeof createVideoAssetArchiver>,
   imageAssetArchiver: ReturnType<typeof createImageAssetArchiver>,
+  ttsAssetArchiver: ReturnType<typeof createTtsAssetArchiver>,
 ): Promise<LongTaskOpResult> {
   const task = r.longTask.getLongTask(r.db, id)
   if (!task) return { ok: false, error: '未找到任务' }
@@ -102,6 +104,17 @@ async function retryLongTask(
     if (!runtime.ok) return { ok: false, error: runtime.error }
     try {
       const result = await retryImageGenerationTask({ repos: r, imageAssetArchiver }, task, runtime.signal, { longTaskId: retryId })
+      return { ok: result.ok, error: result.error, longTaskId: result.task.id, task: result.task }
+    } finally {
+      finishLongTaskRun(retryId)
+    }
+  }
+  if (task.kind === 'audio') {
+    const retryId = randomUUID()
+    const runtime = beginLongTaskRun('audio', retryId)
+    if (!runtime.ok) return { ok: false, error: runtime.error }
+    try {
+      const result = await retryTtsGenerationTask({ repos: r, ttsAssetArchiver }, task, runtime.signal, { longTaskId: retryId })
       return { ok: result.ok, error: result.error, longTaskId: result.task.id, task: result.task }
     } finally {
       finishLongTaskRun(retryId)

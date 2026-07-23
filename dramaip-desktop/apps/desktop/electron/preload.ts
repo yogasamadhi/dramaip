@@ -56,6 +56,17 @@ const api = {
   imageTask: {
     create: (input: unknown) => invoke('imageTask:create', input),
   },
+  ttsProvider: {
+    list: () => invoke('ttsProvider:list'),
+    getDefault: () => invoke('ttsProvider:getDefault'),
+    create: (data: unknown) => invoke('ttsProvider:create', data),
+    update: (id: string, patch: unknown) => invoke('ttsProvider:update', id, patch),
+    remove: (id: string) => invoke('ttsProvider:delete', id),
+    setDefault: (id: string) => invoke('ttsProvider:setDefault', id),
+  },
+  ttsTask: {
+    create: (input: unknown) => invoke('ttsTask:create', input),
+  },
   animatic: {
     listByEpisode: (episodeId: string) => invoke('animatic:listByEpisode', episodeId),
     initialize: (projectId: string, episodeId: string) => invoke('animatic:initialize', projectId, episodeId),

@@ -27,6 +27,7 @@ import { registerRightsIpc } from './rights.ipc'
 import { registerVisualAssetIpc } from './visual-asset.ipc'
 import { registerShotStillIpc } from './shot-still.ipc'
 import { registerImageIpc } from './image.ipc'
+import { registerTtsIpc } from './tts.ipc'
 import { registerAnimaticIpc } from './animatic.ipc'
 import { registerAudioIpc } from './audio.ipc'
 import { registerEpisodeRenderIpc } from './episode-render.ipc'
@@ -57,6 +58,7 @@ export function registerAllIpc(): void {
   registerVisualAssetIpc()
   registerShotStillIpc()
   registerImageIpc()
+  registerTtsIpc()
   registerAnimaticIpc()
   registerAudioIpc()
   registerEpisodeRenderIpc()

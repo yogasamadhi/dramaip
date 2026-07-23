@@ -58,6 +58,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
   const imageProviderKeychainStep = await verifyImageProviderKeychainBoundary(win)
+  const ttsProviderKeychainStep = await verifyTtsProviderKeychainBoundary(win)
   const outcomeBaselineStep = verifyProductionOutcomeBaseline()
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const coverageTruthStep = verifySeasonCoverageTruth(p0.fixture)
@@ -75,7 +76,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, imageProviderKeychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, imageProviderKeychainStep, ttsProviderKeychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
   }
 }
 
@@ -299,6 +300,34 @@ async function verifyImageProviderKeychainBoundary(win: BrowserWindow): Promise<
   } catch (error) {
     return {
       name: 'image-provider-keychain-reference-and-renderer-mask',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function verifyTtsProviderKeychainBoundary(win: BrowserWindow): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const config = await win.webContents.executeJavaScript(`window.api.ttsProvider.create({
+      name: 'E2E TTS Provider', kind: 'openai_tts', apiKey: 'e2e-tts-not-a-real-key',
+      model: 'gpt-4o-mini-tts', featureEnabled: false, isDefault: true,
+    })`, true) as { id?: string; apiKey?: string }
+    if (!config.id || !config.apiKey?.startsWith('masked:v1:') || config.apiKey.includes('e2e-tts-not-a-real-key')) {
+      throw new Error('renderer 未获得掩码后的 TTS Provider 配置')
+    }
+    const stored = getRepos().db
+      .select({ apiKey: schema.ttsProviderConfigs.apiKey })
+      .from(schema.ttsProviderConfigs)
+      .where(eq(schema.ttsProviderConfigs.id, config.id))
+      .get()
+    if (!stored?.apiKey.startsWith('keychain:v1:')) throw new Error('TTS Provider Key 未保存为 Keychain 引用')
+    await win.webContents.executeJavaScript(`window.api.ttsProvider.remove(${JSON.stringify(config.id)})`, true)
+    return { name: 'tts-provider-keychain-reference-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'tts-provider-keychain-reference-and-renderer-mask',
       ok: false,
       durationMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),

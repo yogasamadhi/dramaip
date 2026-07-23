@@ -51,7 +51,7 @@ const projectAssetKind = z.enum([
 ])
 const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
-const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'image_task', 'video_result', 'manual'])
+const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'image_task', 'audio_task', 'video_result', 'manual'])
 const assetRightsStatus = z.enum(['verified', 'declared', 'unknown', 'expired', 'restricted'])
 const assetRightsType = z.enum(['ownership', 'license', 'talent_release', 'voice_consent', 'provider_terms', 'public_domain', 'other'])
 const assetPermittedUse = z.enum(['commercial', 'adaptation', 'generative', 'voice_cloning'])
@@ -101,6 +101,28 @@ const imageTaskInput = z.object({
   size: z.enum(['1024x1024', '1024x1536', '1536x1024']).optional(),
   quality: z.enum(['low', 'medium', 'high']).optional(),
   outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
+}).strict()
+const ttsProviderConfigInput = z.object({
+  name: z.string().min(1).max(120),
+  kind: z.literal('openai_tts'),
+  apiKey: z.string().max(1_000).optional(),
+  model: z.string().min(1).max(120).default('gpt-4o-mini-tts'),
+  featureEnabled: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+}).strict()
+const ttsProviderConfigPatch = ttsProviderConfigInput.partial().strict()
+const ttsTaskInput = z.object({
+  providerConfigId: id,
+  projectId: id,
+  episodeId: id,
+  shotId: maybeId,
+  voiceProfileId: maybeId,
+  kind: z.enum(['dialogue', 'narration']),
+  input: z.string().min(1).max(4_096),
+  voice: z.string().min(1).max(120),
+  instructions: z.string().max(4_000).optional(),
+  speed: z.number().min(0.25).max(4).optional(),
+  responseFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
 }).strict()
 const animaticClipInput = z.object({
   id,
@@ -853,6 +875,13 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'imageProvider:delete': [id],
   'imageProvider:setDefault': [id],
   'imageTask:create': [imageTaskInput],
+  'ttsProvider:list': [],
+  'ttsProvider:getDefault': [],
+  'ttsProvider:create': [ttsProviderConfigInput],
+  'ttsProvider:update': [id, ttsProviderConfigPatch],
+  'ttsProvider:delete': [id],
+  'ttsProvider:setDefault': [id],
+  'ttsTask:create': [ttsTaskInput],
   'animatic:listByEpisode': [id],
   'animatic:initialize': [id, id],
   'animatic:save': [animaticSaveInput],

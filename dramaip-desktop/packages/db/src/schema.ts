@@ -198,7 +198,7 @@ export const aiBudgetSettings = sqliteTable('ai_budget_settings', {
 
 export const longTasks = sqliteTable('long_tasks', {
   id: text('id').primaryKey(),
-  kind: text('kind', { enum: ['ai', 'image', 'video', 'batch'] }).notNull(),
+  kind: text('kind', { enum: ['ai', 'image', 'audio', 'video', 'batch'] }).notNull(),
   status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
   title: text('title').notNull(),
   taskType: text('task_type'),
@@ -231,6 +231,19 @@ export const modelConfigs = sqliteTable('model_configs', {
 
 /** LM5-10：图片 Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
 export const imageProviderConfigs = sqliteTable('image_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  featureEnabled: integer('feature_enabled', { mode: 'boolean' }).notNull().default(false),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-14：TTS Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
+export const ttsProviderConfigs = sqliteTable('tts_provider_configs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   kind: text('kind').notNull(),
