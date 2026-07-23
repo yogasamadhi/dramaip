@@ -69,6 +69,7 @@ import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibil
 import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/WorkspaceShell'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
+import { FeedbackLoopSection } from '@/components/FeedbackLoopSection'
 import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
 import { SourceImportDialog } from '@/components/SourceImportDialog'
 import type { AiCommandDefinition } from '@/lib/aiCommandCatalog'
@@ -1107,14 +1108,17 @@ export function WorkspacePage() {
           {section === 'delivery' && (
             <TaskZonePanel
               title="交付"
-              description="导出当前可用内容包；完整剪辑、平台交付与运营反馈将在后续生产 loop 中接入。"
+              description="导出当前可用内容包，并将用户主动导入的运营指标和评论回流为可审阅修订任务。"
               items={[
                 { title: '导出小说投稿包', detail: '生成 Markdown 或 JSON 投稿包。', action: () => void handleSubmissionExport('md') },
                 { title: '导出完整项目包', detail: '备份项目数据，并可在另一设备导入。', action: () => void handleExportPackage() },
+                { title: '导入真实运营与评论反馈', detail: '导入本地 CSV/JSON，预览、去重并创建可采用修订建议。', action: () => openWorkspaceTarget('feedback') },
                 { title: '查看 AI 调用记录', detail: '查看已执行的 AI 任务与结果。', action: () => openWorkspaceTarget('ai-runs') },
               ]}
             />
           )}
+
+          {section === 'feedback' && <FeedbackLoopSection projectId={project.id} />}
 
           {section === 'chapters' && (
             <>

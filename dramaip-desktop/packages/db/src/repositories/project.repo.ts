@@ -49,6 +49,10 @@ import {
   storyBibleStaleMarks,
   deliveryCreativeVariants,
   platformDeliveryExports,
+  feedbackImportBatches,
+  feedbackMetrics,
+  feedbackComments,
+  feedbackCommentClusters,
 } from '../schema'
 import {
   createCompatibleProjectProductionBrief,
@@ -352,6 +356,10 @@ function deleteProjectRows(db: DB, id: string): void {
   deleteVideoTasksByProject(db, id)
   db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.projectId, id)).run()
   db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.projectId, id)).run()
+  db.delete(feedbackCommentClusters).where(eq(feedbackCommentClusters.projectId, id)).run()
+  db.delete(feedbackMetrics).where(eq(feedbackMetrics.projectId, id)).run()
+  db.delete(feedbackComments).where(eq(feedbackComments.projectId, id)).run()
+  db.delete(feedbackImportBatches).where(eq(feedbackImportBatches.projectId, id)).run()
 
   db.delete(chapters).where(eq(chapters.projectId, id)).run()
   db.delete(characters).where(eq(characters.projectId, id)).run()

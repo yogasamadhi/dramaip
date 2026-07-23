@@ -13,6 +13,12 @@ import type {
   PlatformDeliveryExport,
   PlatformDeliveryPreflight,
   PlatformDeliveryProfile,
+  FeedbackComment,
+  FeedbackCommentCluster,
+  FeedbackImportBatch,
+  FeedbackImportPreview,
+  FeedbackImportResult,
+  FeedbackMetric,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -596,6 +602,19 @@ export interface StudioApi {
     export(input: { projectId: string; adaptationProjectId: string; episodeId: string; profileId: string; creativeVariantId: string; complianceTaskId: string; manualFieldsConfirmed: boolean }): Promise<{ ok: boolean; error?: string; archive?: PlatformDeliveryExport; preflight: PlatformDeliveryPreflight }>
     openExportDirectory(input: { projectId: string; adaptationProjectId: string; id: string }): Promise<string>
   }
+  feedback: {
+    chooseAndPreview(kind: 'metrics' | 'comments'): Promise<{ canceled: boolean; token?: string; preview?: FeedbackImportPreview }>
+    previewText(input: { kind: 'metrics' | 'comments'; sourceName: string; content: string; platform?: string; sourceVersion?: string }): Promise<{ canceled: false; token: string; preview: FeedbackImportPreview }>
+    commitPreview(input: { projectId: string; token: string; privacy: 'local_only' | 'redacted' }): Promise<FeedbackImportResult>
+    listBatches(projectId: string): Promise<FeedbackImportBatch[]>
+    listMetrics(projectId: string): Promise<FeedbackMetric[]>
+    listComments(projectId: string): Promise<FeedbackComment[]>
+    listClusters(projectId: string): Promise<FeedbackCommentCluster[]>
+    clusterBatch(input: { projectId: string; batchId: string }): Promise<FeedbackCommentCluster[]>
+    deleteClusters(input: { projectId: string; batchId: string }): Promise<number>
+    deleteBatch(input: { projectId: string; batchId: string }): Promise<boolean>
+    createRevisionTask(input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }): Promise<RevisionTask>
+  }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
   }
@@ -941,7 +960,7 @@ export interface StudioApi {
     shotsJson(sceneId: string): Promise<ExportResult>
     shotsCsv(sceneId: string): Promise<ExportResult>
     /** v1.0：完整项目包导出 */
-    projectPackage(projectId: string, options?: { includeAssets?: boolean }): Promise<ExportResult>
+    projectPackage(projectId: string, options?: { includeAssets?: boolean; includeFeedback?: boolean }): Promise<ExportResult>
   }
   // v0.8 多 Agent 编剧室与模板系统
   agent: {

@@ -88,6 +88,19 @@ const api = {
     export: (input: unknown) => invoke('platformDelivery:export', input),
     openExportDirectory: (input: { projectId: string; adaptationProjectId: string; id: string }) => invoke('platformDelivery:openExportDirectory', input),
   },
+  feedback: {
+    chooseAndPreview: (kind: 'metrics' | 'comments') => invoke('feedback:chooseAndPreview', kind),
+    previewText: (input: { kind: 'metrics' | 'comments'; sourceName: string; content: string; platform?: string; sourceVersion?: string }) => invoke('feedback:previewText', input),
+    commitPreview: (input: { projectId: string; token: string; privacy: 'local_only' | 'redacted' }) => invoke('feedback:commitPreview', input),
+    listBatches: (projectId: string) => invoke('feedback:listBatches', projectId),
+    listMetrics: (projectId: string) => invoke('feedback:listMetrics', projectId),
+    listComments: (projectId: string) => invoke('feedback:listComments', projectId),
+    listClusters: (projectId: string) => invoke('feedback:listClusters', projectId),
+    clusterBatch: (input: { projectId: string; batchId: string }) => invoke('feedback:clusterBatch', input),
+    deleteClusters: (input: { projectId: string; batchId: string }) => invoke('feedback:deleteClusters', input),
+    deleteBatch: (input: { projectId: string; batchId: string }) => invoke('feedback:deleteBatch', input),
+    createRevisionTask: (input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }) => invoke('feedback:createRevisionTask', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

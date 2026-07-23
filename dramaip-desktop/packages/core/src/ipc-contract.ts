@@ -149,6 +149,8 @@ const diagnosticExportOptions = z
 const projectPackageExportOptions = z
   .object({
     includeAssets: z.boolean().optional(),
+    // 反馈评论可能含有仅限本机保存的原文，必须由用户单独确认才写入项目包。
+    includeFeedback: z.boolean().optional(),
   })
   .strict()
   .optional()
@@ -500,6 +502,11 @@ const platformDeliveryExportInput = episodeComplianceListInput.extend({
   manualFieldsConfirmed: z.boolean(),
 }).strict()
 
+const feedbackPreviewTextInput = z.object({ kind: z.enum(['metrics', 'comments']), sourceName: z.string().min(1).max(240), content: z.string().max(10_000_000), platform: z.string().max(120).optional(), sourceVersion: z.string().max(120).optional() }).strict()
+const feedbackCommitInput = z.object({ projectId: id, token: id, privacy: z.enum(['local_only', 'redacted']) }).strict()
+const feedbackBatchInput = z.object({ projectId: id, batchId: id }).strict()
+const feedbackRevisionInput = feedbackBatchInput.extend({ clusterId: id.optional(), title: z.string().max(240).optional(), suggestedAction: z.string().max(2000).optional() }).strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -845,6 +852,17 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'platformDelivery:preflight': [platformDeliveryExportInput],
   'platformDelivery:export': [platformDeliveryExportInput],
   'platformDelivery:openExportDirectory': [platformDeliveryScopedIdInput],
+  'feedback:chooseAndPreview': [z.enum(['metrics', 'comments'])],
+  'feedback:previewText': [feedbackPreviewTextInput],
+  'feedback:commitPreview': [feedbackCommitInput],
+  'feedback:listBatches': [id],
+  'feedback:listMetrics': [id],
+  'feedback:listComments': [id],
+  'feedback:listClusters': [id],
+  'feedback:clusterBatch': [feedbackBatchInput],
+  'feedback:deleteClusters': [feedbackBatchInput],
+  'feedback:deleteBatch': [feedbackBatchInput],
+  'feedback:createRevisionTask': [feedbackRevisionInput],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

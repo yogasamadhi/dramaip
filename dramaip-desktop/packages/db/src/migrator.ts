@@ -980,6 +980,34 @@ export const MIGRATIONS: Migration[] = [
     CREATE INDEX IF NOT EXISTS idx_platform_delivery_export_episode
       ON platform_delivery_exports(project_id, adaptation_project_id, episode_id, created_at);
   `) } },
+  { version: 38, name: 'feedback-imports-and-local-comment-clusters', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS feedback_import_batches (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, source_name TEXT NOT NULL, platform TEXT NOT NULL,
+      source_version TEXT, time_window_start TEXT, time_window_end TEXT, privacy TEXT NOT NULL DEFAULT 'local_only',
+      content_sha256 TEXT NOT NULL, imported_record_count INTEGER NOT NULL DEFAULT 0, skipped_duplicate_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_import_batch_hash ON feedback_import_batches(project_id, kind, content_sha256);
+    CREATE INDEX IF NOT EXISTS idx_feedback_import_batch_project ON feedback_import_batches(project_id, created_at);
+    CREATE TABLE IF NOT EXISTS feedback_metrics (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, platform TEXT NOT NULL, source_version TEXT,
+      metric_key TEXT NOT NULL, metric_label TEXT NOT NULL, definition TEXT NOT NULL, value REAL NOT NULL, denominator REAL,
+      target_kind TEXT NOT NULL, target_id TEXT, recorded_at TEXT, variant_key TEXT, row_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_metric_dedup ON feedback_metrics(project_id, row_fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_feedback_metric_project ON feedback_metrics(project_id, metric_key, recorded_at);
+    CREATE TABLE IF NOT EXISTS feedback_comments (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, platform TEXT NOT NULL, source_version TEXT,
+      external_id TEXT, author_alias TEXT, text TEXT NOT NULL, privacy TEXT NOT NULL DEFAULT 'local_only', target_kind TEXT NOT NULL,
+      target_id TEXT, recorded_at TEXT, row_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_comment_dedup ON feedback_comments(project_id, row_fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_feedback_comment_project ON feedback_comments(project_id, recorded_at);
+    CREATE TABLE IF NOT EXISTS feedback_comment_clusters (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, label TEXT NOT NULL, summary TEXT NOT NULL,
+      tone TEXT NOT NULL, method TEXT NOT NULL, comment_ids TEXT NOT NULL DEFAULT '[]', target_kind TEXT NOT NULL, target_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_cluster_batch ON feedback_comment_clusters(batch_id, created_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
