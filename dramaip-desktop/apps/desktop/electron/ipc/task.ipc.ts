@@ -5,6 +5,7 @@ import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
 import { EPISODE_RENDER_TASK_TYPE, retryEpisodeRender } from '../episode-render'
 import { EPISODE_QUALITY_TASK_TYPE, retryEpisodeQuality } from '../episode-quality'
+import { EPISODE_COMPLIANCE_TASK_TYPE, retryEpisodeCompliance } from '../episode-compliance'
 import {
   beginLongTaskRetry,
   beginLongTaskRun,
@@ -77,6 +78,7 @@ async function retryLongTask(
   if (!task) return { ok: false, error: '未找到任务' }
   if (task.taskType === EPISODE_RENDER_TASK_TYPE) return retryEpisodeRender(r, id)
   if (task.taskType === EPISODE_QUALITY_TASK_TYPE) return retryEpisodeQuality(r, id)
+  if (task.taskType === EPISODE_COMPLIANCE_TASK_TYPE) return retryEpisodeCompliance(r, id)
   if (task.kind === 'batch') {
     if (task.status === 'success') return { ok: false, error: '批量任务已完成，无需重跑' }
     if (task.status === 'running' && isLongTaskRunActive(task.id)) return { ok: false, error: '批量任务正在运行' }

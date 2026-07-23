@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, Episode, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { promptAction } from '@/components/ConfirmActionDialog'
@@ -690,6 +690,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             {sourceProjectId && <AudioProductionPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeQualityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <EpisodeCompliancePanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
 
             {/* 单镜头 Inspector */}
             {activeShot && (
@@ -1660,6 +1661,151 @@ function EpisodeQualityPanel({ projectId, adaptationProjectId, episodeId }: { pr
       })}</div>
       <p className="text-muted-foreground">{report.limitations.join(' ')}</p>
     </div>}
+  </section>
+}
+
+function EpisodeCompliancePanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [profiles, setProfiles] = useState<ComplianceRuleProfile[]>([])
+  const [renders, setRenders] = useState<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>([])
+  const [qualityReports, setQualityReports] = useState<Array<{ task: LongTask; report?: EpisodeQualityReport; stale: boolean; staleReason?: string }>>([])
+  const [history, setHistory] = useState<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>([])
+  const [renderTaskId, setRenderTaskId] = useState('')
+  const [qualityTaskId, setQualityTaskId] = useState('')
+  const [profileId, setProfileId] = useState('')
+  const [title, setTitle] = useState('')
+  const [subtitleLanguage, setSubtitleLanguage] = useState('zh-CN')
+  const [targetPlatform, setTargetPlatform] = useState('')
+  const [targetRegion, setTargetRegion] = useState('中国大陆')
+  const [deliveryDate, setDeliveryDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [aigcDeclared, setAigcDeclared] = useState(false)
+  const [manualContentReviewConfirmed, setManualContentReviewConfirmed] = useState(false)
+  const [preflight, setPreflight] = useState<EpisodeCompliancePreflight | null>(null)
+  const [busy, setBusy] = useState<'preflight' | 'start' | 'cancel' | 'retry' | 'activate' | null>(null)
+  const listInput = useMemo(() => ({ projectId, adaptationProjectId, episodeId }), [adaptationProjectId, episodeId, projectId])
+  const usableProfiles = profiles.filter((profile) => profile.sourceStatus === 'official' && profile.integrityStatus === 'verified')
+  const usableRenders = renders.filter((item) => item.task.status === 'success' && !item.stale)
+  const usableQualityReports = qualityReports.filter((item) => item.task.status === 'success' && !item.stale && item.report)
+  const input = useMemo(() => ({
+    ...listInput,
+    renderTaskId,
+    qualityTaskId,
+    profileId,
+    title,
+    subtitleLanguage,
+    targetPlatform: targetPlatform.trim() || undefined,
+    targetRegion: targetRegion.trim() || undefined,
+    deliveryDate,
+    aigcDeclared,
+    manualContentReviewConfirmed,
+  }), [aigcDeclared, deliveryDate, listInput, manualContentReviewConfirmed, profileId, qualityTaskId, renderTaskId, subtitleLanguage, targetPlatform, targetRegion, title])
+
+  const load = useCallback(async () => {
+    const [nextProfiles, nextRenders, nextQualityReports, nextHistory] = await Promise.all([
+      ipc.compliance.listProfiles(),
+      ipc.episodeRender.listByEpisode(listInput),
+      ipc.episodeQuality.listByEpisode(listInput),
+      ipc.episodeCompliance.listByEpisode(listInput),
+    ])
+    setProfiles(nextProfiles)
+    setRenders(nextRenders)
+    setQualityReports(nextQualityReports)
+    setHistory(nextHistory)
+    const readyProfiles = nextProfiles.filter((profile) => profile.sourceStatus === 'official' && profile.integrityStatus === 'verified')
+    const readyRenders = nextRenders.filter((item) => item.task.status === 'success' && !item.stale)
+    const readyQualityReports = nextQualityReports.filter((item) => item.task.status === 'success' && !item.stale && item.report)
+    setProfileId((current) => readyProfiles.some((profile) => profile.id === current) ? current : readyProfiles.find((profile) => profile.active)?.id ?? readyProfiles[0]?.id ?? '')
+    setRenderTaskId((current) => readyRenders.some((item) => item.task.id === current) ? current : readyRenders[0]?.task.id ?? '')
+    setQualityTaskId((current) => readyQualityReports.some((item) => item.task.id === current) ? current : readyQualityReports[0]?.task.id ?? '')
+  }, [listInput])
+
+  useEffect(() => { void load().catch((error) => toast.error(`读取合规交付状态失败：${error instanceof Error ? error.message : String(error)}`)) }, [load])
+  useEffect(() => {
+    if (!history.some((item) => item.task.status === 'pending' || item.task.status === 'running')) return
+    const timer = window.setInterval(() => { void load() }, 1_000)
+    return () => window.clearInterval(timer)
+  }, [history, load])
+
+  function resetPreflight() { setPreflight(null) }
+
+  async function inspect() {
+    if (!renderTaskId || !qualityTaskId || !profileId) return toast.error('请选择当前 MP4、对应媒体质检报告和正式规则 Profile。')
+    setBusy('preflight')
+    try {
+      const next = await ipc.episodeCompliance.preflight(input)
+      setPreflight(next)
+      if (next.ok) toast.success('合规预检通过：将写入不可关闭的可见标识和隐藏元数据。')
+      else toast.error(`合规预检发现 ${next.blockers.length} 项阻塞；不会输出“看似合规”的文件。`)
+    } catch (error) { toast.error(`合规预检失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function start() {
+    if (!preflight?.ok) return toast.error('请先运行并通过合规预检。')
+    setBusy('start')
+    try {
+      const result = await ipc.episodeCompliance.start(input)
+      if (!result.ok) return toast.error(result.error ?? '无法开始合规封装。')
+      toast.success('已开始合规交付封装；会在转码后回读验证隐藏标识。')
+      await load()
+    } catch (error) { toast.error(`开始合规封装失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function cancel() {
+    const task = history[0]?.task
+    if (!task) return
+    setBusy('cancel')
+    try {
+      const result = await ipc.longTask.cancel(task.id)
+      if (!result.ok) toast.error(result.error ?? '任务无法取消。')
+      await load()
+    } catch (error) { toast.error(`取消失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function retry() {
+    const task = history[0]?.task
+    if (!task) return
+    setBusy('retry')
+    try {
+      const result = await ipc.longTask.retry(task.id)
+      if (!result.ok) toast.error(result.error ?? '任务无法重试。')
+      await load()
+    } catch (error) { toast.error(`重试失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  async function activateProfile(profile: ComplianceRuleProfile) {
+    if (profile.sourceStatus !== 'official' || profile.integrityStatus !== 'verified') return toast.error('只有已验证的正式规则 Profile 可以成为当前交付依据。')
+    setBusy('activate')
+    try {
+      const active = await ipc.compliance.activateProfile(profile.id)
+      if (!active) return toast.error('规则 Profile 未通过完整性或来源校验，无法启用。')
+      setProfileId(active.id)
+      resetPreflight()
+      await load()
+      toast.success(`已启用 ${active.version}；此前版本仍保留于离线审计记录中。`)
+    } catch (error) { toast.error(`启用规则 Profile 失败：${error instanceof Error ? error.message : String(error)}`) } finally { setBusy(null) }
+  }
+
+  const latest = history[0]
+  const archive = latest?.task.output?.archive as { mp4Path?: string; manifestPath?: string; profileVersion?: string } | undefined
+  const selectedProfile = profiles.find((profile) => profile.id === profileId)
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-episode-compliance-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-medium">合规交付封装：规则、AIGC 标识与审计</h3><p className="text-xs text-muted-foreground">以版本化离线 Profile 复核交付日期、地区和平台。最终文件必须同时包含不可关闭的可见 “AI Generated” 标识与隐藏 SDNS-AIGC 元数据，转码后会回读验证；没有“删除标识”选项。</p></div><Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void inspect()}>{busy === 'preflight' ? <Loader2 className="animate-spin" /> : null}运行合规预检</Button></div>
+    <div className="grid gap-2 rounded border bg-background/60 p-2 md:grid-cols-2">
+      <Input aria-label="交付剧名" value={title} onChange={(event) => { setTitle(event.target.value); resetPreflight() }} placeholder="交付剧名（必填）" />
+      <Input aria-label="字幕语言" value={subtitleLanguage} onChange={(event) => { setSubtitleLanguage(event.target.value); resetPreflight() }} placeholder="字幕语言，例如 zh-CN" />
+      <Input aria-label="目标平台" value={targetPlatform} onChange={(event) => { setTargetPlatform(event.target.value); resetPreflight() }} placeholder="目标平台（可留空，但会保留审计）" />
+      <Input aria-label="目标地区" value={targetRegion} onChange={(event) => { setTargetRegion(event.target.value); resetPreflight() }} placeholder="目标地区" />
+      <Input aria-label="交付日期" type="date" value={deliveryDate} onChange={(event) => { setDeliveryDate(event.target.value); resetPreflight() }} />
+      <select aria-label="正式规则 Profile" value={profileId} onChange={(event) => { setProfileId(event.target.value); resetPreflight() }} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择正式规则 Profile</option>{usableProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.active ? '当前 · ' : ''}{profile.version} · {profile.title}</option>)}</select>
+    </div>
+    <div className="rounded border bg-background/60 p-2 text-xs"><p className="mb-1 font-medium">规则依据与离线审计</p><div className="space-y-1">{profiles.map((profile) => <div key={profile.id} className="flex flex-wrap items-center gap-2 rounded border p-2"><Badge variant={profile.sourceStatus === 'official' && profile.integrityStatus === 'verified' ? 'default' : 'outline'}>{profile.sourceStatus === 'official' ? '正式规则' : profile.sourceStatus === 'consultation' ? '征求意见稿' : profile.sourceStatus === 'platform_guidance' ? '平台指引' : '来源未知'}</Badge><span>{profile.title} · {profile.version}</span><span className="text-muted-foreground">发布 {profile.publishedAt}{profile.effectiveAt ? ` · 生效 ${profile.effectiveAt}` : ''} · 范围：{profile.regions.join('、') || '未限定地区'} / {profile.platforms.join('、') || '通用平台'} · 完整性 {profile.integrityStatus}</span><a className="underline" href={profile.sourceUrl} target="_blank" rel="noreferrer">规则来源</a>{profile.active ? <Badge variant="secondary">当前</Badge> : <Button size="sm" variant="outline" disabled={busy !== null || profile.sourceStatus !== 'official' || profile.integrityStatus !== 'verified'} onClick={() => void activateProfile(profile)}>启用此版本</Button>}</div>)}</div><p className="mt-2 text-muted-foreground">规则包离线保存版本、校验和与 Ed25519 签名；征求意见稿只作参考，不能单独成为强制交付依据。启用旧版会保留新旧版本及交付任务的审计链。</p></div>
+    <div className="grid gap-2 rounded border bg-background/60 p-2 md:grid-cols-2"><select aria-label="待合规封装成片" value={renderTaskId} onChange={(event) => { setRenderTaskId(event.target.value); resetPreflight() }} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择当前 MP4</option>{usableRenders.map((item) => <option key={item.task.id} value={item.task.id}>渲染 {item.task.id.slice(0, 8)} · {item.task.finishedAt ?? item.task.updatedAt}</option>)}</select><select aria-label="媒体质检报告" value={qualityTaskId} onChange={(event) => { setQualityTaskId(event.target.value); resetPreflight() }} className="h-9 rounded border bg-background px-2 text-xs"><option value="">选择当前媒体质检报告</option>{usableQualityReports.map((item) => <option key={item.task.id} value={item.task.id}>质检 {item.task.id.slice(0, 8)} · blocker {item.report?.blockerCount ?? 0}</option>)}</select></div>
+    {(usableRenders.length === 0 || usableQualityReports.length === 0) && <p className="rounded border border-dashed p-2 text-xs text-amber-700">需要先有当前 MP4 和与其绑定的成功媒体质检报告；过期、失败或有 blocker 的报告都不会被静默跳过。</p>}
+    <div className="space-y-1 rounded border bg-background/60 p-2 text-xs"><label className="flex items-start gap-2"><input type="checkbox" checked={aigcDeclared} onChange={(event) => { setAigcDeclared(event.target.checked); resetPreflight() }} /><span>我确认本交付包含 AI 生成/合成内容，并同意写入显式和隐式 AIGC 标识。</span></label><label className="flex items-start gap-2"><input type="checkbox" checked={manualContentReviewConfirmed} onChange={(event) => { setManualContentReviewConfirmed(event.target.checked); resetPreflight() }} /><span>我已完成人工核对：未成年人、历史/民俗表述、版权与许可证/备案。系统会记录确认，但不会把它伪装成自动审核。</span></label></div>
+    {preflight && <div className={preflight.ok ? 'rounded border border-emerald-500/40 bg-emerald-500/5 p-2 text-xs' : 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs'}><div className="flex flex-wrap items-center gap-2"><Badge variant={preflight.ok ? 'default' : 'destructive'}>{preflight.ok ? '可合规交付' : '已阻止'}</Badge>{preflight.profile && <span>{preflight.profile.version}</span>}{preflight.profile && <a className="underline" href={preflight.profile.sourceUrl} target="_blank" rel="noreferrer">规则来源</a>}</div>{preflight.blockers.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-destructive">{preflight.blockers.map((message) => <li key={message}>{message}</li>)}</ul>}{preflight.warnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4 text-amber-700">{preflight.warnings.map((message) => <li key={message}>{message}</li>)}</ul>}{preflight.visibleLabel && <p className="mt-2">固定可见标识：{preflight.visibleLabel}；隐藏键：{Object.keys(preflight.metadata).join('、')}。</p>}</div>}
+    <div className="flex flex-wrap gap-2"><Button size="sm" disabled={busy !== null || !preflight?.ok || latest?.task.status === 'pending' || latest?.task.status === 'running'} onClick={() => void start()}>{busy === 'start' ? <Loader2 className="animate-spin" /> : <Video className="h-3.5 w-3.5" />}封装合规 MP4</Button>{(latest?.task.status === 'pending' || latest?.task.status === 'running') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void cancel()}>取消封装</Button>}{(latest?.task.status === 'failed' || latest?.task.status === 'canceled') && <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void retry()}>修正后重试</Button>}{latest && <Badge variant={latest.stale ? 'destructive' : latest.task.status === 'success' ? 'default' : latest.task.status === 'failed' ? 'destructive' : 'outline'}>任务：{latest.stale ? 'stale' : latest.task.status}</Badge>}</div>
+    {latest?.staleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史合规文件可审计，但已不能作为当前交付：{latest.staleReason}</p>}
+    {latest?.task.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{latest.task.errorMessage}</p>}
+    {latest?.task.status === 'success' && !latest.stale && archive?.mp4Path && <div className="flex flex-wrap gap-2 rounded border border-emerald-500/40 bg-background/60 p-2 text-xs"><span>合规归档已验证：</span><a className="underline" href={localFileUrl(archive.mp4Path)}>带标识 MP4</a>{archive.manifestPath && <a className="underline" href={localFileUrl(archive.manifestPath)}>合规 Manifest</a>}<span>Profile：{archive.profileVersion ?? selectedProfile?.version ?? '已归档'}</span></div>}
   </section>
 }
 

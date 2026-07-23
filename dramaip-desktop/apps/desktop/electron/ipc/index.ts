@@ -30,6 +30,7 @@ import { registerAnimaticIpc } from './animatic.ipc'
 import { registerAudioIpc } from './audio.ipc'
 import { registerEpisodeRenderIpc } from './episode-render.ipc'
 import { registerEpisodeQualityIpc } from './episode-quality.ipc'
+import { registerEpisodeComplianceIpc } from './episode-compliance.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -55,6 +56,7 @@ export function registerAllIpc(): void {
   registerAudioIpc()
   registerEpisodeRenderIpc()
   registerEpisodeQualityIpc()
+  registerEpisodeComplianceIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

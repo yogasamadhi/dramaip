@@ -6,6 +6,9 @@ import type {
   EpisodeRenderArchive,
   EpisodeRenderPreflight,
   EpisodeQualityReport,
+  ComplianceRuleProfile,
+  EpisodeComplianceArchive,
+  EpisodeCompliancePreflight,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -569,6 +572,15 @@ export interface StudioApi {
     listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; report?: EpisodeQualityReport; reportPath?: string; stale: boolean; staleReason?: string }>>
     start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask }>
     createMinimalRedoPlan(input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }): Promise<{ ok: boolean; error?: string; task?: LongTask }>
+  }
+  compliance: {
+    listProfiles(): Promise<ComplianceRuleProfile[]>
+    activateProfile(id: string): Promise<ComplianceRuleProfile | undefined>
+  }
+  episodeCompliance: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<EpisodeCompliancePreflight>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeComplianceArchive; preflight?: EpisodeCompliancePreflight }>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

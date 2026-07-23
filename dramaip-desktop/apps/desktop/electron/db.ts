@@ -13,6 +13,7 @@ import {
 } from '@sdns/db'
 import {
   BUILT_IN_AGENTS,
+  BUILT_IN_COMPLIANCE_RULE_PROFILES,
   BUILT_IN_GENRE_PRESETS,
   BUILT_IN_TEMPLATES,
   DEFAULT_GENRE_MARKET_SNAPSHOT,
@@ -315,6 +316,7 @@ function seedBuiltInPresets(r: Repositories): void {
       RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
     )
     r.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(r.db, DEFAULT_GENRE_MARKET_SNAPSHOT)
+    r.compliance.upsertBuiltInComplianceRuleProfiles(r.db, BUILT_IN_COMPLIANCE_RULE_PROFILES)
   } catch {
     // seed 失败不应阻断启动（用户仍可手动在设置页创建）
   }
