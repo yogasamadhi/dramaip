@@ -9,6 +9,19 @@ export interface ImageProviderConfig {
   featureEnabled?: boolean
 }
 
+/**
+ * A persisted, renderer-safe configuration record for an image provider. `apiKey`
+ * is a Keychain reference in SQLite, is resolved only in the main process, and is
+ * masked before it crosses the preload boundary.
+ */
+export interface ImageProviderConfigRecord extends ImageProviderConfig {
+  id: string
+  name: string
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface ImageProviderCapability {
   canSubmit: boolean
   supportsTextToImage: boolean
@@ -38,7 +51,7 @@ export interface ImageGenerationResult {
 
 export interface ImageProvider {
   readonly kind: ImageProviderKind
-  generate(input: ImageGenerationInput): Promise<ImageGenerationResult[]>
+  generate(input: ImageGenerationInput, signal?: AbortSignal): Promise<ImageGenerationResult[]>
 }
 
 export function getImageProviderCapability(config: ImageProviderConfig): ImageProviderCapability {

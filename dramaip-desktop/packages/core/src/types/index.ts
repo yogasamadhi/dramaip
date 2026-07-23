@@ -342,7 +342,7 @@ export interface AiRunUsageSummaryRow {
   estimatedCost: number
 }
 
-export type LongTaskKind = 'ai' | 'video' | 'batch'
+export type LongTaskKind = 'ai' | 'image' | 'video' | 'batch'
 export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 
 export type BatchGenerationKind = 'scripts' | 'shots'
@@ -1256,7 +1256,7 @@ export type ProjectAssetKind =
   | 'other'
 export type ProjectAssetStatus = 'available' | 'missing' | 'remote_only'
 export type ProjectAssetPackagePolicy = 'exclude' | 'reference_only' | 'include_binary'
-export type ProjectAssetSourceKind = 'project' | 'character' | 'visual_profile' | 'visual_setting' | 'episode' | 'script' | 'scene' | 'shot' | 'video_result' | 'manual'
+export type ProjectAssetSourceKind = 'project' | 'character' | 'visual_profile' | 'visual_setting' | 'episode' | 'script' | 'scene' | 'shot' | 'image_task' | 'video_result' | 'manual'
 
 export interface ProjectAsset {
   id: string

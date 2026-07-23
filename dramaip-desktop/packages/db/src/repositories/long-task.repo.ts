@@ -31,11 +31,11 @@ function rowToEntity(row: LongTaskRow): LongTask {
 
 export function createLongTask(
   db: DB,
-  data: Partial<OptionalId<LongTask>> & { kind: LongTaskKind; title: string },
+  data: Partial<OptionalId<LongTask>> & { id?: string; kind: LongTaskKind; title: string },
 ): LongTask {
   const ts = now()
   const value: typeof longTasks.$inferInsert = {
-    id: genId(),
+    id: data.id ?? genId(),
     kind: data.kind,
     status: data.status ?? 'pending',
     title: data.title,

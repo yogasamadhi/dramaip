@@ -100,6 +100,7 @@ import type {
   VisualAssetVersion,
   ShotVisualAssetLock,
   ShotStillCandidate,
+  ImageProviderConfigRecord,
   WritingRoomResult,
   WritingRoomTargetKind,
   WorkflowRun,
@@ -444,6 +445,7 @@ export interface SecretStorageHealth {
   keychainAvailable: boolean
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
+  imageProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
 }
 
@@ -559,6 +561,17 @@ export interface StudioApi {
     listByShot(shotId: string): Promise<ShotStillCandidate[]>
     create(data: Pick<ShotStillCandidate, 'projectId' | 'shotId' | 'assetId' | 'kind' | 'label'> & Pick<Partial<ShotStillCandidate>, 'notes'>): Promise<ShotStillCandidate>
     adopt(id: string): Promise<ShotStillCandidate | undefined>
+  }
+  imageProvider: {
+    list(): Promise<ImageProviderConfigRecord[]>
+    getDefault(): Promise<ImageProviderConfigRecord | undefined>
+    create(data: Omit<ImageProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<ImageProviderConfigRecord>
+    update(id: string, patch: Partial<Omit<ImageProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>>): Promise<ImageProviderConfigRecord | undefined>
+    remove(id: string): Promise<boolean>
+    setDefault(id: string): Promise<boolean>
+  }
+  imageTask: {
+    create(input: { providerConfigId: string; projectId: string; shotId: string; kind: 'still' | 'first_frame' | 'last_frame' | 'cover'; prompt: string; size?: '1024x1024' | '1024x1536' | '1536x1024'; quality?: 'low' | 'medium' | 'high'; outputFormat?: 'png' | 'jpeg' | 'webp' }): Promise<{ ok: boolean; error?: string; task?: LongTask; assets?: ProjectAsset[]; candidates?: ShotStillCandidate[] }>
   }
   animatic: {
     listByEpisode(episodeId: string): Promise<AnimaticDraft[]>

@@ -22,6 +22,9 @@ const VideoGenerationPage = lazy(() =>
 const VideoProviderSettingsPage = lazy(() =>
   import('@/pages/VideoProviderSettingsPage').then((m) => ({ default: m.VideoProviderSettingsPage })),
 )
+const ImageProviderSettingsPage = lazy(() =>
+  import('@/pages/ImageProviderSettingsPage').then((m) => ({ default: m.ImageProviderSettingsPage })),
+)
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const AppearanceSettingsPage = lazy(() =>
   import('@/pages/AppearanceSettingsPage').then((m) => ({ default: m.AppearanceSettingsPage })),
@@ -64,6 +67,7 @@ export default function App() {
           <Route path="/settings/data" element={<DataSettingsPage />} />
           <Route path="/settings/tasks" element={<TaskMonitorPage />} />
           <Route path="/settings/video" element={<VideoProviderSettingsPage />} />
+          <Route path="/settings/images" element={<ImageProviderSettingsPage />} />
           <Route path="/settings/agents" element={<AgentSettingsPage />} />
           <Route path="/settings/usage" element={<UsageStatsPage />} />
           <Route path="/settings/diagnostics" element={<AiDiagnosticsPage />} />

@@ -1,8 +1,11 @@
 import { ipcMain } from 'electron'
 import { getRepos } from '../db'
 import { retryVideoTask } from '@sdns/ai'
+import { retryImageGenerationTask } from '@sdns/ai'
+import { randomUUID } from 'node:crypto'
 import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
+import { createImageAssetArchiver } from '../image-assets'
 import { EPISODE_RENDER_TASK_TYPE, retryEpisodeRender } from '../episode-render'
 import { EPISODE_QUALITY_TASK_TYPE, retryEpisodeQuality } from '../episode-quality'
 import { EPISODE_COMPLIANCE_TASK_TYPE, retryEpisodeCompliance } from '../episode-compliance'
@@ -38,6 +41,7 @@ type LongTaskOpResult = { ok: boolean; error?: string; longTaskId?: string; task
 export function registerTaskIpc(): void {
   const repos = () => getRepos()
   const videoAssetArchiver = createVideoAssetArchiver()
+  const imageAssetArchiver = createImageAssetArchiver()
 
   ipcMain.handle('longTask:list', (_e, projectId?: string) => {
     const r = repos()
@@ -59,7 +63,7 @@ export function registerTaskIpc(): void {
   ipcMain.handle('longTask:retry', async (_e, id: string) => {
     if (!beginLongTaskRetry(id)) return { ok: false, error: '该任务正在重试，请勿重复提交。' }
     try {
-      return await retryLongTask(repos(), id, videoAssetArchiver)
+      return await retryLongTask(repos(), id, videoAssetArchiver, imageAssetArchiver)
     } finally {
       finishLongTaskRetry(id)
     }
@@ -73,6 +77,7 @@ async function retryLongTask(
   r: ReturnType<typeof getRepos>,
   id: string,
   videoAssetArchiver: ReturnType<typeof createVideoAssetArchiver>,
+  imageAssetArchiver: ReturnType<typeof createImageAssetArchiver>,
 ): Promise<LongTaskOpResult> {
   const task = r.longTask.getLongTask(r.db, id)
   if (!task) return { ok: false, error: '未找到任务' }
@@ -90,6 +95,17 @@ async function retryLongTask(
     if (!retryInput) return { ok: false, error: '该 AI 任务缺少可重试输入，请回到原页面重新发起。' }
     const result = await runAiTask(retryInput)
     return { ok: result.ok, error: result.error, longTaskId: result.longTaskId, task: r.longTask.getLongTask(r.db, result.longTaskId) }
+  }
+  if (task.kind === 'image') {
+    const retryId = randomUUID()
+    const runtime = beginLongTaskRun('image', retryId)
+    if (!runtime.ok) return { ok: false, error: runtime.error }
+    try {
+      const result = await retryImageGenerationTask({ repos: r, imageAssetArchiver }, task, runtime.signal, { longTaskId: retryId })
+      return { ok: result.ok, error: result.error, longTaskId: result.task.id, task: result.task }
+    } finally {
+      finishLongTaskRun(retryId)
+    }
   }
   if (!task.relatedEntityId) return { ok: false, error: '该视频任务缺少关联任务，无法重试' }
   return retryVideoLongTask(r, task.relatedEntityId, videoAssetArchiver)
