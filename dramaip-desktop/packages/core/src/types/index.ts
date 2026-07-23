@@ -1616,6 +1616,125 @@ export interface RevisionTaskPreviewUpdateResult {
   task?: RevisionTask
 }
 
+// ---------------------------------------------------------------------------
+// LM5-19 用户主动导入的运营与读者反馈（默认仅本地，不保存平台凭据）
+// ---------------------------------------------------------------------------
+
+export type FeedbackImportKind = 'metrics' | 'comments'
+export type FeedbackPrivacy = 'local_only' | 'redacted'
+export type FeedbackClusterMethod = 'keyword-v1' | 'ai'
+
+export interface FeedbackTarget {
+  targetKind: Extract<CreativeTargetKind, 'project' | 'chapter' | 'episode' | 'scene' | 'shot'>
+  targetId?: string
+}
+
+export interface FeedbackImportBatch {
+  id: string
+  projectId: string
+  kind: FeedbackImportKind
+  sourceName: string
+  platform: string
+  sourceVersion?: string
+  timeWindowStart?: string
+  timeWindowEnd?: string
+  privacy: FeedbackPrivacy
+  contentSha256: string
+  importedRecordCount: number
+  skippedDuplicateCount: number
+  createdAt: string
+}
+
+export interface FeedbackMetric extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  platform: string
+  sourceVersion?: string
+  metricKey: string
+  metricLabel: string
+  definition: string
+  value: number
+  denominator?: number
+  recordedAt?: string
+  variantKey?: string
+  rowFingerprint: string
+  createdAt: string
+}
+
+export interface FeedbackComment extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  platform: string
+  sourceVersion?: string
+  externalId?: string
+  authorAlias?: string
+  text: string
+  privacy: FeedbackPrivacy
+  recordedAt?: string
+  rowFingerprint: string
+  createdAt: string
+}
+
+/** Derived cluster is intentionally separate from original local comments and can be deleted without losing them. */
+export interface FeedbackCommentCluster extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  label: string
+  summary: string
+  tone: 'positive' | 'negative' | 'mixed' | 'unknown'
+  method: FeedbackClusterMethod
+  commentIds: string[]
+  createdAt: string
+}
+
+export interface FeedbackMetricDraft extends FeedbackTarget {
+  platform?: string
+  sourceVersion?: string
+  metricKey: string
+  metricLabel?: string
+  definition?: string
+  value: number
+  denominator?: number
+  recordedAt?: string
+  variantKey?: string
+  rowFingerprint: string
+}
+
+export interface FeedbackCommentDraft extends FeedbackTarget {
+  platform?: string
+  sourceVersion?: string
+  externalId?: string
+  authorAlias?: string
+  text: string
+  recordedAt?: string
+  rowFingerprint: string
+}
+
+export interface FeedbackImportPreview {
+  kind: FeedbackImportKind
+  sourceName: string
+  platform: string
+  sourceVersion?: string
+  timeWindowStart?: string
+  timeWindowEnd?: string
+  contentSha256?: string
+  metrics: FeedbackMetricDraft[]
+  comments: FeedbackCommentDraft[]
+  skippedRows: Array<{ row: number; reason: string }>
+  notices: string[]
+}
+
+export interface FeedbackImportResult {
+  duplicateBatch?: FeedbackImportBatch
+  batch?: FeedbackImportBatch
+  importedMetricCount: number
+  importedCommentCount: number
+  skippedDuplicateCount: number
+}
+
 export interface QualityGateReport {
   id: string
   projectId?: string

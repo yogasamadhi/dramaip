@@ -1118,6 +1118,45 @@ export const platformDeliveryExports = sqliteTable('platform_delivery_exports', 
   createdAt: text('created_at').notNull(),
 })
 
+/** User-selected operational exports and comments stay local; derived clusters are separately removable. */
+export const feedbackImportBatches = sqliteTable('feedback_import_batches', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  kind: text('kind', { enum: ['metrics', 'comments'] }).notNull(),
+  sourceName: text('source_name').notNull(),
+  platform: text('platform').notNull(),
+  sourceVersion: text('source_version'),
+  timeWindowStart: text('time_window_start'),
+  timeWindowEnd: text('time_window_end'),
+  privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  contentSha256: text('content_sha256').notNull(),
+  importedRecordCount: integer('imported_record_count').notNull().default(0),
+  skippedDuplicateCount: integer('skipped_duplicate_count').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+})
+
+export const feedbackMetrics = sqliteTable('feedback_metrics', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), metricKey: text('metric_key').notNull(),
+  metricLabel: text('metric_label').notNull(), definition: text('definition').notNull(), value: real('value').notNull(),
+  denominator: real('denominator'), targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'),
+  variantKey: text('variant_key'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackComments = sqliteTable('feedback_comments', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), externalId: text('external_id'), authorAlias: text('author_alias'),
+  text: text('text').notNull(), privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackCommentClusters = sqliteTable('feedback_comment_clusters', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(), label: text('label').notNull(),
+  summary: text('summary').notNull(), tone: text('tone', { enum: ['positive', 'negative', 'mixed', 'unknown'] }).notNull(),
+  method: text('method', { enum: ['keyword-v1', 'ai'] }).notNull(), commentIds: text('comment_ids').notNull().default('[]'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), createdAt: text('created_at').notNull(),
+})
+
 export const audienceSimulations = sqliteTable('audience_simulations', {
   id: text('id').primaryKey(),
   projectId: text('project_id'),

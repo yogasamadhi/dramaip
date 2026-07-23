@@ -49,6 +49,10 @@ import type {
   Episode,
   EpisodeAnalysis,
   Evaluation,
+  FeedbackComment,
+  FeedbackCommentCluster,
+  FeedbackImportBatch,
+  FeedbackMetric,
   Foreshadowing,
   FreshnessReport,
   GenerationCostEntry,
@@ -92,6 +96,8 @@ export type ProjectPackageAssetExportMode = 'none' | 'manifest'
 
 export interface ProjectPackageOptions {
   includeAssets?: boolean
+  /** 默认为 false：评论可能含本机保存的原文，必须由用户显式选择才会导出。 */
+  includeFeedback?: boolean
 }
 
 export interface ProjectPackage {
@@ -139,6 +145,13 @@ export interface ProjectPackage {
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
+  /** 用户明确选择后才附带的本地运营数据；不会默认进入项目包。 */
+  feedback?: {
+    batches: FeedbackImportBatch[]
+    metrics: FeedbackMetric[]
+    comments: FeedbackComment[]
+    clusters: FeedbackCommentCluster[]
+  }
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -169,6 +182,7 @@ export interface ProjectPackageCounts {
   caseStudies: number
   workflowRuns: number
   assets: number
+  feedbackRecords: number
   totalRecords: number
 }
 
@@ -223,6 +237,12 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
   const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
   const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
+  const feedback = options.includeFeedback ? {
+    batches: repos.feedback.listFeedbackImportBatches(db, projectId),
+    metrics: repos.feedback.listFeedbackMetrics(db, projectId),
+    comments: repos.feedback.listFeedbackComments(db, projectId),
+    clusters: repos.feedback.listFeedbackCommentClusters(db, projectId),
+  } : undefined
   const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
   const visualAssetVersions = options.includeAssets ? repos.visualAsset.listVisualAssetVersionsByProject(db, projectId) : []
   const shotVisualAssetLocks = options.includeAssets ? repos.visualAsset.listShotVisualAssetLocksByProject(db, projectId) : []
@@ -294,6 +314,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     audioTracks,
     generationLineages,
     generationCostEntries,
+    feedback,
     adaptations,
     aiRuns,
   }
@@ -417,6 +438,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
     caseStudies: pkg.caseStudies.length,
     workflowRuns: pkg.workflowRuns.length,
     assets: pkg.assets?.length ?? 0,
+    feedbackRecords: (pkg.feedback?.batches.length ?? 0) + (pkg.feedback?.metrics.length ?? 0) + (pkg.feedback?.comments.length ?? 0) + (pkg.feedback?.clusters.length ?? 0),
   }
   const totalRecords = Object.values(counts).reduce((sum, count) => sum + count, 1)
   return {
@@ -673,6 +695,19 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       }
     }
 
+    // 16.5 用户显式选择后才随项目包携带的本地反馈。保留评论原文和派生聚类的分离，
+    // 并重映射它们的定位；无法重映射的定位安全回退到新项目本身。
+    const feedbackBatchIdMap = pkg.feedback
+      ? repos.feedback.restoreFeedbackProjectPackage(db, {
+        projectId: newProject.id,
+        batches: pkg.feedback.batches,
+        metrics: pkg.feedback.metrics,
+        comments: pkg.feedback.comments,
+        clusters: pkg.feedback.clusters,
+        remapTargetId: (targetId) => remapTargetId(targetId, idMap, oldProjectId, newProject.id),
+      })
+      : new Map<string, string>()
+
     // 17. 创意诊断数据（目标 id 尽量重映射；无法重映射的跨实体记录跳过）
     for (const f of pkg.freshnessReports ?? []) {
       const targetId = remapTargetId(f.targetId, idMap, oldProjectId, newProject.id)
@@ -699,6 +734,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         ...stripId(t),
         projectId: newProject.id,
         targetId,
+        sourceReportId: t.sourceReportId ? (feedbackBatchIdMap.get(t.sourceReportId) ?? t.sourceReportId) : undefined,
         status: t.status === 'applied' ? 'accepted' : t.status,
         appliedVersionId: undefined,
       })

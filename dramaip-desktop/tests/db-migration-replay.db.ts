@@ -12,9 +12,10 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type TextDiffPreviewPayload } from '@sdns/core'
+import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type FeedbackImportPreview, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
+import { createFeedbackRevisionTask } from '../apps/desktop/electron/feedback'
 
 interface RawBetterSqliteDatabase {
   close(): void
@@ -162,6 +163,10 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'compliance_rule_profiles'))
     assert.ok(tableExists(raw, 'delivery_creative_variants'))
     assert.ok(tableExists(raw, 'platform_delivery_exports'))
+    assert.ok(tableExists(raw, 'feedback_import_batches'))
+    assert.ok(tableExists(raw, 'feedback_metrics'))
+    assert.ok(tableExists(raw, 'feedback_comments'))
+    assert.ok(tableExists(raw, 'feedback_comment_clusters'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -248,6 +253,61 @@ test('versions platform delivery creative variants and preserves distinct delive
   } finally {
     closeRepositoryFixture(fixture)
   }
+})
+
+test('imports feedback transactionally, deduplicates rows, keeps clusters removable, and creates a revision without changing content', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const metricPreview: FeedbackImportPreview = { kind: 'metrics', sourceName: 'douyin-week.csv', platform: '抖音', sourceVersion: 'week-1', contentSha256: 'metric-sha', metrics: [{ platform: '抖音', metricKey: 'plays', metricLabel: '播放量', definition: '源文件累计播放。', value: 1200, targetKind: 'episode', targetId: fixture.episode.id, recordedAt: '2026-07-23', variantKey: '标题 A', rowFingerprint: 'metric-1' }], comments: [], skippedRows: [], notices: [] }
+    const metrics = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: metricPreview })
+    assert.equal(metrics.importedMetricCount, 1)
+    assert.equal(fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: metricPreview }).duplicateBatch?.id, metrics.batch?.id)
+    const commentPreview: FeedbackImportPreview = { kind: 'comments', sourceName: 'comments.json', platform: '抖音', contentSha256: 'comment-sha', metrics: [], comments: [{ platform: '抖音', text: '反转很爽，但是节奏有点拖。联系 13800138000。', targetKind: 'episode', targetId: fixture.episode.id, rowFingerprint: 'comment-1' }], skippedRows: [], notices: [] }
+    const comments = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: commentPreview })
+    assert.equal(comments.importedCommentCount, 1)
+    assert.match(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id)[0].text, /已脱敏手机号/)
+    const clusters = fixture.repos.feedback.createFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id })
+    assert.equal(clusters.length, 1)
+    const revision = createFeedbackRevisionTask(fixture.repos, { projectId: fixture.project.id, batchId: comments.batch!.id, clusterId: clusters[0].id })
+    assert.equal(revision.status, 'open')
+    assert.equal(revision.targetKind, 'script')
+    assert.equal(fixture.repos.script.getScriptByEpisode(fixture.db, fixture.episode.id)?.content, '原始剧本。')
+    const packageWithoutFeedback = collectProjectPackage(fixture.repos, fixture.project.id)
+    assert.equal(packageWithoutFeedback.feedback, undefined)
+    const packageWithFeedback = collectProjectPackage(fixture.repos, fixture.project.id, { includeFeedback: true })
+    assert.equal(packageWithFeedback.feedback?.comments.length, 1)
+    assert.equal(packageWithFeedback.feedback?.clusters.length, 1)
+    const restored = importProjectPackage(fixture.repos, serializeProjectPackage(packageWithFeedback))
+    const restoredBatches = fixture.repos.feedback.listFeedbackImportBatches(fixture.db, restored.id)
+    const restoredComments = fixture.repos.feedback.listFeedbackComments(fixture.db, restored.id)
+    const restoredClusters = fixture.repos.feedback.listFeedbackCommentClusters(fixture.db, restored.id)
+    assert.equal(restoredBatches.length, 2)
+    assert.match(restoredComments[0].text, /已脱敏手机号/)
+    assert.equal(restoredClusters.length, 1)
+    assert.ok(restoredClusters[0].commentIds.every((id) => restoredComments.some((comment) => comment.id === id)))
+    assert.ok(fixture.repos.creative.listRevisionTasks(fixture.db, restored.id).some((task) => task.sourceReportId === restoredBatches.find((batch) => batch.sourceName === 'comments.json')?.id))
+    assert.equal(fixture.repos.feedback.deleteFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id }), 1)
+    assert.equal(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id).length, 1)
+    assert.equal(fixture.repos.feedback.deleteFeedbackImportBatch(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id }), true)
+    assert.equal(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id).length, 0)
+    assert.equal(fixture.repos.feedback.listFeedbackMetrics(fixture.db, fixture.project.id).length, 1)
+  } finally { closeRepositoryFixture(fixture) }
+})
+
+test('keeps a feedback revision inside its current project when an imported target id belongs elsewhere', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const otherProject = fixture.repos.project.createProject(fixture.db, { title: '另一个项目', shortDramaType: '都市' } as never)
+    const otherAdaptation = fixture.repos.adaptationProject.createAdaptationProject(fixture.db, { sourceProjectId: otherProject.id, title: '另一季', targetEpisodeCount: 1, adaptationStyle: '强冲突' })
+    const otherEpisode = fixture.repos.episode.createEpisode(fixture.db, { adaptationProjectId: otherAdaptation.id, episodeNumber: 1, title: '另一集', summary: '摘要', hook: '钩子', mainConflict: '冲突', cliffhanger: '悬念' })
+    fixture.repos.script.createScript(fixture.db, { adaptationProjectId: otherAdaptation.id, episodeId: otherEpisode.id, episodeNumber: 1, title: '另一集', content: '另一份剧本。' })
+    const preview: FeedbackImportPreview = { kind: 'comments', sourceName: 'untrusted-target.json', platform: '手工', contentSha256: 'foreign-target-sha', metrics: [], comments: [{ platform: '手工', text: '请注意这个外部定位。', targetKind: 'episode', targetId: otherEpisode.id, rowFingerprint: 'foreign-target-comment' }], skippedRows: [], notices: [] }
+    const imported = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'local_only', preview })
+    const clusters = fixture.repos.feedback.createFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: imported.batch!.id })
+    const revision = createFeedbackRevisionTask(fixture.repos, { projectId: fixture.project.id, batchId: imported.batch!.id, clusterId: clusters[0].id })
+    assert.equal(revision.targetKind, 'project')
+    assert.equal(revision.targetId, fixture.project.id)
+  } finally { closeRepositoryFixture(fixture) }
 })
 
 test('rolls back a failed pending migration without recording its version', () => {

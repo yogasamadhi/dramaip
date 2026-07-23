@@ -727,6 +727,17 @@ const PackageAdaptationSchema = z
   })
   .passthrough()
 
+// 本地反馈是可选的敏感附件：只有用户明确选择“导出含反馈”时才写入项目包。
+// 仍使用实体级校验以兼容旧包，同时避免把未知结构当作可恢复的反馈数据。
+const PackageFeedbackSchema = z
+  .object({
+    batches: packageEntityArray.default([]),
+    metrics: packageEntityArray.default([]),
+    comments: packageEntityArray.default([]),
+    clusters: packageEntityArray.default([]),
+  })
+  .passthrough()
+
 export const ProjectPackageSchema = z
   .object({
     meta: PackageMetaSchema,
@@ -767,6 +778,7 @@ export const ProjectPackageSchema = z
     audioTracks: packageEntityArray.default([]),
     generationLineages: packageEntityArray.default([]),
     generationCostEntries: packageEntityArray.default([]),
+    feedback: PackageFeedbackSchema.optional(),
     adaptations: z.array(PackageAdaptationSchema).default([]),
     aiRuns: packageEntityArray,
   })
