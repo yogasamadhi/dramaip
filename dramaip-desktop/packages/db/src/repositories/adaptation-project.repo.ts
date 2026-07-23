@@ -14,6 +14,8 @@ import {
   promptVersions,
   videoGenerationTasks,
   videoResults,
+  deliveryCreativeVariants,
+  platformDeliveryExports,
 } from '../schema'
 import type { AdaptationProject, ChapterRange, OptionalId } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
@@ -160,6 +162,8 @@ function deleteAdaptationProjectRows(db: DB, id: string): void {
   }
   const episodeRows = db.select({ id: episodes.id }).from(episodes).where(eq(episodes.adaptationProjectId, id)).all() as Array<{ id: string }>
   for (const episode of episodeRows) deleteVideoTasksByEpisode(db, episode.id)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.adaptationProjectId, id)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.adaptationProjectId, id)).run()
   db.delete(scripts).where(eq(scripts.adaptationProjectId, id)).run()
   db.delete(episodes).where(eq(episodes.adaptationProjectId, id)).run()
   db.delete(episodeAnalyses).where(eq(episodeAnalyses.adaptationProjectId, id)).run()

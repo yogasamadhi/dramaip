@@ -47,6 +47,8 @@ import {
   storyBibleChangeSets,
   storyBibleSettings,
   storyBibleStaleMarks,
+  deliveryCreativeVariants,
+  platformDeliveryExports,
 } from '../schema'
 import {
   createCompatibleProjectProductionBrief,
@@ -348,6 +350,8 @@ function deleteProjectRows(db: DB, id: string): void {
 
   for (const adaptationId of adaptationIds) deleteAdaptationChildren(db, adaptationId)
   deleteVideoTasksByProject(db, id)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.projectId, id)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.projectId, id)).run()
 
   db.delete(chapters).where(eq(chapters.projectId, id)).run()
   db.delete(characters).where(eq(characters.projectId, id)).run()
@@ -403,6 +407,8 @@ function deleteAdaptationChildren(db: DB, adaptationId: string): void {
 
   for (const scriptId of scriptIds) deleteScriptChildren(db, scriptId)
   for (const episodeId of episodeIds) deleteVideoTasksByEpisode(db, episodeId)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.adaptationProjectId, adaptationId)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.adaptationProjectId, adaptationId)).run()
 
   // 部分报告/任务只记录改编 ID，最终清理也必须覆盖这些记录。
   db.delete(longTasks).where(eq(longTasks.adaptationProjectId, adaptationId)).run()

@@ -958,6 +958,28 @@ export const MIGRATIONS: Migration[] = [
     CREATE INDEX IF NOT EXISTS idx_compliance_rule_profiles_active
       ON compliance_rule_profiles(active, integrity_status, updated_at);
   `) } },
+  { version: 37, name: 'platform-delivery-variants-and-archives', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS delivery_creative_variants (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL,
+      label TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',
+      cover_asset_id TEXT, source TEXT NOT NULL DEFAULT 'manual', status TEXT NOT NULL DEFAULT 'candidate',
+      version_number INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_creative_variant_version
+      ON delivery_creative_variants(adaptation_project_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_delivery_creative_variant_status
+      ON delivery_creative_variants(project_id, adaptation_project_id, status, updated_at);
+    CREATE TABLE IF NOT EXISTS platform_delivery_exports (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      profile_id TEXT NOT NULL, profile_version TEXT NOT NULL, creative_variant_id TEXT NOT NULL,
+      compliance_task_id TEXT NOT NULL, delivery_version INTEGER NOT NULL,
+      output_directory TEXT NOT NULL, manifest_path TEXT NOT NULL, source_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_delivery_export_version
+      ON platform_delivery_exports(episode_id, profile_id, delivery_version);
+    CREATE INDEX IF NOT EXISTS idx_platform_delivery_export_episode
+      ON platform_delivery_exports(project_id, adaptation_project_id, episode_id, created_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

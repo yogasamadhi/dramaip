@@ -78,6 +78,16 @@ const api = {
     preflight: (input: unknown) => invoke('episodeCompliance:preflight', input),
     start: (input: unknown) => invoke('episodeCompliance:start', input),
   },
+  platformDelivery: {
+    listProfiles: () => invoke('platformDelivery:listProfiles'),
+    listVariants: (input: { projectId: string; adaptationProjectId: string }) => invoke('platformDelivery:listVariants', input),
+    createVariant: (input: unknown) => invoke('platformDelivery:createVariant', input),
+    adoptVariant: (input: { projectId: string; adaptationProjectId: string; id: string }) => invoke('platformDelivery:adoptVariant', input),
+    listExports: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('platformDelivery:listExports', input),
+    preflight: (input: unknown) => invoke('platformDelivery:preflight', input),
+    export: (input: unknown) => invoke('platformDelivery:export', input),
+    openExportDirectory: (input: { projectId: string; adaptationProjectId: string; id: string }) => invoke('platformDelivery:openExportDirectory', input),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),
