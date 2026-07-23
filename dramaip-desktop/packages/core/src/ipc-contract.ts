@@ -51,7 +51,7 @@ const projectAssetKind = z.enum([
 ])
 const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
-const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])
+const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'image_task', 'video_result', 'manual'])
 const assetRightsStatus = z.enum(['verified', 'declared', 'unknown', 'expired', 'restricted'])
 const assetRightsType = z.enum(['ownership', 'license', 'talent_release', 'voice_consent', 'provider_terms', 'public_domain', 'other'])
 const assetPermittedUse = z.enum(['commercial', 'adaptation', 'generative', 'voice_cloning'])
@@ -82,6 +82,25 @@ const shotStillCandidateInput = z.object({
   kind: shotStillKind,
   label: z.string().min(1).max(200),
   notes: z.string().max(2_000).optional(),
+}).strict()
+const imageProviderConfigInput = z.object({
+  name: z.string().min(1).max(120),
+  kind: z.literal('openai_image'),
+  apiKey: z.string().max(1_000).optional(),
+  model: z.string().min(1).max(120).default('gpt-image-2'),
+  featureEnabled: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+}).strict()
+const imageProviderConfigPatch = imageProviderConfigInput.partial().strict()
+const imageTaskInput = z.object({
+  providerConfigId: id,
+  projectId: id,
+  shotId: id,
+  kind: shotStillKind,
+  prompt: z.string().min(1).max(20_000),
+  size: z.enum(['1024x1024', '1024x1536', '1536x1024']).optional(),
+  quality: z.enum(['low', 'medium', 'high']).optional(),
+  outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
 }).strict()
 const animaticClipInput = z.object({
   id,
@@ -827,6 +846,13 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'shotStill:listByShot': [id],
   'shotStill:create': [shotStillCandidateInput],
   'shotStill:adopt': [id],
+  'imageProvider:list': [],
+  'imageProvider:getDefault': [],
+  'imageProvider:create': [imageProviderConfigInput],
+  'imageProvider:update': [id, imageProviderConfigPatch],
+  'imageProvider:delete': [id],
+  'imageProvider:setDefault': [id],
+  'imageTask:create': [imageTaskInput],
   'animatic:listByEpisode': [id],
   'animatic:initialize': [id, id],
   'animatic:save': [animaticSaveInput],

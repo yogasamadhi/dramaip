@@ -2,7 +2,7 @@ import { safeStorage } from 'electron'
 import * as keytar from 'keytar'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
-import type { ModelConfig, VideoProviderConfig } from '@sdns/core'
+import type { ImageProviderConfigRecord, ModelConfig, VideoProviderConfig } from '@sdns/core'
 import { schema, type Repositories } from '@sdns/db'
 import {
   KEYCHAIN_PREFIX,
@@ -47,6 +47,7 @@ export interface SecretStorageHealth {
   keychainAvailable: boolean
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
+  imageProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
 }
 
@@ -133,6 +134,10 @@ export function maskVideoConfig(config: VideoProviderConfig): VideoProviderConfi
   return { ...config, apiKey: maskSecret(config.apiKey) }
 }
 
+export function maskImageProviderConfig(config: ImageProviderConfigRecord): ImageProviderConfigRecord {
+  return { ...config, apiKey: maskSecret(config.apiKey) }
+}
+
 /**
  * Keep repository consumers synchronous while making the backing store external:
  * service calls read the main-process cache; all renderer IPC masks the result.
@@ -168,6 +173,22 @@ export function installSecretProtection(repos: Repositories): void {
     const config = getDefaultVideoProviderConfig(db)
     return config ? exposeVideoConfig(config) : undefined
   }) as typeof videoProviderConfig.getDefaultVideoProviderConfig
+
+  const imageProviderConfig = repos.imageProviderConfig
+  const listImageProviderConfigs = imageProviderConfig.listImageProviderConfigs.bind(imageProviderConfig)
+  const getImageProviderConfig = imageProviderConfig.getImageProviderConfig.bind(imageProviderConfig)
+  const getDefaultImageProviderConfig = imageProviderConfig.getDefaultImageProviderConfig.bind(imageProviderConfig)
+
+  imageProviderConfig.listImageProviderConfigs = ((db) =>
+    listImageProviderConfigs(db).map(exposeImageProviderConfig)) as typeof imageProviderConfig.listImageProviderConfigs
+  imageProviderConfig.getImageProviderConfig = ((db, id) => {
+    const config = getImageProviderConfig(db, id)
+    return config ? exposeImageProviderConfig(config) : undefined
+  }) as typeof imageProviderConfig.getImageProviderConfig
+  imageProviderConfig.getDefaultImageProviderConfig = ((db) => {
+    const config = getDefaultImageProviderConfig(db)
+    return config ? exposeImageProviderConfig(config) : undefined
+  }) as typeof imageProviderConfig.getDefaultImageProviderConfig
 }
 
 export async function createModelConfigWithSecret(repos: Repositories, input: unknown): Promise<ModelConfig> {
@@ -280,15 +301,68 @@ export async function deleteVideoConfigWithSecret(repos: Repositories, id: strin
   await retireCredentialReference(previous?.value)
 }
 
+export async function createImageProviderConfigWithSecret(repos: Repositories, input: unknown): Promise<ImageProviderConfigRecord> {
+  const { data, apiKey } = splitSecretInput(input)
+  const id = randomUUID()
+  const prepared = apiKey ? await prepareCredential('image_provider_config', id, apiKey) : undefined
+  try {
+    const created = repos.imageProviderConfig.createImageProviderConfig(repos.db, {
+      ...data,
+      id,
+      apiKey: prepared?.ref ?? '',
+    } as never)
+    if (prepared) credentialCache.set(prepared.ref, prepared.value)
+    return exposeImageProviderConfig(created)
+  } catch (error) {
+    if (prepared) await deleteCredentialQuietly(prepared.ref)
+    throw error
+  }
+}
+
+export async function updateImageProviderConfigWithSecret(
+  repos: Repositories,
+  id: string,
+  input: unknown,
+): Promise<ImageProviderConfigRecord | undefined> {
+  const previous = getStoredSecretRecord(repos, 'image_provider_config', id)
+  if (!previous) return undefined
+  const { data, apiKey } = splitSecretInput(input)
+  const prepared = apiKey ? await prepareCredential('image_provider_config', id, apiKey) : undefined
+  try {
+    const updated = repos.imageProviderConfig.updateImageProviderConfig(repos.db, id, {
+      ...data,
+      ...(prepared ? { apiKey: prepared.ref } : {}),
+    } as never)
+    if (!updated) {
+      if (prepared) await deleteCredentialQuietly(prepared.ref)
+      return undefined
+    }
+    if (prepared) {
+      credentialCache.set(prepared.ref, prepared.value)
+      await retireCredentialReference(previous.value)
+    }
+    return exposeImageProviderConfig(updated)
+  } catch (error) {
+    if (prepared) await deleteCredentialQuietly(prepared.ref)
+    throw error
+  }
+}
+
+export async function deleteImageProviderConfigWithSecret(repos: Repositories, id: string): Promise<void> {
+  const previous = getStoredSecretRecord(repos, 'image_provider_config', id)
+  repos.imageProviderConfig.deleteImageProviderConfig(repos.db, id)
+  await retireCredentialReference(previous?.value)
+}
+
 export function inspectSecretStorageHealth(repos: Repositories): SecretStorageHealth {
-  const { modelRecords, videoRecords } = listStoredSecretRecords(repos)
-  return buildSecretStorageHealth(modelRecords, videoRecords)
+  const { modelRecords, videoRecords, imageRecords } = listStoredSecretRecords(repos)
+  return buildSecretStorageHealth(modelRecords, videoRecords, imageRecords)
 }
 
 /** Re-runnable recovery path for old SQLite credentials; never exposed to the renderer. */
 export async function migrateLegacySecretsToKeychain(repos: Repositories): Promise<SecretMigrationSummary> {
-  const { modelRecords, videoRecords, allRecords } = listStoredSecretRecords(repos)
-  const before = buildSecretStorageHealth(modelRecords, videoRecords)
+  const { modelRecords, videoRecords, imageRecords, allRecords } = listStoredSecretRecords(repos)
+  const before = buildSecretStorageHealth(modelRecords, videoRecords, imageRecords)
   const failures: SecretMigrationFailure[] = []
   let attempted = 0
   let migrated = 0
@@ -423,9 +497,14 @@ function exposeVideoConfig(config: VideoProviderConfig): VideoProviderConfig {
   return { ...config, apiKey: decryptSecret(config.apiKey) }
 }
 
+function exposeImageProviderConfig(config: ImageProviderConfigRecord): ImageProviderConfigRecord {
+  return { ...config, apiKey: decryptSecret(config.apiKey) }
+}
+
 function listStoredSecretRecords(repos: Repositories): {
   modelRecords: SecretRecordSnapshot[]
   videoRecords: SecretRecordSnapshot[]
+  imageRecords: SecretRecordSnapshot[]
   allRecords: SecretRecordSnapshot[]
 } {
   const modelRecords = repos.db
@@ -438,7 +517,12 @@ function listStoredSecretRecords(repos: Repositories): {
     .from(schema.videoProviderConfigs)
     .all()
     .map((row) => ({ area: 'video_provider_config' as const, id: row.id, value: row.value ?? undefined }))
-  return { modelRecords, videoRecords, allRecords: [...modelRecords, ...videoRecords] }
+  const imageRecords = repos.db
+    .select({ id: schema.imageProviderConfigs.id, value: schema.imageProviderConfigs.apiKey })
+    .from(schema.imageProviderConfigs)
+    .all()
+    .map((row) => ({ area: 'image_provider_config' as const, id: row.id, value: row.value ?? undefined }))
+  return { modelRecords, videoRecords, imageRecords, allRecords: [...modelRecords, ...videoRecords, ...imageRecords] }
 }
 
 function getStoredSecretRecord(
@@ -454,6 +538,14 @@ function getStoredSecretRecord(
       .get()
     return row ? { area, id: row.id, value: row.value } : undefined
   }
+  if (area === 'image_provider_config') {
+    const row = repos.db
+      .select({ id: schema.imageProviderConfigs.id, value: schema.imageProviderConfigs.apiKey })
+      .from(schema.imageProviderConfigs)
+      .where(eq(schema.imageProviderConfigs.id, id))
+      .get()
+    return row ? { area, id: row.id, value: row.value } : undefined
+  }
   const row = repos.db
     .select({ id: schema.videoProviderConfigs.id, value: schema.videoProviderConfigs.apiKey })
     .from(schema.videoProviderConfigs)
@@ -465,22 +557,33 @@ function getStoredSecretRecord(
 function buildSecretStorageHealth(
   modelRecords: SecretRecordSnapshot[],
   videoRecords: SecretRecordSnapshot[],
+  imageRecords: SecretRecordSnapshot[],
 ): SecretStorageHealth {
   const modelConfigs = summarizeSecretValues(modelRecords, safeStorage)
   const videoProviderConfigs = summarizeSecretValues(videoRecords, safeStorage)
+  const imageProviderConfigs = summarizeSecretValues(imageRecords, safeStorage)
   return {
     checkedAt: new Date().toISOString(),
     encryptionAvailable: keychainAvailable,
     keychainAvailable,
     modelConfigs,
     videoProviderConfigs,
-    totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs),
+    imageProviderConfigs,
+    totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs, imageProviderConfigs),
   }
 }
 
 function updateStoredSecret(repos: Repositories, record: SecretRecordSnapshot, nextValue: string): void {
   if (record.area === 'model_config') {
     repos.db.update(schema.modelConfigs).set({ apiKey: nextValue }).where(eq(schema.modelConfigs.id, record.id)).run()
+    return
+  }
+  if (record.area === 'image_provider_config') {
+    repos.db
+      .update(schema.imageProviderConfigs)
+      .set({ apiKey: nextValue })
+      .where(eq(schema.imageProviderConfigs.id, record.id))
+      .run()
     return
   }
   repos.db

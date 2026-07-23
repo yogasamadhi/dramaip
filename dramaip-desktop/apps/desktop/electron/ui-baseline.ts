@@ -427,6 +427,17 @@ export async function runDesktopUiBaseline(
       openWanProviderForm: true,
     },
     {
+      name: 'image-settings-1024-light',
+      hash: '#/settings/images',
+      expectedText: '图片生成设置',
+      readyText: '新增 OpenAI Image 配置',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
       name: 'task-monitor-recovery-1320-light',
       hash: '#/settings/tasks',
       expectedText: 'UI 基线失败任务',

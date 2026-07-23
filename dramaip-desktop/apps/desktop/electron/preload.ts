@@ -45,6 +45,17 @@ const api = {
     create: (data: unknown) => invoke('shotStill:create', data),
     adopt: (id: string) => invoke('shotStill:adopt', id),
   },
+  imageProvider: {
+    list: () => invoke('imageProvider:list'),
+    getDefault: () => invoke('imageProvider:getDefault'),
+    create: (data: unknown) => invoke('imageProvider:create', data),
+    update: (id: string, patch: unknown) => invoke('imageProvider:update', id, patch),
+    remove: (id: string) => invoke('imageProvider:delete', id),
+    setDefault: (id: string) => invoke('imageProvider:setDefault', id),
+  },
+  imageTask: {
+    create: (input: unknown) => invoke('imageTask:create', input),
+  },
   animatic: {
     listByEpisode: (episodeId: string) => invoke('animatic:listByEpisode', episodeId),
     initialize: (projectId: string, episodeId: string) => invoke('animatic:initialize', projectId, episodeId),

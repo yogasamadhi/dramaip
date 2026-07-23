@@ -1017,6 +1017,13 @@ export const MIGRATIONS: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS idx_localization_episode ON localization_variants(episode_id, updated_at);
   `) } },
+  { version: 40, name: 'image-provider-configs', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS image_provider_configs (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, api_key TEXT NOT NULL DEFAULT '', model TEXT NOT NULL,
+      feature_enabled INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_image_provider_configs_default ON image_provider_configs(is_default, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

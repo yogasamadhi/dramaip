@@ -159,6 +159,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'voice_profiles'))
     assert.ok(tableExists(raw, 'audio_tracks'))
     assert.ok(tableExists(raw, 'long_tasks'))
+    assert.ok(tableExists(raw, 'image_provider_configs'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
     assert.ok(tableExists(raw, 'compliance_rule_profiles'))
     assert.ok(tableExists(raw, 'delivery_creative_variants'))

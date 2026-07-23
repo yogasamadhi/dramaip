@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cloud, Cpu, DatabaseBackup, FileJson, Palette, Settings, TimerReset, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronRight, Cloud, Cpu, DatabaseBackup, FileJson, Image, Palette, Settings, TimerReset, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -27,6 +27,12 @@ const SETTINGS_ITEMS = [
     description: '管理 AI 视频 Provider、模型与默认参数',
     path: '/settings/video',
     icon: Video,
+  },
+  {
+    title: '图片生成设置',
+    description: '管理 OpenAI Image 的 Keychain 配置与显式计费开关',
+    path: '/settings/images',
+    icon: Image,
   },
   {
     title: '数据与备份',

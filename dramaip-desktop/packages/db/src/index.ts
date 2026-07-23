@@ -17,6 +17,7 @@ export * as aiRunRepo from './repositories/ai-run.repo'
 export * as aiBudgetRepo from './repositories/ai-budget.repo'
 export * as longTaskRepo from './repositories/long-task.repo'
 export * as modelConfigRepo from './repositories/model-config.repo'
+export * as imageProviderConfigRepo from './repositories/image-provider-config.repo'
 // v0.2 长篇一致性与视觉记忆系统
 export * as chapterMemoryRepo from './repositories/chapter-memory.repo'
 export * as characterStateRepo from './repositories/character-state.repo'
@@ -85,6 +86,7 @@ import * as aiRunRepo from './repositories/ai-run.repo'
 import * as aiBudgetRepo from './repositories/ai-budget.repo'
 import * as longTaskRepo from './repositories/long-task.repo'
 import * as modelConfigRepo from './repositories/model-config.repo'
+import * as imageProviderConfigRepo from './repositories/image-provider-config.repo'
 import * as chapterMemoryRepo from './repositories/chapter-memory.repo'
 import * as characterStateRepo from './repositories/character-state.repo'
 import * as characterVisualProfileRepo from './repositories/character-visual-profile.repo'
@@ -144,6 +146,7 @@ export function createRepositories(db: DB) {
     aiBudget: { ...aiBudgetRepo },
     longTask: { ...longTaskRepo },
     modelConfig: { ...modelConfigRepo },
+    imageProviderConfig: { ...imageProviderConfigRepo },
     // v0.2
     chapterMemory: { ...chapterMemoryRepo },
     characterState: { ...characterStateRepo },

@@ -15,10 +15,10 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, ImageProviderConfigRecord, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
-import { promptAction } from '@/components/ConfirmActionDialog'
+import { confirmAction, promptAction } from '@/components/ConfirmActionDialog'
 import { ASSET_KIND_LABEL, ASSET_STATUS_LABEL, ASSET_STATUS_VARIANT, assetFieldsFromReference, assetReferenceUrl, isVideoReferenceImageAsset } from '@/lib/assets'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1242,7 +1242,7 @@ function VisualContinuityPanel({ projectId, adaptationProjectId, shots }: { proj
       const acknowledgement = latestAcknowledgements.get(issueId)
       return <div key={issueId} className={issue.severity === 'blocking' ? 'rounded border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive' : 'rounded border bg-background/60 p-2 text-xs text-muted-foreground'}><p>{issue.message}</p>{acknowledgement?.disposition === 'accepted' ? <p className="mt-1">已接受风险：{acknowledgement.note}</p> : <div className="mt-2 flex flex-wrap gap-2"><Input aria-label={`${issueId} 风险理由`} value={riskNotes[issueId] ?? ''} onChange={(event) => setRiskNotes((current) => ({ ...current, [issueId]: event.target.value }))} placeholder="接受风险的理由（必填）" className="h-8 max-w-sm bg-background text-xs text-foreground" /><Button size="sm" variant="outline" onClick={() => void acceptRisk(issue)}>记录接受风险</Button></div>}</div>
     })}</div>}
-    <ShotStillBatchPlanner shots={shots} candidates={stillCandidates} locks={locks} versions={versions} />
+    <ShotStillBatchPlanner projectId={projectId} shots={shots} candidates={stillCandidates} locks={locks} versions={versions} onChanged={load} />
   </section>
 }
 
@@ -1922,11 +1922,15 @@ function localFileUrl(path: string): string {
   return `file://${normalized.split('/').map(encodeURIComponent).join('/')}`
 }
 
-function ShotStillBatchPlanner({ shots, candidates, locks, versions }: { shots: Shot[]; candidates: ShotStillCandidate[]; locks: ShotVisualAssetLock[]; versions: VisualAssetVersion[] }) {
+function ShotStillBatchPlanner({ projectId, shots, candidates, locks, versions, onChanged }: { projectId: string; shots: Shot[]; candidates: ShotStillCandidate[]; locks: ShotVisualAssetLock[]; versions: VisualAssetVersion[]; onChanged: () => Promise<void> }) {
+  const navigate = useNavigate()
   const [mode, setMode] = useState<ShotStillBatchMode>('missing_only')
   const [selectedShotIds, setSelectedShotIds] = useState<string[]>([])
   const [kinds, setKinds] = useState<ShotStillKind[]>(['still', 'first_frame'])
+  const [provider, setProvider] = useState<ImageProviderConfigRecord | undefined>()
+  const [submitting, setSubmitting] = useState(false)
   const plan = useMemo(() => planShotStillBatch({ shots, candidates, locks, versions, mode, selectedShotIds, kinds }), [shots, candidates, locks, versions, mode, selectedShotIds, kinds])
+  useEffect(() => { void ipc.imageProvider.getDefault().then(setProvider).catch(() => setProvider(undefined)) }, [])
   function toggleShot(shotId: string) { setSelectedShotIds((current) => current.includes(shotId) ? current.filter((id) => id !== shotId) : [...current, shotId]) }
   function toggleKind(kind: ShotStillKind) { setKinds((current) => current.includes(kind) ? current.filter((value) => value !== kind) : [...current, kind]) }
   async function copyPlan() {
@@ -1939,10 +1943,41 @@ function ShotStillBatchPlanner({ shots, candidates, locks, versions }: { shots: 
       toast.error('无法写入剪贴板；请展开下方任务清单手动复制。')
     }
   }
+  async function submitPlan() {
+    if (!provider) {
+      toast.error('请先在图片生成设置中保存 OpenAI Image API Key。')
+      navigate('/settings/images')
+      return
+    }
+    if (!provider.featureEnabled || !provider.apiKey) {
+      toast.error('图片 Provider 尚未开启或未保存 Key；不会提交任何请求。')
+      navigate('/settings/images')
+      return
+    }
+    if (!plan.planned.length) return toast.error('当前没有可生成的静帧任务。')
+    const confirmed = await confirmAction({ title: `提交 ${plan.planned.length} 个图片任务？`, description: '将调用已启用的图片 Provider，可能产生费用。每张图片先归档为独立候选，绝不覆盖已采用版本；费用会显示为未知，直到你按 Provider 账单补录。', confirmLabel: '确认提交' })
+    if (!confirmed) return
+    setSubmitting(true)
+    let completed = 0
+    const failures: string[] = []
+    try {
+      for (const item of plan.planned) {
+        const result = await ipc.imageTask.create({ providerConfigId: provider.id, projectId, shotId: item.shotId, kind: item.kind, prompt: item.input.prompt, size: item.input.size, quality: item.input.quality, outputFormat: item.input.outputFormat })
+        if (result.ok) completed += result.candidates?.length ?? 0
+        else failures.push(`镜头 ${item.shotNumber}：${result.error ?? '请求失败'}`)
+      }
+      await onChanged()
+      if (failures.length) toast.error(`已归档 ${completed} 个候选；${failures.join('；')}`)
+      else toast.success(`已归档 ${completed} 个图片候选，请逐项复核后采用。`)
+    } catch (error) {
+      toast.error(`图片任务中断：${error instanceof Error ? error.message : String(error)}`)
+      await onChanged()
+    } finally { setSubmitting(false) }
+  }
   return <details className="rounded border bg-background/60 p-3" data-shot-still-batch-plan>
     <summary className="cursor-pointer text-sm font-medium">静帧批量任务预检 · {plan.planned.length} 项待生成 / {plan.skipped.length} 项安全跳过</summary>
-    <p className="mt-2 text-xs text-muted-foreground">批量计划只构造可审阅输入并保留“新建候选、绝不覆盖已采用”的策略。当前真实图片 Provider 的归档与密钥设置尚未完成，本页面不会提交计费请求或伪造生成成功。</p>
-    <div className="mt-2 flex flex-wrap gap-2"><select aria-label="静帧批量范围" value={mode} onChange={(event) => setMode(event.target.value as ShotStillBatchMode)} className="h-8 rounded border bg-background px-2 text-xs"><option value="missing_only">只补缺（默认）</option><option value="selected">仅显式选中</option></select>{SHOT_STILL_KINDS.map(([kind, label]) => <label key={kind} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={kinds.includes(kind)} onChange={() => toggleKind(kind)} />{label}</label>)}<Button size="sm" variant="outline" onClick={() => void copyPlan()} disabled={!plan.planned.length}>复制任务清单</Button></div>
+    <p className="mt-2 text-xs text-muted-foreground">批量计划始终先构造可审阅输入并保留“新建候选、绝不覆盖已采用”的策略。{provider?.featureEnabled && provider.apiKey ? `当前将使用「${provider.name}」；每次提交均会再次确认费用。` : '未启用 Provider 时仍可复制任务清单交给人工或其他已授权流程。'}</p>
+    <div className="mt-2 flex flex-wrap gap-2"><select aria-label="静帧批量范围" value={mode} onChange={(event) => setMode(event.target.value as ShotStillBatchMode)} className="h-8 rounded border bg-background px-2 text-xs"><option value="missing_only">只补缺（默认）</option><option value="selected">仅显式选中</option></select>{SHOT_STILL_KINDS.map(([kind, label]) => <label key={kind} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={kinds.includes(kind)} onChange={() => toggleKind(kind)} />{label}</label>)}<Button size="sm" variant="outline" onClick={() => void copyPlan()} disabled={!plan.planned.length || submitting}>复制任务清单</Button><Button size="sm" onClick={() => void submitPlan()} disabled={!plan.planned.length || submitting}>{submitting ? <Loader2 className="animate-spin" /> : <Sparkles />}提交并归档候选</Button><Button size="sm" variant="ghost" onClick={() => navigate('/settings/images')}>图片设置</Button></div>
     {mode === 'selected' && <div className="mt-2 flex flex-wrap gap-2">{shots.map((shot) => <label key={shot.id} className="flex items-center gap-1 rounded border px-2 py-1 text-xs"><input type="checkbox" checked={selectedShotIds.includes(shot.id)} onChange={() => toggleShot(shot.id)} />镜头 {shot.shotNumber}</label>)}</div>}
     <div className="mt-2 space-y-1">{plan.planned.map((item) => <div key={`${item.shotId}:${item.kind}`} className="rounded border p-2 text-xs"><div className="flex flex-wrap gap-2"><Badge variant="outline">镜头 {item.shotNumber} · {stillKindLabel(item.kind)}</Badge><span>费用：未知（未提交）</span><span>输出：新候选，不覆盖已采用版本</span></div><p className="mt-1 whitespace-pre-wrap text-muted-foreground">{item.input.prompt}</p></div>)}{plan.skipped.map((item) => <p key={`${item.shotId}:${item.kind}`} className="rounded border border-dashed p-2 text-xs text-muted-foreground">镜头 {shots.find((shot) => shot.id === item.shotId)?.shotNumber ?? item.shotId} · {stillKindLabel(item.kind)}：{item.reason}</p>)}</div>
   </details>

@@ -57,6 +57,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   ) as RendererSmokeResult
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
+  const imageProviderKeychainStep = await verifyImageProviderKeychainBoundary(win)
   const outcomeBaselineStep = verifyProductionOutcomeBaseline()
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const coverageTruthStep = verifySeasonCoverageTruth(p0.fixture)
@@ -74,7 +75,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
+    steps: [...renderer.steps, keychainStep, imageProviderKeychainStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
   }
 }
 
@@ -270,6 +271,34 @@ async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmok
   } catch (error) {
     return {
       name: 'keychain-reference-migration-and-renderer-mask',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function verifyImageProviderKeychainBoundary(win: BrowserWindow): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const config = await win.webContents.executeJavaScript(`window.api.imageProvider.create({
+      name: 'E2E Image Provider', kind: 'openai_image', apiKey: 'e2e-image-not-a-real-key',
+      model: 'gpt-image-2', featureEnabled: false, isDefault: true,
+    })`, true) as { id?: string; apiKey?: string }
+    if (!config.id || !config.apiKey?.startsWith('masked:v1:') || config.apiKey.includes('e2e-image-not-a-real-key')) {
+      throw new Error('renderer 未获得掩码后的图片 Provider 配置')
+    }
+    const stored = getRepos().db
+      .select({ apiKey: schema.imageProviderConfigs.apiKey })
+      .from(schema.imageProviderConfigs)
+      .where(eq(schema.imageProviderConfigs.id, config.id))
+      .get()
+    if (!stored?.apiKey.startsWith('keychain:v1:')) throw new Error('图片 Provider Key 未保存为 Keychain 引用')
+    await win.webContents.executeJavaScript(`window.api.imageProvider.remove(${JSON.stringify(config.id)})`, true)
+    return { name: 'image-provider-keychain-reference-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'image-provider-keychain-reference-and-renderer-mask',
       ok: false,
       durationMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),

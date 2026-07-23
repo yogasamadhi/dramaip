@@ -11,6 +11,7 @@ import {
 
 test('long task runtime enforces per-kind concurrency and aborts cancelable runs', () => {
   assert.equal(longTaskConcurrencyLimit('ai'), 1)
+  assert.equal(longTaskConcurrencyLimit('image'), 1)
 
   const first = beginLongTaskRun('ai', 'ai-runtime-1')
   assert.equal(first.ok, true)

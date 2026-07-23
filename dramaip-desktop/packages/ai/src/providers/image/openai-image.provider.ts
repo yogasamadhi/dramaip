@@ -4,12 +4,12 @@ import { fetchWithRetry } from '../http-client'
 const DEFAULT_MODEL = 'gpt-image-2'
 
 export interface OpenAIImageTransport {
-  request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown> }): Promise<unknown>
+  request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown>; signal?: AbortSignal }): Promise<unknown>
 }
 
 export class FetchOpenAIImageTransport implements OpenAIImageTransport {
-  async request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown> }): Promise<unknown> {
-    const response = await fetchWithRetry(input.url, { method: 'POST', headers: input.headers, body: JSON.stringify(input.body) }, { timeoutMs: 120_000, retries: 1 })
+  async request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown>; signal?: AbortSignal }): Promise<unknown> {
+    const response = await fetchWithRetry(input.url, { method: 'POST', headers: input.headers, body: JSON.stringify(input.body) }, { timeoutMs: 120_000, retries: 1, signal: input.signal })
     return response.json()
   }
 }
@@ -23,17 +23,19 @@ export class OpenAIImageProvider implements ImageProvider {
     private readonly transport: OpenAIImageTransport = new FetchOpenAIImageTransport(),
   ) {}
 
-  async generate(input: ImageGenerationInput): Promise<ImageGenerationResult[]> {
+  async generate(input: ImageGenerationInput, signal?: AbortSignal): Promise<ImageGenerationResult[]> {
     const capability = getImageProviderCapability(this.config)
     if (!capability.canSubmit) throw new Error(capability.reason ?? 'OpenAI Image 当前不可提交')
     if (input.referenceImages?.length) throw new Error('OpenAI Image 的参考图编辑需走已验证的 edits 流程；当前文本生图任务不会上传本地参考图。')
     const model = input.model?.trim() || this.config.model?.trim() || DEFAULT_MODEL
     const outputFormat = input.outputFormat ?? 'png'
-    const raw = await this.transport.request({
+    const request = {
       url: 'https://api.openai.com/v1/images/generations',
       headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
       body: { model, prompt: input.prompt, size: input.size ?? '1024x1024', quality: input.quality ?? 'medium', output_format: outputFormat, n: 1 },
-    })
+      ...(signal ? { signal } : {}),
+    }
+    const raw = await this.transport.request(request)
     return mapOpenAIImageResponse(raw, model, outputFormat)
   }
 }
