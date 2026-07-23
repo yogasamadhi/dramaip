@@ -92,6 +92,7 @@ import type {
   TemplateRun,
   TrashedProject,
   TextDiffPreviewPayload,
+  TtsProviderConfigRecord,
   VideoGenerationTask,
   VideoProviderConfig,
   VideoResult,
@@ -446,6 +447,7 @@ export interface SecretStorageHealth {
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
   imageProviderConfigs: SecretStateCounts
+  ttsProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
 }
 
@@ -572,6 +574,17 @@ export interface StudioApi {
   }
   imageTask: {
     create(input: { providerConfigId: string; projectId: string; shotId: string; kind: 'still' | 'first_frame' | 'last_frame' | 'cover'; prompt: string; size?: '1024x1024' | '1024x1536' | '1536x1024'; quality?: 'low' | 'medium' | 'high'; outputFormat?: 'png' | 'jpeg' | 'webp' }): Promise<{ ok: boolean; error?: string; task?: LongTask; assets?: ProjectAsset[]; candidates?: ShotStillCandidate[] }>
+  }
+  ttsProvider: {
+    list(): Promise<TtsProviderConfigRecord[]>
+    getDefault(): Promise<TtsProviderConfigRecord | undefined>
+    create(data: Omit<TtsProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<TtsProviderConfigRecord>
+    update(id: string, patch: Partial<Omit<TtsProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>>): Promise<TtsProviderConfigRecord | undefined>
+    remove(id: string): Promise<boolean>
+    setDefault(id: string): Promise<boolean>
+  }
+  ttsTask: {
+    create(input: { providerConfigId: string; projectId: string; episodeId: string; shotId?: string; voiceProfileId?: string; kind: 'dialogue' | 'narration'; input: string; voice: string; instructions?: string; speed?: number; responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm' }): Promise<{ ok: boolean; error?: string; task?: LongTask; asset?: ProjectAsset }>
   }
   animatic: {
     listByEpisode(episodeId: string): Promise<AnimaticDraft[]>

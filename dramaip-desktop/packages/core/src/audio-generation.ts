@@ -1,6 +1,18 @@
 /** Explicit capability truth for remote TTS. Voice cloning is never enabled by this adapter. */
 export type TtsProviderKind = 'mock_tts' | 'openai_tts'
 export interface TtsProviderConfig { kind: TtsProviderKind; apiKey?: string; model?: string; featureEnabled?: boolean }
+/** Persisted TTS configuration. apiKey is a main-process-only Keychain reference at rest. */
+export interface TtsProviderConfigRecord extends TtsProviderConfig {
+  id: string
+  name: string
+  kind: 'openai_tts'
+  apiKey: string
+  model: string
+  featureEnabled: boolean
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+}
 export interface TtsProviderCapability {
   canSubmit: boolean
   supportsBuiltInVoices: boolean

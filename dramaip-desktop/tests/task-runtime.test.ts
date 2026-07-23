@@ -12,6 +12,7 @@ import {
 test('long task runtime enforces per-kind concurrency and aborts cancelable runs', () => {
   assert.equal(longTaskConcurrencyLimit('ai'), 1)
   assert.equal(longTaskConcurrencyLimit('image'), 1)
+  assert.equal(longTaskConcurrencyLimit('audio'), 1)
 
   const first = beginLongTaskRun('ai', 'ai-runtime-1')
   assert.equal(first.ok, true)
@@ -28,6 +29,12 @@ test('long task runtime enforces per-kind concurrency and aborts cancelable runs
   const second = beginLongTaskRun('ai', 'ai-runtime-2')
   assert.equal(second.ok, true)
   finishLongTaskRun('ai-runtime-2')
+
+  const audio = beginLongTaskRun('audio', 'audio-runtime-1')
+  assert.equal(audio.ok, true)
+  assert.equal(cancelLongTaskRun('audio-runtime-1'), true)
+  assert.equal(audio.signal?.aborted, true)
+  finishLongTaskRun('audio-runtime-1')
 })
 
 test('long task retry claim prevents duplicate submissions and releases after completion', () => {

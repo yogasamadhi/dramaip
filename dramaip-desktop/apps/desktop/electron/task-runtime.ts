@@ -8,6 +8,7 @@ interface RuntimeEntry {
 const DEFAULT_LIMITS: Record<LongTaskKind, number> = {
   ai: 1,
   image: 1,
+  audio: 1,
   video: 1,
   batch: 1,
 }
@@ -68,6 +69,7 @@ export function longTaskConcurrencyLimit(kind: LongTaskKind): number {
 function longTaskKindLabel(kind: LongTaskKind): string {
   if (kind === 'ai') return 'AI'
   if (kind === 'image') return '图片'
+  if (kind === 'audio') return '音频'
   if (kind === 'video') return '视频'
   return '批量'
 }

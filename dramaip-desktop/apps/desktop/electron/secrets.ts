@@ -2,7 +2,7 @@ import { safeStorage } from 'electron'
 import * as keytar from 'keytar'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
-import type { ImageProviderConfigRecord, ModelConfig, VideoProviderConfig } from '@sdns/core'
+import type { ImageProviderConfigRecord, ModelConfig, TtsProviderConfigRecord, VideoProviderConfig } from '@sdns/core'
 import { schema, type Repositories } from '@sdns/db'
 import {
   KEYCHAIN_PREFIX,
@@ -48,6 +48,7 @@ export interface SecretStorageHealth {
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
   imageProviderConfigs: SecretStateCounts
+  ttsProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
 }
 
@@ -138,6 +139,10 @@ export function maskImageProviderConfig(config: ImageProviderConfigRecord): Imag
   return { ...config, apiKey: maskSecret(config.apiKey) }
 }
 
+export function maskTtsProviderConfig(config: TtsProviderConfigRecord): TtsProviderConfigRecord {
+  return { ...config, apiKey: maskSecret(config.apiKey) }
+}
+
 /**
  * Keep repository consumers synchronous while making the backing store external:
  * service calls read the main-process cache; all renderer IPC masks the result.
@@ -189,6 +194,22 @@ export function installSecretProtection(repos: Repositories): void {
     const config = getDefaultImageProviderConfig(db)
     return config ? exposeImageProviderConfig(config) : undefined
   }) as typeof imageProviderConfig.getDefaultImageProviderConfig
+
+  const ttsProviderConfig = repos.ttsProviderConfig
+  const listTtsProviderConfigs = ttsProviderConfig.listTtsProviderConfigs.bind(ttsProviderConfig)
+  const getTtsProviderConfig = ttsProviderConfig.getTtsProviderConfig.bind(ttsProviderConfig)
+  const getDefaultTtsProviderConfig = ttsProviderConfig.getDefaultTtsProviderConfig.bind(ttsProviderConfig)
+
+  ttsProviderConfig.listTtsProviderConfigs = ((db) =>
+    listTtsProviderConfigs(db).map(exposeTtsProviderConfig)) as typeof ttsProviderConfig.listTtsProviderConfigs
+  ttsProviderConfig.getTtsProviderConfig = ((db, id) => {
+    const config = getTtsProviderConfig(db, id)
+    return config ? exposeTtsProviderConfig(config) : undefined
+  }) as typeof ttsProviderConfig.getTtsProviderConfig
+  ttsProviderConfig.getDefaultTtsProviderConfig = ((db) => {
+    const config = getDefaultTtsProviderConfig(db)
+    return config ? exposeTtsProviderConfig(config) : undefined
+  }) as typeof ttsProviderConfig.getDefaultTtsProviderConfig
 }
 
 export async function createModelConfigWithSecret(repos: Repositories, input: unknown): Promise<ModelConfig> {
@@ -354,15 +375,68 @@ export async function deleteImageProviderConfigWithSecret(repos: Repositories, i
   await retireCredentialReference(previous?.value)
 }
 
+export async function createTtsProviderConfigWithSecret(repos: Repositories, input: unknown): Promise<TtsProviderConfigRecord> {
+  const { data, apiKey } = splitSecretInput(input)
+  const id = randomUUID()
+  const prepared = apiKey ? await prepareCredential('tts_provider_config', id, apiKey) : undefined
+  try {
+    const created = repos.ttsProviderConfig.createTtsProviderConfig(repos.db, {
+      ...data,
+      id,
+      apiKey: prepared?.ref ?? '',
+    } as never)
+    if (prepared) credentialCache.set(prepared.ref, prepared.value)
+    return exposeTtsProviderConfig(created)
+  } catch (error) {
+    if (prepared) await deleteCredentialQuietly(prepared.ref)
+    throw error
+  }
+}
+
+export async function updateTtsProviderConfigWithSecret(
+  repos: Repositories,
+  id: string,
+  input: unknown,
+): Promise<TtsProviderConfigRecord | undefined> {
+  const previous = getStoredSecretRecord(repos, 'tts_provider_config', id)
+  if (!previous) return undefined
+  const { data, apiKey } = splitSecretInput(input)
+  const prepared = apiKey ? await prepareCredential('tts_provider_config', id, apiKey) : undefined
+  try {
+    const updated = repos.ttsProviderConfig.updateTtsProviderConfig(repos.db, id, {
+      ...data,
+      ...(prepared ? { apiKey: prepared.ref } : {}),
+    } as never)
+    if (!updated) {
+      if (prepared) await deleteCredentialQuietly(prepared.ref)
+      return undefined
+    }
+    if (prepared) {
+      credentialCache.set(prepared.ref, prepared.value)
+      await retireCredentialReference(previous.value)
+    }
+    return exposeTtsProviderConfig(updated)
+  } catch (error) {
+    if (prepared) await deleteCredentialQuietly(prepared.ref)
+    throw error
+  }
+}
+
+export async function deleteTtsProviderConfigWithSecret(repos: Repositories, id: string): Promise<void> {
+  const previous = getStoredSecretRecord(repos, 'tts_provider_config', id)
+  repos.ttsProviderConfig.deleteTtsProviderConfig(repos.db, id)
+  await retireCredentialReference(previous?.value)
+}
+
 export function inspectSecretStorageHealth(repos: Repositories): SecretStorageHealth {
-  const { modelRecords, videoRecords, imageRecords } = listStoredSecretRecords(repos)
-  return buildSecretStorageHealth(modelRecords, videoRecords, imageRecords)
+  const { modelRecords, videoRecords, imageRecords, ttsRecords } = listStoredSecretRecords(repos)
+  return buildSecretStorageHealth(modelRecords, videoRecords, imageRecords, ttsRecords)
 }
 
 /** Re-runnable recovery path for old SQLite credentials; never exposed to the renderer. */
 export async function migrateLegacySecretsToKeychain(repos: Repositories): Promise<SecretMigrationSummary> {
-  const { modelRecords, videoRecords, imageRecords, allRecords } = listStoredSecretRecords(repos)
-  const before = buildSecretStorageHealth(modelRecords, videoRecords, imageRecords)
+  const { modelRecords, videoRecords, imageRecords, ttsRecords, allRecords } = listStoredSecretRecords(repos)
+  const before = buildSecretStorageHealth(modelRecords, videoRecords, imageRecords, ttsRecords)
   const failures: SecretMigrationFailure[] = []
   let attempted = 0
   let migrated = 0
@@ -501,10 +575,15 @@ function exposeImageProviderConfig(config: ImageProviderConfigRecord): ImageProv
   return { ...config, apiKey: decryptSecret(config.apiKey) }
 }
 
+function exposeTtsProviderConfig(config: TtsProviderConfigRecord): TtsProviderConfigRecord {
+  return { ...config, apiKey: decryptSecret(config.apiKey) }
+}
+
 function listStoredSecretRecords(repos: Repositories): {
   modelRecords: SecretRecordSnapshot[]
   videoRecords: SecretRecordSnapshot[]
   imageRecords: SecretRecordSnapshot[]
+  ttsRecords: SecretRecordSnapshot[]
   allRecords: SecretRecordSnapshot[]
 } {
   const modelRecords = repos.db
@@ -522,7 +601,12 @@ function listStoredSecretRecords(repos: Repositories): {
     .from(schema.imageProviderConfigs)
     .all()
     .map((row) => ({ area: 'image_provider_config' as const, id: row.id, value: row.value ?? undefined }))
-  return { modelRecords, videoRecords, imageRecords, allRecords: [...modelRecords, ...videoRecords, ...imageRecords] }
+  const ttsRecords = repos.db
+    .select({ id: schema.ttsProviderConfigs.id, value: schema.ttsProviderConfigs.apiKey })
+    .from(schema.ttsProviderConfigs)
+    .all()
+    .map((row) => ({ area: 'tts_provider_config' as const, id: row.id, value: row.value ?? undefined }))
+  return { modelRecords, videoRecords, imageRecords, ttsRecords, allRecords: [...modelRecords, ...videoRecords, ...imageRecords, ...ttsRecords] }
 }
 
 function getStoredSecretRecord(
@@ -546,6 +630,14 @@ function getStoredSecretRecord(
       .get()
     return row ? { area, id: row.id, value: row.value } : undefined
   }
+  if (area === 'tts_provider_config') {
+    const row = repos.db
+      .select({ id: schema.ttsProviderConfigs.id, value: schema.ttsProviderConfigs.apiKey })
+      .from(schema.ttsProviderConfigs)
+      .where(eq(schema.ttsProviderConfigs.id, id))
+      .get()
+    return row ? { area, id: row.id, value: row.value } : undefined
+  }
   const row = repos.db
     .select({ id: schema.videoProviderConfigs.id, value: schema.videoProviderConfigs.apiKey })
     .from(schema.videoProviderConfigs)
@@ -558,10 +650,12 @@ function buildSecretStorageHealth(
   modelRecords: SecretRecordSnapshot[],
   videoRecords: SecretRecordSnapshot[],
   imageRecords: SecretRecordSnapshot[],
+  ttsRecords: SecretRecordSnapshot[],
 ): SecretStorageHealth {
   const modelConfigs = summarizeSecretValues(modelRecords, safeStorage)
   const videoProviderConfigs = summarizeSecretValues(videoRecords, safeStorage)
   const imageProviderConfigs = summarizeSecretValues(imageRecords, safeStorage)
+  const ttsProviderConfigs = summarizeSecretValues(ttsRecords, safeStorage)
   return {
     checkedAt: new Date().toISOString(),
     encryptionAvailable: keychainAvailable,
@@ -569,7 +663,8 @@ function buildSecretStorageHealth(
     modelConfigs,
     videoProviderConfigs,
     imageProviderConfigs,
-    totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs, imageProviderConfigs),
+    ttsProviderConfigs,
+    totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs, imageProviderConfigs, ttsProviderConfigs),
   }
 }
 
@@ -583,6 +678,14 @@ function updateStoredSecret(repos: Repositories, record: SecretRecordSnapshot, n
       .update(schema.imageProviderConfigs)
       .set({ apiKey: nextValue })
       .where(eq(schema.imageProviderConfigs.id, record.id))
+      .run()
+    return
+  }
+  if (record.area === 'tts_provider_config') {
+    repos.db
+      .update(schema.ttsProviderConfigs)
+      .set({ apiKey: nextValue })
+      .where(eq(schema.ttsProviderConfigs.id, record.id))
       .run()
     return
   }

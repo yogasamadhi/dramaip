@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Ban, Bot, Clapperboard, Image, ListChecks, Loader2, RefreshCw, TimerReset } from 'lucide-react'
+import { ArrowLeft, Ban, Bot, Clapperboard, Image, ListChecks, Loader2, Mic, RefreshCw, TimerReset } from 'lucide-react'
 import type { BatchTaskProgress, LongTask, LongTaskStatus } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction } from '@/components/ConfirmActionDialog'
@@ -35,6 +35,7 @@ function formatTime(value: string): string {
 function TaskKindIcon({ task }: { task: LongTask }) {
   if (task.kind === 'batch') return <ListChecks className="h-4 w-4 text-primary" />
   if (task.kind === 'image') return <Image className="h-4 w-4 text-primary" />
+  if (task.kind === 'audio') return <Mic className="h-4 w-4 text-primary" />
   if (task.kind === 'video') return <Clapperboard className="h-4 w-4 text-primary" />
   return <Bot className="h-4 w-4 text-primary" />
 }
@@ -42,6 +43,7 @@ function TaskKindIcon({ task }: { task: LongTask }) {
 function taskKindLabel(task: LongTask): string {
   if (task.kind === 'batch') return '批量'
   if (task.kind === 'image') return '图片'
+  if (task.kind === 'audio') return '音频'
   return task.kind === 'video' ? '视频' : 'AI'
 }
 
@@ -217,6 +219,7 @@ function ProductionTaskSummary({ tasks }: { tasks: LongTask[] }) {
     { key: 'scripts', label: '剧本', installed: true, matches: (task) => /script|剧本/i.test(task.taskType ?? task.title) },
     { key: 'storyboard', label: '分镜', installed: true, matches: (task) => /shot|scene|分镜|镜头/i.test(task.taskType ?? task.title) },
     { key: 'assets', label: '图片/资产', installed: true, matches: (task) => task.kind === 'image' || /image|图片|静帧|首帧|封面/i.test(task.taskType ?? task.title) },
+    { key: 'audio', label: '音频配音', installed: true, matches: (task) => task.kind === 'audio' || /tts|audio|音频|配音|对白|旁白/i.test(task.taskType ?? task.title) },
     { key: 'video', label: '视频候选', installed: true, matches: (task) => task.kind === 'video' || /video|视频/i.test(task.taskType ?? task.title) },
     { key: 'audio', label: '配音/音频', installed: false, matches: () => false },
     { key: 'edit', label: '剪辑', installed: false, matches: () => false },

@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 
-export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'sourceDocument' | 'videoAsset' | 'rightsEvidence'
+export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'sourceDocument' | 'videoAsset' | 'audioAsset' | 'rightsEvidence'
 
 export interface FileImportPolicy {
   label: string
@@ -47,6 +47,11 @@ export const FILE_IMPORT_POLICIES: Record<FileImportKind, FileImportPolicy> = {
     label: '视频素材',
     allowedExtensions: ['.mp4', '.webm', '.mov', '.m4v', '.jpg', '.jpeg', '.png', '.webp'],
     maxBytes: 300 * MB,
+  },
+  audioAsset: {
+    label: '音频素材',
+    allowedExtensions: ['.mp3', '.opus', '.aac', '.flac', '.wav', '.pcm', '.m4a'],
+    maxBytes: 50 * MB,
   },
   rightsEvidence: {
     label: '授权证明',
