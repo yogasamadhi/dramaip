@@ -13,7 +13,7 @@ Storyboard、视频队列、Hailuo/Wan/Sora、任务恢复、设计系统与发�
 
 > 执行状态说明：LM5-00～LM5-09 已按本地图完成代码提交、合并、远端推送和分支清理；
 > LM5-10 已完成 Keychain 设置、任务/归档、本地取消与无凭据谱系闭环，但真实外部沙箱尚待账户所有者授权；
-> LM5-11～LM5-13、LM5-15～LM5-20 已完成并推送；LM5-14 已以 `partial` 收口（等待用户授权的外部沙箱凭据）；
+> LM5-11～LM5-13、LM5-15～LM5-20 已完成并推送；LM5-14 已完成 Keychain 设置、任务/归档、本地取消与无凭据谱系闭环，但真实外部沙箱尚待账户所有者授权；
 > LM5-17～LM5-20 已完成并推送；LM5-21 已完成本地发布 Gate 并以 `partial` 收口，等待账户所有者
 > 授权真实图片/TTS/视频沙箱和签名安装/升级/回滚证据；不得将未签名本地构建或适配器合同测试误报为正式发布。
 
@@ -1197,6 +1197,30 @@ pnpm test:wan:sandbox
 - **Loop branch cleanup**：已移除临时工作区并删除 `loop/lm5-14-tts-provider`。
 - **Current branch/worktree**：`main`，接续 LM5-15。
 
+### LM5-14（重新开放：本地 TTS 运行时闭环）
+
+- **Target branch**：`main`。
+- **Loop branch**：`loop/lm5-14-tts-runtime`。
+- **Commit(s)**：`864660c feat(audio): complete local TTS provider task runtime`。
+- **Merge commit**：`debb5ad merge: complete local LM5-14 TTS runtime`。
+- **Verification**：源分支通过 `pnpm format:check`、全 workspace `pnpm typecheck`、`pnpm test:unit`（229/229）和
+  `pnpm test:db`（22/22）；Electron E2E smoke 通过，并明确验证 TTS Provider 的 Keychain 引用与渲染端脱敏；
+  UI baseline 通过（新增 TTS 设置屏，3 条既有 a11y 观察项）；ARM64 unsigned package smoke 通过。合并后的集成主线
+  再次通过格式、类型和 TTS/IPC/任务运行时定向测试 15/15。
+- **Diff review**：TTS Provider 配置只持久化 Keychain 引用，默认关闭计费开关；音频入口仅接受内置声音，明确拒绝
+  定制声音/声音克隆/样本上传和未文档化远端取消。提交前先写入任务、无凭据谱系及 `unknown` 成本账本；读音词典在
+  本地预处理后才发送，返回音频只归档为新的对白/旁白候选资产，不覆盖人工录音。停止只中止本地等待，远端实际费用
+  在账单核对前不会被伪造。Runbook 已改为可执行的受控 sandbox 步骤。
+- **External blocker / partial**：没有账户所有者授权的真实 TTS sandbox、组织/区域/计费确认或授权台词与声音材料；本轮
+  没有执行真实 API 调用，因此没有实际生成、远端归档、实际账单费用或故障恢复证据。该项保持 `partial`，但此前缺失的
+  Keychain 设置、任务持久化、取消、重试和本地归档链路均已完成；取得授权后只需按 Runbook 补跑外部 Gate，不能将本地
+  测试或 unsigned package 当作外部生产证据。
+- **Remote sync / Push**：已 `fetch gitee`，并成功推送代码 `da98d24..debb5ad` 至 `gitee/main`；`ls-remote` 已确认
+  `debb5adaa470c870f72075998401fde045f52321`。
+- **Loop branch cleanup**：代码推送后已移除 LM5-14 临时工作区并删除 `loop/lm5-14-tts-runtime`；本条记录随后作为
+  追加文档提交推送。
+- **Current branch/worktree**：`main`；真实外部 TTS 与发布 Gate 仍受授权限制。
+
 ### LM5-15
 
 - **Target branch**：`main`。
@@ -1382,5 +1406,5 @@ Notes:
 | --- | --- |
 | todo | 无 |
 | doing | 无 |
-| partial | LM5-10（缺少账户所有者授权的真实 Image sandbox、组织验证/计费与实际费用/归档证据）；LM5-14（缺少用户授权的外部 TTS 沙箱凭据与归档/设置接线）；LM5-21（缺少真实 Provider 与签名安装/升级/回滚证据） |
+| partial | LM5-10（缺少账户所有者授权的真实 Image sandbox、组织验证/计费与实际费用/归档证据）；LM5-14（缺少账户所有者授权的真实 TTS sandbox、组织/区域/计费与实际费用/归档证据）；LM5-21（缺少真实 Provider 与签名安装/升级/回滚证据） |
 | done | LM5-00～LM5-09、LM5-11～LM5-13、LM5-15～LM5-20 |
