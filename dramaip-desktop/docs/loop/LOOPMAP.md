@@ -1383,6 +1383,21 @@ pnpm test:wan:sandbox
 - **Notes**：`docs/release/RELEASE.md` 给出完整的 Node/Electron ABI 顺序、打包、安装与回滚步骤；
   `docs/release/RELEASE_CANDIDATE.md` 是脱敏证据记录模板，不是已发布声明。
 
+### LM5-21（外部 Gate 复核）
+
+- **Target branch**：`main`。
+- **Loop branch**：无；本次只复核已完成本地 Gate 与账户所有者授权边界，不创建无效实现分支。
+- **Verification**：LM5-10 和 LM5-14 已分别补齐本地 Keychain、任务、取消、重试、候选归档和无凭据谱系；最新本地
+  回归为 229/229 unit、22/22 DB、Electron E2E、UI baseline 与 unsigned package smoke。没有把这类本地证据
+  等同于真实 Provider 或正式发布。
+- **External blocker / partial**：
+  1. 图片与 TTS 均仍缺账户所有者授权的真实 sandbox、组织/区域/计费确认、授权测试材料和实际账单/远端归档证据；
+     两条 Runbook 已可在取得授权后直接执行。
+  2. Hailuo/Wan 真实视频 sandbox 仍需要专用 API Key 与显式计费授权。
+  3. 正式签名、公证、跨平台首次安装、升级与回滚仍需要证书、目标操作系统和 release 环境授权。
+- **Decision**：保持 LM5-10、LM5-14 与 LM5-21 为 `partial`，不发起真实 API 调用、不使用或记录任何未经过账户所有者
+  授权的凭据；所有可在本地完成的 loop 已收口并推送。取得上述授权后只重开相应的外部 Gate。
+
 ### 记录模板
 
 ```text
