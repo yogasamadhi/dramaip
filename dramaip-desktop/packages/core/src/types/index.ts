@@ -1339,6 +1339,42 @@ export interface AudioTrack {
   updatedAt: string
 }
 
+// LM5-20：语言版本与中文母版分离保存。翻译、文化改写和声音选择都必须可审查、可过期。
+export type LocalizationStatus = 'draft' | 'adopted' | 'stale' | 'archived'
+export interface LocalizationCue {
+  id: string
+  shotId?: string
+  startSeconds: number
+  endSeconds: number
+  sourceText: string
+  localizedText: string
+  culturalNote?: string
+}
+export interface LocalizationVariant {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  targetLocale: string
+  targetRegion?: string
+  label: string
+  status: LocalizationStatus
+  sourceFingerprint: string
+  title: string
+  description?: string
+  glossary: Record<string, string>
+  culturalNotes: string[]
+  cues: LocalizationCue[]
+  voiceProfileId?: string
+  audioCandidateNote?: string
+  reviewedAt?: string
+  reviewNote?: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 资产权利状态永远显式保存；声明不等于核验，未知不等于可交付。 */
 export type AssetRightsStatus = 'verified' | 'declared' | 'unknown' | 'expired' | 'restricted'
 export type AssetRightsType = 'ownership' | 'license' | 'talent_release' | 'voice_consent' | 'provider_terms' | 'public_domain' | 'other'

@@ -19,6 +19,7 @@ import type {
   FeedbackImportPreview,
   FeedbackImportResult,
   FeedbackMetric,
+  LocalizationVariant,
   VoiceProfile,
   AgentProfile,
   AiRun,
@@ -614,6 +615,15 @@ export interface StudioApi {
     deleteClusters(input: { projectId: string; batchId: string }): Promise<number>
     deleteBatch(input: { projectId: string; batchId: string }): Promise<boolean>
     createRevisionTask(input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }): Promise<RevisionTask>
+  }
+  localization: {
+    listByEpisode(episodeId: string): Promise<LocalizationVariant[]>
+    initialize(input: { projectId: string; episodeId: string }): Promise<{ adaptationProjectId: string; episodeId: string; sourceFingerprint: string; cues: LocalizationVariant['cues'] }>
+    create(input: Omit<LocalizationVariant, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'staleAt' | 'staleReason'>): Promise<LocalizationVariant>
+    update(scope: { projectId: string; id: string }, patch: Partial<LocalizationVariant>): Promise<LocalizationVariant | undefined>
+    adopt(scope: { projectId: string; id: string }, reviewNote?: string): Promise<LocalizationVariant | undefined>
+    subtitleFiles(scope: { projectId: string; id: string }): Promise<{ srt: string; vtt: string; warnings: string[] }>
+    exportPackage(scope: { projectId: string; id: string }): Promise<{ saved: boolean; path?: string }>
   }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>

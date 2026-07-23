@@ -33,6 +33,7 @@ import { registerEpisodeQualityIpc } from './episode-quality.ipc'
 import { registerEpisodeComplianceIpc } from './episode-compliance.ipc'
 import { registerPlatformDeliveryIpc } from './platform-delivery.ipc'
 import { registerFeedbackIpc } from './feedback.ipc'
+import { registerLocalizationIpc } from './localization.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -61,6 +62,7 @@ export function registerAllIpc(): void {
   registerEpisodeComplianceIpc()
   registerPlatformDeliveryIpc()
   registerFeedbackIpc()
+  registerLocalizationIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

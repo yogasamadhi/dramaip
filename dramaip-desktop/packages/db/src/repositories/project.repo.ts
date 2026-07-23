@@ -53,6 +53,7 @@ import {
   feedbackMetrics,
   feedbackComments,
   feedbackCommentClusters,
+  localizationVariants,
 } from '../schema'
 import {
   createCompatibleProjectProductionBrief,
@@ -360,6 +361,7 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(feedbackMetrics).where(eq(feedbackMetrics.projectId, id)).run()
   db.delete(feedbackComments).where(eq(feedbackComments.projectId, id)).run()
   db.delete(feedbackImportBatches).where(eq(feedbackImportBatches.projectId, id)).run()
+  db.delete(localizationVariants).where(eq(localizationVariants.projectId, id)).run()
 
   db.delete(chapters).where(eq(chapters.projectId, id)).run()
   db.delete(characters).where(eq(characters.projectId, id)).run()

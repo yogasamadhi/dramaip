@@ -58,6 +58,7 @@ import type {
   GenerationCostEntry,
   GenerationLineage,
   HighlightAnalysis,
+  LocalizationVariant,
   InspirationFavorite,
   NarrativeCurveReport,
   Outline,
@@ -152,6 +153,7 @@ export interface ProjectPackage {
     comments: FeedbackComment[]
     clusters: FeedbackCommentCluster[]
   }
+  localizationVariants?: LocalizationVariant[]
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -243,6 +245,8 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     comments: repos.feedback.listFeedbackComments(db, projectId),
     clusters: repos.feedback.listFeedbackCommentClusters(db, projectId),
   } : undefined
+  const localizationVariants = repos.adaptationProject.listAdaptationsByProject(db, projectId)
+    .flatMap((adaptation) => repos.episode.listEpisodes(db, adaptation.id).flatMap((episode) => repos.localization.listLocalizationVariants(db, episode.id)))
   const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
   const visualAssetVersions = options.includeAssets ? repos.visualAsset.listVisualAssetVersionsByProject(db, projectId) : []
   const shotVisualAssetLocks = options.includeAssets ? repos.visualAsset.listShotVisualAssetLocksByProject(db, projectId) : []
@@ -315,6 +319,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     generationLineages,
     generationCostEntries,
     feedback,
+    localizationVariants,
     adaptations,
     aiRuns,
   }
@@ -707,6 +712,24 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         remapTargetId: (targetId) => remapTargetId(targetId, idMap, oldProjectId, newProject.id),
       })
       : new Map<string, string>()
+
+    for (const variant of pkg.localizationVariants ?? []) {
+      const adaptationProjectId = idMap.get(variant.adaptationProjectId)
+      const episodeId = idMap.get(variant.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const script = repos.script.getScriptByEpisode(db, episodeId)
+      const importedShots = script ? repos.scene.listScenesByScript(db, script.id).flatMap((scene) => repos.shot.listShotsByScene(db, scene.id)) : []
+      const sourceFingerprint = importedShots.map((shot) => `${shot.id}@${shot.updatedAt}:${(shot.subtitleDraft || shot.dialogue || shot.narration || '').trim()}`).join('|')
+      repos.localization.createLocalizationVariant(db, {
+        ...stripId(variant), projectId: newProject.id, adaptationProjectId, episodeId,
+        sourceFingerprint,
+        cues: variant.cues.map((cue) => ({ ...cue, shotId: cue.shotId ? idMap.get(cue.shotId) : undefined })),
+        // Voice profiles are restored later in this legacy import order; retain the language package
+        // but require the user to reselect an authorized target-language voice candidate after import.
+        voiceProfileId: undefined,
+        reviewedAt: undefined, reviewNote: variant.reviewNote ? `${variant.reviewNote}（导入后需复核）` : '导入后需复核母版、翻译和声音候选。',
+      })
+    }
 
     // 17. 创意诊断数据（目标 id 尽量重映射；无法重映射的跨实体记录跳过）
     for (const f of pkg.freshnessReports ?? []) {

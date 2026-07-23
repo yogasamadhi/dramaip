@@ -1008,6 +1008,15 @@ export const MIGRATIONS: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS idx_feedback_cluster_batch ON feedback_comment_clusters(batch_id, created_at);
   `) } },
+  { version: 39, name: 'localization-variants', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS localization_variants (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      target_locale TEXT NOT NULL, target_region TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', source_fingerprint TEXT NOT NULL,
+      title TEXT NOT NULL, description TEXT, glossary TEXT NOT NULL DEFAULT '{}', cultural_notes TEXT NOT NULL DEFAULT '[]', cues TEXT NOT NULL DEFAULT '[]',
+      voice_profile_id TEXT, audio_candidate_note TEXT, reviewed_at TEXT, review_note TEXT, stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_localization_episode ON localization_variants(episode_id, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
