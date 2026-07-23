@@ -1397,6 +1397,10 @@ pnpm test:wan:sandbox
   3. 正式签名、公证、跨平台首次安装、升级与回滚仍需要证书、目标操作系统和 release 环境授权。
 - **Decision**：保持 LM5-10、LM5-14 与 LM5-21 为 `partial`，不发起真实 API 调用、不使用或记录任何未经过账户所有者
   授权的凭据；所有可在本地完成的 loop 已收口并推送。取得上述授权后只重开相应的外部 Gate。
+- **Safe no-authorization recheck**：在未设置 `HAILUO_SANDBOX_ALLOW_BILLING=1` 或
+  `WAN_SANDBOX_ALLOW_BILLING=1` 的条件下，`pnpm test:hailuo:sandbox` 和 `pnpm test:wan:sandbox`
+  都以预期退出码 1 在本地拒绝执行，未携带 API Key、未发起网络请求或费用。这证明 fail-closed 边界仍有效，
+  不构成任何真实 Provider 成功证据。
 
 ### 记录模板
 
