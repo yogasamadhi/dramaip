@@ -77,6 +77,8 @@
 | 短剧提案包缺少分集 | 改编项目没有分集大纲 | 在改编工作台生成或补充分集大纲后导出 |
 | 分集交付包缺少剧本 | 分集尚未生成剧本 | 在剧本工作台为对应集生成剧本，再导出交付包 |
 | 分镜交付 CSV 为空 | 场景还没有拆分镜头 | 在分镜工作台执行拆镜头并生成镜头 Prompt 后导出 |
+| 平台交付被阻断 | 合规 MP4、媒体质检、权利、采用创意候选、封面或人工平台字段未齐 | 按预检 blocker 逐项补齐；不要绕过 AIGC 或权利检查 |
+| 语言版本无法采用 | 有未译句、字幕阅读速度过高，或中文母版已变化 | 补齐逐句译文、缩短字幕/延长时长；母版变动后新建或复核语言版本 |
 
 ## 本地验证脚本
 
@@ -85,6 +87,7 @@
 | `pnpm test:db` 在 native rebuild 阶段失败 | better-sqlite3 需要写入本机 Node/Electron 编译缓存 | 确认当前用户可写 npm、node-gyp 和 Electron 缓存目录；修复后重新执行 `pnpm test:db` |
 | `pnpm test:e2e` 在 Electron rebuild 阶段失败 | Electron 原生模块缓存不可写或 Electron 二进制不可用 | 先运行 `pnpm rebuild`；确认 Electron 缓存和网络环境可用后重新执行 |
 | `pnpm test:e2e` 没有看到 P0 步骤 | smoke 日志被截断或旧构建未更新 | 重新运行 `pnpm test:e2e`，正常日志会输出主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出和项目包往返步骤 |
+| 真实图片/TTS/视频 sandbox 被拒绝 | 未注入专用 API Key 或未显式授权计费 | 保持 Provider 关闭；由账户所有者在隔离环境按对应 Provider Runbook 注入凭据并执行 smoke，不能使用 Gitee 凭据替代 |
 
 ## 日志与诊断
 

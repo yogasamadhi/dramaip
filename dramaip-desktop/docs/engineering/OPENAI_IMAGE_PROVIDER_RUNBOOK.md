@@ -1,6 +1,6 @@
-# OpenAI Image Provider Runbook（LM5-10 scaffold）
+# OpenAI Image Provider Runbook（LM5-10，当前未生产启用）
 
-当前实现的是官方 OpenAI Images API 的受控适配器，默认不在 Desktop 设置页暴露、不读取环境变量、也不会创建网络请求。它需要后续的 Keychain 设置和图片任务持久化才能进入生产；本轮没有凭据，因此没有执行真实沙箱生成。
+当前实现是官方 OpenAI Images API 的受控适配器，默认不在 Desktop 设置页暴露、不读取环境变量、也不会创建网络请求。它尚未具备 Keychain 设置、图片任务持久化和资产归档接线，因此不能作为生产 Provider 或发布 Gate 的已通过证据；本地合同测试不等同于真实沙箱生成。
 
 ## 已验证的本地合同
 

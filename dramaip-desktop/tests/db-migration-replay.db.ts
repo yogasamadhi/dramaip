@@ -12,7 +12,7 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, type FeedbackImportPreview, type TextDiffPreviewPayload } from '@sdns/core'
+import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, localizationSourceFingerprint, type FeedbackImportPreview, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
 import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
 import { createFeedbackRevisionTask } from '../apps/desktop/electron/feedback'
@@ -167,6 +167,7 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'feedback_metrics'))
     assert.ok(tableExists(raw, 'feedback_comments'))
     assert.ok(tableExists(raw, 'feedback_comment_clusters'))
+    assert.ok(tableExists(raw, 'localization_variants'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -291,6 +292,53 @@ test('imports feedback transactionally, deduplicates rows, keeps clusters remova
     assert.equal(fixture.repos.feedback.deleteFeedbackImportBatch(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id }), true)
     assert.equal(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id).length, 0)
     assert.equal(fixture.repos.feedback.listFeedbackMetrics(fixture.db, fixture.project.id).length, 1)
+  } finally { closeRepositoryFixture(fixture) }
+})
+
+test('keeps a reviewable localization variant through a project-package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const shots = [fixture.shot]
+    const sourceFingerprint = localizationSourceFingerprint(shots)
+    const created = fixture.repos.localization.createLocalizationVariant(fixture.db, {
+      projectId: fixture.project.id,
+      adaptationProjectId: fixture.adaptation.id,
+      episodeId: fixture.episode.id,
+      targetLocale: 'en-US',
+      targetRegion: 'US',
+      label: 'English pilot',
+      sourceFingerprint,
+      title: 'The Return',
+      description: 'Keep the rooftop confrontation direct and fast.',
+      glossary: { 归来: 'return' },
+      culturalNotes: ['Avoid literal honorifics.'],
+      cues: [{ id: 'cue-1', shotId: fixture.shot.id, startSeconds: 0, endSeconds: 3, sourceText: '她回来了。', localizedText: 'She is back.' }],
+      voiceProfileId: 'source-voice-profile',
+      audioCandidateNote: 'Use an authorized English voice after review.',
+      reviewedAt: '2026-07-23T00:00:00.000Z',
+      reviewNote: 'Native-language review passed.',
+    })
+    const adopted = fixture.repos.localization.adoptLocalizationVariant(fixture.db, created.id, 'Approved for the pilot.')
+    assert.equal(adopted?.status, 'adopted')
+
+    const pkg = collectProjectPackage(fixture.repos, fixture.project.id)
+    assert.equal(pkg.localizationVariants?.length, 1)
+    assert.equal(pkg.localizationVariants?.[0]?.sourceFingerprint, sourceFingerprint)
+
+    const imported = importProjectPackage(fixture.repos, serializeProjectPackage(pkg))
+    const importedAdaptation = fixture.repos.adaptationProject.listAdaptationsByProject(fixture.db, imported.id)[0]
+    assert.ok(importedAdaptation)
+    const importedEpisode = fixture.repos.episode.listEpisodes(fixture.db, importedAdaptation!.id)[0]
+    assert.ok(importedEpisode)
+    const restored = fixture.repos.localization.listLocalizationVariants(fixture.db, importedEpisode!.id)
+    assert.equal(restored.length, 1)
+    assert.equal(restored[0]?.targetLocale, 'en-US')
+    assert.equal(restored[0]?.cues[0]?.localizedText, 'She is back.')
+    assert.ok(restored[0]?.cues[0]?.shotId, 'import must remap the cue to the newly created shot')
+    assert.notEqual(restored[0]?.cues[0]?.shotId, fixture.shot.id)
+    assert.equal(restored[0]?.voiceProfileId, undefined, 'a voice candidate must be re-authorized after import')
+    assert.match(restored[0]?.reviewNote ?? '', /导入后需复核/)
+    assert.notEqual(restored[0]?.sourceFingerprint, sourceFingerprint, 'the imported master fingerprint uses new local IDs')
   } finally { closeRepositoryFixture(fixture) }
 })
 
