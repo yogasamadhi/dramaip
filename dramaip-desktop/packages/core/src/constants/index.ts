@@ -80,6 +80,7 @@ export const WORKSPACE_NAV: WorkspaceNavKey[] = [
   { key: 'production', label: '制作' },
   { key: 'delivery', label: '交付' },
   { key: 'feedback', label: '反馈回流' },
+  { key: 'localization', label: '海外本地化' },
   { key: 'action-center', label: '行动中心' },
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
@@ -163,8 +164,8 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
     key: 'delivery',
     label: '交付',
-    items: workspaceNavItems(['delivery', 'feedback', 'ai-runs']),
-    basicItemKeys: ['delivery', 'feedback'],
+    items: workspaceNavItems(['delivery', 'feedback', 'localization', 'ai-runs']),
+    basicItemKeys: ['delivery', 'feedback', 'localization'],
   },
 ]
 

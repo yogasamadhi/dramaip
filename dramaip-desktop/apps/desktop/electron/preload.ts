@@ -101,6 +101,15 @@ const api = {
     deleteBatch: (input: { projectId: string; batchId: string }) => invoke('feedback:deleteBatch', input),
     createRevisionTask: (input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }) => invoke('feedback:createRevisionTask', input),
   },
+  localization: {
+    listByEpisode: (episodeId: string) => invoke('localization:listByEpisode', episodeId),
+    initialize: (input: { projectId: string; episodeId: string }) => invoke('localization:initialize', input),
+    create: (input: unknown) => invoke('localization:create', input),
+    update: (scope: { projectId: string; id: string }, patch: unknown) => invoke('localization:update', scope, patch),
+    adopt: (scope: { projectId: string; id: string }, reviewNote?: string) => invoke('localization:adopt', scope, reviewNote),
+    subtitleFiles: (scope: { projectId: string; id: string }) => invoke('localization:subtitleFiles', scope),
+    exportPackage: (scope: { projectId: string; id: string }) => invoke('localization:exportPackage', scope),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),

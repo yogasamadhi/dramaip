@@ -779,6 +779,7 @@ export const ProjectPackageSchema = z
     generationLineages: packageEntityArray.default([]),
     generationCostEntries: packageEntityArray.default([]),
     feedback: PackageFeedbackSchema.optional(),
+    localizationVariants: packageEntityArray.default([]),
     adaptations: z.array(PackageAdaptationSchema).default([]),
     aiRuns: packageEntityArray,
   })

@@ -133,6 +133,10 @@ const audioClipInput = z.object({
 const audioTrackSaveInput = z.object({
   projectId: id, adaptationProjectId: id, episodeId: id, kind: z.enum(['dialogue', 'narration', 'bgm', 'sfx']), label: z.string().min(1).max(200), sourceFingerprint: z.string().min(1), clips: z.array(audioClipInput).max(1_000),
 }).strict()
+const localizationCueInput = z.object({ id, shotId: maybeId, startSeconds: z.number().nonnegative(), endSeconds: z.number().positive(), sourceText: z.string().max(4_000), localizedText: z.string().max(4_000), culturalNote: z.string().max(1_000).optional() }).strict()
+const localizationCreateInput = z.object({ projectId: id, adaptationProjectId: id, episodeId: id, targetLocale: z.string().min(2).max(32), targetRegion: z.string().max(32).optional(), label: z.string().min(1).max(200), title: z.string().min(1).max(300), description: z.string().max(2_000).optional(), glossary: z.record(z.string().max(200)).default({}), culturalNotes: z.array(z.string().max(1_000)).max(100).default([]), cues: z.array(localizationCueInput).max(1_000), voiceProfileId: maybeId, audioCandidateNote: z.string().max(2_000).optional(), sourceFingerprint: z.string().min(1) }).strict()
+const localizationScopedId = z.object({ projectId: id, id }).strict()
+const localizationUpdateInput = localizationCreateInput.omit({ projectId: true, adaptationProjectId: true, episodeId: true, sourceFingerprint: true }).partial().strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
@@ -863,6 +867,13 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'feedback:deleteClusters': [feedbackBatchInput],
   'feedback:deleteBatch': [feedbackBatchInput],
   'feedback:createRevisionTask': [feedbackRevisionInput],
+  'localization:listByEpisode': [id],
+  'localization:initialize': [z.object({ projectId: id, episodeId: id }).strict()],
+  'localization:create': [localizationCreateInput],
+  'localization:update': [localizationScopedId, localizationUpdateInput],
+  'localization:adopt': [localizationScopedId, z.string().max(2_000).optional()],
+  'localization:subtitleFiles': [localizationScopedId],
+  'localization:exportPackage': [localizationScopedId],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and Keychain boundary.

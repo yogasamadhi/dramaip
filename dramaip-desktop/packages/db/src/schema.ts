@@ -778,6 +778,13 @@ export const audioTracks = sqliteTable('audio_tracks', {
   createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
 })
 
+export const localizationVariants = sqliteTable('localization_variants', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  targetLocale: text('target_locale').notNull(), targetRegion: text('target_region'), label: text('label').notNull(), status: text('status').notNull().default('draft'), sourceFingerprint: text('source_fingerprint').notNull(),
+  title: text('title').notNull(), description: text('description'), glossary: text('glossary').notNull().default('{}'), culturalNotes: text('cultural_notes').notNull().default('[]'), cues: text('cues').notNull().default('[]'),
+  voiceProfileId: text('voice_profile_id'), audioCandidateNote: text('audio_candidate_note'), reviewedAt: text('reviewed_at'), reviewNote: text('review_note'), staleAt: text('stale_at'), staleReason: text('stale_reason'), createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
 // LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
 // 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
 export const generationLineages = sqliteTable('generation_lineages', {
