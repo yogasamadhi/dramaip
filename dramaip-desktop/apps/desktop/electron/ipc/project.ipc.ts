@@ -5,6 +5,34 @@ import { parseMobileInspirationImport, type MobileInspirationImportInput } from 
 import { getRepos } from '../db'
 import { createAiContextPreview, createAiRunDebugPayload } from '../ai-context-preview'
 
+const STORY_BIBLE_STABLE_SAVE_MS = 1_500
+const storyBibleSuggestionTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** 只在正文停止编辑并已保存后排队；此处不会调用模型或改写故事圣经。 */
+function scheduleStoryBibleSuggestion(chapterId: string): void {
+  const previous = storyBibleSuggestionTimers.get(chapterId)
+  if (previous) clearTimeout(previous)
+  storyBibleSuggestionTimers.set(chapterId, setTimeout(() => {
+    storyBibleSuggestionTimers.delete(chapterId)
+    try {
+      const r = getRepos()
+      const chapter = r.chapter.getChapter(r.db, chapterId)
+      if (!chapter?.content.trim()) return
+      const settings = r.storyBible.getStoryBibleSettings(r.db, chapter.projectId)
+      if (!settings.autoSuggest) return
+      const budget = r.aiBudget.getAiBudgetSettings(r.db)
+      r.storyBible.queueStoryBibleChangeSet(r.db, {
+        projectId: chapter.projectId,
+        chapterId,
+        costPer1kTokens: budget.costPer1kTokens,
+        currency: budget.currency,
+      })
+    } catch {
+      // 自动建议只是可选辅助；队列失败不能影响用户已保存的正文。
+    }
+  }, STORY_BIBLE_STABLE_SAVE_MS))
+}
+
 export function registerProjectIpc(): void {
   const repos = () => getRepos()
 
@@ -40,15 +68,19 @@ export function registerProjectIpc(): void {
   )
   ipcMain.handle('chapter:get', (_e, id: string) => repos().chapter.getChapter(repos().db, id))
   ipcMain.handle('chapter:create', (_e, data: unknown) => repos().chapter.createChapter(repos().db, data as never))
-  ipcMain.handle('chapter:update', (_e, id: string, patch: unknown) =>
-    repos().chapter.updateChapter(repos().db, id, patch as never),
-  )
+  ipcMain.handle('chapter:update', (_e, id: string, patch: unknown) => {
+    const updated = repos().chapter.updateChapter(repos().db, id, patch as never)
+    if (updated && typeof patch === 'object' && patch !== null && Object.prototype.hasOwnProperty.call(patch, 'content')) scheduleStoryBibleSuggestion(id)
+    return updated
+  })
   ipcMain.handle('chapter:reorder', (_e, projectId: string, orderedIds: string[]) =>
     repos().chapter.reorderChapters(repos().db, projectId, orderedIds),
   )
-  ipcMain.handle('chapter:updateContent', (_e, id: string, content: string) =>
-    repos().chapter.updateChapterContent(repos().db, id, content),
-  )
+  ipcMain.handle('chapter:updateContent', (_e, id: string, content: string) => {
+    const updated = repos().chapter.updateChapterContent(repos().db, id, content)
+    if (updated) scheduleStoryBibleSuggestion(id)
+    return updated
+  })
   ipcMain.handle('chapter:delete', (_e, id: string) => {
     repos().chapter.deleteChapter(repos().db, id)
     return true

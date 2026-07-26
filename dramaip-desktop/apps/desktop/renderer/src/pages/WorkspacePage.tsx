@@ -1,9 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronRight, Command, Download, FilePlus2, Menu, Trash2 } from 'lucide-react'
-import type { AiRun, Chapter, NovelTaskType, Project, QualityGateReport, TextDiffPreviewPayload } from '@sdns/core'
-import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
+import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
+import type { AiRun, AssetRightsRecord, Chapter, GenerationCostEntry, GenerationLineage, NovelTaskType, Project, ProjectAsset, QualityGateReport, TextDiffPreviewPayload } from '@sdns/core'
+import {
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  formatProductionDuration,
+  TASK_TYPE_LABELS,
+  WORKSPACE_NAV_GROUPS,
+} from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import {
@@ -17,12 +24,18 @@ import { useAiContextStore } from '@/stores/useAiContextStore'
 import { useWorkflowSnapshotStore } from '@/stores/useWorkflowSnapshotStore'
 import { shouldAutoAdoptChapterDraft } from '@/lib/textPreviewPolicy'
 import { getChapterLengthStatus, type ChapterLengthStatus } from '@/lib/chapterLength'
+import { buildPilotProductionTruth } from '@/lib/pilotProductionTruth'
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
+import { PilotProductionPanel } from '@/components/PilotProductionPanel'
+import { GenerationLedgerPanel } from '@/components/GenerationLedgerPanel'
+import { RightsLedgerPanel } from '@/components/RightsLedgerPanel'
+import { VisualAssetPackPanel } from '@/components/VisualAssetPackPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -50,6 +63,7 @@ import { VisualProfileSection } from '@/components/sections/VisualProfileSection
 import { VisualSettingSection } from '@/components/sections/VisualSettingSection'
 import { TimelineSection } from '@/components/sections/TimelineSection'
 import { ForeshadowingSection } from '@/components/sections/ForeshadowingSection'
+import { StoryBibleChangeSetsSection } from '@/components/sections/StoryBibleChangeSetsSection'
 import { ConsistencySection } from '@/components/sections/ConsistencySection'
 import { AiDashboardSection } from '@/components/sections/AiDashboardSection'
 import { BeatSection } from '@/components/sections/BeatSection'
@@ -59,10 +73,12 @@ import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/Workspac
 import { AiRunsTable } from '@/components/AiRunsTable'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
+import { FeedbackLoopSection } from '@/components/FeedbackLoopSection'
+import { LocalizationSection } from '@/components/LocalizationSection'
 import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
+import { SourceImportDialog } from '@/components/SourceImportDialog'
 import type { AiCommandDefinition } from '@/lib/aiCommandCatalog'
 import { cn } from '@/lib/utils'
-import { WorkspaceNavDropdown, WorkspaceNavList } from '@/components/shell/WorkspaceNav'
 
 const ChapterEditor = lazy(() =>
   import('@/components/editor/ChapterEditor').then((m) => ({ default: m.ChapterEditor })),
@@ -79,6 +95,7 @@ const WORKSPACE_SECTION_BY_TASK: Partial<Record<NovelTaskType, string>> = {
   chat_project: 'chat',
   evaluate_ai_drama_fit: 'evaluation',
   summarize_chapter: 'memory',
+  propose_story_bible_changes: 'story-bible',
   update_character_state: 'character-state',
   extract_story_events: 'timeline',
   extract_foreshadowing: 'foreshadowing',
@@ -102,7 +119,8 @@ export function WorkspacePage() {
   const [project, setProject] = useState<Project | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [section, setSection] = useState<string>('chapters')
+  const [section, setSection] = useState<string>('overview')
+  const [advancedNavigation, setAdvancedNavigation] = useState(() => window.localStorage.getItem('sdns.workspace.advanced-navigation') === 'true')
   const [editorNonce, setEditorNonce] = useState(0)
   const editorRef = useRef<ChapterEditorHandle | null>(null)
   const [aiRuns, setAiRuns] = useState<AiRun[]>([])
@@ -126,6 +144,7 @@ export function WorkspacePage() {
     isInitialGeneratedChapter: boolean
   } | null>(null)
   const [adjustingChapterLength, setAdjustingChapterLength] = useState(false)
+  const [sourceImportOpen, setSourceImportOpen] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
   // 数据态迁移到共享 store，避免任一 setState 触发整个 JSX 树重渲染。
   const workflowSnapshot = useWorkflowSnapshotStore((s) => s.workflowSnapshot)
@@ -143,6 +162,12 @@ export function WorkspacePage() {
   const chapterSearchRef = useRef<HTMLInputElement>(null)
   const contextControls = useAiContextStore((s) => s.contextControls)
   const setContextControls = useAiContextStore((s) => s.setControlMode)
+  const [generationLineages, setGenerationLineages] = useState<GenerationLineage[]>([])
+  const [generationCosts, setGenerationCosts] = useState<GenerationCostEntry[]>([])
+  const [projectAssets, setProjectAssets] = useState<ProjectAsset[]>([])
+  const [assetRights, setAssetRights] = useState<AssetRightsRecord[]>([])
+  const handledImportIntentRef = useRef<string | undefined>(undefined)
+  const [generateIdea, setGenerateIdea] = useState('')
   const [pendingGenerate, setPendingGenerate] = useState<{
     taskType: PreviewTaskType
     userInstruction?: string
@@ -169,6 +194,16 @@ export function WorkspacePage() {
     reversal: chapter.reversal,
     cliffhanger: chapter.cliffhanger,
   })))
+  const visibleNavigationGroups = useMemo(
+    () => WORKSPACE_NAV_GROUPS.map((group) => ({
+      ...group,
+      items: advancedNavigation ? group.items : group.items.filter((item) => group.basicItemKeys.includes(item.key)),
+    })),
+    [advancedNavigation],
+  )
+  const activeNavigationItem = WORKSPACE_NAV_GROUPS
+    .flatMap((group) => group.items)
+    .find((item) => item.key === section)
 
   // 包装 store.load：若 adaptation 解析后 project 的 activeAdaptationId 变化，同步本地 project。
   const loadWorkflowSnapshotIntoStore = useCallback(async (
@@ -177,6 +212,16 @@ export function WorkspacePage() {
     requestedActiveAdaptationId?: string,
   ) => {
     const updated = await loadWorkflowSnapshot(currentProject, projectChapters, requestedActiveAdaptationId)
+    const [nextGenerationLineages, nextGenerationCosts, nextProjectAssets, nextAssetRights] = await Promise.all([
+      ipc.generation.listLineagesByProject(currentProject.id),
+      ipc.generation.listCostsByProject(currentProject.id),
+      ipc.asset.listByProject(currentProject.id),
+      ipc.rights.listByProject(currentProject.id),
+    ])
+    setGenerationLineages(nextGenerationLineages)
+    setGenerationCosts(nextGenerationCosts)
+    setProjectAssets(nextProjectAssets)
+    setAssetRights(nextAssetRights)
     if (updated) setProject(updated)
   }, [loadWorkflowSnapshot])
 
@@ -193,6 +238,10 @@ export function WorkspacePage() {
     if (project) void loadWorkflowSnapshotIntoStore(project, chapters, requestedAdaptationId)
     else {
       clearWorkflowSnapshot()
+      setProjectAssets([])
+      setAssetRights([])
+      setGenerationLineages([])
+      setGenerationCosts([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshotIntoStore, requestedAdaptationId])
@@ -207,10 +256,20 @@ export function WorkspacePage() {
   }, [loadProject])
   useEffect(() => {
     const requestedSection = searchParams.get('section')
-    setSection(requestedSection && WORKSPACE_SECTION_KEYS.has(requestedSection) ? requestedSection : 'chapters')
+    setSection(requestedSection && WORKSPACE_SECTION_KEYS.has(requestedSection) ? requestedSection : 'overview')
     const requestedChapter = searchParams.get('chapter')
     if (requestedChapter) setSelectedId(requestedChapter)
   }, [searchParams])
+  useEffect(() => {
+    window.localStorage.setItem('sdns.workspace.advanced-navigation', String(advancedNavigation))
+  }, [advancedNavigation])
+  useEffect(() => {
+    const importIntent = searchParams.get('next') === 'import-source' && id ? id : undefined
+    if (importIntent && handledImportIntentRef.current !== importIntent) {
+      handledImportIntentRef.current = importIntent
+      setSourceImportOpen(true)
+    }
+  }, [id, searchParams])
   useEffect(() => {
     if (section === 'ai-runs') void loadAiRuns()
   }, [section, loadAiRuns])
@@ -226,6 +285,8 @@ export function WorkspacePage() {
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set('section', nextSection)
+      const zone = WORKSPACE_NAV_GROUPS.find((group) => group.items.some((item) => item.key === nextSection))?.key
+      if (zone) next.set('zone', zone)
       if (chapterId) next.set('chapter', chapterId)
       else if (chapterId !== undefined || nextSection !== 'chapters') next.delete('chapter')
       if (qualityIssueId) next.set('qualityIssue', qualityIssueId)
@@ -767,6 +828,23 @@ export function WorkspacePage() {
         reports: workflowSnapshot.qualityReports,
       })
     : null
+  const pilotProductionTruth = workflowSnapshot
+    ? buildPilotProductionTruth({
+        project: workflowSnapshot.project,
+        chapters: workflowSnapshot.chapters,
+        characters: workflowSnapshot.characters,
+        outlines: workflowSnapshot.outlines,
+        qualityReports: workflowSnapshot.qualityReports,
+        activeAdaptation: workflowSnapshot.activeAdaptation,
+        episodes: workflowSnapshot.episodes,
+        scripts: workflowSnapshot.scripts,
+        scenes: workflowSnapshot.scenes,
+        shots: workflowSnapshot.shots,
+        videoTasks: workflowSnapshot.videoTasks,
+        videoResults: workflowSnapshot.videoResults,
+        longTasks: workflowSnapshot.longTasks,
+      })
+    : null
   const primaryAdaptation = workflowSnapshot?.activeAdaptation
 
   async function changeActiveAdaptation(adaptationId: string) {
@@ -783,6 +861,16 @@ export function WorkspacePage() {
       return next
     })
     toast.success('已切换当前改编，相关分集、剧本、分镜和视频数据已同步刷新')
+  }
+
+  async function updateGenerationCost(id: string, patch: { actualCost?: number; currency?: string; actualCostNote?: string }) {
+    const updated = await ipc.generation.updateCost(id, patch)
+    if (!updated) {
+      toast.error('费用账本更新失败')
+      return
+    }
+    setGenerationCosts((current) => current.map((cost) => cost.id === updated.id ? updated : cost))
+    toast.success('已记录实际费用；不会覆盖原始估算')
   }
 
   function openAdaptationPath(path: 'overview' | 'scripts' | 'shots' | 'video') {
@@ -870,6 +958,10 @@ export function WorkspacePage() {
               <Command />
               AI 命令
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setSourceImportOpen(true)}>
+              <FilePlus2 />
+              导入正文
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -913,7 +1005,24 @@ export function WorkspacePage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                  <WorkspaceNavDropdown onSelect={selectNavKey} />
+                  {visibleNavigationGroups.map((group) => (
+                    <div key={group.key} className="py-1">
+                      <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                      {group.items.map((item) => (
+                        <DropdownMenuItem
+                          key={item.key}
+                          onClick={() => item.key === 'writing-room'
+                            ? navigate(`/projects/${project.id}/writing-room`)
+                            : openWorkspaceTarget(item.key)}
+                        >
+                          {item.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  ))}
+                  <DropdownMenuItem onClick={() => setAdvancedNavigation((value) => !value)}>
+                    {advancedNavigation ? '收起高级功能' : '显示全部高级功能'}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -942,11 +1051,28 @@ export function WorkspacePage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                <WorkspaceNavDropdown onSelect={selectNavKey} />
+                {visibleNavigationGroups.map((group) => (
+                  <div key={group.key} className="py-1">
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                    {group.items.map((item) => (
+                      <DropdownMenuItem
+                        key={item.key}
+                        onClick={() => item.key === 'writing-room'
+                          ? navigate(`/projects/${project.id}/writing-room`)
+                          : openWorkspaceTarget(item.key)}
+                      >
+                        {item.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                ))}
+                <DropdownMenuItem onClick={() => setAdvancedNavigation((value) => !value)}>
+                  {advancedNavigation ? '收起高级功能' : '显示全部高级功能'}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="rounded-md bg-accent px-1.5 py-2 text-center text-xs font-medium text-accent-foreground" title="当前工作区">
-              {(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.key === section)?.label ?? '当前').slice(0, 2)}
+              {(activeNavigationItem?.label ?? '当前').slice(0, 2)}
             </div>
             <div className="mt-auto">
               <Button variant="outline" size="icon" aria-label="新建章节" title="新建章节" onClick={createChapter}>
@@ -959,10 +1085,45 @@ export function WorkspacePage() {
           <nav className="flex h-full min-w-0 flex-col" aria-label="项目阶段导航">
             <ScrollArea className="flex-1">
               <div className="space-y-3 p-2">
-                <WorkspaceNavList activeSection={section} onSelect={selectNavKey} />
+                {visibleNavigationGroups.map((group) => (
+                  <div key={group.key} className="space-y-1">
+                    <div className="px-3 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
+                    {group.items.map((item) => {
+                      const active = section === item.key
+                      const isChapterEntry = item.key === 'chapters'
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() => {
+                            if (item.key === 'writing-room') {
+                              void navigate(`/projects/${project.id}/writing-room`)
+                              return
+                            }
+                            openWorkspaceTarget(item.key)
+                          }}
+                          aria-label={item.label}
+                          title={item.label}
+                          aria-current={active ? 'page' : undefined}
+                          className={cn(
+                            'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            active
+                              ? 'bg-accent font-medium text-accent-foreground'
+                              : 'text-foreground hover:bg-accent/60 dark:!text-slate-200',
+                            isChapterEntry && 'font-medium',
+                          )}
+                        >
+                          {item.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
             </ScrollArea>
             <div className="border-t p-2">
+              <Button variant="ghost" size="sm" className="mb-1 w-full text-xs" onClick={() => setAdvancedNavigation((value) => !value)}>
+                {advancedNavigation ? '收起高级功能' : '显示高级功能'}
+              </Button>
               <Button variant="outline" size="sm" className="w-full" title="新建章节" onClick={createChapter}>
                 <FilePlus2 />
                 新建章节
@@ -1017,6 +1178,62 @@ export function WorkspacePage() {
 
         {/* 中：主区 */}
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {section === 'content' && (
+            <TaskZonePanel
+              title="内容"
+              description="从灵感、人物和大纲到可编辑正文；先完成眼前的一步，不必理解底层 Agent 或记忆术语。"
+              items={[
+                { title: '项目概览', detail: '查看当前结果、阻塞与下一步。', action: () => openWorkspaceTarget('overview') },
+                { title: '写正文', detail: chapters.length ? `继续编辑 ${chapters.length} 个章节。` : '从第一章或导入已有主稿开始。', action: () => openWorkspaceTarget('chapters', selectedId) },
+                { title: '人物与大纲', detail: '整理人物关系和故事走向。', action: () => openWorkspaceTarget(chapters.length ? 'outline' : 'characters') },
+                { title: '导入授权内容', detail: '导入 TXT、Markdown、DOCX、EPUB 或结构化剧本。', action: () => setSourceImportOpen(true) },
+              ]}
+            />
+          )}
+
+          {section === 'story-bible' && <StoryBibleChangeSetsSection projectId={project.id} chapter={selected} />}
+
+          {section === 'action-center' && (
+            <TaskZonePanel
+              title="行动中心"
+              description="把评分、节拍、爽点、质量问题和制作可行性汇总为下一步可执行的检查，而不是分散的分析页面。"
+              items={[
+                { title: '质量闸门', detail: '查看当前阻塞与需要处理的问题。', action: () => openWorkspaceTarget('quality-gates') },
+                { title: '短剧适配与节奏', detail: '检查短剧评分、节拍和爽点。', action: () => openWorkspaceTarget('evaluation') },
+                { title: '创意诊断', detail: '处理创意风险与修订建议。', action: () => openWorkspaceTarget('creative-diagnosis') },
+                { title: 'AI 制作可行性', detail: '确认镜头与视频生产的可执行性。', action: () => openWorkspaceTarget('ai-video') },
+              ]}
+            />
+          )}
+
+          {section === 'production' && (
+            <TaskZonePanel
+              title="制作"
+              description={primaryAdaptation ? `当前制作对象：第 ${primaryAdaptation.seasonNumber ?? 1} 季《${primaryAdaptation.title}》。` : '先确定第一季范围；无论是小说改编还是直接制作漫剧，都不要求先创建空章节。'}
+              items={[
+                { title: primaryAdaptation ? '进入分集与剧本制作' : '创建第一季', detail: primaryAdaptation ? '继续分集、剧本、分镜与视频生产。' : '按项目生产简报建立可编辑的第一季。', action: () => openAdaptationPath('overview') },
+                { title: '处理制作阻塞', detail: '从行动中心查看质量、节奏和可行性问题。', action: () => openWorkspaceTarget('action-center') },
+              ]}
+            />
+          )}
+
+          {section === 'delivery' && (
+            <TaskZonePanel
+              title="交付"
+              description="导出当前可用内容包，并将用户主动导入的运营指标和评论回流为可审阅修订任务。"
+              items={[
+                { title: '导出小说投稿包', detail: '生成 Markdown 或 JSON 投稿包。', action: () => void handleSubmissionExport('md') },
+                { title: '导出完整项目包', detail: '备份项目数据，并可在另一设备导入。', action: () => void handleExportPackage() },
+                { title: '导入真实运营与评论反馈', detail: '导入本地 CSV/JSON，预览、去重并创建可采用修订建议。', action: () => openWorkspaceTarget('feedback') },
+                { title: '海外语言本地化', detail: '建立逐句字幕、文案、文化说明和授权声音候选。', action: () => openWorkspaceTarget('localization') },
+                { title: '查看 AI 调用记录', detail: '查看已执行的 AI 任务与结果。', action: () => openWorkspaceTarget('ai-runs') },
+              ]}
+            />
+          )}
+
+          {section === 'feedback' && <FeedbackLoopSection projectId={project.id} />}
+          {section === 'localization' && <LocalizationSection projectId={project.id} />}
+
           {section === 'chapters' && (
             <>
               <div className="flex items-center gap-2 border-b px-3 py-2">
@@ -1076,6 +1293,11 @@ export function WorkspacePage() {
             <ScrollArea ref={overviewScrollRef} className="h-full">
               <div className="space-y-3 p-6 text-sm">
                 <h2 className="text-lg font-semibold">{project.title}</h2>
+                <div className="grid gap-2 rounded-md border bg-muted/30 p-3 md:grid-cols-3">
+                  <div><div className="text-xs text-muted-foreground">当前结果</div><div className="font-medium">{chapters.length} 章 · {chapters.reduce((sum, chapter) => sum + chapter.content.replace(/\s/g, '').length, 0).toLocaleString('zh-CN')} 字</div></div>
+                  <div><div className="text-xs text-muted-foreground">主要下一步</div><div className="font-medium">{workflowStages.find((stage) => !stage.complete)?.actionLabel ?? '检查交付内容'}</div></div>
+                  <div><div className="text-xs text-muted-foreground">制作预算</div><div className="font-medium">{project.productionBrief?.profile.budgetTier === 'premium' ? '高规格制作' : project.productionBrief?.profile.budgetTier === 'standard' ? '标准制作' : '试播 / 低预算'}</div></div>
+                </div>
                 {workflowStages.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
@@ -1100,6 +1322,83 @@ export function WorkspacePage() {
                   </div>
                 )}
                 {adaptationReadiness && <AdaptationReadinessPanel readiness={adaptationReadiness} />}
+                {pilotProductionTruth && <PilotProductionPanel
+                  adaptationId={workflowSnapshot?.activeAdaptation?.id}
+                  truth={pilotProductionTruth}
+                  onOpenTaskCenter={() => navigate(`/settings/tasks?project=${encodeURIComponent(project.id)}`)}
+                />}
+                <GenerationLedgerPanel
+                  lineages={generationLineages}
+                  costs={generationCosts}
+                  onUpdateCost={updateGenerationCost}
+                />
+                <RightsLedgerPanel projectId={project.id} assets={projectAssets} records={assetRights} onChanged={() => setDataVersion((value) => value + 1)} />
+                <VisualAssetPackPanel projectId={project.id} assets={projectAssets} onChanged={() => setDataVersion((value) => value + 1)} />
+                {project.productionBrief && (() => {
+                  const brief = project.productionBrief
+                  const goal = PROJECT_CREATION_GOAL_OPTIONS.find((option) => option.value === brief.creationGoal)
+                  const presentation = PRODUCTION_PRESENTATION_OPTIONS.find((option) => option.value === brief.profile.presentation)
+                  const platform = PRODUCTION_PLATFORM_OPTIONS.find((option) => option.value === brief.profile.platform)
+                  return (
+                    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                      <div className="mb-2 flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><span className="font-medium">项目生产简报</span></div>
+                      <div className="grid grid-cols-2 gap-y-1 text-xs text-muted-foreground">
+                        <div>创建路径：{goal?.label ?? brief.creationGoal}</div>
+                        <div>表现形式：{presentation?.label ?? brief.profile.presentation}</div>
+                        <div>目标平台：{platform?.label ?? brief.profile.platform}</div>
+                        <div>画幅 / 时长：{brief.profile.aspectRatio} / {formatProductionDuration(brief.profile.episodeDuration)}</div>
+                        <div>试播：{brief.profile.pilotEpisodeCount} 集</div>
+                        <div>预算档位：{brief.profile.budgetTier === 'starter' ? '试播 / 低预算' : brief.profile.budgetTier === 'standard' ? '标准制作' : '高规格制作'}</div>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {brief.nextStep === 'import_source' ? '下一步：导入拥有授权的小说或剧本正文；目前未创建任何空章节。' : brief.nextStep === 'create_direct_adaptation' ? '下一步：直接创建第一季与剧本生产路径，无需先写小说章节。' : '下一步：补全故事设定或开始写第一章，再进入改编。'}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {brief.nextStep === 'import_source' && <Button size="sm" variant="outline" onClick={() => setSourceImportOpen(true)}><FilePlus2 />导入授权正文</Button>}
+                        {brief.nextStep === 'create_direct_adaptation' && <Button size="sm" variant="outline" onClick={() => navigate(`/adaptations/new?source=${project.id}&mode=direct`)}>创建第一季</Button>}
+                      </div>
+                    </div>
+                  )
+                })()}
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">AI 生成 / 补全项目设定</span>
+                  </div>
+                  <Textarea
+                    value={generateIdea}
+                    onChange={(e) => setGenerateIdea(e.target.value)}
+                    placeholder="一句话描述你的想法（可选），留空则根据现有类型生成…"
+                    rows={2}
+                    className="mb-2 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => runGenerate('generate_project', generateIdea)}
+                    disabled={generating !== null}
+                  >
+                    {generating === 'generate_project' ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                    生成项目设定
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-y-2">
+                  <Meta label="短剧类型" value={project.shortDramaType} />
+                  <Meta label="目标受众" value={project.targetAudience} />
+                  <Meta label="目标字数" value={project.targetWordCount} />
+                  <Meta label="目标集数" value={project.targetEpisodeCount} />
+                  <Meta label="一句话卖点" value={project.coreHook} />
+                  <Meta label="情绪主轴" value={project.emotionalCore} />
+                  <Meta label="核心爽点" value={project.coreSellingPoint} />
+                  <Meta label="视觉风格方向" value={project.visualStyleDirection} />
+                </div>
+                <div>
+                  <div className="mb-1 font-medium text-muted-foreground">故事简介</div>
+                  <p className="whitespace-pre-wrap">{project.synopsis || '（暂无）'}</p>
+                </div>
+                <div>
+                  <div className="mb-1 font-medium text-muted-foreground">小说风格要求</div>
+                  <p className="whitespace-pre-wrap">{project.styleGuide || '（暂无）'}</p>
+                </div>
               </div>
             </ScrollArea>
           )}
@@ -1321,11 +1620,63 @@ export function WorkspacePage() {
         running={paletteCommandRunning}
         onClose={() => setPendingPaletteCommand(null)}
       />
+      <SourceImportDialog
+        projectId={project.id}
+        open={sourceImportOpen}
+        onOpenChange={setSourceImportOpen}
+        onImported={({ adaptationProjectId }) => {
+          void loadProject()
+          setDataVersion((value) => value + 1)
+          if (adaptationProjectId) navigate(`/adaptations/${adaptationProjectId}`)
+        }}
+      />
     </>
   )
 }
 
+function Meta({ label, value }: { label: string; value?: string | number }) {
+  return (
+    <div>
+      <span className="text-muted-foreground">{label}：</span>
+      <span>{value ?? '—'}</span>
+    </div>
+  )
+}
 
+function TaskZonePanel({
+  title,
+  description,
+  items,
+}: {
+  title: string
+  description: string
+  items: Array<{ title: string; detail: string; action: () => void }>
+}) {
+  return (
+    <ScrollArea className="h-full">
+      <div className="mx-auto max-w-3xl space-y-4 p-6">
+        <div>
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {items.map((item) => (
+            <button
+              key={item.title}
+              type="button"
+              onClick={item.action}
+              className="rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <div className="font-medium">{item.title}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{item.detail}</div>
+              <div className="mt-3 text-xs font-medium text-primary">打开 →</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </ScrollArea>
+  )
+}
 
 function WorkflowStageRow({
   index,

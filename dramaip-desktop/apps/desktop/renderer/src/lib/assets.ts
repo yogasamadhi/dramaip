@@ -10,8 +10,12 @@ export const ASSET_KIND_LABEL: Record<ProjectAsset['kind'], string> = {
   cover_image: '封面图',
   first_frame_image: '首帧图',
   narration_audio: '旁白音频',
+  dialogue_audio: '对白音频',
+  bgm_audio: 'BGM',
+  sfx_audio: '音效',
   subtitle_file: '字幕文件',
   source_media: '源媒体',
+  rights_evidence: '授权证明',
   other: '其他',
 }
 

@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS projects (
   synopsis TEXT,
   style_guide TEXT,
   visual_style_direction TEXT,
+  genre_opportunity TEXT,
+  production_brief TEXT,
   deleted_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -241,6 +243,44 @@ CREATE TABLE IF NOT EXISTS foreshadowings (
   description TEXT NOT NULL,
   payoff_plan TEXT,
   related_character_ids TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS story_bible_settings (
+  project_id TEXT PRIMARY KEY,
+  auto_suggest INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS story_bible_change_sets (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  source_chapter_updated_at TEXT NOT NULL,
+  source_content_hash TEXT NOT NULL,
+  task_id TEXT,
+  status TEXT NOT NULL,
+  estimated_tokens INTEGER,
+  estimated_cost REAL,
+  currency TEXT,
+  payload TEXT,
+  conflicts TEXT NOT NULL DEFAULT '[]',
+  undo_payload TEXT,
+  error_message TEXT,
+  applied_at TEXT,
+  undone_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS story_bible_stale_marks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  chapter_id TEXT NOT NULL,
+  target_kind TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  resolved_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -490,6 +530,7 @@ CREATE TABLE IF NOT EXISTS video_generation_tasks (
   episode_id TEXT,
   scene_id TEXT,
   shot_id TEXT,
+  lineage_id TEXT,
   provider TEXT NOT NULL,
   model TEXT NOT NULL,
   prompt TEXT NOT NULL DEFAULT '',
@@ -547,6 +588,147 @@ CREATE TABLE IF NOT EXISTS project_assets (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS asset_rights_records (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  rightsholder TEXT,
+  source TEXT,
+  rights_types TEXT NOT NULL DEFAULT '[]',
+  permitted_uses TEXT NOT NULL DEFAULT '[]',
+  platforms TEXT NOT NULL DEFAULT '[]',
+  regions TEXT NOT NULL DEFAULT '[]',
+  valid_from TEXT,
+  valid_until TEXT,
+  evidence_asset_id TEXT,
+  evidence_sha256 TEXT,
+  ai_generated INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  reviewed_at TEXT,
+  review_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS visual_asset_versions (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  owner_kind TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  label TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'candidate',
+  notes TEXT,
+  adopted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shot_visual_asset_locks (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  shot_id TEXT NOT NULL,
+  visual_asset_version_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  stale_at TEXT,
+  stale_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shot_still_candidates (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  shot_id TEXT NOT NULL,
+  asset_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'candidate',
+  label TEXT NOT NULL,
+  notes TEXT,
+  source_fingerprint TEXT,
+  stale_at TEXT,
+  stale_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS animatic_drafts (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  adaptation_project_id TEXT NOT NULL,
+  episode_id TEXT NOT NULL,
+  version_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  source_fingerprint TEXT NOT NULL,
+  clips TEXT NOT NULL DEFAULT '[]',
+  annotations TEXT NOT NULL DEFAULT '[]',
+  review_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS voice_profiles (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, character_id TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate',
+  voice_tone TEXT, speed REAL, emotion TEXT, language TEXT, pronunciation_dictionary TEXT NOT NULL DEFAULT '{}', sample_asset_id TEXT, notes TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audio_tracks (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+  kind TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version_number INTEGER NOT NULL,
+  source_fingerprint TEXT NOT NULL, clips TEXT NOT NULL DEFAULT '[]', stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS generation_lineages (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  adaptation_project_id TEXT,
+  episode_id TEXT,
+  scene_id TEXT,
+  shot_id TEXT,
+  media_type TEXT NOT NULL,
+  task_kind TEXT NOT NULL,
+  task_id TEXT,
+  parent_lineage_id TEXT,
+  retry_of_lineage_id TEXT,
+  source_entity_kind TEXT,
+  source_entity_id TEXT,
+  source_version TEXT,
+  source_snapshot TEXT NOT NULL DEFAULT '{}',
+  provider_snapshot TEXT NOT NULL DEFAULT '{}',
+  parameter_snapshot TEXT NOT NULL DEFAULT '{}',
+  reference_assets TEXT NOT NULL DEFAULT '[]',
+  seed TEXT,
+  completeness TEXT NOT NULL DEFAULT 'unknown',
+  adopted_output_kind TEXT,
+  adopted_output_id TEXT,
+  adopted_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS generation_cost_entries (
+  id TEXT PRIMARY KEY,
+  project_id TEXT,
+  adaptation_project_id TEXT,
+  episode_id TEXT,
+  scene_id TEXT,
+  shot_id TEXT,
+  lineage_id TEXT,
+  task_id TEXT,
+  media_type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'unknown',
+  currency TEXT,
+  estimated_cost REAL,
+  actual_cost REAL,
+  estimate_basis TEXT,
+  actual_cost_note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS agent_profiles (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -585,6 +767,16 @@ CREATE TABLE IF NOT EXISTS genre_presets (
   shot_prompt_advice TEXT NOT NULL,
   ai_video_risks TEXT NOT NULL,
   built_in INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS genre_market_snapshots (
+  version TEXT PRIMARY KEY,
+  observed_at TEXT NOT NULL,
+  sources TEXT NOT NULL,
+  opportunities TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

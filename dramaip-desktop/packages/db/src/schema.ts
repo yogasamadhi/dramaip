@@ -15,6 +15,8 @@ export const projects = sqliteTable('projects', {
   styleGuide: text('style_guide'),
   visualStyleDirection: text('visual_style_direction'),
   activeAdaptationId: text('active_adaptation_id'),
+  genreOpportunity: text('genre_opportunity'),
+  productionBrief: text('production_brief'),
   /** 移入废纸篓的时间；为空表示项目正常可用。 */
   deletedAt: text('deleted_at'),
   createdAt: text('created_at').notNull(),
@@ -196,7 +198,7 @@ export const aiBudgetSettings = sqliteTable('ai_budget_settings', {
 
 export const longTasks = sqliteTable('long_tasks', {
   id: text('id').primaryKey(),
-  kind: text('kind', { enum: ['ai', 'video', 'batch'] }).notNull(),
+  kind: text('kind', { enum: ['ai', 'image', 'audio', 'video', 'batch'] }).notNull(),
   status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
   title: text('title').notNull(),
   taskType: text('task_type'),
@@ -222,6 +224,32 @@ export const modelConfigs = sqliteTable('model_configs', {
   baseUrl: text('base_url').notNull(),
   apiKey: text('api_key').notNull().default(''),
   model: text('model').notNull(),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-10：图片 Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
+export const imageProviderConfigs = sqliteTable('image_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  featureEnabled: integer('feature_enabled', { mode: 'boolean' }).notNull().default(false),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-14：TTS Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
+export const ttsProviderConfigs = sqliteTable('tts_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  featureEnabled: integer('feature_enabled', { mode: 'boolean' }).notNull().default(false),
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -315,6 +343,46 @@ export const foreshadowings = sqliteTable('foreshadowings', {
   description: text('description').notNull(),
   payoffPlan: text('payoff_plan'),
   relatedCharacterIds: text('related_character_ids').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// LM5-05：故事圣经变更包。AI 结果先以草案保存，采用时才写入记忆/状态/时间线等实体。
+export const storyBibleSettings = sqliteTable('story_bible_settings', {
+  projectId: text('project_id').primaryKey(),
+  autoSuggest: integer('auto_suggest', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const storyBibleChangeSets = sqliteTable('story_bible_change_sets', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  sourceChapterUpdatedAt: text('source_chapter_updated_at').notNull(),
+  sourceContentHash: text('source_content_hash').notNull(),
+  taskId: text('task_id'),
+  status: text('status').notNull(),
+  estimatedTokens: integer('estimated_tokens'),
+  estimatedCost: real('estimated_cost'),
+  currency: text('currency'),
+  payload: text('payload'),
+  conflicts: text('conflicts').notNull().default('[]'),
+  undoPayload: text('undo_payload'),
+  errorMessage: text('error_message'),
+  appliedAt: text('applied_at'),
+  undoneAt: text('undone_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** 章节变化产生的下游回填提醒；不改写原有诊断记录。 */
+export const storyBibleStaleMarks = sqliteTable('story_bible_stale_marks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  targetKind: text('target_kind', { enum: ['story_bible', 'diagnostic'] }).notNull(),
+  reason: text('reason').notNull(),
+  resolvedAt: text('resolved_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -580,6 +648,7 @@ export const videoGenerationTasks = sqliteTable('video_generation_tasks', {
   episodeId: text('episode_id'),
   sceneId: text('scene_id'),
   shotId: text('shot_id'),
+  lineageId: text('lineage_id'),
   provider: text('provider').notNull(),
   model: text('model').notNull(),
   prompt: text('prompt').notNull().default(''),
@@ -625,8 +694,12 @@ export const projectAssets = sqliteTable('project_assets', {
       'cover_image',
       'first_frame_image',
       'narration_audio',
+      'dialogue_audio',
+      'bgm_audio',
+      'sfx_audio',
       'subtitle_file',
       'source_media',
+      'rights_evidence',
       'other',
     ],
   }).notNull(),
@@ -648,6 +721,142 @@ export const projectAssets = sqliteTable('project_assets', {
   metadata: text('metadata').notNull().default('{}'),
   status: text('status', { enum: ['available', 'missing', 'remote_only'] }).notNull().default('available'),
   packagePolicy: text('package_policy', { enum: ['exclude', 'reference_only', 'include_binary'] }).notNull().default('reference_only'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-08：证据与媒体本体分离的权利台账。每个资产最多一条当前权利记录。 */
+export const assetRightsRecords = sqliteTable('asset_rights_records', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  rightsholder: text('rightsholder'),
+  source: text('source'),
+  rightsTypes: text('rights_types').notNull().default('[]'),
+  permittedUses: text('permitted_uses').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  regions: text('regions').notNull().default('[]'),
+  validFrom: text('valid_from'),
+  validUntil: text('valid_until'),
+  evidenceAssetId: text('evidence_asset_id'),
+  evidenceSha256: text('evidence_sha256'),
+  aiGenerated: integer('ai_generated', { mode: 'boolean' }).notNull().default(false),
+  status: text('status', { enum: ['verified', 'declared', 'unknown', 'expired', 'restricted'] }).notNull().default('unknown'),
+  reviewedAt: text('reviewed_at'),
+  reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const visualAssetVersions = sqliteTable('visual_asset_versions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  ownerKind: text('owner_kind', { enum: ['visual_profile', 'visual_setting'] }).notNull(),
+  ownerId: text('owner_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  slot: text('slot').notNull(),
+  label: text('label').notNull(),
+  versionNumber: integer('version_number').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  notes: text('notes'),
+  adoptedAt: text('adopted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotVisualAssetLocks = sqliteTable('shot_visual_asset_locks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  shotId: text('shot_id').notNull(),
+  visualAssetVersionId: text('visual_asset_version_id').notNull(),
+  role: text('role').notNull(),
+  staleAt: text('stale_at'),
+  staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotStillCandidates = sqliteTable('shot_still_candidates', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), shotId: text('shot_id').notNull(), assetId: text('asset_id').notNull(),
+  kind: text('kind', { enum: ['still', 'first_frame', 'last_frame', 'cover'] }).notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  label: text('label').notNull(), notes: text('notes'), sourceFingerprint: text('source_fingerprint'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const animaticDrafts = sqliteTable('animatic_drafts', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  versionNumber: integer('version_number').notNull(), status: text('status', { enum: ['draft', 'approved', 'returned'] }).notNull().default('draft'),
+  sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), annotations: text('annotations').notNull().default('[]'), reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const voiceProfiles = sqliteTable('voice_profiles', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), characterId: text('character_id'), label: text('label').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  voiceTone: text('voice_tone'), speed: real('speed'), emotion: text('emotion'), language: text('language'), pronunciationDictionary: text('pronunciation_dictionary').notNull().default('{}'), sampleAssetId: text('sample_asset_id'), notes: text('notes'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const audioTracks = sqliteTable('audio_tracks', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  kind: text('kind', { enum: ['dialogue', 'narration', 'bgm', 'sfx'] }).notNull(), label: text('label').notNull(), status: text('status', { enum: ['draft', 'adopted', 'superseded', 'stale'] }).notNull().default('draft'), versionNumber: integer('version_number').notNull(), sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const localizationVariants = sqliteTable('localization_variants', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  targetLocale: text('target_locale').notNull(), targetRegion: text('target_region'), label: text('label').notNull(), status: text('status').notNull().default('draft'), sourceFingerprint: text('source_fingerprint').notNull(),
+  title: text('title').notNull(), description: text('description'), glossary: text('glossary').notNull().default('{}'), culturalNotes: text('cultural_notes').notNull().default('[]'), cues: text('cues').notNull().default('[]'),
+  voiceProfileId: text('voice_profile_id'), audioCandidateNote: text('audio_candidate_note'), reviewedAt: text('reviewed_at'), reviewNote: text('review_note'), staleAt: text('stale_at'), staleReason: text('stale_reason'), createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+// LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
+// 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
+export const generationLineages = sqliteTable('generation_lineages', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  mediaType: text('media_type').notNull(),
+  taskKind: text('task_kind').notNull(),
+  taskId: text('task_id'),
+  parentLineageId: text('parent_lineage_id'),
+  retryOfLineageId: text('retry_of_lineage_id'),
+  sourceEntityKind: text('source_entity_kind'),
+  sourceEntityId: text('source_entity_id'),
+  sourceVersion: text('source_version'),
+  sourceSnapshot: text('source_snapshot').notNull().default('{}'),
+  providerSnapshot: text('provider_snapshot').notNull().default('{}'),
+  parameterSnapshot: text('parameter_snapshot').notNull().default('{}'),
+  referenceAssets: text('reference_assets').notNull().default('[]'),
+  seed: text('seed'),
+  completeness: text('completeness').notNull().default('unknown'),
+  adoptedOutputKind: text('adopted_output_kind'),
+  adoptedOutputId: text('adopted_output_id'),
+  adoptedAt: text('adopted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const generationCostEntries = sqliteTable('generation_cost_entries', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  lineageId: text('lineage_id'),
+  taskId: text('task_id'),
+  mediaType: text('media_type').notNull(),
+  status: text('status').notNull().default('unknown'),
+  currency: text('currency'),
+  estimatedCost: real('estimated_cost'),
+  actualCost: real('actual_cost'),
+  estimateBasis: text('estimate_basis'),
+  actualCostNote: text('actual_cost_note'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -694,6 +903,20 @@ export const genrePresets = sqliteTable('genre_presets', {
   shotPromptAdvice: text('shot_prompt_advice').notNull(),
   aiVideoRisks: text('ai_video_risks').notNull(),
   builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/**
+ * 离线题材市场快照：保留每一个导入版本，active 仅指向当前用于新项目的版本。
+ * 项目自身会保存选择时的副本，切换 active 不会改写历史项目。
+ */
+export const genreMarketSnapshots = sqliteTable('genre_market_snapshots', {
+  version: text('version').primaryKey(),
+  observedAt: text('observed_at').notNull(),
+  sources: text('sources').notNull(),
+  opportunities: text('opportunities').notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 })
@@ -871,6 +1094,100 @@ export const qualityIssueAcknowledgements = sqliteTable('quality_issue_acknowled
   note: text('note'),
   actorLabel: text('actor_label').notNull(),
   createdAt: text('created_at').notNull(),
+})
+
+/** Versioned, offline compliance profiles. The selected delivery task snapshots its exact version. */
+export const complianceRuleProfiles = sqliteTable('compliance_rule_profiles', {
+  id: text('id').primaryKey(),
+  version: text('version').notNull().unique(),
+  title: text('title').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  sourceStatus: text('source_status', { enum: ['official', 'consultation', 'platform_guidance', 'unknown'] }).notNull(),
+  publishedAt: text('published_at').notNull(),
+  effectiveAt: text('effective_at'),
+  regions: text('regions').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  requiredVisibleLabel: text('required_visible_label').notNull(),
+  requiredMetadataKeys: text('required_metadata_keys').notNull().default('[]'),
+  contentChecksum: text('content_checksum').notNull(),
+  signature: text('signature').notNull(),
+  integrityStatus: text('integrity_status', { enum: ['verified', 'unchecked', 'invalid'] }).notNull().default('unchecked'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** Creative metadata variants and immutable platform-delivery archive pointers. */
+export const deliveryCreativeVariants = sqliteTable('delivery_creative_variants', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  label: text('label').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  tags: text('tags').notNull().default('[]'),
+  coverAssetId: text('cover_asset_id'),
+  source: text('source', { enum: ['manual', 'ai_draft'] }).notNull().default('manual'),
+  status: text('status', { enum: ['candidate', 'adopted', 'archived'] }).notNull().default('candidate'),
+  versionNumber: integer('version_number').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const platformDeliveryExports = sqliteTable('platform_delivery_exports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  profileId: text('profile_id').notNull(),
+  profileVersion: text('profile_version').notNull(),
+  creativeVariantId: text('creative_variant_id').notNull(),
+  complianceTaskId: text('compliance_task_id').notNull(),
+  deliveryVersion: integer('delivery_version').notNull(),
+  outputDirectory: text('output_directory').notNull(),
+  manifestPath: text('manifest_path').notNull(),
+  sourceFingerprint: text('source_fingerprint').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+/** User-selected operational exports and comments stay local; derived clusters are separately removable. */
+export const feedbackImportBatches = sqliteTable('feedback_import_batches', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  kind: text('kind', { enum: ['metrics', 'comments'] }).notNull(),
+  sourceName: text('source_name').notNull(),
+  platform: text('platform').notNull(),
+  sourceVersion: text('source_version'),
+  timeWindowStart: text('time_window_start'),
+  timeWindowEnd: text('time_window_end'),
+  privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  contentSha256: text('content_sha256').notNull(),
+  importedRecordCount: integer('imported_record_count').notNull().default(0),
+  skippedDuplicateCount: integer('skipped_duplicate_count').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+})
+
+export const feedbackMetrics = sqliteTable('feedback_metrics', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), metricKey: text('metric_key').notNull(),
+  metricLabel: text('metric_label').notNull(), definition: text('definition').notNull(), value: real('value').notNull(),
+  denominator: real('denominator'), targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'),
+  variantKey: text('variant_key'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackComments = sqliteTable('feedback_comments', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), externalId: text('external_id'), authorAlias: text('author_alias'),
+  text: text('text').notNull(), privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackCommentClusters = sqliteTable('feedback_comment_clusters', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(), label: text('label').notNull(),
+  summary: text('summary').notNull(), tone: text('tone', { enum: ['positive', 'negative', 'mixed', 'unknown'] }).notNull(),
+  method: text('method', { enum: ['keyword-v1', 'ai'] }).notNull(), commentIds: text('comment_ids').notNull().default('[]'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), createdAt: text('created_at').notNull(),
 })
 
 export const audienceSimulations = sqliteTable('audience_simulations', {

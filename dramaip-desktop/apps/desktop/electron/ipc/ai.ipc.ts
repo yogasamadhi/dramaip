@@ -132,6 +132,10 @@ export async function runAiTask(
       repos.longTask.finishLongTask(repos.db, longTaskId, 'canceled', { errorMessage: '任务已取消' })
       return failedAiResult(longTaskId, '任务已取消')
     }
+    if (input.taskType === 'propose_story_bible_changes' && result.ok && result.result?.kind === 'story_bible_change_set') {
+      const changeSetId = (result.result.data as { id?: unknown } | undefined)?.id
+      if (typeof changeSetId === 'string') repos.storyBible.attachStoryBibleChangeSetTask(repos.db, changeSetId, result.aiRunId ?? longTaskId)
+    }
     finishAiLongTask(repos, longTaskId, result)
     logger.info('ai', 'run finished', { longTaskId, taskType: input.taskType, ok: result.ok, aiRunId: result.aiRunId })
     return { ...result, longTaskId }

@@ -44,11 +44,69 @@ import {
   audienceSimulations,
   narrativeCurveReports,
   workflowRuns,
+  storyBibleChangeSets,
+  storyBibleSettings,
+  storyBibleStaleMarks,
+  deliveryCreativeVariants,
+  platformDeliveryExports,
+  feedbackImportBatches,
+  feedbackMetrics,
+  feedbackComments,
+  feedbackCommentClusters,
+  localizationVariants,
 } from '../schema'
-import { isProjectSetupComplete, type AdaptationProject, type OptionalId, type Project, type ProjectDeletionPreview, type ProjectHomeSummary, type TrashedProject } from '@sdns/core'
+import {
+  createCompatibleProjectProductionBrief,
+  createProjectProductionBrief,
+  isProjectSetupComplete,
+  type AdaptationProject,
+  type GenreOpportunitySelection,
+  type OptionalId,
+  type Project,
+  type ProjectDeletionPreview,
+  type ProjectHomeSummary,
+  type ProjectProductionBrief,
+  type TrashedProject,
+} from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
+
+function parseGenreOpportunity(value: string | null): GenreOpportunitySelection | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as Partial<GenreOpportunitySelection>
+    if (
+      typeof parsed.snapshotVersion !== 'string' ||
+      typeof parsed.snapshotObservedAt !== 'string' ||
+      !parsed.opportunity ||
+      typeof parsed.opportunity.id !== 'string' ||
+      typeof parsed.opportunity.genreName !== 'string'
+    ) return undefined
+    return parsed as GenreOpportunitySelection
+  } catch {
+    return undefined
+  }
+}
+
+function parseProductionBrief(value: string | null, project: Pick<Project, 'shortDramaType'>): ProjectProductionBrief {
+  if (!value) return createCompatibleProjectProductionBrief(project)
+  try {
+    return createProjectProductionBrief(JSON.parse(value) as ProjectProductionBrief)
+  } catch {
+    return createCompatibleProjectProductionBrief(project)
+  }
+}
+
+function projectRowToEntity(row: ProjectRow): Project {
+  const { genreOpportunity, productionBrief, ...project } = row
+  const projectEntity = project as unknown as Project
+  return {
+    ...projectEntity,
+    genreOpportunity: parseGenreOpportunity(genreOpportunity),
+    productionBrief: parseProductionBrief(productionBrief, projectEntity),
+  }
+}
 
 export interface ActiveAdaptationResolution {
   adaptation?: AdaptationProject
@@ -68,12 +126,13 @@ function preferredAdaptation(adaptations: AdaptationProject[]): AdaptationProjec
 }
 
 export function listProjects(db: DB): Project[] {
-  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all() as unknown as Project[]
+  return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all()
+    .map((row) => projectRowToEntity(row as ProjectRow))
 }
 
 export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
   return db.select().from(projects).where(isNull(projects.deletedAt)).orderBy(desc(projects.updatedAt)).all().map((row) => {
-    const project = row as unknown as Project
+    const project = projectRowToEntity(row as ProjectRow)
     const projectChapters = db.select().from(chapters).where(eq(chapters.projectId, project.id)).orderBy(desc(chapters.updatedAt)).all()
     const projectAdaptations = db.select().from(adaptationProjects).where(eq(adaptationProjects.sourceProjectId, project.id)).all()
     const adaptation = project.activeAdaptationId
@@ -172,12 +231,12 @@ export function setActiveAdaptation(
     .where(and(eq(projects.id, projectId), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 export function getProject(db: DB, id: string): Project | undefined {
   const row = db.select().from(projects).where(and(eq(projects.id, id), isNull(projects.deletedAt))).get()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 export function createProject(db: DB, data: OptionalId<Project>): Project {
@@ -197,10 +256,12 @@ export function createProject(db: DB, data: OptionalId<Project>): Project {
     synopsis: data.synopsis ?? null,
     styleGuide: data.styleGuide ?? null,
     visualStyleDirection: data.visualStyleDirection ?? null,
+    genreOpportunity: data.genreOpportunity ? JSON.stringify(data.genreOpportunity) : null,
+    productionBrief: JSON.stringify(createProjectProductionBrief(data.productionBrief)),
     deletedAt: null,
   }
   const [row] = insertRow(db, projects, value)
-  return row as unknown as Project
+  return projectRowToEntity(row as ProjectRow)
 }
 
 export function updateProject(
@@ -208,18 +269,26 @@ export function updateProject(
   id: string,
   patch: Partial<OptionalId<Project>>,
 ): Project | undefined {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, ...safePatch } = patch as Partial<OptionalId<Project>> & {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, deletedAt: _deletedAt, activeAdaptationId: _activeAdaptationId, genreOpportunity, productionBrief, ...safePatch } = patch as Partial<OptionalId<Project>> & {
     id?: string
     createdAt?: string
     updatedAt?: string
     deletedAt?: string
     activeAdaptationId?: string
+    genreOpportunity?: GenreOpportunitySelection
+    productionBrief?: ProjectProductionBrief
   }
-  const [row] = updateRows(db, projects, { ...safePatch, updatedAt: now() })
+  const fields = {
+    ...safePatch,
+    ...(genreOpportunity === undefined ? {} : { genreOpportunity: genreOpportunity ? JSON.stringify(genreOpportunity) : null }),
+    ...(productionBrief === undefined ? {} : { productionBrief: JSON.stringify(createProjectProductionBrief(productionBrief)) }),
+    updatedAt: now(),
+  }
+  const [row] = updateRows(db, projects, fields)
     .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 /** 移入废纸篓不会触碰任何关联记录，恢复后所有内容保持原样。 */
@@ -229,11 +298,12 @@ export function trashProject(db: DB, id: string): TrashedProject | undefined {
     .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
     .returning()
     .all()
-  return row ? row as unknown as TrashedProject : undefined
+  return row ? projectRowToEntity(row as ProjectRow) as TrashedProject : undefined
 }
 
 export function listTrashedProjects(db: DB): TrashedProject[] {
-  return db.select().from(projects).where(isNotNull(projects.deletedAt)).orderBy(desc(projects.deletedAt)).all() as unknown as TrashedProject[]
+  return db.select().from(projects).where(isNotNull(projects.deletedAt)).orderBy(desc(projects.deletedAt)).all()
+    .map((row) => projectRowToEntity(row as ProjectRow) as TrashedProject)
 }
 
 export function restoreProject(db: DB, id: string): Project | undefined {
@@ -241,7 +311,7 @@ export function restoreProject(db: DB, id: string): Project | undefined {
     .where(and(eq(projects.id, id), isNotNull(projects.deletedAt)))
     .returning()
     .all()
-  return (row as unknown as Project) ?? undefined
+  return row ? projectRowToEntity(row as ProjectRow) : undefined
 }
 
 /**
@@ -301,6 +371,13 @@ function deleteProjectRows(db: DB, id: string): void {
 
   for (const adaptationId of adaptationIds) deleteAdaptationChildren(db, adaptationId)
   deleteVideoTasksByProject(db, id)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.projectId, id)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.projectId, id)).run()
+  db.delete(feedbackCommentClusters).where(eq(feedbackCommentClusters.projectId, id)).run()
+  db.delete(feedbackMetrics).where(eq(feedbackMetrics.projectId, id)).run()
+  db.delete(feedbackComments).where(eq(feedbackComments.projectId, id)).run()
+  db.delete(feedbackImportBatches).where(eq(feedbackImportBatches.projectId, id)).run()
+  db.delete(localizationVariants).where(eq(localizationVariants.projectId, id)).run()
 
   db.delete(chapters).where(eq(chapters.projectId, id)).run()
   db.delete(characters).where(eq(characters.projectId, id)).run()
@@ -320,6 +397,9 @@ function deleteProjectRows(db: DB, id: string): void {
   db.delete(visualSettings).where(eq(visualSettings.projectId, id)).run()
   db.delete(storyEvents).where(eq(storyEvents.projectId, id)).run()
   db.delete(foreshadowings).where(eq(foreshadowings.projectId, id)).run()
+  db.delete(storyBibleChangeSets).where(eq(storyBibleChangeSets.projectId, id)).run()
+  db.delete(storyBibleSettings).where(eq(storyBibleSettings.projectId, id)).run()
+  db.delete(storyBibleStaleMarks).where(eq(storyBibleStaleMarks.projectId, id)).run()
   db.delete(beats).where(eq(beats.projectId, id)).run()
   db.delete(highlightAnalyses).where(eq(highlightAnalyses.projectId, id)).run()
   db.delete(aiVideoFeasibilityReports).where(eq(aiVideoFeasibilityReports.projectId, id)).run()
@@ -353,6 +433,8 @@ function deleteAdaptationChildren(db: DB, adaptationId: string): void {
 
   for (const scriptId of scriptIds) deleteScriptChildren(db, scriptId)
   for (const episodeId of episodeIds) deleteVideoTasksByEpisode(db, episodeId)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.adaptationProjectId, adaptationId)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.adaptationProjectId, adaptationId)).run()
 
   // 部分报告/任务只记录改编 ID，最终清理也必须覆盖这些记录。
   db.delete(longTasks).where(eq(longTasks.adaptationProjectId, adaptationId)).run()

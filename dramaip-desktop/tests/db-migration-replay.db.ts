@@ -12,8 +12,10 @@ import {
   type MigrationRaw,
 } from '../packages/db/src/migrator'
 import { createDb, createRepositories } from '../packages/db/src'
-import type { TextDiffPreviewPayload } from '@sdns/core'
+import { BUILT_IN_COMPLIANCE_RULE_PROFILES, createProjectProductionBrief, DEFAULT_GENRE_MARKET_SNAPSHOT, localizationSourceFingerprint, type FeedbackImportPreview, type TextDiffPreviewPayload } from '@sdns/core'
 import { applyGeneratedArtifact } from '../packages/ai/src/persistence'
+import { collectProjectPackage, importProjectPackage, serializeProjectPackage } from '../packages/export/src/project-package'
+import { createFeedbackRevisionTask } from '../apps/desktop/electron/feedback'
 
 interface RawBetterSqliteDatabase {
   close(): void
@@ -129,6 +131,8 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'projects').includes('visual_style_direction'))
     assert.ok(columns(raw, 'projects').includes('deleted_at'))
     assert.ok(columns(raw, 'projects').includes('active_adaptation_id'))
+    assert.ok(columns(raw, 'projects').includes('genre_opportunity'))
+    assert.ok(columns(raw, 'projects').includes('production_brief'))
     assert.ok(columns(raw, 'characters').includes('appearance_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('casting_prompt'))
     assert.ok(columns(raw, 'character_visual_profiles').includes('actor_reference_url'))
@@ -143,8 +147,29 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(columns(raw, 'adaptation_projects').includes('season_number'))
     assert.ok(columns(raw, 'adaptation_projects').includes('source_chapter_range'))
     assert.ok(columns(raw, 'video_results').includes('local_video_path'))
+    assert.ok(columns(raw, 'video_generation_tasks').includes('lineage_id'))
+    assert.ok(tableExists(raw, 'generation_lineages'))
+    assert.ok(tableExists(raw, 'generation_cost_entries'))
+    assert.ok(tableExists(raw, 'asset_rights_records'))
+    assert.ok(tableExists(raw, 'visual_asset_versions'))
+    assert.ok(tableExists(raw, 'shot_visual_asset_locks'))
+    assert.ok(tableExists(raw, 'shot_still_candidates'))
+    assert.ok(columns(raw, 'shot_still_candidates').includes('source_fingerprint'))
+    assert.ok(tableExists(raw, 'animatic_drafts'))
+    assert.ok(tableExists(raw, 'voice_profiles'))
+    assert.ok(tableExists(raw, 'audio_tracks'))
     assert.ok(tableExists(raw, 'long_tasks'))
+    assert.ok(tableExists(raw, 'image_provider_configs'))
+    assert.ok(tableExists(raw, 'tts_provider_configs'))
     assert.ok(tableExists(raw, 'quality_issue_acknowledgements'))
+    assert.ok(tableExists(raw, 'compliance_rule_profiles'))
+    assert.ok(tableExists(raw, 'delivery_creative_variants'))
+    assert.ok(tableExists(raw, 'platform_delivery_exports'))
+    assert.ok(tableExists(raw, 'feedback_import_batches'))
+    assert.ok(tableExists(raw, 'feedback_metrics'))
+    assert.ok(tableExists(raw, 'feedback_comments'))
+    assert.ok(tableExists(raw, 'feedback_comment_clusters'))
+    assert.ok(tableExists(raw, 'localization_variants'))
     assert.ok(tableExists(raw, 'ai_budget_settings'))
     assert.ok(tableExists(raw, 'credential_migration_audit'))
     assert.deepEqual(columns(raw, 'credential_migration_audit'), [
@@ -178,12 +203,161 @@ test('replays all migrations from a legacy v0 fixture and is idempotent', () => 
     assert.ok(tableExists(raw, 'inspiration_favorites'))
     assert.ok(columns(raw, 'inspiration_favorites').includes('card_key'))
     assert.ok(columns(raw, 'inspiration_favorites').includes('source_kind'))
+    assert.ok(tableExists(raw, 'genre_market_snapshots'))
+    assert.ok(tableExists(raw, 'story_bible_settings'))
+    assert.ok(tableExists(raw, 'story_bible_change_sets'))
+    assert.ok(tableExists(raw, 'story_bible_stale_marks'))
 
     assert.deepEqual(runMigrations(migrationRaw(raw)), [])
     assert.deepEqual(appliedVersions(raw), applied)
   } finally {
     closeAndRemove(raw, dir)
   }
+})
+
+test('verifies signed offline rule profiles and never promotes consultation or tampered packs', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const official = BUILT_IN_COMPLIANCE_RULE_PROFILES[0]
+    const consultation = BUILT_IN_COMPLIANCE_RULE_PROFILES[1]
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, [official, consultation])
+    assert.equal(fixture.repos.compliance.getActiveComplianceRuleProfile(fixture.db)?.id, official.id)
+    assert.equal(fixture.repos.compliance.activateComplianceRuleProfile(fixture.db, consultation.id), undefined)
+    const persistedOfficial = fixture.repos.compliance.getComplianceRuleProfile(fixture.db, official.id)
+    assert.equal(persistedOfficial && fixture.repos.compliance.isVerifiedComplianceRuleProfile({ ...persistedOfficial, title: '已篡改标题' }), false)
+
+    const previousOfficial = { ...official, id: 'cn-aigc-identification-previous', version: 'cn-aigc-identification/2025-08-01', active: false }
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, [previousOfficial])
+    assert.equal(fixture.repos.compliance.activateComplianceRuleProfile(fixture.db, previousOfficial.id), undefined)
+    fixture.repos.compliance.upsertBuiltInComplianceRuleProfiles(fixture.db, BUILT_IN_COMPLIANCE_RULE_PROFILES)
+    assert.equal(fixture.repos.compliance.getActiveComplianceRuleProfile(fixture.db)?.id, official.id)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('versions platform delivery creative variants and preserves distinct delivery archives', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const base = { projectId: fixture.project.id, adaptationProjectId: fixture.adaptation.id, description: '第一集公开反击。', tags: ['反转'], source: 'manual' as const }
+    const first = fixture.repos.platformDelivery.createDeliveryCreativeVariant(fixture.db, { ...base, label: '方案 A', title: '归来反击' })
+    const second = fixture.repos.platformDelivery.createDeliveryCreativeVariant(fixture.db, { ...base, label: '方案 B', title: '先婚后爱反转' })
+    assert.equal(first.versionNumber, 1)
+    assert.equal(second.versionNumber, 2)
+    assert.equal(fixture.repos.platformDelivery.adoptDeliveryCreativeVariant(fixture.db, first.id)?.status, 'adopted')
+    assert.equal(fixture.repos.platformDelivery.adoptDeliveryCreativeVariant(fixture.db, second.id)?.status, 'adopted')
+    assert.equal(fixture.repos.platformDelivery.getDeliveryCreativeVariant(fixture.db, first.id)?.status, 'archived')
+    const common = { projectId: fixture.project.id, adaptationProjectId: fixture.adaptation.id, episodeId: fixture.episode.id, profileId: 'douyin-manual-submission-2026-07', profileVersion: 'douyin-manual-submission/2026-07', creativeVariantId: second.id, complianceTaskId: 'compliance-1', sourceFingerprint: 'delivery@1' }
+    const export1 = fixture.repos.platformDelivery.createPlatformDeliveryExport(fixture.db, { ...common, deliveryVersion: 1, outputDirectory: '/tmp/delivery-v001', manifestPath: '/tmp/delivery-v001/delivery-manifest.json' })
+    const export2 = fixture.repos.platformDelivery.createPlatformDeliveryExport(fixture.db, { ...common, deliveryVersion: 2, outputDirectory: '/tmp/delivery-v002', manifestPath: '/tmp/delivery-v002/delivery-manifest.json' })
+    assert.equal(fixture.repos.platformDelivery.listPlatformDeliveryExports(fixture.db, fixture.project.id, fixture.episode.id).length, 2)
+    assert.equal(fixture.repos.platformDelivery.getPlatformDeliveryExport(fixture.db, export1.id)?.outputDirectory, '/tmp/delivery-v001')
+    assert.equal(fixture.repos.platformDelivery.getPlatformDeliveryExport(fixture.db, export2.id)?.deliveryVersion, 2)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('imports feedback transactionally, deduplicates rows, keeps clusters removable, and creates a revision without changing content', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const metricPreview: FeedbackImportPreview = { kind: 'metrics', sourceName: 'douyin-week.csv', platform: '抖音', sourceVersion: 'week-1', contentSha256: 'metric-sha', metrics: [{ platform: '抖音', metricKey: 'plays', metricLabel: '播放量', definition: '源文件累计播放。', value: 1200, targetKind: 'episode', targetId: fixture.episode.id, recordedAt: '2026-07-23', variantKey: '标题 A', rowFingerprint: 'metric-1' }], comments: [], skippedRows: [], notices: [] }
+    const metrics = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: metricPreview })
+    assert.equal(metrics.importedMetricCount, 1)
+    assert.equal(fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: metricPreview }).duplicateBatch?.id, metrics.batch?.id)
+    const commentPreview: FeedbackImportPreview = { kind: 'comments', sourceName: 'comments.json', platform: '抖音', contentSha256: 'comment-sha', metrics: [], comments: [{ platform: '抖音', text: '反转很爽，但是节奏有点拖。联系 13800138000。', targetKind: 'episode', targetId: fixture.episode.id, rowFingerprint: 'comment-1' }], skippedRows: [], notices: [] }
+    const comments = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'redacted', preview: commentPreview })
+    assert.equal(comments.importedCommentCount, 1)
+    assert.match(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id)[0].text, /已脱敏手机号/)
+    const clusters = fixture.repos.feedback.createFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id })
+    assert.equal(clusters.length, 1)
+    const revision = createFeedbackRevisionTask(fixture.repos, { projectId: fixture.project.id, batchId: comments.batch!.id, clusterId: clusters[0].id })
+    assert.equal(revision.status, 'open')
+    assert.equal(revision.targetKind, 'script')
+    assert.equal(fixture.repos.script.getScriptByEpisode(fixture.db, fixture.episode.id)?.content, '原始剧本。')
+    const packageWithoutFeedback = collectProjectPackage(fixture.repos, fixture.project.id)
+    assert.equal(packageWithoutFeedback.feedback, undefined)
+    const packageWithFeedback = collectProjectPackage(fixture.repos, fixture.project.id, { includeFeedback: true })
+    assert.equal(packageWithFeedback.feedback?.comments.length, 1)
+    assert.equal(packageWithFeedback.feedback?.clusters.length, 1)
+    const restored = importProjectPackage(fixture.repos, serializeProjectPackage(packageWithFeedback))
+    const restoredBatches = fixture.repos.feedback.listFeedbackImportBatches(fixture.db, restored.id)
+    const restoredComments = fixture.repos.feedback.listFeedbackComments(fixture.db, restored.id)
+    const restoredClusters = fixture.repos.feedback.listFeedbackCommentClusters(fixture.db, restored.id)
+    assert.equal(restoredBatches.length, 2)
+    assert.match(restoredComments[0].text, /已脱敏手机号/)
+    assert.equal(restoredClusters.length, 1)
+    assert.ok(restoredClusters[0].commentIds.every((id) => restoredComments.some((comment) => comment.id === id)))
+    assert.ok(fixture.repos.creative.listRevisionTasks(fixture.db, restored.id).some((task) => task.sourceReportId === restoredBatches.find((batch) => batch.sourceName === 'comments.json')?.id))
+    assert.equal(fixture.repos.feedback.deleteFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id }), 1)
+    assert.equal(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id).length, 1)
+    assert.equal(fixture.repos.feedback.deleteFeedbackImportBatch(fixture.db, { projectId: fixture.project.id, batchId: comments.batch!.id }), true)
+    assert.equal(fixture.repos.feedback.listFeedbackComments(fixture.db, fixture.project.id).length, 0)
+    assert.equal(fixture.repos.feedback.listFeedbackMetrics(fixture.db, fixture.project.id).length, 1)
+  } finally { closeRepositoryFixture(fixture) }
+})
+
+test('keeps a reviewable localization variant through a project-package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const shots = [fixture.shot]
+    const sourceFingerprint = localizationSourceFingerprint(shots)
+    const created = fixture.repos.localization.createLocalizationVariant(fixture.db, {
+      projectId: fixture.project.id,
+      adaptationProjectId: fixture.adaptation.id,
+      episodeId: fixture.episode.id,
+      targetLocale: 'en-US',
+      targetRegion: 'US',
+      label: 'English pilot',
+      sourceFingerprint,
+      title: 'The Return',
+      description: 'Keep the rooftop confrontation direct and fast.',
+      glossary: { 归来: 'return' },
+      culturalNotes: ['Avoid literal honorifics.'],
+      cues: [{ id: 'cue-1', shotId: fixture.shot.id, startSeconds: 0, endSeconds: 3, sourceText: '她回来了。', localizedText: 'She is back.' }],
+      voiceProfileId: 'source-voice-profile',
+      audioCandidateNote: 'Use an authorized English voice after review.',
+      reviewedAt: '2026-07-23T00:00:00.000Z',
+      reviewNote: 'Native-language review passed.',
+    })
+    const adopted = fixture.repos.localization.adoptLocalizationVariant(fixture.db, created.id, 'Approved for the pilot.')
+    assert.equal(adopted?.status, 'adopted')
+
+    const pkg = collectProjectPackage(fixture.repos, fixture.project.id)
+    assert.equal(pkg.localizationVariants?.length, 1)
+    assert.equal(pkg.localizationVariants?.[0]?.sourceFingerprint, sourceFingerprint)
+
+    const imported = importProjectPackage(fixture.repos, serializeProjectPackage(pkg))
+    const importedAdaptation = fixture.repos.adaptationProject.listAdaptationsByProject(fixture.db, imported.id)[0]
+    assert.ok(importedAdaptation)
+    const importedEpisode = fixture.repos.episode.listEpisodes(fixture.db, importedAdaptation!.id)[0]
+    assert.ok(importedEpisode)
+    const restored = fixture.repos.localization.listLocalizationVariants(fixture.db, importedEpisode!.id)
+    assert.equal(restored.length, 1)
+    assert.equal(restored[0]?.targetLocale, 'en-US')
+    assert.equal(restored[0]?.cues[0]?.localizedText, 'She is back.')
+    assert.ok(restored[0]?.cues[0]?.shotId, 'import must remap the cue to the newly created shot')
+    assert.notEqual(restored[0]?.cues[0]?.shotId, fixture.shot.id)
+    assert.equal(restored[0]?.voiceProfileId, undefined, 'a voice candidate must be re-authorized after import')
+    assert.match(restored[0]?.reviewNote ?? '', /导入后需复核/)
+    assert.notEqual(restored[0]?.sourceFingerprint, sourceFingerprint, 'the imported master fingerprint uses new local IDs')
+  } finally { closeRepositoryFixture(fixture) }
+})
+
+test('keeps a feedback revision inside its current project when an imported target id belongs elsewhere', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const otherProject = fixture.repos.project.createProject(fixture.db, { title: '另一个项目', shortDramaType: '都市' } as never)
+    const otherAdaptation = fixture.repos.adaptationProject.createAdaptationProject(fixture.db, { sourceProjectId: otherProject.id, title: '另一季', targetEpisodeCount: 1, adaptationStyle: '强冲突' })
+    const otherEpisode = fixture.repos.episode.createEpisode(fixture.db, { adaptationProjectId: otherAdaptation.id, episodeNumber: 1, title: '另一集', summary: '摘要', hook: '钩子', mainConflict: '冲突', cliffhanger: '悬念' })
+    fixture.repos.script.createScript(fixture.db, { adaptationProjectId: otherAdaptation.id, episodeId: otherEpisode.id, episodeNumber: 1, title: '另一集', content: '另一份剧本。' })
+    const preview: FeedbackImportPreview = { kind: 'comments', sourceName: 'untrusted-target.json', platform: '手工', contentSha256: 'foreign-target-sha', metrics: [], comments: [{ platform: '手工', text: '请注意这个外部定位。', targetKind: 'episode', targetId: otherEpisode.id, rowFingerprint: 'foreign-target-comment' }], skippedRows: [], notices: [] }
+    const imported = fixture.repos.feedback.importFeedbackPreview(fixture.db, { projectId: fixture.project.id, privacy: 'local_only', preview })
+    const clusters = fixture.repos.feedback.createFeedbackCommentClusters(fixture.db, { projectId: fixture.project.id, batchId: imported.batch!.id })
+    const revision = createFeedbackRevisionTask(fixture.repos, { projectId: fixture.project.id, batchId: imported.batch!.id, clusterId: clusters[0].id })
+    assert.equal(revision.targetKind, 'project')
+    assert.equal(revision.targetId, fixture.project.id)
+  } finally { closeRepositoryFixture(fixture) }
 })
 
 test('rolls back a failed pending migration without recording its version', () => {
@@ -207,6 +381,41 @@ test('rolls back a failed pending migration without recording its version', () =
   } finally {
     const index = MIGRATIONS.indexOf(failingMigration)
     if (index >= 0) MIGRATIONS.splice(index, 1)
+    closeAndRemove(raw, dir)
+  }
+})
+
+test('backfills legacy video tasks with known provider fields and explicitly partial source/cost truth', () => {
+  const { raw, dir } = createRawDb()
+  try {
+    const baseline = MIGRATIONS.find((migration) => migration.version === 1)
+    const lineageMigration = MIGRATIONS.find((migration) => migration.version === 29)
+    assert.ok(baseline)
+    assert.ok(lineageMigration)
+    baseline!.up(migrationRaw(raw))
+    raw.exec(`
+      INSERT INTO video_generation_tasks (
+        id, project_id, episode_id, shot_id, provider, model, prompt, reference_image_urls,
+        status, created_at, updated_at
+      ) VALUES (
+        'legacy-video-task', 'project-legacy', 'episode-legacy', 'shot-legacy', 'Legacy Provider',
+        'legacy-model', '旧 Prompt', '["https://example.test/reference.png"]', 'success',
+        '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'
+      );
+    `)
+    lineageMigration!.up(migrationRaw(raw))
+    const task = raw.prepare('SELECT lineage_id FROM video_generation_tasks WHERE id = ?').get('legacy-video-task') as { lineage_id?: string }
+    const lineage = raw.prepare('SELECT source_entity_kind, provider_snapshot, parameter_snapshot, completeness FROM generation_lineages WHERE task_id = ?').get('legacy-video-task') as { source_entity_kind?: string; provider_snapshot?: string; parameter_snapshot?: string; completeness?: string }
+    const cost = raw.prepare('SELECT status, estimated_cost, actual_cost FROM generation_cost_entries WHERE task_id = ?').get('legacy-video-task') as { status?: string; estimated_cost?: number; actual_cost?: number }
+    assert.equal(task.lineage_id, 'legacy-video-legacy-video-task')
+    assert.equal(lineage.source_entity_kind, 'shot')
+    assert.match(lineage.provider_snapshot ?? '', /Legacy Provider/)
+    assert.match(lineage.parameter_snapshot ?? '', /旧 Prompt/)
+    assert.equal(lineage.completeness, 'partial')
+    assert.equal(cost.status, 'unknown')
+    assert.equal(cost.estimated_cost, null)
+    assert.equal(cost.actual_cost, null)
+  } finally {
     closeAndRemove(raw, dir)
   }
 })
@@ -245,6 +454,107 @@ test('persists a validated active adaptation and safely falls back after deletio
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, adaptation.id)
     repos.adaptationProject.deleteAdaptationProject(db, adaptation.id)
     assert.equal(repos.project.getProject(db, project.id)?.activeAdaptationId, null)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('persists a selected genre opportunity snapshot without changing older projects', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const selection = {
+      snapshotVersion: 'cn-ai-drama-market-2026-07-22-v1',
+      snapshotObservedAt: '2026-07-22',
+      opportunity: {
+        id: 'genre-market-20260722-01',
+        genreName: '奇幻玄幻·修仙逆袭',
+        status: 'hot',
+        audiences: ['male', 'general'],
+        presentations: ['ai_animation', 'live_action'],
+        platforms: ['短剧 App', '短视频竖屏', 'AI 漫剧'],
+        productionCost: 'high',
+        saturation: 'medium',
+        whyRecommended: ['适合试播'],
+        primaryRisks: ['奇观成本高'],
+        differentiationIdeas: ['固定视觉锚点'],
+      },
+    }
+    const project = fixture.repos.project.createProject(fixture.db, {
+      title: '机会快照项目',
+      shortDramaType: selection.opportunity.genreName,
+      genreOpportunity: selection,
+    } as never)
+
+    const saved = fixture.repos.project.getProject(fixture.db, project.id)
+    assert.deepEqual(saved?.genreOpportunity, selection)
+    assert.equal(fixture.repos.project.getProject(fixture.db, fixture.project.id)?.genreOpportunity, undefined)
+    const pkg = collectProjectPackage(fixture.repos, project.id)
+    assert.deepEqual(pkg.project.genreOpportunity, selection)
+    const imported = importProjectPackage(fixture.repos, serializeProjectPackage(pkg))
+    assert.deepEqual(fixture.repos.project.getProject(fixture.db, imported.id)?.genreOpportunity, selection)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('persists creation goals and gives older projects a compatible production profile', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, raw } = fixture
+    raw.exec(`UPDATE projects SET production_brief = NULL WHERE id = '${project.id}'`)
+    const compatible = repos.project.getProject(db, project.id)
+    assert.equal(compatible?.productionBrief?.creationGoal, 'novel_to_drama')
+    assert.equal(compatible?.productionBrief?.profile.pilotEpisodeCount, 3)
+
+    const directBrief = createProjectProductionBrief({
+      creationGoal: 'direct_drama',
+      profile: { pilotEpisodeCount: 5, episodeDuration: { minSeconds: 30, maxSeconds: 75 } },
+    })
+    const direct = repos.project.createProject(db, {
+      title: '直接漫剧项目',
+      shortDramaType: '规则怪谈·无限流',
+      productionBrief: directBrief,
+    } as never)
+    assert.deepEqual(repos.project.getProject(db, direct.id)?.productionBrief, directBrief)
+    const pkg = collectProjectPackage(repos, direct.id)
+    const restored = importProjectPackage(repos, serializeProjectPackage(pkg))
+    assert.deepEqual(repos.project.getProject(db, restored.id)?.productionBrief, directBrief)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('imports validated market snapshot history and rolls back active version without rewriting projects', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos } = fixture
+    const builtIn = repos.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(db, DEFAULT_GENRE_MARKET_SNAPSHOT)
+    assert.equal(builtIn.active, true)
+    assert.equal(repos.genreMarketSnapshot.ensureBuiltInGenreMarketSnapshot(db, DEFAULT_GENRE_MARKET_SNAPSHOT).active, true)
+    const importedVersion = 'cn-ai-drama-market-2026-07-23-v1'
+    const imported = repos.genreMarketSnapshot.importGenreMarketSnapshot(db, {
+      ...DEFAULT_GENRE_MARKET_SNAPSHOT,
+      version: importedVersion,
+      observedAt: '2026-07-23',
+    })
+    assert.equal(imported.active, true)
+    assert.ok(imported.sources.some((source) => source.kind === 'user_imported'))
+    assert.equal(repos.genreMarketSnapshot.getActiveGenreMarketSnapshot(db)?.version, importedVersion)
+
+    const project = repos.project.createProject(db, {
+      title: '采用新快照的项目',
+      shortDramaType: imported.opportunities[0]!.genreName,
+      genreOpportunity: {
+        snapshotVersion: imported.version,
+        snapshotObservedAt: imported.observedAt,
+        opportunity: imported.opportunities[0]!,
+      },
+    } as never)
+    const rolledBack = repos.genreMarketSnapshot.activateGenreMarketSnapshot(db, builtIn.version)
+    assert.equal(rolledBack?.active, true)
+    assert.equal(repos.genreMarketSnapshot.getActiveGenreMarketSnapshot(db)?.version, builtIn.version)
+    assert.equal(repos.project.getProject(db, project.id)?.genreOpportunity?.snapshotVersion, importedVersion)
+    assert.equal(repos.genreMarketSnapshot.listGenreMarketSnapshots(db).length, 2)
   } finally {
     closeRepositoryFixture(fixture)
   }
@@ -464,4 +774,330 @@ test('atomically adopts a shot preview including all prompt fields', () => {
   } finally {
     closeRepositoryFixture(fixture)
   }
+})
+
+test('keeps generation lineage and separate estimated/actual costs through a project package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode, shot } = fixture
+    const lineage = repos.generation.createGenerationLineage(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      shotId: shot.id,
+      mediaType: 'video',
+      taskKind: 'video_generation',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      sourceVersion: shot.updatedAt,
+      sourceSnapshot: { kind: 'shot', updatedAt: shot.updatedAt },
+      providerSnapshot: { providerKind: 'mock', capability: { canSubmit: true } },
+      parameterSnapshot: { prompt: '原始视频 Prompt', seed: 42 },
+      referenceAssets: [{ url: 'https://example.test/reference.png', weight: 0.8 }],
+      seed: '42',
+      completeness: 'complete',
+    })
+    const cost = repos.generation.createGenerationCostEntry(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      shotId: shot.id,
+      lineageId: lineage.id,
+      mediaType: 'video',
+      status: 'estimated',
+      currency: 'CNY',
+      estimatedCost: 1.25,
+      estimateBasis: '本地参数快照，非账单',
+    })
+    const actual = repos.generation.updateGenerationCostEntry(db, cost.id, { actualCost: 1.5, actualCostNote: 'Provider 账单回填' })
+    assert.equal(actual?.estimatedCost, 1.25)
+    assert.equal(actual?.actualCost, 1.5)
+    assert.equal(actual?.status, 'actual')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.generationLineages?.[0]?.seed, '42')
+    assert.equal(pkg.generationCostEntries?.[0]?.actualCost, 1.5)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedLineage = repos.generation.listGenerationLineagesByProject(db, imported.id)[0]
+    const importedCost = repos.generation.listGenerationCostEntriesByProject(db, imported.id)[0]
+    assert.equal(importedLineage?.sourceEntityKind, 'shot')
+    assert.equal(importedLineage?.taskId, undefined)
+    assert.equal(importedCost?.estimatedCost, 1.25)
+    assert.equal(importedCost?.actualCost, 1.5)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('keeps a rights ledger manifest through a project package roundtrip and fails closed until evidence is relocalized', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project } = fixture
+    const source = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'source_media',
+      title: '授权原著',
+      remoteUrl: 'https://example.test/source.md',
+      tags: ['原著'],
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const evidence = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'rights_evidence',
+      title: '授权书',
+      localPath: '/tmp/license.pdf',
+      sha256: 'a'.repeat(64),
+      tags: ['授权证明'],
+      status: 'available',
+      packagePolicy: 'reference_only',
+    })
+    const rights = repos.rights.createAssetRightsRecord(db, {
+      projectId: project.id,
+      assetId: source.id,
+      rightsholder: '作者',
+      source: '授权合同',
+      rightsTypes: ['license'],
+      permittedUses: ['commercial', 'adaptation'],
+      platforms: ['全部'],
+      regions: ['全部'],
+      evidenceAssetId: evidence.id,
+      evidenceSha256: evidence.sha256,
+      status: 'verified',
+    })
+    const casting = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'casting_reference',
+      title: '演员参考',
+      remoteUrl: 'https://example.test/casting.png',
+      tags: ['选角'],
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    repos.rights.createAssetRightsRecord(db, {
+      projectId: project.id,
+      assetId: casting.id,
+      rightsTypes: ['talent_release'],
+      permittedUses: ['commercial', 'generative'],
+      platforms: ['全部'],
+      regions: ['全部'],
+      status: 'verified',
+    })
+    assert.throws(() => repos.rights.assertReferenceAssetRights(db, project.id, [casting]), /不能提交/)
+    const castingRights = repos.rights.getAssetRightsByAsset(db, casting.id)
+    assert(castingRights)
+    repos.rights.updateAssetRightsRecord(db, castingRights.id, { evidenceAssetId: evidence.id, evidenceSha256: evidence.sha256 })
+    assert.doesNotThrow(() => repos.rights.assertReferenceAssetRights(db, project.id, [casting]))
+    assert.equal(repos.rights.preflightProjectRights(db, { projectId: project.id, platform: '抖音', region: '中国大陆' }).status, 'pass')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.ok(pkg.assetRightsRecords?.some((record) => record.id === rights.id))
+    assert.doesNotMatch(serializeProjectPackage(pkg), /license\.pdf/)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedRights = repos.rights.listAssetRightsByProject(db, imported.id)
+    assert.equal(importedRights.length, 2)
+    assert(importedRights.every((record) => record.status === 'verified'))
+    assert(importedRights.every((record) => record.evidenceSha256 === 'a'.repeat(64)))
+    assert.equal(repos.rights.preflightProjectRights(db, { projectId: imported.id, platform: '抖音', region: '中国大陆' }).status, 'blocked')
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('versions visual production packs and shot still candidates without overwriting history through project package roundtrip', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode, shot } = fixture
+    const character = repos.character.createCharacter(db, { projectId: project.id, name: '林晚', role: '女主' })
+    const profile = repos.visualProfile.createVisualProfile(db, {
+      projectId: project.id,
+      characterId: character.id,
+      appearancePrompt: '红裙都市女主',
+      negativePrompt: '不要换脸',
+    })
+    const firstLook = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'character_reference',
+      title: '红裙晚宴款 v1',
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: profile.id,
+      remoteUrl: 'https://example.test/heroine-v1.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const replacementLook = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'character_reference',
+      title: '红裙晚宴款 v2',
+      sourceEntityKind: 'visual_profile',
+      sourceEntityId: profile.id,
+      remoteUrl: 'https://example.test/heroine-v2.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const v1 = repos.visualAsset.createVisualAssetVersion(db, {
+      projectId: project.id, ownerKind: 'visual_profile', ownerId: profile.id,
+      assetId: firstLook.id, slot: 'costume', label: '红裙晚宴款', notes: '第 1 集晚宴',
+    })
+    repos.visualAsset.adoptVisualAssetVersion(db, v1.id)
+    const lock = repos.visualAsset.lockShotVisualAsset(db, {
+      projectId: project.id, shotId: shot.id, visualAssetVersionId: v1.id, role: 'costume',
+    })
+    const v2 = repos.visualAsset.createVisualAssetVersion(db, {
+      projectId: project.id, ownerKind: 'visual_profile', ownerId: profile.id,
+      assetId: replacementLook.id, slot: 'costume', label: '红裙晚宴款', notes: '第 2 集起替换',
+    })
+    repos.visualAsset.adoptVisualAssetVersion(db, v2.id)
+
+    const firstFrame = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'first_frame_image',
+      title: '天台对峙首帧 A',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      remoteUrl: 'https://example.test/shot-a.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const secondFrame = repos.asset.createAsset(db, {
+      projectId: project.id,
+      kind: 'first_frame_image',
+      title: '天台对峙首帧 B',
+      sourceEntityKind: 'shot',
+      sourceEntityId: shot.id,
+      remoteUrl: 'https://example.test/shot-b.png',
+      status: 'remote_only',
+      packagePolicy: 'reference_only',
+    })
+    const stillA = repos.shotStill.createShotStillCandidate(db, {
+      projectId: project.id, shotId: shot.id, assetId: firstFrame.id, kind: 'first_frame', label: '首帧 A', sourceFingerprint: shot.updatedAt,
+    })
+    repos.shotStill.adoptShotStillCandidate(db, stillA.id, shot.updatedAt)
+    const stillB = repos.shotStill.createShotStillCandidate(db, {
+      projectId: project.id, shotId: shot.id, assetId: secondFrame.id, kind: 'first_frame', label: '首帧 B', sourceFingerprint: shot.updatedAt,
+    })
+    repos.shotStill.adoptShotStillCandidate(db, stillB.id, shot.updatedAt)
+    // 采用历史候选即回退，不删除 B，也不重写 A 的资产引用。
+    repos.shotStill.adoptShotStillCandidate(db, stillA.id, shot.updatedAt)
+    const stillsBeforePackage = repos.shotStill.listShotStillCandidates(db, shot.id)
+    assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillA.id)?.status, 'adopted')
+    assert.equal(stillsBeforePackage.find((candidate) => candidate.id === stillB.id)?.status, 'superseded')
+    repos.shotStill.setShotStillCandidateStaleState(db, stillA.id, '2026-07-23T00:00:00.000Z', '镜头 Prompt 已更新；仅需复核本镜头。')
+    const returnedAnimatic = repos.animatic.createAnimaticDraft(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      sourceFingerprint: `${shot.id}@${shot.updatedAt}`,
+      clips: [{
+        id: `clip:${shot.id}`,
+        shotId: shot.id,
+        orderIndex: 0,
+        durationSeconds: 3.5,
+        stillCandidateId: stillA.id,
+        assetId: firstFrame.id,
+        transition: 'cut',
+        dialogue: '你终于来了。',
+      }],
+      annotations: [{ id: 'note-returned', atSeconds: 1.2, shotId: shot.id, category: 'pacing', note: '开场再快一点', createdAt: '2026-07-23T00:00:00.000Z' }],
+    })
+    repos.animatic.reviewAnimaticDraft(db, returnedAnimatic.id, 'returned', '开场节奏需加快')
+    const approvedAnimatic = repos.animatic.createAnimaticDraft(db, {
+      projectId: project.id,
+      adaptationProjectId: adaptation.id,
+      episodeId: episode.id,
+      sourceFingerprint: `${shot.id}@${shot.updatedAt}`,
+      clips: [{
+        id: `clip:${shot.id}`,
+        shotId: shot.id,
+        orderIndex: 0,
+        durationSeconds: 2.5,
+        stillCandidateId: stillA.id,
+        assetId: firstFrame.id,
+        transition: 'fade',
+        narration: '雨夜，真相浮出水面。',
+      }],
+      annotations: [{ id: 'note-approved', atSeconds: 0, shotId: shot.id, category: 'hook', note: '保留第一秒的反转信息', createdAt: '2026-07-23T00:00:00.000Z' }],
+    })
+    repos.animatic.reviewAnimaticDraft(db, approvedAnimatic.id, 'approved', '可进入试播审批')
+
+    const staleLock = repos.visualAsset.listShotVisualAssetLocks(db, shot.id)[0]
+    assert.equal(staleLock.id, lock.id)
+    assert.match(staleLock.staleReason ?? '', /上游已采用/)
+    assert.equal(repos.visualAsset.getVisualAssetVersion(db, v1.id)?.status, 'superseded')
+    assert.equal(repos.visualAsset.getVisualAssetVersion(db, v2.id)?.status, 'adopted')
+
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.visualAssetVersions?.length, 2)
+    assert.equal(pkg.shotVisualAssetLocks?.[0]?.staleReason, staleLock.staleReason)
+    assert.equal(pkg.shotStillCandidates?.length, 2)
+    assert.equal(pkg.animaticDrafts?.length, 2)
+    assert.equal(pkg.shotStillCandidates?.find((candidate) => candidate.label === '首帧 A')?.staleReason, '镜头 Prompt 已更新；仅需复核本镜头。')
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedVersions = repos.visualAsset.listVisualAssetVersionsByProject(db, imported.id)
+    const importedLocks = repos.visualAsset.listShotVisualAssetLocksByProject(db, imported.id)
+    assert.equal(importedVersions.length, 2)
+    assert.equal(importedVersions.filter((version) => version.status === 'adopted').length, 1)
+    assert.equal(importedVersions.filter((version) => version.status === 'superseded').length, 1)
+    assert.equal(importedLocks.length, 1)
+    assert.match(importedLocks[0].staleReason ?? '', /上游已采用/)
+    assert.ok(importedVersions.some((version) => version.id === importedLocks[0].visualAssetVersionId && version.status === 'superseded'))
+    const importedStills = repos.shotStill.listShotStillCandidatesByProject(db, imported.id)
+    assert.equal(importedStills.length, 2)
+    assert.equal(importedStills.filter((candidate) => candidate.status === 'adopted').length, 1)
+    assert.equal(importedStills.filter((candidate) => candidate.status === 'superseded').length, 1)
+    assert.match(importedStills.find((candidate) => candidate.status === 'adopted')?.staleReason ?? '', /仅需复核本镜头/)
+    const importedAdaptation = repos.adaptationProject.listAdaptationsByProject(db, imported.id)[0]
+    assert.ok(importedAdaptation)
+    const importedEpisode = repos.episode.listEpisodes(db, importedAdaptation.id)[0]
+    assert.ok(importedEpisode)
+    const importedAnimatics = repos.animatic.listAnimaticDraftsByEpisode(db, importedEpisode.id)
+    assert.equal(importedAnimatics.length, 2)
+    assert.equal(importedAnimatics[0].versionNumber, 2)
+    assert.equal(importedAnimatics[0].status, 'approved')
+    assert.equal(importedAnimatics[0].reviewNote, '可进入试播审批')
+    assert.equal(importedAnimatics[0].clips[0].stillCandidateId, importedStills.find((candidate) => candidate.status === 'adopted')?.id)
+    assert.equal(importedAnimatics[1].status, 'returned')
+    assert.equal(importedAnimatics[1].annotations[0].category, 'pacing')
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})
+
+test('versions voice profiles and episode audio tracks without overwriting adopted history', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, adaptation, episode, shot } = fixture
+    const character = repos.character.createCharacter(db, { projectId: project.id, name: '林晚', role: '女主' })
+    const firstVoice = repos.audio.createVoiceProfile(db, { projectId: project.id, characterId: character.id, label: '林晚 · 克制', voiceTone: '冷静', pronunciationDictionary: { 林晚: 'lín wǎn' } })
+    repos.audio.adoptVoiceProfile(db, firstVoice.id)
+    const replacementVoice = repos.audio.createVoiceProfile(db, { projectId: project.id, characterId: character.id, label: '林晚 · 爆发', voiceTone: '压抑后爆发', pronunciationDictionary: {} })
+    repos.audio.adoptVoiceProfile(db, replacementVoice.id)
+    const voices = repos.audio.listVoiceProfilesByProject(db, project.id)
+    assert.equal(voices.filter((voice) => voice.status === 'adopted').length, 1)
+    assert.equal(voices.find((voice) => voice.id === firstVoice.id)?.status, 'superseded')
+    const base = { projectId: project.id, adaptationProjectId: adaptation.id, episodeId: episode.id, kind: 'dialogue' as const, label: '对白', sourceFingerprint: `${shot.id}@${shot.updatedAt}`, clips: [{ id: 'audio-1', shotId: shot.id, characterId: character.id, voiceProfileId: replacementVoice.id, text: '别走。', startSeconds: 0, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }] }
+    const firstTrack = repos.audio.createAudioTrack(db, base)
+    repos.audio.adoptAudioTrack(db, firstTrack.id)
+    const secondTrack = repos.audio.createAudioTrack(db, { ...base, label: '对白修订' })
+    repos.audio.adoptAudioTrack(db, secondTrack.id)
+    const tracks = repos.audio.listAudioTracksByEpisode(db, episode.id)
+    assert.equal(tracks.filter((track) => track.status === 'adopted').length, 1)
+    assert.equal(tracks.find((track) => track.id === firstTrack.id)?.status, 'superseded')
+    repos.audio.setAudioTrackStaleState(db, firstTrack.id, '2026-07-23T00:00:00.000Z', '对白已更新')
+    assert.equal(repos.audio.getAudioTrack(db, firstTrack.id)?.status, 'stale')
+    const pkg = collectProjectPackage(repos, project.id, { includeAssets: true })
+    assert.equal(pkg.voiceProfiles?.length, 2)
+    assert.equal(pkg.audioTracks?.length, 2)
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedCharacter = repos.character.listCharacters(db, imported.id).find((candidate) => candidate.name === '林晚')
+    assert.ok(importedCharacter)
+    const importedVoice = repos.audio.listVoiceProfilesByProject(db, imported.id).find((voice) => voice.status === 'adopted')
+    assert.equal(importedVoice?.characterId, importedCharacter.id)
+    const importedAdaptation = repos.adaptationProject.listAdaptationsByProject(db, imported.id)[0]
+    const importedEpisode = repos.episode.listEpisodes(db, importedAdaptation.id)[0]
+    const importedTrack = repos.audio.listAudioTracksByEpisode(db, importedEpisode.id).find((track) => track.status === 'adopted')
+    assert.equal(importedTrack?.clips[0].voiceProfileId, importedVoice?.id)
+    assert.equal(importedTrack?.clips[0].characterId, importedCharacter.id)
+    assert.equal(repos.audio.listAudioTracksByEpisode(db, importedEpisode.id).some((track) => track.status === 'stale'), true)
+  } finally { closeRepositoryFixture(fixture) }
 })

@@ -17,6 +17,8 @@ export * as aiRunRepo from './repositories/ai-run.repo'
 export * as aiBudgetRepo from './repositories/ai-budget.repo'
 export * as longTaskRepo from './repositories/long-task.repo'
 export * as modelConfigRepo from './repositories/model-config.repo'
+export * as imageProviderConfigRepo from './repositories/image-provider-config.repo'
+export * as ttsProviderConfigRepo from './repositories/tts-provider-config.repo'
 // v0.2 长篇一致性与视觉记忆系统
 export * as chapterMemoryRepo from './repositories/chapter-memory.repo'
 export * as characterStateRepo from './repositories/character-state.repo'
@@ -24,6 +26,7 @@ export * as characterVisualProfileRepo from './repositories/character-visual-pro
 export * as visualSettingRepo from './repositories/visual-setting.repo'
 export * as storyEventRepo from './repositories/story-event.repo'
 export * as foreshadowingRepo from './repositories/foreshadowing.repo'
+export * as storyBibleRepo from './repositories/story-bible.repo'
 // v0.3 AI 短剧小说强化系统
 export * as beatRepo from './repositories/beat.repo'
 export * as highlightRepo from './repositories/highlight-analysis.repo'
@@ -45,10 +48,21 @@ export * as videoProviderConfigRepo from './repositories/video-provider-config.r
 export * as videoGenerationTaskRepo from './repositories/video-generation-task.repo'
 export * as videoResultRepo from './repositories/video-result.repo'
 export * as projectAssetRepo from './repositories/project-asset.repo'
+export * as assetRightsRepo from './repositories/asset-rights.repo'
+export * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
+export * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
+export * as animaticDraftRepo from './repositories/animatic-draft.repo'
+export * as audioProductionRepo from './repositories/audio-production.repo'
+export * as generationLineageRepo from './repositories/generation-lineage.repo'
+export * as complianceRuleProfileRepo from './repositories/compliance-rule-profile.repo'
+export * as platformDeliveryRepo from './repositories/platform-delivery.repo'
+export * as feedbackRepo from './repositories/feedback.repo'
+export * as localizationRepo from './repositories/localization.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
 export * as templateRepo from './repositories/template.repo'
 export * as genrePresetRepo from './repositories/genre-preset.repo'
+export * as genreMarketSnapshotRepo from './repositories/genre-market-snapshot.repo'
 export * as templateRunRepo from './repositories/template-run.repo'
 // v1.0 模型配置增强
 export * as taskModelBindingRepo from './repositories/task-model-binding.repo'
@@ -73,12 +87,15 @@ import * as aiRunRepo from './repositories/ai-run.repo'
 import * as aiBudgetRepo from './repositories/ai-budget.repo'
 import * as longTaskRepo from './repositories/long-task.repo'
 import * as modelConfigRepo from './repositories/model-config.repo'
+import * as imageProviderConfigRepo from './repositories/image-provider-config.repo'
+import * as ttsProviderConfigRepo from './repositories/tts-provider-config.repo'
 import * as chapterMemoryRepo from './repositories/chapter-memory.repo'
 import * as characterStateRepo from './repositories/character-state.repo'
 import * as characterVisualProfileRepo from './repositories/character-visual-profile.repo'
 import * as visualSettingRepo from './repositories/visual-setting.repo'
 import * as storyEventRepo from './repositories/story-event.repo'
 import * as foreshadowingRepo from './repositories/foreshadowing.repo'
+import * as storyBibleRepo from './repositories/story-bible.repo'
 import * as beatRepo from './repositories/beat.repo'
 import * as highlightRepo from './repositories/highlight-analysis.repo'
 import * as feasibilityRepo from './repositories/ai-video-feasibility.repo'
@@ -95,9 +112,20 @@ import * as videoProviderConfigRepo from './repositories/video-provider-config.r
 import * as videoGenerationTaskRepo from './repositories/video-generation-task.repo'
 import * as videoResultRepo from './repositories/video-result.repo'
 import * as projectAssetRepo from './repositories/project-asset.repo'
+import * as assetRightsRepo from './repositories/asset-rights.repo'
+import * as visualAssetVersionRepo from './repositories/visual-asset-version.repo'
+import * as shotStillCandidateRepo from './repositories/shot-still-candidate.repo'
+import * as animaticDraftRepo from './repositories/animatic-draft.repo'
+import * as audioProductionRepo from './repositories/audio-production.repo'
+import * as generationLineageRepo from './repositories/generation-lineage.repo'
+import * as complianceRuleProfileRepo from './repositories/compliance-rule-profile.repo'
+import * as platformDeliveryRepo from './repositories/platform-delivery.repo'
+import * as feedbackRepo from './repositories/feedback.repo'
+import * as localizationRepo from './repositories/localization.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
 import * as genrePresetRepo from './repositories/genre-preset.repo'
+import * as genreMarketSnapshotRepo from './repositories/genre-market-snapshot.repo'
 import * as templateRunRepo from './repositories/template-run.repo'
 import * as taskModelBindingRepo from './repositories/task-model-binding.repo'
 import * as creativeRepo from './repositories/creative.repo'
@@ -120,6 +148,8 @@ export function createRepositories(db: DB) {
     aiBudget: { ...aiBudgetRepo },
     longTask: { ...longTaskRepo },
     modelConfig: { ...modelConfigRepo },
+    imageProviderConfig: { ...imageProviderConfigRepo },
+    ttsProviderConfig: { ...ttsProviderConfigRepo },
     // v0.2
     chapterMemory: { ...chapterMemoryRepo },
     characterState: { ...characterStateRepo },
@@ -127,6 +157,7 @@ export function createRepositories(db: DB) {
     visualSetting: { ...visualSettingRepo },
     storyEvent: { ...storyEventRepo },
     foreshadowing: { ...foreshadowingRepo },
+    storyBible: { ...storyBibleRepo },
     // v0.3
     beat: { ...beatRepo },
     highlight: { ...highlightRepo },
@@ -148,10 +179,21 @@ export function createRepositories(db: DB) {
     videoTask: { ...videoGenerationTaskRepo },
     videoResult: { ...videoResultRepo },
     asset: { ...projectAssetRepo },
+    rights: { ...assetRightsRepo },
+    visualAsset: { ...visualAssetVersionRepo },
+    shotStill: { ...shotStillCandidateRepo },
+    animatic: { ...animaticDraftRepo },
+    audio: { ...audioProductionRepo },
+    generation: { ...generationLineageRepo },
+    compliance: { ...complianceRuleProfileRepo },
+    platformDelivery: { ...platformDeliveryRepo },
+    feedback: { ...feedbackRepo },
+    localization: { ...localizationRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },
     template: { ...templateRepo },
     genrePreset: { ...genrePresetRepo },
+    genreMarketSnapshot: { ...genreMarketSnapshotRepo },
     templateRun: { ...templateRunRepo },
     // v1.0
     taskModelBinding: { ...taskModelBindingRepo },

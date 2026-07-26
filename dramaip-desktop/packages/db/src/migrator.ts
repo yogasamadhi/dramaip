@@ -652,6 +652,385 @@ export const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 25,
+    name: 'project-genre-opportunity-snapshot',
+    up(raw) {
+      // 只保存用户在创建时采用的离线机会快照；不在迁移期猜测或改写旧项目的题材判断。
+      addColumnIfMissing(raw, 'projects', 'genre_opportunity', 'genre_opportunity TEXT')
+    },
+  },
+  {
+    version: 26,
+    name: 'genre-market-snapshot-history',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS genre_market_snapshots (
+          version TEXT PRIMARY KEY,
+          observed_at TEXT NOT NULL,
+          sources TEXT NOT NULL,
+          opportunities TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_genre_market_snapshots_active
+          ON genre_market_snapshots(active, observed_at);
+      `)
+    },
+  },
+  {
+    version: 27,
+    name: 'project-production-brief',
+    up(raw) {
+      // 旧项目在读取时计算兼容 Profile；迁移只加字段，绝不重写已有章节、季、集或时长。
+      addColumnIfMissing(raw, 'projects', 'production_brief', 'production_brief TEXT')
+    },
+  },
+  {
+    version: 28,
+    name: 'story-bible-change-sets',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS story_bible_settings (
+          project_id TEXT PRIMARY KEY,
+          auto_suggest INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS story_bible_change_sets (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          chapter_id TEXT NOT NULL,
+          source_chapter_updated_at TEXT NOT NULL,
+          source_content_hash TEXT NOT NULL,
+          task_id TEXT,
+          status TEXT NOT NULL,
+          estimated_tokens INTEGER,
+          estimated_cost REAL,
+          currency TEXT,
+          payload TEXT,
+          conflicts TEXT NOT NULL DEFAULT '[]',
+          undo_payload TEXT,
+          error_message TEXT,
+          applied_at TEXT,
+          undone_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS story_bible_stale_marks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          chapter_id TEXT NOT NULL,
+          target_kind TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          resolved_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_story_bible_change_sets_project_status
+          ON story_bible_change_sets(project_id, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_story_bible_change_sets_chapter
+          ON story_bible_change_sets(chapter_id, source_chapter_updated_at);
+        CREATE INDEX IF NOT EXISTS idx_story_bible_stale_marks_project_chapter
+          ON story_bible_stale_marks(project_id, chapter_id, resolved_at);
+      `)
+    },
+  },
+  {
+    version: 29,
+    name: 'generation-lineage-and-cost-ledger',
+    up(raw) {
+      addColumnIfMissing(raw, 'video_generation_tasks', 'lineage_id', 'lineage_id TEXT')
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS generation_lineages (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          episode_id TEXT,
+          scene_id TEXT,
+          shot_id TEXT,
+          media_type TEXT NOT NULL,
+          task_kind TEXT NOT NULL,
+          task_id TEXT,
+          parent_lineage_id TEXT,
+          retry_of_lineage_id TEXT,
+          source_entity_kind TEXT,
+          source_entity_id TEXT,
+          source_version TEXT,
+          source_snapshot TEXT NOT NULL DEFAULT '{}',
+          provider_snapshot TEXT NOT NULL DEFAULT '{}',
+          parameter_snapshot TEXT NOT NULL DEFAULT '{}',
+          reference_assets TEXT NOT NULL DEFAULT '[]',
+          seed TEXT,
+          completeness TEXT NOT NULL DEFAULT 'unknown',
+          adopted_output_kind TEXT,
+          adopted_output_id TEXT,
+          adopted_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS generation_cost_entries (
+          id TEXT PRIMARY KEY,
+          project_id TEXT,
+          adaptation_project_id TEXT,
+          episode_id TEXT,
+          scene_id TEXT,
+          shot_id TEXT,
+          lineage_id TEXT,
+          task_id TEXT,
+          media_type TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'unknown',
+          currency TEXT,
+          estimated_cost REAL,
+          actual_cost REAL,
+          estimate_basis TEXT,
+          actual_cost_note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_project_created
+          ON generation_lineages(project_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_task
+          ON generation_lineages(task_id);
+        CREATE INDEX IF NOT EXISTS idx_generation_lineages_source
+          ON generation_lineages(source_entity_kind, source_entity_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_cost_project_scope
+          ON generation_cost_entries(project_id, adaptation_project_id, episode_id, shot_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_generation_cost_lineage
+          ON generation_cost_entries(lineage_id);
+
+        -- 旧任务只能如实回填为 unknown；不猜测 seed、Provider 能力、源版本或账单。
+        INSERT INTO generation_lineages (
+          id, project_id, episode_id, scene_id, shot_id, media_type, task_kind, task_id,
+          source_entity_kind, source_entity_id, source_snapshot, provider_snapshot, parameter_snapshot, reference_assets, completeness,
+          created_at, updated_at
+        )
+        SELECT
+          'legacy-video-' || id, project_id, episode_id, scene_id, shot_id, 'video', 'video_generation', id,
+          CASE WHEN shot_id IS NOT NULL THEN 'shot' WHEN scene_id IS NOT NULL THEN 'scene' WHEN episode_id IS NOT NULL THEN 'episode' WHEN project_id IS NOT NULL THEN 'project' END,
+          COALESCE(shot_id, scene_id, episode_id, project_id),
+          json_object('status', 'partial', 'reason', 'legacy task predates source-version capture'),
+          json_object('providerName', provider, 'model', model, 'status', 'legacy snapshot partial'),
+          json_object('prompt', prompt, 'negativePrompt', negative_prompt, 'referenceImageUrlsState', 'legacy list retained on task'),
+          '[]', 'partial', created_at, updated_at
+        FROM video_generation_tasks
+        WHERE lineage_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM generation_lineages g WHERE g.task_id = video_generation_tasks.id);
+
+        UPDATE video_generation_tasks
+        SET lineage_id = 'legacy-video-' || id
+        WHERE lineage_id IS NULL
+          AND EXISTS (SELECT 1 FROM generation_lineages g WHERE g.task_id = video_generation_tasks.id);
+
+        INSERT INTO generation_cost_entries (
+          id, project_id, episode_id, scene_id, shot_id, lineage_id, task_id, media_type, status,
+          estimate_basis, created_at, updated_at
+        )
+        SELECT
+          'legacy-video-cost-' || id, project_id, episode_id, scene_id, shot_id,
+          lineage_id, id, 'video', 'unknown', '历史任务未保存报价或账单', created_at, updated_at
+        FROM video_generation_tasks
+        WHERE lineage_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM generation_cost_entries c WHERE c.task_id = video_generation_tasks.id);
+      `)
+    },
+  },
+  {
+    version: 30,
+    name: 'asset-rights-ledger',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS asset_rights_records (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          rightsholder TEXT,
+          source TEXT,
+          rights_types TEXT NOT NULL DEFAULT '[]',
+          permitted_uses TEXT NOT NULL DEFAULT '[]',
+          platforms TEXT NOT NULL DEFAULT '[]',
+          regions TEXT NOT NULL DEFAULT '[]',
+          valid_from TEXT,
+          valid_until TEXT,
+          evidence_asset_id TEXT,
+          evidence_sha256 TEXT,
+          ai_generated INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'unknown',
+          reviewed_at TEXT,
+          review_note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_asset_rights_asset ON asset_rights_records(asset_id);
+        CREATE INDEX IF NOT EXISTS idx_asset_rights_project_status ON asset_rights_records(project_id, status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_asset_rights_evidence ON asset_rights_records(evidence_asset_id);
+      `)
+    },
+  },
+  {
+    version: 31,
+    name: 'versioned-visual-asset-packs',
+    up(raw) {
+      raw.exec(`
+        CREATE TABLE IF NOT EXISTS visual_asset_versions (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          owner_kind TEXT NOT NULL,
+          owner_id TEXT NOT NULL,
+          asset_id TEXT NOT NULL,
+          slot TEXT NOT NULL,
+          label TEXT NOT NULL,
+          version_number INTEGER NOT NULL,
+          status TEXT NOT NULL DEFAULT 'candidate',
+          notes TEXT,
+          adopted_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS shot_visual_asset_locks (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          shot_id TEXT NOT NULL,
+          visual_asset_version_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          stale_at TEXT,
+          stale_reason TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_visual_asset_versions_owner_slot_version
+          ON visual_asset_versions(owner_kind, owner_id, slot, version_number);
+        CREATE INDEX IF NOT EXISTS idx_visual_asset_versions_project_owner
+          ON visual_asset_versions(project_id, owner_kind, owner_id, slot, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_shot_visual_asset_locks_shot ON shot_visual_asset_locks(shot_id, updated_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_shot_visual_asset_locks_role ON shot_visual_asset_locks(shot_id, role);
+      `)
+    },
+  },
+  { version: 32, name: 'shot-still-candidates', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS shot_still_candidates (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, shot_id TEXT NOT NULL, asset_id TEXT NOT NULL,
+      kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate', label TEXT NOT NULL, notes TEXT,
+      source_fingerprint TEXT, stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_shot ON shot_still_candidates(shot_id, kind, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_shot_still_candidates_project ON shot_still_candidates(project_id, status, updated_at);
+  `) } },
+  { version: 33, name: 'animatic-drafts', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS animatic_drafts (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      version_number INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', source_fingerprint TEXT NOT NULL,
+      clips TEXT NOT NULL DEFAULT '[]', annotations TEXT NOT NULL DEFAULT '[]', review_note TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_animatic_drafts_episode_version ON animatic_drafts(episode_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_animatic_drafts_project_episode ON animatic_drafts(project_id, adaptation_project_id, episode_id, updated_at);
+  `) } },
+  { version: 34, name: 'audio-production-tracks', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS voice_profiles (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, character_id TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'candidate',
+      voice_tone TEXT, speed REAL, emotion TEXT, language TEXT, pronunciation_dictionary TEXT NOT NULL DEFAULT '{}', sample_asset_id TEXT, notes TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_voice_profiles_project_character ON voice_profiles(project_id, character_id, status, updated_at);
+    CREATE TABLE IF NOT EXISTS audio_tracks (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      kind TEXT NOT NULL, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', version_number INTEGER NOT NULL,
+      source_fingerprint TEXT NOT NULL, clips TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_audio_tracks_episode_kind_version ON audio_tracks(episode_id, kind, version_number);
+    CREATE INDEX IF NOT EXISTS idx_audio_tracks_project_episode ON audio_tracks(project_id, adaptation_project_id, episode_id, updated_at);
+  `) } },
+  { version: 35, name: 'audio-track-stale-state', up(raw) {
+    addColumnIfMissing(raw, 'audio_tracks', 'stale_at', 'stale_at TEXT')
+    addColumnIfMissing(raw, 'audio_tracks', 'stale_reason', 'stale_reason TEXT')
+  } },
+  { version: 36, name: 'versioned-compliance-rule-profiles', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS compliance_rule_profiles (
+      id TEXT PRIMARY KEY, version TEXT NOT NULL UNIQUE, title TEXT NOT NULL, source_url TEXT NOT NULL,
+      source_status TEXT NOT NULL, published_at TEXT NOT NULL, effective_at TEXT,
+      regions TEXT NOT NULL DEFAULT '[]', platforms TEXT NOT NULL DEFAULT '[]',
+      required_visible_label TEXT NOT NULL, required_metadata_keys TEXT NOT NULL DEFAULT '[]',
+      content_checksum TEXT NOT NULL, signature TEXT NOT NULL, integrity_status TEXT NOT NULL DEFAULT 'unchecked',
+      active INTEGER NOT NULL DEFAULT 0, built_in INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_compliance_rule_profiles_active
+      ON compliance_rule_profiles(active, integrity_status, updated_at);
+  `) } },
+  { version: 37, name: 'platform-delivery-variants-and-archives', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS delivery_creative_variants (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL,
+      label TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '[]',
+      cover_asset_id TEXT, source TEXT NOT NULL DEFAULT 'manual', status TEXT NOT NULL DEFAULT 'candidate',
+      version_number INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_creative_variant_version
+      ON delivery_creative_variants(adaptation_project_id, version_number);
+    CREATE INDEX IF NOT EXISTS idx_delivery_creative_variant_status
+      ON delivery_creative_variants(project_id, adaptation_project_id, status, updated_at);
+    CREATE TABLE IF NOT EXISTS platform_delivery_exports (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      profile_id TEXT NOT NULL, profile_version TEXT NOT NULL, creative_variant_id TEXT NOT NULL,
+      compliance_task_id TEXT NOT NULL, delivery_version INTEGER NOT NULL,
+      output_directory TEXT NOT NULL, manifest_path TEXT NOT NULL, source_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_delivery_export_version
+      ON platform_delivery_exports(episode_id, profile_id, delivery_version);
+    CREATE INDEX IF NOT EXISTS idx_platform_delivery_export_episode
+      ON platform_delivery_exports(project_id, adaptation_project_id, episode_id, created_at);
+  `) } },
+  { version: 38, name: 'feedback-imports-and-local-comment-clusters', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS feedback_import_batches (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, source_name TEXT NOT NULL, platform TEXT NOT NULL,
+      source_version TEXT, time_window_start TEXT, time_window_end TEXT, privacy TEXT NOT NULL DEFAULT 'local_only',
+      content_sha256 TEXT NOT NULL, imported_record_count INTEGER NOT NULL DEFAULT 0, skipped_duplicate_count INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_import_batch_hash ON feedback_import_batches(project_id, kind, content_sha256);
+    CREATE INDEX IF NOT EXISTS idx_feedback_import_batch_project ON feedback_import_batches(project_id, created_at);
+    CREATE TABLE IF NOT EXISTS feedback_metrics (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, platform TEXT NOT NULL, source_version TEXT,
+      metric_key TEXT NOT NULL, metric_label TEXT NOT NULL, definition TEXT NOT NULL, value REAL NOT NULL, denominator REAL,
+      target_kind TEXT NOT NULL, target_id TEXT, recorded_at TEXT, variant_key TEXT, row_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_metric_dedup ON feedback_metrics(project_id, row_fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_feedback_metric_project ON feedback_metrics(project_id, metric_key, recorded_at);
+    CREATE TABLE IF NOT EXISTS feedback_comments (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, platform TEXT NOT NULL, source_version TEXT,
+      external_id TEXT, author_alias TEXT, text TEXT NOT NULL, privacy TEXT NOT NULL DEFAULT 'local_only', target_kind TEXT NOT NULL,
+      target_id TEXT, recorded_at TEXT, row_fingerprint TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_comment_dedup ON feedback_comments(project_id, row_fingerprint);
+    CREATE INDEX IF NOT EXISTS idx_feedback_comment_project ON feedback_comments(project_id, recorded_at);
+    CREATE TABLE IF NOT EXISTS feedback_comment_clusters (
+      id TEXT PRIMARY KEY, batch_id TEXT NOT NULL, project_id TEXT NOT NULL, label TEXT NOT NULL, summary TEXT NOT NULL,
+      tone TEXT NOT NULL, method TEXT NOT NULL, comment_ids TEXT NOT NULL DEFAULT '[]', target_kind TEXT NOT NULL, target_id TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_cluster_batch ON feedback_comment_clusters(batch_id, created_at);
+  `) } },
+  { version: 39, name: 'localization-variants', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS localization_variants (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      target_locale TEXT NOT NULL, target_region TEXT, label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', source_fingerprint TEXT NOT NULL,
+      title TEXT NOT NULL, description TEXT, glossary TEXT NOT NULL DEFAULT '{}', cultural_notes TEXT NOT NULL DEFAULT '[]', cues TEXT NOT NULL DEFAULT '[]',
+      voice_profile_id TEXT, audio_candidate_note TEXT, reviewed_at TEXT, review_note TEXT, stale_at TEXT, stale_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_localization_episode ON localization_variants(episode_id, updated_at);
+  `) } },
+  { version: 40, name: 'image-provider-configs', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS image_provider_configs (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, api_key TEXT NOT NULL DEFAULT '', model TEXT NOT NULL,
+      feature_enabled INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_image_provider_configs_default ON image_provider_configs(is_default, updated_at);
+  `) } },
+  { version: 41, name: 'tts-provider-configs', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS tts_provider_configs (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, api_key TEXT NOT NULL DEFAULT '', model TEXT NOT NULL,
+      feature_enabled INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_tts_provider_configs_default ON tts_provider_configs(is_default, updated_at);
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */

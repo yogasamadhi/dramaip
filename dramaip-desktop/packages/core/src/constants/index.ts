@@ -9,6 +9,37 @@ import type {
 } from '../types'
 import { BUILT_IN_GENRE_PRESETS } from './genre-presets'
 
+export {
+  DEFAULT_GENRE_MARKET_SNAPSHOT,
+  createGenreOpportunitySelection,
+  resolveGenreMarketSnapshot,
+  selectGenreOpportunity,
+  validateGenreMarketSnapshot,
+  type GenreAudience,
+  type GenreMarketSnapshot,
+  type GenreMarketSource,
+  type GenreMarketSourceKind,
+  type GenreMarketStatus,
+  type GenreOpportunity,
+  type GenreOpportunitySelection,
+  type GenrePresentation,
+  type GenreProductionCost,
+  type GenreSaturation,
+} from './genre-market-snapshot'
+
+export {
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_ASPECT_RATIO_OPTIONS,
+  PRODUCTION_BUDGET_TIER_OPTIONS,
+  PRODUCTION_DURATION_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  PRODUCTION_REGION_OPTIONS,
+  createCompatibleProjectProductionBrief,
+  createProjectProductionBrief,
+  formatProductionDuration,
+} from './production-brief'
+
 /** 短剧类型预设（§5.2） */
 export const SHORT_DRAMA_TYPES: string[] = BUILT_IN_GENRE_PRESETS.map((preset) => preset.name)
 
@@ -39,9 +70,18 @@ export interface WorkspaceNavGroup {
   key: string
   label: string
   items: WorkspaceNavKey[]
+  /** 默认模式只展示任务入口；全部旧功能仍在高级模式和原深链可访问。 */
+  basicItemKeys: string[]
 }
 
 export const WORKSPACE_NAV: WorkspaceNavKey[] = [
+  { key: 'content', label: '内容' },
+  { key: 'story-bible', label: '故事圣经' },
+  { key: 'production', label: '制作' },
+  { key: 'delivery', label: '交付' },
+  { key: 'feedback', label: '反馈回流' },
+  { key: 'localization', label: '海外本地化' },
+  { key: 'action-center', label: '行动中心' },
   { key: 'overview', label: '项目概览' },
   { key: 'quality-gates', label: '质量闸门' },
   { key: 'chat', label: 'Agent 指挥台' },
@@ -84,19 +124,16 @@ function workspaceNavItems(keys: string[]): WorkspaceNavKey[] {
 
 export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
-    key: 'creation',
-    label: '创作核心',
-    items: workspaceNavItems(['chapters', 'overview', 'chat']),
+    key: 'content',
+    label: '内容',
+    items: workspaceNavItems(['content', 'overview', 'chapters', 'inspiration', 'characters', 'outline', 'story-planning', 'chat', 'project-skills', 'agent-schemes']),
+    basicItemKeys: ['content', 'overview', 'chapters', 'inspiration', 'characters', 'outline'],
   },
   {
-    key: 'settings-materials',
-    label: '设定与素材',
-    items: workspaceNavItems(['characters', 'outline', 'story-planning', 'inspiration', 'project-skills', 'agent-schemes']),
-  },
-  {
-    key: 'memory',
-    label: '记忆一致性',
+    key: 'story-bible',
+    label: '故事圣经',
     items: workspaceNavItems([
+      'story-bible',
       'memory',
       'character-state',
       'visual-profile',
@@ -105,28 +142,30 @@ export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
       'foreshadowing',
       'consistency',
     ]),
+    basicItemKeys: ['story-bible'],
   },
   {
-    key: 'diagnosis',
-    label: '诊断',
+    key: 'production',
+    label: '制作',
     items: workspaceNavItems([
+      'production',
+      'action-center',
       'quality-gates',
       'evaluation',
       'ai-dashboard',
       'creative-diagnosis',
       'beats',
       'highlights',
+      'ai-video',
+      'writing-room',
     ]),
+    basicItemKeys: ['production', 'action-center'],
   },
   {
-    key: 'adaptation',
-    label: '改编准备',
-    items: workspaceNavItems(['ai-video', 'writing-room']),
-  },
-  {
-    key: 'records',
-    label: '记录',
-    items: workspaceNavItems(['ai-runs']),
+    key: 'delivery',
+    label: '交付',
+    items: workspaceNavItems(['delivery', 'feedback', 'localization', 'ai-runs']),
+    basicItemKeys: ['delivery', 'feedback', 'localization'],
   },
 ]
 
@@ -149,6 +188,7 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   evaluate_ai_drama_fit: 'AI 短剧适配度评分',
   // v0.2 长篇一致性
   summarize_chapter: '生成章节记忆',
+  propose_story_bible_changes: '生成故事圣经变更建议',
   update_character_state: '更新人物状态',
   extract_story_events: '提取故事事件',
   extract_foreshadowing: '提取伏笔',
@@ -245,6 +285,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   enhance_author_style: taskPolicy('preview_then_adopt', '强化作者风格，用户确认差异后写入。'),
   evaluate_ai_drama_fit: taskPolicy('auto_write', '生成评分报告并自动写入评分记录。'),
   summarize_chapter: taskPolicy('auto_write', '生成章节记忆并自动写入记忆记录。'),
+  propose_story_bible_changes: taskPolicy('preview_then_adopt', '生成故事圣经变更草案，用户确认后才一次写入相关记录。'),
   update_character_state: taskPolicy('auto_write', '生成人物状态快照并自动写入。'),
   extract_story_events: taskPolicy('auto_write', '提取故事事件并自动追加。'),
   extract_foreshadowing: taskPolicy('auto_write', '提取伏笔并自动追加。'),
@@ -465,6 +506,7 @@ export const TASK_GROUPS: TaskGroup[] = [
     taskTypes: [
       'evaluate_ai_drama_fit',
       'summarize_chapter',
+      'propose_story_bible_changes',
       'update_character_state',
       'extract_story_events',
       'extract_foreshadowing',

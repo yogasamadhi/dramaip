@@ -41,16 +41,149 @@ const projectAssetKind = z.enum([
   'cover_image',
   'first_frame_image',
   'narration_audio',
+  'dialogue_audio',
+  'bgm_audio',
+  'sfx_audio',
   'subtitle_file',
   'source_media',
+  'rights_evidence',
   'other',
 ])
 const projectAssetStatus = z.enum(['available', 'missing', 'remote_only'])
 const projectAssetPackagePolicy = z.enum(['exclude', 'reference_only', 'include_binary'])
-const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'video_result', 'manual'])
+const projectAssetSourceKind = z.enum(['project', 'character', 'visual_profile', 'visual_setting', 'episode', 'script', 'scene', 'shot', 'image_task', 'audio_task', 'video_result', 'manual'])
+const assetRightsStatus = z.enum(['verified', 'declared', 'unknown', 'expired', 'restricted'])
+const assetRightsType = z.enum(['ownership', 'license', 'talent_release', 'voice_consent', 'provider_terms', 'public_domain', 'other'])
+const assetPermittedUse = z.enum(['commercial', 'adaptation', 'generative', 'voice_cloning'])
+const visualAssetOwnerKind = z.enum(['visual_profile', 'visual_setting'])
+const visualAssetSlot = z.enum(['face_anchor', 'turnaround', 'expression', 'pose', 'costume', 'prop', 'scene_layout', 'scene_variant', 'style_frame', 'voice_reference'])
+const visualAssetVersionStatus = z.enum(['candidate', 'adopted', 'superseded', 'rejected'])
+const visualAssetVersionInput = z.object({
+  projectId: id,
+  ownerKind: visualAssetOwnerKind,
+  ownerId: id,
+  assetId: id,
+  slot: visualAssetSlot,
+  label: z.string().min(1).max(200),
+  notes: z.string().max(2_000).optional(),
+  status: visualAssetVersionStatus.optional(),
+}).strict()
+const shotVisualAssetLockInput = z.object({
+  projectId: id,
+  shotId: id,
+  visualAssetVersionId: id,
+  role: z.string().min(1).max(100),
+}).strict()
+const shotStillKind = z.enum(['still', 'first_frame', 'last_frame', 'cover'])
+const shotStillCandidateInput = z.object({
+  projectId: id,
+  shotId: id,
+  assetId: id,
+  kind: shotStillKind,
+  label: z.string().min(1).max(200),
+  notes: z.string().max(2_000).optional(),
+}).strict()
+const imageProviderConfigInput = z.object({
+  name: z.string().min(1).max(120),
+  kind: z.literal('openai_image'),
+  apiKey: z.string().max(1_000).optional(),
+  model: z.string().min(1).max(120).default('gpt-image-2'),
+  featureEnabled: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+}).strict()
+const imageProviderConfigPatch = imageProviderConfigInput.partial().strict()
+const imageTaskInput = z.object({
+  providerConfigId: id,
+  projectId: id,
+  shotId: id,
+  kind: shotStillKind,
+  prompt: z.string().min(1).max(20_000),
+  size: z.enum(['1024x1024', '1024x1536', '1536x1024']).optional(),
+  quality: z.enum(['low', 'medium', 'high']).optional(),
+  outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
+}).strict()
+const ttsProviderConfigInput = z.object({
+  name: z.string().min(1).max(120),
+  kind: z.literal('openai_tts'),
+  apiKey: z.string().max(1_000).optional(),
+  model: z.string().min(1).max(120).default('gpt-4o-mini-tts'),
+  featureEnabled: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+}).strict()
+const ttsProviderConfigPatch = ttsProviderConfigInput.partial().strict()
+const ttsTaskInput = z.object({
+  providerConfigId: id,
+  projectId: id,
+  episodeId: id,
+  shotId: maybeId,
+  voiceProfileId: maybeId,
+  kind: z.enum(['dialogue', 'narration']),
+  input: z.string().min(1).max(4_096),
+  voice: z.string().min(1).max(120),
+  instructions: z.string().max(4_000).optional(),
+  speed: z.number().min(0.25).max(4).optional(),
+  responseFormat: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
+}).strict()
+const animaticClipInput = z.object({
+  id,
+  shotId: id,
+  orderIndex: z.number().int().nonnegative(),
+  durationSeconds: z.number().positive().max(15),
+  stillCandidateId: maybeId,
+  assetId: maybeId,
+  transition: z.enum(['cut', 'fade', 'push', 'pull']),
+  crop: z.object({
+    zoom: z.number().min(0.8).max(2),
+    x: z.number().min(-50).max(50),
+    y: z.number().min(-50).max(50),
+  }).strict().optional(),
+  dialogue: z.string().max(4_000).optional(),
+  narration: z.string().max(4_000).optional(),
+  temporaryAudioAssetId: maybeId,
+}).strict()
+const animaticAnnotationInput = z.object({
+  id,
+  atSeconds: z.number().nonnegative(),
+  shotId: maybeId,
+  category: z.enum(['pacing', 'information', 'hook', 'shot']),
+  note: z.string().min(1).max(2_000),
+  createdAt: z.string().min(1),
+}).strict()
+const animaticSaveInput = z.object({
+  projectId: id,
+  adaptationProjectId: id,
+  episodeId: id,
+  sourceFingerprint: z.string().min(1),
+  clips: z.array(animaticClipInput).max(500),
+  annotations: z.array(animaticAnnotationInput).max(500),
+}).strict()
+const animaticReviewInput = z.object({
+  status: z.enum(['approved', 'returned']),
+  reviewNote: z.string().min(1).max(2_000).optional(),
+}).strict()
+const voiceProfileInput = z.object({
+  projectId: id, characterId: maybeId, label: z.string().min(1).max(200), voiceTone: z.string().max(500).optional(),
+  speed: z.number().min(0.5).max(2).optional(), emotion: z.string().max(200).optional(), language: z.string().max(80).optional(),
+  pronunciationDictionary: z.record(z.string().max(200)).default({}), sampleAssetId: maybeId, notes: z.string().max(2_000).optional(),
+}).strict()
+const audioClipInput = z.object({
+  id, shotId: maybeId, characterId: maybeId, assetId: maybeId, voiceProfileId: maybeId, text: z.string().max(4_000).optional(),
+  startSeconds: z.number().nonnegative(), durationSeconds: z.number().positive().max(3_600).optional(), volume: z.number().min(0).max(2).default(1),
+  fadeInSeconds: z.number().nonnegative().max(60).default(0), fadeOutSeconds: z.number().nonnegative().max(60).default(0), loop: z.boolean().default(false), duckingIntent: z.boolean().default(false),
+}).strict()
+const audioTrackSaveInput = z.object({
+  projectId: id, adaptationProjectId: id, episodeId: id, kind: z.enum(['dialogue', 'narration', 'bgm', 'sfx']), label: z.string().min(1).max(200), sourceFingerprint: z.string().min(1), clips: z.array(audioClipInput).max(1_000),
+}).strict()
+const localizationCueInput = z.object({ id, shotId: maybeId, startSeconds: z.number().nonnegative(), endSeconds: z.number().positive(), sourceText: z.string().max(4_000), localizedText: z.string().max(4_000), culturalNote: z.string().max(1_000).optional() }).strict()
+const localizationCreateInput = z.object({ projectId: id, adaptationProjectId: id, episodeId: id, targetLocale: z.string().min(2).max(32), targetRegion: z.string().max(32).optional(), label: z.string().min(1).max(200), title: z.string().min(1).max(300), description: z.string().max(2_000).optional(), glossary: z.record(z.string().max(200)).default({}), culturalNotes: z.array(z.string().max(1_000)).max(100).default([]), cues: z.array(localizationCueInput).max(1_000), voiceProfileId: maybeId, audioCandidateNote: z.string().max(2_000).optional(), sourceFingerprint: z.string().min(1) }).strict()
+const localizationScopedId = z.object({ projectId: id, id }).strict()
+const localizationUpdateInput = localizationCreateInput.omit({ projectId: true, adaptationProjectId: true, episodeId: true, sourceFingerprint: true }).partial().strict()
 const revisionTaskPriority = z.enum(['must', 'should', 'could'])
 const revisionTaskStatus = z.enum(['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'])
 const contentVersionSource = z.enum(['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'])
+const storyBibleSettingsPatch = z.object({ autoSuggest: z.boolean() }).strict()
+const storyBibleQueueInput = z.object({ projectId: id, chapterId: id }).strict()
+const storyBibleChangeSetStatus = z.enum(['paused', 'queued', 'skipped', 'discarded'])
 const logLevel = z.enum(['debug', 'info', 'warn', 'error'])
 const diagnosticExportOptions = z
   .object({
@@ -61,6 +194,8 @@ const diagnosticExportOptions = z
 const projectPackageExportOptions = z
   .object({
     includeAssets: z.boolean().optional(),
+    // 反馈评论可能含有仅限本机保存的原文，必须由用户单独确认才写入项目包。
+    includeFeedback: z.boolean().optional(),
   })
   .strict()
   .optional()
@@ -101,6 +236,26 @@ const projectAssetInput = z
   })
   .strict()
 const projectAssetPatch = projectAssetInput.partial().strict()
+const assetRightsInput = z.object({
+  projectId: id,
+  assetId: id,
+  rightsholder: z.string().max(300).optional(),
+  source: z.string().max(1_000).optional(),
+  rightsTypes: z.array(assetRightsType).max(12).optional(),
+  permittedUses: z.array(assetPermittedUse).max(8).optional(),
+  platforms: looseStringArray.optional(),
+  regions: looseStringArray.optional(),
+  validFrom: z.string().max(40).optional(),
+  validUntil: z.string().max(40).optional(),
+  evidenceAssetId: maybeId,
+  evidenceSha256: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
+  aiGenerated: z.boolean().optional(),
+  status: assetRightsStatus.optional(),
+  reviewedAt: z.string().max(40).optional(),
+  reviewNote: z.string().max(2_000).optional(),
+}).strict()
+const assetRightsPatch = assetRightsInput.partial().strict()
+const rightsPreflightInput = z.object({ projectId: id, platform: z.string().max(100).optional(), region: z.string().max(100).optional(), deliveryAt: z.string().max(40).optional() }).strict()
 
 const projectInput = z
   .object({
@@ -329,6 +484,75 @@ const updateVideoResultInput = z
   })
   .passthrough()
 
+const updateGenerationCostInput = z
+  .object({
+    actualCost: z.number().nonnegative().optional(),
+    currency: z.string().min(1).max(12).optional(),
+    actualCostNote: z.string().max(500).optional(),
+  })
+  .strict()
+
+const episodeRenderInput = z
+  .object({
+    projectId: id,
+    adaptationProjectId: id,
+    episodeId: id,
+    mutedTrackIds: stringArray.optional(),
+  })
+  .strict()
+
+const episodeQualityListInput = z
+  .object({
+    projectId: id,
+    adaptationProjectId: id,
+    episodeId: id,
+  })
+  .strict()
+
+const episodeQualityInput = episodeQualityListInput.extend({ renderTaskId: id }).strict()
+
+const episodeMinimalRedoInput = episodeQualityListInput.extend({ qualityTaskId: id }).strict()
+
+const episodeComplianceListInput = z
+  .object({ projectId: id, adaptationProjectId: id, episodeId: id })
+  .strict()
+
+const episodeComplianceInput = episodeComplianceListInput.extend({
+  renderTaskId: id,
+  qualityTaskId: id,
+  profileId: id,
+  title: z.string().max(300),
+  subtitleLanguage: z.string().max(64),
+  targetPlatform: z.string().max(120).optional(),
+  targetRegion: z.string().max(120).optional(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  aigcDeclared: z.boolean(),
+  manualContentReviewConfirmed: z.boolean(),
+}).strict()
+
+const platformDeliveryVariantInput = episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).extend({
+  label: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(300),
+  description: z.string().trim().min(1).max(2000),
+  tags: stringArray,
+  coverAssetId: id.optional(),
+  source: z.enum(['manual', 'ai_draft']),
+}).strict()
+
+const platformDeliveryScopedIdInput = episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).extend({ id }).strict()
+
+const platformDeliveryExportInput = episodeComplianceListInput.extend({
+  profileId: id,
+  creativeVariantId: id,
+  complianceTaskId: id,
+  manualFieldsConfirmed: z.boolean(),
+}).strict()
+
+const feedbackPreviewTextInput = z.object({ kind: z.enum(['metrics', 'comments']), sourceName: z.string().min(1).max(240), content: z.string().max(10_000_000), platform: z.string().max(120).optional(), sourceVersion: z.string().max(120).optional() }).strict()
+const feedbackCommitInput = z.object({ projectId: id, token: id, privacy: z.enum(['local_only', 'redacted']) }).strict()
+const feedbackBatchInput = z.object({ projectId: id, batchId: id }).strict()
+const feedbackRevisionInput = feedbackBatchInput.extend({ clusterId: id.optional(), title: z.string().max(240).optional(), suggestedAction: z.string().max(2000).optional() }).strict()
+
 const templateInput = z
   .object({
     name: id,
@@ -555,6 +779,63 @@ const caseStudyDocumentChapterPatch = z
   })
   .passthrough()
 
+const sourceImportSceneInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    title: z.string().min(1),
+    location: z.string().min(1),
+    timeOfDay: z.string().optional(),
+    visualDescription: z.string().optional(),
+    characters: looseStringArray.optional(),
+    summary: z.string().optional(),
+    content: z.string().optional(),
+    orderIndex: z.number().int().nonnegative().optional(),
+    dialogueCount: z.number().int().nonnegative().optional(),
+    actionCount: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+const sourceImportEpisodeInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    episodeNumber: z.number().int().positive(),
+    title: z.string().min(1),
+    content: z.string().max(1_500_000),
+    scenes: z.array(sourceImportSceneInput).max(2_000),
+  })
+  .strict()
+const sourceImportChapterInput = z
+  .object({
+    key: z.string().min(1).optional(),
+    title: z.string().min(1),
+    content: z.string().max(1_500_000),
+    orderIndex: z.number().int().nonnegative().optional(),
+    wordCount: z.number().int().nonnegative().optional(),
+    warning: z.string().optional(),
+  })
+  .strict()
+const sourceImportPreviewInput = z
+  .object({
+    fileName: z.string().min(1),
+    sourceType: z.enum(['txt', 'markdown', 'docx', 'epub', 'script-json', 'draft']),
+    contentKind: z.enum(['novel', 'script', 'draft']),
+    title: z.string().min(1),
+    charCount: z.number().int().nonnegative(),
+    chapters: z.array(sourceImportChapterInput).max(2_000),
+    episodes: z.array(sourceImportEpisodeInput).max(1_000),
+    warnings: looseStringArray,
+  })
+  .strict()
+const sourceImportCommitInput = z
+  .object({
+    importId: id,
+    projectId: id,
+    strategy: z.enum(['append', 'merge', 'replace']),
+    rightsConfirmed: z.literal(true),
+    destructiveConfirmed: z.boolean().optional(),
+    preview: sourceImportPreviewInput,
+  })
+  .strict()
+
 const globalSearchInput = z
   .object({
     query: z.string().max(120),
@@ -570,8 +851,85 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'asset:update': [id, projectAssetPatch],
   'asset:listByProject': [id],
   'asset:listBySource': [projectAssetSourceKind, id],
+  'generation:listLineagesByProject': [id],
+  'generation:listCostsByProject': [id],
+  'generation:updateCost': [id, updateGenerationCostInput],
   'asset:delete': [id],
-  'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file'])],
+  'asset:chooseLocalFile': [z.enum(['character_reference', 'casting_reference', 'voice_reference', 'scene_reference', 'style_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'dialogue_audio', 'bgm_audio', 'sfx_audio', 'subtitle_file', 'rights_evidence'])],
+  'rights:listByProject': [id],
+  'rights:create': [assetRightsInput],
+  'rights:update': [id, assetRightsPatch],
+  'rights:preflight': [rightsPreflightInput],
+  'visualAsset:listByProject': [id],
+  'visualAsset:listByOwner': [visualAssetOwnerKind, id],
+  'visualAsset:create': [visualAssetVersionInput],
+  'visualAsset:adopt': [id],
+  'visualAsset:listLocksByShot': [id],
+  'visualAsset:lockShot': [shotVisualAssetLockInput],
+  'shotStill:listByShot': [id],
+  'shotStill:create': [shotStillCandidateInput],
+  'shotStill:adopt': [id],
+  'imageProvider:list': [],
+  'imageProvider:getDefault': [],
+  'imageProvider:create': [imageProviderConfigInput],
+  'imageProvider:update': [id, imageProviderConfigPatch],
+  'imageProvider:delete': [id],
+  'imageProvider:setDefault': [id],
+  'imageTask:create': [imageTaskInput],
+  'ttsProvider:list': [],
+  'ttsProvider:getDefault': [],
+  'ttsProvider:create': [ttsProviderConfigInput],
+  'ttsProvider:update': [id, ttsProviderConfigPatch],
+  'ttsProvider:delete': [id],
+  'ttsProvider:setDefault': [id],
+  'ttsTask:create': [ttsTaskInput],
+  'animatic:listByEpisode': [id],
+  'animatic:initialize': [id, id],
+  'animatic:save': [animaticSaveInput],
+  'animatic:review': [id, animaticReviewInput],
+  'audio:listVoiceProfiles': [id],
+  'audio:createVoiceProfile': [voiceProfileInput],
+  'audio:adoptVoiceProfile': [id],
+  'audio:listTracksByEpisode': [id],
+  'audio:saveTrack': [audioTrackSaveInput],
+  'audio:adoptTrack': [id],
+  'episodeRender:listByEpisode': [episodeRenderInput],
+  'episodeRender:preflight': [episodeRenderInput],
+  'episodeRender:start': [episodeRenderInput],
+  'episodeQuality:listByEpisode': [episodeQualityListInput],
+  'episodeQuality:start': [episodeQualityInput],
+  'episodeQuality:createMinimalRedoPlan': [episodeMinimalRedoInput],
+  'compliance:listProfiles': [],
+  'compliance:activateProfile': [id],
+  'episodeCompliance:listByEpisode': [episodeComplianceListInput],
+  'episodeCompliance:preflight': [episodeComplianceInput],
+  'episodeCompliance:start': [episodeComplianceInput],
+  'platformDelivery:listProfiles': [],
+  'platformDelivery:listVariants': [episodeComplianceListInput.pick({ projectId: true, adaptationProjectId: true }).strict()],
+  'platformDelivery:createVariant': [platformDeliveryVariantInput],
+  'platformDelivery:adoptVariant': [platformDeliveryScopedIdInput],
+  'platformDelivery:listExports': [episodeComplianceListInput],
+  'platformDelivery:preflight': [platformDeliveryExportInput],
+  'platformDelivery:export': [platformDeliveryExportInput],
+  'platformDelivery:openExportDirectory': [platformDeliveryScopedIdInput],
+  'feedback:chooseAndPreview': [z.enum(['metrics', 'comments'])],
+  'feedback:previewText': [feedbackPreviewTextInput],
+  'feedback:commitPreview': [feedbackCommitInput],
+  'feedback:listBatches': [id],
+  'feedback:listMetrics': [id],
+  'feedback:listComments': [id],
+  'feedback:listClusters': [id],
+  'feedback:clusterBatch': [feedbackBatchInput],
+  'feedback:deleteClusters': [feedbackBatchInput],
+  'feedback:deleteBatch': [feedbackBatchInput],
+  'feedback:createRevisionTask': [feedbackRevisionInput],
+  'localization:listByEpisode': [id],
+  'localization:initialize': [z.object({ projectId: id, episodeId: id }).strict()],
+  'localization:create': [localizationCreateInput],
+  'localization:update': [localizationScopedId, localizationUpdateInput],
+  'localization:adopt': [localizationScopedId, z.string().max(2_000).optional()],
+  'localization:subtitleFiles': [localizationScopedId],
+  'localization:exportPackage': [localizationScopedId],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
   // The Electron main process owns the PKCE session and local credential boundary.
@@ -644,12 +1002,24 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'visualSetting:list': [id],
   'storyEvent:list': [id],
   'foreshadowing:list': [id],
+  'storyBible:settings:get': [id],
+  'storyBible:settings:update': [id, storyBibleSettingsPatch],
+  'storyBible:changeSet:list': [id],
+  'storyBible:changeSet:queue': [storyBibleQueueInput],
+  'storyBible:changeSet:apply': [id],
+  'storyBible:changeSet:undo': [id],
+  'storyBible:changeSet:fail': [id, z.string().min(1)],
+  'storyBible:changeSet:setStatus': [id, storyBibleChangeSetStatus],
+  'storyBible:stale:list': [id],
   'beat:list': [id],
   'highlight:list': [id],
   'feasibility:list': [id],
   'episode:list': [id],
   'script:list': [id],
   'project:importPackage': [],
+  'sourceImport:choose': [id],
+  'sourceImport:commit': [sourceImportCommitInput],
+  'sourceImport:discard': [id],
   'caseStudy:importDocuments': [],
   'evaluation:list': [id],
   'chapterMemory:getByChapter': [id, id],
@@ -686,6 +1056,10 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'writingRoom:run': [writingRoomInput],
   'genrePreset:create': [genrePresetInput],
   'genrePreset:update': [id, genrePresetPatch],
+  // 结构与来源校验由 core 的 validateGenreMarketSnapshot 在主进程落库前执行；
+  // 此处只负责把通道纳入统一 IPC 白名单与参数数量校验。
+  'genreMarketSnapshot:import': [objectPayload],
+  'genreMarketSnapshot:activate': [id],
   'workflow:run': [workflowRunInput],
   'workflow:resume': [workflowResumeInput],
   'workflow:retryStep': [workflowRetryStepInput],
@@ -759,6 +1133,8 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'caseStudy:list',
       'caseStudy:listDocuments',
       'genrePreset:list',
+      'genreMarketSnapshot:list',
+      'genreMarketSnapshot:getActive',
       'template:list',
       'templateRun:list',
       'videoProvider:getDefault',

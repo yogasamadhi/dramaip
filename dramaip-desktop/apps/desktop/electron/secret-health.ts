@@ -4,7 +4,7 @@ export const MASKED_PREFIX = 'masked:v1:'
 export const KEYCHAIN_PREFIX = 'keychain:v1:'
 export const LOCAL_CREDENTIAL_PREFIX = 'local:v1:'
 
-export type SecretRecordArea = 'model_config' | 'video_provider_config'
+export type SecretRecordArea = 'model_config' | 'video_provider_config' | 'image_provider_config' | 'tts_provider_config'
 
 export type SecretValueState =
   | 'empty'

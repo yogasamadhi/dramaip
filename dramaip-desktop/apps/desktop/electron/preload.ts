@@ -21,6 +21,117 @@ const api = {
     remove: (id: string) => invoke('asset:delete', id),
     chooseLocalFile: (kind: string) => invoke('asset:chooseLocalFile', kind),
   },
+  generation: {
+    listLineagesByProject: (projectId: string) => invoke('generation:listLineagesByProject', projectId),
+    listCostsByProject: (projectId: string) => invoke('generation:listCostsByProject', projectId),
+    updateCost: (id: string, patch: unknown) => invoke('generation:updateCost', id, patch),
+  },
+  rights: {
+    listByProject: (projectId: string) => invoke('rights:listByProject', projectId),
+    create: (data: unknown) => invoke('rights:create', data),
+    update: (id: string, patch: unknown) => invoke('rights:update', id, patch),
+    preflight: (input: unknown) => invoke('rights:preflight', input),
+  },
+  visualAsset: {
+    listByProject: (projectId: string) => invoke('visualAsset:listByProject', projectId),
+    listByOwner: (ownerKind: string, ownerId: string) => invoke('visualAsset:listByOwner', ownerKind, ownerId),
+    create: (data: unknown) => invoke('visualAsset:create', data),
+    adopt: (id: string) => invoke('visualAsset:adopt', id),
+    listLocksByShot: (shotId: string) => invoke('visualAsset:listLocksByShot', shotId),
+    lockShot: (data: unknown) => invoke('visualAsset:lockShot', data),
+  },
+  shotStill: {
+    listByShot: (shotId: string) => invoke('shotStill:listByShot', shotId),
+    create: (data: unknown) => invoke('shotStill:create', data),
+    adopt: (id: string) => invoke('shotStill:adopt', id),
+  },
+  imageProvider: {
+    list: () => invoke('imageProvider:list'),
+    getDefault: () => invoke('imageProvider:getDefault'),
+    create: (data: unknown) => invoke('imageProvider:create', data),
+    update: (id: string, patch: unknown) => invoke('imageProvider:update', id, patch),
+    remove: (id: string) => invoke('imageProvider:delete', id),
+    setDefault: (id: string) => invoke('imageProvider:setDefault', id),
+  },
+  imageTask: {
+    create: (input: unknown) => invoke('imageTask:create', input),
+  },
+  ttsProvider: {
+    list: () => invoke('ttsProvider:list'),
+    getDefault: () => invoke('ttsProvider:getDefault'),
+    create: (data: unknown) => invoke('ttsProvider:create', data),
+    update: (id: string, patch: unknown) => invoke('ttsProvider:update', id, patch),
+    remove: (id: string) => invoke('ttsProvider:delete', id),
+    setDefault: (id: string) => invoke('ttsProvider:setDefault', id),
+  },
+  ttsTask: {
+    create: (input: unknown) => invoke('ttsTask:create', input),
+  },
+  animatic: {
+    listByEpisode: (episodeId: string) => invoke('animatic:listByEpisode', episodeId),
+    initialize: (projectId: string, episodeId: string) => invoke('animatic:initialize', projectId, episodeId),
+    save: (data: unknown) => invoke('animatic:save', data),
+    review: (id: string, review: unknown) => invoke('animatic:review', id, review),
+  },
+  audio: {
+    listVoiceProfiles: (projectId: string) => invoke('audio:listVoiceProfiles', projectId),
+    createVoiceProfile: (data: unknown) => invoke('audio:createVoiceProfile', data),
+    adoptVoiceProfile: (id: string) => invoke('audio:adoptVoiceProfile', id),
+    listTracksByEpisode: (episodeId: string) => invoke('audio:listTracksByEpisode', episodeId),
+    saveTrack: (data: unknown) => invoke('audio:saveTrack', data),
+    adoptTrack: (id: string) => invoke('audio:adoptTrack', id),
+  },
+  episodeRender: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:listByEpisode', input),
+    preflight: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:preflight', input),
+    start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }) => invoke('episodeRender:start', input),
+  },
+  episodeQuality: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('episodeQuality:listByEpisode', input),
+    start: (input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }) => invoke('episodeQuality:start', input),
+    createMinimalRedoPlan: (input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }) => invoke('episodeQuality:createMinimalRedoPlan', input),
+  },
+  compliance: {
+    listProfiles: () => invoke('compliance:listProfiles'),
+    activateProfile: (id: string) => invoke('compliance:activateProfile', id),
+  },
+  episodeCompliance: {
+    listByEpisode: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('episodeCompliance:listByEpisode', input),
+    preflight: (input: unknown) => invoke('episodeCompliance:preflight', input),
+    start: (input: unknown) => invoke('episodeCompliance:start', input),
+  },
+  platformDelivery: {
+    listProfiles: () => invoke('platformDelivery:listProfiles'),
+    listVariants: (input: { projectId: string; adaptationProjectId: string }) => invoke('platformDelivery:listVariants', input),
+    createVariant: (input: unknown) => invoke('platformDelivery:createVariant', input),
+    adoptVariant: (input: { projectId: string; adaptationProjectId: string; id: string }) => invoke('platformDelivery:adoptVariant', input),
+    listExports: (input: { projectId: string; adaptationProjectId: string; episodeId: string }) => invoke('platformDelivery:listExports', input),
+    preflight: (input: unknown) => invoke('platformDelivery:preflight', input),
+    export: (input: unknown) => invoke('platformDelivery:export', input),
+    openExportDirectory: (input: { projectId: string; adaptationProjectId: string; id: string }) => invoke('platformDelivery:openExportDirectory', input),
+  },
+  feedback: {
+    chooseAndPreview: (kind: 'metrics' | 'comments') => invoke('feedback:chooseAndPreview', kind),
+    previewText: (input: { kind: 'metrics' | 'comments'; sourceName: string; content: string; platform?: string; sourceVersion?: string }) => invoke('feedback:previewText', input),
+    commitPreview: (input: { projectId: string; token: string; privacy: 'local_only' | 'redacted' }) => invoke('feedback:commitPreview', input),
+    listBatches: (projectId: string) => invoke('feedback:listBatches', projectId),
+    listMetrics: (projectId: string) => invoke('feedback:listMetrics', projectId),
+    listComments: (projectId: string) => invoke('feedback:listComments', projectId),
+    listClusters: (projectId: string) => invoke('feedback:listClusters', projectId),
+    clusterBatch: (input: { projectId: string; batchId: string }) => invoke('feedback:clusterBatch', input),
+    deleteClusters: (input: { projectId: string; batchId: string }) => invoke('feedback:deleteClusters', input),
+    deleteBatch: (input: { projectId: string; batchId: string }) => invoke('feedback:deleteBatch', input),
+    createRevisionTask: (input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }) => invoke('feedback:createRevisionTask', input),
+  },
+  localization: {
+    listByEpisode: (episodeId: string) => invoke('localization:listByEpisode', episodeId),
+    initialize: (input: { projectId: string; episodeId: string }) => invoke('localization:initialize', input),
+    create: (input: unknown) => invoke('localization:create', input),
+    update: (scope: { projectId: string; id: string }, patch: unknown) => invoke('localization:update', scope, patch),
+    adopt: (scope: { projectId: string; id: string }, reviewNote?: string) => invoke('localization:adopt', scope, reviewNote),
+    subtitleFiles: (scope: { projectId: string; id: string }) => invoke('localization:subtitleFiles', scope),
+    exportPackage: (scope: { projectId: string; id: string }) => invoke('localization:exportPackage', scope),
+  },
   log: {
     renderer: (level: RendererLogLevel, scope: string, message: string, meta?: unknown) =>
       invoke('log:renderer', level, scope, message, meta),
@@ -87,6 +198,11 @@ const api = {
     purge: (id: string, confirmationTitle: string) => invoke('project:purge', id, confirmationTitle),
     // v1.0：导入项目包
     importPackage: () => invoke('project:importPackage'),
+  },
+  sourceImport: {
+    choose: (projectId: string) => invoke('sourceImport:choose', projectId),
+    commit: (input: unknown) => invoke('sourceImport:commit', input),
+    discard: (importId: string) => invoke('sourceImport:discard', importId),
   },
   chapter: {
     list: (projectId: string) => invoke('chapter:list', projectId),
@@ -268,6 +384,18 @@ const api = {
     update: (id: string, patch: unknown) => invoke('foreshadowing:update', id, patch),
     remove: (id: string) => invoke('foreshadowing:delete', id),
   },
+  storyBible: {
+    getSettings: (projectId: string) => invoke('storyBible:settings:get', projectId),
+    updateSettings: (projectId: string, patch: { autoSuggest: boolean }) => invoke('storyBible:settings:update', projectId, patch),
+    listChangeSets: (projectId: string) => invoke('storyBible:changeSet:list', projectId),
+    queueChangeSet: (input: { projectId: string; chapterId: string }) => invoke('storyBible:changeSet:queue', input),
+    applyChangeSet: (id: string) => invoke('storyBible:changeSet:apply', id),
+    undoChangeSet: (id: string) => invoke('storyBible:changeSet:undo', id),
+    failChangeSet: (id: string, message: string) => invoke('storyBible:changeSet:fail', id, message),
+    setChangeSetStatus: (id: string, status: 'paused' | 'queued' | 'skipped' | 'discarded') =>
+      invoke('storyBible:changeSet:setStatus', id, status),
+    listStaleMarks: (projectId: string) => invoke('storyBible:stale:list', projectId),
+  },
   // v0.3 AI 短剧小说强化系统
   beat: {
     list: (projectId: string) => invoke('beat:list', projectId),
@@ -429,6 +557,12 @@ const api = {
     create: (data: unknown) => invoke('genrePreset:create', data),
     update: (id: string, patch: unknown) => invoke('genrePreset:update', id, patch),
     remove: (id: string) => invoke('genrePreset:delete', id),
+  },
+  genreMarketSnapshot: {
+    list: () => invoke('genreMarketSnapshot:list'),
+    getActive: () => invoke('genreMarketSnapshot:getActive'),
+    import: (snapshot: unknown) => invoke('genreMarketSnapshot:import', snapshot),
+    activate: (version: string) => invoke('genreMarketSnapshot:activate', version),
   },
   templateRun: {
     list: () => invoke('templateRun:list'),

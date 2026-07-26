@@ -152,6 +152,40 @@ test('validates exact IPC channel arguments', () => {
     { includeContent: true },
   ])
   assert.deepEqual(validateIpcArgs('asset:listBySource', ['visual_profile', 'vp1']), ['visual_profile', 'vp1'])
+  assert.deepEqual(validateIpcArgs('visualAsset:create', [{
+    projectId: 'p1', ownerKind: 'visual_profile', ownerId: 'vp1', assetId: 'asset1',
+    slot: 'costume', label: '红裙晚宴款', notes: '第 1 集',
+  }]), [{
+    projectId: 'p1', ownerKind: 'visual_profile', ownerId: 'vp1', assetId: 'asset1',
+    slot: 'costume', label: '红裙晚宴款', notes: '第 1 集',
+  }])
+  assert.deepEqual(validateIpcArgs('visualAsset:lockShot', [{
+    projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: 'costume',
+  }]), [{ projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: 'costume' }])
+  assert.deepEqual(validateIpcArgs('shotStill:create', [{
+    projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本',
+  }]), [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'first_frame', label: '镜头首帧 A', notes: '低机位版本' }])
+  assert.deepEqual(validateIpcArgs('imageProvider:create', [{
+    name: 'OpenAI 图片生产', kind: 'openai_image', apiKey: 'sk-test-key', model: 'gpt-image-2', featureEnabled: false, isDefault: true,
+  }]), [{ name: 'OpenAI 图片生产', kind: 'openai_image', apiKey: 'sk-test-key', model: 'gpt-image-2', featureEnabled: false, isDefault: true }])
+  assert.deepEqual(validateIpcArgs('imageTask:create', [{
+    providerConfigId: 'image-provider-1', projectId: 'p1', shotId: 'shot1', kind: 'first_frame', prompt: '雨夜天台，近景', size: '1024x1536', quality: 'medium', outputFormat: 'png',
+  }]), [{ providerConfigId: 'image-provider-1', projectId: 'p1', shotId: 'shot1', kind: 'first_frame', prompt: '雨夜天台，近景', size: '1024x1536', quality: 'medium', outputFormat: 'png' }])
+  assert.deepEqual(validateIpcArgs('ttsProvider:create', [{
+    name: 'OpenAI TTS 生产', kind: 'openai_tts', apiKey: 'sk-test-key', model: 'gpt-4o-mini-tts', featureEnabled: false, isDefault: true,
+  }]), [{ name: 'OpenAI TTS 生产', kind: 'openai_tts', apiKey: 'sk-test-key', model: 'gpt-4o-mini-tts', featureEnabled: false, isDefault: true }])
+  assert.deepEqual(validateIpcArgs('ttsTask:create', [{
+    providerConfigId: 'tts-provider-1', projectId: 'p1', episodeId: 'episode1', voiceProfileId: 'voice1', kind: 'narration', input: '雨夜的旁白。', voice: 'alloy', speed: 1.1, responseFormat: 'mp3',
+  }]), [{ providerConfigId: 'tts-provider-1', projectId: 'p1', episodeId: 'episode1', voiceProfileId: 'voice1', kind: 'narration', input: '雨夜的旁白。', voice: 'alloy', speed: 1.1, responseFormat: 'mp3' }])
+  assert.deepEqual(validateIpcArgs('audio:createVoiceProfile', [{ projectId: 'p1', characterId: 'character1', label: '女主旁白', voiceTone: '克制', pronunciationDictionary: { 林晚: 'lín wǎn' } }]), [{ projectId: 'p1', characterId: 'character1', label: '女主旁白', voiceTone: '克制', pronunciationDictionary: { 林晚: 'lín wǎn' } }])
+  assert.deepEqual(validateIpcArgs('audio:saveTrack', [{ projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', kind: 'dialogue', label: '对白 v1', sourceFingerprint: 'shot1@version', clips: [{ id: 'clip1', shotId: 'shot1', text: '别走。', startSeconds: 0, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }] }]), [{ projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', kind: 'dialogue', label: '对白 v1', sourceFingerprint: 'shot1@version', clips: [{ id: 'clip1', shotId: 'shot1', text: '别走。', startSeconds: 0, volume: 1, fadeInSeconds: 0, fadeOutSeconds: 0, loop: false, duckingIntent: false }] }])
+  assert.deepEqual(validateIpcArgs('animatic:save', [{
+    projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [],
+    clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 2.5, assetId: 'asset1', transition: 'fade', crop: { zoom: 1.2, x: 10, y: -5 } }],
+  }]), [{
+    projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [],
+    clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 2.5, assetId: 'asset1', transition: 'fade', crop: { zoom: 1.2, x: 10, y: -5 } }],
+  }])
   assert.deepEqual(
     validateIpcArgs('asset:create', [
       {
@@ -220,6 +254,15 @@ test('rejects IPC calls with invalid arity or shape', () => {
   )
   assert.throws(() => validateIpcArgs('asset:create', [{ projectId: 'p1', kind: 'bad', title: 'x' }]), /kind/)
   assert.throws(() => validateIpcArgs('asset:update', ['a1', { status: 'lost' }]), /status/)
+  assert.throws(() => validateIpcArgs('visualAsset:create', [{ projectId: 'p1', ownerKind: 'bad', ownerId: 'vp1', assetId: 'asset1', slot: 'costume', label: 'x' }]), /ownerKind/)
+  assert.throws(() => validateIpcArgs('visualAsset:lockShot', [{ projectId: 'p1', shotId: 'shot1', visualAssetVersionId: 'version1', role: '' }]), /role/)
+  assert.throws(() => validateIpcArgs('shotStill:create', [{ projectId: 'p1', shotId: 'shot1', assetId: 'asset1', kind: 'bad', label: 'x' }]), /kind/)
+  assert.throws(() => validateIpcArgs('imageProvider:create', [{ name: 'x', kind: 'mock' }]), /kind/)
+  assert.throws(() => validateIpcArgs('imageTask:create', [{ providerConfigId: 'p1', projectId: 'p1', shotId: 'shot1', kind: 'still' }]), /prompt/)
+  assert.throws(() => validateIpcArgs('ttsProvider:create', [{ name: 'x', kind: 'mock_tts' }]), /kind/)
+  assert.throws(() => validateIpcArgs('ttsTask:create', [{ providerConfigId: 'p1', projectId: 'p1', episodeId: 'episode1', kind: 'narration', input: '台词' }]), /voice/)
+  assert.throws(() => validateIpcArgs('audio:saveTrack', [{ projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', kind: 'dialogue', label: 'x', sourceFingerprint: 'v', clips: [{ id: 'clip1', startSeconds: -1 }] }]), /startSeconds/)
+  assert.throws(() => validateIpcArgs('animatic:save', [{ projectId: 'p1', adaptationProjectId: 'adaptation1', episodeId: 'episode1', sourceFingerprint: 'shot1@2026-07-23', annotations: [], clips: [{ id: 'clip1', shotId: 'shot1', orderIndex: 0, durationSeconds: 16, transition: 'fade' }] }]), /durationSeconds/)
   assert.throws(() => validateIpcArgs('unknown:run', []), /未登记 IPC channel/)
   assert.throws(() => validateIpcArgs('shadow:create', [{ ok: true }]), /未登记 IPC channel/)
 })
@@ -281,6 +324,10 @@ test('keeps high-risk channels in the shared contract', () => {
     'videoTask:cancel',
     'videoTask:update',
     'videoProvider:create',
+    'ttsProvider:create',
+    'ttsProvider:update',
+    'ttsProvider:delete',
+    'ttsTask:create',
     'workflow:run',
     'workflow:resume',
     'workflow:retryStep',
@@ -392,4 +439,16 @@ test('validates high-risk business IPC payload schemas', () => {
     ]),
     [{ targetKind: 'chapter', targetId: 'c1', label: '恢复', source: 'restore', content: '正文' }],
   )
+})
+
+test('platform delivery IPC accepts scoped creative inputs and rejects unknown fields', () => {
+  const input = {
+    projectId: 'p1', adaptationProjectId: 'a1', label: '方案 A', title: '归来反击', description: '第一集公开反击。',
+    tags: ['反转'], coverAssetId: 'asset1', source: 'manual',
+  }
+  assert.deepEqual(validateIpcArgs('platformDelivery:createVariant', [input]), [input])
+  assert.deepEqual(validateIpcArgs('platformDelivery:preflight', [{
+    projectId: 'p1', adaptationProjectId: 'a1', episodeId: 'e1', profileId: 'douyin-manual-submission-2026-07', creativeVariantId: 'variant1', complianceTaskId: 'task1', manualFieldsConfirmed: true,
+  }]), [{ projectId: 'p1', adaptationProjectId: 'a1', episodeId: 'e1', profileId: 'douyin-manual-submission-2026-07', creativeVariantId: 'variant1', complianceTaskId: 'task1', manualFieldsConfirmed: true }])
+  assert.throws(() => validateIpcArgs('platformDelivery:createVariant', [{ ...input, credential: 'forbidden' }]), /Unrecognized|unrecognized|无法识别/)
 })

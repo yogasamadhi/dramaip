@@ -1,4 +1,5 @@
 // 核心领域类型 —— 对应 PROJECT_BRIEF.md §7 / §8 / §9 / §10
+import type { GenreOpportunitySelection } from '../constants/genre-market-snapshot'
 
 /** 短剧小说项目 */
 export interface Project {
@@ -17,8 +18,44 @@ export interface Project {
   visualStyleDirection?: string
   /** 当前工作的改编项目；为空时由仓库按季号和更新时间确定兼容默认值。 */
   activeAdaptationId?: string
+  /** 创建时采用的离线题材机会快照，保留版本和依据，避免把历史选择改写成“当前爆款”。 */
+  genreOpportunity?: GenreOpportunitySelection
+  /** 创建目标与可编辑的制作 Profile；旧项目会在读取时得到兼容默认值。 */
+  productionBrief?: ProjectProductionBrief
   createdAt: string
   updatedAt: string
+}
+
+/** 从哪一条用户路径启动项目。导入正文与剧本解析在后续流程中执行，不在这里伪造已导入内容。 */
+export type ProjectCreationGoal = 'novel_to_drama' | 'adapt_existing_ip' | 'direct_drama'
+export type ProductionPresentation = 'ai_2d_animation' | 'ai_3d_animation' | 'live_action_style' | 'motion_comic' | 'static_story'
+export type ProductionPlatform = 'short_video_vertical' | 'short_drama_app' | 'video_platform'
+export type ProductionRegion = 'mainland_china' | 'global_chinese' | 'overseas'
+export type ProductionAspectRatio = '9:16' | '16:9' | '1:1'
+export type ProductionBudgetTier = 'starter' | 'standard' | 'premium'
+
+export interface ProductionEpisodeDurationRange {
+  minSeconds: number
+  maxSeconds: number
+}
+
+/** 用户可修改的生产目标；这些是规划值，不是对供应商、成本或播放效果的承诺。 */
+export interface ProjectProductionProfile {
+  presentation: ProductionPresentation
+  platform: ProductionPlatform
+  region: ProductionRegion
+  aspectRatio: ProductionAspectRatio
+  episodeDuration: ProductionEpisodeDurationRange
+  pilotEpisodeCount: number
+  budgetTier: ProductionBudgetTier
+}
+
+export interface ProjectProductionBrief {
+  version: 1
+  creationGoal: ProjectCreationGoal
+  profile: ProjectProductionProfile
+  /** 创建完成后应显示给用户的真实下一步，而不是假装正文或剧本已存在。 */
+  nextStep: 'write_or_plan' | 'import_source' | 'create_direct_adaptation'
 }
 
 /** 项目首页只读摘要：由本地数据库聚合，避免列表页 N×多次 IPC 请求。 */
@@ -305,7 +342,7 @@ export interface AiRunUsageSummaryRow {
   estimatedCost: number
 }
 
-export type LongTaskKind = 'ai' | 'video' | 'batch'
+export type LongTaskKind = 'ai' | 'image' | 'audio' | 'video' | 'batch'
 export type LongTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 
 export type BatchGenerationKind = 'scripts' | 'shots'
@@ -453,6 +490,99 @@ export interface VisualSetting {
   updatedAt: string
 }
 
+/** 可复用的角色/场景生产资产版本；采用只切换指针，绝不覆盖旧媒体。 */
+export type VisualAssetOwnerKind = 'visual_profile' | 'visual_setting'
+export type VisualAssetSlot = 'face_anchor' | 'turnaround' | 'expression' | 'pose' | 'costume' | 'prop' | 'scene_layout' | 'scene_variant' | 'style_frame' | 'voice_reference'
+export type VisualAssetVersionStatus = 'candidate' | 'adopted' | 'superseded' | 'rejected'
+export interface VisualAssetVersion {
+  id: string
+  projectId: string
+  ownerKind: VisualAssetOwnerKind
+  ownerId: string
+  assetId: string
+  slot: VisualAssetSlot
+  label: string
+  versionNumber: number
+  status: VisualAssetVersionStatus
+  notes?: string
+  adoptedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 镜头锁定具体资产版本；上游采用新版本时仅标记旧锁定为 stale，不替换历史镜头。 */
+export interface ShotVisualAssetLock {
+  id: string
+  projectId: string
+  shotId: string
+  visualAssetVersionId: string
+  role: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ShotStillKind = 'still' | 'first_frame' | 'last_frame' | 'cover'
+export type ShotStillCandidateStatus = 'candidate' | 'adopted' | 'superseded' | 'rejected'
+/** 不可变静帧候选；媒体仍归 project_assets 管理，采用关系独立保存。 */
+export interface ShotStillCandidate {
+  id: string
+  projectId: string
+  shotId: string
+  assetId: string
+  kind: ShotStillKind
+  status: ShotStillCandidateStatus
+  label: string
+  notes?: string
+  /** 创建候选时对应的镜头版本；镜头更新后系统据此提示最小重做范围。 */
+  sourceFingerprint?: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 低成本 Animatic 的镜头时间线；它只引用静帧/临时音频，不伪装为最终视频。 */
+export type AnimaticStatus = 'draft' | 'approved' | 'returned'
+export type AnimaticTransition = 'cut' | 'fade' | 'push' | 'pull'
+export interface AnimaticClip {
+  id: string
+  shotId: string
+  orderIndex: number
+  durationSeconds: number
+  stillCandidateId?: string
+  assetId?: string
+  transition: AnimaticTransition
+  /** 静帧在 9:16 预览中的人工取景，避免为了试播节奏而改写原图。 */
+  crop?: { zoom: number; x: number; y: number }
+  dialogue?: string
+  narration?: string
+  temporaryAudioAssetId?: string
+}
+export interface AnimaticAnnotation {
+  id: string
+  atSeconds: number
+  shotId?: string
+  category: 'pacing' | 'information' | 'hook' | 'shot'
+  note: string
+  createdAt: string
+}
+export interface AnimaticDraft {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  versionNumber: number
+  status: AnimaticStatus
+  sourceFingerprint: string
+  clips: AnimaticClip[]
+  annotations: AnimaticAnnotation[]
+  reviewNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 故事事件（时间线） */
 export interface StoryEvent {
   id: string
@@ -478,6 +608,97 @@ export interface Foreshadowing {
   payoffPlan?: string
   relatedCharacterIds?: string[]
   createdAt: string
+  updatedAt: string
+}
+
+/** 故事圣经建议包的生命周期。草案不会直接改写用户的故事圣经记录。 */
+export type StoryBibleChangeSetStatus =
+  | 'queued'
+  | 'draft'
+  | 'applied'
+  | 'stale'
+  | 'paused'
+  | 'failed'
+  | 'skipped'
+  | 'discarded'
+
+/** 一项可审查的故事圣经新增或待人工处理的冲突。 */
+export interface StoryBibleChangeItem {
+  id: string
+  kind: 'memory' | 'character_state' | 'story_event' | 'foreshadowing' | 'visual_setting'
+  action: 'add' | 'resolve' | 'conflict'
+  title: string
+  detail: string
+  targetId?: string
+}
+
+/** AI 对一章稳定正文提出的结构化变更；只在用户采用后写入实体表。 */
+export interface StoryBibleChangeSetPayload {
+  summary: string
+  memories: Array<{
+    summary: string
+    importantEvents: string[]
+    characterChanges: string[]
+    revealedSecrets: string[]
+    newForeshadowing: string[]
+    resolvedForeshadowing: string[]
+    keyVisualElements: string[]
+  }>
+  characterStates: Array<{
+    characterId: string
+    currentStatus: string
+    emotionalState?: string
+    relationshipChanges?: string
+    knownSecrets: string[]
+    hiddenSecrets: string[]
+    visualContinuityNotes?: string
+  }>
+  storyEvents: Array<{
+    title: string
+    description: string
+    eventType: StoryEvent['eventType']
+    relatedCharacterIds: string[]
+  }>
+  foreshadowings: Array<{
+    title: string
+    description: string
+    status: Foreshadowing['status']
+    payoffPlan?: string
+    relatedCharacterIds: string[]
+    action: 'add' | 'resolve'
+    targetId?: string
+  }>
+  visualSettings: Array<{
+    title: string
+    type: VisualSetting['type']
+    visualPrompt: string
+    notes?: string
+  }>
+}
+
+export interface StoryBibleChangeSet {
+  id: string
+  projectId: string
+  chapterId: string
+  sourceChapterUpdatedAt: string
+  sourceContentHash: string
+  taskId?: string
+  status: StoryBibleChangeSetStatus
+  estimatedTokens?: number
+  estimatedCost?: number
+  currency?: string
+  payload?: StoryBibleChangeSetPayload
+  conflicts: StoryBibleChangeItem[]
+  errorMessage?: string
+  appliedAt?: string
+  undoneAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StoryBibleSettings {
+  projectId: string
+  autoSuggest: boolean
   updatedAt: string
 }
 
@@ -846,6 +1067,72 @@ export interface VideoProviderConfig {
 /** 视频生成任务状态 */
 export type VideoTaskStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
 
+/** 跨图片、视频、音频和渲染任务的可追溯生产媒体类型。 */
+export type GenerationMediaType = 'image' | 'video' | 'audio' | 'render'
+export type GenerationLineageCompleteness = 'complete' | 'partial' | 'unknown'
+export type GenerationCostStatus = 'unknown' | 'estimated' | 'actual' | 'unavailable'
+
+/** 生成时引用的资产或 URL；不会包含二进制本体。 */
+export interface GenerationReferenceAsset {
+  assetId?: string
+  url?: string
+  weight?: number
+  role?: string
+}
+
+/**
+ * 生成谱系是不可覆盖的提交时快照。它不保存 API Key、私有响应或媒体二进制，
+ * 但保留足以理解和复现一次本地生产决定的源版本、能力、参数、seed 和引用关系。
+ */
+export interface GenerationLineage {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  mediaType: GenerationMediaType
+  taskKind: string
+  taskId?: string
+  parentLineageId?: string
+  retryOfLineageId?: string
+  sourceEntityKind?: string
+  sourceEntityId?: string
+  sourceVersion?: string
+  sourceSnapshot: Record<string, unknown>
+  providerSnapshot: Record<string, unknown>
+  parameterSnapshot: Record<string, unknown>
+  referenceAssets: GenerationReferenceAsset[]
+  seed?: string
+  completeness: GenerationLineageCompleteness
+  adoptedOutputKind?: string
+  adoptedOutputId?: string
+  adoptedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 项目/季/集/镜头维度的费用条目；估算和实际值分开保存，未知绝不补零。 */
+export interface GenerationCostEntry {
+  id: string
+  projectId?: string
+  adaptationProjectId?: string
+  episodeId?: string
+  sceneId?: string
+  shotId?: string
+  lineageId?: string
+  taskId?: string
+  mediaType: GenerationMediaType
+  status: GenerationCostStatus
+  currency?: string
+  estimatedCost?: number
+  actualCost?: number
+  estimateBasis?: string
+  actualCostNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** 视频生成任务（对应 video_generation_tasks 表，ROADMAP v0.7 §2） */
 export interface VideoGenerationTask {
   id: string
@@ -853,6 +1140,8 @@ export interface VideoGenerationTask {
   episodeId?: string
   sceneId?: string
   shotId?: string
+  /** LM5-07 谱系记录；旧任务可能尚未回填，读取时保持 unknown。 */
+  lineageId?: string
 
   provider: string
   model: string
@@ -958,12 +1247,16 @@ export type ProjectAssetKind =
   | 'cover_image'
   | 'first_frame_image'
   | 'narration_audio'
+  | 'dialogue_audio'
+  | 'bgm_audio'
+  | 'sfx_audio'
   | 'subtitle_file'
   | 'source_media'
+  | 'rights_evidence'
   | 'other'
 export type ProjectAssetStatus = 'available' | 'missing' | 'remote_only'
 export type ProjectAssetPackagePolicy = 'exclude' | 'reference_only' | 'include_binary'
-export type ProjectAssetSourceKind = 'project' | 'character' | 'visual_profile' | 'visual_setting' | 'episode' | 'script' | 'scene' | 'shot' | 'video_result' | 'manual'
+export type ProjectAssetSourceKind = 'project' | 'character' | 'visual_profile' | 'visual_setting' | 'episode' | 'script' | 'scene' | 'shot' | 'image_task' | 'audio_task' | 'video_result' | 'manual'
 
 export interface ProjectAsset {
   id: string
@@ -989,6 +1282,152 @@ export interface ProjectAsset {
   packagePolicy: ProjectAssetPackagePolicy
   createdAt: string
   updatedAt: string
+}
+
+/** LM5-13：声音档案只描述经授权的创作意图；不等同于声音克隆授权。 */
+export interface VoiceProfile {
+  id: string
+  projectId: string
+  characterId?: string
+  label: string
+  status: 'candidate' | 'adopted' | 'superseded' | 'rejected'
+  voiceTone?: string
+  speed?: number
+  emotion?: string
+  language?: string
+  pronunciationDictionary: Record<string, string>
+  sampleAssetId?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type AudioTrackKind = 'dialogue' | 'narration' | 'bgm' | 'sfx'
+export type AudioTrackStatus = 'draft' | 'adopted' | 'superseded' | 'stale'
+export interface AudioClip {
+  id: string
+  shotId?: string
+  characterId?: string
+  assetId?: string
+  voiceProfileId?: string
+  text?: string
+  startSeconds: number
+  durationSeconds?: number
+  volume: number
+  fadeInSeconds: number
+  fadeOutSeconds: number
+  loop: boolean
+  duckingIntent: boolean
+  sourceFingerprint?: string
+  staleAt?: string
+  staleReason?: string
+}
+export interface AudioTrack {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  kind: AudioTrackKind
+  label: string
+  status: AudioTrackStatus
+  versionNumber: number
+  sourceFingerprint: string
+  clips: AudioClip[]
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// LM5-20：语言版本与中文母版分离保存。翻译、文化改写和声音选择都必须可审查、可过期。
+export type LocalizationStatus = 'draft' | 'adopted' | 'stale' | 'archived'
+export interface LocalizationCue {
+  id: string
+  shotId?: string
+  startSeconds: number
+  endSeconds: number
+  sourceText: string
+  localizedText: string
+  culturalNote?: string
+}
+export interface LocalizationVariant {
+  id: string
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  targetLocale: string
+  targetRegion?: string
+  label: string
+  status: LocalizationStatus
+  sourceFingerprint: string
+  title: string
+  description?: string
+  glossary: Record<string, string>
+  culturalNotes: string[]
+  cues: LocalizationCue[]
+  voiceProfileId?: string
+  audioCandidateNote?: string
+  reviewedAt?: string
+  reviewNote?: string
+  staleAt?: string
+  staleReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/** 资产权利状态永远显式保存；声明不等于核验，未知不等于可交付。 */
+export type AssetRightsStatus = 'verified' | 'declared' | 'unknown' | 'expired' | 'restricted'
+export type AssetRightsType = 'ownership' | 'license' | 'talent_release' | 'voice_consent' | 'provider_terms' | 'public_domain' | 'other'
+export type AssetPermittedUse = 'commercial' | 'adaptation' | 'generative' | 'voice_cloning'
+
+/** 单一资产的权利台账；证据只引用受控本地资产及其 hash，不存证明正文。 */
+export interface AssetRightsRecord {
+  id: string
+  projectId: string
+  assetId: string
+  rightsholder?: string
+  source?: string
+  rightsTypes: AssetRightsType[]
+  permittedUses: AssetPermittedUse[]
+  platforms: string[]
+  regions: string[]
+  validFrom?: string
+  validUntil?: string
+  evidenceAssetId?: string
+  evidenceSha256?: string
+  aiGenerated: boolean
+  status: AssetRightsStatus
+  reviewedAt?: string
+  reviewNote?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RightsPreflightInput {
+  projectId: string
+  platform?: string
+  region?: string
+  deliveryAt?: string
+}
+
+export interface RightsPreflightIssue {
+  assetId: string
+  assetTitle: string
+  severity: 'blocker' | 'warning'
+  code: string
+  message: string
+}
+
+export interface RightsPreflightResult {
+  projectId: string
+  platform?: string
+  region?: string
+  deliveryAt: string
+  status: 'pass' | 'blocked'
+  reviewedAssetCount: number
+  verifiedAssetCount: number
+  blockers: RightsPreflightIssue[]
+  warnings: RightsPreflightIssue[]
 }
 
 /** 模型配置（对应 model_configs 表，§8） */
@@ -1213,6 +1652,125 @@ export interface RevisionTaskPreviewUpdateResult {
   task?: RevisionTask
 }
 
+// ---------------------------------------------------------------------------
+// LM5-19 用户主动导入的运营与读者反馈（默认仅本地，不保存平台凭据）
+// ---------------------------------------------------------------------------
+
+export type FeedbackImportKind = 'metrics' | 'comments'
+export type FeedbackPrivacy = 'local_only' | 'redacted'
+export type FeedbackClusterMethod = 'keyword-v1' | 'ai'
+
+export interface FeedbackTarget {
+  targetKind: Extract<CreativeTargetKind, 'project' | 'chapter' | 'episode' | 'scene' | 'shot'>
+  targetId?: string
+}
+
+export interface FeedbackImportBatch {
+  id: string
+  projectId: string
+  kind: FeedbackImportKind
+  sourceName: string
+  platform: string
+  sourceVersion?: string
+  timeWindowStart?: string
+  timeWindowEnd?: string
+  privacy: FeedbackPrivacy
+  contentSha256: string
+  importedRecordCount: number
+  skippedDuplicateCount: number
+  createdAt: string
+}
+
+export interface FeedbackMetric extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  platform: string
+  sourceVersion?: string
+  metricKey: string
+  metricLabel: string
+  definition: string
+  value: number
+  denominator?: number
+  recordedAt?: string
+  variantKey?: string
+  rowFingerprint: string
+  createdAt: string
+}
+
+export interface FeedbackComment extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  platform: string
+  sourceVersion?: string
+  externalId?: string
+  authorAlias?: string
+  text: string
+  privacy: FeedbackPrivacy
+  recordedAt?: string
+  rowFingerprint: string
+  createdAt: string
+}
+
+/** Derived cluster is intentionally separate from original local comments and can be deleted without losing them. */
+export interface FeedbackCommentCluster extends FeedbackTarget {
+  id: string
+  batchId: string
+  projectId: string
+  label: string
+  summary: string
+  tone: 'positive' | 'negative' | 'mixed' | 'unknown'
+  method: FeedbackClusterMethod
+  commentIds: string[]
+  createdAt: string
+}
+
+export interface FeedbackMetricDraft extends FeedbackTarget {
+  platform?: string
+  sourceVersion?: string
+  metricKey: string
+  metricLabel?: string
+  definition?: string
+  value: number
+  denominator?: number
+  recordedAt?: string
+  variantKey?: string
+  rowFingerprint: string
+}
+
+export interface FeedbackCommentDraft extends FeedbackTarget {
+  platform?: string
+  sourceVersion?: string
+  externalId?: string
+  authorAlias?: string
+  text: string
+  recordedAt?: string
+  rowFingerprint: string
+}
+
+export interface FeedbackImportPreview {
+  kind: FeedbackImportKind
+  sourceName: string
+  platform: string
+  sourceVersion?: string
+  timeWindowStart?: string
+  timeWindowEnd?: string
+  contentSha256?: string
+  metrics: FeedbackMetricDraft[]
+  comments: FeedbackCommentDraft[]
+  skippedRows: Array<{ row: number; reason: string }>
+  notices: string[]
+}
+
+export interface FeedbackImportResult {
+  duplicateBatch?: FeedbackImportBatch
+  batch?: FeedbackImportBatch
+  importedMetricCount: number
+  importedCommentCount: number
+  skippedDuplicateCount: number
+}
+
 export interface QualityGateReport {
   id: string
   projectId?: string
@@ -1341,6 +1899,7 @@ export type NovelTaskType =
   | 'evaluate_ai_drama_fit'
   // v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2）
   | 'summarize_chapter'
+  | 'propose_story_bible_changes'
   | 'update_character_state'
   | 'extract_story_events'
   | 'extract_foreshadowing'

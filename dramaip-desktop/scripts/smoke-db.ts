@@ -7,6 +7,7 @@ import {
   BUILT_IN_AGENTS,
   BUILT_IN_TEMPLATES,
   BUILT_IN_GENRE_PRESETS,
+  createProjectProductionBrief,
   RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
 } from '@sdns/core'
 import {
@@ -14,6 +15,7 @@ import {
   serializeProjectPackage,
   parseProjectPackage,
   importProjectPackage,
+  PACKAGE_VERSION,
 } from '@sdns/export'
 
 const dbPath = path.join(os.tmpdir(), `sdns-db-smoke-${process.pid}.sqlite`)
@@ -64,8 +66,13 @@ function main() {
     synopsis: '复仇故事',
   })
   assert(!!p1.id, 'createProject 返回 id')
-  const p2 = repos.project.createProject(repos.db, { title: '重生霸总', shortDramaType: '重生逆袭' })
+  const p2 = repos.project.createProject(repos.db, {
+    title: '重生霸总',
+    shortDramaType: '重生逆袭',
+    productionBrief: createProjectProductionBrief({ creationGoal: 'direct_drama' }),
+  })
   assert(repos.project.listProjects(repos.db).length === 2, 'listProjects = 2')
+  assert(p2.productionBrief?.creationGoal === 'direct_drama' && p2.productionBrief.profile.pilotEpisodeCount === 3, 'direct_drama 生产简报写回')
 
   const got = repos.project.getProject(repos.db, p1.id)
   assert(got?.title === '复仇千金' && got.targetEpisodeCount === 60, 'getProject 字段正确')
@@ -273,13 +280,13 @@ function main() {
       apReloaded.sourceChapterRange.to === 12,
     'createAdaptationProject sourceChapterRange(JSON) 解析',
   )
-  // 默认值：不传 season 时为 1、每集时长默认 2 分钟
+  // 默认值：不传 season 时为 1；时长必须由创建 Profile 或用户显式设定。
   const apDef = repos.adaptationProject.createAdaptationProject(repos.db, {
     title: '默认季测试',
     targetEpisodeCount: 60,
     adaptationStyle: '快节奏爽剧',
   })
-  assert(apDef.seasonNumber === 1 && apDef.episodeDuration === '2分钟', '改编项目默认：seasonNumber=1 / episodeDuration=2分钟')
+  assert(apDef.seasonNumber === 1 && apDef.episodeDuration === undefined, '改编项目默认：seasonNumber=1 / 不注入硬编码时长')
   const ep1 = repos.episode.createEpisode(repos.db, {
     adaptationProjectId: ap.id,
     episodeNumber: 1,
@@ -1058,7 +1065,7 @@ function main() {
   assert(pkg.projectSkills.length === 1 && pkg.projectSkills[0].name === '导出节奏规范', 'collectProjectPackage 创作规范')
   assert(pkg.projectAgentSchemes.length === 1 && pkg.projectAgentSchemes[0].skillIds[0] === exportSkill.id, 'collectProjectPackage Agent 方案')
   assert(pkg.inspirationFavorites.length === 1 && pkg.inspirationFavorites[0].title === '样本开局卡', 'collectProjectPackage 灵感收藏')
-  assert(pkg.meta.version === 6, 'collectProjectPackage 版本 = 6')
+  assert(pkg.meta.version === PACKAGE_VERSION, `collectProjectPackage 版本 = ${PACKAGE_VERSION}`)
   assert(
     pkg.adaptations.length === 1 && pkg.adaptations[0].scripts[0].shots[0]?.id === shot3.id,
     'collectProjectPackage 改编镜头正确',

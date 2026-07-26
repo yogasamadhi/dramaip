@@ -1,8 +1,14 @@
 import { ipcMain } from 'electron'
 import { getRepos } from '../db'
-import { retryVideoTask } from '@sdns/ai'
+import { retryVideoTask, retryImageGenerationTask, retryTtsGenerationTask } from '@sdns/ai'
+import { randomUUID } from 'node:crypto'
 import { runAiTask } from './ai.ipc'
 import { createVideoAssetArchiver } from '../video-assets'
+import { createImageAssetArchiver } from '../image-assets'
+import { createTtsAssetArchiver } from '../audio-assets'
+import { EPISODE_RENDER_TASK_TYPE, retryEpisodeRender } from '../episode-render'
+import { EPISODE_QUALITY_TASK_TYPE, retryEpisodeQuality } from '../episode-quality'
+import { EPISODE_COMPLIANCE_TASK_TYPE, retryEpisodeCompliance } from '../episode-compliance'
 import {
   beginLongTaskRetry,
   beginLongTaskRun,
@@ -35,6 +41,8 @@ type LongTaskOpResult = { ok: boolean; error?: string; longTaskId?: string; task
 export function registerTaskIpc(): void {
   const repos = () => getRepos()
   const videoAssetArchiver = createVideoAssetArchiver()
+  const imageAssetArchiver = createImageAssetArchiver()
+  const ttsAssetArchiver = createTtsAssetArchiver()
 
   ipcMain.handle('longTask:list', (_e, projectId?: string) => {
     const r = repos()
@@ -48,7 +56,7 @@ export function registerTaskIpc(): void {
     if (task.status !== 'pending' && task.status !== 'running') return { ok: false, error: '任务已结束，不能取消' }
     cancelLongTaskRun(task.id)
     const updated = r.longTask.finishLongTask(r.db, task.id, 'canceled', { errorMessage: '任务已取消' })
-    if (task.kind === 'video' && task.relatedEntityId) {
+    if (task.kind === 'video' && task.relatedEntityId && task.taskType !== EPISODE_RENDER_TASK_TYPE) {
       r.videoTask.updateVideoTask(r.db, task.relatedEntityId, { status: 'canceled' })
     }
     return { ok: true, task: updated }
@@ -56,7 +64,7 @@ export function registerTaskIpc(): void {
   ipcMain.handle('longTask:retry', async (_e, id: string) => {
     if (!beginLongTaskRetry(id)) return { ok: false, error: '该任务正在重试，请勿重复提交。' }
     try {
-      return await retryLongTask(repos(), id, videoAssetArchiver)
+      return await retryLongTask(repos(), id, videoAssetArchiver, imageAssetArchiver, ttsAssetArchiver)
     } finally {
       finishLongTaskRetry(id)
     }
@@ -70,9 +78,14 @@ async function retryLongTask(
   r: ReturnType<typeof getRepos>,
   id: string,
   videoAssetArchiver: ReturnType<typeof createVideoAssetArchiver>,
+  imageAssetArchiver: ReturnType<typeof createImageAssetArchiver>,
+  ttsAssetArchiver: ReturnType<typeof createTtsAssetArchiver>,
 ): Promise<LongTaskOpResult> {
   const task = r.longTask.getLongTask(r.db, id)
   if (!task) return { ok: false, error: '未找到任务' }
+  if (task.taskType === EPISODE_RENDER_TASK_TYPE) return retryEpisodeRender(r, id)
+  if (task.taskType === EPISODE_QUALITY_TASK_TYPE) return retryEpisodeQuality(r, id)
+  if (task.taskType === EPISODE_COMPLIANCE_TASK_TYPE) return retryEpisodeCompliance(r, id)
   if (task.kind === 'batch') {
     if (task.status === 'success') return { ok: false, error: '批量任务已完成，无需重跑' }
     if (task.status === 'running' && isLongTaskRunActive(task.id)) return { ok: false, error: '批量任务正在运行' }
@@ -85,6 +98,28 @@ async function retryLongTask(
     const result = await runAiTask(retryInput)
     return { ok: result.ok, error: result.error, longTaskId: result.longTaskId, task: r.longTask.getLongTask(r.db, result.longTaskId) }
   }
+  if (task.kind === 'image') {
+    const retryId = randomUUID()
+    const runtime = beginLongTaskRun('image', retryId)
+    if (!runtime.ok) return { ok: false, error: runtime.error }
+    try {
+      const result = await retryImageGenerationTask({ repos: r, imageAssetArchiver }, task, runtime.signal, { longTaskId: retryId })
+      return { ok: result.ok, error: result.error, longTaskId: result.task.id, task: result.task }
+    } finally {
+      finishLongTaskRun(retryId)
+    }
+  }
+  if (task.kind === 'audio') {
+    const retryId = randomUUID()
+    const runtime = beginLongTaskRun('audio', retryId)
+    if (!runtime.ok) return { ok: false, error: runtime.error }
+    try {
+      const result = await retryTtsGenerationTask({ repos: r, ttsAssetArchiver }, task, runtime.signal, { longTaskId: retryId })
+      return { ok: result.ok, error: result.error, longTaskId: result.task.id, task: result.task }
+    } finally {
+      finishLongTaskRun(retryId)
+    }
+  }
   if (!task.relatedEntityId) return { ok: false, error: '该视频任务缺少关联任务，无法重试' }
   return retryVideoLongTask(r, task.relatedEntityId, videoAssetArchiver)
 }
@@ -93,27 +128,62 @@ export async function startBatchLongTask(
   repos: ReturnType<typeof getRepos>,
   input: BatchTaskRunInput,
 ): Promise<LongTaskOpResult> {
-  const progress = createBatchProgress(input.kind, batchTitle(input.kind), createBatchItems(repos, input))
+  const scoped = scopeBatchInputToPilot(repos, input)
+  if ('error' in scoped) return { ok: false, error: scoped.error }
+  const safeInput = scoped.input
+  const progress = createBatchProgress(safeInput.kind, batchTitle(safeInput.kind), createBatchItems(repos, safeInput))
   const longTask = repos.longTask.createLongTask(repos.db, {
     kind: 'batch',
     title: progress.title,
-    taskType: input.kind === 'scripts' ? 'batch_generate_ai_drama_script' : 'batch_split_scene_to_shots',
-    projectId: input.projectId,
-    adaptationProjectId: input.adaptationProjectId,
+    taskType: safeInput.kind === 'scripts' ? 'batch_generate_ai_drama_script' : 'batch_split_scene_to_shots',
+    projectId: safeInput.projectId,
+    adaptationProjectId: safeInput.adaptationProjectId,
     input: {
       batchInput: {
-        kind: input.kind,
-        projectId: input.projectId,
-        adaptationProjectId: input.adaptationProjectId,
-        episodeIds: input.episodeIds,
-        sceneIds: input.sceneIds,
-        limit: input.limit,
+        kind: safeInput.kind,
+        projectId: safeInput.projectId,
+        adaptationProjectId: safeInput.adaptationProjectId,
+        episodeIds: safeInput.episodeIds,
+        sceneIds: safeInput.sceneIds,
+        limit: safeInput.limit,
       },
       itemCount: progress.total,
     },
     output: progress,
   })
   return runBatchLongTask(repos, longTask.id, progress)
+}
+
+/**
+ * 批处理是最容易不小心扩成整季的高消耗入口。无论请求来自页面、工作流还是未来
+ * 调用方，都只允许当前 Profile 的前 1–3 集；越界必须由后续“试播通过→复制计划”
+ * 流程显式处理，而不是悄悄提交。
+ */
+function scopeBatchInputToPilot(
+  repos: ReturnType<typeof getRepos>,
+  input: BatchTaskRunInput,
+): { input: BatchTaskRunInput } | { error: string } {
+  const adaptation = repos.adaptationProject.getAdaptationProject(repos.db, input.adaptationProjectId)
+  if (!adaptation) return { error: '未找到改编项目' }
+  const sourceProject = adaptation.sourceProjectId ? repos.project.getProject(repos.db, adaptation.sourceProjectId) : undefined
+  const pilotCount = Math.min(3, Math.max(1, sourceProject?.productionBrief?.profile.pilotEpisodeCount ?? 3))
+  const pilotEpisodes = repos.episode.listEpisodes(repos.db, input.adaptationProjectId).slice(0, pilotCount)
+  const pilotEpisodeIds = new Set(pilotEpisodes.map((episode) => episode.id))
+  if (input.kind === 'scripts') {
+    const requested = input.episodeIds?.length ? input.episodeIds : pilotEpisodes.map((episode) => episode.id)
+    if (requested.some((episodeId) => !pilotEpisodeIds.has(episodeId))) {
+      return { error: `当前仅允许为前 ${pilotCount} 集试播范围创建批量剧本；请先完成试播审核，再创建后续计划。` }
+    }
+    return { input: { ...input, episodeIds: requested } }
+  }
+  const requestedScenes = input.sceneIds?.length
+    ? input.sceneIds.map((sceneId) => repos.scene.getScene(repos.db, sceneId)).filter((scene): scene is NonNullable<typeof scene> => Boolean(scene))
+    : []
+  if (requestedScenes.some((scene) => !pilotEpisodeIds.has(scene.episodeId))) {
+    return { error: `当前仅允许为前 ${pilotCount} 集试播范围批量拆镜；请先完成试播审核，再创建后续计划。` }
+  }
+  if (input.sceneIds?.length && requestedScenes.length !== input.sceneIds.length) return { error: '部分目标场景不存在' }
+  return { input: { ...input, episodeIds: input.episodeIds?.length ? input.episodeIds : pilotEpisodes.map((episode) => episode.id) } }
 }
 
 async function resumeBatchLongTask(

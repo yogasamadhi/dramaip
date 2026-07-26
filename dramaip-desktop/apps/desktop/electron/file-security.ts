@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 
-export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'videoAsset'
+export type FileImportKind = 'projectPackage' | 'caseStudyDocument' | 'sourceDocument' | 'videoAsset' | 'audioAsset' | 'rightsEvidence'
 
 export interface FileImportPolicy {
   label: string
@@ -36,10 +36,27 @@ export const FILE_IMPORT_POLICIES: Record<FileImportKind, FileImportPolicy> = {
     maxBytes: 10 * MB,
     maxTextChars: 80_000,
   },
+  sourceDocument: {
+    label: '小说或剧本文稿',
+    allowedExtensions: ['.txt', '.md', '.markdown', '.docx', '.epub', '.json'],
+    // 源文件只会在主进程读取；压缩文档还会逐条限制解压后的 entry 大小。
+    maxBytes: 30 * MB,
+    maxTextChars: 1_500_000,
+  },
   videoAsset: {
     label: '视频素材',
     allowedExtensions: ['.mp4', '.webm', '.mov', '.m4v', '.jpg', '.jpeg', '.png', '.webp'],
     maxBytes: 300 * MB,
+  },
+  audioAsset: {
+    label: '音频素材',
+    allowedExtensions: ['.mp3', '.opus', '.aac', '.flac', '.wav', '.pcm', '.m4a'],
+    maxBytes: 50 * MB,
+  },
+  rightsEvidence: {
+    label: '授权证明',
+    allowedExtensions: ['.pdf', '.png', '.jpg', '.jpeg', '.webp', '.txt', '.md', '.docx'],
+    maxBytes: 50 * MB,
   },
 }
 

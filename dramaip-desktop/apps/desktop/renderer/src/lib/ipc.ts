@@ -1,12 +1,33 @@
 // window.api 类型契约（由 preload 经 contextBridge 暴露）
 import type {
   AdaptationProject,
+  AnimaticDraft,
+  AudioTrack,
+  EpisodeRenderArchive,
+  EpisodeRenderPreflight,
+  EpisodeQualityReport,
+  ComplianceRuleProfile,
+  EpisodeComplianceArchive,
+  EpisodeCompliancePreflight,
+  DeliveryCreativeVariant,
+  PlatformDeliveryExport,
+  PlatformDeliveryPreflight,
+  PlatformDeliveryProfile,
+  FeedbackComment,
+  FeedbackCommentCluster,
+  FeedbackImportBatch,
+  FeedbackImportPreview,
+  FeedbackImportResult,
+  FeedbackMetric,
+  LocalizationVariant,
+  VoiceProfile,
   AgentProfile,
   AiRun,
   AiContextPreview,
   AiBudgetSettings,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
+  AssetRightsRecord,
   AudienceSimulation,
   Beat,
   Chapter,
@@ -25,7 +46,10 @@ import type {
   Evaluation,
   Foreshadowing,
   FreshnessReport,
+  GenerationCostEntry,
+  GenerationLineage,
   GenrePreset,
+  GenreMarketSnapshot,
   GlobalSearchResponse,
   HighlightAnalysis,
   InspirationFavorite,
@@ -50,12 +74,16 @@ import type {
   RevisionTaskAdoptResult,
   RevisionTaskPreviewUpdateResult,
   RevisionTaskUndoResult,
+  RightsPreflightInput,
+  RightsPreflightResult,
   Scene,
   Script,
   ScriptReview,
   Shot,
   ShotReview,
   StoryArc,
+  StoryBibleChangeSet,
+  StoryBibleSettings,
   StoryEvent,
   TaskModelBinding,
   AiRunUsageSummaryRow,
@@ -64,10 +92,16 @@ import type {
   TemplateRun,
   TrashedProject,
   TextDiffPreviewPayload,
+  TtsProviderConfigRecord,
   VideoGenerationTask,
   VideoProviderConfig,
   VideoResult,
   VisualSetting,
+  VisualAssetOwnerKind,
+  VisualAssetVersion,
+  ShotVisualAssetLock,
+  ShotStillCandidate,
+  ImageProviderConfigRecord,
   WritingRoomResult,
   WritingRoomTargetKind,
   WorkflowRun,
@@ -184,6 +218,75 @@ export interface ProjectImportResult {
   canceled?: boolean
   error?: string
   project?: Project
+}
+
+export type SourceImportStrategy = 'append' | 'merge' | 'replace'
+
+export interface SourceImportChapter {
+  key: string
+  title: string
+  content: string
+  orderIndex: number
+  wordCount: number
+  warning?: string
+}
+
+export interface SourceImportScene {
+  key: string
+  title: string
+  location: string
+  timeOfDay?: string
+  visualDescription: string
+  characters: string[]
+  summary: string
+  content: string
+  orderIndex: number
+  dialogueCount: number
+  actionCount: number
+}
+
+export interface SourceImportEpisode {
+  key: string
+  episodeNumber: number
+  title: string
+  content: string
+  scenes: SourceImportScene[]
+}
+
+export interface SourceImportPreview {
+  fileName: string
+  sourceType: 'txt' | 'markdown' | 'docx' | 'epub' | 'script-json' | 'draft'
+  contentKind: 'novel' | 'script' | 'draft'
+  title: string
+  charCount: number
+  chapters: SourceImportChapter[]
+  episodes: SourceImportEpisode[]
+  warnings: string[]
+}
+
+export interface SourceImportChooseResult {
+  ok: boolean
+  canceled?: boolean
+  error?: string
+  importId?: string
+  preview?: SourceImportPreview
+  duplicates?: { chapters: string[]; episodes: number[] }
+  note?: string
+}
+
+export interface SourceImportCommitResult {
+  ok: boolean
+  error?: string
+  result?: {
+    createdChapters: number
+    updatedChapters: number
+    createdEpisodes: number
+    createdScripts: number
+    updatedScripts: number
+    createdScenes: number
+    adaptationProjectId?: string
+    checkpointCount: number
+  }
 }
 
 export interface CloudProjectSnapshot {
@@ -347,6 +450,8 @@ export interface SecretStorageHealth {
   keychainAvailable: boolean
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
+  imageProviderConfigs: SecretStateCounts
+  ttsProviderConfigs: SecretStateCounts
   totals: SecretStateCounts
 }
 
@@ -439,6 +544,117 @@ export interface StudioApi {
     remove(id: string): Promise<boolean>
     chooseLocalFile(kind: ProjectAsset['kind']): Promise<{ ok: boolean; canceled?: boolean; path?: string; name?: string; error?: string }>
   }
+  generation: {
+    listLineagesByProject(projectId: string): Promise<GenerationLineage[]>
+    listCostsByProject(projectId: string): Promise<GenerationCostEntry[]>
+    updateCost(id: string, patch: { actualCost?: number; currency?: string; actualCostNote?: string }): Promise<GenerationCostEntry | undefined>
+  }
+  rights: {
+    listByProject(projectId: string): Promise<AssetRightsRecord[]>
+    create(data: Partial<AssetRightsRecord> & { projectId: string; assetId: string }): Promise<AssetRightsRecord>
+    update(id: string, patch: Partial<AssetRightsRecord>): Promise<AssetRightsRecord | undefined>
+    preflight(input: RightsPreflightInput): Promise<RightsPreflightResult>
+  }
+  visualAsset: {
+    listByProject(projectId: string): Promise<VisualAssetVersion[]>
+    listByOwner(ownerKind: VisualAssetOwnerKind, ownerId: string): Promise<VisualAssetVersion[]>
+    create(data: Pick<VisualAssetVersion, 'projectId' | 'ownerKind' | 'ownerId' | 'assetId' | 'slot' | 'label'> & Partial<Pick<VisualAssetVersion, 'notes' | 'status'>>): Promise<VisualAssetVersion>
+    adopt(id: string): Promise<VisualAssetVersion | undefined>
+    listLocksByShot(shotId: string): Promise<ShotVisualAssetLock[]>
+    lockShot(data: Pick<ShotVisualAssetLock, 'projectId' | 'shotId' | 'visualAssetVersionId' | 'role'>): Promise<ShotVisualAssetLock>
+  }
+  shotStill: {
+    listByShot(shotId: string): Promise<ShotStillCandidate[]>
+    create(data: Pick<ShotStillCandidate, 'projectId' | 'shotId' | 'assetId' | 'kind' | 'label'> & Pick<Partial<ShotStillCandidate>, 'notes'>): Promise<ShotStillCandidate>
+    adopt(id: string): Promise<ShotStillCandidate | undefined>
+  }
+  imageProvider: {
+    list(): Promise<ImageProviderConfigRecord[]>
+    getDefault(): Promise<ImageProviderConfigRecord | undefined>
+    create(data: Omit<ImageProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<ImageProviderConfigRecord>
+    update(id: string, patch: Partial<Omit<ImageProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>>): Promise<ImageProviderConfigRecord | undefined>
+    remove(id: string): Promise<boolean>
+    setDefault(id: string): Promise<boolean>
+  }
+  imageTask: {
+    create(input: { providerConfigId: string; projectId: string; shotId: string; kind: 'still' | 'first_frame' | 'last_frame' | 'cover'; prompt: string; size?: '1024x1024' | '1024x1536' | '1536x1024'; quality?: 'low' | 'medium' | 'high'; outputFormat?: 'png' | 'jpeg' | 'webp' }): Promise<{ ok: boolean; error?: string; task?: LongTask; assets?: ProjectAsset[]; candidates?: ShotStillCandidate[] }>
+  }
+  ttsProvider: {
+    list(): Promise<TtsProviderConfigRecord[]>
+    getDefault(): Promise<TtsProviderConfigRecord | undefined>
+    create(data: Omit<TtsProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<TtsProviderConfigRecord>
+    update(id: string, patch: Partial<Omit<TtsProviderConfigRecord, 'id' | 'createdAt' | 'updatedAt'>>): Promise<TtsProviderConfigRecord | undefined>
+    remove(id: string): Promise<boolean>
+    setDefault(id: string): Promise<boolean>
+  }
+  ttsTask: {
+    create(input: { providerConfigId: string; projectId: string; episodeId: string; shotId?: string; voiceProfileId?: string; kind: 'dialogue' | 'narration'; input: string; voice: string; instructions?: string; speed?: number; responseFormat?: 'mp3' | 'opus' | 'aac' | 'flac' | 'wav' | 'pcm' }): Promise<{ ok: boolean; error?: string; task?: LongTask; asset?: ProjectAsset }>
+  }
+  animatic: {
+    listByEpisode(episodeId: string): Promise<AnimaticDraft[]>
+    initialize(projectId: string, episodeId: string): Promise<Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips'>>
+    save(data: Pick<AnimaticDraft, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'sourceFingerprint' | 'clips' | 'annotations'>): Promise<AnimaticDraft>
+    review(id: string, review: { status: 'approved' | 'returned'; reviewNote?: string }): Promise<AnimaticDraft | undefined>
+  }
+  audio: {
+    listVoiceProfiles(projectId: string): Promise<VoiceProfile[]>
+    createVoiceProfile(data: Omit<VoiceProfile, 'id' | 'status' | 'createdAt' | 'updatedAt'>): Promise<VoiceProfile>
+    adoptVoiceProfile(id: string): Promise<VoiceProfile | undefined>
+    listTracksByEpisode(episodeId: string): Promise<AudioTrack[]>
+    saveTrack(data: Pick<AudioTrack, 'projectId' | 'adaptationProjectId' | 'episodeId' | 'kind' | 'label' | 'sourceFingerprint' | 'clips'>): Promise<AudioTrack>
+    adoptTrack(id: string): Promise<AudioTrack | undefined>
+  }
+  episodeRender: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<EpisodeRenderPreflight>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; mutedTrackIds?: string[] }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeRenderArchive }>
+  }
+  episodeQuality: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; report?: EpisodeQualityReport; reportPath?: string; stale: boolean; staleReason?: string }>>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask }>
+    createMinimalRedoPlan(input: { projectId: string; adaptationProjectId: string; episodeId: string; qualityTaskId: string }): Promise<{ ok: boolean; error?: string; task?: LongTask }>
+  }
+  compliance: {
+    listProfiles(): Promise<ComplianceRuleProfile[]>
+    activateProfile(id: string): Promise<ComplianceRuleProfile | undefined>
+  }
+  episodeCompliance: {
+    listByEpisode(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<Array<{ task: LongTask; stale: boolean; staleReason?: string }>>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<EpisodeCompliancePreflight>
+    start(input: { projectId: string; adaptationProjectId: string; episodeId: string; renderTaskId: string; qualityTaskId: string; profileId: string; title: string; subtitleLanguage: string; targetPlatform?: string; targetRegion?: string; deliveryDate: string; aigcDeclared: boolean; manualContentReviewConfirmed: boolean }): Promise<{ ok: boolean; error?: string; longTaskId?: string; task?: LongTask; archive?: EpisodeComplianceArchive; preflight?: EpisodeCompliancePreflight }>
+  }
+  platformDelivery: {
+    listProfiles(): Promise<PlatformDeliveryProfile[]>
+    listVariants(input: { projectId: string; adaptationProjectId: string }): Promise<DeliveryCreativeVariant[]>
+    createVariant(input: { projectId: string; adaptationProjectId: string; label: string; title: string; description: string; tags: string[]; coverAssetId?: string; source: 'manual' | 'ai_draft' }): Promise<DeliveryCreativeVariant>
+    adoptVariant(input: { projectId: string; adaptationProjectId: string; id: string }): Promise<DeliveryCreativeVariant | undefined>
+    listExports(input: { projectId: string; adaptationProjectId: string; episodeId: string }): Promise<PlatformDeliveryExport[]>
+    preflight(input: { projectId: string; adaptationProjectId: string; episodeId: string; profileId: string; creativeVariantId: string; complianceTaskId: string; manualFieldsConfirmed: boolean }): Promise<PlatformDeliveryPreflight>
+    export(input: { projectId: string; adaptationProjectId: string; episodeId: string; profileId: string; creativeVariantId: string; complianceTaskId: string; manualFieldsConfirmed: boolean }): Promise<{ ok: boolean; error?: string; archive?: PlatformDeliveryExport; preflight: PlatformDeliveryPreflight }>
+    openExportDirectory(input: { projectId: string; adaptationProjectId: string; id: string }): Promise<string>
+  }
+  feedback: {
+    chooseAndPreview(kind: 'metrics' | 'comments'): Promise<{ canceled: boolean; token?: string; preview?: FeedbackImportPreview }>
+    previewText(input: { kind: 'metrics' | 'comments'; sourceName: string; content: string; platform?: string; sourceVersion?: string }): Promise<{ canceled: false; token: string; preview: FeedbackImportPreview }>
+    commitPreview(input: { projectId: string; token: string; privacy: 'local_only' | 'redacted' }): Promise<FeedbackImportResult>
+    listBatches(projectId: string): Promise<FeedbackImportBatch[]>
+    listMetrics(projectId: string): Promise<FeedbackMetric[]>
+    listComments(projectId: string): Promise<FeedbackComment[]>
+    listClusters(projectId: string): Promise<FeedbackCommentCluster[]>
+    clusterBatch(input: { projectId: string; batchId: string }): Promise<FeedbackCommentCluster[]>
+    deleteClusters(input: { projectId: string; batchId: string }): Promise<number>
+    deleteBatch(input: { projectId: string; batchId: string }): Promise<boolean>
+    createRevisionTask(input: { projectId: string; batchId: string; clusterId?: string; title?: string; suggestedAction?: string }): Promise<RevisionTask>
+  }
+  localization: {
+    listByEpisode(episodeId: string): Promise<LocalizationVariant[]>
+    initialize(input: { projectId: string; episodeId: string }): Promise<{ adaptationProjectId: string; episodeId: string; sourceFingerprint: string; cues: LocalizationVariant['cues'] }>
+    create(input: Omit<LocalizationVariant, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'staleAt' | 'staleReason'>): Promise<LocalizationVariant>
+    update(scope: { projectId: string; id: string }, patch: Partial<LocalizationVariant>): Promise<LocalizationVariant | undefined>
+    adopt(scope: { projectId: string; id: string }, reviewNote?: string): Promise<LocalizationVariant | undefined>
+    subtitleFiles(scope: { projectId: string; id: string }): Promise<{ srt: string; vtt: string; warnings: string[] }>
+    exportPackage(scope: { projectId: string; id: string }): Promise<{ saved: boolean; path?: string }>
+  }
   log: {
     renderer(level: RendererLogLevel, scope: string, message: string, meta?: unknown): Promise<boolean>
   }
@@ -500,6 +716,18 @@ export interface StudioApi {
     purge(id: string, confirmationTitle: string): Promise<boolean>
     /** v1.0：导入完整项目包 */
     importPackage(): Promise<ProjectImportResult>
+  }
+  sourceImport: {
+    choose(projectId: string): Promise<SourceImportChooseResult>
+    commit(input: {
+      importId: string
+      projectId: string
+      strategy: SourceImportStrategy
+      rightsConfirmed: true
+      destructiveConfirmed?: boolean
+      preview: SourceImportPreview
+    }): Promise<SourceImportCommitResult>
+    discard(importId: string): Promise<{ ok: boolean }>
   }
   chapter: {
     list(projectId: string): Promise<Chapter[]>
@@ -636,6 +864,17 @@ export interface StudioApi {
     update(id: string, patch: unknown): Promise<Foreshadowing | undefined>
     remove(id: string): Promise<boolean>
   }
+  storyBible: {
+    getSettings(projectId: string): Promise<StoryBibleSettings>
+    updateSettings(projectId: string, patch: { autoSuggest: boolean }): Promise<StoryBibleSettings>
+    listChangeSets(projectId: string): Promise<StoryBibleChangeSet[]>
+    queueChangeSet(input: { projectId: string; chapterId: string }): Promise<StoryBibleChangeSet>
+    applyChangeSet(id: string): Promise<StoryBibleChangeSet>
+    undoChangeSet(id: string): Promise<StoryBibleChangeSet>
+    failChangeSet(id: string, message: string): Promise<StoryBibleChangeSet | undefined>
+    setChangeSetStatus(id: string, status: 'paused' | 'queued' | 'skipped' | 'discarded'): Promise<StoryBibleChangeSet | undefined>
+    listStaleMarks(projectId: string): Promise<Array<{ id: string; chapterId: string; targetKind: 'story_bible' | 'diagnostic'; reason: string }>>
+  }
   // v0.3 AI 短剧小说强化系统
   beat: {
     list(projectId: string): Promise<Beat[]>
@@ -768,7 +1007,7 @@ export interface StudioApi {
     shotsJson(sceneId: string): Promise<ExportResult>
     shotsCsv(sceneId: string): Promise<ExportResult>
     /** v1.0：完整项目包导出 */
-    projectPackage(projectId: string, options?: { includeAssets?: boolean }): Promise<ExportResult>
+    projectPackage(projectId: string, options?: { includeAssets?: boolean; includeFeedback?: boolean }): Promise<ExportResult>
   }
   // v0.8 多 Agent 编剧室与模板系统
   agent: {
@@ -804,6 +1043,12 @@ export interface StudioApi {
     create(data: Partial<GenrePreset> & { name: string; visualStyle: string; shotPromptAdvice: string; aiVideoRisks: string }): Promise<GenrePreset>
     update(id: string, patch: Partial<GenrePreset>): Promise<GenrePreset | undefined>
     remove(id: string): Promise<boolean>
+  }
+  genreMarketSnapshot: {
+    list(): Promise<Array<GenreMarketSnapshot & { active: boolean }>>
+    getActive(): Promise<(GenreMarketSnapshot & { active: boolean }) | undefined>
+    import(snapshot: unknown): Promise<GenreMarketSnapshot & { active: boolean }>
+    activate(version: string): Promise<(GenreMarketSnapshot & { active: boolean }) | undefined>
   }
   templateRun: {
     list(): Promise<TemplateRun[]>

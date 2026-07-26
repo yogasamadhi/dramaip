@@ -16,10 +16,7 @@ test('built-in genre presets prioritize the 2026 AI-drama market leaders', () =>
     '悬疑灵异·民俗奇谭',
     '规则怪谈·无限流',
   ])
-  assert.deepEqual(
-    SHORT_DRAMA_TYPES,
-    BUILT_IN_GENRE_PRESETS.map((preset) => preset.name),
-  )
+  assert.deepEqual(SHORT_DRAMA_TYPES, BUILT_IN_GENRE_PRESETS.map((preset) => preset.name))
   assert.equal(HOT_GENRE_PRESET_NAMES.length, 12)
   assert.equal(CLASSIC_GENRE_PRESET_NAMES.length, 3)
 })

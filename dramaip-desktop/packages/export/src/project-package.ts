@@ -30,9 +30,12 @@
 // 导入时：用事务整体写入；所有 id 重新生成，并维护「旧id → 新id」映射以正确还原外键。
 import type {
   AdaptationProject,
+  AnimaticDraft,
+  AudioTrack,
   AiRun,
   AiVideoFeasibilityReport,
   AntiTropeVariant,
+  AssetRightsRecord,
   AudienceSimulation,
   Beat,
   Chapter,
@@ -46,9 +49,16 @@ import type {
   Episode,
   EpisodeAnalysis,
   Evaluation,
+  FeedbackComment,
+  FeedbackCommentCluster,
+  FeedbackImportBatch,
+  FeedbackMetric,
   Foreshadowing,
   FreshnessReport,
+  GenerationCostEntry,
+  GenerationLineage,
   HighlightAnalysis,
+  LocalizationVariant,
   InspirationFavorite,
   NarrativeCurveReport,
   Outline,
@@ -61,15 +71,19 @@ import type {
   Scene,
   Script,
   Shot,
+  ShotStillCandidate,
   StoryEvent,
+  ShotVisualAssetLock,
+  VisualAssetVersion,
   VisualSetting,
+  VoiceProfile,
   WorkflowRun,
 } from '@sdns/core'
 import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 6
+export const PACKAGE_VERSION = 12
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -83,6 +97,8 @@ export type ProjectPackageAssetExportMode = 'none' | 'manifest'
 
 export interface ProjectPackageOptions {
   includeAssets?: boolean
+  /** 默认为 false：评论可能含本机保存的原文，必须由用户显式选择才会导出。 */
+  includeFeedback?: boolean
 }
 
 export interface ProjectPackage {
@@ -115,6 +131,29 @@ export interface ProjectPackage {
   narrativeCurveReports: NarrativeCurveReport[]
   workflowRuns: WorkflowRun[]
   assets: ProjectAsset[]
+  /** 权利台账只含结构化清单、受控证据引用与 hash，永不包含证明正文。 */
+  assetRightsRecords?: AssetRightsRecord[]
+  /** 角色 / 场景生产资产的不可变候选与已采用版本；随资产清单一起导入导出。 */
+  visualAssetVersions?: VisualAssetVersion[]
+  /** 分镜锁定的精确视觉版本；上游改版不会静默替换这些锁。 */
+  shotVisualAssetLocks?: ShotVisualAssetLock[]
+  /** 每镜头的静帧 / 首尾帧 / 封面候选与采用历史；素材本体仍由 assets 引用。 */
+  shotStillCandidates?: ShotStillCandidate[]
+  /** 可播放 Animatic 的不可变版本与批注；仅在导出素材清单时一并携带。 */
+  animaticDrafts?: AnimaticDraft[]
+  voiceProfiles?: VoiceProfile[]
+  audioTracks?: AudioTrack[]
+  /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
+  generationLineages?: GenerationLineage[]
+  generationCostEntries?: GenerationCostEntry[]
+  /** 用户明确选择后才附带的本地运营数据；不会默认进入项目包。 */
+  feedback?: {
+    batches: FeedbackImportBatch[]
+    metrics: FeedbackMetric[]
+    comments: FeedbackComment[]
+    clusters: FeedbackCommentCluster[]
+  }
+  localizationVariants?: LocalizationVariant[]
   /** 源项目衍生的改编项目（含其分集/剧本/场景/镜头/分析） */
   adaptations: Array<{
     adaptation: AdaptationProject
@@ -145,6 +184,7 @@ export interface ProjectPackageCounts {
   caseStudies: number
   workflowRuns: number
   assets: number
+  feedbackRecords: number
   totalRecords: number
 }
 
@@ -192,7 +232,25 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const assets = options.includeAssets
     ? repos.asset.listProjectAssets(db, projectId).filter((asset) => asset.packagePolicy !== 'exclude')
     : []
+  // 权利证明默认只导出清单与 hash：绝对路径、相对路径和证明二进制均不会随项目包外发。
+  const packageAssets = assets.map((asset) => asset.kind === 'rights_evidence'
+    ? { ...asset, localPath: undefined, relativePath: undefined, status: 'missing' as const }
+    : asset)
   const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
+  const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
+  const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
+  const feedback = options.includeFeedback ? {
+    batches: repos.feedback.listFeedbackImportBatches(db, projectId),
+    metrics: repos.feedback.listFeedbackMetrics(db, projectId),
+    comments: repos.feedback.listFeedbackComments(db, projectId),
+    clusters: repos.feedback.listFeedbackCommentClusters(db, projectId),
+  } : undefined
+  const localizationVariants = repos.adaptationProject.listAdaptationsByProject(db, projectId)
+    .flatMap((adaptation) => repos.episode.listEpisodes(db, adaptation.id).flatMap((episode) => repos.localization.listLocalizationVariants(db, episode.id)))
+  const assetRightsRecords = options.includeAssets ? repos.rights.listAssetRightsByProject(db, projectId) : []
+  const visualAssetVersions = options.includeAssets ? repos.visualAsset.listVisualAssetVersionsByProject(db, projectId) : []
+  const shotVisualAssetLocks = options.includeAssets ? repos.visualAsset.listShotVisualAssetLocksByProject(db, projectId) : []
+  const shotStillCandidates = options.includeAssets ? repos.shotStill.listShotStillCandidatesByProject(db, projectId) : []
 
   // 衍生改编项目
   const adaptations = repos.adaptationProject
@@ -207,6 +265,13 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
       const episodeAnalysis = repos.episodeAnalysis.getEpisodeAnalysis(db, adaptation.id) ?? undefined
       return { adaptation, episodes, scripts, episodeAnalysis }
     })
+  const animaticDrafts = options.includeAssets
+    ? adaptations.flatMap(({ episodes }) => episodes.flatMap((episode) => repos.animatic.listAnimaticDraftsByEpisode(db, episode.id)))
+    : []
+  const voiceProfiles = options.includeAssets ? repos.audio.listVoiceProfilesByProject(db, projectId) : []
+  const audioTracks = options.includeAssets
+    ? adaptations.flatMap(({ episodes }) => episodes.flatMap((episode) => repos.audio.listAudioTracksByEpisode(db, episode.id)))
+    : []
 
   return {
     meta: {
@@ -243,7 +308,18 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     audienceSimulations,
     narrativeCurveReports,
     workflowRuns,
-    assets,
+    assets: packageAssets,
+    assetRightsRecords,
+    visualAssetVersions,
+    shotVisualAssetLocks,
+    shotStillCandidates,
+    animaticDrafts,
+    voiceProfiles,
+    audioTracks,
+    generationLineages,
+    generationCostEntries,
+    feedback,
+    localizationVariants,
     adaptations,
     aiRuns,
   }
@@ -367,6 +443,7 @@ export function summarizeProjectPackage(pkg: ProjectPackage): ProjectPackagePrev
     caseStudies: pkg.caseStudies.length,
     workflowRuns: pkg.workflowRuns.length,
     assets: pkg.assets?.length ?? 0,
+    feedbackRecords: (pkg.feedback?.batches.length ?? 0) + (pkg.feedback?.metrics.length ?? 0) + (pkg.feedback?.comments.length ?? 0) + (pkg.feedback?.clusters.length ?? 0),
   }
   const totalRecords = Object.values(counts).reduce((sum, count) => sum + count, 1)
   return {
@@ -623,6 +700,37 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       }
     }
 
+    // 16.5 用户显式选择后才随项目包携带的本地反馈。保留评论原文和派生聚类的分离，
+    // 并重映射它们的定位；无法重映射的定位安全回退到新项目本身。
+    const feedbackBatchIdMap = pkg.feedback
+      ? repos.feedback.restoreFeedbackProjectPackage(db, {
+        projectId: newProject.id,
+        batches: pkg.feedback.batches,
+        metrics: pkg.feedback.metrics,
+        comments: pkg.feedback.comments,
+        clusters: pkg.feedback.clusters,
+        remapTargetId: (targetId) => remapTargetId(targetId, idMap, oldProjectId, newProject.id),
+      })
+      : new Map<string, string>()
+
+    for (const variant of pkg.localizationVariants ?? []) {
+      const adaptationProjectId = idMap.get(variant.adaptationProjectId)
+      const episodeId = idMap.get(variant.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const script = repos.script.getScriptByEpisode(db, episodeId)
+      const importedShots = script ? repos.scene.listScenesByScript(db, script.id).flatMap((scene) => repos.shot.listShotsByScene(db, scene.id)) : []
+      const sourceFingerprint = importedShots.map((shot) => `${shot.id}@${shot.updatedAt}:${(shot.subtitleDraft || shot.dialogue || shot.narration || '').trim()}`).join('|')
+      repos.localization.createLocalizationVariant(db, {
+        ...stripId(variant), projectId: newProject.id, adaptationProjectId, episodeId,
+        sourceFingerprint,
+        cues: variant.cues.map((cue) => ({ ...cue, shotId: cue.shotId ? idMap.get(cue.shotId) : undefined })),
+        // Voice profiles are restored later in this legacy import order; retain the language package
+        // but require the user to reselect an authorized target-language voice candidate after import.
+        voiceProfileId: undefined,
+        reviewedAt: undefined, reviewNote: variant.reviewNote ? `${variant.reviewNote}（导入后需复核）` : '导入后需复核母版、翻译和声音候选。',
+      })
+    }
+
     // 17. 创意诊断数据（目标 id 尽量重映射；无法重映射的跨实体记录跳过）
     for (const f of pkg.freshnessReports ?? []) {
       const targetId = remapTargetId(f.targetId, idMap, oldProjectId, newProject.id)
@@ -649,6 +757,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         ...stripId(t),
         projectId: newProject.id,
         targetId,
+        sourceReportId: t.sourceReportId ? (feedbackBatchIdMap.get(t.sourceReportId) ?? t.sourceReportId) : undefined,
         status: t.status === 'applied' ? 'accepted' : t.status,
         appliedVersionId: undefined,
       })
@@ -702,10 +811,11 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     }
 
     // 18. 本地资产库清单：项目包当前只携带引用清单，不承诺旧机器绝对路径可恢复。
+    const assetIdMap = new Map<string, string>()
     for (const a of pkg.assets ?? []) {
       const sourceEntityId = remapTargetId(a.sourceEntityId, idMap, oldProjectId, newProject.id)
       if (a.sourceEntityId && !sourceEntityId) continue
-      repos.asset.createAsset(db, {
+      const created = repos.asset.createAsset(db, {
         ...stripId(a),
         projectId: newProject.id,
         sourceEntityId,
@@ -719,6 +829,220 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
           originalRelativePath: a.relativePath,
           originalPackagePolicy: a.packagePolicy,
         },
+      })
+      assetIdMap.set(a.id, created.id)
+    }
+
+    // 18.05 权利台账只还原清单和证据 hash；本地证据二进制不会静默进入项目包。
+    // 导入后的证据路径保持 missing，用户需显式重新定位后才能通过最终预检。
+    for (const rights of pkg.assetRightsRecords ?? []) {
+      const assetId = assetIdMap.get(rights.assetId)
+      if (!assetId) continue
+      repos.rights.createAssetRightsRecord(db, {
+        ...stripId(rights),
+        projectId: newProject.id,
+        assetId,
+        evidenceAssetId: rights.evidenceAssetId ? assetIdMap.get(rights.evidenceAssetId) : undefined,
+      })
+    }
+
+    // 18.06 版本化角色 / 场景生产资产：素材、设定和镜头都必须成功重映射才可恢复。
+    // 即便本地文件在新机器上暂时 missing，版本身份与分镜锁仍会被保留，避免静默换图。
+    const visualAssetVersionIdMap = new Map<string, string>()
+    const adoptedVisualVersionIds: string[] = []
+    const orderedVisualVersions = [...(pkg.visualAssetVersions ?? [])].sort((left, right) =>
+      `${left.ownerKind}:${left.ownerId}:${left.slot}:${left.versionNumber}`.localeCompare(
+        `${right.ownerKind}:${right.ownerId}:${right.slot}:${right.versionNumber}`,
+        undefined,
+        { numeric: true },
+      ),
+    )
+    for (const version of orderedVisualVersions) {
+      const assetId = assetIdMap.get(version.assetId)
+      const ownerId = idMap.get(version.ownerId)
+      if (!assetId || !ownerId) continue
+      const created = repos.visualAsset.createVisualAssetVersion(db, {
+        ...stripId(version),
+        projectId: newProject.id,
+        ownerId,
+        assetId,
+        status: version.status === 'adopted' ? 'candidate' : version.status,
+      })
+      if (version.status === 'adopted') adoptedVisualVersionIds.push(created.id)
+      visualAssetVersionIdMap.set(version.id, created.id)
+    }
+    for (const versionId of adoptedVisualVersionIds) repos.visualAsset.adoptVisualAssetVersion(db, versionId)
+    for (const lock of pkg.shotVisualAssetLocks ?? []) {
+      const shotId = idMap.get(lock.shotId)
+      const visualAssetVersionId = visualAssetVersionIdMap.get(lock.visualAssetVersionId)
+      if (!shotId || !visualAssetVersionId) continue
+      const created = repos.visualAsset.lockShotVisualAsset(db, {
+        projectId: newProject.id,
+        shotId,
+        visualAssetVersionId,
+        role: lock.role,
+      })
+      if (lock.staleReason) {
+        // 导入后资产引用仍可能是 missing；保留历史 stale 文案，交由用户重新确认。
+        repos.visualAsset.setShotVisualAssetLockStaleState(db, created.id, lock.staleAt, lock.staleReason)
+      }
+    }
+
+    // 18.07 静帧候选：只重建候选和采用关系，不把历史媒体覆盖进镜头字段。
+    // 新库的镜头时间戳不同但内容相同，因此重新锚定 sourceFingerprint；原有 stale 状态仍保留。
+    const stillCandidateIdMap = new Map<string, string>()
+    const adoptedStillCandidateIds: string[] = []
+    const staleStillCandidates: Array<{ id: string; staleAt?: string; staleReason: string }> = []
+    const orderedStillCandidates = [...(pkg.shotStillCandidates ?? [])].sort((left, right) =>
+      `${left.shotId}:${left.kind}:${left.createdAt}`.localeCompare(`${right.shotId}:${right.kind}:${right.createdAt}`),
+    )
+    for (const candidate of orderedStillCandidates) {
+      const shotId = idMap.get(candidate.shotId)
+      const assetId = assetIdMap.get(candidate.assetId)
+      if (!shotId || !assetId) continue
+      const importedShot = repos.shot.getShot(db, shotId)
+      if (!importedShot) continue
+      const created = repos.shotStill.createShotStillCandidate(db, {
+        ...stripId(candidate),
+        projectId: newProject.id,
+        shotId,
+        assetId,
+        sourceFingerprint: importedShot.updatedAt,
+        status: candidate.status === 'adopted' ? 'candidate' : candidate.status,
+      })
+      stillCandidateIdMap.set(candidate.id, created.id)
+      if (candidate.status === 'adopted') adoptedStillCandidateIds.push(created.id)
+      if (candidate.staleReason) {
+        staleStillCandidates.push({ id: created.id, staleAt: candidate.staleAt, staleReason: candidate.staleReason })
+      }
+    }
+    for (const candidateId of adoptedStillCandidateIds) {
+      const current = repos.shotStill.getShotStillCandidate(db, candidateId)
+      if (current) {
+        const importedShot = repos.shot.getShot(db, current.shotId)
+        repos.shotStill.adoptShotStillCandidate(db, candidateId, importedShot?.updatedAt)
+      }
+    }
+    for (const candidate of staleStillCandidates) {
+      repos.shotStill.setShotStillCandidateStaleState(db, candidate.id, candidate.staleAt, candidate.staleReason)
+    }
+
+    const voiceProfileIdMap = new Map<string, string>()
+    for (const profile of pkg.voiceProfiles ?? []) {
+      const characterId = profile.characterId ? idMap.get(profile.characterId) : undefined
+      if (profile.characterId && !characterId) continue
+      const sampleAssetId = profile.sampleAssetId ? assetIdMap.get(profile.sampleAssetId) : undefined
+      const created = repos.audio.createVoiceProfile(db, { ...stripId(profile), projectId: newProject.id, characterId, sampleAssetId, status: profile.status })
+      if (profile.status === 'adopted') repos.audio.adoptVoiceProfile(db, created.id)
+      voiceProfileIdMap.set(profile.id, created.id)
+    }
+
+    // 18.08 Animatic 版本：重映射镜头、候选和资产引用，保留逐版审批结果。
+    // 没有能还原的镜头片段时不导入该版本，避免在新项目中出现不可播放的空时间线。
+    const orderedAnimatics = [...(pkg.animaticDrafts ?? [])].sort((left, right) =>
+      `${left.episodeId}:${left.versionNumber}`.localeCompare(`${right.episodeId}:${right.versionNumber}`, undefined, { numeric: true }),
+    )
+    for (const draft of orderedAnimatics) {
+      const adaptationProjectId = idMap.get(draft.adaptationProjectId)
+      const episodeId = idMap.get(draft.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const clips = draft.clips.flatMap((clip) => {
+        const shotId = idMap.get(clip.shotId)
+        if (!shotId) return []
+        return [{
+          ...clip,
+          shotId,
+          stillCandidateId: clip.stillCandidateId ? stillCandidateIdMap.get(clip.stillCandidateId) : undefined,
+          assetId: clip.assetId ? assetIdMap.get(clip.assetId) : undefined,
+          temporaryAudioAssetId: clip.temporaryAudioAssetId ? assetIdMap.get(clip.temporaryAudioAssetId) : undefined,
+        }]
+      })
+      if (clips.length === 0) continue
+      const annotations = draft.annotations.map((annotation) => ({
+        ...annotation,
+        shotId: annotation.shotId ? idMap.get(annotation.shotId) : undefined,
+      }))
+      const sourceFingerprint = clips
+        .flatMap((clip) => {
+          const shot = repos.shot.getShot(db, clip.shotId)
+          return shot ? [shot] : []
+        })
+        .sort((left, right) => left.shotNumber - right.shotNumber)
+        .map((shot) => `${shot.id}@${shot.updatedAt}`)
+        .join('|')
+      const created = repos.animatic.createAnimaticDraft(db, {
+        projectId: newProject.id,
+        adaptationProjectId,
+        episodeId,
+        sourceFingerprint,
+        clips,
+        annotations,
+      })
+      if (draft.status !== 'draft') repos.animatic.reviewAnimaticDraft(db, created.id, draft.status, draft.reviewNote)
+    }
+
+    for (const track of [...(pkg.audioTracks ?? [])].sort((left, right) => `${left.episodeId}:${left.kind}:${left.versionNumber}`.localeCompare(`${right.episodeId}:${right.kind}:${right.versionNumber}`, undefined, { numeric: true }))) {
+      const adaptationProjectId = idMap.get(track.adaptationProjectId)
+      const episodeId = idMap.get(track.episodeId)
+      if (!adaptationProjectId || !episodeId) continue
+      const clips = track.clips.flatMap((clip) => {
+        const shotId = clip.shotId ? idMap.get(clip.shotId) : undefined
+        if (clip.shotId && !shotId) return []
+        return [{ ...clip, shotId, characterId: clip.characterId ? idMap.get(clip.characterId) : undefined, assetId: clip.assetId ? assetIdMap.get(clip.assetId) : undefined, voiceProfileId: clip.voiceProfileId ? voiceProfileIdMap.get(clip.voiceProfileId) : undefined }]
+      })
+      const created = repos.audio.createAudioTrack(db, { ...stripId(track), projectId: newProject.id, adaptationProjectId, episodeId, clips })
+      if (track.status === 'adopted') repos.audio.adoptAudioTrack(db, created.id)
+      if (track.status === 'stale') repos.audio.setAudioTrackStaleState(db, created.id, track.staleAt, track.staleReason)
+    }
+
+    // 18.1 生产谱系：任务本体可能不随项目包传输，因此保留原任务 id 在快照中但不把它
+    // 伪装成新机器可轮询的任务。先创建全部谱系，再补 parent/retry 关系和费用账本。
+    const lineageIdMap = new Map<string, string>()
+    for (const lineage of pkg.generationLineages ?? []) {
+      const sourceEntityId = remapTargetId(lineage.sourceEntityId, idMap, oldProjectId, newProject.id)
+      const references = lineage.referenceAssets.map((reference) => ({
+        ...reference,
+        assetId: reference.assetId ? assetIdMap.get(reference.assetId) : undefined,
+      }))
+      const created = repos.generation.createGenerationLineage(db, {
+        ...stripId(lineage),
+        projectId: newProject.id,
+        adaptationProjectId: lineage.adaptationProjectId ? idMap.get(lineage.adaptationProjectId) : undefined,
+        episodeId: lineage.episodeId ? idMap.get(lineage.episodeId) : undefined,
+        sceneId: lineage.sceneId ? idMap.get(lineage.sceneId) : undefined,
+        shotId: lineage.shotId ? idMap.get(lineage.shotId) : undefined,
+        sourceEntityId,
+        taskId: undefined,
+        parentLineageId: undefined,
+        retryOfLineageId: undefined,
+        adoptedOutputKind: undefined,
+        adoptedOutputId: undefined,
+        adoptedAt: undefined,
+        referenceAssets: references,
+        providerSnapshot: { ...lineage.providerSnapshot, importedFromPackage: true },
+        parameterSnapshot: { ...lineage.parameterSnapshot, importedTaskId: lineage.taskId },
+      })
+      lineageIdMap.set(lineage.id, created.id)
+    }
+    for (const lineage of pkg.generationLineages ?? []) {
+      const createdId = lineageIdMap.get(lineage.id)
+      if (!createdId) continue
+      repos.generation.updateGenerationLineage(db, createdId, {
+        parentLineageId: lineage.parentLineageId ? lineageIdMap.get(lineage.parentLineageId) : undefined,
+        retryOfLineageId: lineage.retryOfLineageId ? lineageIdMap.get(lineage.retryOfLineageId) : undefined,
+      })
+    }
+    for (const cost of pkg.generationCostEntries ?? []) {
+      repos.generation.createGenerationCostEntry(db, {
+        ...stripId(cost),
+        projectId: newProject.id,
+        adaptationProjectId: cost.adaptationProjectId ? idMap.get(cost.adaptationProjectId) : undefined,
+        episodeId: cost.episodeId ? idMap.get(cost.episodeId) : undefined,
+        sceneId: cost.sceneId ? idMap.get(cost.sceneId) : undefined,
+        shotId: cost.shotId ? idMap.get(cost.shotId) : undefined,
+        lineageId: cost.lineageId ? lineageIdMap.get(cost.lineageId) : undefined,
+        taskId: undefined,
+        actualCostNote: cost.actualCostNote ? `${cost.actualCostNote}（导入自项目包）` : undefined,
       })
     }
 

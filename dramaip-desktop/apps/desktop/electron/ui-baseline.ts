@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { getRepos } from './db'
 import { seedP0Fixture } from './e2e-smoke'
+import { PRODUCTION_OUTCOME_BASELINE, type ProductionOutcomeBaseline } from './production-outcome-baseline'
 
 type UiTheme = 'light' | 'dark'
 type UiThemePreference = UiTheme | 'system'
@@ -73,6 +74,7 @@ export interface UiBaselineResult {
   artifactDir: string
   artifacts: UiBaselineArtifact[]
   accessibilityIssueCount: number
+  outcomeBaseline: ProductionOutcomeBaseline
 }
 
 /**
@@ -100,7 +102,18 @@ export async function runDesktopUiBaseline(
       name: 'create-project-1024-light',
       hash: '#/projects/new',
       expectedText: '创建项目',
-      readyText: '带着灵感创建',
+      readyText: '从灵感写小说',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
+      name: 'create-adaptation-from-existing-novel-1024-light',
+      hash: `#/adaptations/new?source=${fixture.projectId}`,
+      expectedText: '创建 AI 短剧改编项目',
+      readyText: '源小说项目',
       viewport: { width: 1024, height: 760 },
       theme: 'light',
       themePreference: 'light',
@@ -112,6 +125,17 @@ export async function runDesktopUiBaseline(
       hash: `#/projects/${fixture.projectId}`,
       expectedText: 'UI 基线项目',
       readyText: '新建章节',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
+      name: 'story-bible-1024-light',
+      hash: `#/projects/${fixture.projectId}?section=story-bible`,
+      expectedText: '故事圣经变更',
+      readyText: '自动建议：关',
       viewport: { width: 1024, height: 760 },
       theme: 'light',
       themePreference: 'light',
@@ -304,7 +328,7 @@ export async function runDesktopUiBaseline(
       name: 'script-workspace-1600-light',
       hash: `#/adaptations/${fixture.adaptationId}/scripts`,
       expectedText: '剧本',
-      readyText: '批量生成前 10 集',
+      readyText: '生成 3 集试播剧本',
       viewport: { width: 1600, height: 960 },
       theme: 'light',
       themePreference: 'light',
@@ -315,7 +339,7 @@ export async function runDesktopUiBaseline(
       name: 'script-structure-1024-light',
       hash: `#/adaptations/${fixture.adaptationId}/scripts`,
       expectedText: '场景大纲',
-      readyText: '批量生成前 10 集',
+      readyText: '生成 3 集试播剧本',
       viewport: { width: 1024, height: 760 },
       theme: 'light',
       themePreference: 'light',
@@ -326,7 +350,7 @@ export async function runDesktopUiBaseline(
       name: 'script-structure-1320-dark',
       hash: `#/adaptations/${fixture.adaptationId}/scripts`,
       expectedText: '场景大纲',
-      readyText: '批量生成前 10 集',
+      readyText: '生成 3 集试播剧本',
       viewport: { width: 1320, height: 860 },
       theme: 'dark',
       themePreference: 'dark',
@@ -401,6 +425,28 @@ export async function runDesktopUiBaseline(
       density: 'comfortable',
       reducedMotion: false,
       openWanProviderForm: true,
+    },
+    {
+      name: 'image-settings-1024-light',
+      hash: '#/settings/images',
+      expectedText: '图片生成设置',
+      readyText: '新增 OpenAI Image 配置',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
+    },
+    {
+      name: 'tts-settings-1024-light',
+      hash: '#/settings/tts',
+      expectedText: 'TTS 配音设置',
+      readyText: '新增 OpenAI TTS 配置',
+      viewport: { width: 1024, height: 760 },
+      theme: 'light',
+      themePreference: 'light',
+      density: 'comfortable',
+      reducedMotion: false,
     },
     {
       name: 'task-monitor-recovery-1320-light',
@@ -482,6 +528,7 @@ export async function runDesktopUiBaseline(
     artifactDir: outputDir,
     artifacts,
     accessibilityIssueCount: artifacts.reduce((total, item) => total + item.accessibility.issueCount, 0),
+    outcomeBaseline: PRODUCTION_OUTCOME_BASELINE,
   }
   writeFileSync(join(outputDir, 'ui-baseline-report.json'), JSON.stringify(result, null, 2))
   return result

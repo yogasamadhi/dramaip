@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { DB } from '../client'
-import { chapters } from '../schema'
+import { chapters, storyBibleChangeSets, storyBibleStaleMarks } from '../schema'
 import type { Chapter, OptionalId } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
@@ -57,6 +57,27 @@ export function updateChapter(
     .where(eq(chapters.id, id))
     .returning()
     .all()
+  if (row && Object.prototype.hasOwnProperty.call(patch, 'content')) {
+    const updated = row as unknown as Chapter
+    const ts = now()
+    updateRows(db, storyBibleChangeSets, { status: 'stale', updatedAt: ts })
+      .where(and(eq(storyBibleChangeSets.chapterId, id), inArray(storyBibleChangeSets.status, ['queued', 'draft', 'applied', 'paused'])))
+      .run()
+    for (const targetKind of ['story_bible', 'diagnostic'] as const) {
+      const mark = db.select({ id: storyBibleStaleMarks.id }).from(storyBibleStaleMarks)
+        .where(and(
+          eq(storyBibleStaleMarks.projectId, updated.projectId),
+          eq(storyBibleStaleMarks.chapterId, id),
+          eq(storyBibleStaleMarks.targetKind, targetKind),
+          isNull(storyBibleStaleMarks.resolvedAt),
+        )).get()
+      if (!mark) db.insert(storyBibleStaleMarks).values({
+        id: genId(), projectId: updated.projectId, chapterId: id, targetKind,
+        reason: targetKind === 'story_bible' ? '章节正文已更新，需要重新核对故事圣经。' : '章节正文已更新，相关诊断需要重新核对。',
+        createdAt: ts, updatedAt: ts,
+      }).run()
+    }
+  }
   return (row as unknown as Chapter) ?? undefined
 }
 

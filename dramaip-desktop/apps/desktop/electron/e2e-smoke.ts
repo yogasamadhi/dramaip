@@ -31,7 +31,9 @@ import {
   migrateLegacySecretsToLocalStore,
   setCredentialStoreForTests,
 } from './secrets'
+import { PRODUCTION_OUTCOME_BASELINE } from './production-outcome-baseline'
 import { reconcileLongTasks } from './task-recovery'
+import { applySourceImport, parseSourceImportBuffer } from './source-import'
 
 export interface E2eSmokeStep {
   name: string
@@ -60,7 +62,11 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   ) as RendererSmokeResult
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
   const localCredentialStep = await verifyLocalCredentialModelConfig(renderer.modelConfigId)
+  const imageProviderCredentialStep = await verifyImageProviderLocalCredentialBoundary(win)
+  const ttsProviderCredentialStep = await verifyTtsProviderLocalCredentialBoundary(win)
+  const outcomeBaselineStep = verifyProductionOutcomeBaseline()
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
+  const coverageTruthStep = verifySeasonCoverageTruth(p0.fixture)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
   const structuredScriptStep = await verifyStructuredScriptRenderer(win, p0.fixture)
@@ -68,12 +74,55 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   const videoProductionStep = await verifyVideoProductionConsoleRenderer(win, p0.fixture)
   const draftPersistenceStep = await verifyDraftPersistenceRenderer(win, p0.fixture)
   const taskRecoveryStep = verifyTaskRecoveryAfterSimulatedRestart(p0.fixture.project.id)
+  const sourceImportStep = runSourceImportRoundTrip(renderer.projectId)
   const projectPackageStep = runProjectPackageRoundTrip(renderer.projectId)
+  if (!sourceImportStep.ok) throw new Error(sourceImportStep.error ?? '主内容导入往返失败')
   if (!projectPackageStep.ok) throw new Error(projectPackageStep.error ?? '项目包往返失败')
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, localCredentialStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, localCredentialStep, imageProviderCredentialStep, ttsProviderCredentialStep, cloudAuthStep, outcomeBaselineStep, ...p0.steps, coverageTruthStep, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, sourceImportStep, projectPackageStep],
+  }
+}
+
+function verifyProductionOutcomeBaseline(): E2eSmokeStep {
+  const startedAt = Date.now()
+  try {
+    const [idea, manuscript, script] = PRODUCTION_OUTCOME_BASELINE.journeys
+    if (
+      idea?.state !== 'available' ||
+      idea.entryRoute !== '#/projects/new' ||
+      manuscript?.state !== 'known_gap' ||
+      script?.state !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery !== 'known_gap' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.coverage !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.blockingState !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.budget !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.rights !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.operationalTruth.providerAvailability !== 'available' ||
+      PRODUCTION_OUTCOME_BASELINE.privacyBoundary.diagnosticContentDefault !== 'redacted' ||
+      PRODUCTION_OUTCOME_BASELINE.privacyBoundary.rendererCredentialAccess !== 'restricted'
+    ) {
+      throw new Error('LM5 生产结果基线不再反映当前实际能力')
+    }
+    return {
+      name: 'lm5-production-outcome-baseline',
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      detail: {
+        availableJourney: idea.id,
+        knownGaps: [manuscript.id, script.id],
+        finalDelivery: PRODUCTION_OUTCOME_BASELINE.productionTruth.finalDelivery,
+        operationalTruth: PRODUCTION_OUTCOME_BASELINE.operationalTruth,
+      },
+    }
+  } catch (error) {
+    return {
+      name: 'lm5-production-outcome-baseline',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 
@@ -241,6 +290,62 @@ async function verifyLocalCredentialModelConfig(modelConfigId: string): Promise<
   }
 }
 
+async function verifyImageProviderLocalCredentialBoundary(win: BrowserWindow): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const config = await win.webContents.executeJavaScript(`window.api.imageProvider.create({
+      name: 'E2E Image Provider', kind: 'openai_image', apiKey: 'e2e-image-not-a-real-key',
+      model: 'gpt-image-2', featureEnabled: false, isDefault: true,
+    })`, true) as { id?: string; apiKey?: string }
+    if (!config.id || !config.apiKey?.startsWith('masked:v1:') || config.apiKey.includes('e2e-image-not-a-real-key')) {
+      throw new Error('renderer 未获得掩码后的图片 Provider 配置')
+    }
+    const stored = getRepos().db
+      .select({ apiKey: schema.imageProviderConfigs.apiKey })
+      .from(schema.imageProviderConfigs)
+      .where(eq(schema.imageProviderConfigs.id, config.id))
+      .get()
+    if (!stored?.apiKey.startsWith('local:v1:')) throw new Error('图片 Provider Key 未保存为本地凭据引用')
+    await win.webContents.executeJavaScript(`window.api.imageProvider.remove(${JSON.stringify(config.id)})`, true)
+    return { name: 'image-provider-local-credential-reference-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'image-provider-keychain-reference-and-renderer-mask',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function verifyTtsProviderLocalCredentialBoundary(win: BrowserWindow): Promise<E2eSmokeStep> {
+  const startedAt = Date.now()
+  try {
+    const config = await win.webContents.executeJavaScript(`window.api.ttsProvider.create({
+      name: 'E2E TTS Provider', kind: 'openai_tts', apiKey: 'e2e-tts-not-a-real-key',
+      model: 'gpt-4o-mini-tts', featureEnabled: false, isDefault: true,
+    })`, true) as { id?: string; apiKey?: string }
+    if (!config.id || !config.apiKey?.startsWith('masked:v1:') || config.apiKey.includes('e2e-tts-not-a-real-key')) {
+      throw new Error('renderer 未获得掩码后的 TTS Provider 配置')
+    }
+    const stored = getRepos().db
+      .select({ apiKey: schema.ttsProviderConfigs.apiKey })
+      .from(schema.ttsProviderConfigs)
+      .where(eq(schema.ttsProviderConfigs.id, config.id))
+      .get()
+    if (!stored?.apiKey.startsWith('local:v1:')) throw new Error('TTS Provider Key 未保存为本地凭据引用')
+    await win.webContents.executeJavaScript(`window.api.ttsProvider.remove(${JSON.stringify(config.id)})`, true)
+    return { name: 'tts-provider-local-credential-reference-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+  } catch (error) {
+    return {
+      name: 'tts-provider-keychain-reference-and-renderer-mask',
+      ok: false,
+      durationMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export interface P0Fixture {
   project: Project
   chapter: Chapter
@@ -249,6 +354,7 @@ export interface P0Fixture {
   qualityGate: QualityGateReport
   adaptation: AdaptationProject
   episode: Episode
+  episodes: Episode[]
   script: Script
   scene: Scene
   caseStudy?: CreativeCaseStudy
@@ -419,6 +525,28 @@ export function seedP0Fixture(projectId: string): P0Fixture {
     keyVisuals: ['开机横幅', '证据投屏'],
     relatedChapterIds: [chapter.id],
   })
+  const episodeTwo = repos.episode.createEpisode(repos.db, {
+    adaptationProjectId: adaptation.id,
+    episodeNumber: 2,
+    title: '第2集 围读反击',
+    summary: '女主在围读现场改掉致命桥段，反派逼她承认抄袭。',
+    hook: '所有人都在等她出错。',
+    mainConflict: '反派逼她当众承认抄袭。',
+    cliffhanger: '投资人要求立刻试拍。',
+    keyVisuals: ['围读长桌', '投资人沉默'],
+    relatedChapterIds: [secondChapter.id],
+  })
+  const episodeThree = repos.episode.createEpisode(repos.db, {
+    adaptationProjectId: adaptation.id,
+    episodeNumber: 3,
+    title: '第3集 热搜反转',
+    summary: '试拍片段流出，女主用原始记录完成第一次舆论反转。',
+    hook: '热搜把她推到风口。',
+    mainConflict: '反派先一步放出剪辑过的录音。',
+    cliffhanger: '原始存档即将公开。',
+    keyVisuals: ['热搜榜单', '原始存档'],
+    relatedChapterIds: [secondChapter.id],
+  })
   const script = repos.script.createScript(repos.db, {
     adaptationProjectId: adaptation.id,
     episodeId: episode.id,
@@ -448,6 +576,7 @@ export function seedP0Fixture(projectId: string): P0Fixture {
     qualityGate,
     adaptation,
     episode,
+    episodes: [episode, episodeTwo, episodeThree],
     script,
     scene,
   }
@@ -471,12 +600,43 @@ function verifyMainWorkflowGuide(fixture: P0Fixture): void {
     videoResults: [],
   })
   const done = new Set(stages.filter((stage) => stage.complete).map((stage) => stage.key))
-  const requiredStages = ['setup', 'characters', 'outline', 'chapters', 'quality', 'adaptation', 'scripts'] as const
+  const requiredStages = ['setup', 'characters', 'outline', 'chapters', 'quality'] as const
   for (const key of requiredStages) {
     if (!done.has(key)) throw new Error(`workflow stage not complete: ${key}`)
   }
-  const shotsStage = stages.find((stage) => stage.key === 'shots')
-  if (shotsStage?.status !== 'active') throw new Error(`shots stage should be active, got ${shotsStage?.status}`)
+  const adaptationStage = stages.find((stage) => stage.key === 'adaptation')
+  if (adaptationStage?.complete || adaptationStage?.status !== 'active') throw new Error(`partial season should remain active, got ${adaptationStage?.status}`)
+}
+
+/** E2E fixture 固定为 24 集目标但只建立前三集，覆盖率必须反映目标而不是已有记录。 */
+function verifySeasonCoverageTruth(fixture: P0Fixture): E2eSmokeStep {
+  const startedAt = Date.now()
+  try {
+    const repos = getRepos()
+    const stages = buildProjectWorkflowStages({
+      project: fixture.project,
+      chapters: repos.chapter.listChapters(repos.db, fixture.project.id),
+      characters: repos.character.listCharacters(repos.db, fixture.project.id),
+      outlines: repos.outline.listOutlines(repos.db, fixture.project.id),
+      qualityReports: repos.creative.listQualityGateReports(repos.db, fixture.project.id),
+      adaptations: [fixture.adaptation],
+      activeAdaptation: fixture.adaptation,
+      episodes: repos.episode.listEpisodes(repos.db, fixture.adaptation.id),
+      scripts: repos.script.listScripts(repos.db, fixture.adaptation.id),
+      scenes: repos.scene.listScenesByScript(repos.db, fixture.script.id),
+      shots: [],
+      videoTasks: [],
+      videoResults: [],
+    })
+    const adaptation = stages.find((stage) => stage.key === 'adaptation')
+    const scripts = stages.find((stage) => stage.key === 'scripts')
+    if (adaptation?.complete || scripts?.complete || !/3\/24/.test(adaptation?.detail ?? '') || !/1\/24/.test(scripts?.detail ?? '')) {
+      throw new Error(`season coverage is not target-based: adaptation=${adaptation?.detail ?? 'missing'}; scripts=${scripts?.detail ?? 'missing'}`)
+    }
+    return { name: 'season-target-coverage-not-record-existence', ok: true, durationMs: Date.now() - startedAt, detail: { adaptation: adaptation?.detail ?? 'missing', scripts: scripts?.detail ?? 'missing' } }
+  } catch (error) {
+    return { name: 'season-target-coverage-not-record-existence', ok: false, durationMs: Date.now() - startedAt, error: error instanceof Error ? error.message : String(error) }
+  }
 }
 
 function verifyAgentCommandPlans(fixture: P0Fixture): void {
@@ -625,6 +785,41 @@ function verifyNovelSubmissionExport(projectId: string): void {
   const json = JSON.parse(exportNovelSubmissionJson(data, { chapterLimit: 1 })) as { sampleChapters?: unknown[]; chapterCatalog?: unknown[] }
   if (json.sampleChapters?.length !== 1) throw new Error('submission json chapter limit not applied')
   if ((json.chapterCatalog?.length ?? 0) < 2) throw new Error('submission json catalog missing chapters')
+}
+
+function runSourceImportRoundTrip(projectId: string): E2eSmokeStep {
+  const started = Date.now()
+  try {
+    const repos = getRepos()
+    const novel = parseSourceImportBuffer('授权小说.md', Buffer.from('第1章 归来\n她踏进旧宅。\n\n第2章 反击\n她拿出证据。'))
+    const novelResult = applySourceImport(repos, { projectId, strategy: 'append', preview: novel })
+    if (novelResult.createdChapters !== 2) throw new Error('小说导入未创建预期章节')
+    const script = parseSourceImportBuffer('授权剧本.json', Buffer.from(JSON.stringify({
+      episodes: [{
+        episodeNumber: 1,
+        title: '归来',
+        content: '林晚：我回来了。',
+        scenes: [{ title: '客厅', location: '客厅', content: '林晚：我回来了。', characters: ['林晚'], summary: '归来' }],
+      }],
+    })))
+    const scriptResult = applySourceImport(repos, { projectId, strategy: 'append', preview: script })
+    if (!scriptResult.adaptationProjectId || scriptResult.createdScripts !== 1 || scriptResult.createdScenes !== 1) {
+      throw new Error('结构化剧本导入未创建改编、剧本和场景')
+    }
+    return {
+      name: 'source-import-novel-and-script-roundtrip',
+      ok: true,
+      durationMs: Date.now() - started,
+      detail: { createdChapters: novelResult.createdChapters, adaptationProjectId: scriptResult.adaptationProjectId },
+    }
+  } catch (error) {
+    return {
+      name: 'source-import-novel-and-script-roundtrip',
+      ok: false,
+      durationMs: Date.now() - started,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 function runProjectPackageRoundTrip(projectId: string): E2eSmokeStep {
@@ -788,6 +983,8 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     if (!overviewButton) throw new Error('未找到项目概览导航入口')
     overviewButton.click()
     await waitFor('项目概览深链', () => window.location.hash.includes('section=overview'))
+    await waitFor('版权授权台账入口', () => Boolean(document.querySelector('[data-rights-ledger]')))
+    await waitFor('生产资产包入口', () => Boolean(document.querySelector('[data-visual-asset-packs]')))
     window.history.back()
     await waitFor('章节深链历史恢复', () => window.location.hash === chapterHash)
 
@@ -809,6 +1006,37 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     if (!exitFocusButton) throw new Error('未找到退出专注模式入口')
     exitFocusButton.click()
     await waitFor('退出专注模式恢复上下文侧栏', () => Boolean(document.querySelector('[data-context-mode]')))
+  })
+
+  await step('four-zone-navigation-basic-advanced-and-legacy-deep-link', async () => {
+    window.localStorage.setItem('sdns.workspace.advanced-navigation', 'false')
+    window.location.hash = `#/projects/${projectId}?section=overview`
+    await waitFor('四区任务导航', () => {
+      const navText = normalize(document.querySelector('nav[aria-label="项目阶段导航"]')?.textContent)
+      return ['内容', '故事圣经', '制作', '交付'].every((label) => navText.includes(label)) && !navText.includes('Agent 方案')
+    })
+    clickButton('故事圣经')
+    await waitFor('故事圣经聚合入口', () => window.location.hash.includes('section=story-bible') && text().includes('故事圣经'))
+    window.location.hash = `#/projects/${projectId}?section=memory`
+    await waitFor('旧记忆深链仍可打开', () => window.location.hash.includes('section=memory') && text().includes('记忆'))
+    const advanced = buttonByText('显示高级功能')
+    if (!advanced) throw new Error('未找到高级功能切换')
+    advanced.click()
+    await waitFor('高级功能保留旧入口', () => normalize(document.querySelector('nav[aria-label="项目阶段导航"]')?.textContent).includes('Agent 方案'))
+    window.location.hash = `#/projects/${projectId}?section=overview`
+    await waitFor('恢复项目概览', () => window.location.hash.includes('section=overview'))
+  })
+
+  await step('story-bible-change-set-review-controls', async () => {
+    window.location.hash = `#/projects/${projectId}?section=story-bible`
+    await waitFor('故事圣经变更审阅入口', () => text().includes('故事圣经变更') && text().includes('先看差异，再一次确认'))
+    const autoSuggest = buttonByText('自动建议：关')
+    if (!autoSuggest) throw new Error('未找到故事圣经自动建议开关')
+    if (autoSuggest.getAttribute('aria-pressed') !== 'false') throw new Error('自动建议默认不应开启')
+    autoSuggest.click()
+    await waitFor('开启稳定保存后建议排队', () => buttonByText('自动建议：开')?.getAttribute('aria-pressed') === 'true')
+    buttonByText('自动建议：开')?.click()
+    await waitFor('关闭自动建议', () => buttonByText('自动建议：关')?.getAttribute('aria-pressed') === 'false')
   })
 
   await step('global-task-dock-is-available-across-workspace', async () => {
@@ -1028,6 +1256,44 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
       throw new Error('renderer 未获得掩码后的模型配置')
     }
     modelConfigId = config.id
+  })
+
+  await step('creation-goals-import-ip-and-direct-drama-without-empty-chapters', async () => {
+    const api = (window as unknown as {
+      api: {
+        project: { get: (id: string) => Promise<{ productionBrief?: { creationGoal?: string } } | undefined> }
+        chapter: { list: (projectId: string) => Promise<unknown[]> }
+      }
+    }).api
+
+    const importedIpTitle = `E2E 受权 IP ${Date.now()}`
+    window.location.hash = '#/projects/new'
+    await waitFor('导入 IP 创建页', () => text().includes('导入已有小说 / IP'))
+    clickButton('导入已有小说 / IP')
+    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), importedIpTitle)
+    clickButton('创建项目')
+    await waitFor('受权 IP 项目概览', () => window.location.hash.startsWith('#/projects/') && text().includes('下一步：导入拥有授权的小说或剧本正文'))
+    const importedIpId = window.location.hash.match(/^#\/projects\/([^/?#]+)/)?.[1] ?? ''
+    if (!importedIpId || (await api.project.get(importedIpId))?.productionBrief?.creationGoal !== 'adapt_existing_ip') {
+      throw new Error('导入 IP 路径未保存 creationGoal')
+    }
+    if ((await api.chapter.list(importedIpId)).length !== 0) throw new Error('导入 IP 路径不应先创建空章节')
+
+    const directTitle = `E2E 直接漫剧 ${Date.now()}`
+    window.location.hash = '#/projects/new'
+    await waitFor('直接漫剧创建页', () => text().includes('直接制作漫剧'))
+    clickButton('直接制作漫剧')
+    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), directTitle)
+    clickButton('创建并设置第一季')
+    await waitFor('第一季设置页', () => window.location.hash.startsWith('#/adaptations/new') && text().includes('创建漫剧第一季'))
+    const directProjectId = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('source') ?? ''
+    if (!directProjectId || (await api.project.get(directProjectId))?.productionBrief?.creationGoal !== 'direct_drama') {
+      throw new Error('直接漫剧路径未保存 creationGoal')
+    }
+    if ((await api.chapter.list(directProjectId)).length !== 0) throw new Error('直接漫剧不应要求或创建小说章节')
+    if (!text().includes('不要求先有小说章节')) throw new Error('直接漫剧入口未说明可跳过小说章节')
+    clickButton('创建并进入')
+    await waitFor('直接漫剧第一季工作台', () => window.location.hash.startsWith('#/adaptations/'))
   })
 
   return { projectId, modelConfigId, steps }
@@ -1289,6 +1555,7 @@ async function rendererStoryboardMain(input: { adaptationId: string; episodeId: 
   window.location.hash = `#/adaptations/${input.adaptationId}/shots?episode=${input.episodeId}&scene=${input.sceneId}&shot=${input.orderedIds[0]}`
   await waitFor('Storyboard 画布', () => document.querySelectorAll('[data-storyboard-shot]').length === 3)
   if (!document.querySelector('[data-storyboard-assets]')) throw new Error('未找到镜头素材 Inspector')
+  if (!document.querySelector('[data-shot-visual-locks]')) throw new Error('未找到镜头生产资产版本锁')
   const firstCard = document.querySelector(`[data-storyboard-shot="${input.orderedIds[0]}"]`) as HTMLElement
   firstCard.focus()
   firstCard.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowRight', altKey: true }))

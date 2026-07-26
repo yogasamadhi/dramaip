@@ -20,6 +20,22 @@ import { registerAssetIpc } from './asset.ipc'
 import { registerCloudAuthIpc } from './cloud-auth.ipc'
 import { registerCloudHandoffIpc } from './cloud-handoff.ipc'
 import { registerCloudSnapshotIpc } from './cloud-snapshot.ipc'
+import { registerSourceImportIpc } from './source-import.ipc'
+import { registerStoryBibleIpc } from './story-bible.ipc'
+import { registerGenerationIpc } from './generation.ipc'
+import { registerRightsIpc } from './rights.ipc'
+import { registerVisualAssetIpc } from './visual-asset.ipc'
+import { registerShotStillIpc } from './shot-still.ipc'
+import { registerImageIpc } from './image.ipc'
+import { registerTtsIpc } from './tts.ipc'
+import { registerAnimaticIpc } from './animatic.ipc'
+import { registerAudioIpc } from './audio.ipc'
+import { registerEpisodeRenderIpc } from './episode-render.ipc'
+import { registerEpisodeQualityIpc } from './episode-quality.ipc'
+import { registerEpisodeComplianceIpc } from './episode-compliance.ipc'
+import { registerPlatformDeliveryIpc } from './platform-delivery.ipc'
+import { registerFeedbackIpc } from './feedback.ipc'
+import { registerLocalizationIpc } from './localization.ipc'
 import { installIpcValidation } from './validation'
 
 export function registerAllIpc(): void {
@@ -35,6 +51,22 @@ export function registerAllIpc(): void {
 	registerCloudHandoffIpc()
 	registerCloudSnapshotIpc()
   registerProjectIpc()
+  registerSourceImportIpc()
+  registerStoryBibleIpc()
+  registerGenerationIpc()
+  registerRightsIpc()
+  registerVisualAssetIpc()
+  registerShotStillIpc()
+  registerImageIpc()
+  registerTtsIpc()
+  registerAnimaticIpc()
+  registerAudioIpc()
+  registerEpisodeRenderIpc()
+  registerEpisodeQualityIpc()
+  registerEpisodeComplianceIpc()
+  registerPlatformDeliveryIpc()
+  registerFeedbackIpc()
+  registerLocalizationIpc()
   registerModelIpc()
   registerAiIpc()
   registerExportIpc()

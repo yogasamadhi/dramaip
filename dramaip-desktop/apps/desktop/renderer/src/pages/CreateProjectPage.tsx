@@ -3,7 +3,24 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronDown, ChevronUp, FilePlus2, Library, Lightbulb, MessageSquare, Sparkles, Upload } from 'lucide-react'
 import type { GenrePreset } from '@sdns/core'
-import { SHORT_DRAMA_TYPES } from '@sdns/core'
+import {
+  DEFAULT_GENRE_MARKET_SNAPSHOT,
+  PROJECT_CREATION_GOAL_OPTIONS,
+  PRODUCTION_ASPECT_RATIO_OPTIONS,
+  PRODUCTION_BUDGET_TIER_OPTIONS,
+  PRODUCTION_DURATION_OPTIONS,
+  PRODUCTION_PLATFORM_OPTIONS,
+  PRODUCTION_PRESENTATION_OPTIONS,
+  PRODUCTION_REGION_OPTIONS,
+  SHORT_DRAMA_TYPES,
+  createGenreOpportunitySelection,
+  createProjectProductionBrief,
+  formatProductionDuration,
+  selectGenreOpportunity,
+  type ProjectCreationGoal,
+  type GenreMarketSnapshot,
+  type ProjectProductionProfile,
+} from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
@@ -28,6 +45,7 @@ export function CreateProjectPage() {
   const requestedHook = searchParams.get('hook') ?? ''
   const requestedDirection = searchParams.get('direction') ?? ''
   const requestedIdea = searchParams.get('idea') ?? ''
+  const requestedOpportunityId = searchParams.get('opportunity') ?? ''
   const [title, setTitle] = useState('')
   const [shortDramaType, setShortDramaType] = useState<string>(SHORT_DRAMA_TYPES[0])
   const [targetAudience, setTargetAudience] = useState('')
@@ -37,12 +55,20 @@ export function CreateProjectPage() {
   const [advanced, setAdvanced] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [genrePresets, setGenrePresets] = useState<GenrePreset[]>([])
+  const [genreOpportunityId, setGenreOpportunityId] = useState(requestedOpportunityId)
+  const [marketSnapshot, setMarketSnapshot] = useState<GenreMarketSnapshot>(DEFAULT_GENRE_MARKET_SNAPSHOT)
+  const [creationGoal, setCreationGoal] = useState<ProjectCreationGoal>('novel_to_drama')
+  const [productionBrief, setProductionBrief] = useState(() => createProjectProductionBrief())
 
   // v0.8：合并内置类型常量与类型库（DB）预设，去重
   useEffect(() => {
     void (async () => {
-      const presets = await ipc.genrePreset.list()
+      const [presets, activeSnapshot] = await Promise.all([
+        ipc.genrePreset.list(),
+        ipc.genreMarketSnapshot.getActive(),
+      ])
       setGenrePresets(presets)
+       if (activeSnapshot) setMarketSnapshot(activeSnapshot)
     })()
   }, [])
 
@@ -53,10 +79,44 @@ export function CreateProjectPage() {
     if (requestedHook) setCoreHook((value) => value || requestedHook)
     if (requestedDirection) setCoreSellingPoint((value) => value || requestedDirection)
     if (requestedIdea) setIdea((value) => value || requestedIdea)
+    if (requestedOpportunityId) setGenreOpportunityId(requestedOpportunityId)
     if (requestedType || requestedAudience || requestedHook || requestedDirection || requestedIdea) setAdvanced(true)
-  }, [requestedAudience, requestedDirection, requestedHook, requestedIdea, requestedTitle, requestedType])
+  }, [requestedAudience, requestedDirection, requestedHook, requestedIdea, requestedOpportunityId, requestedTitle, requestedType])
 
   const typeOptions = Array.from(new Set([...SHORT_DRAMA_TYPES, ...genrePresets.map((p) => p.name)]))
+   const selectedOpportunity = selectGenreOpportunity(marketSnapshot, genreOpportunityId)
+
+  function chooseOpportunity(opportunityId: string) {
+    const opportunity = selectGenreOpportunity(marketSnapshot, opportunityId)
+    setGenreOpportunityId(opportunityId)
+    if (!opportunity) return
+    setShortDramaType(opportunity.genreName)
+    setAdvanced(true)
+  }
+
+  function chooseType(type: string) {
+    setShortDramaType(type)
+    if (selectedOpportunity?.genreName !== type) setGenreOpportunityId('')
+  }
+
+  function chooseCreationGoal(goal: ProjectCreationGoal) {
+    setCreationGoal(goal)
+    setProductionBrief(createProjectProductionBrief({ creationGoal: goal }))
+    if (goal !== 'novel_to_drama') setAdvanced(true)
+  }
+
+   function updateProductionProfile(patch: Partial<ProjectProductionProfile>) {
+    setProductionBrief((current) => createProjectProductionBrief({
+      creationGoal: current.creationGoal,
+      profile: {
+        ...current.profile,
+        ...patch,
+        episodeDuration: patch.episodeDuration
+          ? { ...current.profile.episodeDuration, ...patch.episodeDuration }
+          : current.profile.episodeDuration,
+      },
+     }))
+   }
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -75,9 +135,21 @@ export function CreateProjectPage() {
         coreSellingPoint: coreSellingPoint.trim() || undefined,
         synopsis: trimmedIdea || undefined,
         styleGuide: trimmedIdea ? `【灵感方案】\n${trimmedIdea}` : undefined,
+        genreOpportunity: selectedOpportunity
+          ? createGenreOpportunitySelection(marketSnapshot, selectedOpportunity)
+          : undefined,
+        productionBrief,
       })
-      toast.success('项目已创建，去和 AI 聊聊设定吧')
-      navigate(`/projects/${project.id}`)
+      if (creationGoal === 'direct_drama') {
+        toast.success('项目简报已创建，接着建立第一季')
+        navigate(`/adaptations/new?source=${project.id}&mode=direct`)
+      } else if (creationGoal === 'adapt_existing_ip') {
+        toast.success('项目简报已创建，下一步导入受权小说或 IP 正文')
+        navigate(`/projects/${project.id}?section=overview&next=import-source`)
+      } else {
+        toast.success('项目简报已创建，去和 AI 聊聊设定吧')
+        navigate(`/projects/${project.id}`)
+      }
     } catch (e) {
       toast.error('创建失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -106,16 +178,13 @@ export function CreateProjectPage() {
 
       <main className="flex flex-1 items-center justify-center overflow-auto p-6">
         <div className="w-full max-w-xl space-y-6">
-          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建方式">
-            <Button variant="secondary" className="h-auto justify-start py-3 text-left" onClick={() => { setTitle(''); setIdea(''); setAdvanced(false) }}>
-              <FilePlus2 /><span><span className="block">空白项目</span><span className="block text-xs font-normal text-muted-foreground">从名称开始</span></span>
-            </Button>
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => setAdvanced(true)}>
-              <Lightbulb /><span><span className="block">带着灵感创建</span><span className="block text-xs font-normal text-muted-foreground">补充钩子和方向</span></span>
-            </Button>
-            <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => void handleImport()}>
-              <Upload /><span><span className="block">导入项目包</span><span className="block text-xs font-normal text-muted-foreground">继续已有创作</span></span>
-            </Button>
+          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建路径">
+            {PROJECT_CREATION_GOAL_OPTIONS.map((option) => (
+              <Button key={option.value} variant={creationGoal === option.value ? 'secondary' : 'outline'} className="h-auto justify-start py-3 text-left" onClick={() => chooseCreationGoal(option.value)}>
+                {option.value === 'novel_to_drama' ? <Lightbulb /> : option.value === 'adapt_existing_ip' ? <Library /> : <FilePlus2 />}
+                <span><span className="block">{option.label}</span><span className="block text-xs font-normal text-muted-foreground">{option.description}</span></span>
+              </Button>
+            ))}
           </section>
           <div className="space-y-2">
             <Label className="text-base">作品名称 *</Label>
@@ -133,14 +202,18 @@ export function CreateProjectPage() {
               className="h-12 text-lg"
             />
             <p className="text-xs text-muted-foreground">
-              只需要起个名字就能创建。其余设定（类型、卖点、钩子、受众等）进入工作台后，在和 AI 的「项目对话」里慢慢聊清楚即可。
+              {creationGoal === 'adapt_existing_ip'
+                ? '先建立受权 IP 的项目简报，不会生成空章节；下一步再导入小说或剧本正文。'
+                : creationGoal === 'direct_drama'
+                  ? '创建后直接进入第一季设置，不要求先创建小说章节。'
+                  : '只需要起个名字就能创建。其余设定可进入工作台后继续补全。'}
             </p>
           </div>
 
           {!advanced && (
             <div className="space-y-2">
               <div className="text-sm font-medium">先选一个类型（可选）</div>
-              <div className="flex flex-wrap gap-2">{typeOptions.slice(0, 8).map((type) => <Button key={type} size="sm" variant={shortDramaType === type ? 'secondary' : 'outline'} onClick={() => setShortDramaType(type)}>{type}</Button>)}</div>
+              <div className="flex flex-wrap gap-2">{typeOptions.slice(0, 8).map((type) => <Button key={type} size="sm" variant={shortDramaType === type ? 'secondary' : 'outline'} onClick={() => chooseType(type)}>{type}</Button>)}</div>
             </div>
           )}
 
@@ -156,8 +229,32 @@ export function CreateProjectPage() {
           {advanced && (
             <div className="space-y-3 rounded-md border p-4">
               <div className="space-y-2">
+                <Label>题材机会（可选）</Label>
+                <Select value={genreOpportunityId || 'none'} onValueChange={(value) => value === 'none' ? setGenreOpportunityId('') : chooseOpportunity(value)}>
+                  <SelectTrigger><SelectValue placeholder="选择离线市场机会快照" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不采用市场机会快照</SelectItem>
+                    {marketSnapshot.opportunities.map((opportunity) => (
+                      <SelectItem key={opportunity.id} value={opportunity.id}>
+                        {opportunity.genreName} · {opportunity.status === 'hot' ? '热门' : opportunity.status === 'rising' ? '上升' : opportunity.status === 'steady' ? '稳定' : opportunity.status === 'classic' ? '经典' : '高饱和'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  离线快照 {marketSnapshot.version}（{marketSnapshot.observedAt}）；不是实时榜单，选择后会随项目保存当时的依据。
+                </p>
+                {selectedOpportunity && (
+                  <div className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+                    <p><span className="font-medium text-foreground">为什么推荐：</span>{selectedOpportunity.whyRecommended[0]}</p>
+                    <p className="mt-1"><span className="font-medium text-foreground">主要风险：</span>{selectedOpportunity.primaryRisks[0]}</p>
+                    <p className="mt-1"><span className="font-medium text-foreground">差异化：</span>{selectedOpportunity.differentiationIdeas[0]}</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
                 <Label>短剧类型</Label>
-                <Select value={shortDramaType} onValueChange={setShortDramaType}>
+                <Select value={shortDramaType} onValueChange={chooseType}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -176,6 +273,22 @@ export function CreateProjectPage() {
                   <Library className="h-3 w-3" />
                   管理类型库
                 </Button>
+              </div>
+              <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+                <div>
+                  <Label>生产 Profile</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">这些是可编辑的制作建议，会随项目简报保存；不是平台热度、费用或效果承诺。</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1"><Label className="text-xs">表现形式</Label><Select value={productionBrief.profile.presentation} onValueChange={(value) => updateProductionProfile({ presentation: value as ProjectProductionProfile['presentation'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_PRESENTATION_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">目标平台</Label><Select value={productionBrief.profile.platform} onValueChange={(value) => updateProductionProfile({ platform: value as ProjectProductionProfile['platform'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_PLATFORM_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">目标地区</Label><Select value={productionBrief.profile.region} onValueChange={(value) => updateProductionProfile({ region: value as ProjectProductionProfile['region'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_REGION_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">画幅</Label><Select value={productionBrief.profile.aspectRatio} onValueChange={(value) => updateProductionProfile({ aspectRatio: value as ProjectProductionProfile['aspectRatio'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_ASPECT_RATIO_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">单集时长建议</Label><Select value={`${productionBrief.profile.episodeDuration.minSeconds}-${productionBrief.profile.episodeDuration.maxSeconds}`} onValueChange={(value) => { const [minSeconds, maxSeconds] = value.split('-').map(Number); updateProductionProfile({ episodeDuration: { minSeconds, maxSeconds } }) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_DURATION_OPTIONS.map((option) => <SelectItem key={`${option.minSeconds}-${option.maxSeconds}`} value={`${option.minSeconds}-${option.maxSeconds}`}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">预算档位</Label><Select value={productionBrief.profile.budgetTier} onValueChange={(value) => updateProductionProfile({ budgetTier: value as ProjectProductionProfile['budgetTier'] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PRODUCTION_BUDGET_TIER_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-1"><Label className="text-xs">试播集数</Label><Input type="number" min={1} max={3} value={productionBrief.profile.pilotEpisodeCount} onChange={(event) => updateProductionProfile({ pilotEpisodeCount: Math.min(3, Math.max(1, Number(event.target.value) || 1)) })} /></div>
+                </div>
+                <p className="text-xs text-muted-foreground">当前建议：{formatProductionDuration(productionBrief.profile.episodeDuration)} / 先做 {productionBrief.profile.pilotEpisodeCount} 集试播。后续可在改编设置中继续修改。</p>
               </div>
               <div className="space-y-2">
                 <Label>目标受众</Label>
@@ -216,7 +329,10 @@ export function CreateProjectPage() {
           <div className="flex items-center gap-3">
             <Button size="lg" onClick={handleSubmit} disabled={submitting}>
               <Sparkles />
-              创建项目
+              {creationGoal === 'direct_drama' ? '创建并设置第一季' : '创建项目'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => void handleImport()}>
+              <Upload className="h-3.5 w-3.5" /> 导入已有项目包
             </Button>
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <MessageSquare className="h-3.5 w-3.5" />

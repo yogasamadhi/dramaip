@@ -14,6 +14,8 @@ import {
   promptVersions,
   videoGenerationTasks,
   videoResults,
+  deliveryCreativeVariants,
+  platformDeliveryExports,
 } from '../schema'
 import type { AdaptationProject, ChapterRange, OptionalId } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
@@ -22,9 +24,11 @@ type AdaptationRow = typeof adaptationProjects.$inferSelect
 
 /** 解析行 → 实体：把 sourceChapterRange(JSON 文本) 反序列化 */
 function rowToEntity(row: AdaptationRow): AdaptationProject {
-  const e = row as unknown as AdaptationProject
-  e.sourceChapterRange = parseChapterRange((row as { sourceChapterRange?: string | null }).sourceChapterRange)
-  return e
+  return {
+    ...(row as unknown as AdaptationProject),
+    episodeDuration: row.episodeDuration ?? undefined,
+    sourceChapterRange: parseChapterRange((row as { sourceChapterRange?: string | null }).sourceChapterRange),
+  }
 }
 
 function parseChapterRange(value?: string | null): ChapterRange | undefined {
@@ -76,8 +80,8 @@ export function createAdaptationProject(
     sourceProjectId: data.sourceProjectId ?? null,
     title: data.title,
     targetEpisodeCount: data.targetEpisodeCount,
-    // 默认 2 分钟一集（短剧标准体量）。小说与剧本是两套独立体量，经改编衔接。
-    episodeDuration: data.episodeDuration ?? '2分钟',
+    // 新建路径会显式传入生产 Profile 的时长建议；旧项目保留已有值，不再注入硬编码的 2 分钟规则。
+    episodeDuration: data.episodeDuration ?? null,
     adaptationStyle: data.adaptationStyle,
     visualStyleDirection: data.visualStyleDirection ?? null,
     audience: data.audience ?? null,
@@ -158,6 +162,8 @@ function deleteAdaptationProjectRows(db: DB, id: string): void {
   }
   const episodeRows = db.select({ id: episodes.id }).from(episodes).where(eq(episodes.adaptationProjectId, id)).all() as Array<{ id: string }>
   for (const episode of episodeRows) deleteVideoTasksByEpisode(db, episode.id)
+  db.delete(platformDeliveryExports).where(eq(platformDeliveryExports.adaptationProjectId, id)).run()
+  db.delete(deliveryCreativeVariants).where(eq(deliveryCreativeVariants.adaptationProjectId, id)).run()
   db.delete(scripts).where(eq(scripts.adaptationProjectId, id)).run()
   db.delete(episodes).where(eq(episodes.adaptationProjectId, id)).run()
   db.delete(episodeAnalyses).where(eq(episodeAnalyses.adaptationProjectId, id)).run()

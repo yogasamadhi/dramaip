@@ -64,6 +64,28 @@ export {
   type RealVideoProviderKind,
 } from './providers/video/adapters'
 export { videoProviderFromConfig } from './providers/video/factory'
+// LM5-10 image providers remain opt-in until the Desktop settings/keychain/task persistence boundary is enabled.
+export { OpenAIImageProvider, FetchOpenAIImageTransport, mapOpenAIImageResponse, type OpenAIImageTransport } from './providers/image/openai-image.provider'
+export { MockImageProvider } from './providers/image/mock.provider'
+export {
+  createImageGenerationTask,
+  retryImageGenerationTask,
+  type ImageAssetArchiver,
+  type ImageAssetArchiveResult,
+  type ImageGenerationServiceDeps,
+  type ImageGenerationTaskInput,
+  type ImageGenerationTaskResult,
+} from './providers/image/image-generation.service'
+export { OpenAITtsProvider, FetchOpenAITtsTransport, type OpenAITtsTransport } from './providers/audio/openai-tts.provider'
+export {
+  createTtsGenerationTask,
+  retryTtsGenerationTask,
+  type TtsAssetArchiver,
+  type TtsAssetArchiveResult,
+  type TtsGenerationServiceDeps,
+  type TtsGenerationTaskInput,
+  type TtsGenerationTaskResult,
+} from './providers/audio/audio-generation.service'
 export {
   createVideoGenerationTask,
   checkVideoTaskStatus,

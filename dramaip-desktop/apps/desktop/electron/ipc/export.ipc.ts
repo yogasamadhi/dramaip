@@ -99,6 +99,10 @@ export function registerExportIpc(): void {
     const shots = scenes.flatMap((scene) => r.shot.listShotsByScene(r.db, scene.id))
     const videoTasks = episodes.flatMap((episode) => r.videoTask.listVideoTasksByEpisode(r.db, episode.id))
     const videoResults = videoTasks.flatMap((task) => r.videoResult.listVideoResultsByTask(r.db, task.id))
+    const visualAssetVersions = adaptation.sourceProjectId ? r.visualAsset.listVisualAssetVersionsByProject(r.db, adaptation.sourceProjectId) : []
+    const shotVisualAssetLocks = adaptation.sourceProjectId ? r.visualAsset.listShotVisualAssetLocksByProject(r.db, adaptation.sourceProjectId) : []
+    const assets = adaptation.sourceProjectId ? r.asset.listProjectAssets(r.db, adaptation.sourceProjectId) : []
+    const assetRightsRecords = adaptation.sourceProjectId ? r.rights.listAssetRightsByProject(r.db, adaptation.sourceProjectId) : []
     return {
       project,
       adaptation,
@@ -110,6 +114,10 @@ export function registerExportIpc(): void {
       shots,
       videoTasks,
       videoResults,
+      visualAssetVersions,
+      shotVisualAssetLocks,
+      assets,
+      assetRightsRecords,
       scriptReviews: scripts
         .map((script) => r.scriptReview.getScriptReview(r.db, script.id))
         .filter((review): review is NonNullable<typeof review> => Boolean(review)),

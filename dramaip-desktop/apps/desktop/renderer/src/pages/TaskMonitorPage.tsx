@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Ban, Bot, Clapperboard, ListChecks, Loader2, RefreshCw, TimerReset } from 'lucide-react'
+import { ArrowLeft, Ban, Bot, Clapperboard, Image, ListChecks, Loader2, Mic, RefreshCw, TimerReset } from 'lucide-react'
 import type { BatchTaskProgress, LongTask, LongTaskStatus } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction } from '@/components/ConfirmActionDialog'
@@ -34,12 +34,16 @@ function formatTime(value: string): string {
 
 function TaskKindIcon({ task }: { task: LongTask }) {
   if (task.kind === 'batch') return <ListChecks className="h-4 w-4 text-primary" />
+  if (task.kind === 'image') return <Image className="h-4 w-4 text-primary" />
+  if (task.kind === 'audio') return <Mic className="h-4 w-4 text-primary" />
   if (task.kind === 'video') return <Clapperboard className="h-4 w-4 text-primary" />
   return <Bot className="h-4 w-4 text-primary" />
 }
 
 function taskKindLabel(task: LongTask): string {
   if (task.kind === 'batch') return '批量'
+  if (task.kind === 'image') return '图片'
+  if (task.kind === 'audio') return '音频'
   return task.kind === 'video' ? '视频' : 'AI'
 }
 
@@ -53,6 +57,8 @@ function batchProgress(task: LongTask): BatchTaskProgress | null {
 
 export function TaskMonitorPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const projectId = searchParams.get('project') ?? undefined
   const [tasks, setTasks] = useState<LongTask[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -60,18 +66,18 @@ export function TaskMonitorPage() {
   const reload = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true)
     try {
-      const listed = await ipc.longTask.list()
+      const listed = await ipc.longTask.list(projectId)
       const remoteIds = listed
         .filter((task) => task.kind === 'video' && task.status === 'pending' && task.relatedEntityId)
         .map((task) => task.relatedEntityId as string)
       await Promise.allSettled(remoteIds.map((id) => ipc.videoTask.checkStatus(id)))
-      setTasks(remoteIds.length > 0 ? await ipc.longTask.list() : listed)
+      setTasks(remoteIds.length > 0 ? await ipc.longTask.list(projectId) : listed)
     } catch (error) {
       if (showLoading) toast.error('任务列表读取失败：' + (error instanceof Error ? error.message : String(error)))
     } finally {
       if (showLoading) setLoading(false)
     }
-  }, [])
+  }, [projectId])
 
   useEffect(() => {
     void reload()
@@ -119,7 +125,7 @@ export function TaskMonitorPage() {
         <TimerReset className="h-5 w-5" />
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold">任务队列</h1>
-          <p className="truncate text-sm text-muted-foreground">AI 与视频长任务</p>
+          <p className="truncate text-sm text-muted-foreground">{projectId ? '当前项目的试播与生产任务；不混入其他项目。' : 'AI、图片与视频长任务'}</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void reload()} disabled={loading}>
           {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
@@ -130,6 +136,7 @@ export function TaskMonitorPage() {
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto max-w-5xl p-6">
+            {projectId && <ProductionTaskSummary tasks={tasks} />}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">最近任务</CardTitle>
@@ -204,6 +211,33 @@ export function TaskMonitorPage() {
         </ScrollArea>
       </main>
     </div>
+  )
+}
+
+function ProductionTaskSummary({ tasks }: { tasks: LongTask[] }) {
+  const groups: Array<{ key: string; label: string; installed: boolean; matches: (task: LongTask) => boolean }> = [
+    { key: 'scripts', label: '剧本', installed: true, matches: (task) => /script|剧本/i.test(task.taskType ?? task.title) },
+    { key: 'storyboard', label: '分镜', installed: true, matches: (task) => /shot|scene|分镜|镜头/i.test(task.taskType ?? task.title) },
+    { key: 'assets', label: '图片/资产', installed: true, matches: (task) => task.kind === 'image' || /image|图片|静帧|首帧|封面/i.test(task.taskType ?? task.title) },
+    { key: 'audio', label: '音频配音', installed: true, matches: (task) => task.kind === 'audio' || /tts|audio|音频|配音|对白|旁白/i.test(task.taskType ?? task.title) },
+    { key: 'video', label: '视频候选', installed: true, matches: (task) => task.kind === 'video' || /video|视频/i.test(task.taskType ?? task.title) },
+    { key: 'audio', label: '配音/音频', installed: false, matches: () => false },
+    { key: 'edit', label: '剪辑', installed: false, matches: () => false },
+    { key: 'quality', label: '质量闸门', installed: true, matches: (task) => /quality|质量/i.test(task.taskType ?? task.title) },
+    { key: 'delivery', label: '最终交付', installed: false, matches: () => false },
+  ]
+  return (
+    <Card className="mb-4" data-production-task-summary>
+      <CardHeader><CardTitle className="text-base">生产能力与任务真值</CardTitle></CardHeader>
+      <CardContent><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {groups.map((group) => {
+          const groupTasks = tasks.filter(group.matches)
+          const failed = groupTasks.filter((task) => task.status === 'failed' || task.status === 'canceled').length
+          const active = groupTasks.filter(isLongTaskActive).length
+          return <div key={group.key} className="rounded-md border p-3 text-xs"><div className="flex items-center justify-between gap-2"><span className="font-medium">{group.label}</span><Badge variant={group.installed ? 'secondary' : 'outline'}>{group.installed ? '可用' : '能力未安装'}</Badge></div><p className="mt-2 text-muted-foreground">{group.installed ? `任务 ${groupTasks.length} 个 · 进行中 ${active} · 失败/取消 ${failed}` : '不会伪造任务或成功状态'}</p></div>
+        })}
+      </div><p className="mt-3 text-xs text-muted-foreground">成本账本和版权台账可在项目概览查看；最终成片交付尚未安装，未安装不等于通过，也不会被计入完成率。</p></CardContent>
+    </Card>
   )
 }
 

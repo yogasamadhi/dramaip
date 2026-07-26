@@ -10,13 +10,14 @@ test('groups every workspace nav item exactly once', () => {
   assert.equal(groupedKeys.length, navKeys.length)
 })
 
-test('keeps chapters as the primary creation entry', () => {
-  const creationGroup = WORKSPACE_NAV_GROUPS.find((group) => group.key === 'creation')
+test('keeps chapters as the primary entry in the content zone', () => {
+  const contentGroup = WORKSPACE_NAV_GROUPS.find((group) => group.key === 'content')
 
-  assert.ok(creationGroup)
-  assert.equal(creationGroup.label, '创作')
-  assert.equal(creationGroup.items[0]?.key, 'chapters')
-  assert.ok(creationGroup.items.some((item) => item.key === 'inspiration'))
-  assert.ok(creationGroup.items.some((item) => item.key === 'story-planning'))
-  assert.ok(creationGroup.items.some((item) => item.key === 'agent-schemes'))
+  assert.ok(contentGroup)
+  assert.equal(contentGroup.label, '内容')
+  assert.equal(contentGroup.items[0]?.key, 'content')
+  assert.ok(contentGroup.basicItemKeys.includes('chapters'))
+  assert.ok(contentGroup.items.some((item) => item.key === 'inspiration'))
+  assert.ok(contentGroup.items.some((item) => item.key === 'story-planning'))
+  assert.ok(contentGroup.items.some((item) => item.key === 'agent-schemes'))
 })

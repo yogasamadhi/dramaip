@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, BarChart3, ChevronRight, Cloud, Cpu, DatabaseBackup, FileJson, Palette, Settings, TimerReset, Users, Video } from 'lucide-react'
+import { ArrowLeft, BarChart3, ChevronRight, Cloud, Cpu, DatabaseBackup, FileJson, Image, Mic, Palette, Settings, TimerReset, Users, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -29,6 +29,18 @@ const SETTINGS_ITEMS = [
     icon: Video,
   },
   {
+    title: '图片生成设置',
+    description: '管理 OpenAI Image 的 Keychain 配置与显式计费开关',
+    path: '/settings/images',
+    icon: Image,
+  },
+  {
+    title: 'TTS 配音设置',
+    description: '管理 OpenAI TTS 的 Keychain 配置与显式计费开关',
+    path: '/settings/tts',
+    icon: Mic,
+  },
+  {
     title: '数据与备份',
     description: '查看数据库备份、手动备份与恢复',
     path: '/settings/data',
@@ -36,7 +48,7 @@ const SETTINGS_ITEMS = [
   },
   {
     title: '任务队列',
-    description: '查看 AI 与视频长任务状态',
+    description: '查看 AI、图片、音频与视频长任务状态',
     path: '/settings/tasks',
     icon: TimerReset,
   },
