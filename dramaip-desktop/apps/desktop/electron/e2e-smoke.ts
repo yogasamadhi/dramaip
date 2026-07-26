@@ -25,7 +25,12 @@ import { eq, sql } from 'drizzle-orm'
 import { buildAgentCommandPlan } from '../renderer/src/lib/agentCommandPlanner'
 import { buildProjectWorkflowStages } from '../renderer/src/lib/projectWorkflowGuide'
 import { getRepos } from './db'
-import { deleteModelConfigWithSecret, migrateLegacySecretsToKeychain } from './secrets'
+import {
+  deleteModelConfigWithSecret,
+  initializeSecretStorage,
+  migrateLegacySecretsToLocalStore,
+  setCredentialStoreForTests,
+} from './secrets'
 import { reconcileLongTasks } from './task-recovery'
 
 export interface E2eSmokeStep {
@@ -54,7 +59,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
     true,
   ) as RendererSmokeResult
   const cloudAuthStep = await verifyCloudAuthRendererBoundary(win)
-  const keychainStep = await verifyKeychainModelConfig(renderer.modelConfigId)
+  const localCredentialStep = await verifyLocalCredentialModelConfig(renderer.modelConfigId)
   const p0 = runP0ProductionPathSmoke(renderer.projectId)
   const revisionAdoptionIpcStep = await verifyRevisionTaskAdoptionIpc(win, p0.fixture)
   const productionShellStep = await verifyProductionShellRenderer(win, p0.fixture)
@@ -68,7 +73,7 @@ export async function runDesktopE2eSmoke(win: BrowserWindow): Promise<E2eSmokeRe
   return {
     projectId: renderer.projectId,
     importedProjectId: String(projectPackageStep.detail?.importedProjectId ?? ''),
-    steps: [...renderer.steps, keychainStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
+    steps: [...renderer.steps, localCredentialStep, cloudAuthStep, ...p0.steps, revisionAdoptionIpcStep, productionShellStep, structuredScriptStep, storyboardStep, videoProductionStep, draftPersistenceStep, taskRecoveryStep, projectPackageStep],
   }
 }
 
@@ -177,7 +182,7 @@ async function verifyCloudAuthRendererBoundary(win: BrowserWindow): Promise<E2eS
   }
 }
 
-async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmokeStep> {
+async function verifyLocalCredentialModelConfig(modelConfigId: string): Promise<E2eSmokeStep> {
   const startedAt = Date.now()
   try {
     const repos = getRepos()
@@ -186,20 +191,26 @@ async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmok
       .from(schema.modelConfigs)
       .where(eq(schema.modelConfigs.id, modelConfigId))
       .get()
-    if (!stored?.apiKey.startsWith('keychain:v1:')) {
-      throw new Error('模型配置未保存为 Keychain 引用')
+    if (!stored?.apiKey.startsWith('local:v1:')) {
+      throw new Error('模型配置未保存为本地凭据引用')
+    }
+    setCredentialStoreForTests()
+    await initializeSecretStorage(repos)
+    const reloaded = repos.modelConfig.getModelConfig(repos.db, modelConfigId)
+    if (!reloaded?.apiKey.startsWith('sk-e2e-')) {
+      throw new Error('本地凭据文件未能在清空内存缓存后恢复 API Key')
     }
     await deleteModelConfigWithSecret(repos, modelConfigId)
 
     // 旧库 fixture：直接写入一个历史裸值，随后只通过主进程迁移入口处理。
     const legacy = repos.modelConfig.createModelConfig(repos.db, {
-      name: 'Legacy Keychain Fixture',
+      name: 'Legacy Local Credential Fixture',
       provider: 'mock',
       baseUrl: 'https://example.invalid/v1',
       apiKey: 'legacy-e2e-not-a-real-key',
       model: 'legacy-fixture',
     })
-    const migration = await migrateLegacySecretsToKeychain(repos)
+    const migration = await migrateLegacySecretsToLocalStore(repos)
     const migrated = repos.db
       .select({ apiKey: schema.modelConfigs.apiKey })
       .from(schema.modelConfigs)
@@ -212,17 +223,17 @@ async function verifyKeychainModelConfig(modelConfigId: string): Promise<E2eSmok
     `) as Array<{ status?: string; credentialRef?: string }>
     if (
       migration.migrated < 1 ||
-      !migrated?.apiKey.startsWith('keychain:v1:') ||
+      !migrated?.apiKey.startsWith('local:v1:') ||
       auditRows[0]?.status !== 'migrated' ||
-      !auditRows[0]?.credentialRef?.startsWith('keychain:v1:')
+      !auditRows[0]?.credentialRef?.startsWith('local:v1:')
     ) {
-      throw new Error('旧 SQLite 凭据未完成可审计 Keychain 迁移')
+      throw new Error('旧 SQLite 凭据未完成可审计本地迁移')
     }
     await deleteModelConfigWithSecret(repos, legacy.id)
-    return { name: 'keychain-reference-migration-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
+    return { name: 'local-credential-reference-migration-and-renderer-mask', ok: true, durationMs: Date.now() - startedAt }
   } catch (error) {
     return {
-      name: 'keychain-reference-migration-and-renderer-mask',
+      name: 'local-credential-reference-migration-and-renderer-mask',
       ok: false,
       durationMs: Date.now() - startedAt,
       error: error instanceof Error ? error.message : String(error),
@@ -703,11 +714,12 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     button.click()
   }
 
-  function inputByPlaceholder(fragment: string): HTMLInputElement {
-    const input = Array.from(document.querySelectorAll('input')).find((item) =>
-      (item.getAttribute('placeholder') ?? '').includes(fragment),
-    ) as HTMLInputElement | undefined
-    if (!input) throw new Error(`未找到输入框：${fragment}`)
+  function inputByLabel(fragment: string): HTMLInputElement {
+    const label = Array.from(document.querySelectorAll('label')).find((item) =>
+      normalize(item.textContent).includes(fragment),
+    )
+    const input = label?.parentElement?.querySelector('input') as HTMLInputElement | null
+    if (!input) throw new Error(`未找到输入框标签：${fragment}`)
     return input
   }
 
@@ -735,7 +747,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
   })
 
   await step('create-project', async () => {
-    setInputValue(inputByPlaceholder('重生之千金归来'), title)
+    setInputValue(inputByLabel('作品名称'), title)
     clickButton('创建项目')
     await waitFor('项目工作台路由', () =>
       window.location.hash.startsWith('#/projects/') && !window.location.hash.startsWith('#/projects/new'),
@@ -989,11 +1001,23 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
   })
 
   await step('create-model-config', async () => {
-    setInputValue(inputByPlaceholder('默认 GPT-4o'), modelName)
-    setInputValue(inputByPlaceholder('openai / deepseek'), 'mock')
-    setInputValue(inputByPlaceholder('https://api.openai.com/v1'), 'https://example.invalid/v1')
-    setInputValue(inputByPlaceholder('sk-...'), e2eApiKey)
-    setInputValue(inputByPlaceholder('gpt-4o-mini'), 'e2e-mock-model')
+    const providerLabel = Array.from(document.querySelectorAll('label')).find((item) =>
+      normalize(item.textContent) === 'Provider',
+    )
+    const providerSelect = providerLabel?.parentElement?.querySelector('[role="combobox"]') as HTMLElement | null
+    if (!providerSelect) throw new Error('未找到 Provider 选择器')
+    providerSelect.click()
+    const customProvider = await waitFor('自定义 Provider 选项', () =>
+      Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
+        .find((option) => normalize(option.textContent).includes('自定义')),
+    )
+    customProvider.click()
+    await waitFor('自定义 Provider 已选择', () => normalize(providerSelect.textContent).includes('自定义'))
+
+    setInputValue(inputByLabel('名称'), modelName)
+    setInputValue(inputByLabel('Base URL'), 'https://example.invalid/v1')
+    setInputValue(inputByLabel('API Key'), e2eApiKey)
+    setInputValue(inputByLabel('模型'), 'e2e-mock-model')
     clickButton('添加')
     await waitFor('模型配置列表', () => text().includes(modelName))
     const api = (window as unknown as {

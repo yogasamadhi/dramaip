@@ -163,6 +163,9 @@ export function registerProjectIpc(): void {
   ipcMain.handle('evaluation:list', (_e, projectId: string) =>
     repos().evaluation.listEvaluations(repos().db, projectId),
   )
+  ipcMain.handle('evaluation:listByChapter', (_e, chapterId: string) =>
+    repos().evaluation.listEvaluationsByChapter(repos().db, chapterId),
+  )
 
   // ---------- AI 调用记录（只读） ----------
   ipcMain.handle('aiRun:list', (_e, projectId: string) =>

@@ -11,7 +11,13 @@ import {
   verifySqliteDatabaseFile,
   type Repositories,
 } from '@sdns/db'
-import { BUILT_IN_AGENTS, BUILT_IN_GENRE_PRESETS, BUILT_IN_TEMPLATES, DB_FILE_NAME } from '@sdns/core'
+import {
+  BUILT_IN_AGENTS,
+  BUILT_IN_GENRE_PRESETS,
+  BUILT_IN_TEMPLATES,
+  DB_FILE_NAME,
+  RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+} from '@sdns/core'
 import { initializeSecretStorage, installSecretProtection } from './secrets'
 import { logger } from './logger'
 
@@ -82,7 +88,7 @@ async function openDatabase(dbPath: string): Promise<void> {
   const secretMigration = await initializeSecretStorage(repos)
   const logLevel = secretMigration.failed > 0 ? 'warn' : 'info'
   logger[logLevel]('security', 'secret migration checked', {
-    keychainAvailable: secretMigration.keychainAvailable,
+    localCredentialStoreAvailable: secretMigration.keychainAvailable,
     attempted: secretMigration.attempted,
     migrated: secretMigration.migrated,
     skipped: secretMigration.skipped,
@@ -294,15 +300,19 @@ export async function restoreDatabaseBackup(backupPath: string): Promise<Databas
 }
 
 /**
- * v0.8：幂等 seed 内置预设（Agent / 模板 / 类型库）。
- * - 已存在同 role/name 的记录不覆盖用户改动，仅补 builtIn 标记。
- * - 用户自定义/编辑的记录不受影响。
+ * 幂等同步内置预设（Agent / 模板 / 类型库）。
+ * - Agent / 模板沿用原 seed 规则。
+ * - 类型库同步当前市场版内置内容并清理退役内置项；用户自定义类型不受影响。
  */
 function seedBuiltInPresets(r: Repositories): void {
   try {
     r.agentProfile.upsertBuiltInAgentProfiles(r.db, BUILT_IN_AGENTS)
     r.template.upsertBuiltInTemplates(r.db, BUILT_IN_TEMPLATES)
-    r.genrePreset.upsertBuiltInGenrePresets(r.db, BUILT_IN_GENRE_PRESETS)
+    r.genrePreset.upsertBuiltInGenrePresets(
+      r.db,
+      BUILT_IN_GENRE_PRESETS,
+      RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+    )
   } catch {
     // seed 失败不应阻断启动（用户仍可手动在设置页创建）
   }

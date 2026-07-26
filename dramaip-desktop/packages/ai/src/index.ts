@@ -1,4 +1,5 @@
 export * from './providers/openai-compatible.provider'
+export { createModelConnectionTestInput } from './providers/connection-test'
 export type { LLMProvider, ChatInput, ChatOutput, ChatMessage } from '@sdns/core'
 export { extractJson } from './parsers/json'
 export { buildChapterContext, buildEvaluationContext } from './context/context-builder'

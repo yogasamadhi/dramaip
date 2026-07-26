@@ -22,6 +22,21 @@ const UI_BASELINE_ENV = 'SDNS_UI_BASELINE'
 const UI_BASELINE_RESULT_ENV = 'SDNS_UI_BASELINE_RESULT'
 const UI_BASELINE_USER_DATA_ENV = 'SDNS_UI_BASELINE_USER_DATA'
 const UI_BASELINE_OUTPUT_ENV = 'SDNS_UI_BASELINE_OUTPUT'
+let shutdownRequested = false
+
+/** 开发启动器收到 Ctrl-C 后，明确关闭 macOS 上仍可能保留的 Electron 窗口。 */
+function quitForProcessSignal(): void {
+  if (shutdownRequested) return
+  shutdownRequested = true
+  if (app.isReady()) {
+    app.quit()
+    return
+  }
+  app.once('ready', () => app.quit())
+}
+
+process.once('SIGINT', quitForProcessSignal)
+process.once('SIGTERM', quitForProcessSignal)
 
 function isDevRuntime(): boolean {
   return Boolean(process.env['ELECTRON_RENDERER_URL'])
@@ -59,6 +74,14 @@ function configurePackageSmokeUserData(): void {
   if (userData) app.setPath('userData', userData)
 }
 
+function getRuntimeVersions(): Record<'electron' | 'chrome' | 'node', string | undefined> {
+  return {
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+  }
+}
+
 function writePackageSmokeResult(payload: Record<string, unknown>): void {
   const resultPath =
     process.env[PACKAGE_SMOKE_RESULT_ENV] ?? getSmokeArg('sdns-package-smoke-result')
@@ -72,6 +95,7 @@ function writePackageSmokeResult(payload: Record<string, unknown>): void {
         version: app.getVersion(),
         platform: process.platform,
         userData: app.getPath('userData'),
+        runtimeVersions: getRuntimeVersions(),
       },
       null,
       2,
@@ -123,6 +147,7 @@ function writeE2eSmokeResult(payload: Record<string, unknown>): void {
         version: app.getVersion(),
         platform: process.platform,
         userData: app.getPath('userData'),
+        runtimeVersions: getRuntimeVersions(),
       },
       null,
       2,

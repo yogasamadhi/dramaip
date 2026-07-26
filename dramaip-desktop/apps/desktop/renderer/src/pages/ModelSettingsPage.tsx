@@ -42,10 +42,10 @@ interface BudgetFormState {
 
 const EMPTY: FormState = {
   name: '',
-  provider: 'openai',
-  baseUrl: 'https://api.openai.com/v1',
+  provider: 'deepseek',
+  baseUrl: 'https://api.deepseek.com/v1',
   apiKey: '',
-  model: 'gpt-4o-mini',
+  model: 'deepseek-v4-pro',
   isDefault: false,
 }
 
@@ -56,6 +56,38 @@ const EMPTY_BUDGET: BudgetFormState = {
   dailyCostLimit: '',
   costPer1kTokens: '0',
   currency: 'USD',
+}
+
+interface ProviderPreset {
+  /** Select 的 value，同时写入配置的 provider 字段 */
+  value: string
+  /** 下拉展示名 */
+  label: string
+  baseUrl: string
+  /** 推荐模型；留空表示 model 填接入点 ID 等用户专属值，不预填 */
+  model: string
+  /** model 输入框占位提示（留空用默认） */
+  modelPlaceholder?: string
+}
+
+// 常见 OpenAI-compatible Provider 预设，选中后自动填充 Base URL 与推荐模型。
+// 推荐模型为各厂商 2026-07 最新旗舰（已联网核实）；火山方舟的 model 是用户开通后生成的
+// 接入点 ID（ep-xxx）而非固定模型名，故不预填。
+const PROVIDER_PRESETS: ProviderPreset[] = [
+  { value: 'deepseek', label: 'DeepSeek 深度求索', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-v4-pro' },
+  { value: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5' },
+  { value: 'anthropic', label: 'Anthropic Claude', baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-5' },
+  { value: 'moonshot', label: 'Moonshot Kimi', baseUrl: 'https://api.moonshot.cn/v1', model: 'kimi-k3' },
+  { value: 'zhipu', label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-5.2' },
+  { value: 'qwen', label: '阿里通义千问（百炼）', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3-max' },
+  { value: 'minimax', label: 'MiniMax', baseUrl: 'https://api.minimax.io/v1', model: 'MiniMax-M3' },
+  { value: 'mimo', label: '小米 MiMo', baseUrl: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-pro' },
+  { value: 'doubao', label: '火山方舟 豆包', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', model: '', modelPlaceholder: '填接入点 ID，如 ep-2024xxxx-xxxxx' },
+  { value: 'custom', label: '自定义', baseUrl: '', model: '' },
+]
+
+function findPreset(provider: string): ProviderPreset | undefined {
+  return PROVIDER_PRESETS.find((p) => p.value === provider)
 }
 
 const CLOUD_PROVIDER_ID = 'dramaip-cloud'
@@ -118,6 +150,27 @@ export function ModelSettingsPage() {
     setForm((f) => ({ ...f, [key]: value }))
   const setBudgetField = <K extends keyof BudgetFormState>(key: K, value: BudgetFormState[K]) =>
     setBudget((f) => ({ ...f, [key]: value }))
+
+  // 选择 Provider 后自动填充 Base URL 与推荐模型。仅当当前值仍属于其他预设
+  // （或为空）时才覆盖，避免抹掉用户已手动编辑的内容。
+  function selectProvider(provider: string) {
+    const preset = findPreset(provider)
+    if (!preset) {
+      set('provider', provider)
+      return
+    }
+    setForm((f) => {
+      const currentPreset = findPreset(f.provider)
+      const baseUrlWasPreset = f.baseUrl === '' || (currentPreset && f.baseUrl === currentPreset.baseUrl)
+      const modelWasPreset = f.model === '' || (currentPreset && f.model === currentPreset.model)
+      return {
+        ...f,
+        provider,
+        baseUrl: baseUrlWasPreset ? preset.baseUrl : f.baseUrl,
+        model: modelWasPreset ? preset.model : f.model,
+      }
+    })
+  }
 
   async function handleAdd() {
     if (!form.name.trim() || !form.baseUrl.trim() || !form.model.trim()) {
@@ -187,7 +240,7 @@ export function ModelSettingsPage() {
       name: `DramaIP Cloud · ${model.model}`,
       provider: CLOUD_PROVIDER_ID,
       baseUrl,
-      // Cloud auth stays in Electron main/Keychain; this configuration must
+      // Cloud auth stays in Electron main/local credential storage; this configuration must
       // never carry an API Key into SQLite or renderer state.
       apiKey: '',
       model: model.model,
@@ -298,15 +351,26 @@ export function ModelSettingsPage() {
               <CardContent className="space-y-3">
                 <div className="space-y-2">
                   <Label>名称</Label>
-                  <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例如：默认 GPT-4o" />
+                  <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例如：默认 DeepSeek V4 Pro" />
                 </div>
                 <div className="space-y-2">
                   <Label>Provider</Label>
-                  <Input value={form.provider} onChange={(e) => set('provider', e.target.value)} placeholder="openai / deepseek / ..." />
+                  <Select value={form.provider} onValueChange={selectProvider}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择 Provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVIDER_PRESETS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Base URL</Label>
-                  <Input value={form.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} placeholder="https://api.openai.com/v1" />
+                  <Input value={form.baseUrl} onChange={(e) => set('baseUrl', e.target.value)} placeholder="https://api.deepseek.com/v1" />
                 </div>
                 <div className="space-y-2">
                   <Label>API Key</Label>
@@ -316,16 +380,16 @@ export function ModelSettingsPage() {
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
                     <div className="flex items-center gap-2 font-medium text-destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      系统凭据管理器不可用
+                      本地凭据存储不可用
                     </div>
                     <p className="text-muted-foreground">
-                      为避免 API Key 落入 SQLite，本应用不会使用明文降级。请恢复系统钥匙串/凭据管理器后再保存。
+                      为避免 API Key 落入 SQLite，本应用不会使用明文降级。请检查用户数据目录权限后再保存。
                     </p>
                   </div>
                 )}
                 <div className="space-y-2">
                   <Label>模型</Label>
-                  <Input value={form.model} onChange={(e) => set('model', e.target.value)} placeholder="gpt-4o-mini" />
+                  <Input value={form.model} onChange={(e) => set('model', e.target.value)} placeholder={findPreset(form.provider)?.modelPlaceholder ?? 'deepseek-v4-pro'} />
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input

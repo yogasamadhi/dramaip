@@ -48,8 +48,12 @@ export function ForeshadowingSection({ projectId, chapter, version }: Props) {
   const [form, setForm] = useState<typeof EMPTY>(EMPTY)
 
   const reload = useCallback(async () => {
-    setList(await ipc.foreshadowing.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    setList(await ipc.foreshadowing.listByChapter(chapter.id))
+  }, [chapter])
 
   useEffect(() => {
     void reload()
@@ -131,7 +135,7 @@ export function ForeshadowingSection({ projectId, chapter, version }: Props) {
             </p>
           ) : (
             list.map((f) => (
-              <div key={f.id} className="rounded-md border p-3">
+              <article key={f.id} className="rounded-md border p-3">
                 <div className="flex items-center gap-2">
                   <Badge variant={STATUS_VARIANT[f.status]}>{STATUS_LABEL[f.status]}</Badge>
                   <span className="font-medium">{f.title}</span>
@@ -146,7 +150,7 @@ export function ForeshadowingSection({ projectId, chapter, version }: Props) {
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{f.description}</p>
                 {f.payoffPlan && <p className="mt-1 text-xs text-muted-foreground">回收计划：{f.payoffPlan}</p>}
-              </div>
+              </article>
             ))
           )}
         </div>

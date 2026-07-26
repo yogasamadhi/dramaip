@@ -45,7 +45,7 @@ import {
   narrativeCurveReports,
   workflowRuns,
 } from '../schema'
-import type { AdaptationProject, OptionalId, Project, ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
+import { isProjectSetupComplete, type AdaptationProject, type OptionalId, type Project, type ProjectDeletionPreview, type ProjectHomeSummary, type TrashedProject } from '@sdns/core'
 import { genId, now, insertRow, updateRows } from './util'
 
 export type ProjectRow = typeof projects.$inferSelect
@@ -88,10 +88,25 @@ export function listProjectHomeSummaries(db: DB): ProjectHomeSummary[] {
     const episodeCount = adaptation
       ? db.select().from(episodes).where(eq(episodes.adaptationProjectId, adaptation.id)).all().length
       : 0
-    const stage = adaptation ? 'adaptation' : latestChapter ? 'writing' : 'setup'
+    const setupComplete = isProjectSetupComplete(project)
+    const stage = adaptation ? 'adaptation' : latestChapter || setupComplete ? 'writing' : 'setup'
     const nextAction = latestChapter
-      ? { label: '继续写作', path: `/projects/${project.id}?section=chapters&chapter=${latestChapter.id}` }
-      : { label: '完善项目设定', path: `/projects/${project.id}?section=overview` }
+      ? {
+          label: '继续写作',
+          path: `/projects/${project.id}?section=chapters&chapter=${latestChapter.id}`,
+          description: `最近：${latestChapter.title}`,
+        }
+      : setupComplete
+        ? {
+            label: '新建第一章',
+            path: `/projects/${project.id}?section=chapters`,
+            description: '项目设定已经就绪，可以开始第一章创作。',
+          }
+        : {
+            label: '完善项目设定',
+            path: `/projects/${project.id}?section=overview`,
+            description: '先补充项目设定，AI 才能给出可用的创作建议。',
+          }
     return {
       project,
       chapterCount: projectChapters.length,

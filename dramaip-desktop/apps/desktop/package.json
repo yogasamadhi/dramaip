@@ -11,7 +11,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "rebuild": "pnpm run rebuild:electron",
-    "rebuild:electron": "electron-rebuild -f -w better-sqlite3,keytar",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "package": "electron-vite build && pnpm run rebuild:electron && electron-builder",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
@@ -28,6 +28,7 @@
     "@radix-ui/react-separator": "^1.1.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.1",
+    "@tanstack/react-virtual": "^3.14.8",
     "@tiptap/extension-placeholder": "^2.11.2",
     "@tiptap/pm": "^2.11.2",
     "@tiptap/react": "^2.11.2",
@@ -36,7 +37,6 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
-    "keytar": "^7.9.0",
     "lucide-react": "^0.454.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -49,18 +49,18 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
+    "@electron/rebuild": "^4.0.4",
     "@types/node": "^22.7.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.2",
+    "@vitejs/plugin-react": "^5.1.4",
     "autoprefixer": "^10.4.20",
-    "electron": "^38.0.0",
-    "electron-builder": "^25.0.0",
-    "electron-vite": "^2.3.0",
+    "electron": "43.2.0",
+    "electron-builder": "^26.11.1",
+    "electron-vite": "^5.0.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.8"
+    "typescript": "^5.9.3",
+    "vite": "^7.3.3"
   }
 }

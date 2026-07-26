@@ -27,6 +27,9 @@ export function registerAnalysisIpc(): void {
   ipcMain.handle('highlight:list', (_e, projectId: string) =>
     repos().highlight.listHighlights(repos().db, projectId),
   )
+  ipcMain.handle('highlight:getByChapter', (_e, projectId: string, chapterId: string) =>
+    repos().highlight.getHighlightByChapter(repos().db, projectId, chapterId),
+  )
   ipcMain.handle('highlight:create', (_e, data: unknown) =>
     repos().highlight.createHighlight(repos().db, data as never),
   )
@@ -38,6 +41,9 @@ export function registerAnalysisIpc(): void {
   // ---------- AI 视频可行性 ----------
   ipcMain.handle('feasibility:list', (_e, projectId: string) =>
     repos().feasibility.listFeasibilityReports(repos().db, projectId),
+  )
+  ipcMain.handle('feasibility:getByChapter', (_e, projectId: string, chapterId: string) =>
+    repos().feasibility.getFeasibilityByChapter(repos().db, projectId, chapterId),
   )
   ipcMain.handle('feasibility:create', (_e, data: unknown) =>
     repos().feasibility.createFeasibilityReport(repos().db, data as never),

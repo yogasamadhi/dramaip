@@ -43,10 +43,8 @@ export function CreateProjectPage() {
     void (async () => {
       const presets = await ipc.genrePreset.list()
       setGenrePresets(presets)
-      // 优先用类型库第一项作为默认
-      if (presets.length && !requestedType) setShortDramaType(presets[0].name)
     })()
-  }, [requestedType])
+  }, [])
 
   useEffect(() => {
     if (requestedTitle) setTitle((value) => value || requestedTitle)
@@ -58,7 +56,7 @@ export function CreateProjectPage() {
     if (requestedType || requestedAudience || requestedHook || requestedDirection || requestedIdea) setAdvanced(true)
   }, [requestedAudience, requestedDirection, requestedHook, requestedIdea, requestedTitle, requestedType])
 
-  const typeOptions = Array.from(new Set([...genrePresets.map((p) => p.name), ...SHORT_DRAMA_TYPES]))
+  const typeOptions = Array.from(new Set([...SHORT_DRAMA_TYPES, ...genrePresets.map((p) => p.name)]))
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -131,7 +129,7 @@ export function CreateProjectPage() {
                   void handleSubmit()
                 }
               }}
-              placeholder="例如：重生之千金归来"
+              placeholder="例如：天劫将至，我的废灵根觉醒了"
               className="h-12 text-lg"
             />
             <p className="text-xs text-muted-foreground">
@@ -184,7 +182,7 @@ export function CreateProjectPage() {
                 <Input
                   value={targetAudience}
                   onChange={(e) => setTargetAudience(e.target.value)}
-                  placeholder="例如：18-35 岁女性短剧用户"
+                  placeholder="例如：18-34 岁 AI 漫剧用户"
                 />
               </div>
               <div className="space-y-2">
@@ -192,7 +190,7 @@ export function CreateProjectPage() {
                 <Input
                   value={coreHook}
                   onChange={(e) => setCoreHook(e.target.value)}
-                  placeholder="例如：她重回婚礼现场，当众夺回被偷走的人生"
+                  placeholder="例如：废柴弟子临刑前觉醒上古神脉，逆转必死天劫"
                 />
               </div>
               <div className="space-y-2">
@@ -200,7 +198,7 @@ export function CreateProjectPage() {
                 <Input
                   value={coreSellingPoint}
                   onChange={(e) => setCoreSellingPoint(e.target.value)}
-                  placeholder="例如：强压迫、公开反击、集集反转"
+                  placeholder="例如：东方玄幻奇观、越级反杀、集尾强钩子"
                 />
               </div>
               <div className="space-y-2">

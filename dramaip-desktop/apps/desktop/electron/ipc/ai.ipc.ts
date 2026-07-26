@@ -4,11 +4,12 @@ import { getRepos } from '../db'
 import {
   runNovelWorkflow,
   applyGeneratedArtifact,
+  createModelConnectionTestInput,
   resolveProviderForTask,
   type NovelWorkflowInput,
   type ApplyArtifactInput,
 } from '@sdns/ai'
-import { TASK_TYPE_LABELS, type ChatMessage, type ModelConfig, type NovelTaskType } from '@sdns/core'
+import { TASK_TYPE_LABELS, type ModelConfig, type NovelTaskType } from '@sdns/core'
 import { providerFromModelConfig } from '@sdns/ai'
 import { decryptSecret } from '../secrets'
 import {
@@ -29,6 +30,9 @@ export function registerAiIpc(): void {
     return runAiTask(input, {
       onToken: (chunk) => {
         evt.sender.send('ai:stream:chunk', { requestId, chunk })
+      },
+      onRetry: () => {
+        evt.sender.send('ai:stream:reset', { requestId })
       },
     })
   })
@@ -51,12 +55,9 @@ export function registerAiIpc(): void {
       const stored = config.id ? repos.modelConfig.getModelConfig(repos.db, config.id) : undefined
       const resolved = stored ?? config
       const startedAt = Date.now()
-      const messages: ChatMessage[] = [
-        { role: 'system', content: '连接测试。只回复 ok。' },
-        { role: 'user', content: 'ping' },
-      ]
+      const testInput = createModelConnectionTestInput()
       if (isCloudModelConfig(resolved)) {
-        const preflight = await preflightCloudModelConfig(resolved, { messages, maxTokens: 8, temperature: 0 })
+        const preflight = await preflightCloudModelConfig(resolved, { ...testInput, maxTokens: 8 })
         return {
           ok: true,
           latencyMs: Date.now() - startedAt,
@@ -65,7 +66,7 @@ export function registerAiIpc(): void {
         }
       }
       const provider = providerFromModelConfig({ ...resolved, apiKey: decryptSecret(resolved.apiKey) })
-      const out = await provider.chat({ messages, maxTokens: 8, temperature: 0 })
+      const out = await provider.chat(testInput)
       return {
         ok: true,
         latencyMs: Date.now() - startedAt,
@@ -91,7 +92,7 @@ export function registerAiIpc(): void {
 
 export async function runAiTask(
   input: NovelWorkflowInput,
-  options: { onToken?: (token: string) => void; signal?: AbortSignal } = {},
+  options: { onToken?: (token: string) => void; onRetry?: () => void; signal?: AbortSignal } = {},
 ): Promise<{
   ok: boolean
   error?: string
@@ -122,6 +123,7 @@ export async function runAiTask(
         repos,
         provider,
         onToken: options.onToken,
+        onRetry: options.onRetry,
         signal: workflowAbort.signal,
       },
       input,
@@ -196,6 +198,7 @@ function summarizeAiInput(input: NovelWorkflowInput): Record<string, unknown> {
     taskType: input.taskType,
     projectId: input.projectId,
     chapterId: input.chapterId,
+    chapterWordGoal: input.chapterWordGoal,
     characterId: input.characterId,
     adaptationProjectId: input.adaptationProjectId,
     episodeId: input.episodeId,

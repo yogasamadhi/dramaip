@@ -129,7 +129,13 @@ export function AiContextPreviewDialog({
             </Button>
           )}
           {onRun && (
-            <Button onClick={onRun} disabled={running}>
+            <Button
+              onClick={() => {
+                onRun()
+                onClose()
+              }}
+              disabled={running}
+            >
               {running ? '执行中…' : runLabel}
             </Button>
           )}

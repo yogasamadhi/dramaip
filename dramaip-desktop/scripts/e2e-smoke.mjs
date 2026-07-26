@@ -9,6 +9,7 @@ const rootDir = resolve(scriptDir, '..')
 const desktopDir = join(rootDir, 'apps', 'desktop')
 const args = new Set(process.argv.slice(2))
 const skipBuild = args.has('--skip-build')
+const expectedElectronVersion = '43.2.0'
 
 const commandEnv = {
   ...process.env,
@@ -79,10 +80,19 @@ function runElectronE2eSmoke() {
         assert(existsSync(resultPath), `E2E result was not written: ${resultPath}`)
         const result = JSON.parse(readFileSync(resultPath, 'utf8'))
         assert(result.ok === true, `E2E result failed: ${JSON.stringify(result, null, 2)}`)
+        assert(
+          result.runtimeVersions?.electron === expectedElectronVersion,
+          `E2E Electron version mismatch: expected ${expectedElectronVersion}, got ${result.runtimeVersions?.electron ?? 'missing'}`,
+        )
+        assert(result.runtimeVersions?.chrome, `E2E Chromium version missing: ${JSON.stringify(result)}`)
+        assert(result.runtimeVersions?.node, `E2E Node version missing: ${JSON.stringify(result)}`)
         assert(result.projectId, `E2E project id missing: ${JSON.stringify(result)}`)
         assert(result.importedProjectId, `E2E imported project id missing: ${JSON.stringify(result)}`)
         assert(Array.isArray(result.steps), `E2E steps missing: ${JSON.stringify(result)}`)
         assert(result.steps.every((step) => step.ok === true), `E2E step failed: ${JSON.stringify(result.steps, null, 2)}`)
+        console.log(
+          `E2E smoke runtime: Electron ${result.runtimeVersions.electron}, Chromium ${result.runtimeVersions.chrome}, Node ${result.runtimeVersions.node}`,
+        )
         console.log(`E2E smoke steps: ${result.steps.map((step) => step.name).join(', ')}`)
         console.log(`E2E smoke userData: ${relative(rootDir, result.userData)}`)
         console.log(`E2E smoke project: ${result.projectId} -> ${result.importedProjectId}`)
@@ -97,7 +107,7 @@ function runElectronE2eSmoke() {
 
 if (!skipBuild) {
   run(localBin('electron-vite'), ['build'], { cwd: desktopDir })
-  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3,keytar'], { cwd: desktopDir })
+  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3'], { cwd: desktopDir })
 }
 
 await runElectronE2eSmoke()

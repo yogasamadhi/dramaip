@@ -42,6 +42,8 @@ export const NovelGraphState = Annotation.Root({
   // 输入
   projectId: Annotation<string | undefined>(),
   chapterId: Annotation<string | undefined>(),
+  /** 本次章节正文生成的目标字数；未提供时使用默认 2000。 */
+  chapterWordGoal: Annotation<number | undefined>(),
   /** v0.2：按人物生成视觉档案 / 更新人物状态时用 */
   characterId: Annotation<string | undefined>(),
   /** v0.4：改编项目相关 */

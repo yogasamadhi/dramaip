@@ -16,7 +16,8 @@ export interface VideoProductionEstimate {
   currency?: string
 }
 
-const PENDING_REAL_ADAPTERS = new Set<VideoProviderConfig['kind']>([
+/** 适配器框架已注册但真实 API 映射尚未启用的 Provider；UI 中应标记为「即将支持」并禁用选择。 */
+export const PENDING_REAL_ADAPTERS = new Set<VideoProviderConfig['kind']>([
   'jimeng',
   'kling',
   'runway',
@@ -83,7 +84,7 @@ export function getVideoProviderCapability(config: Pick<VideoProviderConfig, 'ki
 /**
  * A provider-local, persisted release switch. It is intentionally opt-in so adding an API key
  * cannot accidentally create a billable external task. The flag is not a secret and is stored
- * alongside the provider defaults; the key itself remains in the operating-system keychain.
+ * alongside the provider defaults; the key itself remains in the local credential store.
  */
 export function isVideoProviderFeatureEnabled(
   config: Pick<VideoProviderConfig, 'kind' | 'defaultParams'>,

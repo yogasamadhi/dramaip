@@ -80,6 +80,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Electron binary
+        run: pnpm install:electron
+
       - name: Lint without prompts
         run: pnpm lint
 
@@ -163,6 +166,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install Electron binary
+        run: pnpm install:electron
 
       - name: Build native package and run smoke
         run: ${{ matrix.smoke-command }}

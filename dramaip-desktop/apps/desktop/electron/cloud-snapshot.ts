@@ -2,11 +2,11 @@ import { app } from 'electron'
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import * as keytar from 'keytar'
 import { collectProjectPackage, importProjectPackage, parseProjectPackage, serializeProjectPackage } from '@sdns/export'
 import { getRepos } from './db'
 import { withCloudAccessToken } from './cloud-auth'
 import { DESKTOP_CONTRACT_HEADER, DESKTOP_CONTRACT_VERSION } from './cloud-contract'
+import { localCredentialStore } from './local-credential-store'
 import {
   createProjectSnapshotRecoveryKey,
   decryptProjectSnapshot,
@@ -15,7 +15,7 @@ import {
 } from './project-snapshot-crypto'
 
 const SNAPSHOT_TIMEOUT_MS = 30_000
-const SNAPSHOT_KEYCHAIN_SERVICE = 'com.sdns.studio.project-snapshot-recovery'
+const SNAPSHOT_CREDENTIAL_SERVICE = 'com.sdns.studio.project-snapshot-recovery'
 const MAX_INLINE_ENCRYPTED_ENVELOPE_BYTES = 8 << 20
 const MAX_ENCRYPTED_ENVELOPE_BYTES = 64 << 20
 const SNAPSHOT_UPLOAD_CHUNK_BYTES = 1 << 20
@@ -33,8 +33,8 @@ export interface CloudProjectSnapshot {
 
 export interface CreatedCloudProjectSnapshot extends CloudProjectSnapshot {
   // Returned once so the UI can ask the user to save it in their own password
-  // manager. It is also stored in the local OS Keychain, never in SQLite or
-  // the remote API.
+  // manager. It is also stored in the prompt-free local credential file, never
+  // in SQLite or the remote API.
   recoveryKey: string
 }
 
@@ -58,7 +58,12 @@ interface CloudProjectSnapshotUpload {
 export async function createCloudProjectSnapshot(projectID: string): Promise<CreatedCloudProjectSnapshot> {
   await cleanupExpiredStagedUploads()
   let staged = await findStagedUpload(projectID)
-  let recoveryKey: string | null = staged ? await keytar.getPassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey)) : null
+  let recoveryKey: string | null = staged
+    ? await localCredentialStore.getPassword(
+        SNAPSHOT_CREDENTIAL_SERVICE,
+        pendingCredentialAccount(staged.idempotencyKey),
+      )
+    : null
   if (!staged || !recoveryKey) {
     if (staged) await clearStagedUpload(staged)
     const repos = getRepos()
@@ -71,25 +76,36 @@ export async function createCloudProjectSnapshot(projectID: string): Promise<Cre
     if (encryptedEnvelope.length > MAX_ENCRYPTED_ENVELOPE_BYTES) throw new Error('加密项目快照超过 64 MiB 上限；请先使用本机完整备份或缩减项目内容')
     const idempotencyKey = `desktop-snapshot-${randomUUID()}`
     // Persist only opaque ciphertext and a retry identifier. The recovery key
-    // remains in Keychain before any network request begins.
-    await keytar.setPassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(idempotencyKey), recoveryKey)
+    // remains in the local credential file before any network request begins.
+    await localCredentialStore.setPassword(
+      SNAPSHOT_CREDENTIAL_SERVICE,
+      pendingCredentialAccount(idempotencyKey),
+      recoveryKey,
+    )
     staged = { version: 1, projectID, idempotencyKey, encryptedEnvelope: encryptedEnvelope.toString('base64'), encryptedSHA256: sha256Hex(encryptedEnvelope), createdAt: new Date().toISOString() }
     await writeStagedUpload(staged)
   }
   try {
     const snapshot = await uploadStagedSnapshot(staged)
     try {
-      await keytar.setPassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(snapshot.id), recoveryKey)
+      await localCredentialStore.setPassword(
+        SNAPSHOT_CREDENTIAL_SERVICE,
+        snapshotCredentialAccount(snapshot.id),
+        recoveryKey,
+      )
     } catch {
       // The upload already succeeded. Keep the encrypted retry staging and
-      // Keychain pending entry so a later retry can recover the same snapshot.
+      // local pending entry so a later retry can recover the same snapshot.
       return { ...snapshot, recoveryKey, recoveryKeyAvailable: false }
     }
-    await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey))
+    await localCredentialStore.deletePassword(
+      SNAPSHOT_CREDENTIAL_SERVICE,
+      pendingCredentialAccount(staged.idempotencyKey),
+    )
     await clearStagedUpload(staged)
     return { ...snapshot, recoveryKey, recoveryKeyAvailable: true }
   } catch (error) {
-    // Keep the opaque staged envelope and Keychain-only recovery key. Selecting
+    // Keep the opaque staged envelope and local-only recovery key. Selecting
     // this project again resumes missing chunks instead of creating another key.
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(`云端快照未完成；可再次选择同一项目继续上传（${detail}）`)
@@ -105,7 +121,12 @@ export async function listCloudProjectSnapshots(): Promise<CloudProjectSnapshot[
 // Restoring always creates a separate local project via the already-audited
 // import transaction. It cannot overwrite the current local project.
 export async function restoreCloudProjectSnapshot(snapshotID: string, suppliedRecoveryKey?: string) {
-  const recoveryKey = suppliedRecoveryKey?.trim() || await keytar.getPassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(snapshotID))
+  const recoveryKey =
+    suppliedRecoveryKey?.trim() ||
+    await localCredentialStore.getPassword(
+      SNAPSHOT_CREDENTIAL_SERVICE,
+      snapshotCredentialAccount(snapshotID),
+    )
   if (!recoveryKey) throw new Error('此设备没有恢复密钥；请输入创建快照时保存的恢复密钥')
   const payload = await snapshotRequest(`/v1/desktop/project-snapshots/download?id=${encodeURIComponent(snapshotID)}`, { method: 'GET' }) as { encrypted_envelope?: unknown }
   if (typeof payload.encrypted_envelope !== 'string' || !payload.encrypted_envelope) throw new Error('云端快照内容无效')
@@ -120,7 +141,10 @@ export async function restoreCloudProjectSnapshot(snapshotID: string, suppliedRe
 
 export async function deleteCloudProjectSnapshot(snapshotID: string): Promise<void> {
   await snapshotRequest(`/v1/desktop/project-snapshots?id=${encodeURIComponent(snapshotID)}`, { method: 'DELETE' })
-  await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(snapshotID))
+  await localCredentialStore.deletePassword(
+    SNAPSHOT_CREDENTIAL_SERVICE,
+    snapshotCredentialAccount(snapshotID),
+  )
 }
 
 async function uploadStagedSnapshot(staged: StagedCloudProjectSnapshot): Promise<CloudProjectSnapshot> {
@@ -164,7 +188,12 @@ async function cleanupExpiredStagedUploads(): Promise<void> {
       const file = join(dir, name)
       const staged = await readStagedUploadFile(file)
       if (!staged || Date.now() - Date.parse(staged.createdAt) > SNAPSHOT_UPLOAD_STAGING_RETENTION_MS) {
-        if (staged) await keytar.deletePassword(SNAPSHOT_KEYCHAIN_SERVICE, pendingKeychainAccount(staged.idempotencyKey))
+        if (staged) {
+          await localCredentialStore.deletePassword(
+            SNAPSHOT_CREDENTIAL_SERVICE,
+            pendingCredentialAccount(staged.idempotencyKey),
+          )
+        }
         await rm(file, { force: true })
       }
     }
@@ -227,7 +256,7 @@ function parseUpload(value: unknown, encryptedBytes: number, encryptedSHA256: st
 
 function stagedUploadDirectory(): string { return join(app.getPath('userData'), SNAPSHOT_UPLOAD_STAGING_DIR) }
 function stagedUploadFile(idempotencyKey: string): string { return join(stagedUploadDirectory(), `${createHash('sha256').update(idempotencyKey).digest('hex')}.json`) }
-function pendingKeychainAccount(idempotencyKey: string): string { return `pending:${idempotencyKey}` }
+function pendingCredentialAccount(idempotencyKey: string): string { return `pending:${idempotencyKey}` }
 function sha256Hex(value: Buffer): string { return createHash('sha256').update(value).digest('hex') }
 function validIdempotencyKey(value: unknown): value is string { return typeof value === 'string' && /^desktop-snapshot-[0-9a-f-]{36}$/.test(value) }
 function validSHA256(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value) }
@@ -260,9 +289,14 @@ async function parseSnapshot(value: unknown): Promise<CloudProjectSnapshot> {
   if (!id || typeof encryptedBytes !== 'number' || !Number.isSafeInteger(encryptedBytes) || encryptedBytes <= 0 || !encryptedSha256 || !createdAt || !expiresAt) {
     throw new Error('云端快照元数据无效')
   }
-  const recoveryKeyAvailable = Boolean(await keytar.getPassword(SNAPSHOT_KEYCHAIN_SERVICE, keychainAccount(id)))
+  const recoveryKeyAvailable = Boolean(
+    await localCredentialStore.getPassword(
+      SNAPSHOT_CREDENTIAL_SERVICE,
+      snapshotCredentialAccount(id),
+    ),
+  )
   return { id, encryptedBytes, encryptedSha256, createdAt, expiresAt, recoveryKeyAvailable }
 }
 
-function keychainAccount(snapshotID: string): string { return `snapshot:${snapshotID}` }
+function snapshotCredentialAccount(snapshotID: string): string { return `snapshot:${snapshotID}` }
 function text(value: unknown): string | undefined { return typeof value === 'string' && value.trim() ? value : undefined }

@@ -46,8 +46,12 @@ export function TimelineSection({ projectId, chapter, version }: Props) {
   const [form, setForm] = useState<typeof EMPTY>(EMPTY)
 
   const reload = useCallback(async () => {
-    setList(await ipc.storyEvent.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    setList(await ipc.storyEvent.listByChapter(chapter.id))
+  }, [chapter])
 
   useEffect(() => {
     void reload()

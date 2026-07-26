@@ -139,6 +139,7 @@ const api = {
   },
   evaluation: {
     list: (projectId: string) => invoke('evaluation:list', projectId),
+    listByChapter: (chapterId: string) => invoke('evaluation:listByChapter', chapterId),
   },
   aiRun: {
     list: (projectId: string) => invoke('aiRun:list', projectId),
@@ -169,6 +170,7 @@ const api = {
     run: (input: {
       projectId?: string
       chapterId?: string
+      chapterWordGoal?: number
       characterId?: string
       adaptationProjectId?: string
       partialAdopt?: boolean
@@ -185,6 +187,7 @@ const api = {
       input: {
         projectId?: string
         chapterId?: string
+        chapterWordGoal?: number
         characterId?: string
         adaptationProjectId?: string
         episodeId?: string
@@ -197,14 +200,20 @@ const api = {
         templateScope?: string
       },
       onChunk: (chunk: string) => void,
+      onReset?: () => void,
     ) => {
       const requestId = createRequestId()
       const listener = (_event: Electron.IpcRendererEvent, payload: { requestId: string; chunk: string }) => {
         if (payload.requestId === requestId) onChunk(payload.chunk)
       }
+      const resetListener = (_event: Electron.IpcRendererEvent, payload: { requestId: string }) => {
+        if (payload.requestId === requestId) onReset?.()
+      }
       ipcRenderer.on('ai:stream:chunk', listener)
+      ipcRenderer.on('ai:stream:reset', resetListener)
       return invoke('ai:runStream', input, requestId).finally(() => {
         ipcRenderer.removeListener('ai:stream:chunk', listener)
+        ipcRenderer.removeListener('ai:stream:reset', resetListener)
       })
     },
     applyResult: (input: {
@@ -220,6 +229,7 @@ const api = {
   chapterMemory: {
     list: (projectId: string) => invoke('chapterMemory:list', projectId),
     get: (id: string) => invoke('chapterMemory:get', id),
+    getByChapter: (projectId: string, chapterId: string) => invoke('chapterMemory:getByChapter', projectId, chapterId),
     create: (data: unknown) => invoke('chapterMemory:create', data),
     update: (id: string, patch: unknown) => invoke('chapterMemory:update', id, patch),
     remove: (id: string) => invoke('chapterMemory:delete', id),
@@ -227,6 +237,7 @@ const api = {
   characterState: {
     list: (projectId: string) => invoke('characterState:list', projectId),
     listByCharacter: (characterId: string) => invoke('characterState:listByCharacter', characterId),
+    listByChapter: (chapterId: string) => invoke('characterState:listByChapter', chapterId),
     create: (data: unknown) => invoke('characterState:create', data),
     remove: (id: string) => invoke('characterState:delete', id),
   },
@@ -245,12 +256,14 @@ const api = {
   },
   storyEvent: {
     list: (projectId: string) => invoke('storyEvent:list', projectId),
+    listByChapter: (chapterId: string) => invoke('storyEvent:listByChapter', chapterId),
     create: (data: unknown) => invoke('storyEvent:create', data),
     update: (id: string, patch: unknown) => invoke('storyEvent:update', id, patch),
     remove: (id: string) => invoke('storyEvent:delete', id),
   },
   foreshadowing: {
     list: (projectId: string) => invoke('foreshadowing:list', projectId),
+    listByChapter: (chapterId: string) => invoke('foreshadowing:listByChapter', chapterId),
     create: (data: unknown) => invoke('foreshadowing:create', data),
     update: (id: string, patch: unknown) => invoke('foreshadowing:update', id, patch),
     remove: (id: string) => invoke('foreshadowing:delete', id),
@@ -265,11 +278,13 @@ const api = {
   },
   highlight: {
     list: (projectId: string) => invoke('highlight:list', projectId),
+    getByChapter: (projectId: string, chapterId: string) => invoke('highlight:getByChapter', projectId, chapterId),
     create: (data: unknown) => invoke('highlight:create', data),
     remove: (id: string) => invoke('highlight:delete', id),
   },
   feasibility: {
     list: (projectId: string) => invoke('feasibility:list', projectId),
+    getByChapter: (projectId: string, chapterId: string) => invoke('feasibility:getByChapter', projectId, chapterId),
     create: (data: unknown) => invoke('feasibility:create', data),
     remove: (id: string) => invoke('feasibility:delete', id),
   },

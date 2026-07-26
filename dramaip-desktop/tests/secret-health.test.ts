@@ -3,12 +3,14 @@ import { test } from 'node:test'
 import {
   ENCRYPTED_PREFIX,
   KEYCHAIN_PREFIX,
+  LOCAL_CREDENTIAL_PREFIX,
   MASKED_PREFIX,
   PLAINTEXT_PREFIX,
   classifySecretValue,
   decryptSecretValue,
   encryptSecretValue,
   isKeychainReference,
+  isLocalCredentialReference,
   planSecretMigrations,
   readLegacySecretForMigration,
   summarizeSecretValues,
@@ -39,6 +41,8 @@ test('classifies stored secret values without exposing the secret', () => {
   assert.equal(classifySecretValue('', fakeCipher()), 'empty')
   assert.equal(classifySecretValue(`${PLAINTEXT_PREFIX}secret`, fakeCipher()), 'unsafe_plaintext')
   assert.equal(classifySecretValue(`${MASKED_PREFIX}1234`, fakeCipher()), 'masked')
+  assert.equal(classifySecretValue(`${LOCAL_CREDENTIAL_PREFIX}model_config:cfg:uuid`, fakeCipher()), 'local_file')
+  assert.equal(isLocalCredentialReference(`${LOCAL_CREDENTIAL_PREFIX}model_config:cfg:uuid`), true)
   assert.equal(classifySecretValue(`${KEYCHAIN_PREFIX}model_config:cfg:uuid`, fakeCipher()), 'keychain')
   assert.equal(isKeychainReference(`${KEYCHAIN_PREFIX}model_config:cfg:uuid`), true)
   assert.equal(classifySecretValue('legacy-secret', fakeCipher()), 'legacy_plaintext')
@@ -46,7 +50,7 @@ test('classifies stored secret values without exposing the secret', () => {
   assert.equal(classifySecretValue(encoded('sealed:secret'), fakeCipher({ failDecrypt: true })), 'unreadable_encrypted')
 })
 
-test('reads legacy encrypted values only for a successful Keychain handoff', () => {
+test('reads legacy encrypted values only when the legacy cipher is available', () => {
   const encrypted = encoded('sealed:legacy-secret')
   const migrated = readLegacySecretForMigration(encrypted, fakeCipher())
   assert.equal(migrated.state, 'encrypted')
@@ -67,8 +71,8 @@ test('encrypts, decrypts, and rejects unsafe plaintext fallback', () => {
   assert.equal(decryptSecretValue(`${MASKED_PREFIX}1234`, cipher), '')
 
   const unavailable = fakeCipher({ available: false })
-  assert.throws(() => encryptSecretValue('secret', unavailable), /安全存储不可用/)
-  assert.throws(() => encryptSecretValue('secret', unavailable), /安全存储不可用/)
+  assert.throws(() => encryptSecretValue('secret', unavailable), /本地凭据存储不可用/)
+  assert.throws(() => encryptSecretValue('secret', unavailable), /本地凭据存储不可用/)
 })
 
 test('summarizes secret health and plans only reversible migrations', () => {

@@ -2,11 +2,13 @@ export const ENCRYPTED_PREFIX = 'enc:v1:'
 export const PLAINTEXT_PREFIX = 'plain:v1:'
 export const MASKED_PREFIX = 'masked:v1:'
 export const KEYCHAIN_PREFIX = 'keychain:v1:'
+export const LOCAL_CREDENTIAL_PREFIX = 'local:v1:'
 
 export type SecretRecordArea = 'model_config' | 'video_provider_config'
 
 export type SecretValueState =
   | 'empty'
+  | 'local_file'
   | 'keychain'
   | 'encrypted'
   | 'unsafe_plaintext'
@@ -29,6 +31,7 @@ export interface SecretRecordSnapshot {
 export interface SecretStateCounts {
   total: number
   empty: number
+  localFile: number
   keychain: number
   encrypted: number
   unsafePlaintext: number
@@ -60,6 +63,7 @@ export function emptySecretStateCounts(): SecretStateCounts {
   return {
     total: 0,
     empty: 0,
+    localFile: 0,
     keychain: 0,
     encrypted: 0,
     unsafePlaintext: 0,
@@ -71,6 +75,7 @@ export function emptySecretStateCounts(): SecretStateCounts {
 
 export function classifySecretValue(value: string | undefined, cipher?: SecretCipher): SecretValueState {
   if (!value) return 'empty'
+  if (value.startsWith(LOCAL_CREDENTIAL_PREFIX)) return 'local_file'
   if (value.startsWith(KEYCHAIN_PREFIX)) return 'keychain'
   if (value.startsWith(MASKED_PREFIX)) return 'masked'
   if (value.startsWith(PLAINTEXT_PREFIX)) return 'unsafe_plaintext'
@@ -91,6 +96,10 @@ export function isKeychainReference(value: string | undefined): value is string 
   return Boolean(value?.startsWith(KEYCHAIN_PREFIX) && value.length > KEYCHAIN_PREFIX.length)
 }
 
+export function isLocalCredentialReference(value: string | undefined): value is string {
+  return Boolean(value?.startsWith(LOCAL_CREDENTIAL_PREFIX) && value.length > LOCAL_CREDENTIAL_PREFIX.length)
+}
+
 export function summarizeSecretValues(
   records: SecretRecordSnapshot[],
   cipher?: SecretCipher,
@@ -108,6 +117,7 @@ export function mergeSecretStateCounts(...items: SecretStateCounts[]): SecretSta
   for (const counts of items) {
     merged.total += counts.total
     merged.empty += counts.empty
+    merged.localFile += counts.localFile
     merged.keychain += counts.keychain
     merged.encrypted += counts.encrypted
     merged.unsafePlaintext += counts.unsafePlaintext
@@ -127,7 +137,7 @@ export function encryptSecretValue(
   if (value.startsWith(PLAINTEXT_PREFIX)) return value
   if (value.startsWith(MASKED_PREFIX)) return value
   if (!cipher.isEncryptionAvailable()) {
-    throw new Error('系统安全存储不可用，已拒绝保存 API Key。请启用系统钥匙串/凭据管理器后重试。')
+    throw new Error('本地凭据存储不可用，已拒绝保存 API Key。')
   }
   return `${ENCRYPTED_PREFIX}${cipher.encryptString(value).toString('base64')}`
 }
@@ -200,7 +210,7 @@ function plaintextForMigration(value: string | undefined, state: SecretValueStat
 }
 
 /**
- * 读取旧版 SQLite 值以迁移到系统凭据库。调用方只能在 Electron 主进程内使用
+ * 读取旧版 SQLite 值以迁移到本地凭据文件。调用方只能在 Electron 主进程内使用
  * 返回值，并且不得记录 plaintext；无法读取时以安全错误信息返回。
  */
 export function readLegacySecretForMigration(
@@ -225,6 +235,7 @@ export function readLegacySecretForMigration(
 
 function incrementSecretState(counts: SecretStateCounts, state: SecretValueState): void {
   if (state === 'empty') counts.empty += 1
+  if (state === 'local_file') counts.localFile += 1
   if (state === 'keychain') counts.keychain += 1
   if (state === 'encrypted') counts.encrypted += 1
   if (state === 'unsafe_plaintext') counts.unsafePlaintext += 1

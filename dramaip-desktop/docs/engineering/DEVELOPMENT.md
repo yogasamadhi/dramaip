@@ -6,7 +6,7 @@
 
 | 层 | 技术 |
 |---|---|
-| 桌面框架 | Electron 38 + electron-vite |
+| 桌面框架 | Electron 43.2.0 + electron-vite 5 |
 | 渲染层 | React 19 + TypeScript + Vite + Tailwind + shadcn/ui |
 | 状态 | Zustand |
 | AI 编排 | LangGraph（`@langchain/langgraph`） |
@@ -97,6 +97,7 @@ DB 层 (packages/db/repositories/*) → SQLite
 
 ```bash
 pnpm install            # 安装依赖（.npmrc 已配置 Electron 镜像）
+pnpm install:electron   # 下载 Electron 43.2.0 二进制
 pnpm typecheck          # 全量类型检查（5 个包）
 pnpm test:unit          # Node 内置 test runner + tsx 的轻量单元测试
 pnpm test:db            # 切 Node ABI → 迁移/DB smoke → 切回 Electron ABI
@@ -109,7 +110,7 @@ pnpm package            # electron-builder 打包（mac dmg / win nsis / linux A
 pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smoke
 ```
 
-- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 和 `keytar` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
+- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
 - 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
 - 打包 smoke 详见 [RELEASE.md](../release/RELEASE.md)。
 - `pnpm test:db` 封装了 `pnpm rebuild:node` 与 `pnpm rebuild:electron`，通常不需要手动进入 `node_modules` 重编。
@@ -118,8 +119,8 @@ pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smok
 
 - 主窗口启用 `contextIsolation`、`sandbox`、`webSecurity`，并对外链跳转做协议白名单；生产态默认只允许 HTTPS，开发态额外允许 localhost HTTP 用系统浏览器打开。
 - 主进程在注册 IPC 时安装统一参数校验层。所有 `ipcMain.handle` 调用会先检查参数数量和基础形状，再进入业务 handler。
-- 模型与视频 Provider 的 `apiKey` 由 Electron 主进程通过 `keytar` 写入系统凭据库：macOS Keychain、Windows Credential Manager、Linux Secret Service/libsecret。SQLite 的 `api_key` 列只保存 `keychain:v1:<reference>`，不保存新 Key 的明文或密文；Provider 使用前只从主进程内存缓存取值，renderer 始终只获得 `masked:v1:*` 掩码。
-- 启动时会扫描模型和视频 Provider Key 的存储状态，迁移旧 `enc:v1:`、`plain:v1:` 和裸明文记录。迁移顺序固定为“确认 Keychain 写入成功 → 更新 SQLite 引用”，失败则保留旧值并写入不含密钥的 `credential_migration_audit` 记录；自动数据库备份可用于恢复迁移前状态。Keychain 不可用时拒绝保存新 Key，绝不降级为 SQLite 明文。
+- 模型与视频 Provider 的 `apiKey` 由 Electron 主进程写入用户数据目录下的本地加密凭据文件。目录权限为 `0700`，密钥与凭据文件权限为 `0600`，不会访问 macOS Keychain、Windows Credential Manager 或 Linux Secret Service。SQLite 的 `api_key` 列只保存 `local:v1:<reference>`；Provider 使用前只从主进程内存缓存取值，renderer 始终只获得 `masked:v1:*` 掩码。
+- 启动时会扫描模型和视频 Provider Key 的存储状态，将 `plain:v1:` 和裸明文记录迁移到本地凭据文件。旧 `keychain:v1:` 和 `enc:v1:` 值不会触发系统凭据访问，用户需在设置页重新输入对应 API Key。本地凭据文件不可用时拒绝保存新 Key，绝不降级为 SQLite 明文。
 - AI / 视频 HTTP provider 统一走带超时和重试的请求 helper，默认只重试网络错误和 408/429/5xx 等可恢复状态。
 
 ## 包构建约定

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 // pnpm 在包目录下执行脚本，cwd 即 apps/desktop
@@ -8,7 +8,6 @@ const pkgSrc = (p: string) => resolve(root, '../../packages', p, 'src/index.ts')
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         input: { index: resolve(root, 'electron/main.ts') },
@@ -25,7 +24,6 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         input: { index: resolve(root, 'electron/preload.ts') },

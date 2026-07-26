@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpDown, BookText, Clapperboard, FileText, FolderOpen, Library, LibraryBig, MoreHorizontal, Plus, RotateCcw, Search, Settings, Sparkles, Star, Trash2, Upload } from 'lucide-react'
+import { ArrowUpDown, BookText, Clapperboard, FileText, LayoutDashboard, Library, LibraryBig, MoreHorizontal, Plus, RotateCcw, Search, Settings, Sparkles, Star, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
@@ -57,6 +57,11 @@ export function ProjectListPage() {
           : right.project.updatedAt.localeCompare(left.project.updatedAt)
       })
   }, [pinned, query, sort, summaries])
+
+  // 增量渲染：避免项目过多时一次性渲染全部卡片导致卡顿。
+  const [renderLimit, setRenderLimit] = useState(30)
+  useEffect(() => { setRenderLimit(30) }, [query, sort])
+  const renderedSummaries = visibleSummaries.slice(0, renderLimit)
 
   function togglePinned(id: string) {
     setPinned((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
@@ -160,7 +165,14 @@ export function ProjectListPage() {
           {loading && summaries.length === 0 ? <ProjectCardSkeleton /> : summaries.length === 0 ? (
             <section className="rounded-xl border border-dashed p-10 text-center"><Sparkles className="mx-auto mb-3 h-7 w-7 text-primary" /><h2 className="font-semibold">从一个名字开始</h2><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">先创建空白项目，或在创建页带入灵感；之后可随时补齐类型、人物和故事方向。</p><Button className="mt-5" onClick={() => navigate('/projects/new')}><Plus />新建第一个项目</Button></section>
           ) : visibleSummaries.length === 0 ? <section className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">没有匹配的项目。试试更短的关键词，或清空搜索。</section> : (
-            <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">{visibleSummaries.map((summary) => <ProjectCard key={summary.project.id} summary={summary} pinned={pinned.includes(summary.project.id)} onPin={() => togglePinned(summary.project.id)} onOpen={() => navigate(summary.nextAction.path)} onDelete={() => void handleTrash(summary.project.id, summary.project.title)} />)}</section>
+            <>
+              <section className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">{renderedSummaries.map((summary) => <ProjectCard key={summary.project.id} summary={summary} pinned={pinned.includes(summary.project.id)} onPin={() => togglePinned(summary.project.id)} onOpenWorkspace={() => navigate(`/projects/${summary.project.id}?section=overview`)} onDelete={() => void handleTrash(summary.project.id, summary.project.title)} />)}</section>
+              {visibleSummaries.length > renderedSummaries.length && (
+                <div className="flex justify-center pt-2">
+                  <Button variant="outline" onClick={() => setRenderLimit((limit) => limit + 30)}>加载更多（剩余 {visibleSummaries.length - renderedSummaries.length} 个）</Button>
+                </div>
+              )}
+            </>
           )}
         </div></ScrollArea>
       </main>
@@ -187,9 +199,9 @@ export function ProjectListPage() {
   )
 }
 
-function ProjectCard({ summary, pinned, onPin, onOpen, onDelete }: { summary: ProjectHomeSummary; pinned: boolean; onPin: () => void; onOpen: () => void; onDelete: () => void }) {
+function ProjectCard({ summary, pinned, onPin, onOpenWorkspace, onDelete }: { summary: ProjectHomeSummary; pinned: boolean; onPin: () => void; onOpenWorkspace: () => void; onDelete: () => void }) {
   const { project } = summary
-  return <Card className="studio-card-interactive flex min-h-72 flex-col overflow-hidden"><CardHeader className="space-y-3"><div className="flex items-start gap-2"><div className="min-w-0 flex-1"><CardTitle className="line-clamp-2 text-base">{project.title}</CardTitle><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{project.synopsis || '还没有简介；先写下一个让人想继续看的开场。'}</p></div><Button variant={pinned ? 'secondary' : 'ghost'} size="icon" aria-label={pinned ? '取消置顶' : '置顶项目'} title={pinned ? '取消置顶' : '置顶项目'} onClick={onPin}><Star className={pinned ? 'fill-current' : undefined} /></Button></div><div className="flex flex-wrap gap-1.5"><Badge variant="secondary">{project.shortDramaType}</Badge><Badge variant="outline">{stageLabel(summary)}</Badge>{summary.blockerCount > 0 && <Badge variant="destructive">{summary.blockerCount} 项阻塞</Badge>}</div></CardHeader><CardContent className="flex-1 space-y-3 text-sm"><div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">当前下一步</div><div className="mt-1 font-medium">{summary.nextAction.label}</div><div className="mt-1 truncate text-xs text-muted-foreground">{summary.latestChapter ? `最近：${summary.latestChapter.title}` : '先补充项目设定，AI 才能给出可用的创作建议。'}</div></div><div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>{summary.chapterCount} 章 · {summary.wordCount.toLocaleString()} 字</span><span className="text-right">更新 {formatDate(project.updatedAt)}</span>{summary.adaptation && <span className="col-span-2 truncate">改编：{summary.adaptation.title} · {summary.adaptation.episodeCount} 集</span>}</div></CardContent><CardFooter className="gap-2"><Button size="sm" className="flex-1" onClick={onOpen}><FolderOpen />{summary.nextAction.label}</Button><Button variant="ghost" size="icon" aria-label="移至废纸篓" title="移至废纸篓" onClick={onDelete}><Trash2 className="text-destructive" /></Button></CardFooter></Card>
+  return <Card className="studio-card-interactive flex min-h-72 flex-col overflow-hidden"><CardHeader className="space-y-3"><div className="flex items-start gap-1"><div className="min-w-0 flex-1"><CardTitle className="line-clamp-2 text-base">{project.title}</CardTitle><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{project.synopsis || '还没有简介；先写下一个让人想继续看的开场。'}</p></div><Button variant={pinned ? 'secondary' : 'ghost'} size="icon" aria-label={pinned ? '取消置顶' : '置顶项目'} title={pinned ? '取消置顶' : '置顶项目'} onClick={onPin}><Star className={pinned ? 'fill-current' : undefined} /></Button><Button variant="ghost" size="icon" aria-label="移至废纸篓" title="移至废纸篓" onClick={onDelete}><Trash2 className="text-destructive" /></Button></div><div className="flex flex-wrap gap-1.5"><Badge variant="secondary">{project.shortDramaType}</Badge><Badge variant="outline">{stageLabel(summary)}</Badge>{summary.blockerCount > 0 && <Badge variant="destructive">{summary.blockerCount} 项阻塞</Badge>}</div></CardHeader><CardContent className="flex-1 space-y-3 text-sm"><div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">当前下一步</div><div className="mt-1 font-medium">{summary.nextAction.label}</div><div className="mt-1 truncate text-xs text-muted-foreground">{summary.nextAction.description}</div></div><div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>{summary.chapterCount} 章 · {summary.wordCount.toLocaleString()} 字</span><span className="text-right">更新 {formatDate(project.updatedAt)}</span>{summary.adaptation && <span className="col-span-2 truncate">改编：{summary.adaptation.title} · {summary.adaptation.episodeCount} 集</span>}</div></CardContent><CardFooter><Button size="sm" className="w-full" onClick={onOpenWorkspace}><LayoutDashboard />进入创作工作台</Button></CardFooter></Card>
 }
 
 function ProjectCardSkeleton() { return <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((index) => <div key={index} className="h-72 rounded-xl border bg-card p-5"><div className="studio-skeleton h-5 w-2/3 rounded" /><div className="studio-skeleton mt-3 h-10 rounded" /><div className="studio-skeleton mt-5 h-20 rounded" /></div>)}</div> }

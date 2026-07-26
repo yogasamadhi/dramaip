@@ -17,10 +17,15 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import type { PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
+import { shouldAutoAdoptChapterDraft } from '@/lib/textPreviewPolicy'
+import { getChapterLengthStatus } from '@/lib/chapterLength'
 
 interface ChatMessage {
+  id?: string
   role: 'user' | 'assistant'
   content: string
+  /** 该消息正接收模型流式输出。 */
+  streaming?: boolean
   /** 本轮更新的字段（仅 assistant 消息有） */
   patches?: string[]
   commandPlan?: AgentCommandPlan
@@ -74,21 +79,26 @@ function extractReplyFromJsonStream(raw: string): string | undefined {
 
 interface Props {
   projectId: string
+  /** 当前编辑器设置的章节正文目标字数。 */
+  chapterWordGoal: number
   /** 项目当前设定是否几乎为空（用于决定 AI 是否主动开场） */
   onGenerate: (taskType: PreviewTaskType, userInstruction?: string) => void
   generating: PreviewTaskType | null
   commandContext?: AgentCommandContext
   onTextPreview?: (preview: TextDiffPreviewPayload) => void
+  onChapterLengthMismatch?: (preview: TextDiffPreviewPayload, wordGoal: number) => void
   onGeneratePreview?: (payload: { taskType: PreviewTaskType; data: unknown; adaptationProjectId?: string }) => void
   onCommandCompleted?: () => void
 }
 
 export function ChatSection({
   projectId,
+  chapterWordGoal,
   onGenerate,
   generating,
   commandContext,
   onTextPreview,
+  onChapterLengthMismatch,
   onGeneratePreview,
   onCommandCompleted,
 }: Props) {
@@ -127,7 +137,7 @@ export function ChatSection({
       setMessages([
         {
           role: 'assistant',
-          content: `你好！我是你的 AI 短剧创作策划。我们先聊聊你的项目吧 —— 你想写一个什么类型的故事？比如「真假千金」「重生逆袭」「霸总追妻」，或者直接告诉我你脑子里的一个点子/一句话想法，我来帮你梳理。`,
+          content: `你好！我是你的 AI 短剧创作策划。我们先聊聊你的项目吧 —— 你想写一个什么类型的故事？比如「游戏系统·副本升级」「末世求生·领地经营」「规则怪谈·无限流」，或者直接告诉我你脑子里的一个点子/一句话想法，我来帮你梳理。`,
         },
       ])
     }
@@ -185,6 +195,10 @@ export function ChatSection({
           setMessages((prev) =>
             prev.map((m, i) => (i === assistantIndex ? { ...m, content: reply } : m)),
           )
+        },
+        () => {
+          rawStream = ''
+          setMessages((prev) => prev.map((m, i) => (i === assistantIndex ? { ...m, content: '' } : m)))
         },
       )
       if (res.ok && res.result) {
@@ -263,11 +277,46 @@ export function ChatSection({
     )
     const label = TASK_TYPE_LABELS[plan.taskType] ?? plan.taskType
     const toastId = toast.loading(`正在执行：${label}…`)
+    const streamMessageId = `command-stream-${plan.id}-${Date.now()}`
+    let streamedText = ''
+    setMessages((prev) => [...prev, {
+      id: streamMessageId,
+      role: 'assistant',
+      content: '',
+      streaming: true,
+    }])
     try {
-      const res = await ipc.ai.run({ ...plan.input, contextControls })
+      const res = await ipc.ai.runStream(
+        { ...plan.input, contextControls, chapterWordGoal },
+        (chunk) => {
+          streamedText += chunk
+          setMessages((prev) =>
+            prev.map((message) => (
+              message.id === streamMessageId
+                ? { ...message, content: streamedText }
+                : message
+            )),
+          )
+        },
+        () => {
+          streamedText = ''
+          setMessages((prev) =>
+            prev.map((message) => (
+              message.id === streamMessageId ? { ...message, content: '' } : message
+            )),
+          )
+        },
+      )
       if (!res.ok) {
         const error = res.error ?? '未知错误'
         toast.error(`${label}失败：${error}`, { id: toastId })
+        setMessages((prev) =>
+          prev.map((message) => (
+            message.id === streamMessageId
+              ? { ...message, content: streamedText || `执行失败：${error}`, streaming: false }
+              : message
+          )),
+        )
         setMessages((prev) =>
           prev.map((message, index) => (
             index === assistantIndex
@@ -280,8 +329,23 @@ export function ChatSection({
 
       let resultText = `${label}已完成。`
       if (res.result?.kind === 'text_preview') {
-        onTextPreview?.(res.result.data as TextDiffPreviewPayload)
-        resultText = '已生成文本差异预览，确认采用后才会写入。'
+        const preview = res.result.data as TextDiffPreviewPayload
+        const lengthStatus = preview.targetKind === 'chapter'
+          ? getChapterLengthStatus(preview.nextContent, chapterWordGoal)
+          : undefined
+        if (lengthStatus && onChapterLengthMismatch) {
+          onChapterLengthMismatch(preview, chapterWordGoal)
+          resultText = `已生成完整首稿（${lengthStatus.count} 字），正在等待你决定是否调整字数。`
+        } else if (shouldAutoAdoptChapterDraft(preview)) {
+          const adopted = await ipc.ai.applyResult({ projectId, taskType: plan.taskType, data: preview })
+          if (!adopted.ok) throw new Error(`生成正文写入失败：${adopted.error ?? '未知错误'}`)
+          onCommandCompleted?.()
+          resultText = '已生成正文并写入空白章节。'
+        } else {
+          onTextPreview?.(preview)
+          resultText = '已生成文本差异预览，确认采用后才会写入。'
+        }
+        if (!streamedText.trim()) streamedText = preview.nextContent
       } else if (plan.resultMode === 'artifact_preview' && res.result) {
         onGeneratePreview?.({
           taskType: plan.taskType as PreviewTaskType,
@@ -289,6 +353,7 @@ export function ChatSection({
           adaptationProjectId: plan.input.adaptationProjectId,
         })
         resultText = '已生成结构化预览，确认采用后才会写入。'
+        if (!streamedText.trim()) streamedText = formatCommandOutput(res.result.data)
       } else {
         onCommandCompleted?.()
         if (TASK_WRITE_POLICIES[plan.taskType].policy === 'snapshot_then_auto_write') {
@@ -296,8 +361,16 @@ export function ChatSection({
         } else {
           resultText = plan.resultMode === 'auto_write' ? '已执行并刷新项目状态。' : resultText
         }
+        if (!streamedText.trim() && res.result) streamedText = formatCommandOutput(res.result.data)
       }
       toast.success(label + '完成', { id: toastId })
+      setMessages((prev) =>
+        prev.map((message) => (
+          message.id === streamMessageId
+            ? { ...message, content: streamedText || resultText, streaming: false }
+            : message
+        )),
+      )
       setMessages((prev) =>
         prev.map((message, index) => (
           index === assistantIndex ? { ...message, commandStatus: 'done', commandResult: resultText } : message
@@ -306,6 +379,13 @@ export function ChatSection({
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e)
       toast.error(`${label}异常：${error}`, { id: toastId })
+      setMessages((prev) =>
+        prev.map((message) => (
+          message.id === streamMessageId
+            ? { ...message, content: streamedText || `执行异常：${error}`, streaming: false }
+            : message
+        )),
+      )
       setMessages((prev) =>
         prev.map((message, index) => (
           index === assistantIndex ? { ...message, commandStatus: 'failed', commandResult: `执行异常：${error}` } : message
@@ -348,7 +428,7 @@ export function ChatSection({
               >
                 {m.content ? (
                   <p className="whitespace-pre-wrap">{m.content}</p>
-                ) : busy && i === messages.length - 1 && m.role === 'assistant' ? (
+                ) : (m.streaming || (busy && i === messages.length - 1 && m.role === 'assistant')) ? (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 ) : null}
                 {m.patches && m.patches.length > 0 && (
@@ -388,10 +468,10 @@ export function ChatSection({
               }
             }}
             placeholder="输入项目想法，或直接下达创作指令…"
-            disabled={busy}
+            disabled={busy || commandRunningIndex !== null}
           />
-          <Button size="icon" onClick={send} disabled={busy || !input.trim()}>
-            {busy ? <Loader2 className="animate-spin" /> : <Send />}
+          <Button size="icon" onClick={send} disabled={busy || commandRunningIndex !== null || !input.trim()}>
+            {busy || commandRunningIndex !== null ? <Loader2 className="animate-spin" /> : <Send />}
           </Button>
         </div>
         <p className="mt-1 px-1 text-[11px] text-muted-foreground">
@@ -411,6 +491,15 @@ export function ChatSection({
       />
     </div>
   )
+}
+
+function formatCommandOutput(data: unknown): string {
+  if (typeof data === 'string') return data
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch {
+    return 'AI 已返回结果，请在对应工作区查看。'
+  }
 }
 
 function CommandPlanCard({

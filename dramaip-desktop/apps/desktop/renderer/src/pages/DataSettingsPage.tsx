@@ -164,7 +164,7 @@ export function DataSettingsPage() {
     if (!confirmed) return
     const suppliedRecoveryKey = snapshot.recoveryKeyAvailable ? undefined : await promptAction({
       title: '需要恢复密钥',
-      description: '此设备的系统 Keychain 中没有该密钥。请输入创建快照时保存的恢复密钥；它不会被上传或保存到项目数据。',
+      description: '此设备的本地凭据文件中没有该密钥。请输入创建快照时保存的恢复密钥；它不会被上传或保存到项目数据。',
       inputLabel: '恢复密钥',
       placeholder: '粘贴恢复密钥',
       confirmLabel: '验证并恢复',
@@ -184,7 +184,7 @@ export function DataSettingsPage() {
   async function handleDeleteCloudSnapshot(snapshot: CloudProjectSnapshot) {
     const confirmed = await confirmAction({
       title: '删除云端快照？',
-      description: '将清除远端唯一的加密信封，并移除此设备 Keychain 中的恢复密钥；删除后不能下载或恢复。',
+      description: '将清除远端唯一的加密信封，并移除此设备本地凭据文件中的恢复密钥；删除后不能下载或恢复。',
       confirmLabel: '删除云端快照',
       destructive: true,
     })
@@ -365,7 +365,7 @@ export function DataSettingsPage() {
       </main>
       <Dialog open={Boolean(recoveryKey)} onOpenChange={(open) => { if (!open) setRecoveryKey(undefined) }}>
         <DialogContent aria-describedby="snapshot-recovery-key-description">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" />保存恢复密钥</DialogTitle><DialogDescription id="snapshot-recovery-key-description">此密钥不会上传到云端。它已保存在本机系统 Keychain，但请同时保存到自己的密码管理器；换设备或清除 Keychain 后恢复需要它。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5 text-primary" />保存恢复密钥</DialogTitle><DialogDescription id="snapshot-recovery-key-description">此密钥不会上传到云端。它已保存在本机用户数据目录的加密凭据文件中，但请同时保存到自己的密码管理器；换设备或清除应用数据后恢复需要它。</DialogDescription></DialogHeader>
           <code className="break-all rounded-md border bg-muted p-3 text-xs leading-5">{recoveryKey}</code>
           <DialogFooter><Button variant="outline" onClick={() => void copyRecoveryKey()}><Copy />复制密钥</Button><Button onClick={() => setRecoveryKey(undefined)}>我已安全保存</Button></DialogFooter>
         </DialogContent>

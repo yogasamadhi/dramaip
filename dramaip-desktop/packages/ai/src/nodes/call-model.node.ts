@@ -16,6 +16,9 @@ export function createCallModelNode(deps: NodeDeps) {
     }
 
     const effectiveType = effectiveTaskType(state.taskType, state.templateScope)
+    // 校验失败后会从 build_prompt 回到这里。通知流式 UI 清空上一轮不合格文本，
+    // 让重试结果从空编辑器开始显示，而不是与第一次结果拼接。
+    if ((state.retryCount ?? 0) > 0) deps.onRetry?.()
     const messages: ChatMessage[] = [
       {
         role: 'system',

@@ -17,12 +17,15 @@ export interface NovelWorkflowDeps {
   repos: Repositories
   provider?: LLMProvider
   onToken?: (token: string) => void
+  onRetry?: () => void
   signal?: AbortSignal
 }
 
 export interface NovelWorkflowInput {
   projectId?: string
   chapterId?: string
+  /** 本次章节正文生成的目标字数；实际允许范围为目标字数 ±300。 */
+  chapterWordGoal?: number
   /** v0.2：按人物生成视觉档案 / 更新人物状态时用 */
   characterId?: string
   /** v0.4：改编项目相关 */
@@ -54,7 +57,7 @@ export interface NovelWorkflowResult {
 
 /** 构建并编译工作流图 */
 export function buildNovelWorkflow(deps: NovelWorkflowDeps) {
-  const nodeDeps: NodeDeps = { repos: deps.repos, provider: deps.provider, onToken: deps.onToken, signal: deps.signal }
+  const nodeDeps: NodeDeps = { repos: deps.repos, provider: deps.provider, onToken: deps.onToken, onRetry: deps.onRetry, signal: deps.signal }
   const cancellable = <T extends Partial<NovelGraphStateType> | Promise<Partial<NovelGraphStateType>>>(
     fn: (state: NovelGraphStateType) => T,
   ) => async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {

@@ -21,6 +21,7 @@ const args = new Set(process.argv.slice(2))
 const dirOnly = args.has('--dir')
 const skipBuild = args.has('--skip-build')
 const skipStart = args.has('--skip-start')
+const expectedElectronVersion = '43.2.0'
 
 const commandEnv = {
   ...process.env,
@@ -256,8 +257,17 @@ function runPackagedAppSmoke(executable, resourcesDir) {
         assert(existsSync(resultPath), `Smoke result was not written: ${resultPath}`)
         const result = JSON.parse(readFileSync(resultPath, 'utf8'))
         assert(result.ok === true, `Smoke result failed: ${JSON.stringify(result)}`)
+        assert(
+          result.runtimeVersions?.electron === expectedElectronVersion,
+          `Packaged Electron version mismatch: expected ${expectedElectronVersion}, got ${result.runtimeVersions?.electron ?? 'missing'}`,
+        )
+        assert(result.runtimeVersions?.chrome, `Packaged Chromium version missing: ${JSON.stringify(result)}`)
+        assert(result.runtimeVersions?.node, `Packaged Node version missing: ${JSON.stringify(result)}`)
         assert(result.dbExists === true, `Smoke DB was not initialized: ${JSON.stringify(result)}`)
         assert(result.dbPath && existsSync(result.dbPath), `Smoke DB path missing: ${result.dbPath}`)
+        console.log(
+          `Package smoke runtime: Electron ${result.runtimeVersions.electron}, Chromium ${result.runtimeVersions.chrome}, Node ${result.runtimeVersions.node}`,
+        )
         console.log(`Package smoke DB initialized at ${relative(rootDir, result.dbPath)}`)
         rmSync(smokeDir, { recursive: true, force: true })
         resolveSmoke()
@@ -270,7 +280,7 @@ function runPackagedAppSmoke(executable, resourcesDir) {
 
 if (!skipBuild) {
   run(localBin('electron-vite'), ['build'], { cwd: desktopDir })
-  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3,keytar'], { cwd: desktopDir })
+  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3'], { cwd: desktopDir })
 }
 
 run(localBin('electron-builder'), builderArgsForCurrentPlatform(), { cwd: desktopDir })

@@ -30,9 +30,11 @@ import argparse
 import json
 import os
 import platform as _platform
+import signal
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -310,6 +312,91 @@ def clean_env() -> dict:
     return env
 
 
+def stop_dev_process(process: subprocess.Popen) -> None:
+    """终止 pnpm dev 及其派生的 Electron / Vite 进程。"""
+    warn("正在关闭 Electron 与开发服务器……")
+    if os.name == "nt":
+        if process.poll() is not None:
+            return
+        try:
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+            process.wait(timeout=8)
+            return
+        except ProcessLookupError:
+            return
+        except subprocess.TimeoutExpired:
+            warn("开发进程未及时退出，正在强制关闭……")
+            process.kill()
+            process.wait()
+            return
+        except OSError:
+            process.terminate()
+            return
+
+    # 即使 pnpm 已先退出，Electron 仍可能由 init 接管，但会留在原进程组。
+    # 因此不能根据 process.poll() 提前返回，必须始终清理 process.pid 对应的组。
+    process_group = process.pid
+    try:
+        os.killpg(process_group, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            return
+        return
+
+    deadline = time.monotonic() + 8
+    while _process_group_exists(process_group) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if _process_group_exists(process_group):
+        warn("开发进程未及时退出，正在强制关闭……")
+        try:
+            os.killpg(process_group, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+
+
+def _process_group_exists(process_group: int) -> bool:
+    try:
+        os.killpg(process_group, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # 当前用户无权探测时，保守地视为仍在运行，交由超时后的强制终止处理。
+        return True
+    return True
+
+
+def run_dev(cmd: list[str], env: dict) -> None:
+    """启动独立进程组，保证 Ctrl-C 能同时关闭 Electron 窗口。"""
+    popen_kwargs: dict = {"cwd": str(DESKTOP_DIR), "env": env}
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    try:
+        process = subprocess.Popen(cmd, **popen_kwargs)
+    except FileNotFoundError:
+        err(f"命令未找到：{cmd[0]}")
+        sys.exit(1)
+
+    try:
+        code = process.wait()
+    except KeyboardInterrupt:
+        print()
+        stop_dev_process(process)
+        ok("已关闭 Electron 并退出 dev")
+        return
+
+    if code != 0:
+        stop_dev_process(process)
+        err(f"dev 异常退出（退出码 {code}）：{' '.join(cmd)}")
+        sys.exit(code)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="一键启动 dramaip-desktop 开发模式")
     ap.add_argument("--install", action="store_true", help="强制 pnpm install")
@@ -340,11 +427,7 @@ def main() -> None:
         warn(f"已剥离环境变量 ELECTRON_RUN_AS_NODE={os.environ['ELECTRON_RUN_AS_NODE']!r}（避免 dev 崩溃）")
 
     info("启动开发模式（pnpm dev）……Ctrl-C 退出。")
-    try:
-        run(pnpm + ["dev"], env=env)  # electron-vite dev
-    except KeyboardInterrupt:
-        print()
-        ok("已退出 dev")
+    run_dev(pnpm + ["dev"], env=env)  # electron-vite dev
 
 
 if __name__ == "__main__":

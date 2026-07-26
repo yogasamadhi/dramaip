@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { TaskDock } from '@/components/TaskDock'
+import { RootLayout } from '@/components/shell/RootLayout'
 
 const ProjectListPage = lazy(() => import('@/pages/ProjectListPage').then((m) => ({ default: m.ProjectListPage })))
 const CreateProjectPage = lazy(() => import('@/pages/CreateProjectPage').then((m) => ({ default: m.CreateProjectPage })))
@@ -30,6 +30,7 @@ const ModelSettingsPage = lazy(() => import('@/pages/ModelSettingsPage').then((m
 const DataSettingsPage = lazy(() => import('@/pages/DataSettingsPage').then((m) => ({ default: m.DataSettingsPage })))
 const TaskMonitorPage = lazy(() => import('@/pages/TaskMonitorPage').then((m) => ({ default: m.TaskMonitorPage })))
 const WritingRoomPage = lazy(() => import('@/pages/WritingRoomPage').then((m) => ({ default: m.WritingRoomPage })))
+const ProjectSetupPage = lazy(() => import('@/pages/ProjectSetupPage').then((m) => ({ default: m.ProjectSetupPage })))
 const AgentSettingsPage = lazy(() => import('@/pages/AgentSettingsPage').then((m) => ({ default: m.AgentSettingsPage })))
 const TemplatePage = lazy(() => import('@/pages/TemplatePage').then((m) => ({ default: m.TemplatePage })))
 const GenrePresetPage = lazy(() => import('@/pages/GenrePresetPage').then((m) => ({ default: m.GenrePresetPage })))
@@ -44,13 +45,14 @@ const CloudAccountSettingsPage = lazy(() =>
 
 export default function App() {
   return (
-    <>
-      <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
-        <Routes>
+    <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
+      <Routes>
+        <Route element={<RootLayout />}>
           <Route path="/" element={<ProjectListPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/projects/new" element={<CreateProjectPage />} />
           <Route path="/projects/:id/writing-room" element={<WritingRoomPage />} />
+          <Route path="/projects/:id/setup" element={<ProjectSetupPage />} />
           <Route path="/projects/:id/*" element={<WorkspacePage />} />
           <Route path="/adaptations/new" element={<CreateAdaptationPage />} />
           <Route path="/adaptations/:id" element={<AdaptationWorkspacePage />} />
@@ -72,9 +74,8 @@ export default function App() {
           <Route path="/genres" element={<GenrePresetPage />} />
           <Route path="/case-studies" element={<CaseStudyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-      <TaskDock />
-    </>
+        </Route>
+      </Routes>
+    </Suspense>
   )
 }

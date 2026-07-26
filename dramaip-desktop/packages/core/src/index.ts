@@ -7,6 +7,7 @@ export * from './mobile-inspiration'
 export * from './quality-gate-freshness'
 export * from './script-blocks'
 export * from './video-production'
+export * from './project-setup'
 // v0.8 内置 Agent / 类型预设种子数据（仅在 db seed 时使用，不进 UI 常量）
 export {
   BUILT_IN_AGENTS,
@@ -15,4 +16,10 @@ export {
   type BuiltInTemplatePreset,
   type WritingRoomTaskType,
 } from './constants/agents'
-export { BUILT_IN_GENRE_PRESETS, type BuiltInGenrePreset } from './constants/genre-presets'
+export {
+  BUILT_IN_GENRE_PRESETS,
+  CLASSIC_GENRE_PRESET_NAMES,
+  HOT_GENRE_PRESET_NAMES,
+  RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+  type BuiltInGenrePreset,
+} from './constants/genre-presets'

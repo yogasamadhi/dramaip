@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
-import * as keytar from 'keytar'
 import { shell } from 'electron'
 import {
   assertCloudEndpoint,
@@ -11,6 +10,7 @@ import {
   type CloudAuthEndpoints,
 } from './cloud-auth-protocol'
 import { DESKTOP_CONTRACT_HEADER, DESKTOP_CONTRACT_VERSION } from './cloud-contract'
+import { localCredentialStore } from './local-credential-store'
 
 const CLOUD_SESSION_SERVICE = 'com.sdns.studio.cloud-session'
 const CLOUD_SESSION_ACCOUNT = 'current'
@@ -137,7 +137,7 @@ export async function restoreCloudSession(): Promise<CloudAuthStatus> {
     await persistSession(token, saved.deviceID)
   } catch (error) {
     cloudSession = undefined
-    await keytar.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
+    await localCredentialStore.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
     configError = safeCloudAuthError(error)
   }
   return getCloudAuthStatus()
@@ -153,7 +153,7 @@ export async function logoutCloudSession(): Promise<CloudAuthStatus> {
       if (saved) await revokeSession(config, saved, current?.accessToken)
     }
   } finally {
-    await keytar.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
+    await localCredentialStore.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
   }
   return getCloudAuthStatus()
 }
@@ -218,14 +218,14 @@ async function revokeSession(config: CloudAuthEndpoints, saved: StoredCloudSessi
       body: JSON.stringify({ refresh_token: saved.refreshToken, device_id: saved.deviceID }),
     })
   } catch {
-    // Clearing the local Keychain entry is still required for an explicit local
+    // Clearing the local credential entry is still required for an explicit local
     // logout; remote revocation will be retried by token expiry controls.
   }
 }
 
 async function persistSession(token: TokenResponse, deviceID: string): Promise<void> {
   const stored: StoredCloudSession = { version: 1, refreshToken: token.refresh_token, deviceID }
-  await keytar.setPassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT, JSON.stringify(stored))
+  await localCredentialStore.setPassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT, JSON.stringify(stored))
   cloudSession = {
     ...stored,
     accessToken: token.access_token,
@@ -235,16 +235,16 @@ async function persistSession(token: TokenResponse, deviceID: string): Promise<v
 }
 
 async function readStoredSession(): Promise<StoredCloudSession | undefined> {
-  const raw = await keytar.getPassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
+  const raw = await localCredentialStore.getPassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
   if (!raw) return undefined
   try {
     const value = JSON.parse(raw) as Partial<StoredCloudSession>
     if (value.version !== 1 || typeof value.refreshToken !== 'string' || typeof value.deviceID !== 'string' || !value.refreshToken || !value.deviceID) {
-      throw new Error('invalid keychain session')
+      throw new Error('invalid local session')
     }
     return { version: 1, refreshToken: value.refreshToken, deviceID: value.deviceID }
   } catch {
-    await keytar.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
+    await localCredentialStore.deletePassword(CLOUD_SESSION_SERVICE, CLOUD_SESSION_ACCOUNT)
     return undefined
   }
 }

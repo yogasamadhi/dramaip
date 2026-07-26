@@ -669,7 +669,7 @@ function hailuoErrorMessage(code: number | undefined, detail?: string): string |
 function wanErrorMessage(code: string | undefined, detail?: string): string | undefined {
   if (!code && !detail) return undefined
   const category = new Map<string, string>([
-    ['InvalidApiKey', 'API Key 鉴权失败，请检查系统钥匙串与地域'],
+    ['InvalidApiKey', 'API Key 鉴权失败，请检查本地凭据配置与地域'],
     ['Throttling.RateQuota', '请求被限流，请稍后重试'],
     ['QuotaExhausted', '账户额度不足，请检查百炼账户余额'],
     ['DataInspectionFailed', '输入或生成结果未通过平台内容审核，请调整镜头描述'],

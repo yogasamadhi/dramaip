@@ -31,6 +31,16 @@ export function listStoryEvents(db: DB, projectId: string): StoryEvent[] {
     .map(rowToEntity)
 }
 
+export function listStoryEventsByChapter(db: DB, chapterId: string): StoryEvent[] {
+  return db
+    .select()
+    .from(storyEvents)
+    .where(eq(storyEvents.chapterId, chapterId))
+    .orderBy(storyEvents.orderIndex)
+    .all()
+    .map(rowToEntity)
+}
+
 export function getStoryEvent(db: DB, id: string): StoryEvent | undefined {
   const row = db.select().from(storyEvents).where(eq(storyEvents.id, id)).get()
   return row ? rowToEntity(row as StoryEventRow) : undefined

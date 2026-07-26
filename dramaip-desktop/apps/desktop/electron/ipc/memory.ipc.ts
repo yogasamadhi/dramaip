@@ -12,6 +12,9 @@ export function registerMemoryIpc(): void {
   ipcMain.handle('chapterMemory:get', (_e, id: string) =>
     repos().chapterMemory.getChapterMemory(repos().db, id),
   )
+  ipcMain.handle('chapterMemory:getByChapter', (_e, projectId: string, chapterId: string) =>
+    repos().chapterMemory.getChapterMemoryByChapter(repos().db, projectId, chapterId),
+  )
   ipcMain.handle('chapterMemory:create', (_e, data: unknown) =>
     repos().chapterMemory.createChapterMemory(repos().db, data as never),
   )
@@ -29,6 +32,9 @@ export function registerMemoryIpc(): void {
   )
   ipcMain.handle('characterState:listByCharacter', (_e, characterId: string) =>
     repos().characterState.listCharacterStatesByCharacter(repos().db, characterId),
+  )
+  ipcMain.handle('characterState:listByChapter', (_e, chapterId: string) =>
+    repos().characterState.listCharacterStatesByChapter(repos().db, chapterId),
   )
   ipcMain.handle('characterState:create', (_e, data: unknown) =>
     repos().characterState.createCharacterState(repos().db, data as never),
@@ -75,6 +81,9 @@ export function registerMemoryIpc(): void {
   ipcMain.handle('storyEvent:list', (_e, projectId: string) =>
     repos().storyEvent.listStoryEvents(repos().db, projectId),
   )
+  ipcMain.handle('storyEvent:listByChapter', (_e, chapterId: string) =>
+    repos().storyEvent.listStoryEventsByChapter(repos().db, chapterId),
+  )
   ipcMain.handle('storyEvent:create', (_e, data: unknown) =>
     repos().storyEvent.createStoryEvent(repos().db, data as never),
   )
@@ -89,6 +98,9 @@ export function registerMemoryIpc(): void {
   // ---------- 伏笔 ----------
   ipcMain.handle('foreshadowing:list', (_e, projectId: string) =>
     repos().foreshadowing.listForeshadowings(repos().db, projectId),
+  )
+  ipcMain.handle('foreshadowing:listByChapter', (_e, chapterId: string) =>
+    repos().foreshadowing.listForeshadowingsByChapter(repos().db, chapterId),
   )
   ipcMain.handle('foreshadowing:create', (_e, data: unknown) =>
     repos().foreshadowing.createForeshadowing(repos().db, data as never),

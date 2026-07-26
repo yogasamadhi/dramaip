@@ -270,6 +270,7 @@ const aiTaskInput = objectPayload.extend({
   taskType: novelTaskType,
   projectId: maybeId,
   chapterId: maybeId,
+  chapterWordGoal: z.number().int().min(1).max(100_000).optional(),
   characterId: maybeId,
   adaptationProjectId: maybeId,
   partialAdopt: z.boolean().optional(),
@@ -573,7 +574,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'asset:chooseLocalFile': [z.enum(['scene_reference', 'first_frame_image', 'cover_image', 'narration_audio', 'subtitle_file'])],
   'security:getSecretStorageStatus': [],
   // Cloud auth accepts no renderer-supplied redirect, credential, or URL.
-  // The Electron main process owns the PKCE session and Keychain boundary.
+  // The Electron main process owns the PKCE session and local credential boundary.
   'cloudAuth:status': [],
   'cloudAuth:login': [],
   'cloudAuth:logout': [],
@@ -651,6 +652,9 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'project:importPackage': [],
   'caseStudy:importDocuments': [],
   'evaluation:list': [id],
+  'chapterMemory:getByChapter': [id, id],
+  'highlight:getByChapter': [id, id],
+  'feasibility:getByChapter': [id, id],
   'aiRun:list': [id],
   'aiRun:listRecent': [maybeId],
   'aiRun:contextPreview': [id],
@@ -781,6 +785,10 @@ export const IPC_ALLOWED_FALLBACK_SCHEMAS: Record<string, z.ZodType<unknown>[]> 
       'character:delete',
       'characterState:delete',
       'characterState:listByCharacter',
+      'characterState:listByChapter',
+      'evaluation:listByChapter',
+      'foreshadowing:listByChapter',
+      'storyEvent:listByChapter',
       'dramaTrend:get',
       'dramaTrend:delete',
       'episode:delete',

@@ -1,5 +1,5 @@
 // foreshadowings —— 伏笔（ROADMAP v0.2 §6）
-import { eq } from 'drizzle-orm'
+import { eq, or } from 'drizzle-orm'
 import type { DB } from '../client'
 import { foreshadowings } from '../schema'
 import type { Foreshadowing, OptionalId } from '@sdns/core'
@@ -28,6 +28,17 @@ export function listForeshadowings(db: DB, projectId: string): Foreshadowing[] {
     .select()
     .from(foreshadowings)
     .where(eq(foreshadowings.projectId, projectId))
+    .orderBy(foreshadowings.createdAt)
+    .all()
+    .map(rowToEntity)
+}
+
+/** 在 chapterId 处埋下或回收的伏笔 */
+export function listForeshadowingsByChapter(db: DB, chapterId: string): Foreshadowing[] {
+  return db
+    .select()
+    .from(foreshadowings)
+    .where(or(eq(foreshadowings.setupChapterId, chapterId), eq(foreshadowings.payoffChapterId, chapterId)))
     .orderBy(foreshadowings.createdAt)
     .all()
     .map(rowToEntity)

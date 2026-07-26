@@ -12,6 +12,7 @@ import type {
   VideoGenerationTask,
   VideoResult,
 } from '@sdns/core'
+import { isProjectSetupComplete } from '@sdns/core'
 import { buildProjectQualityGateTruth } from './qualityGateTruth'
 
 export type ProjectWorkflowStageKey =
@@ -135,8 +136,8 @@ export function buildProjectWorkflowStages(snapshot: ProjectWorkflowSnapshot): P
     {
       key: 'setup',
       title: '设定',
-      complete: hasText(project.coreHook) && hasText(project.synopsis),
-      detail: hasText(project.coreHook) && hasText(project.synopsis)
+      complete: isProjectSetupComplete(project),
+      detail: isProjectSetupComplete(project)
         ? '已具备一句话卖点和故事简介'
         : '补齐一句话卖点和故事简介',
       actionLabel: '补设定',

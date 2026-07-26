@@ -6,5 +6,7 @@ export interface NodeDeps {
   repos: Repositories
   provider?: LLMProvider
   onToken?: (token: string) => void
+  /** 自动重试即将开始；流式消费者应丢弃上一轮不合格的临时输出。 */
+  onRetry?: () => void
   signal?: AbortSignal
 }

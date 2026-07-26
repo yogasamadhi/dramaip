@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { AlertTriangle, ArrowLeft, Check, Plus, Trash2, Video } from 'lucide-react'
 import type { VideoProviderConfig } from '@sdns/core'
-import { VIDEO_PROVIDER_KINDS, VIDEO_PROVIDER_KIND_LABELS } from '@sdns/core'
+import { VIDEO_PROVIDER_KINDS, VIDEO_PROVIDER_KIND_LABELS, PENDING_REAL_ADAPTERS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -193,7 +193,7 @@ export function VideoProviderSettingsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {VIDEO_PROVIDER_KINDS.map((k) => (
-                        <SelectItem key={k} value={k}>
+                        <SelectItem key={k} value={k} disabled={PENDING_REAL_ADAPTERS.has(k as VideoProviderConfig['kind'])}>
                           {VIDEO_PROVIDER_KIND_LABELS[k]}
                         </SelectItem>
                       ))}
@@ -235,10 +235,10 @@ export function VideoProviderSettingsPage() {
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
                     <div className="flex items-center gap-2 font-medium text-destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      系统凭据管理器不可用
+                      本地凭据存储不可用
                     </div>
                     <p className="text-muted-foreground">
-                      为避免 API Key 落入 SQLite，本应用不会使用明文降级。请恢复系统钥匙串/凭据管理器后再保存。
+                      为避免 API Key 落入 SQLite，本应用不会使用明文降级。请检查用户数据目录权限后再保存。
                     </p>
                   </div>
                 )}
@@ -284,7 +284,7 @@ export function VideoProviderSettingsPage() {
                       启用 {productionProviderLabel(form.kind)} 生产渠道
                     </label>
                     <p className="text-muted-foreground">
-                      默认关闭。开启后才允许提交会计费的真实任务；API Key 只保存在系统钥匙串，{form.kind === 'wan' ? '仅排队中的任务可远端取消。' : '平台当前不提供远端取消接口。'}
+                      默认关闭。开启后才允许提交会计费的真实任务；API Key 只保存在本地加密凭据文件，{form.kind === 'wan' ? '仅排队中的任务可远端取消。' : '平台当前不提供远端取消接口。'}
                     </p>
                   </div>
                 )}

@@ -18,8 +18,13 @@ export function MemorySection({ projectId, chapter }: { projectId: string; chapt
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
-    setList(await ipc.chapterMemory.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    const item = await ipc.chapterMemory.getByChapter(projectId, chapter.id)
+    setList(item ? [item] : [])
+  }, [chapter, projectId])
 
   useEffect(() => {
     void reload()

@@ -2,7 +2,6 @@ import { type ReactNode, useMemo } from 'react'
 import { ChevronDown, Download, LayoutDashboard } from 'lucide-react'
 import type { AdaptationProject } from '@sdns/core'
 import { useNavigate } from 'react-router-dom'
-import { GlobalRail } from '@/components/shell/WorkspaceShell'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -56,8 +55,7 @@ export function ProductionWorkspaceShell({
   const projectPath = adaptation.sourceProjectId ? `/projects/${adaptation.sourceProjectId}` : '/'
 
   return (
-    <div className="flex h-screen min-w-0 overflow-hidden bg-background text-foreground" data-production-stage={stage}>
-      <GlobalRail />
+    <div className="flex h-full min-w-0 overflow-hidden bg-background text-foreground" data-production-stage={stage}>
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
           <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 lg:px-5">

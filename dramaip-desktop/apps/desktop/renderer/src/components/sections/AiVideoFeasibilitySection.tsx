@@ -32,8 +32,13 @@ export function AiVideoFeasibilitySection({ projectId, chapter, version }: { pro
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
-    setList(await ipc.feasibility.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    const item = await ipc.feasibility.getByChapter(projectId, chapter.id)
+    setList(item ? [item] : [])
+  }, [chapter, projectId])
 
   useEffect(() => {
     void reload()

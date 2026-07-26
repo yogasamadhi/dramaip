@@ -71,6 +71,13 @@ v0.1 已在 `PROJECT_BRIEF.md` 中定义。本文档从 v0.2 开始描述。
 
 仍保持本地优先：云同步、资源市场、公共知识库和云端语义搜索不作为当前主流程依赖。移动端当前只定义轻量灵感记录与桌面导入，详见 [MOBILE_INSPIRATION_IMPORT.md](./MOBILE_INSPIRATION_IMPORT.md)；生态后续边界见 [ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md](./ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)；执行记录见 [LOOPMAP2.md](../loop/LOOPMAP2.md)。
 
+## LM5 发布 Gate 当前状态（2026-07-23）
+
+- 本地产品能力已补齐平台交付、用户主动导入反馈和可审查的海外语言版本；中文母版、翻译、目标语言声音候选与交付记录相互独立且可回溯。
+- 本地发布 Gate 已覆盖 TypeScript、SQLite 迁移/项目包往返、Electron 三条创建路径 E2E、UI 基线和 macOS ARM64 未签名 DMG/ZIP 打包后启动。
+- 当前不应称为正式可公开发布版本：真实图片/TTS/视频 Provider 需要账户所有者提供专用凭据和明确的 sandbox 计费授权；macOS/Windows/Linux 签名、公证、首次安装、升级及回滚需要在拥有证书和目标系统的 release 环境中完成。
+- 完整执行证据、复跑命令、已知限制和恢复方式见 [LOOPMAP.md](../loop/LOOPMAP.md) 及 Desktop 的 [RELEASE.md](../../dramaip-desktop/docs/release/RELEASE.md)。
+
 ---
 
 # v0.2 长篇一致性与视觉记忆系统

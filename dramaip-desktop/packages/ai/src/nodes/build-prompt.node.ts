@@ -11,7 +11,8 @@ import {
   buildShotContext,
   applyContextBudget,
 } from '../context/context-builder'
-import { effectiveTaskType, getPromptTemplate, isJsonTask } from '../prompts/loader'
+import { effectiveTaskType, getPromptTemplate, isJsonTask, isTextChapterTask } from '../prompts/loader'
+import { chapterLengthRange } from '../chapter-length'
 import type { NovelTaskType } from '@sdns/core'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
@@ -20,12 +21,20 @@ export function createBuildPromptNode(_deps: NodeDeps) {
   return async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {
     // 重试路径：上次解析/校验失败，追加修复指令并清空 error 让 callModel 继续执行
     if (state.error) {
-      const fix = [
-        '',
-        '---',
-        '【修复要求】上一次输出无法解析：' + state.error,
-        '请严格按输出格式重新生成；JSON 任务只输出合法 JSON 对象/数组，不要包含 Markdown 代码块或任何解释文字。',
-      ].join('\n')
+      const effectiveType = effectiveTaskType(state.taskType, state.templateScope)
+      const fix = isJsonTask(effectiveType)
+        ? [
+            '',
+            '---',
+            '【修复要求】上一次输出无法解析：' + state.error,
+            '请严格按输出格式重新生成；只输出合法 JSON 对象/数组，不要包含 Markdown 代码块或任何解释文字。',
+          ].join('\n')
+        : [
+            '',
+            '---',
+            '【修复要求】上一次输出未通过校验：' + state.error,
+            '请从头重新生成完整结果，绝不能沿用、续写或拼接上一轮文本。把字数上限当作绝对红线，优先遵守本章字数硬性约束中的首稿安全区间；不要解释、不要说明。',
+          ].join('\n')
       return {
         promptText: (state.promptText ?? '') + fix,
         retryCount: (state.retryCount ?? 0) + 1,
@@ -52,6 +61,31 @@ export function createBuildPromptNode(_deps: NodeDeps) {
     }
     if (state.userInstruction?.trim()) {
       parts.push('# 本次指令\n\n' + state.userInstruction.trim())
+    }
+    const isChapterLengthAdjustment = effectiveType === 'rewrite_chapter'
+      && state.userInstruction?.includes('【章节字数调整任务】')
+    // 正文生成与整章改写类操作都需遵循编辑器的目标字数。选中文本的局部润色
+    // 不传 chapterWordGoal，因而不会被误要求改成整章篇幅；续写任务输出的是尾段，也不套用整章约束。
+    const isLengthBoundChapterText = state.chapterWordGoal !== undefined
+      && isTextChapterTask(effectiveType)
+      && effectiveType !== 'continue_chapter'
+    if (isLengthBoundChapterText || isChapterLengthAdjustment) {
+      const { target, minimum, maximum } = chapterLengthRange(state.chapterWordGoal)
+      // 模型对中文字符、Markdown 标题的估算常有误差。首稿主动预留余量，
+      // 验收范围仍严格是用户设置的目标字数 ±300，不改变最终规则。
+      const safetyBuffer = Math.min(100, Math.floor((target - minimum) / 2))
+      const preferredTarget = Math.max(minimum, target - safetyBuffer)
+      const preferredMinimum = Math.max(minimum, preferredTarget - 50)
+      const preferredMaximum = Math.min(maximum, preferredTarget + 50)
+      parts.push([
+        isChapterLengthAdjustment ? '# 字数调整最终硬性约束（覆盖前文任何篇幅倾向）' : '# 本章字数硬性约束',
+        '',
+        `验收范围：全部输出按非空白字符计（包括第一行 Markdown 标题），目标 ${target} 字，允许范围 ${minimum}–${maximum} 字（目标字数 ±${maximum - target} 字）。`,
+        `绝对红线：不得超过 ${maximum} 字；即使只超出 1 字也视为失败。`,
+        `${isChapterLengthAdjustment ? '一次调整成功的安全区间' : '首稿安全区间'}：请优先把完整正文控制在 ${preferredMinimum}–${preferredMaximum} 字，为标题和字符估算误差预留空间。`,
+        `${isChapterLengthAdjustment ? '只能在待调整首稿上做定向增删，绝不能复述、复制两遍或另起炉灶。' : '写作前请在内部规划篇幅。'} 输出后自行复核，达到完整结尾后立即停止，禁止补写尾声、作者话、字数说明或任何附加内容。`,
+        '不足时只补足有效情节、对白或动作；超出时优先删减重复描写。不得用标题、重复段落或标点凑字数。',
+      ].join('\n'))
     }
     if (isJsonTask(effectiveType)) {
       parts.push('# 再次提醒\n\n只输出 JSON，不要 Markdown、不要代码块、不要解释。')

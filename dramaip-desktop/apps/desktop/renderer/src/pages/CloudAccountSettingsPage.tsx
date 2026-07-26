@@ -29,7 +29,7 @@ export function CloudAccountSettingsPage() {
     try {
       setError(undefined)
       // The main process opens the system browser and owns the PKCE verifier,
-      // callback server, and Keychain session. Renderer never receives tokens.
+      // callback server, and local credential session. Renderer never receives tokens.
       setStatus(await ipc.cloudAuth.login())
       setContext(undefined)
     } catch (reason) {
@@ -81,7 +81,7 @@ export function CloudAccountSettingsPage() {
         <Cloud className="h-5 w-5" />
         <div>
           <h1 className="text-lg font-semibold">云端账号与套餐</h1>
-          <p className="mt-1 text-sm text-muted-foreground">使用系统浏览器登录；长期会话仅保存在系统 Keychain。</p>
+          <p className="mt-1 text-sm text-muted-foreground">使用系统浏览器登录；长期会话仅保存在应用本地凭据文件。</p>
         </div>
       </header>
 
@@ -94,7 +94,7 @@ export function CloudAccountSettingsPage() {
               <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" />
               <div className="text-sm">
                 <p className="font-medium">已登录 {status.user?.name || status.user?.email}</p>
-                <p className="mt-1 text-muted-foreground">访问凭据只驻留主进程内存；刷新凭据由系统 Keychain 托管。</p>
+                <p className="mt-1 text-muted-foreground">访问凭据只驻留主进程内存；刷新凭据保存在应用本地凭据文件。</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">

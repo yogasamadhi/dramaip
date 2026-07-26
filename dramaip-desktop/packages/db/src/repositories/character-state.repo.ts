@@ -46,6 +46,16 @@ export function listCharacterStatesByCharacter(
     .map(rowToEntity)
 }
 
+export function listCharacterStatesByChapter(db: DB, chapterId: string): CharacterState[] {
+  return db
+    .select()
+    .from(characterStates)
+    .where(eq(characterStates.chapterId, chapterId))
+    .orderBy(desc(characterStates.createdAt))
+    .all()
+    .map(rowToEntity)
+}
+
 export function getCharacterState(db: DB, id: string): CharacterState | undefined {
   const row = db.select().from(characterStates).where(eq(characterStates.id, id)).get()
   return row ? rowToEntity(row as CharacterStateRow) : undefined

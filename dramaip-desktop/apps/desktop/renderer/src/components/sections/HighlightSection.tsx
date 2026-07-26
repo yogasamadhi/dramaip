@@ -26,8 +26,13 @@ export function HighlightSection({ projectId, chapter, version }: { projectId: s
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
-    setList(await ipc.highlight.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    const item = await ipc.highlight.getByChapter(projectId, chapter.id)
+    setList(item ? [item] : [])
+  }, [chapter, projectId])
 
   useEffect(() => {
     void reload()
@@ -99,7 +104,7 @@ export function HighlightSection({ projectId, chapter, version }: { projectId: s
                 </div>
               )}
               {list.map((h) => (
-                <div key={h.id} className="rounded-md border p-3">
+                <article key={h.id} className="rounded-md border p-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">第 {h.chapterId.slice(0, 6)}…</span>
                     {h.highlightTypes.map((t) => (
@@ -109,7 +114,7 @@ export function HighlightSection({ projectId, chapter, version }: { projectId: s
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
-                </div>
+                </article>
               ))}
             </>
           )}

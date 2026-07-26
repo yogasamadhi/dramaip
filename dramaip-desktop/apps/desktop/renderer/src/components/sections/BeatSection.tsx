@@ -19,8 +19,12 @@ export function BeatSection({ projectId, chapter, version }: { projectId: string
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
-    setList(await ipc.beat.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    setList(await ipc.beat.listByChapter(chapter.id))
+  }, [chapter])
 
   useEffect(() => {
     void reload()
@@ -73,7 +77,7 @@ export function BeatSection({ projectId, chapter, version }: { projectId: string
             </p>
           ) : (
             list.map((b) => (
-              <div key={b.id} className="rounded-md border p-3">
+              <article key={b.id} className="rounded-md border p-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="secondary">{TYPE_LABEL[b.type]}</Badge>
                   <span className="font-medium">{b.title}</span>
@@ -83,7 +87,7 @@ export function BeatSection({ projectId, chapter, version }: { projectId: string
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">{b.description}</p>
-              </div>
+              </article>
             ))
           )}
         </div>

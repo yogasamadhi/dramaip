@@ -8,9 +8,10 @@
 git clone <repo>
 cd dramaIp
 pnpm install
+pnpm install:electron
 ```
 
-要求：Node 20+；建议通过 Corepack 使用仓库 `packageManager` 指定的 pnpm 版本。跨平台（macOS / Windows / Linux）。
+要求：Node 22.12+；建议通过 Corepack 使用仓库 `packageManager` 指定的 pnpm 版本。跨平台（macOS / Windows / Linux）。
 
 ## 常用命令
 

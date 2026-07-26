@@ -8,7 +8,8 @@ export function createValidateOutputNode(_deps: NodeDeps) {
     if (state.error) return {}
 
     // v0.8：template_run 按 templateScope 取校验 schema
-    const schema = getTaskSchema(effectiveTaskType(state.taskType, state.templateScope))
+    const effectiveType = effectiveTaskType(state.taskType, state.templateScope)
+    const schema = getTaskSchema(effectiveType)
     if (!schema) {
       // 文本任务：仅校验非空
       const content = String(state.parsedOutput ?? '')

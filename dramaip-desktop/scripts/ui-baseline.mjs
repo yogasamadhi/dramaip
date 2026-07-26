@@ -104,7 +104,7 @@ async function runUiBaseline() {
 
 if (!skipBuild) {
   run(localBin('electron-vite'), ['build'], { cwd: desktopDir })
-  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3,keytar'], { cwd: desktopDir })
+  run(localBin('electron-rebuild'), ['-f', '-w', 'better-sqlite3'], { cwd: desktopDir })
 }
 
 await runUiBaseline()

@@ -121,7 +121,7 @@ test('video generation service enforces a real-provider feature gate outside the
   const config = {
     ...providerConfig(),
     kind: 'hailuo' as const,
-    apiKey: 'keychain:configured',
+    apiKey: 'local:configured',
     defaultParams: '{"featureEnabled":false}',
   }
   const { repos } = createVideoServiceRepos(config)
@@ -148,7 +148,7 @@ test('video generation cancellation only records a remote cancel after the adapt
     ...providerConfig(),
     kind: 'wan' as const,
     name: 'Alibaba Wan',
-    apiKey: 'keychain:configured',
+    apiKey: 'local:configured',
     defaultParams: '{"featureEnabled":true}',
   }
   const fixture = createVideoServiceRepos(config)
@@ -191,7 +191,7 @@ test('remote cancel refusal leaves a real-provider task pollable instead of fabr
     ...providerConfig(),
     kind: 'wan' as const,
     name: 'Alibaba Wan',
-    apiKey: 'keychain:configured',
+    apiKey: 'local:configured',
     defaultParams: '{"featureEnabled":true}',
   }
   const fixture = createVideoServiceRepos(config)

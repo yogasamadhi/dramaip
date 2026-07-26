@@ -1,27 +1,28 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronRight, Command, Download, FilePlus2, Loader2, Menu, Sparkles, Trash2 } from 'lucide-react'
-import type { AiContextControls, AiRun, Chapter, ChapterMemory, CharacterVisualProfile, CreativeCaseStudy, NovelTaskType, Project, ProjectSkill, QualityGateReport, StoryArc, TextDiffPreviewPayload } from '@sdns/core'
+import { ChevronRight, Command, Download, FilePlus2, Menu, Trash2 } from 'lucide-react'
+import type { AiRun, Chapter, NovelTaskType, Project, QualityGateReport, TextDiffPreviewPayload } from '@sdns/core'
 import { TASK_TYPE_LABELS, WORKSPACE_NAV_GROUPS } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction, deleteConfirmation } from '@/components/ConfirmActionDialog'
 import {
   buildProjectWorkflowStages,
-  type ProjectWorkflowSnapshot,
   type ProjectWorkflowStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/projectWorkflowGuide'
-import { buildAdaptationReadiness, type AdaptationReadinessSummary } from '@/lib/adaptationReadiness'
 import { buildProjectQualityGateTruth } from '@/lib/qualityGateTruth'
-import { buildAiPreflightContext, setAiContextControlMode } from '@/lib/aiPreflightContext'
+import { buildAiPreflightContext } from '@/lib/aiPreflightContext'
+import { useAiContextStore } from '@/stores/useAiContextStore'
+import { useWorkflowSnapshotStore } from '@/stores/useWorkflowSnapshotStore'
+import { shouldAutoAdoptChapterDraft } from '@/lib/textPreviewPolicy'
+import { getChapterLengthStatus, type ChapterLengthStatus } from '@/lib/chapterLength'
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
 import { AiContextPreviewDialog } from '@/components/AiContextPreviewDialog'
 import { AiCommandPalette } from '@/components/AiCommandPalette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -34,6 +35,7 @@ import { AiAssistantPanel } from '@/components/AiAssistantPanel'
 import { ContentVersionPanel } from '@/components/ContentVersionPanel'
 import { GeneratePreviewDialog, type PreviewTaskType } from '@/components/GeneratePreviewDialog'
 import { TextDiffPreviewDialog } from '@/components/TextDiffPreviewDialog'
+import { ChapterLengthAdjustmentDialog } from '@/components/ChapterLengthAdjustmentDialog'
 import { CharactersSection } from '@/components/sections/CharactersSection'
 import { ChatSection } from '@/components/sections/ChatSection'
 import { InspirationDeskSection } from '@/components/sections/InspirationDeskSection'
@@ -54,15 +56,18 @@ import { BeatSection } from '@/components/sections/BeatSection'
 import { HighlightSection } from '@/components/sections/HighlightSection'
 import { AiVideoFeasibilitySection } from '@/components/sections/AiVideoFeasibilitySection'
 import { WorkspaceShell, WorkspaceShellState } from '@/components/shell/WorkspaceShell'
+import { AiRunsTable } from '@/components/AiRunsTable'
 import { CreativeDiagnosisSection } from '@/components/sections/CreativeDiagnosisSection'
 import { QualityGateDashboardSection } from '@/components/sections/QualityGateDashboardSection'
 import { ChapterTree, type ChapterTreeStatus } from '@/components/editor/ChapterTree'
 import type { AiCommandDefinition } from '@/lib/aiCommandCatalog'
 import { cn } from '@/lib/utils'
+import { WorkspaceNavDropdown, WorkspaceNavList } from '@/components/shell/WorkspaceNav'
 
 const ChapterEditor = lazy(() =>
   import('@/components/editor/ChapterEditor').then((m) => ({ default: m.ChapterEditor })),
 )
+import type { ChapterEditorHandle } from '@/components/editor/ChapterEditor'
 
 /** 非章节任务仍在其既有工作区执行；命令面板只负责消除发现成本，不复制业务入口。 */
 const WORKSPACE_SECTION_BY_TASK: Partial<Record<NovelTaskType, string>> = {
@@ -89,14 +94,6 @@ const WORKSPACE_SECTION_BY_TASK: Partial<Record<NovelTaskType, string>> = {
 
 const WORKSPACE_SECTION_KEYS = new Set(WORKSPACE_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.key)))
 
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false })
-  } catch {
-    return iso
-  }
-}
-
 export function WorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -107,6 +104,7 @@ export function WorkspacePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [section, setSection] = useState<string>('chapters')
   const [editorNonce, setEditorNonce] = useState(0)
+  const editorRef = useRef<ChapterEditorHandle | null>(null)
   const [aiRuns, setAiRuns] = useState<AiRun[]>([])
   const [preview, setPreview] = useState<{
     open: boolean
@@ -121,19 +119,30 @@ export function WorkspacePage() {
   })
   const [generating, setGenerating] = useState<PreviewTaskType | null>(null)
   const [textPreview, setTextPreview] = useState<TextDiffPreviewPayload | null>(null)
+  const [chapterLengthIssue, setChapterLengthIssue] = useState<{
+    preview: TextDiffPreviewPayload
+    status: ChapterLengthStatus
+    /** 首次生成时章节为空：调整成功后应直接写入，不展示变更预览。 */
+    isInitialGeneratedChapter: boolean
+  } | null>(null)
+  const [adjustingChapterLength, setAdjustingChapterLength] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
-  const [generateIdea, setGenerateIdea] = useState('')
-  const [workflowSnapshot, setWorkflowSnapshot] = useState<ProjectWorkflowSnapshot | null>(null)
-  const [adaptationReadiness, setAdaptationReadiness] = useState<AdaptationReadinessSummary | null>(null)
-  const [caseStudies, setCaseStudies] = useState<CreativeCaseStudy[]>([])
-  const [visualProfiles, setVisualProfiles] = useState<CharacterVisualProfile[]>([])
-  const [storyArcs, setStoryArcs] = useState<StoryArc[]>([])
-  const [chapterMemories, setChapterMemories] = useState<ChapterMemory[]>([])
-  const [qualityReports, setQualityReports] = useState<QualityGateReport[]>([])
+  // 数据态迁移到共享 store，避免任一 setState 触发整个 JSX 树重渲染。
+  const workflowSnapshot = useWorkflowSnapshotStore((s) => s.workflowSnapshot)
+  const adaptationReadiness = useWorkflowSnapshotStore((s) => s.adaptationReadiness)
+  const caseStudies = useWorkflowSnapshotStore((s) => s.caseStudies)
+  const visualProfiles = useWorkflowSnapshotStore((s) => s.visualProfiles)
+  const storyArcs = useWorkflowSnapshotStore((s) => s.storyArcs)
+  const chapterMemories = useWorkflowSnapshotStore((s) => s.chapterMemories)
+  const qualityReports = useWorkflowSnapshotStore((s) => s.qualityReports)
+  const projectSkills = useWorkflowSnapshotStore((s) => s.projectSkills)
+  const loadWorkflowSnapshot = useWorkflowSnapshotStore((s) => s.load)
+  const clearWorkflowSnapshot = useWorkflowSnapshotStore((s) => s.clear)
   const [editorSaveState, setEditorSaveState] = useState<ChapterTreeStatus['saveState']>('clean')
-  const [projectSkills, setProjectSkills] = useState<ProjectSkill[]>([])
+  const [chapterWordGoal, setChapterWordGoal] = useState(2000)
   const chapterSearchRef = useRef<HTMLInputElement>(null)
-  const [contextControls, setContextControls] = useState<AiContextControls>({})
+  const contextControls = useAiContextStore((s) => s.contextControls)
+  const setContextControls = useAiContextStore((s) => s.setControlMode)
   const [pendingGenerate, setPendingGenerate] = useState<{
     taskType: PreviewTaskType
     userInstruction?: string
@@ -145,13 +154,15 @@ export function WorkspacePage() {
   const [preflightRunning, setPreflightRunning] = useState(false)
   const requestedAdaptationId = searchParams.get('adaptation') ?? undefined
   const requestedQualityIssueId = searchParams.get('qualityIssue') ?? undefined
-  // 工作流真值依赖正文而不只是“是否非空”：正文变更后，旧质量报告必须立即显示为过期。
+  // 工作流真值依赖章节结构字段（标题/摘要/大纲/钩子等）以及正文字数，但不需要完整正文
+  // 字符串：用字数代替全文可以避免每次正文变更都序列化全书内容。质量报告过期判断只
+  // 关心内容是否变化，字数变化足以作为过期信号。
   const chapterWorkflowKey = JSON.stringify(chapters.map((chapter) => ({
     id: chapter.id,
     title: chapter.title,
     summary: chapter.summary,
     outline: chapter.outline,
-    content: chapter.content,
+    contentLength: chapter.content.replace(/\s/g, '').length,
     mainConflict: chapter.mainConflict,
     hook: chapter.hook,
     highlight: chapter.highlight,
@@ -159,92 +170,15 @@ export function WorkspacePage() {
     cliffhanger: chapter.cliffhanger,
   })))
 
-  const loadWorkflowSnapshot = useCallback(async (
+  // 包装 store.load：若 adaptation 解析后 project 的 activeAdaptationId 变化，同步本地 project。
+  const loadWorkflowSnapshotIntoStore = useCallback(async (
     currentProject: Project,
     projectChapters: Chapter[],
     requestedActiveAdaptationId?: string,
   ) => {
-    const [
-      characters,
-      outlines,
-      chapterMemories,
-      qualityReports,
-      adaptations,
-      nextVisualProfiles,
-      nextCaseStudies,
-      nextStoryArcs,
-      nextProjectSkills,
-    ] = await Promise.all([
-      ipc.character.list(currentProject.id),
-      ipc.outline.list(currentProject.id),
-      ipc.chapterMemory.list(currentProject.id),
-      ipc.creative.listQualityGates(currentProject.id),
-      ipc.adaptationProject.listByProject(currentProject.id),
-      ipc.visualProfile.list(currentProject.id),
-      ipc.caseStudy.list(),
-      ipc.storyArc.list(currentProject.id),
-      ipc.projectSkill.list(currentProject.id),
-    ])
-    setVisualProfiles(nextVisualProfiles)
-    setCaseStudies(nextCaseStudies)
-    setStoryArcs(nextStoryArcs)
-    setChapterMemories(chapterMemories)
-    setQualityReports(qualityReports)
-    setProjectSkills(nextProjectSkills)
-
-    const activeResolution = await ipc.project.resolveActiveAdaptation(
-      currentProject.id,
-      requestedActiveAdaptationId,
-    )
-    const activeAdaptation = activeResolution.adaptation
-    const snapshotProject = currentProject.activeAdaptationId === activeAdaptation?.id
-      ? currentProject
-      : { ...currentProject, activeAdaptationId: activeAdaptation?.id }
-    if (snapshotProject !== currentProject) setProject(snapshotProject)
-    let episodes: ProjectWorkflowSnapshot['episodes'] = []
-    let scripts: ProjectWorkflowSnapshot['scripts'] = []
-    let scenes: ProjectWorkflowSnapshot['scenes'] = []
-    let shots: ProjectWorkflowSnapshot['shots'] = []
-    let videoTasks: ProjectWorkflowSnapshot['videoTasks'] = []
-    let videoResults: ProjectWorkflowSnapshot['videoResults'] = []
-
-    if (activeAdaptation) {
-      episodes = await ipc.episode.list(activeAdaptation.id)
-      scripts = await ipc.script.list(activeAdaptation.id)
-      scenes = (await Promise.all(scripts.map((script) => ipc.scene.listByScript(script.id)))).flat()
-      shots = (await Promise.all(episodes.map((episode) => ipc.shot.listByEpisode(episode.id)))).flat()
-      const taskGroups = await Promise.all(
-        episodes.map((episode) => ipc.videoTask.listByEpisode(episode.id)),
-      )
-      const taskMap = new Map(taskGroups.flat().map((task) => [task.id, task]))
-      videoTasks = [...taskMap.values()]
-      videoResults = (await Promise.all(videoTasks.map((task) => ipc.videoResult.listByTask(task.id)))).flat()
-    }
-
-    setWorkflowSnapshot({
-      project: snapshotProject,
-      chapters: projectChapters,
-      characters,
-      outlines,
-      qualityReports,
-      adaptations,
-      activeAdaptation,
-      episodes,
-      scripts,
-      scenes,
-      shots,
-      videoTasks,
-      videoResults,
-    })
-    setAdaptationReadiness(buildAdaptationReadiness({
-      project: snapshotProject,
-      chapters: projectChapters,
-      characters,
-      outlines,
-      chapterMemories,
-      qualityReports,
-    }))
-  }, [])
+    const updated = await loadWorkflowSnapshot(currentProject, projectChapters, requestedActiveAdaptationId)
+    if (updated) setProject(updated)
+  }, [loadWorkflowSnapshot])
 
   const loadProject = useCallback(async () => {
     if (!id) return
@@ -256,19 +190,12 @@ export function WorkspacePage() {
   }, [id])
 
   useEffect(() => {
-    if (project) void loadWorkflowSnapshot(project, chapters, requestedAdaptationId)
+    if (project) void loadWorkflowSnapshotIntoStore(project, chapters, requestedAdaptationId)
     else {
-      setWorkflowSnapshot(null)
-      setAdaptationReadiness(null)
-      setCaseStudies([])
-      setVisualProfiles([])
-      setStoryArcs([])
-      setChapterMemories([])
-      setQualityReports([])
-      setProjectSkills([])
+      clearWorkflowSnapshot()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshot, requestedAdaptationId])
+  }, [project, chapterWorkflowKey, dataVersion, loadWorkflowSnapshotIntoStore, requestedAdaptationId])
 
   const loadAiRuns = useCallback(async () => {
     if (!id) return
@@ -307,6 +234,33 @@ export function WorkspacePage() {
     })
   }, [setSearchParams])
 
+  // 统一的导航项选择处理：writing-room 走独立路由，其余走 section 切换。
+  const selectNavKey = useCallback((key: string) => {
+    if (!project) return
+    if (key === 'writing-room') {
+      void navigate(`/projects/${project.id}/writing-room`)
+      return
+    }
+    openWorkspaceTarget(key)
+  }, [project, navigate, openWorkspaceTarget])
+
+  // 概览面板的 ScrollArea 根元素；点击「创作工作台」面包屑时把概览滚回顶部，
+  // 这样即使当前已在概览页也有明确的视觉反馈。
+  const overviewScrollRef = useRef<HTMLDivElement | null>(null)
+  const [pendingOverviewScroll, setPendingOverviewScroll] = useState(false)
+
+  function goToOverview() {
+    setPendingOverviewScroll(true)
+    openWorkspaceTarget('overview')
+  }
+
+  useEffect(() => {
+    if (section !== 'overview' || !pendingOverviewScroll) return
+    const viewport = overviewScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null
+    viewport?.scrollTo({ top: 0 })
+    setPendingOverviewScroll(false)
+  }, [section, pendingOverviewScroll])
+
   const selected = chapters.find((c) => c.id === selectedId) ?? null
   const pendingGeneratePreflight = pendingGenerate ? buildAiPreflightContext(
     pendingGenerate.taskType,
@@ -335,12 +289,13 @@ export function WorkspacePage() {
     contextControls,
   ) : null
 
-  const createChapter = useCallback(async () => {
-    if (!id) return
+  const createChapter = useCallback(async (): Promise<Chapter | null> => {
+    if (!id) return null
     const c = await ipc.chapter.create({ projectId: id, title: `第 ${chapters.length + 1} 章` })
     setChapters((prev) => [...prev, c])
     openWorkspaceTarget('chapters', c.id)
     setEditorNonce((n) => n + 1)
+    return c
   }, [chapters.length, id, openWorkspaceTarget])
 
   const reorderChapters = useCallback(async (orderedIds: string[]) => {
@@ -376,12 +331,145 @@ export function WorkspacePage() {
     return true
   }
 
-  async function onChapterUpdated() {
-    if (!selected) return
-    const fresh = await ipc.chapter.get(selected.id)
+  async function onChapterUpdated(chapterId = selected?.id) {
+    if (!chapterId) return
+    const fresh = await ipc.chapter.get(chapterId)
     if (fresh) setChapters((prev) => prev.map((c) => (c.id === fresh.id ? fresh : c)))
     setEditorNonce((n) => n + 1)
     if (section === 'ai-runs') void loadAiRuns()
+  }
+
+  // 流式生成：把累积内容实时推给编辑器显示。continue_chapter 时累积的是新尾部，
+  // 需与已有正文拼接（与 save-result.node.ts 的 nextContent 规则一致）。
+  function handleStreamContent(event: { phase: 'start' | 'chunk' | 'end'; taskType: NovelTaskType; accumulated: string }) {
+    const handle = editorRef.current
+    if (!handle) return
+    if (event.phase === 'start') {
+      handle.beginStreaming()
+      return
+    }
+    if (event.phase === 'end') {
+      handle.endStreaming()
+      return
+    }
+    // chunk：覆盖型任务直接用累积内容；续写需拼上已有正文。
+    const base = event.taskType === 'continue_chapter' && selected?.content?.trim()
+      ? `${selected.content.trimEnd()}\n\n${event.accumulated}`
+      : event.accumulated
+    handle.appendStreamChunk(base)
+  }
+
+  /** 首稿先完整呈现，只有字数越界才请用户决定是否基于该首稿定向调整。 */
+  function requestChapterLengthAdjustment(preview: TextDiffPreviewPayload, wordGoal: number) {
+    const status = getChapterLengthStatus(preview.nextContent, wordGoal)
+    if (!status) return
+    setChapterLengthIssue({
+      preview,
+      status,
+      isInitialGeneratedChapter: shouldAutoAdoptChapterDraft(preview),
+    })
+  }
+
+  async function keepChapterLengthDraft() {
+    if (!project || !chapterLengthIssue) return
+    const { preview, isInitialGeneratedChapter } = chapterLengthIssue
+    if (isInitialGeneratedChapter) {
+      const adopted = await ipc.ai.applyResult({ projectId: project.id, taskType: preview.taskType, data: preview })
+      if (!adopted.ok) {
+        toast.error(`保存章节失败：${adopted.error ?? '未知错误'}`)
+        return
+      }
+      await onChapterUpdated(preview.targetId)
+      toast.success('已保留当前正文')
+    } else {
+      setTextPreview(preview)
+    }
+    setChapterLengthIssue(null)
+  }
+
+  async function discardChapterLengthDraft() {
+    const chapterId = chapterLengthIssue?.preview.targetId
+    setChapterLengthIssue(null)
+    if (chapterId) await onChapterUpdated(chapterId)
+  }
+
+  async function adjustChapterLength() {
+    if (!project || !chapterLengthIssue) return
+    const originalIssue = chapterLengthIssue
+    const { preview, status, isInitialGeneratedChapter } = originalIssue
+    // 用户确认后立即让出编辑器，展示新的流式调整结果；失败时再恢复此决策弹窗。
+    setChapterLengthIssue(null)
+    setAdjustingChapterLength(true)
+    const toastId = toast.loading('正在基于首稿调整章节字数…')
+    let accumulated = ''
+    const safetyBuffer = Math.min(100, Math.floor((status.target - status.minimum) / 2))
+    const preferredTarget = Math.max(status.minimum, status.target - safetyBuffer)
+    const preferredMinimum = Math.max(status.minimum, preferredTarget - 50)
+    const preferredMaximum = Math.min(status.maximum, preferredTarget + 50)
+    const requiredChange = Math.abs(preferredTarget - status.count)
+    const adjustmentDirection = status.direction === 'long'
+      ? `本次只做压缩：请删减约 ${requiredChange} 字的重复描写、无效过渡或冗余对白，绝不能新增支线或扩写。`
+      : `本次只做补足：请增加约 ${requiredChange} 字与原情节直接相关的动作、对白或必要过渡，绝不能新开支线。`
+    const userInstruction = [
+      '【章节字数调整任务】以下内容是一份已经完成的章节首稿。请只对这份首稿进行定向增删，绝不能根据大纲重新创作。',
+      `当前全文为 ${status.count} 字；目标为 ${status.target} 字，硬性允许范围 ${status.minimum}–${status.maximum} 字。为一次成功，请把最终完整正文优先控制在 ${preferredMinimum}–${preferredMaximum} 字；${status.maximum} 字是绝对上限。`,
+      adjustmentDirection,
+      '必须保持不变：核心剧情、人物关系、事件先后、关键转折、结尾钩子、叙事视角，以及首稿已经完成的润色、钩子、冲突或爽点增强。允许压缩重复描写，或补充与原情节直接相关的动作、对白和过渡。',
+      '输出调整后的完整章节 Markdown，只输出一次完整正文。不要复制首稿、不要重复段落、不要说明调整过程、不要附加字数说明。',
+      '【待调整首稿】',
+      preview.nextContent,
+    ].join('\n\n')
+    handleStreamContent({ phase: 'start', taskType: 'rewrite_chapter', accumulated })
+    try {
+      const result = await ipc.ai.runStream(
+        {
+          projectId: project.id,
+          chapterId: preview.targetId,
+          taskType: 'rewrite_chapter',
+          userInstruction,
+          contextControls,
+          chapterWordGoal: status.target,
+        },
+        (chunk) => {
+          accumulated += chunk
+          handleStreamContent({ phase: 'chunk', taskType: 'rewrite_chapter', accumulated })
+        },
+        () => {
+          accumulated = ''
+          handleStreamContent({ phase: 'chunk', taskType: 'rewrite_chapter', accumulated })
+        },
+      )
+      if (!result.ok || result.result?.kind !== 'text_preview') {
+        setChapterLengthIssue(originalIssue)
+        toast.error(`字数调整失败：${result.error ?? '模型未返回章节内容'}`, { id: toastId })
+        return
+      }
+
+      const adjusted = result.result.data as TextDiffPreviewPayload
+      const nextStatus = getChapterLengthStatus(adjusted.nextContent, status.target)
+      if (nextStatus) {
+        setChapterLengthIssue({ preview: adjusted, status: nextStatus, isInitialGeneratedChapter })
+        toast.message(`调整后仍为 ${nextStatus.count} 字，请决定是否再次调整或保留`, { id: toastId })
+        return
+      }
+
+      setChapterLengthIssue(null)
+      if (isInitialGeneratedChapter) {
+        const adopted = await ipc.ai.applyResult({ projectId: project.id, taskType: adjusted.taskType, data: adjusted })
+        if (!adopted.ok) throw new Error(adopted.error ?? '未知错误')
+        await onChapterUpdated(adjusted.targetId)
+        toast.success('章节字数已调整并写入', { id: toastId })
+      } else {
+        setTextPreview(adjusted)
+        toast.success('章节字数已调整，请确认差异后采用', { id: toastId })
+      }
+    } catch (error) {
+      setChapterLengthIssue(originalIssue)
+      toast.error(`字数调整异常：${error instanceof Error ? error.message : String(error)}`, { id: toastId })
+    } finally {
+      handleStreamContent({ phase: 'end', taskType: 'rewrite_chapter', accumulated })
+      setAdjustingChapterLength(false)
+    }
   }
 
   function applyChapterUpdate(updated: Chapter) {
@@ -487,10 +575,28 @@ export function WorkspacePage() {
         chapterId: selected.id,
         taskType: pendingPaletteCommand,
         contextControls,
+        chapterWordGoal,
       })
       if (result.ok && result.result?.kind === 'text_preview') {
-        setTextPreview(result.result.data as TextDiffPreviewPayload)
-        toast.success(`${label}预览已生成，请确认后采用`, { id: toastId })
+        const preview = result.result.data as TextDiffPreviewPayload
+        const lengthStatus = preview.targetKind === 'chapter'
+          ? getChapterLengthStatus(preview.nextContent, chapterWordGoal)
+          : undefined
+        if (lengthStatus) {
+          requestChapterLengthAdjustment(preview, chapterWordGoal)
+          toast.dismiss(toastId)
+        } else if (shouldAutoAdoptChapterDraft(preview)) {
+          const adopted = await ipc.ai.applyResult({ projectId: project.id, taskType: pendingPaletteCommand, data: preview })
+          if (!adopted.ok) {
+            toast.error(`${label}写入失败：${adopted.error ?? '未知错误'}`, { id: toastId })
+          } else {
+            await onChapterUpdated()
+            toast.success(`${label}已写入空白章节`, { id: toastId })
+          }
+        } else {
+          setTextPreview(preview)
+          toast.success(`${label}预览已生成，请确认后采用`, { id: toastId })
+        }
       } else if (result.ok) {
         await onChapterUpdated()
         toast.success(`${label}已完成`, { id: toastId })
@@ -627,7 +733,6 @@ export function WorkspacePage() {
       setPreview((p) => ({ ...p, open: false }))
       if (preview.taskType === 'generate_project') {
         void loadProject()
-        setGenerateIdea('')
       } else {
         setDataVersion((v) => v + 1)
       }
@@ -705,7 +810,7 @@ export function WorkspacePage() {
   function handleWorkflowStageAction(stageKey: ProjectWorkflowStageKey) {
     if (!project) return
     if (stageKey === 'setup') {
-      openWorkspaceTarget('overview')
+      navigate(`/projects/${project.id}/setup`)
     } else if (stageKey === 'characters') {
       openWorkspaceTarget('characters')
     } else if (stageKey === 'outline') {
@@ -734,8 +839,11 @@ export function WorkspacePage() {
       <WorkspaceShell
         title={project.title}
         breadcrumbs={[
-          '项目',
-          primaryAdaptation ? `第 ${primaryAdaptation.seasonNumber ?? 1} 季：${primaryAdaptation.title}` : '创作工作台',
+          { label: '项目', onClick: () => navigate('/') },
+          {
+            label: primaryAdaptation ? `第 ${primaryAdaptation.seasonNumber ?? 1} 季：${primaryAdaptation.title}` : '创作工作台',
+            onClick: goToOverview,
+          },
           section === 'chapters' && selected ? selected.title : section,
         ]}
         badge={<Badge variant="secondary">{project.shortDramaType}</Badge>}
@@ -787,7 +895,7 @@ export function WorkspacePage() {
         }
         context={(mode) => section === 'chapters' && mode === 'full' ? (
           <section className="flex h-full min-h-0 flex-col" aria-label="章节导航">
-            <div className="flex gap-1 border-b p-2">
+            <div className="flex flex-wrap gap-1 border-b p-2">
               <Button
                 variant="ghost"
                 size="sm"
@@ -799,26 +907,13 @@ export function WorkspacePage() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="打开项目阶段菜单">
+                  <Button variant="secondary" size="sm" className="h-8 gap-1 text-xs" aria-label="切换到其他工作区">
                     <Menu />
+                    项目导航
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                  {WORKSPACE_NAV_GROUPS.map((group) => (
-                    <div key={group.key} className="py-1">
-                      <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
-                      {group.items.map((item) => (
-                        <DropdownMenuItem
-                          key={item.key}
-                          onClick={() => item.key === 'writing-room'
-                            ? navigate(`/projects/${project.id}/writing-room`)
-                            : openWorkspaceTarget(item.key)}
-                        >
-                          {item.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  ))}
+                  <WorkspaceNavDropdown onSelect={selectNavKey} />
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -847,21 +942,7 @@ export function WorkspacePage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="max-h-[70vh] w-56 overflow-y-auto">
-                {WORKSPACE_NAV_GROUPS.map((group) => (
-                  <div key={group.key} className="py-1">
-                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
-                    {group.items.map((item) => (
-                      <DropdownMenuItem
-                        key={item.key}
-                        onClick={() => item.key === 'writing-room'
-                          ? navigate(`/projects/${project.id}/writing-room`)
-                          : openWorkspaceTarget(item.key)}
-                      >
-                        {item.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                ))}
+                <WorkspaceNavDropdown onSelect={selectNavKey} />
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="rounded-md bg-accent px-1.5 py-2 text-center text-xs font-medium text-accent-foreground" title="当前工作区">
@@ -878,39 +959,7 @@ export function WorkspacePage() {
           <nav className="flex h-full min-w-0 flex-col" aria-label="项目阶段导航">
             <ScrollArea className="flex-1">
               <div className="space-y-3 p-2">
-                {WORKSPACE_NAV_GROUPS.map((group) => (
-                  <div key={group.key} className="space-y-1">
-                    <div className="px-3 py-1 text-xs font-medium text-muted-foreground">{group.label}</div>
-                    {group.items.map((item) => {
-                      const active = section === item.key
-                      const isChapterEntry = item.key === 'chapters'
-                      return (
-                        <button
-                          key={item.key}
-                          onClick={() => {
-                            if (item.key === 'writing-room') {
-                              void navigate(`/projects/${project.id}/writing-room`)
-                              return
-                            }
-                            openWorkspaceTarget(item.key)
-                          }}
-                          aria-label={item.label}
-                          title={item.label}
-                          aria-current={active ? 'page' : undefined}
-                          className={cn(
-                            'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                            active
-                              ? 'bg-accent font-medium text-accent-foreground'
-                              : 'text-foreground hover:bg-accent/60 dark:!text-slate-200',
-                            isChapterEntry && 'font-medium',
-                          )}
-                        >
-                          {item.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ))}
+                <WorkspaceNavList activeSection={section} onSelect={selectNavKey} />
               </div>
             </ScrollArea>
             <div className="border-t p-2">
@@ -937,8 +986,12 @@ export function WorkspacePage() {
                 <AiAssistantPanel
                   projectId={project.id}
                   chapter={selected}
+                  chapterWordGoal={chapterWordGoal}
                   onChapterUpdated={onChapterUpdated}
+                  onCreateNextChapter={createChapter}
                   onTextPreview={setTextPreview}
+                  onChapterLengthMismatch={requestChapterLengthAdjustment}
+                  onStreamContent={handleStreamContent}
                   contextData={{
                     project,
                     chapters,
@@ -1000,11 +1053,13 @@ export function WorkspacePage() {
                   <div className="flex-1 overflow-hidden">
                     <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">加载编辑器...</div>}>
                       <ChapterEditor
+                        ref={editorRef}
                         key={selected.id + ':' + editorNonce}
                         chapter={selected}
                         onContentChange={(markdown) => onContentChange(selected.id, markdown)}
                         onSaveStateChange={setEditorSaveState}
                         onSelectedTextAi={openSelectedTextAi}
+                        onWordGoalChange={setChapterWordGoal}
                       />
                     </Suspense>
                   </div>
@@ -1018,7 +1073,7 @@ export function WorkspacePage() {
           )}
 
           {section === 'overview' && (
-            <ScrollArea className="h-full">
+            <ScrollArea ref={overviewScrollRef} className="h-full">
               <div className="space-y-3 p-6 text-sm">
                 <h2 className="text-lg font-semibold">{project.title}</h2>
                 {workflowStages.length > 0 && (
@@ -1045,45 +1100,6 @@ export function WorkspacePage() {
                   </div>
                 )}
                 {adaptationReadiness && <AdaptationReadinessPanel readiness={adaptationReadiness} />}
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span className="text-sm font-medium">AI 生成 / 补全项目设定</span>
-                  </div>
-                  <Textarea
-                    value={generateIdea}
-                    onChange={(e) => setGenerateIdea(e.target.value)}
-                    placeholder="一句话描述你的想法（可选），留空则根据现有类型生成…"
-                    rows={2}
-                    className="mb-2 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => runGenerate('generate_project', generateIdea)}
-                    disabled={generating !== null}
-                  >
-                    {generating === 'generate_project' ? <Loader2 className="animate-spin" /> : <Sparkles />}
-                    生成项目设定
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-y-2">
-                  <Meta label="短剧类型" value={project.shortDramaType} />
-                  <Meta label="目标受众" value={project.targetAudience} />
-                  <Meta label="目标字数" value={project.targetWordCount} />
-                  <Meta label="目标集数" value={project.targetEpisodeCount} />
-                  <Meta label="一句话卖点" value={project.coreHook} />
-                  <Meta label="情绪主轴" value={project.emotionalCore} />
-                  <Meta label="核心爽点" value={project.coreSellingPoint} />
-                  <Meta label="视觉风格方向" value={project.visualStyleDirection} />
-                </div>
-                <div>
-                  <div className="mb-1 font-medium text-muted-foreground">故事简介</div>
-                  <p className="whitespace-pre-wrap">{project.synopsis || '（暂无）'}</p>
-                </div>
-                <div>
-                  <div className="mb-1 font-medium text-muted-foreground">小说风格要求</div>
-                  <p className="whitespace-pre-wrap">{project.styleGuide || '（暂无）'}</p>
-                </div>
               </div>
             </ScrollArea>
           )}
@@ -1101,47 +1117,13 @@ export function WorkspacePage() {
           )}
 
           {section === 'ai-runs' && (
-            <ScrollArea className="h-full">
-              <div className="p-4">
-                {aiRuns.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">暂无 AI 调用记录。</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs text-muted-foreground">
-                        <th className="py-2 pr-3">时间</th>
-                        <th className="pr-3">类型</th>
-                        <th className="pr-3">模型</th>
-                        <th className="pr-3">状态</th>
-                        <th className="pr-3">耗时</th>
-                        <th className="pr-3">Tokens</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aiRuns.map((r) => (
-                        <tr key={r.id} className="border-b align-top">
-                          <td className="py-2 pr-3 text-xs text-muted-foreground">{formatTime(r.createdAt)}</td>
-                          <td className="pr-3">{r.type}</td>
-                          <td className="pr-3 text-xs">{r.model}</td>
-                          <td className="pr-3">
-                            <Badge variant={r.status === 'success' ? 'default' : 'destructive'}>
-                              {r.status === 'success' ? '成功' : '失败'}
-                            </Badge>
-                          </td>
-                          <td className="pr-3 text-xs">{r.latencyMs != null ? `${r.latencyMs}ms` : '—'}</td>
-                          <td className="pr-3 text-xs">{r.tokenUsage ?? '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </ScrollArea>
+            <AiRunsTable runs={aiRuns} />
           )}
 
           {section === 'chat' && (
             <ChatSection
               projectId={project.id}
+              chapterWordGoal={chapterWordGoal}
               onGenerate={runGenerate}
               generating={generating}
               commandContext={{
@@ -1162,6 +1144,7 @@ export function WorkspacePage() {
                 shots: workflowSnapshot?.shots ?? [],
               }}
               onTextPreview={setTextPreview}
+              onChapterLengthMismatch={requestChapterLengthAdjustment}
               onGeneratePreview={({ taskType, data, adaptationProjectId }) =>
                 setPreview({ open: true, taskType, data, adaptationProjectId })}
               onCommandCompleted={() => setDataVersion((v) => v + 1)}
@@ -1300,6 +1283,14 @@ export function WorkspacePage() {
         onAdopt={handleTextAdopt}
         onCancel={() => setTextPreview(null)}
       />
+      <ChapterLengthAdjustmentDialog
+        open={chapterLengthIssue !== null}
+        status={chapterLengthIssue?.status ?? null}
+        adjusting={adjustingChapterLength}
+        onAdjust={() => void adjustChapterLength()}
+        onKeep={() => void keepChapterLengthDraft()}
+        onDiscard={() => void discardChapterLengthDraft()}
+      />
       <AiCommandPalette
         open={aiCommandPaletteOpen}
         onOpenChange={setAiCommandPaletteOpen}
@@ -1313,7 +1304,7 @@ export function WorkspacePage() {
         preview={pendingGeneratePreflight?.preview ?? null}
         controlGroups={pendingGeneratePreflight?.groups}
         onControlModeChange={(key, targetId, mode) =>
-          setContextControls((current) => setAiContextControlMode(current, key, targetId, mode))}
+          setContextControls(key, targetId, mode)}
         onRun={() => void executePendingGenerate()}
         runLabel="执行 AI"
         running={preflightRunning}
@@ -1324,7 +1315,7 @@ export function WorkspacePage() {
         preview={pendingPaletteCommandPreflight?.preview ?? null}
         controlGroups={pendingPaletteCommandPreflight?.groups}
         onControlModeChange={(key, targetId, mode) =>
-          setContextControls((current) => setAiContextControlMode(current, key, targetId, mode))}
+          setContextControls(key, targetId, mode)}
         onRun={() => void runPendingPaletteCommand()}
         runLabel={pendingPaletteCommand ? `执行 ${TASK_TYPE_LABELS[pendingPaletteCommand]}` : '执行 AI'}
         running={paletteCommandRunning}
@@ -1334,14 +1325,7 @@ export function WorkspacePage() {
   )
 }
 
-function Meta({ label, value }: { label: string; value?: string | number }) {
-  return (
-    <div>
-      <span className="text-muted-foreground">{label}：</span>
-      <span>{value ?? '—'}</span>
-    </div>
-  )
-}
+
 
 function WorkflowStageRow({
   index,

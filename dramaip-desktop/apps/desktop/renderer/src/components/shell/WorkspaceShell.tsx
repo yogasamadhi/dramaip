@@ -17,7 +17,8 @@ import { cn } from '@/lib/utils'
 
 interface WorkspaceShellProps {
   title: string
-  breadcrumbs: string[]
+  /** 面包屑；传字符串为纯文本，传 { label, onClick } 为可点击项 */
+  breadcrumbs: Array<string | { label: string; onClick?: () => void }>
   badge?: ReactNode
   actions?: ReactNode
   context: (mode: ContextPanelMode) => ReactNode
@@ -66,6 +67,18 @@ export function GlobalRail() {
     { label: '云账户', icon: UserRound, path: '/settings/cloud-account' },
   ]
 
+  const isItemActive = (path: string): boolean => {
+    if (path === '/') {
+      return location.pathname === '/' || location.pathname.startsWith('/projects/') || location.pathname.startsWith('/adaptations/')
+    }
+    // /settings 子页（任务中心/模型/云账户等）都高亮对应的精确路径；
+    // 其余 /settings/* 高亮「设置」总入口。
+    if (path === '/settings') {
+      return location.pathname === '/settings' || (location.pathname.startsWith('/settings/') && !items.some((i) => i.path !== '/settings' && location.pathname === i.path))
+    }
+    return location.pathname === path
+  }
+
   return (
     <aside className="flex w-14 shrink-0 flex-col border-r bg-muted/30 px-1.5 py-2" aria-label="全局导航">
       <div className="mb-2 flex h-9 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground" aria-label="短剧 IP 工作台">
@@ -75,7 +88,7 @@ export function GlobalRail() {
         {items.map(({ label, icon: Icon, path }) => (
           <Button
             key={path}
-            variant={(path === '/' ? location.pathname === '/' || location.pathname.startsWith('/projects/') || location.pathname.startsWith('/adaptations/') : location.pathname === path) ? 'secondary' : 'ghost'}
+            variant={isItemActive(path) ? 'secondary' : 'ghost'}
             size="icon"
             aria-label={label}
             title={label}
@@ -146,18 +159,31 @@ export function WorkspaceShell({ title, breadcrumbs, badge, actions, context, in
 
   const isFocusMode = preferences.focusMode
   return (
-    <div className="flex h-screen min-w-0 overflow-hidden bg-background text-foreground">
-      <GlobalRail />
+    <div className="flex h-full min-w-0 overflow-hidden bg-background text-foreground">
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex min-h-14 items-center gap-2 border-b px-3 py-2">
           <div className="min-w-0">
             <nav aria-label="面包屑" className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-              {breadcrumbs.map((crumb, index) => (
-                <span className="flex min-w-0 items-center gap-1" key={`${crumb}-${index}`}>
-                  {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-                  <span className="truncate">{crumb}</span>
-                </span>
-              ))}
+              {breadcrumbs.map((crumb, index) => {
+                const label = typeof crumb === 'string' ? crumb : crumb.label
+                const onClick = typeof crumb === 'string' ? undefined : crumb.onClick
+                return (
+                  <span className="flex min-w-0 items-center gap-1" key={`${label}-${index}`}>
+                    {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
+                    {onClick ? (
+                      <button
+                        type="button"
+                        onClick={onClick}
+                        className="truncate rounded-sm underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {label}
+                      </button>
+                    ) : (
+                      <span className="truncate">{label}</span>
+                    )}
+                  </span>
+                )
+              })}
             </nav>
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="truncate text-base font-semibold">{title}</h1>
@@ -229,7 +255,7 @@ export function WorkspaceShellState({
   children: ReactNode
 }) {
   return (
-    <div className="flex h-screen items-center justify-center bg-background p-6 text-center">
+    <div className="flex h-full items-center justify-center bg-background p-6 text-center">
       <div className="max-w-md space-y-2 rounded-lg border bg-card p-6 shadow-sm">
         <h1 className="text-base font-semibold">{title}</h1>
         <div className="text-sm text-muted-foreground">{children}</div>

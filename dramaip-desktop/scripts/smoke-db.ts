@@ -3,7 +3,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { backupSqliteDatabase, createDb, restoreSqliteDatabaseFromBackup } from '../packages/db/src/client'
 import { createRepositories } from '../packages/db/src/index'
-import { BUILT_IN_AGENTS, BUILT_IN_TEMPLATES, BUILT_IN_GENRE_PRESETS } from '@sdns/core'
+import {
+  BUILT_IN_AGENTS,
+  BUILT_IN_TEMPLATES,
+  BUILT_IN_GENRE_PRESETS,
+  RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+} from '@sdns/core'
 import {
   collectProjectPackage,
   serializeProjectPackage,
@@ -67,6 +72,11 @@ function main() {
 
   const upd = repos.project.updateProject(repos.db, p1.id, { title: '复仇千金归来', coreHook: '三年后回归' })
   assert(upd?.title === '复仇千金归来' && upd?.coreHook === '三年后回归', 'updateProject 写回正确')
+  const setupSummary = repos.project.listProjectHomeSummaries(repos.db).find((summary) => summary.project.id === p1.id)
+  assert(
+    setupSummary?.stage === 'writing' && setupSummary.nextAction.label === '新建第一章' && setupSummary.nextAction.path.endsWith('?section=chapters'),
+    '已完成项目设定但没有章节时，引导新建第一章',
+  )
 
   // 章节
   const c1 = repos.chapter.createChapter(repos.db, { projectId: p1.id, title: '第一章', outline: '归来' })
@@ -809,11 +819,40 @@ function main() {
   assert(myTplUpd?.variables.length === 3, 'updateTemplate variables 写回')
   assert(repos.template.listTemplatesByType(repos.db, 'project').length >= 2, 'listTemplatesByType')
 
-  // 类型库：内置 seed 幂等 + 字符串数组往返
-  const gseeded = repos.genrePreset.upsertBuiltInGenrePresets(repos.db, BUILT_IN_GENRE_PRESETS)
+  // 类型库：市场版内置同步 + 退役项清理 + 字符串数组往返
+  repos.genrePreset.createGenrePreset(repos.db, {
+    name: '女频复仇',
+    visualStyle: '旧版内置视觉',
+    shotPromptAdvice: '旧版内置建议',
+    aiVideoRisks: '旧版内置风险',
+    builtIn: true,
+  })
+  repos.genrePreset.createGenrePreset(repos.db, {
+    name: '玄学直播',
+    visualStyle: '用户自定义视觉',
+    shotPromptAdvice: '用户自定义建议',
+    aiVideoRisks: '用户自定义风险',
+  })
+  const gseeded = repos.genrePreset.upsertBuiltInGenrePresets(
+    repos.db,
+    BUILT_IN_GENRE_PRESETS,
+    RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+  )
   assert(gseeded.length === BUILT_IN_GENRE_PRESETS.length, 'upsertBuiltInGenrePresets 数量正确')
-  const fuchou = repos.genrePreset.getGenrePresetByName(repos.db, '女频复仇')
-  assert(!!fuchou && fuchou.commonHighlights.length > 0 && fuchou.builtIn === true, 'getGenrePresetByName + 数组/builtIn 解析')
+  assert(repos.genrePreset.getGenrePresetByName(repos.db, '女频复仇') === undefined, '退役内置题材已清理')
+  assert(repos.genrePreset.getGenrePresetByName(repos.db, '玄学直播')?.builtIn === false, '同名用户自定义题材不受清理影响')
+  const fantasy = repos.genrePreset.getGenrePresetByName(repos.db, '奇幻玄幻·修仙逆袭')
+  assert(!!fantasy && fantasy.commonHighlights.length > 0 && fantasy.builtIn === true, '热门题材数组/builtIn 解析')
+  if (fantasy) repos.genrePreset.updateGenrePreset(repos.db, fantasy.id, { description: '过期内置内容' })
+  repos.genrePreset.upsertBuiltInGenrePresets(
+    repos.db,
+    BUILT_IN_GENRE_PRESETS,
+    RETIRED_BUILT_IN_GENRE_PRESET_NAMES,
+  )
+  assert(
+    repos.genrePreset.getGenrePresetByName(repos.db, '奇幻玄幻·修仙逆袭')?.description !== '过期内置内容',
+    '已有内置题材同步为当前市场版内容',
+  )
   // 自定义类型预设
   const myGenre = repos.genrePreset.createGenrePreset(repos.db, {
     name: '职场逆袭',

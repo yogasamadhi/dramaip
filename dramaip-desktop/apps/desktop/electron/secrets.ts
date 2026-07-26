@@ -1,14 +1,13 @@
-import { safeStorage } from 'electron'
-import * as keytar from 'keytar'
 import { randomUUID } from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import type { ModelConfig, VideoProviderConfig } from '@sdns/core'
 import { schema, type Repositories } from '@sdns/db'
 import {
-  KEYCHAIN_PREFIX,
+  LOCAL_CREDENTIAL_PREFIX,
   MASKED_PREFIX,
   decryptSecretValue,
   isKeychainReference,
+  isLocalCredentialReference,
   mergeSecretStateCounts,
   readLegacySecretForMigration,
   safeSecretErrorMessage,
@@ -20,21 +19,20 @@ import {
   type SecretStateCounts,
   type SecretValueState,
 } from './secret-health'
+import {
+  localCredentialStore,
+  type CredentialStore,
+} from './local-credential-store'
 
 const CREDENTIAL_SERVICE = 'com.sdns.studio.provider-credentials'
-const KEYCHAIN_HEALTH_ACCOUNT = '__sdns_healthcheck__'
-
-export interface CredentialStore {
-  getPassword(service: string, account: string): Promise<string | null>
-  setPassword(service: string, account: string, password: string): Promise<void>
-  deletePassword(service: string, account: string): Promise<boolean>
-}
+const CREDENTIAL_STORE_HEALTH_ACCOUNT = '__sdns_healthcheck__'
 
 export interface SecretStorageStatus {
-  /** @deprecated compatibility field; represents the system credential store state. */
+  /** @deprecated compatibility field; represents the local credential file state. */
   encryptionAvailable: boolean
+  /** @deprecated compatibility field; no operating-system Keychain is accessed. */
   keychainAvailable: boolean
-  mode: 'system_keychain' | 'keychain_unavailable'
+  mode: 'local_file' | 'local_file_unavailable'
   health?: SecretStorageHealth
   lastMigration?: SecretMigrationSummary
   unavailableReason?: string
@@ -42,8 +40,9 @@ export interface SecretStorageStatus {
 
 export interface SecretStorageHealth {
   checkedAt: string
-  /** @deprecated compatibility field; represents the system credential store state. */
+  /** @deprecated compatibility field; represents the local credential file state. */
   encryptionAvailable: boolean
+  /** @deprecated compatibility field; no operating-system Keychain is accessed. */
   keychainAvailable: boolean
   modelConfigs: SecretStateCounts
   videoProviderConfigs: SecretStateCounts
@@ -73,53 +72,65 @@ interface SecretInput {
   apiKey?: string
 }
 
-let credentialStore: CredentialStore = keytar
-let keychainAvailable = false
-let keychainUnavailableReason: string | undefined
+const unavailableLegacyCipher: SecretCipher = {
+  isEncryptionAvailable: () => false,
+  encryptString: () => {
+    throw new Error('旧版系统加密已停用')
+  },
+  decryptString: () => {
+    throw new Error('旧版系统加密已停用')
+  },
+}
+
+let credentialStore: CredentialStore = localCredentialStore
+let credentialStoreAvailable = false
+let credentialStoreUnavailableReason: string | undefined
 let lastMigration: SecretMigrationSummary | undefined
 const credentialCache = new Map<string, string>()
 
-/** Test seam: production always uses the OS-backed keytar adapter. */
+/** Test seam: production uses only the prompt-free local credential file. */
 export function setCredentialStoreForTests(store?: CredentialStore): void {
-  credentialStore = store ?? keytar
+  credentialStore = store ?? localCredentialStore
   credentialCache.clear()
-  keychainAvailable = false
-  keychainUnavailableReason = undefined
+  credentialStoreAvailable = false
+  credentialStoreUnavailableReason = undefined
 }
 
 /**
- * Must run before registering IPC. It verifies Keychain/Credential Manager access,
- * hydrates only referenced credentials into main-process memory, then migrates old
- * SQLite values. Renderer code never receives this cache.
+ * Must run before registering IPC. It verifies the local credential file,
+ * hydrates only local references into main-process memory, then migrates old
+ * plaintext SQLite values. It never reads the operating-system Keychain.
  */
 export async function initializeSecretStorage(repos: Repositories): Promise<SecretMigrationSummary> {
   await probeCredentialStore()
   await hydrateCredentialCache(repos)
-  const summary = await migrateLegacySecretsToKeychain(repos)
+  const summary = await migrateLegacySecretsToLocalStore(repos)
   await hydrateCredentialCache(repos)
   return summary
 }
 
 export function getSecretStorageStatus(repos?: Repositories): SecretStorageStatus {
   return {
-    encryptionAvailable: keychainAvailable,
-    keychainAvailable,
-    mode: keychainAvailable ? 'system_keychain' : 'keychain_unavailable',
+    encryptionAvailable: credentialStoreAvailable,
+    keychainAvailable: credentialStoreAvailable,
+    mode: credentialStoreAvailable ? 'local_file' : 'local_file_unavailable',
     health: repos ? inspectSecretStorageHealth(repos) : undefined,
     lastMigration,
-    unavailableReason: keychainUnavailableReason,
+    unavailableReason: credentialStoreUnavailableReason,
   }
 }
 
 /** Legacy-only decoder retained to read pre-LM3-25 values during migration. */
 export function decryptSecret(value: string | undefined): string {
-  if (isKeychainReference(value)) return credentialCache.get(value) ?? ''
-  return decryptSecretValue(value, safeStorage)
+  if (isLocalCredentialReference(value)) return credentialCache.get(value) ?? ''
+  if (isKeychainReference(value)) return ''
+  return decryptSecretValue(value, unavailableLegacyCipher)
 }
 
 export function maskSecret(value: string | undefined): string {
   if (value?.startsWith(MASKED_PREFIX)) return value
-  if (isKeychainReference(value)) return `${MASKED_PREFIX}stored`
+  if (isLocalCredentialReference(value)) return `${MASKED_PREFIX}stored`
+  if (isKeychainReference(value)) return `${MASKED_PREFIX}reenter`
   const plain = decryptSecret(value)
   if (!plain) return ''
   return `${MASKED_PREFIX}${plain.slice(-4)}`
@@ -286,7 +297,7 @@ export function inspectSecretStorageHealth(repos: Repositories): SecretStorageHe
 }
 
 /** Re-runnable recovery path for old SQLite credentials; never exposed to the renderer. */
-export async function migrateLegacySecretsToKeychain(repos: Repositories): Promise<SecretMigrationSummary> {
+export async function migrateLegacySecretsToLocalStore(repos: Repositories): Promise<SecretMigrationSummary> {
   const { modelRecords, videoRecords, allRecords } = listStoredSecretRecords(repos)
   const before = buildSecretStorageHealth(modelRecords, videoRecords)
   const failures: SecretMigrationFailure[] = []
@@ -295,8 +306,13 @@ export async function migrateLegacySecretsToKeychain(repos: Repositories): Promi
   let skipped = 0
 
   for (const record of allRecords) {
-    const legacy = readLegacySecretForMigration(record.value, safeStorage as SecretCipher)
-    if (legacy.state === 'empty' || legacy.state === 'keychain' || legacy.state === 'masked') {
+    const legacy = readLegacySecretForMigration(record.value, unavailableLegacyCipher)
+    if (
+      legacy.state === 'empty' ||
+      legacy.state === 'local_file' ||
+      legacy.state === 'keychain' ||
+      legacy.state === 'masked'
+    ) {
       skipped += 1
       continue
     }
@@ -329,7 +345,7 @@ export async function migrateLegacySecretsToKeychain(repos: Repositories): Promi
 
   lastMigration = {
     checkedAt: new Date().toISOString(),
-    keychainAvailable,
+    keychainAvailable: credentialStoreAvailable,
     attempted,
     migrated,
     skipped,
@@ -343,56 +359,56 @@ export async function migrateLegacySecretsToKeychain(repos: Repositories): Promi
 
 async function probeCredentialStore(): Promise<void> {
   try {
-    await credentialStore.getPassword(CREDENTIAL_SERVICE, KEYCHAIN_HEALTH_ACCOUNT)
-    keychainAvailable = true
-    keychainUnavailableReason = undefined
+    await credentialStore.getPassword(CREDENTIAL_SERVICE, CREDENTIAL_STORE_HEALTH_ACCOUNT)
+    credentialStoreAvailable = true
+    credentialStoreUnavailableReason = undefined
   } catch (error) {
-    keychainAvailable = false
-    keychainUnavailableReason = safeSecretErrorMessage(error)
+    credentialStoreAvailable = false
+    credentialStoreUnavailableReason = safeSecretErrorMessage(error)
   }
 }
 
 async function hydrateCredentialCache(repos: Repositories): Promise<void> {
   const records = listStoredSecretRecords(repos).allRecords
   for (const record of records) {
-    if (!isKeychainReference(record.value)) continue
+    if (!isLocalCredentialReference(record.value)) continue
     try {
       const value = await credentialStore.getPassword(CREDENTIAL_SERVICE, accountFromReference(record.value))
       if (value) credentialCache.set(record.value, value)
       else credentialCache.delete(record.value)
     } catch (error) {
       credentialCache.delete(record.value)
-      keychainAvailable = false
-      keychainUnavailableReason = safeSecretErrorMessage(error)
+      credentialStoreAvailable = false
+      credentialStoreUnavailableReason = safeSecretErrorMessage(error)
     }
   }
 }
 
 async function prepareCredential(area: SecretRecordArea, recordId: string, value: string): Promise<PreparedCredential> {
   if (!value.trim()) throw new Error('API Key 不能为空。')
-  if (!keychainAvailable) await probeCredentialStore()
-  if (!keychainAvailable) {
-    throw new Error('系统钥匙串/凭据管理器不可用，已拒绝保存 API Key。请恢复系统凭据服务后重试。')
+  if (!credentialStoreAvailable) await probeCredentialStore()
+  if (!credentialStoreAvailable) {
+    throw new Error('本地凭据存储不可用，已拒绝保存 API Key。')
   }
   const account = `${area}:${recordId}:${randomUUID()}`
   try {
     await credentialStore.setPassword(CREDENTIAL_SERVICE, account, value)
-    return { ref: `${KEYCHAIN_PREFIX}${account}`, account, value }
+    return { ref: `${LOCAL_CREDENTIAL_PREFIX}${account}`, account, value }
   } catch (error) {
-    keychainAvailable = false
-    keychainUnavailableReason = safeSecretErrorMessage(error)
-    throw new Error('系统钥匙串/凭据管理器写入失败，原有配置未被修改。')
+    credentialStoreAvailable = false
+    credentialStoreUnavailableReason = safeSecretErrorMessage(error)
+    throw new Error('本地凭据文件写入失败，原有配置未被修改。')
   }
 }
 
 async function retireCredentialReference(value: string | undefined): Promise<void> {
-  if (!isKeychainReference(value)) return
+  if (!isLocalCredentialReference(value)) return
   credentialCache.delete(value)
   await deleteCredentialQuietly(value)
 }
 
 async function deleteCredentialQuietly(reference: string): Promise<void> {
-  if (!isKeychainReference(reference)) return
+  if (!isLocalCredentialReference(reference)) return
   try {
     await credentialStore.deletePassword(CREDENTIAL_SERVICE, accountFromReference(reference))
   } catch {
@@ -401,7 +417,7 @@ async function deleteCredentialQuietly(reference: string): Promise<void> {
 }
 
 function accountFromReference(reference: string): string {
-  return reference.slice(KEYCHAIN_PREFIX.length)
+  return reference.slice(LOCAL_CREDENTIAL_PREFIX.length)
 }
 
 function splitSecretInput(input: unknown): SecretInput {
@@ -466,12 +482,12 @@ function buildSecretStorageHealth(
   modelRecords: SecretRecordSnapshot[],
   videoRecords: SecretRecordSnapshot[],
 ): SecretStorageHealth {
-  const modelConfigs = summarizeSecretValues(modelRecords, safeStorage)
-  const videoProviderConfigs = summarizeSecretValues(videoRecords, safeStorage)
+  const modelConfigs = summarizeSecretValues(modelRecords)
+  const videoProviderConfigs = summarizeSecretValues(videoRecords)
   return {
     checkedAt: new Date().toISOString(),
-    encryptionAvailable: keychainAvailable,
-    keychainAvailable,
+    encryptionAvailable: credentialStoreAvailable,
+    keychainAvailable: credentialStoreAvailable,
     modelConfigs,
     videoProviderConfigs,
     totals: mergeSecretStateCounts(modelConfigs, videoProviderConfigs),

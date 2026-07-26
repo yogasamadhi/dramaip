@@ -27,14 +27,17 @@
     "test:unit": "node --import tsx --test tests/**/*.test.ts",
     "test:db": "node scripts/test-db.mjs",
     "test": "pnpm typecheck && pnpm test:unit && pnpm test:db",
-    "install:electron": "node scripts/install-electron.mjs"
+    "install:electron": "node apps/desktop/node_modules/electron/install.js --no"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
-    "typescript": "^5.6.3"
+    "typescript": "^5.9.3"
   },
   "packageManager": "pnpm@11.2.2",
+  "config": {
+    "electron_mirror": "https://npmmirror.com/mirrors/electron/"
+  },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   }
 }

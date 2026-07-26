@@ -7,25 +7,18 @@ import type {
   WorkflowRunStepKind,
   WritingRoomTargetKind,
 } from '../types'
+import { BUILT_IN_GENRE_PRESETS } from './genre-presets'
 
 /** 短剧类型预设（§5.2） */
-export const SHORT_DRAMA_TYPES: string[] = [
-  '女频复仇',
-  '真假千金',
-  '重生逆袭',
-  '先婚后爱',
-  '霸总追妻',
-  '豪门恩怨',
-  '赘婿打脸',
-  '战神归来',
-  '玄学直播',
-  '古装权谋',
-  '悬疑反转',
-  '甜宠爽文',
-]
+export const SHORT_DRAMA_TYPES: string[] = BUILT_IN_GENRE_PRESETS.map((preset) => preset.name)
 
 /** 视觉风格方向预设（§5.2）—— 面向 AI 短剧视频生成 */
 export const VISUAL_STYLE_DIRECTIONS: string[] = [
+  '东方玄幻奇观',
+  '游戏副本世界',
+  '末世废土生存',
+  '规则怪谈空间',
+  '民俗悬疑氛围',
   '现代都市短剧',
   '豪门精致感',
   '古风国风',
@@ -92,12 +85,17 @@ function workspaceNavItems(keys: string[]): WorkspaceNavKey[] {
 export const WORKSPACE_NAV_GROUPS: WorkspaceNavGroup[] = [
   {
     key: 'creation',
-    label: '创作',
-    items: workspaceNavItems(['chapters', 'overview', 'chat', 'inspiration', 'characters', 'outline', 'story-planning', 'project-skills', 'agent-schemes']),
+    label: '创作核心',
+    items: workspaceNavItems(['chapters', 'overview', 'chat']),
+  },
+  {
+    key: 'settings-materials',
+    label: '设定与素材',
+    items: workspaceNavItems(['characters', 'outline', 'story-planning', 'inspiration', 'project-skills', 'agent-schemes']),
   },
   {
     key: 'memory',
-    label: '记忆',
+    label: '记忆一致性',
     items: workspaceNavItems([
       'memory',
       'character-state',
@@ -236,7 +234,7 @@ export const TASK_WRITE_POLICIES: Record<NovelTaskType, AiTaskWritePolicyDefinit
   generate_book_outline: taskPolicy('preview_then_adopt', '生成全书大纲，用户采用后写入大纲。'),
   generate_chapter_outline: taskPolicy('preview_then_adopt', '生成章节大纲，用户采用后新增大纲。'),
   generate_story_arc_outline: taskPolicy('preview_then_adopt', '生成卷/单元/剧情阶段规划，用户采用后写入长篇规划。'),
-  generate_chapter: taskPolicy('preview_then_adopt', '生成章节正文，用户确认差异后写入。'),
+  generate_chapter: taskPolicy('preview_then_adopt', '空白章节首次生成会直接写入；已有正文时仍需确认差异。'),
   continue_chapter: taskPolicy('preview_then_adopt', '续写章节正文，用户确认差异后写入。'),
   rewrite_chapter: taskPolicy('preview_then_adopt', '改写章节正文，用户确认差异后写入。'),
   polish_chapter: taskPolicy('preview_then_adopt', '润色章节正文，用户确认差异后写入。'),
@@ -319,12 +317,12 @@ export const VIDEO_PROVIDER_KINDS = [
 /** 视频 Provider 种类 → 中文标签（用于配置 UI） */
 export const VIDEO_PROVIDER_KIND_LABELS: Record<string, string> = {
   mock: 'Mock（模拟，不真实生成）',
-  jimeng: '即梦 Dreamina',
-  kling: '可灵 Kling',
+  jimeng: '即梦 Dreamina（即将支持）',
+  kling: '可灵 Kling（即将支持）',
   hailuo: '海螺 Hailuo',
   wan: '阿里云百炼 Wan',
-  runway: 'Runway',
-  pika: 'Pika',
+  runway: 'Runway（即将支持）',
+  pika: 'Pika（即将支持）',
   openai_sora: 'OpenAI Sora',
   custom: '自定义（OpenAI 兼容）',
 }

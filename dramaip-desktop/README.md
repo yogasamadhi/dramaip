@@ -17,7 +17,7 @@
 
 ## 技术栈
 
-- **桌面端**：Electron 38 + electron-vite
+- **桌面端**：Electron 43.2.0 + electron-vite 5
 - **前端**：React 19 + Vite + TypeScript
 - **UI**：Tailwind CSS + shadcn/ui（浅色主题）
 - **状态**：Zustand
@@ -41,6 +41,7 @@ packages/
 
 ```bash
 pnpm install          # 安装依赖
+pnpm install:electron # 下载 Electron 43.2.0 二进制
 pnpm rebuild          # 按 Electron ABI 重编 better-sqlite3（首次/切换 Node↔Electron 后必做）
 pnpm dev              # 启动开发模式（Electron + Vite）
 ```
@@ -58,6 +59,7 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 | 命令 | 说明 |
 | --- | --- |
 | `pnpm dev` | 启动 Electron + Vite 开发服务 |
+| `pnpm install:electron` | 按需下载 Electron 43.2.0 二进制 |
 | `pnpm build` | 构建产物（main / preload / renderer） |
 | `pnpm package` | 用 electron-builder 打包 |
 | `pnpm package:smoke` | 构建本平台安装包并启动打包后应用验证 DB 初始化 |
@@ -82,7 +84,7 @@ pnpm test:db
 ## 数据存储
 
 所有数据保存在本地 SQLite，数据库文件位于系统 `userData` 目录下 `studio.db`。
-模型与视频 Provider 的 API Key 不进入 SQLite 明文，SQLite 只保存系统 Keychain 引用。
+模型与视频 Provider 的 API Key 不进入 SQLite 明文，而是保存在用户数据目录的加密凭据文件中；SQLite 只保存本地引用。
 
 **数据安全（v1.0）：**
 - **版本化迁移**：`schema_migrations` 表记录迁移版本，应用升级时自动补齐、数据零丢失。
@@ -104,7 +106,7 @@ pnpm dev
 ```
 
 登录使用系统浏览器、一次性 code + PKCE 和 `127.0.0.1` 临时回调；refresh token 保存在系统
-Keychain，access token 仅存在 Electron main process 内存。生产环境两个 Cloud Origin 必须使用
+应用本地凭据文件，access token 仅存在 Electron main process 内存。生产环境两个 Cloud Origin 必须使用
 HTTPS。
 
 登录后可在「模型设置」选择 `DramaIP Cloud` 模型。它不要求、也不会保存平台 API Key：仅当前 AI

@@ -76,6 +76,8 @@ import type {
 export interface AiTaskInput {
   projectId?: string
   chapterId?: string
+  /** 本次章节正文生成的目标字数；允许范围为目标字数 ±300。 */
+  chapterWordGoal?: number
   characterId?: string
   adaptationProjectId?: string
   episodeId?: string
@@ -273,10 +275,11 @@ export interface CaseStudyImportResult {
 }
 
 export interface SecretStorageStatus {
-  /** Compatibility field: this now reflects the system credential store state. */
+  /** Compatibility field: this now reflects the local credential file state. */
   encryptionAvailable: boolean
+  /** Compatibility field: no operating-system Keychain is accessed. */
   keychainAvailable: boolean
-  mode: 'system_keychain' | 'keychain_unavailable'
+  mode: 'local_file' | 'local_file_unavailable'
   health?: SecretStorageHealth
   lastMigration?: SecretMigrationSummary
   unavailableReason?: string
@@ -329,6 +332,7 @@ export interface CloudMobileDraft {
 export interface SecretStateCounts {
   total: number
   empty: number
+  localFile: number
   keychain: number
   encrypted: number
   unsafePlaintext: number
@@ -557,6 +561,7 @@ export interface StudioApi {
   }
   evaluation: {
     list(projectId: string): Promise<Evaluation[]>
+    listByChapter(chapterId: string): Promise<Evaluation[]>
   }
   aiRun: {
     list(projectId: string): Promise<AiRun[]>
@@ -585,13 +590,14 @@ export interface StudioApi {
   }
   ai: {
     run(input: AiTaskInput): Promise<AiTaskResult>
-    runStream(input: AiTaskInput, onChunk: (chunk: string) => void): Promise<AiTaskResult>
+    runStream(input: AiTaskInput, onChunk: (chunk: string) => void, onReset?: () => void): Promise<AiTaskResult>
     applyResult(input: ApplyArtifactInput): Promise<ApplyArtifactResult>
   }
   // v0.2 长篇一致性与视觉记忆系统
   chapterMemory: {
     list(projectId: string): Promise<ChapterMemory[]>
     get(id: string): Promise<ChapterMemory | undefined>
+    getByChapter(projectId: string, chapterId: string): Promise<ChapterMemory | undefined>
     create(data: unknown): Promise<ChapterMemory>
     update(id: string, patch: unknown): Promise<ChapterMemory | undefined>
     remove(id: string): Promise<boolean>
@@ -599,6 +605,7 @@ export interface StudioApi {
   characterState: {
     list(projectId: string): Promise<CharacterState[]>
     listByCharacter(characterId: string): Promise<CharacterState[]>
+    listByChapter(chapterId: string): Promise<CharacterState[]>
     create(data: unknown): Promise<CharacterState>
     remove(id: string): Promise<boolean>
   }
@@ -617,12 +624,14 @@ export interface StudioApi {
   }
   storyEvent: {
     list(projectId: string): Promise<StoryEvent[]>
+    listByChapter(chapterId: string): Promise<StoryEvent[]>
     create(data: unknown): Promise<StoryEvent>
     update(id: string, patch: unknown): Promise<StoryEvent | undefined>
     remove(id: string): Promise<boolean>
   }
   foreshadowing: {
     list(projectId: string): Promise<Foreshadowing[]>
+    listByChapter(chapterId: string): Promise<Foreshadowing[]>
     create(data: unknown): Promise<Foreshadowing>
     update(id: string, patch: unknown): Promise<Foreshadowing | undefined>
     remove(id: string): Promise<boolean>
@@ -637,11 +646,13 @@ export interface StudioApi {
   }
   highlight: {
     list(projectId: string): Promise<HighlightAnalysis[]>
+    getByChapter(projectId: string, chapterId: string): Promise<HighlightAnalysis | undefined>
     create(data: unknown): Promise<HighlightAnalysis>
     remove(id: string): Promise<boolean>
   }
   feasibility: {
     list(projectId: string): Promise<AiVideoFeasibilityReport[]>
+    getByChapter(projectId: string, chapterId: string): Promise<AiVideoFeasibilityReport | undefined>
     create(data: unknown): Promise<AiVideoFeasibilityReport>
     remove(id: string): Promise<boolean>
   }

@@ -32,8 +32,12 @@ export function EvaluationSection({ projectId, chapter }: Props) {
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
-    setList(await ipc.evaluation.list(projectId))
-  }, [projectId])
+    if (!chapter) {
+      setList([])
+      return
+    }
+    setList(await ipc.evaluation.listByChapter(chapter.id))
+  }, [chapter])
 
   useEffect(() => {
     void reload()
