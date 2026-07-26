@@ -9,7 +9,7 @@
 ```bash
 pnpm format:check
 pnpm typecheck
-pnpm rebuild:node && pnpm test:unit
+pnpm test:unit
 pnpm test:db
 pnpm --filter @sdns/desktop rebuild:electron
 pnpm build
@@ -18,8 +18,9 @@ pnpm test:ui:skip-build
 pnpm package:smoke
 ```
 
-`test:db` 会为 Electron 重建 `better-sqlite3`，因此 Node 单元测试必须在它之前运行；若随后还要跑 Node
-测试，先执行 `pnpm rebuild:node`。这不是功能失败，不能被忽略或误报为通过。
+`test:unit` 会先为当前 Node ABI 重建 `better-sqlite3`，并且无论成功或失败都会恢复
+Electron ABI；`test:db` 结束时也会恢复原生模块。因此发布 Gate 仍按上面的顺序执行，
+不能把 ABI 错误忽略或误报为通过。
 
 发布 Gate 还要求：旧数据库迁移、项目包换机导入、素材/权利缺失 fail-closed、AIGC 合规封装、至少两个平台
 交付包及 checksum 均有自动化证据。真实图片、TTS 和视频 Provider 只有在账号所有者显式授权计费、由秘密注入环境

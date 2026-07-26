@@ -23,7 +23,7 @@ import { buildAiPreflightContext } from '@/lib/aiPreflightContext'
 import { useAiContextStore } from '@/stores/useAiContextStore'
 import { useWorkflowSnapshotStore } from '@/stores/useWorkflowSnapshotStore'
 import { shouldAutoAdoptChapterDraft } from '@/lib/textPreviewPolicy'
-import { getChapterLengthStatus, type ChapterLengthStatus } from '@/lib/chapterLength'
+import { getChapterLengthPlan, getChapterLengthStatus, type ChapterLengthStatus } from '@/lib/chapterLength'
 import { buildPilotProductionTruth } from '@/lib/pilotProductionTruth'
 import type { InspirationProjectSeed } from '@/lib/inspirationSchemes'
 import { AdaptationReadinessPanel } from '@/components/AdaptationReadinessPanel'
@@ -295,16 +295,6 @@ export function WorkspacePage() {
     })
   }, [setSearchParams])
 
-  // 统一的导航项选择处理：writing-room 走独立路由，其余走 section 切换。
-  const selectNavKey = useCallback((key: string) => {
-    if (!project) return
-    if (key === 'writing-room') {
-      void navigate(`/projects/${project.id}/writing-room`)
-      return
-    }
-    openWorkspaceTarget(key)
-  }, [project, navigate, openWorkspaceTarget])
-
   // 概览面板的 ScrollArea 根元素；点击「创作工作台」面包屑时把概览滚回顶部，
   // 这样即使当前已在概览页也有明确的视觉反馈。
   const overviewScrollRef = useRef<HTMLDivElement | null>(null)
@@ -463,10 +453,7 @@ export function WorkspacePage() {
     setAdjustingChapterLength(true)
     const toastId = toast.loading('正在基于首稿调整章节字数…')
     let accumulated = ''
-    const safetyBuffer = Math.min(100, Math.floor((status.target - status.minimum) / 2))
-    const preferredTarget = Math.max(status.minimum, status.target - safetyBuffer)
-    const preferredMinimum = Math.max(status.minimum, preferredTarget - 50)
-    const preferredMaximum = Math.min(status.maximum, preferredTarget + 50)
+    const { preferredMinimum, preferredTarget, preferredMaximum } = getChapterLengthPlan(status.target)
     const requiredChange = Math.abs(preferredTarget - status.count)
     const adjustmentDirection = status.direction === 'long'
       ? `本次只做压缩：请删减约 ${requiredChange} 字的重复描写、无效过渡或冗余对白，绝不能新增支线或扩写。`

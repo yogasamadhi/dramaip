@@ -24,7 +24,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm typecheck",
     "format:check": "node scripts/check-format.mjs",
-    "test:unit": "node --import tsx --test tests/**/*.test.ts",
+    "test:unit": "node scripts/test-unit.mjs",
     "test:db": "node scripts/test-db.mjs",
     "test": "pnpm typecheck && pnpm test:unit && pnpm test:db",
     "install:electron": "node apps/desktop/node_modules/electron/install.js --no"

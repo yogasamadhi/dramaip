@@ -12,7 +12,7 @@ import {
   applyContextBudget,
 } from '../context/context-builder'
 import { effectiveTaskType, getPromptTemplate, isJsonTask, isTextChapterTask } from '../prompts/loader'
-import { chapterLengthRange } from '../chapter-length'
+import { chapterLengthPlan, chapterRewriteLengthGuidance, countChapterCharacters } from '../chapter-length'
 import type { NovelTaskType } from '@sdns/core'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
@@ -33,7 +33,9 @@ export function createBuildPromptNode(_deps: NodeDeps) {
             '',
             '---',
             '【修复要求】上一次输出未通过校验：' + state.error,
-            '请从头重新生成完整结果，绝不能沿用、续写或拼接上一轮文本。把字数上限当作绝对红线，优先遵守本章字数硬性约束中的首稿安全区间；不要解释、不要说明。',
+            '请从原始输入重新生成一次完整结果，绝不能沿用、续写、复述或拼接上一轮文本。',
+            '上一轮已经由程序按非空白字符精确计数；本轮必须根据上面的实测偏差主动增删，优先命中「本章字数硬性约束」中的首稿优选区间，并把字数上限当作绝对红线。',
+            '不要解释、不要说明、不要报告字数，只输出一次完整正文。',
           ].join('\n')
       return {
         promptText: (state.promptText ?? '') + fix,
@@ -70,19 +72,31 @@ export function createBuildPromptNode(_deps: NodeDeps) {
       && isTextChapterTask(effectiveType)
       && effectiveType !== 'continue_chapter'
     if (isLengthBoundChapterText || isChapterLengthAdjustment) {
-      const { target, minimum, maximum } = chapterLengthRange(state.chapterWordGoal)
-      // 模型对中文字符、Markdown 标题的估算常有误差。首稿主动预留余量，
-      // 验收范围仍严格是用户设置的目标字数 ±300，不改变最终规则。
-      const safetyBuffer = Math.min(100, Math.floor((target - minimum) / 2))
-      const preferredTarget = Math.max(minimum, target - safetyBuffer)
-      const preferredMinimum = Math.max(minimum, preferredTarget - 50)
-      const preferredMaximum = Math.min(maximum, preferredTarget + 50)
+      const {
+        target,
+        minimum,
+        maximum,
+        preferredMinimum,
+        preferredTarget,
+        preferredMaximum,
+      } = chapterLengthPlan(state.chapterWordGoal)
+      const sourceContent = isChapterLengthAdjustment
+        ? extractAdjustmentDraft(state.userInstruction)
+        : state.currentChapter?.content
+      const sourceCount = sourceContent?.trim() ? countChapterCharacters(sourceContent) : 0
+      const sourceGuidance = sourceCount > 0
+        ? chapterRewriteLengthGuidance(sourceCount, preferredMinimum, preferredTarget, preferredMaximum)
+        : [
+            `动笔前先按约 ${preferredTarget} 字规划情节容量；可参考分配：开篇约 ${Math.round(preferredTarget * 0.2)} 字，中段约 ${Math.round(preferredTarget * 0.55)} 字，结尾约 ${Math.max(1, preferredTarget - Math.round(preferredTarget * 0.2) - Math.round(preferredTarget * 0.55))} 字。`,
+            '分段预算只用于内部规划，不要在输出中写出段落标签、预算或计数过程。',
+          ].join(' ')
       parts.push([
         isChapterLengthAdjustment ? '# 字数调整最终硬性约束（覆盖前文任何篇幅倾向）' : '# 本章字数硬性约束',
         '',
         `验收范围：全部输出按非空白字符计（包括第一行 Markdown 标题），目标 ${target} 字，允许范围 ${minimum}–${maximum} 字（目标字数 ±${maximum - target} 字）。`,
         `绝对红线：不得超过 ${maximum} 字；即使只超出 1 字也视为失败。`,
-        `${isChapterLengthAdjustment ? '一次调整成功的安全区间' : '首稿安全区间'}：请优先把完整正文控制在 ${preferredMinimum}–${preferredMaximum} 字，为标题和字符估算误差预留空间。`,
+        `${isChapterLengthAdjustment ? '一次调整成功的优选区间' : '首稿优选区间'}：请把完整输出优先控制在 ${preferredMinimum}–${preferredMaximum} 字，内部以约 ${preferredTarget} 字收束，为标题和字符估算误差预留上方空间。`,
+        sourceGuidance,
         `${isChapterLengthAdjustment ? '只能在待调整首稿上做定向增删，绝不能复述、复制两遍或另起炉灶。' : '写作前请在内部规划篇幅。'} 输出后自行复核，达到完整结尾后立即停止，禁止补写尾声、作者话、字数说明或任何附加内容。`,
         '不足时只补足有效情节、对白或动作；超出时优先删减重复描写。不得用标题、重复段落或标点凑字数。',
       ].join('\n'))
@@ -93,6 +107,13 @@ export function createBuildPromptNode(_deps: NodeDeps) {
 
     return { promptText: parts.join('\n\n'), contextText }
   }
+}
+
+function extractAdjustmentDraft(userInstruction?: string): string | undefined {
+  const marker = '【待调整首稿】'
+  const markerIndex = userInstruction?.lastIndexOf(marker) ?? -1
+  if (!userInstruction || markerIndex < 0) return undefined
+  return userInstruction.slice(markerIndex + marker.length).trim()
 }
 
 function buildContext(state: NovelGraphStateType, taskType: NovelTaskType): string {

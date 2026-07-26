@@ -1,9 +1,11 @@
 // callModelNode —— 调用 OpenAI-compatible 模型（§10.2 / §9）
 import { effectiveTaskType, isJsonTask } from '../prompts/loader'
+import { isTextChapterTask } from '../prompts/task-types'
 import type { ChatInput, ChatMessage } from '@sdns/core'
 import type { NovelGraphStateType } from '../graphs/state'
 import type { NodeDeps } from './deps'
 import { checkAiBudgetBeforeCall } from '../budget'
+import { chapterOutputTokenLimit } from '../chapter-length'
 
 export function createCallModelNode(deps: NodeDeps) {
   return async (state: NovelGraphStateType): Promise<Partial<NovelGraphStateType>> => {
@@ -16,6 +18,9 @@ export function createCallModelNode(deps: NodeDeps) {
     }
 
     const effectiveType = effectiveTaskType(state.taskType, state.templateScope)
+    const lengthBoundChapterText = state.chapterWordGoal !== undefined
+      && isTextChapterTask(effectiveType)
+      && effectiveType !== 'continue_chapter'
     // 校验失败后会从 build_prompt 回到这里。通知流式 UI 清空上一轮不合格文本，
     // 让重试结果从空编辑器开始显示，而不是与第一次结果拼接。
     if ((state.retryCount ?? 0) > 0) deps.onRetry?.()
@@ -29,7 +34,14 @@ export function createCallModelNode(deps: NodeDeps) {
 
     const input: ChatInput = {
       messages,
-      temperature: effectiveType === 'evaluate_ai_drama_fit' ? 0.2 : 0.9,
+      temperature: effectiveType === 'evaluate_ai_drama_fit'
+        ? 0.2
+        : lengthBoundChapterText
+          ? 0.65
+          : 0.9,
+      maxTokens: lengthBoundChapterText
+        ? chapterOutputTokenLimit(state.chapterWordGoal)
+        : undefined,
       responseFormat: isJsonTask(effectiveType) ? 'json' : 'text',
       signal: deps.signal,
     }

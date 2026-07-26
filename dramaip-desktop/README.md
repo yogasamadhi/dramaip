@@ -73,8 +73,9 @@ pnpm dev              # 启动开发模式（Electron + Vite）
 
 ## 数据层冒烟测试
 
-`pnpm test:db` 会先把 better-sqlite3 编译到当前 Node ABI，运行迁移回放与
-`scripts/smoke-db.ts`，最后再把 better-sqlite3 编译回 Electron ABI。
+`pnpm test:unit` 会先把 better-sqlite3 编译到当前 Node ABI，避免刚运行过
+Electron 构建后因 ABI 不匹配导致数据库类单测失败，并且无论测试成功或失败都会恢复
+Electron ABI。`pnpm test:db` 会运行迁移回放与 `scripts/smoke-db.ts`，结束时同样恢复 Electron ABI。
 `scripts/smoke-db.ts` 覆盖全部实体的 CRUD、级联删除、持久化和项目包往返（注入式，无需 API key）。
 
 ```bash

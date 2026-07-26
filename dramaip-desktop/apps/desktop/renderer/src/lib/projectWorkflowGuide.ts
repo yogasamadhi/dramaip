@@ -14,7 +14,6 @@ import type {
   VideoResult,
 } from '@sdns/core'
 import { isProjectSetupComplete } from '@sdns/core'
-import { buildProjectQualityGateTruth } from './qualityGateTruth'
 import { buildPilotProductionTruth } from './pilotProductionTruth'
 
 export type ProjectWorkflowStageKey =

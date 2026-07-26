@@ -1,28 +1,23 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { BUILT_IN_COMPLIANCE_RULE_PROFILES, buildEpisodeRenderPlan, type AnimaticDraft, type AudioTrack, type ComplianceRuleProfile, type Shot } from '../packages/core/src'
-import { renderEpisodeFiles, type EpisodeRenderAudioSource } from '../apps/desktop/electron/episode-render'
+import { discoverEpisodeFfmpeg, renderEpisodeFiles, type EpisodeRenderAudioSource } from '../apps/desktop/electron/episode-render'
 import { inspectEpisodeMedia } from '../apps/desktop/electron/episode-quality'
 import { renderCompliantEpisode } from '../apps/desktop/electron/episode-compliance'
 
-const requireFromDesktop = createRequire(join(process.cwd(), 'apps/desktop/package.json'))
-const bundledFfmpegPath = requireFromDesktop('ffmpeg-static') as string | null
-const ffmpegPath = [bundledFfmpegPath, '/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg']
-  .find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)))
-
-test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix and manifest', { skip: !ffmpegPath && 'FFmpeg is not installed on this test host' }, async () => {
+test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix and manifest', async (t) => {
+  const ffmpegPath = await discoverEpisodeFfmpeg()
+  if (!ffmpegPath) return t.skip('FFmpeg is not installed on this test host')
   const directory = await mkdtemp(join(tmpdir(), 'sdns-episode-render-'))
   try {
     const imagePath = join(directory, 'still.png')
     const audioPath = join(directory, 'dialogue.wav')
-    await run(ffmpegPath!, ['-y', '-f', 'lavfi', '-i', 'color=c=navy:s=320x180', '-frames:v', '1', imagePath])
-    await run(ffmpegPath!, ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100', '-t', '1.2', '-c:a', 'pcm_s16le', audioPath])
+    await run(ffmpegPath, ['-y', '-f', 'lavfi', '-i', 'color=c=navy:s=320x180', '-frames:v', '1', imagePath])
+    await run(ffmpegPath, ['-y', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100', '-t', '1.2', '-c:a', 'pcm_s16le', audioPath])
     const animatic = {
       id: 'a1', projectId: 'p1', adaptationProjectId: 'ap1', episodeId: 'e1', versionNumber: 1, status: 'approved', sourceFingerprint: 's1@1', annotations: [], createdAt: '', updatedAt: '',
       clips: [{ id: 'c1', shotId: 's1', orderIndex: 0, durationSeconds: 1.2, transition: 'fade', crop: { zoom: 1, x: 0, y: 0 }, assetId: 'image-1' }],
@@ -38,13 +33,13 @@ test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix 
       clip: { id: 'clip-a', assetId: 'audio-1', startSeconds: 0, durationSeconds: 1.2, volume: 1, fadeInSeconds: 0.05, fadeOutSeconds: 0.05, loop: false, duckingIntent: false },
       asset: { id: 'audio-1', projectId: 'p1', kind: 'dialogue_audio', title: '对白', localPath: audioPath, tags: [], metadata: {}, status: 'available', packagePolicy: 'include_binary', createdAt: '', updatedAt: '' },
     }
-    const archive = await renderEpisodeFiles({ ffmpegPath: ffmpegPath!, projectId: 'p1', taskId: 'task-1', plan, audioClips: [audio], signal: new AbortController().signal, directory: join(directory, 'delivery') })
+    const archive = await renderEpisodeFiles({ ffmpegPath, projectId: 'p1', taskId: 'task-1', plan, audioClips: [audio], signal: new AbortController().signal, directory: join(directory, 'delivery') })
     assert.ok((await stat(archive.mp4Path)).size > 1_000)
     assert.ok((await stat(archive.srtPath)).size > 0)
     assert.ok((await stat(archive.vttPath)).size > 0)
     assert.ok((await stat(archive.audioPath)).size > 1_000)
     assert.ok((await stat(archive.manifestPath)).size > 0)
-    const inspection = await inspectEpisodeMedia(ffmpegPath!, archive.mp4Path, new AbortController().signal)
+    const inspection = await inspectEpisodeMedia(ffmpegPath, archive.mp4Path, new AbortController().signal)
     assert.equal(inspection.readable, true)
     assert.equal(inspection.width, 720)
     assert.equal(inspection.height, 1280)
@@ -55,14 +50,16 @@ test('bundled/local FFmpeg renderer archives vertical MP4, subtitles, audio mix 
   }
 })
 
-test('compliance transcode writes mandatory visible labeling pipeline and verified hidden AIGC metadata', { skip: !ffmpegPath && 'FFmpeg is not installed on this test host' }, async () => {
+test('compliance transcode writes mandatory visible labeling pipeline and verified hidden AIGC metadata', async (t) => {
+  const ffmpegPath = await discoverEpisodeFfmpeg()
+  if (!ffmpegPath) return t.skip('FFmpeg is not installed on this test host')
   const directory = await mkdtemp(join(tmpdir(), 'sdns-episode-compliance-'))
   try {
     const sourceMp4Path = join(directory, 'source.mp4')
-    await run(ffmpegPath!, ['-y', '-f', 'lavfi', '-i', 'color=c=navy:s=720x1280:r=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100', '-t', '1.2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', sourceMp4Path])
+    await run(ffmpegPath, ['-y', '-f', 'lavfi', '-i', 'color=c=navy:s=720x1280:r=30', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100', '-t', '1.2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', sourceMp4Path])
     const profile: ComplianceRuleProfile = { ...BUILT_IN_COMPLIANCE_RULE_PROFILES[0], createdAt: '', updatedAt: '' }
     const archive = await renderCompliantEpisode({
-      ffmpegPath: ffmpegPath!,
+      ffmpegPath,
       sourceMp4Path,
       taskId: 'compliance-task-1',
       sourceFingerprint: 'render-fingerprint@1',

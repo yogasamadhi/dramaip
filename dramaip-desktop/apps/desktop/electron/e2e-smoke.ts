@@ -918,6 +918,12 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     return input
   }
 
+  function inputByPlaceholder(placeholder: string): HTMLInputElement {
+    const input = document.querySelector(`input[placeholder="${placeholder}"]`) as HTMLInputElement | null
+    if (!input) throw new Error(`未找到输入框占位提示：${placeholder}`)
+    return input
+  }
+
   function setInputValue(input: HTMLInputElement, value: string): void {
     const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
     descriptor?.set?.call(input, value)
