@@ -959,6 +959,7 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'analytics:record': [analyticsEventInput],
   'analytics:exportLocal': [],
   'analytics:clearPending': [],
+  'demo:create': [],
   'review:exportOffline': [timelineScopeInput],
   'review:importOffline': [],
   'review:publishCloud': [],

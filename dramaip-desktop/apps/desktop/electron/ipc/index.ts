@@ -39,6 +39,7 @@ import { registerLocalizationIpc } from './localization.ipc'
 import { installIpcValidation } from './validation'
 import { registerProductionStudioIpc } from './production-studio.ipc'
 import { registerReviewEditorIpc } from './review-editor.ipc'
+import { registerDemoIpc } from './demo.ipc'
 
 export function registerAllIpc(): void {
   installIpcValidation()
@@ -62,6 +63,7 @@ export function registerAllIpc(): void {
   registerImageIpc()
   registerProductionStudioIpc()
   registerReviewEditorIpc()
+  registerDemoIpc()
   registerTtsIpc()
   registerAnimaticIpc()
   registerAudioIpc()

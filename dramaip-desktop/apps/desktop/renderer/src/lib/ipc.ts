@@ -659,6 +659,9 @@ export interface StudioApi {
     preflight(input: TimelineScopeInput): Promise<{ manifest: EditorTimelineManifest; preflight: { canExport: boolean; blockers: string[]; warnings: Array<{ code: string; clipId?: string; message: string }>; totalDurationSeconds: number }; openProductionBlockers: number }>
     export(input: TimelineScopeInput): Promise<{ saved: boolean; canceled?: boolean; directory?: string; bundlePath?: string; warnings?: Array<{ code: string; clipId?: string; message: string }>; error?: string }>
   }
+  demo: {
+    create(): Promise<{ projectId: string; adaptationProjectId: string; episodeId: string; sceneId: string; shotId: string }>
+  }
   ttsProvider: {
     list(): Promise<TtsProviderConfigRecord[]>
     getDefault(): Promise<TtsProviderConfigRecord | undefined>

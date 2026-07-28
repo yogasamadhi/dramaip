@@ -98,6 +98,9 @@ const api = {
     preflight: (input: unknown) => invoke('editorExport:preflight', input),
     export: (input: unknown) => invoke('editorExport:export', input),
   },
+  demo: {
+    create: () => invoke('demo:create'),
+  },
   ttsProvider: {
     list: () => invoke('ttsProvider:list'),
     getDefault: () => invoke('ttsProvider:getDefault'),

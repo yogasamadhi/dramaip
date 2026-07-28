@@ -176,4 +176,52 @@ export const BUILT_IN_TEMPLATES: BuiltInTemplatePreset[] = [
     ].join('\n'),
     variables: ['genre', 'targetAudience', 'shortDramaDirection', 'brief'],
   },
+  {
+    name: '都市情感 · 漫剧生产模板',
+    type: 'production',
+    description: '定义素材槽、镜头节奏、生成模式和交付参数；用于人工规划，不会一键生成整季。',
+    content: [
+      '【推荐素材槽】角色 face_anchor / expression / costume / voice_reference；场景 scene_layout / style_frame；关键道具 prop。',
+      '【镜头节奏】情绪建立 3–5 秒，反应特写 2–3 秒，对峙双人景 4–6 秒；重要关系变化必须给反应镜头。',
+      '【生成模式】lookdev 比较表情与布光，final 必须锁定角色、服装与场景。',
+      '【交付】{{frameRate}} fps，{{aspectRatio}}，对白 SRT，FCPXML 角色化音轨；审片重点：表情连续性与对白停连。',
+    ].join('\n'),
+    variables: ['frameRate', 'aspectRatio'],
+  },
+  {
+    name: '悬疑反转 · 漫剧生产模板',
+    type: 'production',
+    description: '强调线索可读性、空间连续性与反转前后的镜头证据，不包含第三方 IP。',
+    content: [
+      '【推荐素材槽】角色 face_anchor / turnaround / expression / costume；场景 scene_layout / scene_variant / style_frame；线索道具 prop。',
+      '【镜头节奏】线索建立至少 2 秒，误导信息与真实证据分别留镜头；反转前保留一个可回溯的视觉细节。',
+      '【生成模式】draft 检查信息量，lookdev 比较冷暖和视角，final 锁定线索位置与角色手持物。',
+      '【交付】{{frameRate}} fps，{{aspectRatio}}；审片重点：时间码线索、场景轴线、道具前后状态；EDL 降级报告必须列出转场损失。',
+    ].join('\n'),
+    variables: ['frameRate', 'aspectRatio'],
+  },
+  {
+    name: '古装幻想 · 漫剧生产模板',
+    type: 'production',
+    description: '强调服装阶段、法术色彩和大场景一致性，避免把模板包装成整季自动化。',
+    content: [
+      '【推荐素材槽】角色 face_anchor / turnaround / pose / costume；场景 scene_layout / scene_variant / style_frame；法器 prop。',
+      '【镜头节奏】建立镜头 4–6 秒，法术动作拆为起势/释放/结果，服装与伤势按剧情阶段建立版本。',
+      '【生成模式】lookdev 最多比较两个明确选择的 Provider；final 要求服装、法器和色彩参考锁齐全。',
+      '【交付】{{frameRate}} fps，{{aspectRatio}}；审片重点：头饰、衣襟、手部与法器连续性，复杂转场另附降级说明。',
+    ].join('\n'),
+    variables: ['frameRate', 'aspectRatio'],
+  },
+  {
+    name: '轻喜治愈 · 漫剧生产模板',
+    type: 'production',
+    description: '用于轻喜剧和治愈向漫剧的节奏与表情覆盖规划，不提供一键成片承诺。',
+    content: [
+      '【推荐素材槽】角色 face_anchor / expression / pose / costume；场景 scene_layout / style_frame；喜剧道具 prop。',
+      '【镜头节奏】铺垫 2–4 秒，包袱落点前留半拍，反应镜头 1.5–2.5 秒；治愈段落允许 4–6 秒停留。',
+      '【生成模式】draft 先验证包袱顺序，lookdev 比较夸张度，final 锁定表情、道具位置与画面安全区。',
+      '【交付】{{frameRate}} fps，{{aspectRatio}}；审片重点：表情是否过度、笑点停顿、字幕遮挡与音乐 ducking。',
+    ].join('\n'),
+    variables: ['frameRate', 'aspectRatio'],
+  },
 ]

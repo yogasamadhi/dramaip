@@ -46,6 +46,7 @@ export function CreateProjectPage() {
   const requestedDirection = searchParams.get('direction') ?? ''
   const requestedIdea = searchParams.get('idea') ?? ''
   const requestedOpportunityId = searchParams.get('opportunity') ?? ''
+  const requestedGoal = searchParams.get('goal')
   const [title, setTitle] = useState('')
   const [shortDramaType, setShortDramaType] = useState<string>(SHORT_DRAMA_TYPES[0])
   const [targetAudience, setTargetAudience] = useState('')
@@ -80,8 +81,13 @@ export function CreateProjectPage() {
     if (requestedDirection) setCoreSellingPoint((value) => value || requestedDirection)
     if (requestedIdea) setIdea((value) => value || requestedIdea)
     if (requestedOpportunityId) setGenreOpportunityId(requestedOpportunityId)
+    if (requestedGoal === 'novel_to_drama' || requestedGoal === 'adapt_existing_ip' || requestedGoal === 'direct_drama') {
+      setCreationGoal(requestedGoal)
+      setProductionBrief(createProjectProductionBrief({ creationGoal: requestedGoal }))
+      if (requestedGoal !== 'novel_to_drama') setAdvanced(true)
+    }
     if (requestedType || requestedAudience || requestedHook || requestedDirection || requestedIdea) setAdvanced(true)
-  }, [requestedAudience, requestedDirection, requestedHook, requestedIdea, requestedOpportunityId, requestedTitle, requestedType])
+  }, [requestedAudience, requestedDirection, requestedGoal, requestedHook, requestedIdea, requestedOpportunityId, requestedTitle, requestedType])
 
   const typeOptions = Array.from(new Set([...SHORT_DRAMA_TYPES, ...genrePresets.map((p) => p.name)]))
    const selectedOpportunity = selectGenreOpportunity(marketSnapshot, genreOpportunityId)

@@ -1122,6 +1122,7 @@ function DirectorRetakePanel({ projectId, shotId, onChanged }: { projectId: stri
   const [candidates, setCandidates] = useState<ShotStillCandidate[]>([])
   const [requests, setRequests] = useState<RetakeRequest[]>([])
   const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [providers, setProviders] = useState<ImageProviderConfigRecord[]>([])
   const [provider, setProvider] = useState<ImageProviderConfigRecord | null>(null)
   const [sourceCandidateId, setSourceCandidateId] = useState('')
   const [operation, setOperation] = useState<RetakeOperation>('expression')
@@ -1137,20 +1138,24 @@ function DirectorRetakePanel({ projectId, shotId, onChanged }: { projectId: stri
   const openImpacts = impacts.filter((impact) => impact.status === 'open')
 
   const load = useCallback(async () => {
-    const [nextCoverage, graph, nextCandidates, nextRequests, nextAssets, nextProvider] = await Promise.all([
+    const [nextCoverage, graph, nextCandidates, nextRequests, nextAssets, nextProvider, nextProviders] = await Promise.all([
       ipc.productionGraph.coverage(projectId),
       ipc.productionGraph.get(projectId),
       ipc.shotStill.listByShot(shotId),
       ipc.retake.list(projectId, shotId),
       ipc.asset.listByProject(projectId),
       ipc.imageProvider.getDefault(),
+      ipc.imageProvider.list(),
     ])
     setCoverage(nextCoverage)
     setImpacts(graph.impacts)
     setCandidates(nextCandidates)
     setRequests(nextRequests)
     setAssets(nextAssets)
-    setProvider(nextProvider ?? null)
+    setProviders(nextProviders.filter((item) => item.featureEnabled))
+    setProvider((current) => current && nextProviders.some((item) => item.id === current.id)
+      ? current
+      : nextProvider ?? nextProviders.find((item) => item.kind === 'mock') ?? null)
     setSourceCandidateId((current) => current && nextCandidates.some((item) => item.id === current)
       ? current
       : (nextCandidates.find((item) => item.status === 'adopted') ?? nextCandidates[0])?.id ?? '')
@@ -1309,7 +1314,7 @@ function DirectorRetakePanel({ projectId, shotId, onChanged }: { projectId: stri
         <Button size="sm" variant="outline" disabled={busy || !sourceCandidateId || !instruction.trim()} onClick={() => void runPreflight()}>仅预检</Button>
         <Button size="sm" disabled={busy || !provider || !sourceCandidateId || !instruction.trim()} onClick={() => void createRetake()}>{busy && <Loader2 className="animate-spin" />}创建候选</Button>
       </div>
-      <p className="text-xs text-muted-foreground">Provider：{provider ? `${provider.name} · ${provider.kind} · ${provider.model}` : '未配置'}。本地图片由主进程直接上传，API Key 和图片原始字节不会进入页面进程。</p>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>图片编辑 Provider：</span><select aria-label="Retake Provider" value={provider?.id ?? ''} onChange={(event) => setProvider(providers.find((item) => item.id === event.target.value) ?? null)} className="h-8 min-w-64 rounded border bg-background px-2 text-xs"><option value="">未配置</option>{providers.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.kind === 'mock' ? '离线 Mock' : item.model}</option>)}</select><span>本地图片由主进程直接上传，API Key 和图片原始字节不会进入页面进程。</span></div>
       {preflightIssues.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-xs text-destructive">{preflightIssues.map((issue) => <li key={`${issue.code}:${issue.message}`}>{issue.message}</li>)}</ul>}
 
       {requests.length > 0 && <div className="space-y-1">{requests.map((request) => (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpDown, BookText, Clapperboard, FileText, LayoutDashboard, Library, LibraryBig, MoreHorizontal, Plus, RotateCcw, Search, Settings, Sparkles, Star, Trash2, Upload } from 'lucide-react'
+import { ArrowUpDown, BookOpen, BookText, Clapperboard, FileText, FolderOpen, LayoutDashboard, Library, LibraryBig, Loader2, MoreHorizontal, Plus, RotateCcw, Search, Settings, Sparkles, Star, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ProjectDeletionPreview, ProjectHomeSummary, TrashedProject } from '@sdns/core'
 import { useProjectsStore } from '@/stores/useProjectsStore'
@@ -41,6 +41,7 @@ export function ProjectListPage() {
   const [trashOpen, setTrashOpen] = useState(false)
   const [purgePreview, setPurgePreview] = useState<ProjectDeletionPreview | null>(null)
   const [purgeConfirmation, setPurgeConfirmation] = useState('')
+  const [openingDemo, setOpeningDemo] = useState(false)
 
   useEffect(() => { void fetch() }, [fetch])
   useEffect(() => { window.localStorage.setItem(PINNED_PROJECTS_KEY, JSON.stringify(pinned)) }, [pinned])
@@ -76,6 +77,21 @@ export function ProjectListPage() {
       navigate(`/projects/${result.project.id}`)
     } else if (result.canceled) toast.dismiss(toastId)
     else toast.error('导入失败：' + (result.error ?? '未知错误'), { id: toastId })
+  }
+
+  async function openBuiltinDemo() {
+    setOpeningDemo(true)
+    const toastId = toast.loading('正在复制内置生产样片…')
+    try {
+      const result = await ipc.demo.create()
+      toast.success('样片已复制为普通本地项目；Mock Provider 与真实付费模型已明确区分。', { id: toastId })
+      await fetch()
+      navigate(`/adaptations/${result.adaptationProjectId}/shots?episode=${result.episodeId}&scene=${result.sceneId}&shot=${result.shotId}`)
+    } catch (error) {
+      toast.error(`创建样片失败：${error instanceof Error ? error.message : String(error)}`, { id: toastId })
+    } finally {
+      setOpeningDemo(false)
+    }
   }
 
   async function refreshTrash() {
@@ -158,9 +174,17 @@ export function ProjectListPage() {
       </header>
       <main className="min-h-0 flex-1 overflow-hidden">
         <ScrollArea className="h-full"><div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
+          <section className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-sm">
+            <div className="max-w-3xl"><Badge variant="secondary">DramaIP v2 Production Studio</Badge><h2 className="mt-3 text-xl font-semibold">把一部长篇 IP，安全地做成可审片、可复现、可交付的 AI 漫剧。</h2><p className="mt-2 text-sm text-muted-foreground">无需登录、API Key 或网络即可先跑通十镜头内置样片；也可以从受权小说开始，或直接打开已有本地项目。</p></div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <Button className="h-auto justify-start py-3 text-left" disabled={openingDemo} onClick={() => void openBuiltinDemo()}>{openingDemo ? <Loader2 className="animate-spin" /> : <Sparkles />}<span><span className="block">体验内置样片</span><span className="block text-xs font-normal opacity-80">离线 Mock · 十镜头完整流程</span></span></Button>
+              <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => navigate('/projects/new?goal=adapt_existing_ip')}><BookOpen /><span><span className="block">导入小说</span><span className="block text-xs font-normal text-muted-foreground">先建项目，再导入受权正文</span></span></Button>
+              <Button variant="outline" className="h-auto justify-start py-3 text-left" onClick={() => document.getElementById('project-search')?.focus()}><FolderOpen /><span><span className="block">打开已有项目</span><span className="block text-xs font-normal text-muted-foreground">{summaries.length ? `本地已有 ${summaries.length} 个项目` : '可导入 .sdnspkg 项目包'}</span></span></Button>
+            </div>
+          </section>
           <section className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1"><h2 className="font-semibold">继续创作</h2><p className="text-sm text-muted-foreground">项目卡会显示当前阶段、阻塞项与最合适的下一步。</p></div>
-            <div className="flex gap-2"><div className="relative flex-1 sm:w-72"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目、类型或最近章节" className="pl-9" /></div><Button variant="outline" size="icon" aria-label="切换排序" title={sort === 'recent' ? '按更新时间排序' : '按名称排序'} onClick={() => setSort((current) => current === 'recent' ? 'title' : 'recent')}><ArrowUpDown /></Button></div>
+            <div className="flex gap-2"><div className="relative flex-1 sm:w-72"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="project-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目、类型或最近章节" className="pl-9" /></div><Button variant="outline" size="icon" aria-label="切换排序" title={sort === 'recent' ? '按更新时间排序' : '按名称排序'} onClick={() => setSort((current) => current === 'recent' ? 'title' : 'recent')}><ArrowUpDown /></Button></div>
           </section>
           {loading && summaries.length === 0 ? <ProjectCardSkeleton /> : summaries.length === 0 ? (
             <section className="rounded-xl border border-dashed p-10 text-center"><Sparkles className="mx-auto mb-3 h-7 w-7 text-primary" /><h2 className="font-semibold">从一个名字开始</h2><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">先创建空白项目，或在创建页带入灵感；之后可随时补齐类型、人物和故事方向。</p><Button className="mt-5" onClick={() => navigate('/projects/new')}><Plus />新建第一个项目</Button></section>
