@@ -9,6 +9,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -189,6 +190,51 @@ func (u *BFFUsecase) DeleteProjectSnapshot(ctx context.Context, accessToken, sna
 		return nil, err
 	}
 	return u.data.Snapshot.DeleteProjectSnapshot(ctx, &snapshotv1.DeleteProjectSnapshotRequest{UserId: identity.UserId, SnapshotId: strings.TrimSpace(snapshotID)})
+}
+
+func (u *BFFUsecase) CreateReviewPackage(ctx context.Context, accessToken string, request *reviewv1.CreatePackageRequest) (*reviewv1.CreatePackageReply, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	request.UserId = identity.UserId
+	return u.data.Review.CreatePackage(ctx, request)
+}
+
+func (u *BFFUsecase) CompleteReviewPackage(ctx context.Context, accessToken, packageID string) (*reviewv1.ReviewPackage, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Review.CompletePackage(ctx, &reviewv1.CompletePackageRequest{UserId: identity.UserId, PackageId: strings.TrimSpace(packageID)})
+}
+
+func (u *BFFUsecase) RefreshReviewUploadTarget(ctx context.Context, accessToken, packageID, mediaID string) (*reviewv1.UploadTarget, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Review.RefreshUploadTarget(ctx, &reviewv1.RefreshUploadTargetRequest{
+		UserId: identity.UserId, PackageId: strings.TrimSpace(packageID), MediaId: strings.TrimSpace(mediaID),
+	})
+}
+
+func (u *BFFUsecase) SyncReviewPackage(ctx context.Context, accessToken, packageID string, afterCursor int64) (*reviewv1.SyncPackageReply, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Review.SyncPackage(ctx, &reviewv1.SyncPackageRequest{
+		UserId: identity.UserId, PackageId: strings.TrimSpace(packageID), AfterCursor: afterCursor,
+	})
+}
+
+func (u *BFFUsecase) DeleteReviewPackage(ctx context.Context, accessToken, packageID string) (*reviewv1.DeletePackageReply, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	return u.data.Review.DeletePackage(ctx, &reviewv1.DeletePackageRequest{UserId: identity.UserId, PackageId: strings.TrimSpace(packageID)})
 }
 
 func (u *BFFUsecase) authenticate(ctx context.Context, accessToken string) (*authv1.AuthReply, context.Context, error) {

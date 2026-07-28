@@ -11,6 +11,7 @@
   (dict "key" "notification" "component" "notification" "http" 8108 "grpc" 9106)
   (dict "key" "inspiration" "component" "inspiration" "http" 8111 "grpc" 9107)
   (dict "key" "snapshot" "component" "snapshot" "http" 8114 "grpc" 9109)
+  (dict "key" "review" "component" "review" "http" 8115 "grpc" 9112)
   (dict "key" "reporting" "component" "reporting" "http" 8112 "grpc" 9108)
   (dict "key" "notificationJob" "component" "notification-job" "http" 8109 "grpc" 9111)
   (dict "key" "reportingJob" "component" "reporting-job" "http" 8113 "grpc" 0)
@@ -26,6 +27,7 @@
   "notification" (dict "user" "dramaip_notification" "passwordKey" "POSTGRES_NOTIFICATION_PASSWORD")
   "inspiration" (dict "user" "dramaip_inspiration" "passwordKey" "POSTGRES_INSPIRATION_PASSWORD")
   "snapshot" (dict "user" "dramaip_snapshot" "passwordKey" "POSTGRES_SNAPSHOT_PASSWORD")
+  "review" (dict "user" "dramaip_review" "passwordKey" "POSTGRES_REVIEW_PASSWORD")
   "adminBff" (dict "user" "dramaip_admin" "passwordKey" "POSTGRES_ADMIN_PASSWORD")
   "reporting" (dict "user" "dramaip_reporting" "passwordKey" "POSTGRES_REPORTING_PASSWORD")
   "notificationJob" (dict "user" "dramaip_notification" "passwordKey" "POSTGRES_NOTIFICATION_PASSWORD")
@@ -159,6 +161,18 @@ spec:
                 secretKeyRef:
                   name: {{ include "dramaip-platform.secretName" $ }}
                   key: AI_PROVIDER_API_KEY
+            {{- end }}
+            {{- if eq $key "review" }}
+            - name: REVIEW_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "dramaip-platform.secretName" $) $.Values.review.objectStore.credentialsSecret }}
+                  key: {{ $.Values.review.objectStore.accessKeyKey }}
+            - name: REVIEW_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "dramaip-platform.secretName" $) $.Values.review.objectStore.credentialsSecret }}
+                  key: {{ $.Values.review.objectStore.secretKeyKey }}
             {{- end }}
             {{- if and (eq $key "billing") $.Values.payment.wechat.enabled }}
             - name: WECHAT_PAY_API_V3_KEY

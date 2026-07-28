@@ -141,7 +141,7 @@ if [[ "$action" == "apply" ]]; then
     fi
     image_count=$((image_count + 1))
   done < "$manifest"
-  [[ "$image_count" == "19" ]] || { echo "image manifest must contain 19 images; found $image_count" >&2; exit 2; }
+  [[ "$image_count" == "20" ]] || { echo "image manifest must contain 20 images; found $image_count" >&2; exit 2; }
   if [[ "$diagnostic_retain" == "1" ]]; then
     # This diagnostic escape hatch is deliberately limited to the explicitly
     # authorized disposable staging namespace.  It lets an operator inspect

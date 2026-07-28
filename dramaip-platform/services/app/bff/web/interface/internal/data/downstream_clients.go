@@ -9,6 +9,7 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	notificationv1 "github.com/dramaip/dramaip-platform/services/api/notification/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
@@ -28,13 +29,33 @@ type AIClient interface {
 	GetChatStatus(context.Context, *aiv1.GetChatStatusRequest, ...grpc.CallOption) (*aiv1.GetChatStatusReply, error)
 }
 
+type UserClient interface {
+	GetProfile(context.Context, *userv1.GetProfileRequest, ...grpc.CallOption) (*userv1.UserProfile, error)
+	EnsureProfile(context.Context, *userv1.EnsureProfileRequest, ...grpc.CallOption) (*userv1.UserProfile, error)
+	UpdateProfile(context.Context, *userv1.UpdateProfileRequest, ...grpc.CallOption) (*userv1.UserProfile, error)
+}
+
+type WorkspaceClient interface {
+	ListWorkspaces(context.Context, *userv1.ListWorkspacesRequest, ...grpc.CallOption) (*userv1.ListWorkspacesReply, error)
+	ListWorkspaceMembers(context.Context, *userv1.ListWorkspaceMembersRequest, ...grpc.CallOption) (*userv1.ListWorkspaceMembersReply, error)
+	ListWorkspaceInvitations(context.Context, *userv1.ListWorkspaceInvitationsRequest, ...grpc.CallOption) (*userv1.ListWorkspaceInvitationsReply, error)
+	InviteWorkspaceMember(context.Context, *userv1.InviteWorkspaceMemberRequest, ...grpc.CallOption) (*userv1.WorkspaceInvitation, error)
+	AcceptWorkspaceInvitation(context.Context, *userv1.AcceptWorkspaceInvitationRequest, ...grpc.CallOption) (*userv1.WorkspaceMember, error)
+	RevokeWorkspaceInvitation(context.Context, *userv1.RevokeWorkspaceInvitationRequest, ...grpc.CallOption) (*userv1.WorkspaceInvitation, error)
+	UpdateWorkspaceMemberRole(context.Context, *userv1.UpdateWorkspaceMemberRoleRequest, ...grpc.CallOption) (*userv1.WorkspaceMember, error)
+	RemoveWorkspaceMember(context.Context, *userv1.RemoveWorkspaceMemberRequest, ...grpc.CallOption) (*userv1.WorkspaceMember, error)
+	SetWorkspacePlan(context.Context, *userv1.SetWorkspacePlanRequest, ...grpc.CallOption) (*userv1.Workspace, error)
+}
+
 type Data struct {
 	Auth         authv1.AuthServiceClient
-	User         userv1.UserServiceClient
+	User         UserClient
+	Workspace    WorkspaceClient
 	Billing      billingv1.BillingServiceClient
 	Quota        quotav1.QuotaServiceClient
 	AI           AIClient
 	Notification notificationv1.NotificationServiceClient
+	Review       reviewv1.ReviewServiceClient
 	conns        []*grpc.ClientConn
 }
 
@@ -80,11 +101,23 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = aiConn.Close()
 		return nil, nil, err
 	}
+	reviewConn, err := platform.DialGRPC(ctx, cfg.Downstream.ReviewEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = userConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		_ = aiConn.Close()
+		_ = notificationConn.Close()
+		return nil, nil, err
+	}
 	d := &Data{
 		Auth: authv1.NewAuthServiceClient(authConn), User: userv1.NewUserServiceClient(userConn),
-		Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn),
+		Workspace: userv1.NewUserServiceClient(userConn),
+		Billing:   billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn),
 		AI: aiv1.NewAiGatewayServiceClient(aiConn), Notification: notificationv1.NewNotificationServiceClient(notificationConn),
-		conns: []*grpc.ClientConn{authConn, userConn, billingConn, quotaConn, aiConn, notificationConn},
+		Review: reviewv1.NewReviewServiceClient(reviewConn),
+		conns:  []*grpc.ClientConn{authConn, userConn, billingConn, quotaConn, aiConn, notificationConn, reviewConn},
 	}
 	return d, d.Close, nil
 }
@@ -113,6 +146,10 @@ func (d *Data) Checks() map[string]func(context.Context) error {
 		"notification": func(ctx context.Context) error {
 			_, err := d.Notification.ListNotifications(platform.WithUserIdentity(ctx, healthUserID), &notificationv1.ListNotificationsRequest{UserId: healthUserID, Limit: 1})
 			return err
+		},
+		"review": func(ctx context.Context) error {
+			_, err := d.Review.GetPublicPackage(ctx, &reviewv1.GetPublicPackageRequest{Token: "health"})
+			return platform.NormalizeHealthProbeError(err)
 		},
 	}
 }

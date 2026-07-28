@@ -30,6 +30,7 @@ type DownstreamConfig struct {
 	QuotaEndpoint        string `yaml:"quota_grpc_addr"`
 	AIGatewayEndpoint    string `yaml:"ai_gateway_grpc_addr"`
 	NotificationEndpoint string `yaml:"notification_grpc_addr"`
+	ReviewEndpoint       string `yaml:"review_grpc_addr"`
 	DialTimeout          string `yaml:"dial_timeout"`
 }
 
@@ -48,6 +49,7 @@ func Load() (*Bootstrap, error) {
 			QuotaEndpoint:        "localhost:9104",
 			AIGatewayEndpoint:    "localhost:9105",
 			NotificationEndpoint: "localhost:9106",
+			ReviewEndpoint:       "localhost:9112",
 			DialTimeout:          "15s",
 		},
 		Environment: "development",
@@ -66,6 +68,7 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.QuotaEndpoint = kratosx.Env("QUOTA_GRPC_ENDPOINT", cfg.Downstream.QuotaEndpoint)
 	cfg.Downstream.AIGatewayEndpoint = kratosx.Env("AI_GATEWAY_GRPC_ENDPOINT", cfg.Downstream.AIGatewayEndpoint)
 	cfg.Downstream.NotificationEndpoint = kratosx.Env("NOTIFICATION_GRPC_ENDPOINT", cfg.Downstream.NotificationEndpoint)
+	cfg.Downstream.ReviewEndpoint = kratosx.Env("REVIEW_GRPC_ENDPOINT", cfg.Downstream.ReviewEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("WEB_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {

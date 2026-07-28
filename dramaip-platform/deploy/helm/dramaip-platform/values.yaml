@@ -42,6 +42,9 @@ images:
   snapshot:
     repository: ghcr.io/dramaip/dramaip-snapshot
     tag: "0.1.0"
+  review:
+    repository: ghcr.io/dramaip/dramaip-review
+    tag: "0.1.0"
   reporting:
     repository: ghcr.io/dramaip/dramaip-reporting
     tag: "0.1.0"
@@ -163,6 +166,7 @@ payment:
     merchantPrivateKeyKey: apiclient-key.pem
     platformCertificateKey: platform-cert.pem
     webhookRateLimitPerMinute: 600
+
   alipay:
     enabled: false
     appID: ""
@@ -173,6 +177,17 @@ payment:
     merchantPrivateKeyKey: app-private-key.pem
     alipayPublicKeyKey: alipay-public-key.pem
     webhookRateLimitPerMinute: 600
+
+review:
+  objectStore:
+    endpoint: ""
+    region: us-east-1
+    bucket: ""
+    # Required for a releasable Studio deployment. The Secret contains only
+    # the dedicated private-bucket access key and secret key.
+    credentialsSecret: ""
+    accessKeyKey: REVIEW_S3_ACCESS_KEY
+    secretKeyKey: REVIEW_S3_SECRET_KEY
 
 kong:
   plugins:
@@ -254,6 +269,8 @@ config:
   inspirationGrpcAddr: :9107
   snapshotHttpAddr: :8114
   snapshotGrpcAddr: :9109
+  reviewHttpAddr: :8115
+  reviewGrpcAddr: :9112
   reportingHttpAddr: :8112
   reportingGrpcAddr: :9108
   notificationJobHttpAddr: :8109
@@ -330,6 +347,7 @@ config:
     notificationJobGrpcEndpoint: dramaip-platform-notification-job:9111
     inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
     snapshotGrpcEndpoint: dramaip-platform-snapshot:9109
+    reviewGrpcEndpoint: dramaip-platform-review:9112
     reportingGrpcEndpoint: dramaip-platform-reporting:9108
   ai:
     providers: openai-compatible
@@ -367,6 +385,10 @@ devInfra:
     image: rabbitmq:4.3-management-alpine
   otel:
     image: otel/opentelemetry-collector-contrib:0.155.0
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    clientImage: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    storage: 10Gi
 
 secret:
   existingSecret: ""
@@ -384,6 +406,9 @@ secret:
   postgresAdminPassword: change-me
   postgresReportingPassword: change-me
   postgresSnapshotPassword: change-me
+  postgresReviewPassword: change-me
+  reviewS3AccessKey: change-me
+  reviewS3SecretKey: change-me
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
@@ -425,6 +450,7 @@ internalMTLS:
     notification: notification-service.crt
     inspiration: inspiration-service.crt
     snapshot: snapshot-service.crt
+    review: review-service.crt
     reporting: reporting-service.crt
     notificationJob: notification-job.crt
     reportingJob: reporting-job.crt
@@ -443,6 +469,7 @@ internalMTLS:
     notification: notification-service.key
     inspiration: inspiration-service.key
     snapshot: snapshot-service.key
+    review: review-service.key
     reporting: reporting-service.key
     notificationJob: notification-job.key
     reportingJob: reporting-job.key
@@ -457,7 +484,7 @@ migrations:
   # so an immutable completed Job never blocks a new application image tag.
   useHelmHookOnUpgrade: false
   # Requires the migration identity to have CREATEROLE. Set false only after
-  # the eight runtime roles have been pre-provisioned by the database operator.
+  # all runtime roles have been pre-provisioned by the database operator.
   bootstrapRuntimeRoles: true
   serviceAccountName: ""
   backoffLimit: 2

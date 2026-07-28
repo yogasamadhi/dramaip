@@ -19,10 +19,19 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	UserService_GetProfile_FullMethodName       = "/dramaip.user.service.v1.UserService/GetProfile"
-	UserService_EnsureProfile_FullMethodName    = "/dramaip.user.service.v1.UserService/EnsureProfile"
-	UserService_UpdateProfile_FullMethodName    = "/dramaip.user.service.v1.UserService/UpdateProfile"
-	UserService_SetProfileStatus_FullMethodName = "/dramaip.user.service.v1.UserService/SetProfileStatus"
+	UserService_GetProfile_FullMethodName                = "/dramaip.user.service.v1.UserService/GetProfile"
+	UserService_EnsureProfile_FullMethodName             = "/dramaip.user.service.v1.UserService/EnsureProfile"
+	UserService_UpdateProfile_FullMethodName             = "/dramaip.user.service.v1.UserService/UpdateProfile"
+	UserService_SetProfileStatus_FullMethodName          = "/dramaip.user.service.v1.UserService/SetProfileStatus"
+	UserService_ListWorkspaces_FullMethodName            = "/dramaip.user.service.v1.UserService/ListWorkspaces"
+	UserService_ListWorkspaceMembers_FullMethodName      = "/dramaip.user.service.v1.UserService/ListWorkspaceMembers"
+	UserService_ListWorkspaceInvitations_FullMethodName  = "/dramaip.user.service.v1.UserService/ListWorkspaceInvitations"
+	UserService_InviteWorkspaceMember_FullMethodName     = "/dramaip.user.service.v1.UserService/InviteWorkspaceMember"
+	UserService_AcceptWorkspaceInvitation_FullMethodName = "/dramaip.user.service.v1.UserService/AcceptWorkspaceInvitation"
+	UserService_RevokeWorkspaceInvitation_FullMethodName = "/dramaip.user.service.v1.UserService/RevokeWorkspaceInvitation"
+	UserService_UpdateWorkspaceMemberRole_FullMethodName = "/dramaip.user.service.v1.UserService/UpdateWorkspaceMemberRole"
+	UserService_RemoveWorkspaceMember_FullMethodName     = "/dramaip.user.service.v1.UserService/RemoveWorkspaceMember"
+	UserService_SetWorkspacePlan_FullMethodName          = "/dramaip.user.service.v1.UserService/SetWorkspacePlan"
 )
 
 // UserServiceClient is the client API for UserService service.
@@ -35,6 +44,16 @@ type UserServiceClient interface {
 	// Admin BFF only: mirrors the authoritative auth-account state into the
 	// customer profile after its separate account-status domain write succeeds.
 	SetProfileStatus(ctx context.Context, in *SetProfileStatusRequest, opts ...grpc.CallOption) (*UserProfile, error)
+	ListWorkspaces(ctx context.Context, in *ListWorkspacesRequest, opts ...grpc.CallOption) (*ListWorkspacesReply, error)
+	ListWorkspaceMembers(ctx context.Context, in *ListWorkspaceMembersRequest, opts ...grpc.CallOption) (*ListWorkspaceMembersReply, error)
+	ListWorkspaceInvitations(ctx context.Context, in *ListWorkspaceInvitationsRequest, opts ...grpc.CallOption) (*ListWorkspaceInvitationsReply, error)
+	InviteWorkspaceMember(ctx context.Context, in *InviteWorkspaceMemberRequest, opts ...grpc.CallOption) (*WorkspaceInvitation, error)
+	AcceptWorkspaceInvitation(ctx context.Context, in *AcceptWorkspaceInvitationRequest, opts ...grpc.CallOption) (*WorkspaceMember, error)
+	RevokeWorkspaceInvitation(ctx context.Context, in *RevokeWorkspaceInvitationRequest, opts ...grpc.CallOption) (*WorkspaceInvitation, error)
+	UpdateWorkspaceMemberRole(ctx context.Context, in *UpdateWorkspaceMemberRoleRequest, opts ...grpc.CallOption) (*WorkspaceMember, error)
+	RemoveWorkspaceMember(ctx context.Context, in *RemoveWorkspaceMemberRequest, opts ...grpc.CallOption) (*WorkspaceMember, error)
+	// Billing BFF only: applies the immutable subscription entitlement snapshot.
+	SetWorkspacePlan(ctx context.Context, in *SetWorkspacePlanRequest, opts ...grpc.CallOption) (*Workspace, error)
 }
 
 type userServiceClient struct {
@@ -85,6 +104,96 @@ func (c *userServiceClient) SetProfileStatus(ctx context.Context, in *SetProfile
 	return out, nil
 }
 
+func (c *userServiceClient) ListWorkspaces(ctx context.Context, in *ListWorkspacesRequest, opts ...grpc.CallOption) (*ListWorkspacesReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkspacesReply)
+	err := c.cc.Invoke(ctx, UserService_ListWorkspaces_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListWorkspaceMembers(ctx context.Context, in *ListWorkspaceMembersRequest, opts ...grpc.CallOption) (*ListWorkspaceMembersReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkspaceMembersReply)
+	err := c.cc.Invoke(ctx, UserService_ListWorkspaceMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) ListWorkspaceInvitations(ctx context.Context, in *ListWorkspaceInvitationsRequest, opts ...grpc.CallOption) (*ListWorkspaceInvitationsReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListWorkspaceInvitationsReply)
+	err := c.cc.Invoke(ctx, UserService_ListWorkspaceInvitations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) InviteWorkspaceMember(ctx context.Context, in *InviteWorkspaceMemberRequest, opts ...grpc.CallOption) (*WorkspaceInvitation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceInvitation)
+	err := c.cc.Invoke(ctx, UserService_InviteWorkspaceMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) AcceptWorkspaceInvitation(ctx context.Context, in *AcceptWorkspaceInvitationRequest, opts ...grpc.CallOption) (*WorkspaceMember, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceMember)
+	err := c.cc.Invoke(ctx, UserService_AcceptWorkspaceInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RevokeWorkspaceInvitation(ctx context.Context, in *RevokeWorkspaceInvitationRequest, opts ...grpc.CallOption) (*WorkspaceInvitation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceInvitation)
+	err := c.cc.Invoke(ctx, UserService_RevokeWorkspaceInvitation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) UpdateWorkspaceMemberRole(ctx context.Context, in *UpdateWorkspaceMemberRoleRequest, opts ...grpc.CallOption) (*WorkspaceMember, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceMember)
+	err := c.cc.Invoke(ctx, UserService_UpdateWorkspaceMemberRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) RemoveWorkspaceMember(ctx context.Context, in *RemoveWorkspaceMemberRequest, opts ...grpc.CallOption) (*WorkspaceMember, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(WorkspaceMember)
+	err := c.cc.Invoke(ctx, UserService_RemoveWorkspaceMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) SetWorkspacePlan(ctx context.Context, in *SetWorkspacePlanRequest, opts ...grpc.CallOption) (*Workspace, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Workspace)
+	err := c.cc.Invoke(ctx, UserService_SetWorkspacePlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility.
@@ -95,6 +204,16 @@ type UserServiceServer interface {
 	// Admin BFF only: mirrors the authoritative auth-account state into the
 	// customer profile after its separate account-status domain write succeeds.
 	SetProfileStatus(context.Context, *SetProfileStatusRequest) (*UserProfile, error)
+	ListWorkspaces(context.Context, *ListWorkspacesRequest) (*ListWorkspacesReply, error)
+	ListWorkspaceMembers(context.Context, *ListWorkspaceMembersRequest) (*ListWorkspaceMembersReply, error)
+	ListWorkspaceInvitations(context.Context, *ListWorkspaceInvitationsRequest) (*ListWorkspaceInvitationsReply, error)
+	InviteWorkspaceMember(context.Context, *InviteWorkspaceMemberRequest) (*WorkspaceInvitation, error)
+	AcceptWorkspaceInvitation(context.Context, *AcceptWorkspaceInvitationRequest) (*WorkspaceMember, error)
+	RevokeWorkspaceInvitation(context.Context, *RevokeWorkspaceInvitationRequest) (*WorkspaceInvitation, error)
+	UpdateWorkspaceMemberRole(context.Context, *UpdateWorkspaceMemberRoleRequest) (*WorkspaceMember, error)
+	RemoveWorkspaceMember(context.Context, *RemoveWorkspaceMemberRequest) (*WorkspaceMember, error)
+	// Billing BFF only: applies the immutable subscription entitlement snapshot.
+	SetWorkspacePlan(context.Context, *SetWorkspacePlanRequest) (*Workspace, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -116,6 +235,33 @@ func (UnimplementedUserServiceServer) UpdateProfile(context.Context, *UpdateProf
 }
 func (UnimplementedUserServiceServer) SetProfileStatus(context.Context, *SetProfileStatusRequest) (*UserProfile, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetProfileStatus not implemented")
+}
+func (UnimplementedUserServiceServer) ListWorkspaces(context.Context, *ListWorkspacesRequest) (*ListWorkspacesReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkspaces not implemented")
+}
+func (UnimplementedUserServiceServer) ListWorkspaceMembers(context.Context, *ListWorkspaceMembersRequest) (*ListWorkspaceMembersReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceMembers not implemented")
+}
+func (UnimplementedUserServiceServer) ListWorkspaceInvitations(context.Context, *ListWorkspaceInvitationsRequest) (*ListWorkspaceInvitationsReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListWorkspaceInvitations not implemented")
+}
+func (UnimplementedUserServiceServer) InviteWorkspaceMember(context.Context, *InviteWorkspaceMemberRequest) (*WorkspaceInvitation, error) {
+	return nil, status.Error(codes.Unimplemented, "method InviteWorkspaceMember not implemented")
+}
+func (UnimplementedUserServiceServer) AcceptWorkspaceInvitation(context.Context, *AcceptWorkspaceInvitationRequest) (*WorkspaceMember, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptWorkspaceInvitation not implemented")
+}
+func (UnimplementedUserServiceServer) RevokeWorkspaceInvitation(context.Context, *RevokeWorkspaceInvitationRequest) (*WorkspaceInvitation, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeWorkspaceInvitation not implemented")
+}
+func (UnimplementedUserServiceServer) UpdateWorkspaceMemberRole(context.Context, *UpdateWorkspaceMemberRoleRequest) (*WorkspaceMember, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateWorkspaceMemberRole not implemented")
+}
+func (UnimplementedUserServiceServer) RemoveWorkspaceMember(context.Context, *RemoveWorkspaceMemberRequest) (*WorkspaceMember, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveWorkspaceMember not implemented")
+}
+func (UnimplementedUserServiceServer) SetWorkspacePlan(context.Context, *SetWorkspacePlanRequest) (*Workspace, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetWorkspacePlan not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 func (UnimplementedUserServiceServer) testEmbeddedByValue()                     {}
@@ -210,6 +356,168 @@ func _UserService_SetProfileStatus_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_ListWorkspaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkspacesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListWorkspaces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListWorkspaces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListWorkspaces(ctx, req.(*ListWorkspacesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListWorkspaceMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkspaceMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListWorkspaceMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListWorkspaceMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListWorkspaceMembers(ctx, req.(*ListWorkspaceMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_ListWorkspaceInvitations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkspaceInvitationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).ListWorkspaceInvitations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_ListWorkspaceInvitations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).ListWorkspaceInvitations(ctx, req.(*ListWorkspaceInvitationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_InviteWorkspaceMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InviteWorkspaceMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).InviteWorkspaceMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_InviteWorkspaceMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).InviteWorkspaceMember(ctx, req.(*InviteWorkspaceMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_AcceptWorkspaceInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptWorkspaceInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).AcceptWorkspaceInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_AcceptWorkspaceInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).AcceptWorkspaceInvitation(ctx, req.(*AcceptWorkspaceInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RevokeWorkspaceInvitation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeWorkspaceInvitationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RevokeWorkspaceInvitation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RevokeWorkspaceInvitation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RevokeWorkspaceInvitation(ctx, req.(*RevokeWorkspaceInvitationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_UpdateWorkspaceMemberRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateWorkspaceMemberRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).UpdateWorkspaceMemberRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_UpdateWorkspaceMemberRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).UpdateWorkspaceMemberRole(ctx, req.(*UpdateWorkspaceMemberRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_RemoveWorkspaceMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveWorkspaceMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).RemoveWorkspaceMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_RemoveWorkspaceMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).RemoveWorkspaceMember(ctx, req.(*RemoveWorkspaceMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _UserService_SetWorkspacePlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetWorkspacePlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).SetWorkspacePlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UserService_SetWorkspacePlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).SetWorkspacePlan(ctx, req.(*SetWorkspacePlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -232,6 +540,42 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetProfileStatus",
 			Handler:    _UserService_SetProfileStatus_Handler,
+		},
+		{
+			MethodName: "ListWorkspaces",
+			Handler:    _UserService_ListWorkspaces_Handler,
+		},
+		{
+			MethodName: "ListWorkspaceMembers",
+			Handler:    _UserService_ListWorkspaceMembers_Handler,
+		},
+		{
+			MethodName: "ListWorkspaceInvitations",
+			Handler:    _UserService_ListWorkspaceInvitations_Handler,
+		},
+		{
+			MethodName: "InviteWorkspaceMember",
+			Handler:    _UserService_InviteWorkspaceMember_Handler,
+		},
+		{
+			MethodName: "AcceptWorkspaceInvitation",
+			Handler:    _UserService_AcceptWorkspaceInvitation_Handler,
+		},
+		{
+			MethodName: "RevokeWorkspaceInvitation",
+			Handler:    _UserService_RevokeWorkspaceInvitation_Handler,
+		},
+		{
+			MethodName: "UpdateWorkspaceMemberRole",
+			Handler:    _UserService_UpdateWorkspaceMemberRole_Handler,
+		},
+		{
+			MethodName: "RemoveWorkspaceMember",
+			Handler:    _UserService_RemoveWorkspaceMember_Handler,
+		},
+		{
+			MethodName: "SetWorkspacePlan",
+			Handler:    _UserService_SetWorkspacePlan_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

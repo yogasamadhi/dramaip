@@ -306,7 +306,7 @@ func TestAccountBootstrapKeepsPartialFailureExplicit(t *testing.T) {
 func TestPaymentConfirmationDefersNotificationToEventConsumer(t *testing.T) {
 	notification := &fakeNotification{rows: map[string]*notificationv1.Notification{}}
 	uc := biz.NewBFFUsecase(&data.Data{
-		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: notification,
+		Auth: fakeAuth{}, User: fakeUser{}, Workspace: fakeWorkspace{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: notification,
 	})
 	if _, err := uc.SimulatedConfirmPayment(context.Background(), "u1", "order"); err != nil {
 		t.Fatalf("SimulatedConfirmPayment() error = %v", err)
@@ -605,7 +605,7 @@ func newTestHTTPService() *HTTPService {
 
 func newTestHTTPServiceWithConfig(cfg *conf.Bootstrap) *HTTPService {
 	uc := biz.NewBFFUsecase(&data.Data{
-		Auth: fakeAuth{}, User: fakeUser{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{
+		Auth: fakeAuth{}, User: fakeUser{}, Workspace: fakeWorkspace{}, Billing: fakeBilling{}, Quota: fakeQuota{}, AI: fakeAI{}, Notification: &fakeNotification{rows: map[string]*notificationv1.Notification{
 			"n1": {Id: "n1", Type: "test", Title: "Existing notification", Body: "Read-path fixture", SourceEventId: "fixture", CreatedAt: "2026-07-13T00:00:00Z"},
 		}},
 	})
@@ -771,6 +771,24 @@ func (fakeAuth) SetUserStatus(_ context.Context, req *authv1.SetUserStatusReques
 
 type fakeUser struct{}
 
+type fakeWorkspace struct{ userv1.UserServiceClient }
+
+func (fakeWorkspace) ListWorkspaces(context.Context, *userv1.ListWorkspacesRequest, ...grpc.CallOption) (*userv1.ListWorkspacesReply, error) {
+	return &userv1.ListWorkspacesReply{Workspaces: []*userv1.Workspace{{
+		Id: "workspace-1", OwnerUserId: "u1", Name: "Development Creator 的工作区",
+		PlanCode: "studio", IncludedSeats: 5, ActiveMemberCount: 1,
+		ReviewStorageBytes: 5 << 30, ReviewRetentionDays: 30, CurrentUserRole: "owner",
+	}}}, nil
+}
+
+func (fakeWorkspace) SetWorkspacePlan(_ context.Context, request *userv1.SetWorkspacePlanRequest, _ ...grpc.CallOption) (*userv1.Workspace, error) {
+	return &userv1.Workspace{
+		Id: request.WorkspaceId, OwnerUserId: "u1", PlanCode: request.PlanCode,
+		IncludedSeats: request.IncludedSeats, ReviewStorageBytes: request.ReviewStorageBytes,
+		ReviewRetentionDays: request.ReviewRetentionDays, CurrentUserRole: "owner",
+	}, nil
+}
+
 type recoveringProfileUser struct {
 	fakeUser
 	failuresRemaining int
@@ -837,14 +855,14 @@ func (fakeBilling) CreateCheckout(context.Context, *billingv1.CreateCheckoutRequ
 func (fakeBilling) ConfirmSandboxPayment(context.Context, *billingv1.ConfirmSandboxPaymentRequest, ...grpc.CallOption) (*billingv1.ConfirmSandboxPaymentReply, error) {
 	return &billingv1.ConfirmSandboxPaymentReply{
 		OrderId: "order", Status: "paid",
-		Subscription: &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "pro", Status: "active"},
+		Subscription: &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "studio", Status: "active", Entitlements: studioEntitlements()},
 		TokenBalance: &billingv1.TokenBalance{Plan: "pro", QuotaTokens: 2000000, RemainingTokens: 2000000},
 	}, nil
 }
 func (fakeBilling) ConfirmSimulatedPayment(context.Context, *billingv1.ConfirmSimulatedPaymentRequest, ...grpc.CallOption) (*billingv1.ConfirmSimulatedPaymentReply, error) {
 	return &billingv1.ConfirmSimulatedPaymentReply{
 		OrderId: "order", Status: "paid",
-		Subscription: &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "pro", Status: "active"},
+		Subscription: &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "studio", Status: "active", Entitlements: studioEntitlements()},
 		TokenBalance: &billingv1.TokenBalance{Plan: "pro", QuotaTokens: 2000000, RemainingTokens: 2000000},
 	}, nil
 }
@@ -864,10 +882,18 @@ func (fakeBilling) ResumeSubscription(context.Context, *billingv1.ResumeSubscrip
 	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: "pro", Status: "active"}, nil
 }
 func (fakeBilling) ChangeSubscriptionPlan(_ context.Context, req *billingv1.ChangeSubscriptionPlanRequest, _ ...grpc.CallOption) (*billingv1.Subscription, error) {
-	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: req.PlanId, Status: "active"}, nil
+	return &billingv1.Subscription{Id: "sub", UserId: "u1", PlanCode: req.PlanId, Status: "active", Entitlements: studioEntitlements()}, nil
 }
 func (fakeBilling) RequestRefund(context.Context, *billingv1.RequestRefundRequest, ...grpc.CallOption) (*billingv1.Refund, error) {
 	return &billingv1.Refund{Id: "refund", SubscriptionId: "sub", Status: "manual_review"}, nil
+}
+
+func studioEntitlements() *billingv1.PlanEntitlements {
+	return &billingv1.PlanEntitlements{
+		IncludedSeats: 5, ByokEnabled: true, OfflineReviewEnabled: true,
+		AdvancedExportEnabled: true, CloudReviewEnabled: true,
+		ReviewStorageBytes: 5 << 30, ReviewRetentionDays: 30,
+	}
 }
 
 type fakeQuota struct{}

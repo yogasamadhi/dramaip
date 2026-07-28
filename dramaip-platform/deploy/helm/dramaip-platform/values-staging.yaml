@@ -19,6 +19,7 @@ images:
   notification: { repository: registry.example.invalid/dramaip/notification, tag: candidate }
   inspiration: { repository: registry.example.invalid/dramaip/inspiration, tag: candidate }
   snapshot: { repository: registry.example.invalid/dramaip/snapshot, tag: candidate }
+  review: { repository: registry.example.invalid/dramaip/review, tag: candidate }
   reporting: { repository: registry.example.invalid/dramaip/reporting, tag: candidate }
   notificationJob: { repository: registry.example.invalid/dramaip/notification-job, tag: candidate }
   reportingJob: { repository: registry.example.invalid/dramaip/reporting-job, tag: candidate }
@@ -43,6 +44,13 @@ config:
 
 secret:
   existingSecret: dramaip-staging-runtime
+
+review:
+  objectStore:
+    endpoint: https://review-objects.staging.example.invalid
+    region: us-east-1
+    bucket: dramaip-review-staging
+    credentialsSecret: dramaip-staging-review-object-store
 
 authJWT:
   keysetSecret: dramaip-staging-auth-jwt

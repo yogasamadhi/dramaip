@@ -11,6 +11,7 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
+	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -45,6 +46,10 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/desktop/project-snapshot-uploads", s.handleProjectSnapshotUploads)
 	mux.HandleFunc("/v1/desktop/project-snapshot-uploads/chunks", s.handleProjectSnapshotUploadChunks)
 	mux.HandleFunc("/v1/desktop/project-snapshot-uploads/complete", s.handleCompleteProjectSnapshotUpload)
+	mux.HandleFunc("/v1/desktop/review/packages", s.handleReviewPackages)
+	mux.HandleFunc("/v1/desktop/review/packages/complete", s.handleCompleteReviewPackage)
+	mux.HandleFunc("/v1/desktop/review/packages/upload-target", s.handleReviewUploadTarget)
+	mux.HandleFunc("/v1/desktop/review/packages/sync", s.handleSyncReviewPackage)
 	return platform.TraceMiddleware("desktop-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(mux)))
 }
 
@@ -128,8 +133,23 @@ func (s *HTTPService) handleCloudContext(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user":          map[string]string{"id": identity.UserId, "email": identity.Email, "name": identity.Name},
-		"subscription":  map[string]string{"id": subscription.Id, "plan": subscription.PlanCode, "status": subscription.Status},
+		"user": map[string]string{"id": identity.UserId, "email": identity.Email, "name": identity.Name},
+		"subscription": map[string]any{
+			"id": subscription.Id, "plan": subscription.PlanCode, "status": subscription.Status,
+			"purchase_mode": subscription.PurchaseMode,
+			"entitlements": map[string]any{
+				"included_seats":          subscription.GetEntitlements().GetIncludedSeats(),
+				"byok_enabled":            subscription.GetEntitlements().GetByokEnabled(),
+				"offline_review_enabled":  subscription.GetEntitlements().GetOfflineReviewEnabled(),
+				"advanced_export_enabled": subscription.GetEntitlements().GetAdvancedExportEnabled(),
+				"cloud_review_enabled":    subscription.GetEntitlements().GetCloudReviewEnabled(),
+				"review_storage_bytes":    subscription.GetEntitlements().GetReviewStorageBytes(),
+				"review_retention_days":   subscription.GetEntitlements().GetReviewRetentionDays(),
+			},
+			"legacy_plan_code":       subscription.LegacyPlanCode,
+			"renewal_plan_code":      subscription.RenewalPlanCode,
+			"migration_effective_at": subscription.MigrationEffectiveAt,
+		},
 		"token_balance": map[string]any{"plan": balance.Plan, "quota_tokens": balance.QuotaTokens, "used_tokens": balance.UsedTokens, "remaining_tokens": balance.RemainingTokens},
 	})
 }
@@ -443,6 +463,109 @@ func (s *HTTPService) handleCompleteProjectSnapshotUpload(w http.ResponseWriter,
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusCreated, map[string]any{"snapshot": projectSnapshotJSON(reply.Snapshot)})
+}
+
+func (s *HTTPService) handleReviewPackages(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		var req struct {
+			WorkspaceID      string                             `json:"workspace_id"`
+			DesktopPackageID string                             `json:"desktop_package_id"`
+			Title            string                             `json:"title"`
+			ManifestJSON     string                             `json:"manifest_json"`
+			PIN              string                             `json:"pin"`
+			Media            []*reviewv1.ReviewMediaDeclaration `json:"media"`
+		}
+		if !decodeJSONLimit(w, r, &req, 3<<20) {
+			return
+		}
+		reply, err := s.uc.CreateReviewPackage(r.Context(), r.Header.Get("Authorization"), &reviewv1.CreatePackageRequest{
+			WorkspaceId: req.WorkspaceID, DesktopPackageId: req.DesktopPackageID,
+			Title: req.Title, ManifestJson: req.ManifestJSON, Pin: req.PIN, Media: req.Media,
+		})
+		if err != nil {
+			s.writeGRPCError(w, err, "desktop_review_create_unavailable")
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusCreated, reply)
+	case http.MethodDelete:
+		packageID := strings.TrimSpace(r.URL.Query().Get("id"))
+		if packageID == "" {
+			writeError(w, http.StatusBadRequest, "package_id_required")
+			return
+		}
+		reply, err := s.uc.DeleteReviewPackage(r.Context(), r.Header.Get("Authorization"), packageID)
+		if err != nil {
+			s.writeGRPCError(w, err, "desktop_review_delete_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	}
+}
+
+func (s *HTTPService) handleCompleteReviewPackage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		PackageID string `json:"package_id"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.CompleteReviewPackage(r.Context(), r.Header.Get("Authorization"), req.PackageID)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_review_complete_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handleReviewUploadTarget(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		PackageID string `json:"package_id"`
+		MediaID   string `json:"media_id"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.RefreshReviewUploadTarget(r.Context(), r.Header.Get("Authorization"), req.PackageID, req.MediaID)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_review_upload_target_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handleSyncReviewPackage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	packageID := strings.TrimSpace(r.URL.Query().Get("id"))
+	rawCursor := strings.TrimSpace(r.URL.Query().Get("after_cursor"))
+	if rawCursor == "" {
+		rawCursor = "0"
+	}
+	afterCursor, err := strconv.ParseInt(rawCursor, 10, 64)
+	if packageID == "" || err != nil || afterCursor < 0 {
+		writeError(w, http.StatusBadRequest, "invalid_review_sync_cursor")
+		return
+	}
+	reply, err := s.uc.SyncReviewPackage(r.Context(), r.Header.Get("Authorization"), packageID, afterCursor)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_review_sync_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reply)
 }
 
 func projectSnapshotJSON(snapshot *snapshotv1.ProjectSnapshot) map[string]any {

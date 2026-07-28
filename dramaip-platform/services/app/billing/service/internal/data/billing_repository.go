@@ -36,49 +36,58 @@ type PlanRow struct {
 	MonthlyTokenQuota int64
 	ModelLevel        string
 	MaxRPM            int64
+	PurchaseMode      string
+	Entitlements      PlanEntitlements
 }
 
 // PlanSnapshot is the immutable entitlement captured when a checkout is
 // created. It is copied to the subscription and every quota period account so
 // historical rights never need to be reconstructed from billing.plans.
 type PlanSnapshot struct {
-	Code              string `json:"code"`
-	Name              string `json:"name"`
-	BillingPeriod     string `json:"billing_period"`
-	Price             string `json:"price"`
-	Currency          string `json:"currency"`
-	MonthlyTokenQuota int64  `json:"monthly_token_quota"`
-	MaxRPM            int64  `json:"max_rpm"`
-	MaxContextTokens  int64  `json:"max_context_tokens"`
-	ModelLevel        string `json:"model_level"`
-	Source            string `json:"source"`
-	At                string `json:"at"`
+	Code              string           `json:"code"`
+	Name              string           `json:"name"`
+	BillingPeriod     string           `json:"billing_period"`
+	Price             string           `json:"price"`
+	Currency          string           `json:"currency"`
+	MonthlyTokenQuota int64            `json:"monthly_token_quota"`
+	MaxRPM            int64            `json:"max_rpm"`
+	MaxContextTokens  int64            `json:"max_context_tokens"`
+	ModelLevel        string           `json:"model_level"`
+	PurchaseMode      string           `json:"purchase_mode"`
+	Entitlements      PlanEntitlements `json:"entitlements"`
+	Source            string           `json:"source"`
+	At                string           `json:"at"`
 }
 
 type SubscriptionRow struct {
-	ID                 string
-	UserID             string
-	PlanID             string
-	PlanCode           string
-	Provider           string
-	Status             string
-	CurrentPeriodStart string
-	CurrentPeriodEnd   string
-	CancelAtPeriodEnd  bool
-	CanceledAt         string
-	ScheduledPlanCode  string
-	ScheduledChangeAt  string
-	LifecycleError     string
-	PlanName           string
-	BillingPeriod      string
-	PlanPrice          string
-	Currency           string
-	MonthlyTokenQuota  int64
-	MaxRPM             int64
-	MaxContextTokens   int64
-	ModelLevel         string
-	PlanSnapshotSource string
-	PlanSnapshotAt     string
+	ID                   string
+	UserID               string
+	PlanID               string
+	PlanCode             string
+	Provider             string
+	Status               string
+	CurrentPeriodStart   string
+	CurrentPeriodEnd     string
+	CancelAtPeriodEnd    bool
+	CanceledAt           string
+	ScheduledPlanCode    string
+	ScheduledChangeAt    string
+	LifecycleError       string
+	PlanName             string
+	BillingPeriod        string
+	PlanPrice            string
+	Currency             string
+	MonthlyTokenQuota    int64
+	MaxRPM               int64
+	MaxContextTokens     int64
+	ModelLevel           string
+	PlanSnapshotSource   string
+	PlanSnapshotAt       string
+	PurchaseMode         string
+	Entitlements         PlanEntitlements
+	LegacyPlanCode       string
+	RenewalPlanCode      string
+	MigrationEffectiveAt string
 }
 
 func (row SubscriptionRow) PlanSnapshot() PlanSnapshot {
@@ -86,6 +95,7 @@ func (row SubscriptionRow) PlanSnapshot() PlanSnapshot {
 		Code: row.PlanCode, Name: row.PlanName, BillingPeriod: row.BillingPeriod,
 		Price: row.PlanPrice, Currency: row.Currency, MonthlyTokenQuota: row.MonthlyTokenQuota,
 		MaxRPM: row.MaxRPM, MaxContextTokens: row.MaxContextTokens, ModelLevel: row.ModelLevel,
+		PurchaseMode: row.PurchaseMode, Entitlements: row.Entitlements,
 		Source: row.PlanSnapshotSource, At: row.PlanSnapshotAt,
 	}
 }
@@ -104,6 +114,8 @@ type OrderRow struct {
 	CreatedAt      string
 	PaidAt         string
 	SubscriptionID string
+	PurchaseMode   string
+	Entitlements   PlanEntitlements
 }
 
 type TokenBalanceRow struct {
@@ -233,7 +245,8 @@ func (r *BillingRepo) CreatePeriodAccount(ctx context.Context, userID string, su
 func (r *BillingRepo) ListPlans(ctx context.Context) ([]PlanRow, error) {
 	var rows []PlanRow
 	err := r.data.DB.WithContext(ctx).Raw(`
-		SELECT id::text AS id, code, name, price, currency, monthly_token_quota, model_level, max_rpm
+		SELECT id::text AS id, code, name, price, currency, monthly_token_quota, model_level, max_rpm,
+		       purchase_mode, entitlements
 		FROM billing.plans
 		WHERE is_active = true
 		ORDER BY price ASC
@@ -259,6 +272,11 @@ func (r *BillingRepo) GetSubscription(ctx context.Context, userID string) (Subsc
 			sub.model_level,
 			sub.plan_snapshot_source,
 			sub.plan_snapshot_at::text AS plan_snapshot_at,
+			sub.purchase_mode,
+			sub.entitlements_snapshot AS entitlements,
+			COALESCE(sub.legacy_plan_code, '') AS legacy_plan_code,
+			COALESCE(sub.renewal_plan_code, '') AS renewal_plan_code,
+			COALESCE(sub.migration_effective_at::text, '') AS migration_effective_at,
 			sub.status,
 			sub.current_period_start::text AS current_period_start,
 			sub.current_period_end::text AS current_period_end,
@@ -308,10 +326,13 @@ func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCod
 		MaxRPM            int64
 		MaxContextTokens  int64
 		ModelLevel        string
+		PurchaseMode      string
+		Entitlements      PlanEntitlements
 	}
 	if err := r.data.DB.WithContext(ctx).Raw(`
 		SELECT id::text AS id, code, name, billing_period, price::text AS price, currency,
-		       monthly_token_quota, max_rpm, max_context_tokens, model_level
+		       monthly_token_quota, max_rpm, max_context_tokens, model_level,
+		       purchase_mode, entitlements
 		FROM billing.plans
 		WHERE code = ? AND is_active = true
 		LIMIT 1
@@ -320,6 +341,9 @@ func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCod
 	}
 	if orderID == "" {
 		return CheckoutResult{}, status.Error(codes.InvalidArgument, "checkout order id is required")
+	}
+	if plan.PurchaseMode != "self_service" {
+		return CheckoutResult{}, status.Errorf(codes.FailedPrecondition, "plan %s requires sales contact and cannot be purchased in checkout", plan.Code)
 	}
 	if providerOrderID == "" {
 		providerOrderID = orderID
@@ -344,15 +368,16 @@ func (r *BillingRepo) createCheckout(ctx context.Context, userID string, planCod
 				id, user_id, plan_id, amount, currency, status, provider, provider_order_id,
 				payment_url, payment_expires_at,
 				plan_code, plan_name, billing_period, plan_price, monthly_token_quota,
-				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
+				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at,
+				purchase_mode, entitlements_snapshot
 			)
 			VALUES (
 				?::uuid, ?::uuid, ?::uuid, ?::numeric, ?, 'pending', ?, ?, ?, NULLIF(?::text, '')::timestamptz,
-				?, ?, ?, ?::numeric, ?, ?, ?, ?, 'checkout', ?
+				?, ?, ?, ?::numeric, ?, ?, ?, ?, 'checkout', ?, ?, ?::jsonb
 			)
 	`, orderID, userID, plan.ID, plan.Price, plan.Currency, provider, providerOrderID, paymentURL, formatTimestamp(expiresAt),
 			plan.Code, plan.Name, plan.BillingPeriod, plan.Price, plan.MonthlyTokenQuota,
-			plan.MaxRPM, plan.MaxContextTokens, plan.ModelLevel, now).Error; err != nil {
+			plan.MaxRPM, plan.MaxContextTokens, plan.ModelLevel, now, plan.PurchaseMode, plan.Entitlements.JSON()).Error; err != nil {
 			return err
 		}
 		return tx.Exec(`
@@ -495,6 +520,8 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 			ModelLevel         string
 			PlanSnapshotSource string
 			PlanSnapshotAt     string
+			PurchaseMode       string
+			Entitlements       PlanEntitlements
 		}
 		if err := tx.Raw(`
 			SELECT
@@ -515,7 +542,9 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 				o.max_context_tokens,
 				o.model_level,
 				o.plan_snapshot_source,
-				o.plan_snapshot_at::text AS plan_snapshot_at
+				o.plan_snapshot_at::text AS plan_snapshot_at,
+				o.purchase_mode,
+				o.entitlements_snapshot AS entitlements
 			FROM billing.orders o
 			WHERE (
 				(? = 'simulated' AND o.id::text = ?)
@@ -588,21 +617,24 @@ func (r *BillingRepo) confirmProviderPayment(ctx context.Context, userID string,
 			INSERT INTO billing.subscriptions (
 				id, user_id, plan_id, provider, provider_subscription_id, status, current_period_start, current_period_end,
 				plan_code, plan_name, billing_period, plan_price, currency, monthly_token_quota,
-				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at
+				max_rpm, max_context_tokens, model_level, plan_snapshot_source, plan_snapshot_at,
+				purchase_mode, entitlements_snapshot
 			)
 			VALUES (
 				?::uuid, ?::uuid, ?::uuid, ?, ?, 'quota_pending', ?, ?,
-				?, ?, ?, ?::numeric, ?, ?, ?, ?, ?, ?, ?::timestamptz
+				?, ?, ?, ?::numeric, ?, ?, ?, ?, ?, ?, ?::timestamptz, ?, ?::jsonb
 			)
 		`, subscriptionID, order.UserID, order.PlanID, provider, provider+"_"+subscriptionID, now, periodEnd,
 			order.PlanCode, order.PlanName, order.BillingPeriod, order.PlanPrice, order.Currency, order.QuotaTokens,
-			order.MaxRPM, order.MaxContextTokens, order.ModelLevel, order.PlanSnapshotSource, order.PlanSnapshotAt).Error; err != nil {
+			order.MaxRPM, order.MaxContextTokens, order.ModelLevel, order.PlanSnapshotSource, order.PlanSnapshotAt,
+			order.PurchaseMode, order.Entitlements.JSON()).Error; err != nil {
 			return err
 		}
 		if err := insertSubscriptionPeriod(tx, subscriptionID, order.UserID, order.ID, order.PlanID, PlanSnapshot{
 			Code: order.PlanCode, Name: order.PlanName, BillingPeriod: order.BillingPeriod,
 			Price: order.PlanPrice, Currency: order.Currency, MonthlyTokenQuota: order.QuotaTokens,
 			MaxRPM: order.MaxRPM, MaxContextTokens: order.MaxContextTokens, ModelLevel: order.ModelLevel,
+			PurchaseMode: order.PurchaseMode, Entitlements: order.Entitlements,
 			Source: order.PlanSnapshotSource, At: order.PlanSnapshotAt,
 		}, now, periodEnd, "quota_pending", "initial_payment"); err != nil {
 			return err
@@ -672,7 +704,8 @@ func (r *BillingRepo) ListOrders(ctx context.Context, userID string) ([]OrderRow
 		       CASE WHEN o.provider = 'simulated' THEN 'simulated://payments/orders/' || o.id::text ELSE COALESCE(o.payment_url, '') END AS payment_url,
 		       COALESCE(o.payment_expires_at::text, '') AS expires_at,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
-		       COALESCE(o.subscription_id::text, '') AS subscription_id
+		       COALESCE(o.subscription_id::text, '') AS subscription_id,
+		       o.purchase_mode, o.entitlements_snapshot AS entitlements
 		FROM billing.orders o
 		WHERE o.user_id = ?::uuid
 		ORDER BY o.created_at DESC
@@ -692,7 +725,8 @@ func (r *BillingRepo) GetOrder(ctx context.Context, userID string, orderID strin
 		       CASE WHEN o.provider = 'simulated' THEN 'simulated://payments/orders/' || o.id::text ELSE COALESCE(o.payment_url, '') END AS payment_url,
 		       COALESCE(o.payment_expires_at::text, '') AS expires_at,
 		       o.created_at::text AS created_at, COALESCE(o.paid_at::text, '') AS paid_at,
-		       COALESCE(o.subscription_id::text, '') AS subscription_id
+		       COALESCE(o.subscription_id::text, '') AS subscription_id,
+		       o.purchase_mode, o.entitlements_snapshot AS entitlements
 		FROM billing.orders o
 		WHERE o.id = ?::uuid AND o.user_id = ?::uuid
 		LIMIT 1
@@ -777,6 +811,10 @@ func loadSubscription(ctx context.Context, tx *gorm.DB, userID string) (Subscrip
 		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
 		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
 		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
+		       sub.purchase_mode, sub.entitlements_snapshot AS entitlements,
+		       COALESCE(sub.legacy_plan_code, '') AS legacy_plan_code,
+		       COALESCE(sub.renewal_plan_code, '') AS renewal_plan_code,
+		       COALESCE(sub.migration_effective_at::text, '') AS migration_effective_at,
 		       sub.status, sub.current_period_start::text AS current_period_start, sub.current_period_end::text AS current_period_end
 		FROM billing.subscriptions sub
 		WHERE sub.user_id = ?::uuid AND sub.status = 'active'
@@ -798,6 +836,10 @@ func loadSubscriptionByID(ctx context.Context, tx *gorm.DB, subscriptionID strin
 		       sub.plan_code, sub.plan_name, sub.billing_period, sub.plan_price::text AS plan_price,
 		       sub.currency, sub.monthly_token_quota, sub.max_rpm, sub.max_context_tokens, sub.model_level,
 		       sub.plan_snapshot_source, sub.plan_snapshot_at::text AS plan_snapshot_at,
+		       sub.purchase_mode, sub.entitlements_snapshot AS entitlements,
+		       COALESCE(sub.legacy_plan_code, '') AS legacy_plan_code,
+		       COALESCE(sub.renewal_plan_code, '') AS renewal_plan_code,
+		       COALESCE(sub.migration_effective_at::text, '') AS migration_effective_at,
 		       sub.status, sub.current_period_start::text AS current_period_start, sub.current_period_end::text AS current_period_end,
 		       sub.cancel_at_period_end, COALESCE(sub.canceled_at::text, '') AS canceled_at,
 		       COALESCE(sub.scheduled_plan_snapshot ->> 'code', '') AS scheduled_plan_code,

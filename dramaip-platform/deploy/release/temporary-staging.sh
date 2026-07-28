@@ -50,10 +50,10 @@ while IFS='|' read -r chart_key image_name kind target; do
   [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
   images+=("$image_name")
 done < "$manifest"
-[[ "${#images[@]}" == "19" ]] || { echo "image manifest must contain 19 images; found ${#images[@]}" >&2; exit 2; }
+[[ "${#images[@]}" == "20" ]] || { echo "image manifest must contain 20 images; found ${#images[@]}" >&2; exit 2; }
 cert_components=(
   web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification-service inspiration-service snapshot-service reporting-service notification-job
+  notification-service inspiration-service snapshot-service review-service reporting-service notification-job
   reporting-job billing-job quota-job
 )
 # EXIT traps can run after function-local variables have been unwound by
@@ -198,7 +198,8 @@ bootstrap() {
     POSTGRES_USER POSTGRES_PASSWORD POSTGRES_AUTH_PASSWORD POSTGRES_USER_PROFILE_PASSWORD
     POSTGRES_BILLING_PASSWORD POSTGRES_QUOTA_PASSWORD POSTGRES_AI_GATEWAY_PASSWORD
     POSTGRES_NOTIFICATION_PASSWORD POSTGRES_INSPIRATION_PASSWORD POSTGRES_ADMIN_PASSWORD
-    POSTGRES_REPORTING_PASSWORD REDIS_PASSWORD RABBITMQ_USER RABBITMQ_PASSWORD
+    POSTGRES_REPORTING_PASSWORD POSTGRES_SNAPSHOT_PASSWORD POSTGRES_REVIEW_PASSWORD
+    REVIEW_S3_ACCESS_KEY REVIEW_S3_SECRET_KEY REDIS_PASSWORD RABBITMQ_USER RABBITMQ_PASSWORD
     AI_PROVIDER_API_KEY AUTH_EMAIL_DELIVERY_TOKEN
   )
   local -a runtime_args=()

@@ -64,6 +64,7 @@ func TestDatabaseRoleMigrationHasCompleteRoleMatrix(t *testing.T) {
 		filepath.Join(migrationsRoot, "reporting", "032_reporting_event_read_model.up.sql"),
 		filepath.Join(migrationsRoot, "platform", "033_database_role_isolation_complete.up.sql"),
 		filepath.Join(migrationsRoot, "snapshot", "041_snapshot_envelopes.up.sql"),
+		filepath.Join(migrationsRoot, "review", "048_review_service_init.up.sql"),
 	}
 	var builder strings.Builder
 	for _, path := range paths {

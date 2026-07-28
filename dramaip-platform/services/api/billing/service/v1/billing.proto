@@ -30,6 +30,19 @@ message Plan {
   int64 price_cny = 7;
   string model_level = 8;
   int64 max_rpm = 9;
+  string purchase_mode = 10;
+  PlanEntitlements entitlements = 11;
+}
+
+message PlanEntitlements {
+  int32 included_seats = 1;
+  bool byok_enabled = 2;
+  bool offline_review_enabled = 3;
+  bool advanced_export_enabled = 4;
+  bool cloud_review_enabled = 5;
+  int64 review_storage_bytes = 6;
+  int32 review_retention_days = 7;
+  bool private_gateway_enabled = 8;
 }
 
 message ListPlansReply {
@@ -140,6 +153,11 @@ message Subscription {
   string scheduled_plan_code = 10;
   string scheduled_change_at = 11;
   string lifecycle_error = 12;
+  string purchase_mode = 13;
+  PlanEntitlements entitlements = 14;
+  string legacy_plan_code = 15;
+  string renewal_plan_code = 16;
+  string migration_effective_at = 17;
 }
 
 message Refund {
@@ -168,4 +186,6 @@ message Order {
   string paid_at = 11;
   string subscription_id = 12;
   string expires_at = 13;
+  string purchase_mode = 14;
+  PlanEntitlements entitlements_snapshot = 15;
 }

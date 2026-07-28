@@ -31,6 +31,7 @@ var DatabaseRoles = []DatabaseRole{
 	{Name: "dramaip_admin", Schema: "admin", PasswordEnv: "POSTGRES_ADMIN_PASSWORD"},
 	{Name: "dramaip_reporting", Schema: "reporting", PasswordEnv: "POSTGRES_REPORTING_PASSWORD"},
 	{Name: "dramaip_snapshot", Schema: "snapshot", PasswordEnv: "POSTGRES_SNAPSHOT_PASSWORD"},
+	{Name: "dramaip_review", Schema: "review", PasswordEnv: "POSTGRES_REVIEW_PASSWORD"},
 }
 
 func DatabaseRoleForSchema(schema string) (DatabaseRole, error) {

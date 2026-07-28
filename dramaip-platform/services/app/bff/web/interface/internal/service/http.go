@@ -22,6 +22,7 @@ import (
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/conf"
@@ -81,6 +82,10 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/me/usage-trend", s.handleUsageTrend)
 	mux.HandleFunc("/v1/me/account-bootstrap", s.handleAccountBootstrap)
 	mux.HandleFunc("/v1/me/account-report", s.handleAccountReport)
+	mux.HandleFunc("/v1/me/workspaces", s.handleWorkspaces)
+	mux.HandleFunc("/v1/me/workspaces/members", s.handleWorkspaceMembers)
+	mux.HandleFunc("/v1/me/workspaces/invitations", s.handleWorkspaceInvitations)
+	mux.HandleFunc("/v1/me/workspace-invitations/accept", s.handleAcceptWorkspaceInvitation)
 	mux.HandleFunc("/v1/me/notifications/", s.handleNotificationAction)
 	mux.HandleFunc("/v1/me/notifications", s.handleNotifications)
 	mux.HandleFunc("/v1/me/orders/", s.handleOrder)
@@ -98,6 +103,9 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/ai/chat/cancel", s.handleChatCancel)
 	mux.HandleFunc("/v1/ai/chat/status", s.handleChatStatus)
 	mux.HandleFunc("/v1/ai/chat", s.handleChat)
+	mux.HandleFunc("/v1/review/package", s.handlePublicReviewPackage)
+	mux.HandleFunc("/v1/review/comments", s.handlePublicReviewComment)
+	mux.HandleFunc("/v1/review/decisions", s.handlePublicReviewDecision)
 	return platform.TraceMiddleware("web-bff-interface", s.metricsMiddleware(platform.ClientContractMiddleware(s.csrfMiddleware(mux))))
 }
 
@@ -376,7 +384,8 @@ func (s *HTTPService) handlePlans(w http.ResponseWriter, r *http.Request) {
 	for _, plan := range reply.Plans {
 		plans = append(plans, map[string]any{
 			"id": plan.Code, "name": plan.Name, "price_cny": plan.PriceCny, "quota_tokens": plan.MonthlyTokenQuota,
-			"description": planDescription(plan.MonthlyTokenQuota, plan.MaxRpm, plan.ModelLevel),
+			"description":   planDescription(plan.MonthlyTokenQuota, plan.MaxRpm, plan.ModelLevel),
+			"purchase_mode": plan.PurchaseMode, "entitlements": entitlementsResponse(plan.Entitlements),
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"plans": plans})
@@ -433,6 +442,186 @@ func (s *HTTPService) handleProfile(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
 	}
+}
+
+func (s *HTTPService) handleWorkspaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	reply, err := s.uc.Workspaces(r.Context(), auth.UserId)
+	if err != nil {
+		writeGRPCError(w, err, "workspaces_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handleWorkspaceMembers(w http.ResponseWriter, r *http.Request) {
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace_id"))
+	switch r.Method {
+	case http.MethodGet:
+		reply, err := s.uc.WorkspaceMembers(r.Context(), auth.UserId, workspaceID)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_members_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	case http.MethodPatch:
+		var req struct {
+			MemberUserID string `json:"member_user_id"`
+			Role         string `json:"role"`
+		}
+		if !decodeJSONLimit(w, r, &req, 4<<10) {
+			return
+		}
+		reply, err := s.uc.UpdateWorkspaceMemberRole(r.Context(), auth.UserId, workspaceID, req.MemberUserID, req.Role)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_member_update_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	case http.MethodDelete:
+		memberUserID := strings.TrimSpace(r.URL.Query().Get("member_user_id"))
+		reply, err := s.uc.RemoveWorkspaceMember(r.Context(), auth.UserId, workspaceID, memberUserID)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_member_remove_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	}
+}
+
+func (s *HTTPService) handleWorkspaceInvitations(w http.ResponseWriter, r *http.Request) {
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	workspaceID := strings.TrimSpace(r.URL.Query().Get("workspace_id"))
+	switch r.Method {
+	case http.MethodGet:
+		reply, err := s.uc.WorkspaceInvitations(r.Context(), auth.UserId, workspaceID)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_invitations_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	case http.MethodPost:
+		var req struct {
+			Email          string `json:"email"`
+			Role           string `json:"role"`
+			ExpiresInHours int32  `json:"expires_in_hours"`
+		}
+		if !decodeJSONLimit(w, r, &req, 4<<10) {
+			return
+		}
+		reply, err := s.uc.InviteWorkspaceMember(r.Context(), auth.UserId, workspaceID, req.Email, req.Role, req.ExpiresInHours)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_invitation_create_unavailable")
+			return
+		}
+		// token is deliberately present only in this response so deployments
+		// without SMTP can expose a copy-link action.
+		writeJSON(w, http.StatusCreated, reply)
+	case http.MethodDelete:
+		invitationID := strings.TrimSpace(r.URL.Query().Get("invitation_id"))
+		reply, err := s.uc.RevokeWorkspaceInvitation(r.Context(), auth.UserId, workspaceID, invitationID)
+		if err != nil {
+			writeGRPCError(w, err, "workspace_invitation_revoke_unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, reply)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	}
+}
+
+func (s *HTTPService) handleAcceptWorkspaceInvitation(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	auth, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var req struct {
+		Token string `json:"token"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.AcceptWorkspaceInvitation(r.Context(), auth.UserId, req.Token)
+	if err != nil {
+		writeGRPCError(w, err, "workspace_invitation_accept_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handlePublicReviewPackage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Token string `json:"token"`
+		PIN   string `json:"pin"`
+	}
+	if !decodeJSONLimit(w, r, &req, 4<<10) {
+		return
+	}
+	reply, err := s.uc.PublicReviewPackage(r.Context(), req.Token, req.PIN)
+	if err != nil {
+		writeGRPCError(w, err, "review_package_unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handlePublicReviewComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req reviewv1.SubmitPublicCommentRequest
+	if !decodeJSONLimit(w, r, &req, 16<<10) {
+		return
+	}
+	reply, err := s.uc.SubmitPublicReviewComment(r.Context(), &req)
+	if err != nil {
+		writeGRPCError(w, err, "review_comment_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusCreated, reply)
+}
+
+func (s *HTTPService) handlePublicReviewDecision(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req reviewv1.SubmitPublicDecisionRequest
+	if !decodeJSONLimit(w, r, &req, 16<<10) {
+		return
+	}
+	reply, err := s.uc.SubmitPublicReviewDecision(r.Context(), &req)
+	if err != nil {
+		writeGRPCError(w, err, "review_decision_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusCreated, reply)
 }
 
 func (s *HTTPService) handleTokenBalance(w http.ResponseWriter, r *http.Request) {
@@ -1228,7 +1417,7 @@ func validDesktopAuthorizeInput(challenge, redirectURI, state, deviceID string) 
 
 func (s *HTTPService) csrfMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !unsafeMethod(r.Method) || !browserSessionRequest(r) {
+		if strings.HasPrefix(r.URL.Path, "/v1/review/") || !unsafeMethod(r.Method) || !browserSessionRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1410,7 +1599,10 @@ func subscriptionResponse(sub *billingv1.Subscription) map[string]any {
 		"status": sub.Status, "current_period_start": sub.CurrentPeriodStart, "current_period_end": sub.CurrentPeriodEnd,
 		"cancel_at_period_end": sub.CancelAtPeriodEnd, "canceled_at": sub.CanceledAt,
 		"scheduled_plan_code": sub.ScheduledPlanCode, "scheduled_change_at": sub.ScheduledChangeAt,
-		"lifecycle_error": sub.LifecycleError,
+		"lifecycle_error": sub.LifecycleError, "purchase_mode": sub.PurchaseMode,
+		"entitlements":     entitlementsResponse(sub.Entitlements),
+		"legacy_plan_code": sub.LegacyPlanCode, "renewal_plan_code": sub.RenewalPlanCode,
+		"migration_effective_at": sub.MigrationEffectiveAt,
 	}
 }
 
@@ -1435,6 +1627,22 @@ func orderResponse(order *billingv1.Order) map[string]any {
 		"provider": order.Provider, "status": order.Status, "amount": order.Amount, "currency": order.Currency,
 		"payment_url": order.PaymentUrl, "created_at": order.CreatedAt, "paid_at": order.PaidAt,
 		"subscription_id": order.SubscriptionId, "expires_at": order.ExpiresAt,
+		"purchase_mode": order.PurchaseMode, "entitlements_snapshot": entitlementsResponse(order.EntitlementsSnapshot),
+	}
+}
+
+func entitlementsResponse(entitlements *billingv1.PlanEntitlements) map[string]any {
+	if entitlements == nil {
+		entitlements = &billingv1.PlanEntitlements{}
+	}
+	return map[string]any{
+		"included_seats": entitlements.IncludedSeats, "byok_enabled": entitlements.ByokEnabled,
+		"offline_review_enabled":  entitlements.OfflineReviewEnabled,
+		"advanced_export_enabled": entitlements.AdvancedExportEnabled,
+		"cloud_review_enabled":    entitlements.CloudReviewEnabled,
+		"review_storage_bytes":    entitlements.ReviewStorageBytes,
+		"review_retention_days":   entitlements.ReviewRetentionDays,
+		"private_gateway_enabled": entitlements.PrivateGatewayEnabled,
 	}
 }
 

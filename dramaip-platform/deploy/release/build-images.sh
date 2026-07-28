@@ -135,4 +135,4 @@ done < "$manifest"
   echo "manifest must build 18 Go images and one Web image; got $go_count Go and $web_count Web" >&2
   exit 2
 }
-echo "built immutable release bundle: 19 images under $registry with tag $tag (not pushed)"
+echo "built immutable release bundle: 20 images under $registry with tag $tag (not pushed)"

@@ -30,6 +30,7 @@ func (s *BillingService) ListPlans(ctx context.Context, _ *billingv1.ListPlansRe
 			Id: row.Code, Code: row.Code, Name: row.Name, MonthlyTokenQuota: row.MonthlyTokenQuota,
 			Price: strconv.FormatFloat(row.Price, 'f', 2, 64), PriceCny: biz.PriceCNY(row.Price),
 			Currency: row.Currency, ModelLevel: row.ModelLevel, MaxRpm: row.MaxRPM,
+			PurchaseMode: row.PurchaseMode, Entitlements: entitlementsReply(row.Entitlements),
 		})
 	}
 	return &billingv1.ListPlansReply{Plans: plans}, nil
@@ -173,6 +174,9 @@ func subscriptionReply(sub data.SubscriptionRow) *billingv1.Subscription {
 		CancelAtPeriodEnd: sub.CancelAtPeriodEnd, CanceledAt: sub.CanceledAt,
 		ScheduledPlanCode: sub.ScheduledPlanCode, ScheduledChangeAt: sub.ScheduledChangeAt,
 		LifecycleError: sub.LifecycleError,
+		PurchaseMode:   sub.PurchaseMode, Entitlements: entitlementsReply(sub.Entitlements),
+		LegacyPlanCode: sub.LegacyPlanCode, RenewalPlanCode: sub.RenewalPlanCode,
+		MigrationEffectiveAt: sub.MigrationEffectiveAt,
 	}
 }
 
@@ -190,6 +194,20 @@ func orderReply(order data.OrderRow) *billingv1.Order {
 		Provider: order.Provider, Status: order.Status, Amount: order.Amount, Currency: order.Currency,
 		PaymentUrl: order.PaymentURL, CreatedAt: order.CreatedAt, PaidAt: order.PaidAt,
 		SubscriptionId: order.SubscriptionID, ExpiresAt: order.ExpiresAt,
+		PurchaseMode: order.PurchaseMode, EntitlementsSnapshot: entitlementsReply(order.Entitlements),
+	}
+}
+
+func entitlementsReply(entitlements data.PlanEntitlements) *billingv1.PlanEntitlements {
+	return &billingv1.PlanEntitlements{
+		IncludedSeats:         entitlements.IncludedSeats,
+		ByokEnabled:           entitlements.BYOKEnabled,
+		OfflineReviewEnabled:  entitlements.OfflineReviewEnabled,
+		AdvancedExportEnabled: entitlements.AdvancedExportEnabled,
+		CloudReviewEnabled:    entitlements.CloudReviewEnabled,
+		ReviewStorageBytes:    entitlements.ReviewStorageBytes,
+		ReviewRetentionDays:   entitlements.ReviewRetentionDays,
+		PrivateGatewayEnabled: entitlements.PrivateGatewayEnabled,
 	}
 }
 

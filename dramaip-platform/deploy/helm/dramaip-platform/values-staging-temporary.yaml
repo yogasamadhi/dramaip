@@ -63,6 +63,13 @@ config:
       currency: USD
       exchangeRateToCny: "1"
 
+review:
+  objectStore:
+    endpoint: http://minio:9000
+    region: us-east-1
+    bucket: dramaip-review
+    credentialsSecret: ""
+
 # A short-lived test deploy validates generated local keys, not the normal
 # staging/production rotation workflow. The application generates ephemeral
 # key material when these mount names are deliberately empty.

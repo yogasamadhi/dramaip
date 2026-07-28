@@ -15,6 +15,7 @@ aiGateway|ai-gateway|go|./app/ai_gateway/service/cmd/server
 notification|notification|go|./app/notification/service/cmd/server
 inspiration|inspiration|go|./app/inspiration/service/cmd/server
 snapshot|snapshot|go|./app/snapshot/service/cmd/server
+review|review|go|./app/review/service/cmd/server
 reporting|reporting|go|./app/reporting/service/cmd/server
 notificationJob|notification-job|go|./app/notification/job/cmd/server
 reportingJob|reporting-job|go|./app/reporting/job/cmd/server

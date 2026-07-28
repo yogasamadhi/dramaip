@@ -79,16 +79,22 @@ func (r *BillingRepo) ChangeSubscriptionPlan(ctx context.Context, userID, subscr
 			MaxRPM            int64
 			MaxContextTokens  int64
 			ModelLevel        string
+			PurchaseMode      string
+			Entitlements      PlanEntitlements
 		}
 		if err := tx.Raw(`
 			SELECT id::text AS id, code, name, billing_period, price::text AS price, currency,
-			       monthly_token_quota, max_rpm, max_context_tokens, model_level
+			       monthly_token_quota, max_rpm, max_context_tokens, model_level,
+			       purchase_mode, entitlements
 			FROM billing.plans WHERE code = ? AND is_active = true LIMIT 1
 		`, planCode).Scan(&plan).Error; err != nil {
 			return err
 		}
 		if plan.ID == "" {
 			return status.Error(codes.NotFound, "plan not found")
+		}
+		if plan.PurchaseMode != "self_service" {
+			return status.Errorf(codes.FailedPrecondition, "plan %s requires sales contact and cannot be selected in self-service", plan.Code)
 		}
 		if plan.Code == sub.PlanCode {
 			out = PlanChangeResult{Subscription: sub, Kind: "unchanged", Status: "applied"}
@@ -121,7 +127,8 @@ func (r *BillingRepo) ChangeSubscriptionPlan(ctx context.Context, userID, subscr
 		now := time.Now().UTC()
 		target := PlanSnapshot{Code: plan.Code, Name: plan.Name, BillingPeriod: plan.BillingPeriod, Price: plan.Price,
 			Currency: plan.Currency, MonthlyTokenQuota: plan.MonthlyTokenQuota, MaxRPM: plan.MaxRPM,
-			MaxContextTokens: plan.MaxContextTokens, ModelLevel: plan.ModelLevel, Source: "plan_change", At: now.Format(time.RFC3339Nano)}
+			MaxContextTokens: plan.MaxContextTokens, ModelLevel: plan.ModelLevel, PurchaseMode: plan.PurchaseMode,
+			Entitlements: plan.Entitlements, Source: "plan_change", At: now.Format(time.RFC3339Nano)}
 		delta := target.MonthlyTokenQuota - sub.MonthlyTokenQuota
 		kind := "upgrade"
 		state := "quota_pending"
@@ -450,11 +457,13 @@ func updateSubscriptionSnapshot(tx *gorm.DB, subscriptionID, planID string, snap
 		UPDATE billing.subscriptions
 		SET plan_id = ?::uuid, plan_code = ?, plan_name = ?, billing_period = ?, plan_price = ?::numeric,
 		    currency = ?, monthly_token_quota = ?, max_rpm = ?, max_context_tokens = ?, model_level = ?,
-		    plan_snapshot_source = ?, plan_snapshot_at = ?::timestamptz, lifecycle_error = NULL, updated_at = now()
+		    plan_snapshot_source = ?, plan_snapshot_at = ?::timestamptz,
+		    purchase_mode = ?, entitlements_snapshot = ?::jsonb,
+		    lifecycle_error = NULL, updated_at = now()
 		WHERE id = ?::uuid
 	`, planID, snapshot.Code, snapshot.Name, snapshot.BillingPeriod, snapshot.Price, snapshot.Currency,
 		snapshot.MonthlyTokenQuota, snapshot.MaxRPM, snapshot.MaxContextTokens, snapshot.ModelLevel,
-		snapshot.Source, snapshot.At, subscriptionID).Error
+		snapshot.Source, snapshot.At, snapshot.PurchaseMode, snapshot.Entitlements.JSON(), subscriptionID).Error
 }
 
 func insertSubscriptionPeriod(tx *gorm.DB, subscriptionID, userID, orderID, planID string, snapshot PlanSnapshot, start, end time.Time, state, source string) error {

@@ -10,6 +10,7 @@ import (
 	authv1 "github.com/dramaip/dramaip-platform/services/api/auth/service/v1"
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/web/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -196,6 +197,60 @@ func (u *BFFUsecase) UpdateProfile(ctx context.Context, userID string, phone str
 	})
 }
 
+func (u *BFFUsecase) Workspaces(ctx context.Context, userID string) (*userv1.ListWorkspacesReply, error) {
+	return u.data.Workspace.ListWorkspaces(ctx, &userv1.ListWorkspacesRequest{UserId: userID})
+}
+
+func (u *BFFUsecase) WorkspaceMembers(ctx context.Context, userID, workspaceID string) (*userv1.ListWorkspaceMembersReply, error) {
+	return u.data.Workspace.ListWorkspaceMembers(ctx, &userv1.ListWorkspaceMembersRequest{UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID)})
+}
+
+func (u *BFFUsecase) WorkspaceInvitations(ctx context.Context, userID, workspaceID string) (*userv1.ListWorkspaceInvitationsReply, error) {
+	return u.data.Workspace.ListWorkspaceInvitations(ctx, &userv1.ListWorkspaceInvitationsRequest{UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID)})
+}
+
+func (u *BFFUsecase) InviteWorkspaceMember(ctx context.Context, userID, workspaceID, email, role string, expiresInHours int32) (*userv1.WorkspaceInvitation, error) {
+	return u.data.Workspace.InviteWorkspaceMember(ctx, &userv1.InviteWorkspaceMemberRequest{
+		UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID), Email: strings.TrimSpace(email),
+		Role: strings.TrimSpace(role), ExpiresInHours: expiresInHours,
+	})
+}
+
+func (u *BFFUsecase) AcceptWorkspaceInvitation(ctx context.Context, userID, token string) (*userv1.WorkspaceMember, error) {
+	return u.data.Workspace.AcceptWorkspaceInvitation(ctx, &userv1.AcceptWorkspaceInvitationRequest{UserId: userID, Token: strings.TrimSpace(token)})
+}
+
+func (u *BFFUsecase) RevokeWorkspaceInvitation(ctx context.Context, userID, workspaceID, invitationID string) (*userv1.WorkspaceInvitation, error) {
+	return u.data.Workspace.RevokeWorkspaceInvitation(ctx, &userv1.RevokeWorkspaceInvitationRequest{
+		UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID), InvitationId: strings.TrimSpace(invitationID),
+	})
+}
+
+func (u *BFFUsecase) UpdateWorkspaceMemberRole(ctx context.Context, userID, workspaceID, memberUserID, role string) (*userv1.WorkspaceMember, error) {
+	return u.data.Workspace.UpdateWorkspaceMemberRole(ctx, &userv1.UpdateWorkspaceMemberRoleRequest{
+		UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID),
+		MemberUserId: strings.TrimSpace(memberUserID), Role: strings.TrimSpace(role),
+	})
+}
+
+func (u *BFFUsecase) RemoveWorkspaceMember(ctx context.Context, userID, workspaceID, memberUserID string) (*userv1.WorkspaceMember, error) {
+	return u.data.Workspace.RemoveWorkspaceMember(ctx, &userv1.RemoveWorkspaceMemberRequest{
+		UserId: userID, WorkspaceId: strings.TrimSpace(workspaceID), MemberUserId: strings.TrimSpace(memberUserID),
+	})
+}
+
+func (u *BFFUsecase) PublicReviewPackage(ctx context.Context, token, pin string) (*reviewv1.PublicPackageReply, error) {
+	return u.data.Review.GetPublicPackage(ctx, &reviewv1.GetPublicPackageRequest{Token: strings.TrimSpace(token), Pin: strings.TrimSpace(pin)})
+}
+
+func (u *BFFUsecase) SubmitPublicReviewComment(ctx context.Context, request *reviewv1.SubmitPublicCommentRequest) (*reviewv1.ReviewComment, error) {
+	return u.data.Review.SubmitPublicComment(ctx, request)
+}
+
+func (u *BFFUsecase) SubmitPublicReviewDecision(ctx context.Context, request *reviewv1.SubmitPublicDecisionRequest) (*reviewv1.ReviewDecision, error) {
+	return u.data.Review.SubmitPublicDecision(ctx, request)
+}
+
 func (u *BFFUsecase) Subscription(ctx context.Context, userID string) (*billingv1.Subscription, error) {
 	return u.data.Billing.GetSubscription(ctx, &billingv1.GetSubscriptionRequest{UserId: userID})
 }
@@ -377,7 +432,14 @@ func (u *BFFUsecase) SimulatedConfirmPayment(ctx context.Context, userID string,
 	// payment.succeeded.v1 is written to the billing outbox in the same
 	// transaction. notification-job is the sole path that turns it into a
 	// payment notification, so a BFF retry cannot double-write the user inbox.
-	return u.data.Billing.ConfirmSimulatedPayment(ctx, &billingv1.ConfirmSimulatedPaymentRequest{UserId: userID, CheckoutId: checkoutID})
+	reply, err := u.data.Billing.ConfirmSimulatedPayment(ctx, &billingv1.ConfirmSimulatedPaymentRequest{UserId: userID, CheckoutId: checkoutID})
+	if err != nil {
+		return nil, err
+	}
+	if err := u.syncOwnerWorkspaceEntitlements(ctx, userID, reply.Subscription); err != nil {
+		return nil, err
+	}
+	return reply, nil
 }
 
 func (u *BFFUsecase) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (*billingv1.Subscription, error) {
@@ -395,9 +457,39 @@ func (u *BFFUsecase) ResumeSubscription(ctx context.Context, userID, subscriptio
 }
 
 func (u *BFFUsecase) ChangeSubscriptionPlan(ctx context.Context, userID, subscriptionID, planID, idempotencyKey string) (*billingv1.Subscription, error) {
-	return u.data.Billing.ChangeSubscriptionPlan(ctx, &billingv1.ChangeSubscriptionPlanRequest{
+	reply, err := u.data.Billing.ChangeSubscriptionPlan(ctx, &billingv1.ChangeSubscriptionPlanRequest{
 		UserId: userID, SubscriptionId: subscriptionID, PlanId: planID, IdempotencyKey: idempotencyKey,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := u.syncOwnerWorkspaceEntitlements(ctx, userID, reply); err != nil {
+		return nil, err
+	}
+	return reply, nil
+}
+
+func (u *BFFUsecase) syncOwnerWorkspaceEntitlements(ctx context.Context, userID string, subscription *billingv1.Subscription) error {
+	if subscription == nil || subscription.Entitlements == nil {
+		return status.Error(codes.FailedPrecondition, "subscription_entitlements_missing")
+	}
+	workspaces, err := u.data.Workspace.ListWorkspaces(ctx, &userv1.ListWorkspacesRequest{UserId: userID})
+	if err != nil {
+		return err
+	}
+	for _, workspace := range workspaces.Workspaces {
+		if workspace.OwnerUserId != userID {
+			continue
+		}
+		_, err := u.data.Workspace.SetWorkspacePlan(ctx, &userv1.SetWorkspacePlanRequest{
+			WorkspaceId: workspace.Id, PlanCode: subscription.PlanCode,
+			IncludedSeats:       subscription.Entitlements.IncludedSeats,
+			ReviewStorageBytes:  subscription.Entitlements.ReviewStorageBytes,
+			ReviewRetentionDays: subscription.Entitlements.ReviewRetentionDays,
+		})
+		return err
+	}
+	return status.Error(codes.FailedPrecondition, "owner_workspace_missing")
 }
 
 func (u *BFFUsecase) RequestRefund(ctx context.Context, userID, subscriptionID, reason, idempotencyKey string) (*billingv1.Refund, error) {
