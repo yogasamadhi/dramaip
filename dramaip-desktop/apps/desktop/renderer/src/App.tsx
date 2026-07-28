@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RootLayout } from '@/components/shell/RootLayout'
+import { AnalyticsConsentBanner } from '@/components/AnalyticsConsentBanner'
 
 const ProjectListPage = lazy(() => import('@/pages/ProjectListPage').then((m) => ({ default: m.ProjectListPage })))
 const CreateProjectPage = lazy(() => import('@/pages/CreateProjectPage').then((m) => ({ default: m.CreateProjectPage })))
@@ -51,8 +52,9 @@ const CloudAccountSettingsPage = lazy(() =>
 
 export default function App() {
   return (
-    <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
-      <Routes>
+    <>
+      <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">加载中...</div>}>
+        <Routes>
         <Route element={<RootLayout />}>
           <Route path="/" element={<ProjectListPage />} />
           <Route path="/search" element={<SearchPage />} />
@@ -83,7 +85,9 @@ export default function App() {
           <Route path="/case-studies" element={<CaseStudyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+      <AnalyticsConsentBanner />
+    </>
   )
 }

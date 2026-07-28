@@ -21,6 +21,186 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ProductEvent struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	InstallationId  string                 `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	EventId         string                 `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	AppVersion      string                 `protobuf:"bytes,3,opt,name=app_version,json=appVersion,proto3" json:"app_version,omitempty"`
+	OperatingSystem string                 `protobuf:"bytes,4,opt,name=operating_system,json=operatingSystem,proto3" json:"operating_system,omitempty"`
+	EventName       string                 `protobuf:"bytes,5,opt,name=event_name,json=eventName,proto3" json:"event_name,omitempty"`
+	DurationBucket  string                 `protobuf:"bytes,6,opt,name=duration_bucket,json=durationBucket,proto3" json:"duration_bucket,omitempty"`
+	ResultCode      string                 `protobuf:"bytes,7,opt,name=result_code,json=resultCode,proto3" json:"result_code,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ProductEvent) Reset() {
+	*x = ProductEvent{}
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProductEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProductEvent) ProtoMessage() {}
+
+func (x *ProductEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProductEvent.ProtoReflect.Descriptor instead.
+func (*ProductEvent) Descriptor() ([]byte, []int) {
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ProductEvent) GetInstallationId() string {
+	if x != nil {
+		return x.InstallationId
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetAppVersion() string {
+	if x != nil {
+		return x.AppVersion
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetOperatingSystem() string {
+	if x != nil {
+		return x.OperatingSystem
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetEventName() string {
+	if x != nil {
+		return x.EventName
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetDurationBucket() string {
+	if x != nil {
+		return x.DurationBucket
+	}
+	return ""
+}
+
+func (x *ProductEvent) GetResultCode() string {
+	if x != nil {
+		return x.ResultCode
+	}
+	return ""
+}
+
+type RecordProductEventsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Events        []*ProductEvent        `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordProductEventsRequest) Reset() {
+	*x = RecordProductEventsRequest{}
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordProductEventsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordProductEventsRequest) ProtoMessage() {}
+
+func (x *RecordProductEventsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordProductEventsRequest.ProtoReflect.Descriptor instead.
+func (*RecordProductEventsRequest) Descriptor() ([]byte, []int) {
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RecordProductEventsRequest) GetEvents() []*ProductEvent {
+	if x != nil {
+		return x.Events
+	}
+	return nil
+}
+
+type RecordProductEventsResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	AcceptedEventIds []string               `protobuf:"bytes,1,rep,name=accepted_event_ids,json=acceptedEventIds,proto3" json:"accepted_event_ids,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RecordProductEventsResponse) Reset() {
+	*x = RecordProductEventsResponse{}
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordProductEventsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordProductEventsResponse) ProtoMessage() {}
+
+func (x *RecordProductEventsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RecordProductEventsResponse.ProtoReflect.Descriptor instead.
+func (*RecordProductEventsResponse) Descriptor() ([]byte, []int) {
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RecordProductEventsResponse) GetAcceptedEventIds() []string {
+	if x != nil {
+		return x.AcceptedEventIds
+	}
+	return nil
+}
+
 type GetOverviewRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -29,7 +209,7 @@ type GetOverviewRequest struct {
 
 func (x *GetOverviewRequest) Reset() {
 	*x = GetOverviewRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[0]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +221,7 @@ func (x *GetOverviewRequest) String() string {
 func (*GetOverviewRequest) ProtoMessage() {}
 
 func (x *GetOverviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[0]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +234,7 @@ func (x *GetOverviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOverviewRequest.ProtoReflect.Descriptor instead.
 func (*GetOverviewRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{0}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{3}
 }
 
 type GetOverviewResponse struct {
@@ -71,7 +251,7 @@ type GetOverviewResponse struct {
 
 func (x *GetOverviewResponse) Reset() {
 	*x = GetOverviewResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[1]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -83,7 +263,7 @@ func (x *GetOverviewResponse) String() string {
 func (*GetOverviewResponse) ProtoMessage() {}
 
 func (x *GetOverviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[1]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -96,7 +276,7 @@ func (x *GetOverviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetOverviewResponse.ProtoReflect.Descriptor instead.
 func (*GetOverviewResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{1}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetOverviewResponse) GetUserCount() int64 {
@@ -154,7 +334,7 @@ type UserSummary struct {
 
 func (x *UserSummary) Reset() {
 	*x = UserSummary{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[2]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -166,7 +346,7 @@ func (x *UserSummary) String() string {
 func (*UserSummary) ProtoMessage() {}
 
 func (x *UserSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[2]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -179,7 +359,7 @@ func (x *UserSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserSummary.ProtoReflect.Descriptor instead.
 func (*UserSummary) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{2}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UserSummary) GetUserId() string {
@@ -228,7 +408,7 @@ type ListUsersRequest struct {
 
 func (x *ListUsersRequest) Reset() {
 	*x = ListUsersRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[3]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -240,7 +420,7 @@ func (x *ListUsersRequest) String() string {
 func (*ListUsersRequest) ProtoMessage() {}
 
 func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[3]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -253,7 +433,7 @@ func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListUsersRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{3}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListUsersRequest) GetLimit() int32 {
@@ -287,7 +467,7 @@ type ListUsersResponse struct {
 
 func (x *ListUsersResponse) Reset() {
 	*x = ListUsersResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[4]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -299,7 +479,7 @@ func (x *ListUsersResponse) String() string {
 func (*ListUsersResponse) ProtoMessage() {}
 
 func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[4]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -312,7 +492,7 @@ func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListUsersResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{4}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListUsersResponse) GetUsers() []*UserSummary {
@@ -346,7 +526,7 @@ type OrderSummary struct {
 
 func (x *OrderSummary) Reset() {
 	*x = OrderSummary{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[5]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +538,7 @@ func (x *OrderSummary) String() string {
 func (*OrderSummary) ProtoMessage() {}
 
 func (x *OrderSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[5]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +551,7 @@ func (x *OrderSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderSummary.ProtoReflect.Descriptor instead.
 func (*OrderSummary) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{5}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *OrderSummary) GetOrderId() string {
@@ -448,7 +628,7 @@ type ListOrdersRequest struct {
 
 func (x *ListOrdersRequest) Reset() {
 	*x = ListOrdersRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[6]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -460,7 +640,7 @@ func (x *ListOrdersRequest) String() string {
 func (*ListOrdersRequest) ProtoMessage() {}
 
 func (x *ListOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[6]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -473,7 +653,7 @@ func (x *ListOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{6}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListOrdersRequest) GetLimit() int32 {
@@ -507,7 +687,7 @@ type ListOrdersResponse struct {
 
 func (x *ListOrdersResponse) Reset() {
 	*x = ListOrdersResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[7]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -519,7 +699,7 @@ func (x *ListOrdersResponse) String() string {
 func (*ListOrdersResponse) ProtoMessage() {}
 
 func (x *ListOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[7]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -532,7 +712,7 @@ func (x *ListOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{7}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListOrdersResponse) GetOrders() []*OrderSummary {
@@ -564,7 +744,7 @@ type SubscriptionSummary struct {
 
 func (x *SubscriptionSummary) Reset() {
 	*x = SubscriptionSummary{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[8]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +756,7 @@ func (x *SubscriptionSummary) String() string {
 func (*SubscriptionSummary) ProtoMessage() {}
 
 func (x *SubscriptionSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[8]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +769,7 @@ func (x *SubscriptionSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscriptionSummary.ProtoReflect.Descriptor instead.
 func (*SubscriptionSummary) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{8}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SubscriptionSummary) GetSubscriptionId() string {
@@ -652,7 +832,7 @@ type ListSubscriptionsRequest struct {
 
 func (x *ListSubscriptionsRequest) Reset() {
 	*x = ListSubscriptionsRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[9]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +844,7 @@ func (x *ListSubscriptionsRequest) String() string {
 func (*ListSubscriptionsRequest) ProtoMessage() {}
 
 func (x *ListSubscriptionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[9]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -677,7 +857,7 @@ func (x *ListSubscriptionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSubscriptionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSubscriptionsRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{9}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListSubscriptionsRequest) GetLimit() int32 {
@@ -711,7 +891,7 @@ type ListSubscriptionsResponse struct {
 
 func (x *ListSubscriptionsResponse) Reset() {
 	*x = ListSubscriptionsResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[10]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +903,7 @@ func (x *ListSubscriptionsResponse) String() string {
 func (*ListSubscriptionsResponse) ProtoMessage() {}
 
 func (x *ListSubscriptionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[10]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +916,7 @@ func (x *ListSubscriptionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSubscriptionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSubscriptionsResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{10}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListSubscriptionsResponse) GetSubscriptions() []*SubscriptionSummary {
@@ -771,7 +951,7 @@ type ProjectionException struct {
 
 func (x *ProjectionException) Reset() {
 	*x = ProjectionException{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[11]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -783,7 +963,7 @@ func (x *ProjectionException) String() string {
 func (*ProjectionException) ProtoMessage() {}
 
 func (x *ProjectionException) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[11]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,7 +976,7 @@ func (x *ProjectionException) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectionException.ProtoReflect.Descriptor instead.
 func (*ProjectionException) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{11}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ProjectionException) GetId() string {
@@ -881,7 +1061,7 @@ type ListExceptionsRequest struct {
 
 func (x *ListExceptionsRequest) Reset() {
 	*x = ListExceptionsRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[12]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -893,7 +1073,7 @@ func (x *ListExceptionsRequest) String() string {
 func (*ListExceptionsRequest) ProtoMessage() {}
 
 func (x *ListExceptionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[12]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -906,7 +1086,7 @@ func (x *ListExceptionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExceptionsRequest.ProtoReflect.Descriptor instead.
 func (*ListExceptionsRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{12}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListExceptionsRequest) GetLimit() int32 {
@@ -947,7 +1127,7 @@ type ListExceptionsResponse struct {
 
 func (x *ListExceptionsResponse) Reset() {
 	*x = ListExceptionsResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[13]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1139,7 @@ func (x *ListExceptionsResponse) String() string {
 func (*ListExceptionsResponse) ProtoMessage() {}
 
 func (x *ListExceptionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[13]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1152,7 @@ func (x *ListExceptionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExceptionsResponse.ProtoReflect.Descriptor instead.
 func (*ListExceptionsResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{13}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListExceptionsResponse) GetExceptions() []*ProjectionException {
@@ -1001,7 +1181,7 @@ type ResolveExceptionRequest struct {
 
 func (x *ResolveExceptionRequest) Reset() {
 	*x = ResolveExceptionRequest{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[14]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1013,7 +1193,7 @@ func (x *ResolveExceptionRequest) String() string {
 func (*ResolveExceptionRequest) ProtoMessage() {}
 
 func (x *ResolveExceptionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[14]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1026,7 +1206,7 @@ func (x *ResolveExceptionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveExceptionRequest.ProtoReflect.Descriptor instead.
 func (*ResolveExceptionRequest) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{14}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ResolveExceptionRequest) GetExceptionId() string {
@@ -1066,7 +1246,7 @@ type ResolveExceptionResponse struct {
 
 func (x *ResolveExceptionResponse) Reset() {
 	*x = ResolveExceptionResponse{}
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[15]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1078,7 +1258,7 @@ func (x *ResolveExceptionResponse) String() string {
 func (*ResolveExceptionResponse) ProtoMessage() {}
 
 func (x *ResolveExceptionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[15]
+	mi := &file_api_reporting_service_v1_reporting_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1091,7 +1271,7 @@ func (x *ResolveExceptionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveExceptionResponse.ProtoReflect.Descriptor instead.
 func (*ResolveExceptionResponse) Descriptor() ([]byte, []int) {
-	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{15}
+	return file_api_reporting_service_v1_reporting_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ResolveExceptionResponse) GetException() *ProjectionException {
@@ -1105,7 +1285,22 @@ var File_api_reporting_service_v1_reporting_proto protoreflect.FileDescriptor
 
 const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\n" +
-	"(api/reporting/service/v1/reporting.proto\x12\x1cdramaip.reporting.service.v1\"\x14\n" +
+	"(api/reporting/service/v1/reporting.proto\x12\x1cdramaip.reporting.service.v1\"\x87\x02\n" +
+	"\fProductEvent\x12'\n" +
+	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x1f\n" +
+	"\vapp_version\x18\x03 \x01(\tR\n" +
+	"appVersion\x12)\n" +
+	"\x10operating_system\x18\x04 \x01(\tR\x0foperatingSystem\x12\x1d\n" +
+	"\n" +
+	"event_name\x18\x05 \x01(\tR\teventName\x12'\n" +
+	"\x0fduration_bucket\x18\x06 \x01(\tR\x0edurationBucket\x12\x1f\n" +
+	"\vresult_code\x18\a \x01(\tR\n" +
+	"resultCode\"`\n" +
+	"\x1aRecordProductEventsRequest\x12B\n" +
+	"\x06events\x18\x01 \x03(\v2*.dramaip.reporting.service.v1.ProductEventR\x06events\"K\n" +
+	"\x1bRecordProductEventsResponse\x12,\n" +
+	"\x12accepted_event_ids\x18\x01 \x03(\tR\x10acceptedEventIds\"\x14\n" +
 	"\x12GetOverviewRequest\"\x93\x02\n" +
 	"\x13GetOverviewResponse\x12\x1d\n" +
 	"\n" +
@@ -1200,7 +1395,7 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"\x06reason\x18\x03 \x01(\tR\x06reason\x12\x19\n" +
 	"\btrace_id\x18\x04 \x01(\tR\atraceId\"k\n" +
 	"\x18ResolveExceptionResponse\x12O\n" +
-	"\texception\x18\x01 \x01(\v21.dramaip.reporting.service.v1.ProjectionExceptionR\texception2\xed\x05\n" +
+	"\texception\x18\x01 \x01(\v21.dramaip.reporting.service.v1.ProjectionExceptionR\texception2\xfa\x06\n" +
 	"\x10ReportingService\x12r\n" +
 	"\vGetOverview\x120.dramaip.reporting.service.v1.GetOverviewRequest\x1a1.dramaip.reporting.service.v1.GetOverviewResponse\x12l\n" +
 	"\tListUsers\x12..dramaip.reporting.service.v1.ListUsersRequest\x1a/.dramaip.reporting.service.v1.ListUsersResponse\x12o\n" +
@@ -1208,7 +1403,8 @@ const file_api_reporting_service_v1_reporting_proto_rawDesc = "" +
 	"ListOrders\x12/.dramaip.reporting.service.v1.ListOrdersRequest\x1a0.dramaip.reporting.service.v1.ListOrdersResponse\x12\x84\x01\n" +
 	"\x11ListSubscriptions\x126.dramaip.reporting.service.v1.ListSubscriptionsRequest\x1a7.dramaip.reporting.service.v1.ListSubscriptionsResponse\x12{\n" +
 	"\x0eListExceptions\x123.dramaip.reporting.service.v1.ListExceptionsRequest\x1a4.dramaip.reporting.service.v1.ListExceptionsResponse\x12\x81\x01\n" +
-	"\x10ResolveException\x125.dramaip.reporting.service.v1.ResolveExceptionRequest\x1a6.dramaip.reporting.service.v1.ResolveExceptionResponseBSZQgithub.com/dramaip/dramaip-platform/services/api/reporting/service/v1;reportingv1b\x06proto3"
+	"\x10ResolveException\x125.dramaip.reporting.service.v1.ResolveExceptionRequest\x1a6.dramaip.reporting.service.v1.ResolveExceptionResponse\x12\x8a\x01\n" +
+	"\x13RecordProductEvents\x128.dramaip.reporting.service.v1.RecordProductEventsRequest\x1a9.dramaip.reporting.service.v1.RecordProductEventsResponseBSZQgithub.com/dramaip/dramaip-platform/services/api/reporting/service/v1;reportingv1b\x06proto3"
 
 var (
 	file_api_reporting_service_v1_reporting_proto_rawDescOnce sync.Once
@@ -1222,48 +1418,54 @@ func file_api_reporting_service_v1_reporting_proto_rawDescGZIP() []byte {
 	return file_api_reporting_service_v1_reporting_proto_rawDescData
 }
 
-var file_api_reporting_service_v1_reporting_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_api_reporting_service_v1_reporting_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_api_reporting_service_v1_reporting_proto_goTypes = []any{
-	(*GetOverviewRequest)(nil),        // 0: dramaip.reporting.service.v1.GetOverviewRequest
-	(*GetOverviewResponse)(nil),       // 1: dramaip.reporting.service.v1.GetOverviewResponse
-	(*UserSummary)(nil),               // 2: dramaip.reporting.service.v1.UserSummary
-	(*ListUsersRequest)(nil),          // 3: dramaip.reporting.service.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),         // 4: dramaip.reporting.service.v1.ListUsersResponse
-	(*OrderSummary)(nil),              // 5: dramaip.reporting.service.v1.OrderSummary
-	(*ListOrdersRequest)(nil),         // 6: dramaip.reporting.service.v1.ListOrdersRequest
-	(*ListOrdersResponse)(nil),        // 7: dramaip.reporting.service.v1.ListOrdersResponse
-	(*SubscriptionSummary)(nil),       // 8: dramaip.reporting.service.v1.SubscriptionSummary
-	(*ListSubscriptionsRequest)(nil),  // 9: dramaip.reporting.service.v1.ListSubscriptionsRequest
-	(*ListSubscriptionsResponse)(nil), // 10: dramaip.reporting.service.v1.ListSubscriptionsResponse
-	(*ProjectionException)(nil),       // 11: dramaip.reporting.service.v1.ProjectionException
-	(*ListExceptionsRequest)(nil),     // 12: dramaip.reporting.service.v1.ListExceptionsRequest
-	(*ListExceptionsResponse)(nil),    // 13: dramaip.reporting.service.v1.ListExceptionsResponse
-	(*ResolveExceptionRequest)(nil),   // 14: dramaip.reporting.service.v1.ResolveExceptionRequest
-	(*ResolveExceptionResponse)(nil),  // 15: dramaip.reporting.service.v1.ResolveExceptionResponse
+	(*ProductEvent)(nil),                // 0: dramaip.reporting.service.v1.ProductEvent
+	(*RecordProductEventsRequest)(nil),  // 1: dramaip.reporting.service.v1.RecordProductEventsRequest
+	(*RecordProductEventsResponse)(nil), // 2: dramaip.reporting.service.v1.RecordProductEventsResponse
+	(*GetOverviewRequest)(nil),          // 3: dramaip.reporting.service.v1.GetOverviewRequest
+	(*GetOverviewResponse)(nil),         // 4: dramaip.reporting.service.v1.GetOverviewResponse
+	(*UserSummary)(nil),                 // 5: dramaip.reporting.service.v1.UserSummary
+	(*ListUsersRequest)(nil),            // 6: dramaip.reporting.service.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),           // 7: dramaip.reporting.service.v1.ListUsersResponse
+	(*OrderSummary)(nil),                // 8: dramaip.reporting.service.v1.OrderSummary
+	(*ListOrdersRequest)(nil),           // 9: dramaip.reporting.service.v1.ListOrdersRequest
+	(*ListOrdersResponse)(nil),          // 10: dramaip.reporting.service.v1.ListOrdersResponse
+	(*SubscriptionSummary)(nil),         // 11: dramaip.reporting.service.v1.SubscriptionSummary
+	(*ListSubscriptionsRequest)(nil),    // 12: dramaip.reporting.service.v1.ListSubscriptionsRequest
+	(*ListSubscriptionsResponse)(nil),   // 13: dramaip.reporting.service.v1.ListSubscriptionsResponse
+	(*ProjectionException)(nil),         // 14: dramaip.reporting.service.v1.ProjectionException
+	(*ListExceptionsRequest)(nil),       // 15: dramaip.reporting.service.v1.ListExceptionsRequest
+	(*ListExceptionsResponse)(nil),      // 16: dramaip.reporting.service.v1.ListExceptionsResponse
+	(*ResolveExceptionRequest)(nil),     // 17: dramaip.reporting.service.v1.ResolveExceptionRequest
+	(*ResolveExceptionResponse)(nil),    // 18: dramaip.reporting.service.v1.ResolveExceptionResponse
 }
 var file_api_reporting_service_v1_reporting_proto_depIdxs = []int32{
-	2,  // 0: dramaip.reporting.service.v1.ListUsersResponse.users:type_name -> dramaip.reporting.service.v1.UserSummary
-	5,  // 1: dramaip.reporting.service.v1.ListOrdersResponse.orders:type_name -> dramaip.reporting.service.v1.OrderSummary
-	8,  // 2: dramaip.reporting.service.v1.ListSubscriptionsResponse.subscriptions:type_name -> dramaip.reporting.service.v1.SubscriptionSummary
-	11, // 3: dramaip.reporting.service.v1.ListExceptionsResponse.exceptions:type_name -> dramaip.reporting.service.v1.ProjectionException
-	11, // 4: dramaip.reporting.service.v1.ResolveExceptionResponse.exception:type_name -> dramaip.reporting.service.v1.ProjectionException
-	0,  // 5: dramaip.reporting.service.v1.ReportingService.GetOverview:input_type -> dramaip.reporting.service.v1.GetOverviewRequest
-	3,  // 6: dramaip.reporting.service.v1.ReportingService.ListUsers:input_type -> dramaip.reporting.service.v1.ListUsersRequest
-	6,  // 7: dramaip.reporting.service.v1.ReportingService.ListOrders:input_type -> dramaip.reporting.service.v1.ListOrdersRequest
-	9,  // 8: dramaip.reporting.service.v1.ReportingService.ListSubscriptions:input_type -> dramaip.reporting.service.v1.ListSubscriptionsRequest
-	12, // 9: dramaip.reporting.service.v1.ReportingService.ListExceptions:input_type -> dramaip.reporting.service.v1.ListExceptionsRequest
-	14, // 10: dramaip.reporting.service.v1.ReportingService.ResolveException:input_type -> dramaip.reporting.service.v1.ResolveExceptionRequest
-	1,  // 11: dramaip.reporting.service.v1.ReportingService.GetOverview:output_type -> dramaip.reporting.service.v1.GetOverviewResponse
-	4,  // 12: dramaip.reporting.service.v1.ReportingService.ListUsers:output_type -> dramaip.reporting.service.v1.ListUsersResponse
-	7,  // 13: dramaip.reporting.service.v1.ReportingService.ListOrders:output_type -> dramaip.reporting.service.v1.ListOrdersResponse
-	10, // 14: dramaip.reporting.service.v1.ReportingService.ListSubscriptions:output_type -> dramaip.reporting.service.v1.ListSubscriptionsResponse
-	13, // 15: dramaip.reporting.service.v1.ReportingService.ListExceptions:output_type -> dramaip.reporting.service.v1.ListExceptionsResponse
-	15, // 16: dramaip.reporting.service.v1.ReportingService.ResolveException:output_type -> dramaip.reporting.service.v1.ResolveExceptionResponse
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	0,  // 0: dramaip.reporting.service.v1.RecordProductEventsRequest.events:type_name -> dramaip.reporting.service.v1.ProductEvent
+	5,  // 1: dramaip.reporting.service.v1.ListUsersResponse.users:type_name -> dramaip.reporting.service.v1.UserSummary
+	8,  // 2: dramaip.reporting.service.v1.ListOrdersResponse.orders:type_name -> dramaip.reporting.service.v1.OrderSummary
+	11, // 3: dramaip.reporting.service.v1.ListSubscriptionsResponse.subscriptions:type_name -> dramaip.reporting.service.v1.SubscriptionSummary
+	14, // 4: dramaip.reporting.service.v1.ListExceptionsResponse.exceptions:type_name -> dramaip.reporting.service.v1.ProjectionException
+	14, // 5: dramaip.reporting.service.v1.ResolveExceptionResponse.exception:type_name -> dramaip.reporting.service.v1.ProjectionException
+	3,  // 6: dramaip.reporting.service.v1.ReportingService.GetOverview:input_type -> dramaip.reporting.service.v1.GetOverviewRequest
+	6,  // 7: dramaip.reporting.service.v1.ReportingService.ListUsers:input_type -> dramaip.reporting.service.v1.ListUsersRequest
+	9,  // 8: dramaip.reporting.service.v1.ReportingService.ListOrders:input_type -> dramaip.reporting.service.v1.ListOrdersRequest
+	12, // 9: dramaip.reporting.service.v1.ReportingService.ListSubscriptions:input_type -> dramaip.reporting.service.v1.ListSubscriptionsRequest
+	15, // 10: dramaip.reporting.service.v1.ReportingService.ListExceptions:input_type -> dramaip.reporting.service.v1.ListExceptionsRequest
+	17, // 11: dramaip.reporting.service.v1.ReportingService.ResolveException:input_type -> dramaip.reporting.service.v1.ResolveExceptionRequest
+	1,  // 12: dramaip.reporting.service.v1.ReportingService.RecordProductEvents:input_type -> dramaip.reporting.service.v1.RecordProductEventsRequest
+	4,  // 13: dramaip.reporting.service.v1.ReportingService.GetOverview:output_type -> dramaip.reporting.service.v1.GetOverviewResponse
+	7,  // 14: dramaip.reporting.service.v1.ReportingService.ListUsers:output_type -> dramaip.reporting.service.v1.ListUsersResponse
+	10, // 15: dramaip.reporting.service.v1.ReportingService.ListOrders:output_type -> dramaip.reporting.service.v1.ListOrdersResponse
+	13, // 16: dramaip.reporting.service.v1.ReportingService.ListSubscriptions:output_type -> dramaip.reporting.service.v1.ListSubscriptionsResponse
+	16, // 17: dramaip.reporting.service.v1.ReportingService.ListExceptions:output_type -> dramaip.reporting.service.v1.ListExceptionsResponse
+	18, // 18: dramaip.reporting.service.v1.ReportingService.ResolveException:output_type -> dramaip.reporting.service.v1.ResolveExceptionResponse
+	2,  // 19: dramaip.reporting.service.v1.ReportingService.RecordProductEvents:output_type -> dramaip.reporting.service.v1.RecordProductEventsResponse
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_reporting_service_v1_reporting_proto_init() }
@@ -1277,7 +1479,7 @@ func file_api_reporting_service_v1_reporting_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_reporting_service_v1_reporting_proto_rawDesc), len(file_api_reporting_service_v1_reporting_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

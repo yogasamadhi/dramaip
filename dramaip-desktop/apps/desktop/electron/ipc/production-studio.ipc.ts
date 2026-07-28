@@ -17,6 +17,7 @@ import { getRepos } from '../db'
 import { createImageAssetArchiver } from '../image-assets'
 import { beginLongTaskRun, finishLongTaskRun } from '../task-runtime'
 import { buildAssetCoverage, buildProductionGraph, previewProductionImpact } from '../production-graph'
+import { flushProductAnalytics } from '../analytics-uploader'
 
 export function registerProductionStudioIpc(): void {
   const repos = () => getRepos()
@@ -83,8 +84,12 @@ export function registerProductionStudioIpc(): void {
   }) => routeDecision(input))
 
   ipcMain.handle('analytics:getConsent', () => repos().productionStudio.getProductAnalyticsSettings(repos().db))
-  ipcMain.handle('analytics:setConsent', (_event, consent: 'granted' | 'denied') =>
-    repos().productionStudio.setProductAnalyticsConsent(repos().db, consent))
+  ipcMain.handle('analytics:setConsent', (_event, consent: 'granted' | 'denied') => {
+    const r = repos()
+    const settings = r.productionStudio.setProductAnalyticsConsent(r.db, consent)
+    if (consent === 'granted') void flushProductAnalytics(r).catch(() => undefined)
+    return settings
+  })
   ipcMain.handle('analytics:record', (_event, input: { eventName: string; durationBucket?: string; resultCode?: string }) =>
     repos().productionStudio.recordProductAnalyticsEvent(repos().db, {
       ...input,
@@ -106,8 +111,17 @@ function adoptRetake(id: string) {
   const candidate = r.shotStill.getShotStillCandidate(r.db, request.resultCandidateId)
   const shot = candidate ? r.shot.getShot(r.db, candidate.shotId) : undefined
   if (!candidate || !shot || candidate.projectId !== request.projectId) throw new Error('Retake 候选已不可用')
+  const hadCompletedShot = r.shotStill.listShotStillCandidatesByProject(r.db, request.projectId)
+    .some((item) => item.status === 'adopted')
   const adopted = r.shotStill.adoptShotStillCandidate(r.db, candidate.id, shot.updatedAt)
   if (!adopted) throw new Error('采用 Retake 候选失败')
+  if (!hadCompletedShot) {
+    r.productionStudio.recordProductAnalyticsEvent(r.db, {
+      eventName: 'first_shot_ready',
+      appVersion: app.getVersion(),
+      operatingSystem: process.platform,
+    })
+  }
   const updated = r.productionStudio.updateRetakeRequest(r.db, request.id, { status: 'adopted' }) ?? request
   if (request.lineageId) {
     r.generation.updateGenerationLineage(r.db, request.lineageId, {

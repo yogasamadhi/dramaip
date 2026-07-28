@@ -1823,7 +1823,7 @@ function EpisodeDeliveryPanel({ projectId, adaptationProjectId, episodeId }: { p
 }
 
 function ReviewEditorPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
-  const [busy, setBusy] = useState<'review' | 'import' | 'preflight' | 'editor' | null>(null)
+  const [busy, setBusy] = useState<'review' | 'import' | 'cloud' | 'preflight' | 'editor' | null>(null)
   const [editorPreflight, setEditorPreflight] = useState<{
     canExport: boolean
     blockers: string[]
@@ -1831,11 +1831,15 @@ function ReviewEditorPanel({ projectId, adaptationProjectId, episodeId }: { proj
     totalDurationSeconds: number
   } | null>(null)
   const [reviewState, setReviewState] = useState<{ packages: number; comments: number; decisions: number } | null>(null)
+  const [cloudWorkspaces, setCloudWorkspaces] = useState<Array<{ id: string; name: string; planCode: string; reviewStorageBytes: number; reviewRetentionDays: number }>>([])
+  const [workspaceId, setWorkspaceId] = useState('')
+  const [reviewPIN, setReviewPIN] = useState('')
   const input = useMemo(() => ({ projectId, adaptationProjectId, episodeId, frameRate: 25 as const, width: 1080, height: 1920 }), [adaptationProjectId, episodeId, projectId])
 
   async function refreshReview() {
     const state = await ipc.review.sync(projectId, episodeId)
     setReviewState({ packages: state.packages.length, comments: state.comments.length, decisions: state.decisions.length })
+    if (state.cloudSyncError) toast.warning(`本地审片状态已读取；云端同步暂不可用：${state.cloudSyncError}`)
   }
 
   useEffect(() => {
@@ -1869,6 +1873,33 @@ function ReviewEditorPanel({ projectId, adaptationProjectId, episodeId }: { proj
       toast.success(`已幂等导入 ${result.commentCount ?? 0} 条评论和 ${result.decisionCount ?? 0} 个决定。`)
     } catch (error) {
       toast.error(`审片意见导入失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function configureCloudReview() {
+    setBusy('cloud')
+    try {
+      const values = await ipc.review.listCloudWorkspaces()
+      const eligible = values.filter((item) => ['studio', 'enterprise'].includes(item.planCode) && item.reviewStorageBytes > 0)
+      setCloudWorkspaces(eligible)
+      setWorkspaceId((current) => eligible.some((item) => item.id === current) ? current : eligible[0]?.id ?? '')
+      if (!eligible.length) toast.error('当前账号没有已启用云审片权益的 Studio/Enterprise 工作区。')
+    } catch (error) {
+      toast.error(`云审片不可用：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function publishCloud() {
+    if (!workspaceId) return toast.error('请先选择 Studio 工作区。')
+    if (reviewPIN && !/^[0-9]{4,12}$/.test(reviewPIN)) return toast.error('PIN 必须为 4–12 位数字。')
+    setBusy('cloud')
+    try {
+      const result = await ipc.review.publishCloud({ ...input, workspaceId, ...(reviewPIN ? { pin: reviewPIN } : {}) })
+      if (!result.published) return toast.error(result.error ?? '云审片发布失败')
+      await refreshReview()
+      toast.success(`云审片已发布并复制私密链接。${result.expiresAt ? `到期：${new Date(result.expiresAt).toLocaleString()}` : ''}`)
+    } catch (error) {
+      toast.error(`云审片发布失败：${error instanceof Error ? error.message : String(error)}`)
     } finally { setBusy(null) }
   }
 
@@ -1907,6 +1938,13 @@ function ReviewEditorPanel({ projectId, adaptationProjectId, episodeId }: { proj
     <div className="flex flex-wrap gap-2">
       <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void exportReview()}>{busy === 'review' && <Loader2 className="animate-spin" />}导出离线审片包</Button>
       <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void importReview()}>{busy === 'import' && <Loader2 className="animate-spin" />}导入 review JSON</Button>
+      {cloudWorkspaces.length === 0
+        ? <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void configureCloudReview()}>{busy === 'cloud' && <Loader2 className="animate-spin" />}连接 Studio 云审片</Button>
+        : <>
+          <Select value={workspaceId} onValueChange={setWorkspaceId}><SelectTrigger className="h-8 w-48"><SelectValue placeholder="选择 Studio 工作区" /></SelectTrigger><SelectContent>{cloudWorkspaces.map((workspace) => <SelectItem key={workspace.id} value={workspace.id}>{workspace.name} · {Math.round(workspace.reviewStorageBytes / 1_000_000_000)} GB/{workspace.reviewRetentionDays} 天</SelectItem>)}</SelectContent></Select>
+          <Input aria-label="云审片 PIN" inputMode="numeric" className="h-8 w-32" placeholder="PIN（可选）" value={reviewPIN} onChange={(event) => setReviewPIN(event.target.value.replace(/\D/g, '').slice(0, 12))} />
+          <Button size="sm" variant="outline" disabled={busy !== null || !workspaceId} onClick={() => void publishCloud()}>{busy === 'cloud' && <Loader2 className="animate-spin" />}发布云审片</Button>
+        </>}
       <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void inspectEditor()}>{busy === 'preflight' && <Loader2 className="animate-spin" />}剪辑交付预检</Button>
       <Button size="sm" disabled={busy !== null || !editorPreflight?.canExport} onClick={() => void exportEditor()}>{busy === 'editor' && <Loader2 className="animate-spin" />}导出 FCPXML / EDL</Button>
     </div>

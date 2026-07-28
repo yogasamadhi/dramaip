@@ -1,17 +1,20 @@
 import { app, BrowserWindow, dialog } from 'electron'
 import { createHash, randomUUID } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { deflateSync } from 'node:zlib'
 import type {
   EditorTimelineClip,
   EditorTimelineManifest,
   ProjectAsset,
+  ReviewComment,
   ReviewDecision,
   ReviewPackageManifest,
+  ReviewPackageRecord,
 } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 import {
@@ -57,6 +60,12 @@ export interface EditorExportResult {
   bundlePath?: string
   warnings?: Array<{ code: string; clipId?: string; message: string }>
   error?: string
+}
+
+export interface CloudReviewStaging {
+  directory: string
+  manifest: ReviewPackageManifest
+  media: Array<{ id: string; filePath: string; relativePath: string; mimeType: string; sha256: string; sizeBytes: number }>
 }
 
 export function buildEditorTimelineManifest(repos: Repositories, input: TimelineScope): EditorTimelineManifest {
@@ -250,6 +259,75 @@ export async function exportOfflineReviewPackage(repos: Repositories, input: Tim
   }
 }
 
+export async function prepareCloudReviewStaging(repos: Repositories, input: TimelineScope): Promise<CloudReviewStaging> {
+  const timeline = buildEditorTimelineManifest(repos, input)
+  if (!timeline.clips.length) throw new Error('当前分集没有可审镜头')
+  const directory = await mkdtemp(join(tmpdir(), 'dramaip-cloud-review-'))
+  try {
+    const mediaDirectory = join(directory, 'media')
+    const thumbnailDirectory = join(directory, 'thumbnails')
+    await Promise.all([mkdir(mediaDirectory, { recursive: true }), mkdir(thumbnailDirectory, { recursive: true })])
+    const ffmpegPath = await discoverEpisodeFfmpeg()
+    const manifestMedia: ReviewPackageManifest['media'] = []
+    const files: CloudReviewStaging['media'] = []
+    for (const [index, clip] of timeline.clips.entries()) {
+      const proxy = await createReviewProxy(ffmpegPath, clip, mediaDirectory, thumbnailDirectory, index)
+      manifestMedia.push({
+        id: clip.id,
+        shotId: clip.shotId,
+        orderIndex: index,
+        label: clip.name,
+        relativePath: proxy.relativePath,
+        mimeType: proxy.mimeType,
+        durationSeconds: clip.durationSeconds,
+        sha256: proxy.sha256,
+        sizeBytes: proxy.sizeBytes,
+      })
+      files.push({ id: clip.id, filePath: join(directory, proxy.relativePath), ...proxy })
+    }
+    const thumbnails = (await readdir(thumbnailDirectory)).sort()
+    for (const filename of thumbnails) {
+      const fileIndex = Number.parseInt(filename.slice(0, 3), 10) - 1
+      const clip = timeline.clips[fileIndex]
+      if (!clip) continue
+      const relativePath = `thumbnails/${filename}`
+      const info = await proxyInfo(join(thumbnailDirectory, filename), relativePath, filename.endsWith('.png') ? 'image/png' : 'image/jpeg')
+      const id = `${clip.id}-thumbnail`
+      manifestMedia.push({
+        id,
+        shotId: clip.shotId,
+        orderIndex: fileIndex,
+        label: `${clip.name} · 缩略图`,
+        relativePath,
+        mimeType: info.mimeType,
+        sha256: info.sha256,
+        sizeBytes: info.sizeBytes,
+      })
+      files.push({ id, filePath: join(directory, relativePath), ...info })
+    }
+    const packageId = randomUUID()
+    const manifest: ReviewPackageManifest = {
+      format: 'dramaip-review',
+      version: 1,
+      packageId,
+      projectId: input.projectId,
+      adaptationProjectId: input.adaptationProjectId,
+      episodeId: input.episodeId,
+      title: timeline.title,
+      createdAt: new Date().toISOString(),
+      media: manifestMedia,
+    }
+    const issues = validateReviewPackageManifest(manifest)
+    if (issues.length) throw new Error(issues.join('；'))
+    const total = files.reduce((sum, item) => sum + item.sizeBytes, 0)
+    if (total <= 0 || total > MAX_REVIEW_PACKAGE_BYTES) throw new Error('云审片代理必须大于 0 且不超过 512 MB')
+    return { directory, manifest, media: files }
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true })
+    throw error
+  }
+}
+
 export async function importOfflineReviewComments(repos: Repositories): Promise<{
   imported: boolean
   canceled?: boolean
@@ -276,12 +354,13 @@ export async function importOfflineReviewComments(repos: Repositories): Promise<
     const record = repos.productionStudio.getReviewPackageRecord(repos.db, parsed.packageId)
     if (!record) throw new Error('本机找不到对应的审片包，无法安全映射镜头')
     const shotIds = new Set(record.manifest.media.map((item) => item.shotId))
+    const importedComments: ReviewComment[] = []
     let commentCount = 0
     let decisionCount = 0
     for (const value of parsed.comments) {
       const item = parseReviewEntry(value, shotIds)
       if (item.body) {
-        repos.productionStudio.upsertReviewComment(repos.db, {
+        importedComments.push(repos.productionStudio.upsertReviewComment(repos.db, {
           id: item.id,
           packageId: parsed.packageId,
           shotId: item.shotId,
@@ -291,7 +370,7 @@ export async function importOfflineReviewComments(repos: Repositories): Promise<
           resolved: false,
           createdAt: item.createdAt,
           updatedAt: item.updatedAt,
-        })
+        }))
         commentCount += 1
       }
       if (item.decision !== 'note') {
@@ -307,10 +386,50 @@ export async function importOfflineReviewComments(repos: Repositories): Promise<
         decisionCount += 1
       }
     }
+    mirrorReviewCommentsToFeedback(repos, record, importedComments, 'DramaIP 离线审片')
     return { imported: true, packageId: parsed.packageId, commentCount, decisionCount }
   } catch (error) {
     return { imported: false, error: error instanceof Error ? error.message : String(error) }
   }
+}
+
+export function mirrorReviewCommentsToFeedback(
+  repos: Repositories,
+  record: ReviewPackageRecord,
+  comments: ReviewComment[],
+  platform: string,
+): void {
+  if (!comments.length) return
+  const unique = [...new Map(comments.map((comment) => [comment.id, comment])).values()]
+    .sort((left, right) => left.id.localeCompare(right.id))
+  const contentSha256 = createHash('sha256')
+    .update(`${record.id}\n${unique.map((comment) => comment.id).join('\n')}`)
+    .digest('hex')
+  repos.feedback.importFeedbackPreview(repos.db, {
+    projectId: record.projectId,
+    privacy: 'local_only',
+    preview: {
+      kind: 'comments',
+      sourceName: `${record.title} · 审片意见`,
+      platform,
+      sourceVersion: 'review-comments-v1',
+      contentSha256,
+      metrics: [],
+      comments: unique.map((comment) => ({
+        platform,
+        sourceVersion: 'review-comments-v1',
+        externalId: comment.id,
+        authorAlias: comment.authorAlias,
+        text: comment.body,
+        targetKind: comment.shotId ? 'shot' : 'project',
+        targetId: comment.shotId ?? record.projectId,
+        recordedAt: comment.createdAt,
+        rowFingerprint: `review:${record.id}:${comment.id}`,
+      })),
+      skippedRows: [],
+      notices: ['由审片包同步，只保存在本地反馈批次中。'],
+    },
+  })
 }
 
 async function createReviewProxy(
@@ -333,9 +452,15 @@ async function createReviewProxy(
     await copyFile(target, join(thumbnailDirectory, `${prefix}.jpg`))
     return proxyInfo(target, `media/${prefix}.jpg`, 'image/jpeg')
   }
-  const target = join(mediaDirectory, `${prefix}.svg`)
-  await writeFile(target, renderSlateSvg(clip), 'utf8')
-  return proxyInfo(target, `media/${prefix}.svg`, 'image/svg+xml')
+  const target = join(mediaDirectory, `${prefix}.png`)
+  await writeFile(target, renderSlatePng())
+  const thumbnail = join(thumbnailDirectory, `${prefix}.jpg`)
+  if (ffmpegPath) {
+    await runProcess(ffmpegPath, ['-hide_banner', '-y', '-i', target, '-vf', 'scale=320:-2', '-frames:v', '1', '-q:v', '4', thumbnail])
+  } else {
+    await copyFile(target, join(thumbnailDirectory, `${prefix}.png`))
+  }
+  return proxyInfo(target, `media/${prefix}.png`, 'image/png')
 }
 
 async function createThumbnail(ffmpegPath: string, input: string, target: string): Promise<void> {
@@ -421,13 +546,49 @@ function safeName(value: string): string {
   return value.replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'dramaip'
 }
 
-function renderSlateSvg(clip: EditorTimelineClip): string {
-  const label = xmlEscape(clip.name)
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="540" height="960" viewBox="0 0 540 960"><rect width="540" height="960" fill="#11151a"/><text x="270" y="440" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="34">${label}</text><text x="270" y="495" text-anchor="middle" fill="#9ca4ad" font-family="system-ui,sans-serif" font-size="20">媒体待生成 · ${clip.durationSeconds.toFixed(2)}s</text><text x="270" y="545" text-anchor="middle" fill="#69a9ff" font-family="system-ui,sans-serif" font-size="18">DramaIP Review Proxy</text></svg>`
+function renderSlatePng(): Buffer {
+  const width = 540
+  const height = 960
+  const rowSize = width * 4 + 1
+  const raw = Buffer.alloc(rowSize * height)
+  for (let y = 0; y < height; y += 1) {
+    const row = y * rowSize
+    raw[row] = 0
+    for (let x = 0; x < width; x += 1) {
+      const offset = row + 1 + x * 4
+      const stripe = Math.abs(x - width / 2) < 5 || Math.abs(y - height / 2) < 5
+      raw[offset] = stripe ? 105 : 17
+      raw[offset + 1] = stripe ? 169 : 21
+      raw[offset + 2] = stripe ? 255 : 26
+      raw[offset + 3] = 255
+    }
+  }
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8
+  header[9] = 6
+  return Buffer.concat([signature, pngChunk('IHDR', header), pngChunk('IDAT', deflateSync(raw, { level: 9 })), pngChunk('IEND', Buffer.alloc(0))])
 }
 
-function xmlEscape(value: string): string {
-  return value.replace(/[<>&"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char]!)
+function pngChunk(type: string, data: Buffer): Buffer {
+  const typeBuffer = Buffer.from(type, 'ascii')
+  const output = Buffer.alloc(data.length + 12)
+  output.writeUInt32BE(data.length, 0)
+  typeBuffer.copy(output, 4)
+  data.copy(output, 8)
+  output.writeUInt32BE(crc32(Buffer.concat([typeBuffer, data])), data.length + 8)
+  return output
+}
+
+function crc32(value: Buffer): number {
+  let crc = 0xffffffff
+  for (const byte of value) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+  }
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 function renderRelinkGuide(manifest: EditorTimelineManifest, warnings: Array<{ code: string; clipId?: string; message: string }>): string {

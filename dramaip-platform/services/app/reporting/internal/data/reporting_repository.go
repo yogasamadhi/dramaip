@@ -31,6 +31,9 @@ type SubscriptionSummary struct {
 type ProjectionException struct {
 	ID, EventID, EventType, Status, Summary, TraceID, CreatedAt, ResolvedAt, ResolvedBy, ResolutionReason string
 }
+type ProductEvent struct {
+	InstallationID, EventID, AppVersion, OperatingSystem, EventName, DurationBucket, ResultCode string
+}
 
 type ReportingRepo struct{ data *Data }
 
@@ -38,6 +41,25 @@ func NewReportingRepo(data *Data) *ReportingRepo { return &ReportingRepo{data: d
 
 func (r *ReportingRepo) Checks() map[string]func(context.Context) error {
 	return map[string]func(context.Context) error{"postgres": func(ctx context.Context) error { return platform.CheckPostgres(ctx, r.data.DB) }}
+}
+
+func (r *ReportingRepo) RecordProductEvents(ctx context.Context, events []ProductEvent) error {
+	return r.data.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, event := range events {
+			if err := tx.Exec(`
+				INSERT INTO reporting.product_events (
+				  installation_id, event_id, app_version, operating_system,
+				  event_name, duration_bucket, result_code
+				) VALUES (?::uuid, ?::uuid, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''))
+				ON CONFLICT (event_id) DO NOTHING`,
+				event.InstallationID, event.EventID, event.AppVersion, event.OperatingSystem,
+				event.EventName, event.DurationBucket, event.ResultCode,
+			).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // StoreAndProject is the consumer's atomic idempotency boundary. A duplicate

@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import type { ShotStillCandidate } from '@sdns/core'
 import { getRepos } from '../db'
 
@@ -44,7 +44,17 @@ export function registerShotStillIpc(): void {
     const shot = assertShotProject(r, candidate.projectId, candidate.shotId)
     const asset = r.asset.getAsset(r.db, candidate.assetId)
     if (!asset || asset.projectId !== candidate.projectId) throw new Error('候选引用的静帧素材已不存在，不能采用')
-    return r.shotStill.adoptShotStillCandidate(r.db, id, shot.updatedAt)
+    const hadCompletedShot = r.shotStill.listShotStillCandidatesByProject(r.db, candidate.projectId)
+      .some((item) => item.status === 'adopted')
+    const adopted = r.shotStill.adoptShotStillCandidate(r.db, id, shot.updatedAt)
+    if (adopted && !hadCompletedShot) {
+      r.productionStudio.recordProductAnalyticsEvent(r.db, {
+        eventName: 'first_shot_ready',
+        appVersion: app.getVersion(),
+        operatingSystem: process.platform,
+      })
+    }
+    return adopted
   })
 }
 

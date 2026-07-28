@@ -576,6 +576,14 @@ export function listPendingProductAnalyticsEvents(db: DB) {
   return db.select().from(productAnalyticsEvents).where(isNull(productAnalyticsEvents.uploadedAt)).orderBy(productAnalyticsEvents.createdAt).all()
 }
 
+export function markProductAnalyticsEventsUploaded(db: DB, eventIds: string[]): number {
+  const uniqueIds = [...new Set(eventIds.filter(Boolean))]
+  if (!uniqueIds.length) return 0
+  return updateRows(db, productAnalyticsEvents, { uploadedAt: now() })
+    .where(and(isNull(productAnalyticsEvents.uploadedAt), inArray(productAnalyticsEvents.id, uniqueIds)))
+    .run().changes
+}
+
 export function clearPendingProductAnalyticsEvents(db: DB): number {
   return db.delete(productAnalyticsEvents).where(isNull(productAnalyticsEvents.uploadedAt)).run().changes
 }

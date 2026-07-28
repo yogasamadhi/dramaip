@@ -651,8 +651,9 @@ export interface StudioApi {
   review: {
     exportOffline(input: TimelineScopeInput): Promise<{ saved: boolean; canceled?: boolean; path?: string; packageId?: string; error?: string }>
     importOffline(): Promise<{ imported: boolean; canceled?: boolean; packageId?: string; commentCount?: number; decisionCount?: number; error?: string }>
-    publishCloud(): Promise<{ published: boolean; error?: string }>
-    sync(projectId: string, episodeId?: string): Promise<{ packages: ReviewPackageRecord[]; comments: ReviewComment[]; decisions: ReviewDecision[] }>
+    listCloudWorkspaces(): Promise<Array<{ id: string; name: string; planCode: string; currentUserRole: 'owner' | 'admin' | 'member'; includedSeats: number; reviewStorageBytes: number; reviewRetentionDays: number }>>
+    publishCloud(input: TimelineScopeInput & { workspaceId: string; pin?: string }): Promise<{ published: boolean; packageId?: string; expiresAt?: string; shareLinkCopied?: boolean; error?: string }>
+    sync(projectId: string, episodeId?: string): Promise<{ packages: ReviewPackageRecord[]; comments: ReviewComment[]; decisions: ReviewDecision[]; cloudSyncError?: string }>
     delete(id: string): Promise<ReviewPackageRecord | undefined>
   }
   editorExport: {

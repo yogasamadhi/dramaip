@@ -12,6 +12,7 @@ import { canOpenExternalUrl, createContentSecurityPolicy } from './security-poli
 import { initializeCloudAuth } from './cloud-auth'
 import { reconcileLongTasks } from './task-recovery'
 import { runDatabaseGatedStartup } from './startup-database'
+import { startProductAnalyticsUploader } from './analytics-uploader'
 
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
@@ -24,6 +25,7 @@ const UI_BASELINE_RESULT_ENV = 'SDNS_UI_BASELINE_RESULT'
 const UI_BASELINE_USER_DATA_ENV = 'SDNS_UI_BASELINE_USER_DATA'
 const UI_BASELINE_OUTPUT_ENV = 'SDNS_UI_BASELINE_OUTPUT'
 let shutdownRequested = false
+let stopProductAnalyticsUploader: (() => void) | undefined
 
 /** 开发启动器收到 Ctrl-C 后，明确关闭 macOS 上仍可能保留的 Electron 窗口。 */
 function quitForProcessSignal(): void {
@@ -244,7 +246,7 @@ function createWindow(options: { show?: boolean } = {}): BrowserWindow {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
-    title: '短剧 IP 小说写作工作台',
+    title: 'DramaIP Studio',
     backgroundColor: '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -322,6 +324,7 @@ app.whenReady().then(async () => {
     recoverPersistedLongTasks()
     await initializeCloudAuth()
     registerAllIpc()
+    stopProductAnalyticsUploader = startProductAnalyticsUploader(getRepos)
     createWindow()
   })
   if (!started) {
@@ -342,4 +345,9 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  stopProductAnalyticsUploader?.()
+  stopProductAnalyticsUploader = undefined
 })

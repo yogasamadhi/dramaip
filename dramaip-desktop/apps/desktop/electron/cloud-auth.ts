@@ -184,10 +184,19 @@ export async function getCloudContext(): Promise<CloudContext> {
 // Cloud AI is confined to Electron main. Callers receive a short-lived access
 // token only inside this callback; it is never returned to IPC or renderer.
 export async function withCloudAccessToken<T>(operation: (endpoints: CloudAuthEndpoints, accessToken: string) => Promise<T>): Promise<T> {
-	if (!cloudLoginEnabled()) throw new Error('云端登录当前已关闭')
-	if (!cloudSession || cloudSession.expiresAt <= Date.now() + 30_000) await restoreCloudSession()
-	if (!cloudSession) throw new Error('请先登录云端账号')
-	return operation(configuredEndpoints(), cloudSession.accessToken)
+  if (!cloudLoginEnabled()) throw new Error('云端登录当前已关闭')
+  if (!cloudSession || cloudSession.expiresAt <= Date.now() + 30_000) await restoreCloudSession()
+  if (!cloudSession) throw new Error('请先登录云端账号')
+  return operation(configuredEndpoints(), cloudSession.accessToken)
+}
+
+/**
+ * Returns the validated Desktop BFF origin without enabling cloud login or
+ * exposing any session token. Product analytics uses this anonymous endpoint
+ * only after explicit local consent.
+ */
+export function getDesktopBffOrigin(): string {
+  return configuredEndpoints().bffOrigin
 }
 
 function configuredEndpoints(): CloudAuthEndpoints {

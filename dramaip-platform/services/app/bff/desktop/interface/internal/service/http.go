@@ -11,6 +11,7 @@ import (
 
 	aiv1 "github.com/dramaip/dramaip-platform/services/api/ai_gateway/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
+	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
@@ -36,6 +37,8 @@ func (s *HTTPService) Router() http.Handler {
 	mux.HandleFunc("/v1/desktop/auth/refresh", s.handleRefresh)
 	mux.HandleFunc("/v1/desktop/auth/logout", s.handleLogout)
 	mux.HandleFunc("/v1/desktop/me/cloud-context", s.handleCloudContext)
+	mux.HandleFunc("/v1/desktop/me/workspaces", s.handleWorkspaces)
+	mux.HandleFunc("/v1/desktop/analytics/events", s.handleProductEvents)
 	mux.HandleFunc("/v1/desktop/ai/models", s.handleCloudModels)
 	mux.HandleFunc("/v1/desktop/ai/preflight", s.handleCloudPreflight)
 	mux.HandleFunc("/v1/desktop/ai/chat", s.handleCloudChat)
@@ -59,6 +62,59 @@ func (s *HTTPService) handleHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "service": "desktop-bff-interface", "version": "0.4.0"})
+}
+
+func (s *HTTPService) handleWorkspaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	reply, err := s.uc.Workspaces(r.Context(), r.Header.Get("Authorization"))
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_workspaces_unavailable")
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, reply)
+}
+
+func (s *HTTPService) handleProductEvents(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Events []struct {
+			InstallationID  string `json:"installation_id"`
+			EventID         string `json:"event_id"`
+			AppVersion      string `json:"app_version"`
+			OperatingSystem string `json:"operating_system"`
+			EventName       string `json:"event_name"`
+			DurationBucket  string `json:"duration_bucket"`
+			ResultCode      string `json:"result_code"`
+		} `json:"events"`
+	}
+	if !decodeJSONLimit(w, r, &req, 128<<10) {
+		return
+	}
+	if len(req.Events) == 0 || len(req.Events) > 100 {
+		writeError(w, http.StatusBadRequest, "invalid_product_event_batch")
+		return
+	}
+	events := make([]*reportingv1.ProductEvent, 0, len(req.Events))
+	for _, event := range req.Events {
+		events = append(events, &reportingv1.ProductEvent{
+			InstallationId: event.InstallationID, EventId: event.EventID,
+			AppVersion: event.AppVersion, OperatingSystem: event.OperatingSystem,
+			EventName: event.EventName, DurationBucket: event.DurationBucket, ResultCode: event.ResultCode,
+		})
+	}
+	reply, err := s.uc.RecordProductEvents(r.Context(), events)
+	if err != nil {
+		s.writeGRPCError(w, err, "desktop_product_events_unavailable")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"accepted_event_ids": reply.AcceptedEventIds})
 }
 
 func (s *HTTPService) handleExchange(w http.ResponseWriter, r *http.Request) {

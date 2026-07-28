@@ -9,8 +9,10 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
+	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
 	"google.golang.org/grpc/codes"
@@ -52,6 +54,45 @@ func (u *BFFUsecase) Context(ctx context.Context, accessToken string) (*authv1.A
 		return nil, nil, nil, err
 	}
 	return identity, subscription, balance, nil
+}
+
+func (u *BFFUsecase) Workspaces(ctx context.Context, accessToken string) (*userv1.ListWorkspacesReply, error) {
+	identity, ctx, err := u.authenticate(ctx, accessToken)
+	if err != nil {
+		return nil, err
+	}
+	workspaces, err := u.data.User.ListWorkspaces(ctx, &userv1.ListWorkspacesRequest{UserId: identity.UserId})
+	if err != nil {
+		return nil, err
+	}
+	subscription, err := u.data.Billing.GetSubscription(ctx, &billingv1.GetSubscriptionRequest{UserId: identity.UserId})
+	if err != nil {
+		return nil, err
+	}
+	if subscription.Entitlements == nil {
+		return nil, status.Error(codes.FailedPrecondition, "subscription_entitlements_missing")
+	}
+	for index, workspace := range workspaces.Workspaces {
+		if workspace.OwnerUserId != identity.UserId {
+			continue
+		}
+		updated, updateErr := u.data.User.SetWorkspacePlan(ctx, &userv1.SetWorkspacePlanRequest{
+			WorkspaceId: workspace.Id, PlanCode: subscription.PlanCode,
+			IncludedSeats:       subscription.Entitlements.IncludedSeats,
+			ReviewStorageBytes:  subscription.Entitlements.ReviewStorageBytes,
+			ReviewRetentionDays: subscription.Entitlements.ReviewRetentionDays,
+		})
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		workspaces.Workspaces[index] = updated
+		break
+	}
+	return workspaces, nil
+}
+
+func (u *BFFUsecase) RecordProductEvents(ctx context.Context, events []*reportingv1.ProductEvent) (*reportingv1.RecordProductEventsResponse, error) {
+	return u.data.Reporting.RecordProductEvents(ctx, &reportingv1.RecordProductEventsRequest{Events: events})
 }
 
 func (u *BFFUsecase) ListCloudModels(ctx context.Context, accessToken string) (*aiv1.ListModelsReply, error) {

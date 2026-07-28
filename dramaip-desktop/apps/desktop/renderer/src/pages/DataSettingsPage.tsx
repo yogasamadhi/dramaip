@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Cloud, Copy, DatabaseBackup, HardDrive, KeyRound, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArrowLeft, BarChart3, Cloud, Copy, DatabaseBackup, HardDrive, KeyRound, Loader2, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import type { Project } from '@sdns/core'
 import type { CloudProjectSnapshot, DatabaseBackupInfo } from '@/lib/ipc'
 import { ipc } from '@/lib/ipc'
@@ -42,6 +42,7 @@ export function DataSettingsPage() {
   const [cloudNotice, setCloudNotice] = useState('')
   const [recoveryKey, setRecoveryKey] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
+  const [analyticsConsent, setAnalyticsConsent] = useState<'unknown' | 'granted' | 'denied'>('unknown')
   const [busy, setBusy] = useState<'create' | 'cloud-create' | `restore:${string}` | `cloud-restore:${string}` | `cloud-delete:${string}` | null>(null)
 
   async function reload() {
@@ -80,7 +81,18 @@ export function DataSettingsPage() {
   useEffect(() => {
     void reload()
     void reloadCloudSnapshots()
+    void ipc.analytics.getConsent().then((settings) => setAnalyticsConsent(settings.consent)).catch(() => undefined)
   }, [])
+
+  async function updateAnalyticsConsent(consent: 'granted' | 'denied') {
+    try {
+      const settings = await ipc.analytics.setConsent(consent)
+      setAnalyticsConsent(settings.consent)
+      toast.success(consent === 'granted' ? '匿名产品分析已开启' : '匿名产品分析已关闭，待发送队列已清空')
+    } catch (error) {
+      toast.error('分析偏好保存失败：' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
 
   const summary = useMemo(() => {
     const totalBytes = backups.reduce((sum, item) => sum + item.sizeBytes, 0)
@@ -237,6 +249,18 @@ export function DataSettingsPage() {
       <main className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto max-w-5xl space-y-6 p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4 text-primary" />匿名产品分析</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">默认关闭。开启后只发送随机安装标识、版本、OS、白名单事件、耗时区间和标准错误码；不发送用户/项目 ID、标题、Prompt、素材名、路径或媒体。关闭会立即清空未发送队列。</p>
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" variant={analyticsConsent === 'granted' ? 'default' : 'outline'} onClick={() => void updateAnalyticsConsent('granted')}>开启</Button>
+                  <Button size="sm" variant={analyticsConsent === 'denied' ? 'default' : 'outline'} onClick={() => void updateAnalyticsConsent('denied')}>关闭</Button>
+                </div>
+              </CardContent>
+            </Card>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Card>
                 <CardContent className="flex items-center gap-3 p-4">

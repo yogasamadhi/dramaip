@@ -13,7 +13,9 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
+	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/biz"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/data"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -45,8 +47,36 @@ func TestDesktopTokenExchangeAndContext(t *testing.T) {
 	if contextRecorder.Code != http.StatusOK {
 		t.Fatalf("cloud context status = %d: %s", contextRecorder.Code, contextRecorder.Body.String())
 	}
-	if body := contextRecorder.Body.String(); !bytes.Contains([]byte(body), []byte(`"plan":"pro"`)) || !bytes.Contains([]byte(body), []byte(`"remaining_tokens":1620000`)) {
+	if body := contextRecorder.Body.String(); !bytes.Contains([]byte(body), []byte(`"plan":"studio"`)) || !bytes.Contains([]byte(body), []byte(`"remaining_tokens":1620000`)) {
 		t.Fatalf("cloud context = %s", body)
+	}
+}
+
+func TestDesktopWorkspacesUseAuthenticatedIdentity(t *testing.T) {
+	router := newTestHTTPService().Router()
+	request := httptest.NewRequest(http.MethodGet, "/v1/desktop/me/workspaces", nil)
+	request.Header.Set("Authorization", "Bearer desktop-access")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || !bytes.Contains(recorder.Body.Bytes(), []byte(`"plan_code":"studio"`)) {
+		t.Fatalf("workspaces = %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDesktopProductEventsAreAnonymousStrictAndBounded(t *testing.T) {
+	router := newTestHTTPService().Router()
+	body := `{"events":[{"installation_id":"11111111-1111-4111-8111-111111111111","event_id":"22222222-2222-4222-8222-222222222222","app_version":"2.0.0","operating_system":"darwin","event_name":"demo_opened","duration_bucket":"","result_code":""}]}`
+	request := httptest.NewRequest(http.MethodPost, "/v1/desktop/analytics/events", bytes.NewBufferString(body))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusAccepted || !bytes.Contains(recorder.Body.Bytes(), []byte("22222222-2222-4222-8222-222222222222")) {
+		t.Fatalf("product events = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	unknown := httptest.NewRequest(http.MethodPost, "/v1/desktop/analytics/events", bytes.NewBufferString(`{"events":[],"project_id":"forbidden"}`))
+	unknownRecorder := httptest.NewRecorder()
+	router.ServeHTTP(unknownRecorder, unknown)
+	if unknownRecorder.Code != http.StatusBadRequest {
+		t.Fatalf("unknown analytics field = %d: %s", unknownRecorder.Code, unknownRecorder.Body.String())
 	}
 }
 
@@ -235,7 +265,38 @@ func newTestHTTPService() *HTTPService {
 }
 
 func newTestHTTPServiceWith(quota fakeQuota, ai fakeAI) *HTTPService {
-	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: quota, AI: ai, Inspiration: fakeInspiration{}, Snapshot: fakeSnapshot{}}))
+	return NewHTTPService(biz.NewBFFUsecase(&data.Data{Auth: fakeAuth{}, Billing: fakeBilling{}, Quota: quota, AI: ai, Inspiration: fakeInspiration{}, Snapshot: fakeSnapshot{}, User: fakeUser{}, Reporting: fakeReporting{}}))
+}
+
+type fakeReporting struct{}
+
+func (fakeReporting) RecordProductEvents(_ context.Context, request *reportingv1.RecordProductEventsRequest, _ ...grpc.CallOption) (*reportingv1.RecordProductEventsResponse, error) {
+	accepted := make([]string, 0, len(request.Events))
+	for _, event := range request.Events {
+		accepted = append(accepted, event.EventId)
+	}
+	return &reportingv1.RecordProductEventsResponse{AcceptedEventIds: accepted}, nil
+}
+
+type fakeUser struct{}
+
+func (fakeUser) ListWorkspaces(_ context.Context, request *userv1.ListWorkspacesRequest, _ ...grpc.CallOption) (*userv1.ListWorkspacesReply, error) {
+	if request.UserId != "u1" {
+		return nil, status.Error(codes.PermissionDenied, "wrong user")
+	}
+	return &userv1.ListWorkspacesReply{Workspaces: []*userv1.Workspace{{
+		Id: "workspace-studio-1", OwnerUserId: request.UserId, Name: "样片工作区", PlanCode: "studio",
+		IncludedSeats: 5, ActiveMemberCount: 1, CurrentUserRole: "owner",
+		ReviewStorageBytes: 5_000_000_000, ReviewRetentionDays: 30,
+	}}}, nil
+}
+
+func (fakeUser) SetWorkspacePlan(_ context.Context, request *userv1.SetWorkspacePlanRequest, _ ...grpc.CallOption) (*userv1.Workspace, error) {
+	return &userv1.Workspace{
+		Id: request.WorkspaceId, OwnerUserId: "u1", Name: "样片工作区", PlanCode: request.PlanCode,
+		IncludedSeats: request.IncludedSeats, ActiveMemberCount: 1, CurrentUserRole: "owner",
+		ReviewStorageBytes: request.ReviewStorageBytes, ReviewRetentionDays: request.ReviewRetentionDays,
+	}, nil
 }
 
 type fakeAuth struct{}
@@ -272,7 +333,14 @@ func (fakeBilling) GetSubscription(ctx context.Context, req *billingv1.GetSubscr
 	if platform.UserIdentity(ctx) != req.UserId || req.UserId != "u1" {
 		return nil, status.Error(codes.PermissionDenied, "identity mismatch")
 	}
-	return &billingv1.Subscription{Id: "sub-1", UserId: "u1", PlanCode: "pro", Status: "active"}, nil
+	return &billingv1.Subscription{
+		Id: "sub-1", UserId: "u1", PlanCode: "studio", Status: "active",
+		Entitlements: &billingv1.PlanEntitlements{
+			IncludedSeats: 5, ByokEnabled: true, OfflineReviewEnabled: true,
+			AdvancedExportEnabled: true, CloudReviewEnabled: true,
+			ReviewStorageBytes: 5_000_000_000, ReviewRetentionDays: 30,
+		},
+	}, nil
 }
 
 type fakeQuota struct{ remainingTokens int64 }

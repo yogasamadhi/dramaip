@@ -16,6 +16,27 @@ service ReportingService {
   // ResolveException acknowledges a projection exception only. It never
   // changes the source event or any billing/quota ledger entry.
   rpc ResolveException(ResolveExceptionRequest) returns (ResolveExceptionResponse);
+  // Anonymous desktop product events contain no account or project identity.
+  // The service applies the same allowlist as the database CHECK constraint.
+  rpc RecordProductEvents(RecordProductEventsRequest) returns (RecordProductEventsResponse);
+}
+
+message ProductEvent {
+  string installation_id = 1;
+  string event_id = 2;
+  string app_version = 3;
+  string operating_system = 4;
+  string event_name = 5;
+  string duration_bucket = 6;
+  string result_code = 7;
+}
+
+message RecordProductEventsRequest {
+  repeated ProductEvent events = 1;
+}
+
+message RecordProductEventsResponse {
+  repeated string accepted_event_ids = 1;
 }
 
 message GetOverviewRequest {}

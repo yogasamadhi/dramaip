@@ -198,7 +198,34 @@ func (u *BFFUsecase) UpdateProfile(ctx context.Context, userID string, phone str
 }
 
 func (u *BFFUsecase) Workspaces(ctx context.Context, userID string) (*userv1.ListWorkspacesReply, error) {
-	return u.data.Workspace.ListWorkspaces(ctx, &userv1.ListWorkspacesRequest{UserId: userID})
+	workspaces, err := u.data.Workspace.ListWorkspaces(ctx, &userv1.ListWorkspacesRequest{UserId: userID})
+	if err != nil {
+		return nil, err
+	}
+	subscription, err := u.data.Billing.GetSubscription(ctx, &billingv1.GetSubscriptionRequest{UserId: userID})
+	if err != nil {
+		return nil, err
+	}
+	if subscription == nil || subscription.Entitlements == nil {
+		return nil, status.Error(codes.FailedPrecondition, "subscription_entitlements_missing")
+	}
+	for index, workspace := range workspaces.Workspaces {
+		if workspace.OwnerUserId != userID {
+			continue
+		}
+		updated, updateErr := u.data.Workspace.SetWorkspacePlan(ctx, &userv1.SetWorkspacePlanRequest{
+			WorkspaceId: workspace.Id, PlanCode: subscription.PlanCode,
+			IncludedSeats:       subscription.Entitlements.IncludedSeats,
+			ReviewStorageBytes:  subscription.Entitlements.ReviewStorageBytes,
+			ReviewRetentionDays: subscription.Entitlements.ReviewRetentionDays,
+		})
+		if updateErr != nil {
+			return nil, updateErr
+		}
+		workspaces.Workspaces[index] = updated
+		break
+	}
+	return workspaces, nil
 }
 
 func (u *BFFUsecase) WorkspaceMembers(ctx context.Context, userID, workspaceID string) (*userv1.ListWorkspaceMembersReply, error) {
@@ -445,15 +472,25 @@ func (u *BFFUsecase) SimulatedConfirmPayment(ctx context.Context, userID string,
 func (u *BFFUsecase) CancelSubscription(ctx context.Context, userID string, subscriptionID string, immediate bool) (*billingv1.Subscription, error) {
 	reply, err := u.data.Billing.CancelSubscription(ctx, &billingv1.CancelSubscriptionRequest{UserId: userID, SubscriptionId: subscriptionID, Immediate: immediate})
 	if err == nil {
+		err = u.syncOwnerWorkspaceEntitlements(ctx, userID, reply)
+	}
+	if err == nil {
 		u.CreateNotification(ctx, userID, "subscription_canceled", "订阅取消已受理", "你的订阅取消请求已记录。", "subscription-cancel:"+reply.Id)
 	}
 	return reply, err
 }
 
 func (u *BFFUsecase) ResumeSubscription(ctx context.Context, userID, subscriptionID, idempotencyKey string) (*billingv1.Subscription, error) {
-	return u.data.Billing.ResumeSubscription(ctx, &billingv1.ResumeSubscriptionRequest{
+	reply, err := u.data.Billing.ResumeSubscription(ctx, &billingv1.ResumeSubscriptionRequest{
 		UserId: userID, SubscriptionId: subscriptionID, IdempotencyKey: idempotencyKey,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := u.syncOwnerWorkspaceEntitlements(ctx, userID, reply); err != nil {
+		return nil, err
+	}
+	return reply, nil
 }
 
 func (u *BFFUsecase) ChangeSubscriptionPlan(ctx context.Context, userID, subscriptionID, planID, idempotencyKey string) (*billingv1.Subscription, error) {

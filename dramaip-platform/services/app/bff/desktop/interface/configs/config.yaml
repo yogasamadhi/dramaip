@@ -9,3 +9,5 @@ downstream:
   inspiration_grpc_addr: localhost:9107
   snapshot_grpc_addr: localhost:9109
   review_grpc_addr: localhost:9112
+  user_grpc_addr: localhost:9102
+  reporting_grpc_addr: localhost:9108

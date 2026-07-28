@@ -28,6 +28,8 @@ type DownstreamConfig struct {
 	InspirationEndpoint string `yaml:"inspiration_grpc_addr"`
 	SnapshotEndpoint    string `yaml:"snapshot_grpc_addr"`
 	ReviewEndpoint      string `yaml:"review_grpc_addr"`
+	UserEndpoint        string `yaml:"user_grpc_addr"`
+	ReportingEndpoint   string `yaml:"reporting_grpc_addr"`
 	DialTimeout         string `yaml:"dial_timeout"`
 }
 
@@ -35,7 +37,7 @@ func Load() (*Bootstrap, error) {
 	cfg := &Bootstrap{
 		Server: ServerConfig{HTTP: EndpointConfig{Addr: ":8110"}},
 		Downstream: DownstreamConfig{
-			AuthEndpoint: "localhost:9101", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", AIGatewayEndpoint: "localhost:9105", InspirationEndpoint: "localhost:9107", SnapshotEndpoint: "localhost:9109", ReviewEndpoint: "localhost:9112", DialTimeout: "15s",
+			AuthEndpoint: "localhost:9101", BillingEndpoint: "localhost:9103", QuotaEndpoint: "localhost:9104", AIGatewayEndpoint: "localhost:9105", InspirationEndpoint: "localhost:9107", SnapshotEndpoint: "localhost:9109", ReviewEndpoint: "localhost:9112", UserEndpoint: "localhost:9102", ReportingEndpoint: "localhost:9108", DialTimeout: "15s",
 		},
 		Environment: "development",
 	}
@@ -51,6 +53,8 @@ func Load() (*Bootstrap, error) {
 	cfg.Downstream.InspirationEndpoint = kratosx.Env("INSPIRATION_GRPC_ENDPOINT", cfg.Downstream.InspirationEndpoint)
 	cfg.Downstream.SnapshotEndpoint = kratosx.Env("SNAPSHOT_GRPC_ENDPOINT", cfg.Downstream.SnapshotEndpoint)
 	cfg.Downstream.ReviewEndpoint = kratosx.Env("REVIEW_GRPC_ENDPOINT", cfg.Downstream.ReviewEndpoint)
+	cfg.Downstream.UserEndpoint = kratosx.Env("USER_GRPC_ENDPOINT", cfg.Downstream.UserEndpoint)
+	cfg.Downstream.ReportingEndpoint = kratosx.Env("REPORTING_GRPC_ENDPOINT", cfg.Downstream.ReportingEndpoint)
 	cfg.Downstream.DialTimeout = kratosx.Env("DESKTOP_BFF_GRPC_DIAL_TIMEOUT", cfg.Downstream.DialTimeout)
 	mtls, err := platform.LoadMTLSConfig(cfg.Environment)
 	if err != nil {

@@ -9,8 +9,10 @@ import (
 	billingv1 "github.com/dramaip/dramaip-platform/services/api/billing/service/v1"
 	inspirationv1 "github.com/dramaip/dramaip-platform/services/api/inspiration/service/v1"
 	quotav1 "github.com/dramaip/dramaip-platform/services/api/quota/service/v1"
+	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	reviewv1 "github.com/dramaip/dramaip-platform/services/api/review/service/v1"
 	snapshotv1 "github.com/dramaip/dramaip-platform/services/api/snapshot/service/v1"
+	userv1 "github.com/dramaip/dramaip-platform/services/api/user/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/bff/desktop/interface/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/kratosx"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
@@ -61,6 +63,15 @@ type ReviewClient interface {
 	DeletePackage(context.Context, *reviewv1.DeletePackageRequest, ...grpc.CallOption) (*reviewv1.DeletePackageReply, error)
 }
 
+type UserClient interface {
+	ListWorkspaces(context.Context, *userv1.ListWorkspacesRequest, ...grpc.CallOption) (*userv1.ListWorkspacesReply, error)
+	SetWorkspacePlan(context.Context, *userv1.SetWorkspacePlanRequest, ...grpc.CallOption) (*userv1.Workspace, error)
+}
+
+type ReportingClient interface {
+	RecordProductEvents(context.Context, *reportingv1.RecordProductEventsRequest, ...grpc.CallOption) (*reportingv1.RecordProductEventsResponse, error)
+}
+
 type Data struct {
 	Auth        AuthClient
 	Billing     BillingClient
@@ -69,6 +80,8 @@ type Data struct {
 	Inspiration InspirationClient
 	Snapshot    SnapshotClient
 	Review      ReviewClient
+	User        UserClient
+	Reporting   ReportingClient
 	conns       []*grpc.ClientConn
 }
 
@@ -128,9 +141,32 @@ func NewData(cfg *conf.Bootstrap) (*Data, func(), error) {
 		_ = snapshotConn.Close()
 		return nil, nil, err
 	}
+	userConn, err := platform.DialGRPC(ctx, cfg.Downstream.UserEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		_ = aiConn.Close()
+		_ = inspirationConn.Close()
+		_ = snapshotConn.Close()
+		_ = reviewConn.Close()
+		return nil, nil, err
+	}
+	reportingConn, err := platform.DialGRPC(ctx, cfg.Downstream.ReportingEndpoint, cfg.MTLS)
+	if err != nil {
+		_ = authConn.Close()
+		_ = billingConn.Close()
+		_ = quotaConn.Close()
+		_ = aiConn.Close()
+		_ = inspirationConn.Close()
+		_ = snapshotConn.Close()
+		_ = reviewConn.Close()
+		_ = userConn.Close()
+		return nil, nil, err
+	}
 	d := &Data{
-		Auth: authv1.NewAuthServiceClient(authConn), Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn), AI: aiv1.NewAiGatewayServiceClient(aiConn), Inspiration: inspirationv1.NewInspirationServiceClient(inspirationConn), Snapshot: snapshotv1.NewSnapshotServiceClient(snapshotConn), Review: reviewv1.NewReviewServiceClient(reviewConn),
-		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn, aiConn, inspirationConn, snapshotConn, reviewConn},
+		Auth: authv1.NewAuthServiceClient(authConn), Billing: billingv1.NewBillingServiceClient(billingConn), Quota: quotav1.NewQuotaServiceClient(quotaConn), AI: aiv1.NewAiGatewayServiceClient(aiConn), Inspiration: inspirationv1.NewInspirationServiceClient(inspirationConn), Snapshot: snapshotv1.NewSnapshotServiceClient(snapshotConn), Review: reviewv1.NewReviewServiceClient(reviewConn), User: userv1.NewUserServiceClient(userConn), Reporting: reportingv1.NewReportingServiceClient(reportingConn),
+		conns: []*grpc.ClientConn{authConn, billingConn, quotaConn, aiConn, inspirationConn, snapshotConn, reviewConn, userConn, reportingConn},
 	}
 	return d, d.Close, nil
 }

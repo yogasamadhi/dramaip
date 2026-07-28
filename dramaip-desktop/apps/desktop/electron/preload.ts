@@ -90,7 +90,8 @@ const api = {
   review: {
     exportOffline: (input: unknown) => invoke('review:exportOffline', input),
     importOffline: () => invoke('review:importOffline'),
-    publishCloud: () => invoke('review:publishCloud'),
+    listCloudWorkspaces: () => invoke('review:listCloudWorkspaces'),
+    publishCloud: (input: unknown) => invoke('review:publishCloud', input),
     sync: (projectId: string, episodeId?: string) => invoke('review:sync', projectId, episodeId),
     delete: (id: string) => invoke('review:delete', id),
   },

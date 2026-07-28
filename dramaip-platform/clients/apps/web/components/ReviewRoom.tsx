@@ -34,11 +34,13 @@ export function ReviewRoom({ token }: { token: string }) {
     onSuccess: (result) => {
       setActivePIN(pin)
       setReviewPackage(result.package)
-      setSelectedID(parseManifest(result.package)?.media[0]?.id ?? '')
+      const parsed = parseManifest(result.package)
+      setSelectedID(parsed ? reviewItems(parsed)[0]?.id ?? '' : '')
     },
   })
   const manifest = useMemo(() => parseManifest(reviewPackage), [reviewPackage])
-  const selectedManifest = manifest?.media.find((item) => item.id === selectedID) ?? manifest?.media[0]
+  const shots = useMemo(() => manifest ? reviewItems(manifest) : [], [manifest])
+  const selectedManifest = shots.find((item) => item.id === selectedID) ?? shots[0]
   const selectedMedia = reviewPackage?.media.find((item) => item.id === selectedManifest?.id || item.relative_path === selectedManifest?.relativePath)
 
   const commentMutation = useMutation({
@@ -92,11 +94,11 @@ export function ReviewRoom({ token }: { token: string }) {
       <div className="mx-auto max-w-[1500px] px-4 py-5 lg:px-6">
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs uppercase tracking-[.16em] text-[#e98765]">Anonymous review</p><h1 className="mt-1 text-xl font-semibold">{reviewPackage.title}</h1></div>
-          <div className="text-xs text-stone-400">{manifest.media.length} 镜头 · {new Date(reviewPackage.expires_at).toLocaleDateString('zh-CN')} 到期</div>
+          <div className="text-xs text-stone-400">{shots.length} 镜头 · {new Date(reviewPackage.expires_at).toLocaleDateString('zh-CN')} 到期</div>
         </header>
         <div className="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)_320px]">
           <nav aria-label="镜头列表" className="flex gap-2 overflow-x-auto rounded-2xl bg-black/25 p-2 lg:block lg:space-y-2">
-            {manifest.media.map((item) => (
+            {shots.map((item) => (
               <button key={item.id} type="button" onClick={() => { setSelectedID(item.id); setTimecode(0); setNotice('') }} className={`min-w-32 rounded-xl border p-3 text-left text-xs transition lg:w-full ${item.id === selectedManifest?.id ? 'border-[#e98765] bg-[#5b382c] text-white' : 'border-stone-700 bg-[#292928] text-stone-400 hover:border-stone-500'}`}>
                 <span className="block font-mono text-[10px]">{String(item.orderIndex + 1).padStart(2, '0')} · {item.shotId}</span>
                 <span className="mt-1 block truncate">{item.label}</span>
@@ -157,6 +159,9 @@ function parseManifest(reviewPackage?: ReviewPackage): ReviewManifest | undefine
   } catch {
     return undefined
   }
+}
+function reviewItems(manifest: ReviewManifest): ManifestMedia[] {
+  return manifest.media.filter((item) => !item.relativePath.replaceAll('\\', '/').startsWith('thumbnails/'))
 }
 function randomID() { return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}` }
 function formatTimecode(seconds: number) {

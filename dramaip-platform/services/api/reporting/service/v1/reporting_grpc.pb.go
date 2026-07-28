@@ -19,12 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ReportingService_GetOverview_FullMethodName       = "/dramaip.reporting.service.v1.ReportingService/GetOverview"
-	ReportingService_ListUsers_FullMethodName         = "/dramaip.reporting.service.v1.ReportingService/ListUsers"
-	ReportingService_ListOrders_FullMethodName        = "/dramaip.reporting.service.v1.ReportingService/ListOrders"
-	ReportingService_ListSubscriptions_FullMethodName = "/dramaip.reporting.service.v1.ReportingService/ListSubscriptions"
-	ReportingService_ListExceptions_FullMethodName    = "/dramaip.reporting.service.v1.ReportingService/ListExceptions"
-	ReportingService_ResolveException_FullMethodName  = "/dramaip.reporting.service.v1.ReportingService/ResolveException"
+	ReportingService_GetOverview_FullMethodName         = "/dramaip.reporting.service.v1.ReportingService/GetOverview"
+	ReportingService_ListUsers_FullMethodName           = "/dramaip.reporting.service.v1.ReportingService/ListUsers"
+	ReportingService_ListOrders_FullMethodName          = "/dramaip.reporting.service.v1.ReportingService/ListOrders"
+	ReportingService_ListSubscriptions_FullMethodName   = "/dramaip.reporting.service.v1.ReportingService/ListSubscriptions"
+	ReportingService_ListExceptions_FullMethodName      = "/dramaip.reporting.service.v1.ReportingService/ListExceptions"
+	ReportingService_ResolveException_FullMethodName    = "/dramaip.reporting.service.v1.ReportingService/ResolveException"
+	ReportingService_RecordProductEvents_FullMethodName = "/dramaip.reporting.service.v1.ReportingService/RecordProductEvents"
 )
 
 // ReportingServiceClient is the client API for ReportingService service.
@@ -43,6 +44,9 @@ type ReportingServiceClient interface {
 	// ResolveException acknowledges a projection exception only. It never
 	// changes the source event or any billing/quota ledger entry.
 	ResolveException(ctx context.Context, in *ResolveExceptionRequest, opts ...grpc.CallOption) (*ResolveExceptionResponse, error)
+	// Anonymous desktop product events contain no account or project identity.
+	// The service applies the same allowlist as the database CHECK constraint.
+	RecordProductEvents(ctx context.Context, in *RecordProductEventsRequest, opts ...grpc.CallOption) (*RecordProductEventsResponse, error)
 }
 
 type reportingServiceClient struct {
@@ -113,6 +117,16 @@ func (c *reportingServiceClient) ResolveException(ctx context.Context, in *Resol
 	return out, nil
 }
 
+func (c *reportingServiceClient) RecordProductEvents(ctx context.Context, in *RecordProductEventsRequest, opts ...grpc.CallOption) (*RecordProductEventsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordProductEventsResponse)
+	err := c.cc.Invoke(ctx, ReportingService_RecordProductEvents_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReportingServiceServer is the server API for ReportingService service.
 // All implementations must embed UnimplementedReportingServiceServer
 // for forward compatibility.
@@ -129,6 +143,9 @@ type ReportingServiceServer interface {
 	// ResolveException acknowledges a projection exception only. It never
 	// changes the source event or any billing/quota ledger entry.
 	ResolveException(context.Context, *ResolveExceptionRequest) (*ResolveExceptionResponse, error)
+	// Anonymous desktop product events contain no account or project identity.
+	// The service applies the same allowlist as the database CHECK constraint.
+	RecordProductEvents(context.Context, *RecordProductEventsRequest) (*RecordProductEventsResponse, error)
 	mustEmbedUnimplementedReportingServiceServer()
 }
 
@@ -156,6 +173,9 @@ func (UnimplementedReportingServiceServer) ListExceptions(context.Context, *List
 }
 func (UnimplementedReportingServiceServer) ResolveException(context.Context, *ResolveExceptionRequest) (*ResolveExceptionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveException not implemented")
+}
+func (UnimplementedReportingServiceServer) RecordProductEvents(context.Context, *RecordProductEventsRequest) (*RecordProductEventsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordProductEvents not implemented")
 }
 func (UnimplementedReportingServiceServer) mustEmbedUnimplementedReportingServiceServer() {}
 func (UnimplementedReportingServiceServer) testEmbeddedByValue()                          {}
@@ -286,6 +306,24 @@ func _ReportingService_ResolveException_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReportingService_RecordProductEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordProductEventsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReportingServiceServer).RecordProductEvents(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ReportingService_RecordProductEvents_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReportingServiceServer).RecordProductEvents(ctx, req.(*RecordProductEventsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReportingService_ServiceDesc is the grpc.ServiceDesc for ReportingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -316,6 +354,10 @@ var ReportingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveException",
 			Handler:    _ReportingService_ResolveException_Handler,
+		},
+		{
+			MethodName: "RecordProductEvents",
+			Handler:    _ReportingService_RecordProductEvents_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

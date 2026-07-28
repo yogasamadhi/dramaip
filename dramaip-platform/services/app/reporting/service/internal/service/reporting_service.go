@@ -3,12 +3,21 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strings"
 
 	reportingv1 "github.com/dramaip/dramaip-platform/services/api/reporting/service/v1"
 	"github.com/dramaip/dramaip-platform/services/app/reporting/internal/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var productEventUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+var productEventAllowlist = map[string]bool{
+	"demo_opened": true, "first_shot_ready": true, "retake_started": true,
+	"retake_succeeded": true, "retake_adopted": true, "review_exported": true,
+	"review_published": true, "editor_exported": true, "checkout_conversion": true,
+}
 
 type ReportingService struct {
 	reportingv1.UnimplementedReportingServiceServer
@@ -83,6 +92,39 @@ func (s *ReportingService) ResolveException(ctx context.Context, req *reportingv
 		return nil, status.Error(codes.InvalidArgument, "invalid_reporting_exception_resolution")
 	}
 	return &reportingv1.ResolveExceptionResponse{Exception: exceptionReply(row)}, nil
+}
+
+func (s *ReportingService) RecordProductEvents(ctx context.Context, req *reportingv1.RecordProductEventsRequest) (*reportingv1.RecordProductEventsResponse, error) {
+	if len(req.GetEvents()) == 0 || len(req.GetEvents()) > 100 {
+		return nil, status.Error(codes.InvalidArgument, "product_event_batch_must_contain_1_to_100_items")
+	}
+	rows := make([]data.ProductEvent, 0, len(req.GetEvents()))
+	accepted := make([]string, 0, len(req.GetEvents()))
+	for _, event := range req.GetEvents() {
+		if event == nil ||
+			!productEventUUID.MatchString(strings.ToLower(strings.TrimSpace(event.GetInstallationId()))) ||
+			!productEventUUID.MatchString(strings.ToLower(strings.TrimSpace(event.GetEventId()))) ||
+			len(strings.TrimSpace(event.GetAppVersion())) == 0 || len(event.GetAppVersion()) > 40 ||
+			!map[string]bool{"darwin": true, "win32": true, "linux": true}[event.GetOperatingSystem()] ||
+			!productEventAllowlist[event.GetEventName()] ||
+			len(event.GetDurationBucket()) > 32 || len(event.GetResultCode()) > 64 {
+			return nil, status.Error(codes.InvalidArgument, "invalid_product_event")
+		}
+		rows = append(rows, data.ProductEvent{
+			InstallationID:  strings.ToLower(strings.TrimSpace(event.GetInstallationId())),
+			EventID:         strings.ToLower(strings.TrimSpace(event.GetEventId())),
+			AppVersion:      strings.TrimSpace(event.GetAppVersion()),
+			OperatingSystem: event.GetOperatingSystem(),
+			EventName:       event.GetEventName(),
+			DurationBucket:  strings.TrimSpace(event.GetDurationBucket()),
+			ResultCode:      strings.TrimSpace(event.GetResultCode()),
+		})
+		accepted = append(accepted, strings.ToLower(strings.TrimSpace(event.GetEventId())))
+	}
+	if err := s.repo.RecordProductEvents(ctx, rows); err != nil {
+		return nil, err
+	}
+	return &reportingv1.RecordProductEventsResponse{AcceptedEventIds: accepted}, nil
 }
 func exceptionReply(row data.ProjectionException) *reportingv1.ProjectionException {
 	return &reportingv1.ProjectionException{Id: row.ID, EventId: row.EventID, EventType: row.EventType, Status: row.Status, Summary: row.Summary, TraceId: row.TraceID, CreatedAt: row.CreatedAt, ResolvedAt: row.ResolvedAt, ResolvedBy: row.ResolvedBy, ResolutionReason: row.ResolutionReason}

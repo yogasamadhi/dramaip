@@ -962,7 +962,11 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'demo:create': [],
   'review:exportOffline': [timelineScopeInput],
   'review:importOffline': [],
-  'review:publishCloud': [],
+  'review:listCloudWorkspaces': [],
+  'review:publishCloud': [timelineScopeInput.extend({
+    workspaceId: id,
+    pin: z.string().regex(/^[0-9]{4,12}$/).optional(),
+  }).strict()],
   'review:sync': [id, maybeId],
   'review:delete': [id],
   'editorExport:preflight': [timelineScopeInput],
