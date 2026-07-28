@@ -177,7 +177,9 @@ function forbiddenPackageEntries(entries) {
     { pattern: /^\/?renderer\/src\//, label: 'renderer source directory' },
     { pattern: /(^|\/)(LOOPRULE|LOOPMAP|UPDATE)\.md$/i, label: 'loop working document' },
     { pattern: /(^|\/)\.env(\..*)?$/i, label: 'environment file' },
-    { pattern: /(^|\/)(pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json)$/i, label: 'workspace config' },
+    // Dependency packages may legitimately ship their own tsconfig metadata.
+    // Only repository-root workspace configuration is forbidden here.
+    { pattern: /^\/?(pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json)$/i, label: 'workspace config' },
   ]
   return entries
     .map((entry) => entry.replaceAll('\\', '/'))

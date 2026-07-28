@@ -16,6 +16,8 @@ pnpm build
 pnpm test:e2e:skip-build
 pnpm test:ui:skip-build
 pnpm package:smoke
+pnpm release:metadata
+DRAMAIP_RELEASE_STAGE=ga pnpm release:gate
 ```
 
 `test:unit` 会先为当前 Node ABI 重建 `better-sqlite3`，并且无论成功或失败都会恢复
@@ -37,7 +39,8 @@ preload、SQLite 迁移、FFmpeg、asar 解包的原生模块、文件关联与�
 1. 固定版本号与变更日志，创建候选 tag；不得把 API Key、证书或更新签名材料提交进仓库。
 2. 产出 DMG/ZIP、NSIS/ZIP、AppImage/deb；在每个目标系统用新用户目录首次安装、升级安装和启动后回滚验证。
 3. macOS 使用 hardened runtime、Developer ID 签名和公证；Windows 使用受信任代码签名；Linux 附带第三方许可与校验和。
-4. 发布更新清单前确认 `publish.url` 已由 release 环境替换为真实 HTTPS 源，绝不发布示例地址。
+4. `electron-builder.yml` 不再含默认更新域名；打包环境必须注入 `DRAMAIP_UPDATE_URL`。发布更新清单前由 `release:gate` 验证它是真实、非占位的 HTTPS 源。
+5. `release:metadata` 为产物生成 `SHA256SUMS`、CycloneDX SBOM 与第三方许可索引；三者和完整许可文本随发布物一起交付。
 
 ## 回滚与数据兼容
 

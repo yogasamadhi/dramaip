@@ -1,8 +1,8 @@
 {
   "name": "@sdns/desktop",
-  "version": "1.0.0",
+  "version": "2.0.0-rc.1",
   "private": true,
-  "description": "短剧 IP 小说写作工作台 - 桌面端",
+  "description": "DramaIP AI 漫剧生产工作室 - 桌面端",
   "author": "sdns",
   "license": "UNLICENSED",
   "main": "./out/main/index.js",

@@ -1,8 +1,8 @@
 # electron-builder 配置（ROADMAP v1.0-5）—— macOS / Windows / Linux 安装包
 appId: com.sdns.studio
-productName: 短剧IP小说工作室
+productName: DramaIP Studio
 afterSign: ../../scripts/notarize-mac.cjs
-# 版本号从 apps/desktop/package.json 读取（保持 1.0.0）
+# 版本号从 apps/desktop/package.json 读取；GA 前必须由 v2 release gate 验证。
 directories:
   output: dist
   buildResources: build
@@ -50,7 +50,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-# v1.0：Linux（AppImage + deb）
+# Linux 与桌面正式版保持同版本号，但在发布页明确标记 Beta。
 linux:
   target:
     - AppImage
@@ -58,7 +58,8 @@ linux:
   category: Office
   maintainer: sdns-studio
   artifactName: ${productName}-${version}-${arch}.${ext}
-# 自动更新发布源设计：真实发布时由 release 环境覆盖为稳定 HTTPS 静态源
+# 不提供源码内默认更新域名。release 环境必须注入真实 HTTPS 源；
+# 缺失时 electron-builder 直接失败，候选保持 RC。
 publish:
   provider: generic
-  url: https://updates.example.invalid/short-drama-novel-studio/stable/
+  url: ${env.DRAMAIP_UPDATE_URL}

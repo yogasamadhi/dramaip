@@ -1,8 +1,8 @@
 {
   "name": "short-drama-novel-studio",
   "private": true,
-  "version": "1.0.0",
-  "description": "本地优先的桌面端 AI 写作工具 —— 短剧 IP 小说写作工作台",
+  "version": "2.0.0-rc.1",
+  "description": "本地优先、可审片、可复现、可交付的 AI 漫剧生产工作室",
   "scripts": {
     "dev": "pnpm --filter @sdns/desktop dev",
     "build": "pnpm -r --filter @sdns/desktop build",
@@ -10,6 +10,8 @@
     "package": "pnpm --filter @sdns/desktop package",
     "package:smoke": "node scripts/package-smoke.mjs",
     "package:smoke:dir": "node scripts/package-smoke.mjs --dir",
+    "release:metadata": "node scripts/generate-release-metadata.mjs",
+    "release:gate": "node scripts/v2-release-gate.mjs",
     "test:e2e": "node scripts/e2e-smoke.mjs",
     "test:e2e:skip-build": "node scripts/e2e-smoke.mjs --skip-build",
     "test:hailuo:sandbox": "node --import tsx scripts/hailuo-sandbox-smoke.ts",
