@@ -8,6 +8,26 @@
 
 body {
   margin: 0;
-  background: #f8fafc;
-  color: #111827;
+  background: #faf9f6;
+  color: #20201f;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+::selection {
+  background: #e9c8b8;
+}
+
+.studio-grid {
+  background-image:
+    linear-gradient(rgba(55, 48, 43, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(55, 48, 43, .055) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.eyebrow {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #b94727;
 }

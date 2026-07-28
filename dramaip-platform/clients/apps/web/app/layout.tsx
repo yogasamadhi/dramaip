@@ -4,8 +4,11 @@ import { QueryProvider } from '../lib/query-client'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'DramaIP',
-  description: '智能短剧 IP 创作平台',
+  title: {
+    default: 'DramaIP Studio — AI 漫剧生产工作室',
+    template: '%s · DramaIP Studio',
+  },
+  description: '把一部长篇 IP，安全地做成可审片、可复现、可交付的 AI 漫剧。',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

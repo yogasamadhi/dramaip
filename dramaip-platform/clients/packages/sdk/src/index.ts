@@ -74,12 +74,27 @@ export const DashboardSchema = z.object({
 
 export type Dashboard = z.infer<typeof DashboardSchema>
 
+export const PlanEntitlementsSchema = z.object({
+  included_seats: z.number().int().nonnegative(),
+  byok_enabled: z.boolean(),
+  offline_review_enabled: z.boolean(),
+  advanced_export_enabled: z.boolean(),
+  cloud_review_enabled: z.boolean(),
+  review_storage_bytes: z.number().nonnegative(),
+  review_retention_days: z.number().int().nonnegative(),
+  private_gateway_enabled: z.boolean(),
+})
+
+export type PlanEntitlements = z.infer<typeof PlanEntitlementsSchema>
+
 export const PlanSchema = z.object({
   id: z.string(),
   name: z.string(),
   price_cny: z.number(),
   quota_tokens: z.number(),
   description: z.string(),
+  purchase_mode: z.enum(['self_serve', 'sales_contact']).default('self_serve'),
+  entitlements: PlanEntitlementsSchema,
 })
 
 export type Plan = z.infer<typeof PlanSchema>
@@ -117,6 +132,11 @@ export const SubscriptionSchema = z.object({
   scheduled_plan_code: z.string().optional(),
   scheduled_change_at: z.string().optional(),
   lifecycle_error: z.string().optional(),
+  purchase_mode: z.enum(['self_serve', 'sales_contact']).optional(),
+  entitlements: PlanEntitlementsSchema.optional(),
+  legacy_plan_code: z.string().optional(),
+  renewal_plan_code: z.string().optional(),
+  migration_effective_at: z.string().optional(),
 })
 
 export type Subscription = z.infer<typeof SubscriptionSchema>
@@ -159,6 +179,8 @@ export const OrderSchema = z.object({
 	expires_at: z.string().default(''),
 	paid_at: z.string().optional(),
   subscription_id: z.string().optional(),
+  purchase_mode: z.enum(['self_serve', 'sales_contact']).optional(),
+  entitlements_snapshot: PlanEntitlementsSchema.optional(),
 })
 
 export type Order = z.infer<typeof OrderSchema>
@@ -335,6 +357,102 @@ export type ChatInput = {
 
 export type ChatStreamInput = ChatInput & { preflight_request_hash: string }
 
+export const WorkspaceSchema = z.object({
+  id: z.string(),
+  owner_user_id: z.string(),
+  name: z.string(),
+  plan_code: z.string(),
+  included_seats: z.number().int().nonnegative(),
+  active_member_count: z.number().int().nonnegative(),
+  pending_invitation_count: z.number().int().nonnegative(),
+  current_user_role: z.enum(['owner', 'admin', 'member']),
+  review_storage_bytes: z.number().nonnegative(),
+  review_retention_days: z.number().int().nonnegative(),
+})
+export type Workspace = z.infer<typeof WorkspaceSchema>
+
+export const WorkspaceMemberSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  user_id: z.string(),
+  role: z.enum(['owner', 'admin', 'member']),
+  status: z.string(),
+  display_name: z.string(),
+  email: z.string(),
+  created_at: z.string(),
+})
+export type WorkspaceMember = z.infer<typeof WorkspaceMemberSchema>
+
+export const WorkspaceInvitationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  email: z.string(),
+  role: z.enum(['admin', 'member']),
+  invited_by: z.string(),
+  expires_at: z.string(),
+  accepted_by: z.string().default(''),
+  accepted_at: z.string().default(''),
+  revoked_at: z.string().default(''),
+  created_at: z.string(),
+  token: z.string().default(''),
+})
+export type WorkspaceInvitation = z.infer<typeof WorkspaceInvitationSchema>
+
+export const ReviewMediaSchema = z.object({
+  id: z.string(),
+  relative_path: z.string(),
+  mime_type: z.string(),
+  size_bytes: z.number().nonnegative(),
+  sha256: z.string(),
+  status: z.string(),
+  download_url: z.string(),
+  download_url_expires_at: z.string(),
+})
+export type ReviewMedia = z.infer<typeof ReviewMediaSchema>
+
+export const ReviewPackageSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  desktop_package_id: z.string(),
+  title: z.string(),
+  status: z.string(),
+  manifest_json: z.string(),
+  storage_bytes: z.number().nonnegative(),
+  sync_cursor: z.number().int().nonnegative(),
+  expires_at: z.string(),
+  created_at: z.string(),
+  media: z.array(ReviewMediaSchema),
+})
+export type ReviewPackage = z.infer<typeof ReviewPackageSchema>
+
+export const ReviewCommentSchema = z.object({
+  id: z.string(),
+  package_id: z.string(),
+  client_id: z.string(),
+  shot_id: z.string(),
+  timecode_seconds: z.number().nonnegative(),
+  author_alias: z.string(),
+  body: z.string(),
+  resolved: z.boolean(),
+  cursor: z.number().int().nonnegative(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+export type ReviewComment = z.infer<typeof ReviewCommentSchema>
+
+export const ReviewDecisionSchema = z.object({
+  id: z.string(),
+  package_id: z.string(),
+  client_id: z.string(),
+  shot_id: z.string(),
+  decision: z.enum(['approve', 'return', 'request_changes', 'note']),
+  author_alias: z.string(),
+  note: z.string(),
+  cursor: z.number().int().nonnegative(),
+  created_at: z.string(),
+})
+export type ReviewDecision = z.infer<typeof ReviewDecisionSchema>
+
 export interface ApiClientOptions {
   baseURL: string
   getAccessToken?: () => string | undefined | Promise<string | undefined>
@@ -380,6 +498,17 @@ export interface DramaIpApiClient {
   resumeSubscription(input?: { subscription_id?: string; idempotency_key?: string }): Promise<Subscription>
   changeSubscriptionPlan(input: { subscription_id?: string; plan_id: string; idempotency_key?: string }): Promise<Subscription>
   requestRefund(input?: { subscription_id?: string; reason?: string; idempotency_key?: string }): Promise<Refund>
+  getWorkspaces(): Promise<{ workspaces: Workspace[] }>
+  getWorkspaceMembers(workspaceID: string): Promise<{ members: WorkspaceMember[] }>
+  getWorkspaceInvitations(workspaceID: string): Promise<{ invitations: WorkspaceInvitation[] }>
+  inviteWorkspaceMember(input: { workspace_id: string; email: string; role: 'admin' | 'member'; expires_in_hours?: number }): Promise<WorkspaceInvitation>
+  updateWorkspaceMember(input: { workspace_id: string; member_user_id: string; role: 'admin' | 'member' }): Promise<WorkspaceMember>
+  removeWorkspaceMember(input: { workspace_id: string; member_user_id: string }): Promise<WorkspaceMember>
+  revokeWorkspaceInvitation(input: { workspace_id: string; invitation_id: string }): Promise<WorkspaceInvitation>
+  acceptWorkspaceInvitation(token: string): Promise<WorkspaceMember>
+  getPublicReview(input: { token: string; pin?: string }): Promise<{ package: ReviewPackage }>
+  submitPublicReviewComment(input: { token: string; pin?: string; client_id: string; shot_id: string; timecode_seconds: number; author_alias: string; body: string }): Promise<ReviewComment>
+  submitPublicReviewDecision(input: { token: string; pin?: string; client_id: string; shot_id: string; decision: 'approve' | 'return' | 'request_changes' | 'note'; author_alias: string; note?: string }): Promise<ReviewDecision>
   refresh(): Promise<LoginResponse>
   logout(): Promise<LogoutResponse>
   getChatModels(): Promise<ChatModelsResponse>
@@ -520,6 +649,60 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     async requestRefund(input = {}) {
       const res = await http.post('/v1/subscription/refund', input)
       return RefundSchema.parse(res.data)
+    },
+    async getWorkspaces() {
+      const res = await http.get('/v1/me/workspaces')
+      return z.object({ workspaces: z.array(WorkspaceSchema) }).parse(res.data)
+    },
+    async getWorkspaceMembers(workspaceID) {
+      const res = await http.get('/v1/me/workspaces/members', { params: { workspace_id: workspaceID } })
+      return z.object({ members: z.array(WorkspaceMemberSchema) }).parse(res.data)
+    },
+    async getWorkspaceInvitations(workspaceID) {
+      const res = await http.get('/v1/me/workspaces/invitations', { params: { workspace_id: workspaceID } })
+      return z.object({ invitations: z.array(WorkspaceInvitationSchema) }).parse(res.data)
+    },
+    async inviteWorkspaceMember(input) {
+      const { workspace_id, ...body } = input
+      const res = await http.post('/v1/me/workspaces/invitations', body, { params: { workspace_id } })
+      return WorkspaceInvitationSchema.parse(res.data)
+    },
+    async updateWorkspaceMember(input) {
+      const { workspace_id, ...body } = input
+      const res = await http.patch('/v1/me/workspaces/members', body, { params: { workspace_id } })
+      return WorkspaceMemberSchema.parse(res.data)
+    },
+    async removeWorkspaceMember(input) {
+      const res = await http.delete('/v1/me/workspaces/members', {
+        params: { workspace_id: input.workspace_id, member_user_id: input.member_user_id },
+      })
+      return WorkspaceMemberSchema.parse(res.data)
+    },
+    async revokeWorkspaceInvitation(input) {
+      const res = await http.delete('/v1/me/workspaces/invitations', {
+        params: { workspace_id: input.workspace_id, invitation_id: input.invitation_id },
+      })
+      return WorkspaceInvitationSchema.parse(res.data)
+    },
+    async acceptWorkspaceInvitation(token) {
+      const res = await http.post('/v1/me/workspace-invitations/accept', { token })
+      return WorkspaceMemberSchema.parse(res.data)
+    },
+    async getPublicReview(input) {
+      const res = await http.post('/v1/review/package', input)
+      return z.object({ package: ReviewPackageSchema }).parse(res.data)
+    },
+    async submitPublicReviewComment(input) {
+      const res = await http.post('/v1/review/comments', input, {
+        headers: { 'Idempotency-Key': input.client_id },
+      })
+      return ReviewCommentSchema.parse(res.data)
+    },
+    async submitPublicReviewDecision(input) {
+      const res = await http.post('/v1/review/decisions', input, {
+        headers: { 'Idempotency-Key': input.client_id },
+      })
+      return ReviewDecisionSchema.parse(res.data)
     },
     async refresh() {
       const res = await http.post('/v1/auth/refresh')

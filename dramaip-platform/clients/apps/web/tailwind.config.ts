@@ -6,10 +6,16 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: '#f6f7fb',
-          500: '#3454d1',
-          700: '#22399b',
+          50: '#fff8f2',
+          500: '#c85532',
+          700: '#96391f',
         },
+        ink: '#20201f',
+        rust: '#b94727',
+        sand: '#eadbc8',
+      },
+      boxShadow: {
+        studio: '0 24px 70px -30px rgba(61, 42, 30, .32)',
       },
     },
   },

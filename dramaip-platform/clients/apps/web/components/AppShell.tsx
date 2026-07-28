@@ -39,34 +39,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="text-lg font-semibold text-slate-950">
-            DramaIP
+    <div className="min-h-screen bg-stone-50">
+      <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-stone-50/90 backdrop-blur-xl">
+        <nav className="mx-auto flex min-h-[72px] max-w-7xl items-center justify-between gap-6 px-5 py-3 lg:px-8">
+          <Link href="/" className="flex items-center gap-3 text-lg font-semibold tracking-tight text-stone-950">
+            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-full bg-ink text-sm text-white">D</span>
+            <span>DramaIP <span className="font-normal text-stone-400">Studio</span></span>
           </Link>
-          <div className="flex items-center gap-4 text-sm">
+          <div className="hidden items-center gap-5 text-sm lg:flex">
+            <NavLink href="/cases/demo" current={pathname === '/cases/demo'}>
+              样片案例
+            </NavLink>
+            <NavLink href="/trust" current={pathname === '/trust'}>
+              信任中心
+            </NavLink>
             <NavLink href="/pricing" current={pathname === '/pricing'}>
               套餐
-            </NavLink>
-            <NavLink href="/billing" current={pathname === '/billing'}>
-              账单
             </NavLink>
             <NavLink href="/download" current={pathname === '/download'}>
               下载
             </NavLink>
-            <NavLink href="/chat" current={pathname === '/chat'}>
-              AI 对话
-            </NavLink>
             <NavLink href="/account" current={pathname.startsWith('/account')}>
-              账号中心
+              工作区
             </NavLink>
             {hasSession ? (
               <>
                 <span className="hidden max-w-40 truncate text-slate-500 sm:inline">
                   {displayNameLabel(profile.data?.display_name)}
                 </span>
-                <Button type="button" onClick={() => logout.mutate()} disabled={logout.isPending}>
+                <Button type="button" variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
                   {logout.isPending ? '退出中...' : '退出登录'}
                 </Button>
               </>
@@ -83,6 +84,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </>
             )}
           </div>
+          <Link href="/download" className="lg:hidden">
+            <Button type="button">下载</Button>
+          </Link>
         </nav>
       </header>
       {children}
@@ -92,7 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function NavLink({ href, current, children }: { href: string; current: boolean; children: React.ReactNode }) {
   return (
-    <Link href={href} className={current ? 'font-medium text-brand-700' : 'text-slate-600 hover:text-slate-950'}>
+    <Link href={href} className={current ? 'font-medium text-rust' : 'text-stone-600 transition hover:text-stone-950'}>
       {children}
     </Link>
   )
