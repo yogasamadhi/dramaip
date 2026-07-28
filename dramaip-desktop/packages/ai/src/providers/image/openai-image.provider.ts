@@ -1,15 +1,21 @@
-import { getImageProviderCapability, type ImageGenerationInput, type ImageGenerationResult, type ImageProvider, type ImageProviderConfig } from '@sdns/core'
+import { readFile } from 'node:fs/promises'
+import { getImageProviderCapability, type ImageEditInput, type ImageGenerationInput, type ImageGenerationResult, type ImageProvider, type ImageProviderConfig } from '@sdns/core'
 import { fetchWithRetry } from '../http-client'
 
 const DEFAULT_MODEL = 'gpt-image-2'
 
 export interface OpenAIImageTransport {
   request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown>; signal?: AbortSignal }): Promise<unknown>
+  requestMultipart(input: { url: string; headers: Record<string, string>; body: FormData; signal?: AbortSignal }): Promise<unknown>
 }
 
 export class FetchOpenAIImageTransport implements OpenAIImageTransport {
   async request(input: { url: string; headers: Record<string, string>; body: Record<string, unknown>; signal?: AbortSignal }): Promise<unknown> {
     const response = await fetchWithRetry(input.url, { method: 'POST', headers: input.headers, body: JSON.stringify(input.body) }, { timeoutMs: 120_000, retries: 1, signal: input.signal })
+    return response.json()
+  }
+  async requestMultipart(input: { url: string; headers: Record<string, string>; body: FormData; signal?: AbortSignal }): Promise<unknown> {
+    const response = await fetchWithRetry(input.url, { method: 'POST', headers: input.headers, body: input.body }, { timeoutMs: 120_000, retries: 1, signal: input.signal })
     return response.json()
   }
 }
@@ -36,6 +42,38 @@ export class OpenAIImageProvider implements ImageProvider {
       ...(signal ? { signal } : {}),
     }
     const raw = await this.transport.request(request)
+    return mapOpenAIImageResponse(raw, model, outputFormat)
+  }
+
+  async edit(input: ImageEditInput, signal?: AbortSignal): Promise<ImageGenerationResult[]> {
+    const capability = getImageProviderCapability(this.config)
+    if (!capability.canSubmit || !capability.supportsImageEdit) {
+      throw new Error(capability.reason ?? 'OpenAI Image Edit 当前不可提交')
+    }
+    if (!input.images.length) throw new Error('Image Edit 至少需要一张源图')
+    if (input.images.length > 4) throw new Error('单次 Retake 最多使用四张参考图')
+    const model = input.model?.trim() || this.config.model?.trim() || DEFAULT_MODEL
+    const outputFormat = input.outputFormat ?? 'png'
+    const form = new FormData()
+    form.set('model', model)
+    form.set('prompt', input.prompt)
+    form.set('size', input.size ?? '1024x1536')
+    form.set('quality', input.quality ?? 'medium')
+    form.set('output_format', outputFormat)
+    for (const image of input.images) {
+      const bytes = await readFile(image.localPath)
+      form.append('image[]', new Blob([bytes], { type: image.mimeType }), image.fileName)
+    }
+    if (input.mask) {
+      const bytes = await readFile(input.mask.localPath)
+      form.set('mask', new Blob([bytes], { type: input.mask.mimeType }), input.mask.fileName)
+    }
+    const raw = await this.transport.requestMultipart({
+      url: 'https://api.openai.com/v1/images/edits',
+      headers: { Authorization: `Bearer ${this.config.apiKey}` },
+      body: form,
+      ...(signal ? { signal } : {}),
+    })
     return mapOpenAIImageResponse(raw, model, outputFormat)
   }
 }

@@ -68,6 +68,14 @@ export { videoProviderFromConfig } from './providers/video/factory'
 export { OpenAIImageProvider, FetchOpenAIImageTransport, mapOpenAIImageResponse, type OpenAIImageTransport } from './providers/image/openai-image.provider'
 export { MockImageProvider } from './providers/image/mock.provider'
 export {
+  createRetakeTask,
+  preflightRetake,
+  type RetakePreflight,
+  type RetakeServiceDeps,
+  type RetakeTaskInput,
+  type RetakeTaskResult,
+} from './providers/image/retake.service'
+export {
   createImageGenerationTask,
   retryImageGenerationTask,
   type ImageAssetArchiver,

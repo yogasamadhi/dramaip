@@ -15,7 +15,7 @@ import {
   Table,
   Video,
 } from 'lucide-react'
-import type { AdaptationProject, AnimaticDraft, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, ImageProviderConfigRecord, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, TtsProviderConfigRecord, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
+import type { AdaptationProject, AnimaticDraft, AssetCoverageItem, AudioTrack, BatchTaskProgress, Character, ComplianceRuleProfile, DeliveryCreativeVariant, Episode, EpisodeCompliancePreflight, EpisodeQualityReport, EpisodeRenderPreflight, ImageProviderConfigRecord, LongTask, PlatformDeliveryExport, PlatformDeliveryPreflight, PlatformDeliveryProfile, ProductionImpact, ProjectAsset, PromptVersion, QualityIssueAcknowledgement, RetakeOperation, RetakeRequest, Scene, Script, Shot, ShotReview, ShotStillBatchMode, ShotStillCandidate, ShotStillKind, ShotVisualAssetLock, TextDiffPreviewPayload, TtsProviderConfigRecord, VideoAssetDraftResult, VisualAssetVersion, VoiceProfile } from '@sdns/core'
 import { animaticDurationSeconds, analyzeVisualContinuity, planShotStillBatch, stillKindLabel, TASK_TYPE_LABELS, renderShotStructureSnapshot, snapshotShot } from '@sdns/core'
 import { ipc } from '@/lib/ipc'
 import { confirmAction, promptAction } from '@/components/ConfirmActionDialog'
@@ -689,6 +689,7 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
             {sourceProjectId && <AnimaticPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <AudioProductionPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
+            {sourceProjectId && <ReviewEditorPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeQualityPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <EpisodeCompliancePanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
             {sourceProjectId && <PlatformDeliveryPanel projectId={sourceProjectId} adaptationProjectId={adaptationProjectId} episodeId={scene.episodeId} />}
@@ -929,6 +930,13 @@ function SceneShotPanel({ adaptationProjectId, sourceProjectId, scene, shots, bu
                     onUpdate={updateDraft}
                   />
                   {sourceProjectId && <ShotStillCandidatesPanel projectId={sourceProjectId} shotId={activeShot.id} />}
+                  {sourceProjectId && (
+                    <DirectorRetakePanel
+                      projectId={sourceProjectId}
+                      shotId={activeShot.id}
+                      onChanged={onChanged}
+                    />
+                  )}
                   {sourceProjectId && <ShotVisualAssetLocksPanel projectId={sourceProjectId} shotId={activeShot.id} />}
                   <div className="mt-3 flex justify-end">
                     <Button size="sm" onClick={() => void saveShot()} disabled={!isDirty}><Pencil className="h-3.5 w-3.5" />保存素材引用</Button>
@@ -1087,6 +1095,234 @@ const SHOT_STILL_STATUS_LABEL: Record<ShotStillCandidate['status'], string> = {
   adopted: '已采用',
   superseded: '历史采用',
   rejected: '未采用',
+}
+
+const RETAKE_OPERATIONS: Array<[RetakeOperation, string]> = [
+  ['composition', '构图'],
+  ['expression', '表情'],
+  ['action', '动作'],
+  ['costume', '服装'],
+  ['lighting', '光照'],
+  ['background', '背景'],
+  ['character', '角色一致性'],
+  ['camera', '镜头视角'],
+]
+
+const COVERAGE_STATUS_LABEL: Record<AssetCoverageItem['status'], string> = {
+  missing: '缺失',
+  draft: '草稿',
+  adopted: '已采用',
+  stale: '已过期',
+  locked: '已锁定',
+}
+
+function DirectorRetakePanel({ projectId, shotId, onChanged }: { projectId: string; shotId: string; onChanged: () => void }) {
+  const [coverage, setCoverage] = useState<AssetCoverageItem[]>([])
+  const [impacts, setImpacts] = useState<ProductionImpact[]>([])
+  const [candidates, setCandidates] = useState<ShotStillCandidate[]>([])
+  const [requests, setRequests] = useState<RetakeRequest[]>([])
+  const [assets, setAssets] = useState<ProjectAsset[]>([])
+  const [provider, setProvider] = useState<ImageProviderConfigRecord | null>(null)
+  const [sourceCandidateId, setSourceCandidateId] = useState('')
+  const [operation, setOperation] = useState<RetakeOperation>('expression')
+  const [instruction, setInstruction] = useState('')
+  const [preserveInput, setPreserveInput] = useState('角色身份、未修改区域、画幅')
+  const [referenceAssetId, setReferenceAssetId] = useState('')
+  const [maskAssetId, setMaskAssetId] = useState('')
+  const [preflightIssues, setPreflightIssues] = useState<Array<{ code: string; message: string }>>([])
+  const [busy, setBusy] = useState(false)
+  const imageAssets = useMemo(() => assets.filter(isVideoReferenceImageAsset), [assets])
+  const missingCount = coverage.filter((item) => item.status === 'missing').length
+  const staleCount = coverage.filter((item) => item.status === 'stale').length
+  const openImpacts = impacts.filter((impact) => impact.status === 'open')
+
+  const load = useCallback(async () => {
+    const [nextCoverage, graph, nextCandidates, nextRequests, nextAssets, nextProvider] = await Promise.all([
+      ipc.productionGraph.coverage(projectId),
+      ipc.productionGraph.get(projectId),
+      ipc.shotStill.listByShot(shotId),
+      ipc.retake.list(projectId, shotId),
+      ipc.asset.listByProject(projectId),
+      ipc.imageProvider.getDefault(),
+    ])
+    setCoverage(nextCoverage)
+    setImpacts(graph.impacts)
+    setCandidates(nextCandidates)
+    setRequests(nextRequests)
+    setAssets(nextAssets)
+    setProvider(nextProvider ?? null)
+    setSourceCandidateId((current) => current && nextCandidates.some((item) => item.id === current)
+      ? current
+      : (nextCandidates.find((item) => item.status === 'adopted') ?? nextCandidates[0])?.id ?? '')
+  }, [projectId, shotId])
+
+  useEffect(() => {
+    void load().catch((error) => toast.error(`读取导演状态失败：${error instanceof Error ? error.message : String(error)}`))
+  }, [load])
+
+  const buildInput = useCallback(() => ({
+    providerConfigId: provider?.id ?? '',
+    projectId,
+    shotId,
+    sourceCandidateId,
+    operation,
+    instruction,
+    preserveFields: preserveInput.split(/[、,，]/).map((value) => value.trim()).filter(Boolean),
+    referenceAssetIds: referenceAssetId ? [referenceAssetId] : [],
+    maskAssetId: maskAssetId || undefined,
+    quality: 'medium' as const,
+    outputFormat: 'png' as const,
+  }), [instruction, maskAssetId, operation, preserveInput, projectId, provider?.id, referenceAssetId, shotId, sourceCandidateId])
+
+  async function runPreflight() {
+    if (!provider) {
+      setPreflightIssues([{ code: 'provider_missing', message: '请先在设置中启用一个支持图片编辑的 Provider。' }])
+      return false
+    }
+    const result = await ipc.retake.preflight(buildInput())
+    setPreflightIssues(result.issues)
+    if (result.canSubmit) toast.success('Retake 预检通过，尚未创建计费任务。')
+    return result.canSubmit
+  }
+
+  async function createRetake() {
+    setBusy(true)
+    try {
+      if (!await runPreflight()) return
+      const confirmed = await confirmAction({
+        title: '确认创建局部 Retake？',
+        description: `将向 ${provider?.name ?? '所选 Provider'} 发送源图${referenceAssetId ? '与一张参考图' : ''}${maskAssetId ? '及透明遮罩' : ''}。费用由你的 Provider 账户承担，实际金额以 Provider 账单为准；原候选不会被覆盖。`,
+        confirmLabel: '确认生成',
+      })
+      if (!confirmed) return
+      const result = await ipc.retake.create(buildInput())
+      if (!result.ok) throw new Error(result.error ?? 'Retake 失败')
+      setInstruction('')
+      setPreflightIssues([])
+      await load()
+      toast.success('Retake 候选已生成；采用前不会影响当前镜头。')
+    } catch (error) {
+      toast.error(`Retake 失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function adoptRetake(request: RetakeRequest) {
+    setBusy(true)
+    try {
+      await ipc.retake.adopt(request.id)
+      await load()
+      onChanged()
+      toast.success('已采用 Retake 候选；旧候选、成本与生成血缘均已保留。')
+    } catch (error) {
+      toast.error(`采用失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function discardRetake(request: RetakeRequest) {
+    const confirmed = await confirmAction({
+      title: '隐藏这个 Retake 候选？',
+      description: '候选将标记为已丢弃；历史成本、Prompt 快照和审计记录不会删除。',
+      confirmLabel: '丢弃候选',
+    })
+    if (!confirmed) return
+    await ipc.retake.discard(request.id)
+    await load()
+  }
+
+  async function resolveImpact(impact: ProductionImpact, status: 'resolved' | 'waived') {
+    const note = status === 'waived'
+      ? await promptAction({
+        title: '带理由豁免生产影响',
+        description: '豁免会进入审计记录。请说明为什么本次交付可以接受该风险。',
+        inputLabel: '豁免理由',
+        confirmLabel: '记录豁免',
+      })
+      : '已在导演工作台复核并解决'
+    if (note === null || !note.trim()) return
+    await ipc.productionGraph.resolveImpact(impact.id, status, note.trim())
+    await load()
+  }
+
+  return (
+    <section className="mt-3 space-y-3 rounded-md border bg-muted/20 p-3" data-director-retake>
+      <div className="flex flex-wrap items-start gap-2">
+        <div>
+          <h3 className="text-sm font-medium">导演状态 · 素材覆盖与 Retake</h3>
+          <p className="text-xs text-muted-foreground">先检查素材新鲜度和生产影响，再对当前候选做局部修改。基础流程不需要理解 Provider 参数。</p>
+        </div>
+        <div className="ml-auto flex flex-wrap gap-1">
+          <Badge variant={missingCount ? 'destructive' : 'outline'}>缺失 {missingCount}</Badge>
+          <Badge variant={staleCount ? 'destructive' : 'outline'}>过期 {staleCount}</Badge>
+          <Badge variant={openImpacts.some((impact) => impact.severity === 'blocker') ? 'destructive' : 'outline'}>未解决影响 {openImpacts.length}</Badge>
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="项目素材覆盖">
+        {coverage.length === 0 ? (
+          <p className="col-span-full rounded border border-dashed p-2 text-xs text-muted-foreground">项目尚未建立角色或场景素材槽。</p>
+        ) : coverage.slice(0, 12).map((item) => (
+          <div key={`${item.ownerKind}:${item.ownerId}:${item.slot}`} className="rounded border bg-background/70 p-2 text-xs">
+            <div className="flex items-center gap-1"><Badge variant={item.status === 'missing' || item.status === 'stale' ? 'destructive' : 'outline'}>{COVERAGE_STATUS_LABEL[item.status]}</Badge><span className="truncate font-medium">{item.ownerLabel}</span></div>
+            <div className="mt-1 text-muted-foreground">{item.slot} · 锁定镜头 {item.lockCount}</div>
+          </div>
+        ))}
+      </div>
+
+      {openImpacts.length > 0 && (
+        <div className="space-y-1" aria-label="未解决生产影响">
+          {openImpacts.slice(0, 5).map((impact) => (
+            <div key={impact.id} className="flex flex-wrap items-center gap-2 rounded border bg-background/70 p-2 text-xs">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              <Badge variant={impact.severity === 'blocker' ? 'destructive' : 'outline'}>{impact.severity}</Badge>
+              <span className="min-w-48 flex-1">{impact.reason}</span>
+              <Button size="sm" variant="outline" onClick={() => void resolveImpact(impact, 'resolved')}>标记已解决</Button>
+              <Button size="sm" variant="ghost" onClick={() => void resolveImpact(impact, 'waived')}>带理由豁免</Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-2 lg:grid-cols-3">
+        <select aria-label="Retake 源候选" value={sourceCandidateId} onChange={(event) => setSourceCandidateId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs">
+          <option value="">选择源候选</option>
+          {candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.status === 'adopted' ? '已采用 · ' : ''}{candidate.label}</option>)}
+        </select>
+        <select aria-label="Retake 操作" value={operation} onChange={(event) => setOperation(event.target.value as RetakeOperation)} className="h-9 rounded-md border bg-background px-2 text-xs">
+          {RETAKE_OPERATIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <Input aria-label="必须保留" value={preserveInput} onChange={(event) => setPreserveInput(event.target.value)} placeholder="必须保留，用顿号分隔" className="text-xs" />
+      </div>
+      <Textarea aria-label="Retake 修改指令" value={instruction} onChange={(event) => { setInstruction(event.target.value); setPreflightIssues([]) }} placeholder="只描述需要修改的局部，例如：保持角色与构图不变，把惊讶表情调整为克制的怀疑。" className="min-h-16 text-xs" />
+      <div className="grid gap-2 lg:grid-cols-[1fr_1fr_auto_auto]">
+        <select aria-label="Retake 参考素材" value={referenceAssetId} onChange={(event) => setReferenceAssetId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs">
+          <option value="">不附加参考图</option>
+          {imageAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.title}</option>)}
+        </select>
+        <select aria-label="Retake 透明遮罩" value={maskAssetId} onChange={(event) => setMaskAssetId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-xs">
+          <option value="">不使用透明遮罩</option>
+          {imageAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.title}</option>)}
+        </select>
+        <Button size="sm" variant="outline" disabled={busy || !sourceCandidateId || !instruction.trim()} onClick={() => void runPreflight()}>仅预检</Button>
+        <Button size="sm" disabled={busy || !provider || !sourceCandidateId || !instruction.trim()} onClick={() => void createRetake()}>{busy && <Loader2 className="animate-spin" />}创建候选</Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Provider：{provider ? `${provider.name} · ${provider.kind} · ${provider.model}` : '未配置'}。本地图片由主进程直接上传，API Key 和图片原始字节不会进入页面进程。</p>
+      {preflightIssues.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-xs text-destructive">{preflightIssues.map((issue) => <li key={`${issue.code}:${issue.message}`}>{issue.message}</li>)}</ul>}
+
+      {requests.length > 0 && <div className="space-y-1">{requests.map((request) => (
+        <div key={request.id} className="flex flex-wrap items-center gap-2 rounded border bg-background/70 p-2 text-xs">
+          <Badge variant={request.status === 'failed' ? 'destructive' : request.status === 'adopted' ? 'default' : 'outline'}>{request.status}</Badge>
+          <span className="font-medium">{RETAKE_OPERATIONS.find(([value]) => value === request.operation)?.[1] ?? request.operation}</span>
+          <span className="min-w-40 flex-1 truncate text-muted-foreground">{request.instruction}</span>
+          {request.status === 'succeeded' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => void adoptRetake(request)}>采用候选</Button>}
+          {['succeeded', 'failed', 'canceled'].includes(request.status) && <Button size="sm" variant="ghost" disabled={busy} onClick={() => void discardRetake(request)}>丢弃</Button>}
+        </div>
+      ))}</div>}
+    </section>
+  )
 }
 
 function ShotStillCandidatesPanel({ projectId, shotId }: { projectId: string; shotId: string }) {
@@ -1578,6 +1814,102 @@ function EpisodeDeliveryPanel({ projectId, adaptationProjectId, episodeId }: { p
     {taskStaleReason && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">历史成片仍可回看，但已过期：{taskStaleReason}</p>}
     {task?.errorMessage && <p className="rounded border border-destructive/40 p-2 text-xs text-destructive">{task.errorMessage}</p>}
     {task?.status === 'success' && archive?.mp4Path && <div className="flex flex-wrap gap-2 rounded border border-emerald-500/40 bg-background/60 p-2 text-xs"><span>归档完成：</span><a className="underline" href={localFileUrl(archive.mp4Path)}>MP4</a>{archive.srtPath && <a className="underline" href={localFileUrl(archive.srtPath)}>SRT</a>}{archive.vttPath && <a className="underline" href={localFileUrl(archive.vttPath)}>VTT</a>}{archive.audioPath && <a className="underline" href={localFileUrl(archive.audioPath)}>混音 M4A</a>}{archive.manifestPath && <a className="underline" href={localFileUrl(archive.manifestPath)}>Manifest</a>}</div>}
+  </section>
+}
+
+function ReviewEditorPanel({ projectId, adaptationProjectId, episodeId }: { projectId: string; adaptationProjectId: string; episodeId: string }) {
+  const [busy, setBusy] = useState<'review' | 'import' | 'preflight' | 'editor' | null>(null)
+  const [editorPreflight, setEditorPreflight] = useState<{
+    canExport: boolean
+    blockers: string[]
+    warnings: Array<{ code: string; clipId?: string; message: string }>
+    totalDurationSeconds: number
+  } | null>(null)
+  const [reviewState, setReviewState] = useState<{ packages: number; comments: number; decisions: number } | null>(null)
+  const input = useMemo(() => ({ projectId, adaptationProjectId, episodeId, frameRate: 25 as const, width: 1080, height: 1920 }), [adaptationProjectId, episodeId, projectId])
+
+  async function refreshReview() {
+    const state = await ipc.review.sync(projectId, episodeId)
+    setReviewState({ packages: state.packages.length, comments: state.comments.length, decisions: state.decisions.length })
+  }
+
+  useEffect(() => {
+    void refreshReview().catch((error) => toast.error(`读取审片状态失败：${error instanceof Error ? error.message : String(error)}`))
+  }, [episodeId, projectId])
+
+  async function exportReview() {
+    setBusy('review')
+    try {
+      const result = await ipc.review.exportOffline(input)
+      if (!result.saved) {
+        if (!result.canceled) toast.error(result.error ?? '离线审片包导出失败')
+        return
+      }
+      await refreshReview()
+      toast.success('离线审片包已导出；包内不含小说、Prompt、Key 或生产母版。')
+    } catch (error) {
+      toast.error(`离线审片导出失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function importReview() {
+    setBusy('import')
+    try {
+      const result = await ipc.review.importOffline()
+      if (!result.imported) {
+        if (!result.canceled) toast.error(result.error ?? '审片意见导入失败')
+        return
+      }
+      await refreshReview()
+      toast.success(`已幂等导入 ${result.commentCount ?? 0} 条评论和 ${result.decisionCount ?? 0} 个决定。`)
+    } catch (error) {
+      toast.error(`审片意见导入失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function inspectEditor() {
+    setBusy('preflight')
+    try {
+      const result = await ipc.editorExport.preflight(input)
+      setEditorPreflight(result.preflight)
+      if (result.preflight.canExport) toast.success('剪辑交付预检通过。')
+      else toast.error(`剪辑交付被 ${result.preflight.blockers.length} 个问题阻止。`)
+    } catch (error) {
+      toast.error(`剪辑预检失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  async function exportEditor() {
+    if (!editorPreflight?.canExport) return toast.error('请先通过剪辑交付预检。')
+    setBusy('editor')
+    try {
+      const result = await ipc.editorExport.export(input)
+      if (!result.saved) {
+        if (!result.canceled) toast.error(result.error ?? '剪辑交付导出失败')
+        return
+      }
+      toast.success(`剪辑交付已生成：FCPXML 1.10、EDL、SRT 与媒体清单。${result.warnings?.length ? `另有 ${result.warnings.length} 条降级说明。` : ''}`)
+    } catch (error) {
+      toast.error(`剪辑交付失败：${error instanceof Error ? error.message : String(error)}`)
+    } finally { setBusy(null) }
+  }
+
+  return <section className="space-y-2 rounded-md border bg-muted/20 p-3" data-review-editor-panel>
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div><h3 className="text-sm font-medium">审片与剪辑交换</h3><p className="text-xs text-muted-foreground">离线审片对所有套餐开放；FCPXML 1.10 与 CMX 3600 EDL 使用同一份时间线 Manifest，并明确报告格式降级。</p></div>
+      {reviewState && <div className="flex gap-1"><Badge variant="outline">审片包 {reviewState.packages}</Badge><Badge variant="outline">评论 {reviewState.comments}</Badge><Badge variant="outline">决定 {reviewState.decisions}</Badge></div>}
+    </div>
+    <div className="flex flex-wrap gap-2">
+      <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void exportReview()}>{busy === 'review' && <Loader2 className="animate-spin" />}导出离线审片包</Button>
+      <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void importReview()}>{busy === 'import' && <Loader2 className="animate-spin" />}导入 review JSON</Button>
+      <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => void inspectEditor()}>{busy === 'preflight' && <Loader2 className="animate-spin" />}剪辑交付预检</Button>
+      <Button size="sm" disabled={busy !== null || !editorPreflight?.canExport} onClick={() => void exportEditor()}>{busy === 'editor' && <Loader2 className="animate-spin" />}导出 FCPXML / EDL</Button>
+    </div>
+    {editorPreflight && <div className={editorPreflight.canExport ? 'rounded border border-emerald-500/40 p-2 text-xs' : 'rounded border border-destructive/40 p-2 text-xs'}>
+      <div className="flex items-center gap-2"><Badge variant={editorPreflight.canExport ? 'default' : 'destructive'}>{editorPreflight.canExport ? '可导出' : '已阻止'}</Badge><span>总时长 {editorPreflight.totalDurationSeconds.toFixed(2)} 秒</span></div>
+      {editorPreflight.blockers.length > 0 && <ul className="mt-1 list-disc pl-5 text-destructive">{editorPreflight.blockers.map((message) => <li key={message}>{message}</li>)}</ul>}
+      {editorPreflight.warnings.length > 0 && <ul className="mt-1 list-disc pl-5 text-muted-foreground">{editorPreflight.warnings.map((warning, index) => <li key={`${warning.code}:${warning.clipId ?? index}`}>{warning.message}</li>)}</ul>}
+    </div>}
   </section>
 }
 

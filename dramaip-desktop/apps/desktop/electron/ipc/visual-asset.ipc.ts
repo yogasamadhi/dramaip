@@ -23,7 +23,24 @@ export function registerVisualAssetIpc(): void {
   })
   ipcMain.handle('visualAsset:adopt', (_event, id: string) => {
     const r = repos()
-    return r.visualAsset.adoptVisualAssetVersion(r.db, id)
+    const current = r.visualAsset.getVisualAssetVersion(r.db, id)
+    if (!current) return undefined
+    const priorIds = new Set(r.visualAsset.listVisualAssetVersionsByOwner(r.db, current.ownerKind, current.ownerId)
+      .filter((version) => version.slot === current.slot && version.status === 'adopted' && version.id !== current.id)
+      .map((version) => version.id))
+    const adopted = r.visualAsset.adoptVisualAssetVersion(r.db, id)
+    if (!adopted) return undefined
+    for (const lock of r.visualAsset.listShotVisualAssetLocksByProject(r.db, current.projectId)) {
+      if (!priorIds.has(lock.visualAssetVersionId)) continue
+      r.productionStudio.createProductionImpact(r.db, {
+        projectId: current.projectId,
+        source: { kind: 'visual_asset', id: adopted.id, version: adopted.updatedAt, label: adopted.label },
+        target: { kind: 'shot_lock', id: lock.id, version: lock.updatedAt, label: lock.role },
+        reason: `上游已采用新的 ${adopted.slot} 版本，镜头仍锁定旧版本。`,
+        severity: 'warning',
+      })
+    }
+    return adopted
   })
   ipcMain.handle('visualAsset:listLocksByShot', (_event, shotId: string) => {
     const r = repos()

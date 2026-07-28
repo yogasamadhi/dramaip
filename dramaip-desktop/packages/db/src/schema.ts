@@ -1240,4 +1240,146 @@ export const workflowRuns = sqliteTable('workflow_runs', {
   updatedAt: text('updated_at').notNull(),
 })
 
+// DramaIP v2：只持久化未解决/已审计的生产影响；生产图本体由现有规范化实体派生。
+export const productionImpacts = sqliteTable('production_impacts', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  sourceKind: text('source_kind').notNull(),
+  sourceId: text('source_id').notNull(),
+  sourceVersion: text('source_version'),
+  sourceLabel: text('source_label'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id').notNull(),
+  targetVersion: text('target_version'),
+  targetLabel: text('target_label'),
+  reason: text('reason').notNull(),
+  severity: text('severity', { enum: ['info', 'warning', 'blocker'] }).notNull().default('warning'),
+  status: text('status', { enum: ['open', 'accepted', 'resolved', 'waived'] }).notNull().default('open'),
+  resolutionNote: text('resolution_note'),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const retakeRequests = sqliteTable('retake_requests', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  shotId: text('shot_id').notNull(),
+  sourceCandidateId: text('source_candidate_id').notNull(),
+  operation: text('operation').notNull(),
+  instruction: text('instruction').notNull(),
+  preserveFields: text('preserve_fields').notNull().default('[]'),
+  referenceAssetIds: text('reference_asset_ids').notNull().default('[]'),
+  maskAssetId: text('mask_asset_id'),
+  providerConfigId: text('provider_config_id'),
+  status: text('status').notNull().default('draft'),
+  lineageId: text('lineage_id'),
+  resultCandidateId: text('result_candidate_id'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewPackageRecords = sqliteTable('review_package_records', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  kind: text('kind', { enum: ['offline', 'cloud'] }).notNull(),
+  status: text('status').notNull().default('draft'),
+  title: text('title').notNull(),
+  manifest: text('manifest').notNull().default('{}'),
+  outputPath: text('output_path'),
+  cloudPackageId: text('cloud_package_id'),
+  syncCursor: text('sync_cursor'),
+  expiresAt: text('expires_at'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewComments = sqliteTable('review_comments', {
+  id: text('id').primaryKey(),
+  packageId: text('package_id').notNull(),
+  shotId: text('shot_id'),
+  timecodeSeconds: real('timecode_seconds'),
+  authorAlias: text('author_alias'),
+  body: text('body').notNull(),
+  resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewDecisions = sqliteTable('review_decisions', {
+  id: text('id').primaryKey(),
+  packageId: text('package_id').notNull(),
+  shotId: text('shot_id'),
+  decision: text('decision', { enum: ['approve', 'return', 'request_changes', 'note'] }).notNull(),
+  authorAlias: text('author_alias'),
+  note: text('note'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const generationPolicyProfiles = sqliteTable('generation_policy_profiles', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  mode: text('mode', { enum: ['draft', 'lookdev', 'final'] }).notNull(),
+  label: text('label').notNull(),
+  allowedProviderConfigIds: text('allowed_provider_config_ids').notNull().default('[]'),
+  maximumProviders: integer('maximum_providers').notNull().default(1),
+  automaticFallback: integer('automatic_fallback', { mode: 'boolean' }).notNull().default(false),
+  requireCostConfirmation: integer('require_cost_confirmation', { mode: 'boolean' }).notNull().default(true),
+  requireReferenceLocks: integer('require_reference_locks', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const providerDataPolicies = sqliteTable('provider_data_policies', {
+  id: text('id').primaryKey(),
+  providerKind: text('provider_kind').notNull(),
+  regions: text('regions').notNull().default('[]'),
+  retentionSummary: text('retention_summary'),
+  trainsOnInputs: text('trains_on_inputs', { enum: ['no', 'yes', 'unknown', 'contract_only'] }).notNull().default('unknown'),
+  sourceUrl: text('source_url'),
+  lastVerifiedAt: text('last_verified_at'),
+  userAcknowledgedAt: text('user_acknowledged_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const providerObservations = sqliteTable('provider_observations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  providerConfigId: text('provider_config_id').notNull(),
+  providerKind: text('provider_kind').notNull(),
+  mode: text('mode', { enum: ['draft', 'lookdev', 'final'] }).notNull(),
+  taskKind: text('task_kind').notNull(),
+  outcome: text('outcome', { enum: ['success', 'failed', 'canceled'] }).notNull(),
+  latencyMs: integer('latency_ms'),
+  estimatedCost: real('estimated_cost'),
+  actualCost: real('actual_cost'),
+  currency: text('currency'),
+  errorCode: text('error_code'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const productAnalyticsSettings = sqliteTable('product_analytics_settings', {
+  id: text('id').primaryKey(),
+  consent: text('consent', { enum: ['unknown', 'granted', 'denied'] }).notNull().default('unknown'),
+  installationId: text('installation_id').notNull(),
+  decidedAt: text('decided_at'),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const productAnalyticsEvents = sqliteTable('product_analytics_events', {
+  id: text('id').primaryKey(),
+  eventName: text('event_name').notNull(),
+  appVersion: text('app_version').notNull(),
+  operatingSystem: text('operating_system').notNull(),
+  durationBucket: text('duration_bucket'),
+  resultCode: text('result_code'),
+  createdAt: text('created_at').notNull(),
+  uploadedAt: text('uploaded_at'),
+})
+
 export type DatabaseSchema = typeof import('./schema')

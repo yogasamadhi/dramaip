@@ -103,6 +103,68 @@ const imageTaskInput = z.object({
   quality: z.enum(['low', 'medium', 'high']).optional(),
   outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
 }).strict()
+const productionNodeKind = z.enum([
+  'project', 'chapter', 'story_bible', 'adaptation', 'episode', 'script', 'scene', 'shot',
+  'visual_asset', 'shot_lock', 'still', 'video', 'audio', 'localization', 'review', 'delivery', 'editor_export',
+])
+const productionNodeRef = z.object({
+  kind: productionNodeKind,
+  id,
+  version: z.string().max(200).optional(),
+  label: z.string().max(300).optional(),
+}).strict()
+const retakeTaskInput = z.object({
+  providerConfigId: id,
+  projectId: id,
+  shotId: id,
+  sourceCandidateId: id,
+  operation: z.enum(['composition', 'expression', 'action', 'costume', 'lighting', 'background', 'character', 'camera']),
+  instruction: z.string().min(1).max(4_000),
+  preserveFields: z.array(z.string().min(1).max(200)).min(1).max(20),
+  referenceAssetIds: z.array(id).max(3).optional(),
+  maskAssetId: maybeId,
+  size: z.enum(['1024x1024', '1024x1536', '1536x1024']).optional(),
+  quality: z.enum(['low', 'medium', 'high']).optional(),
+  outputFormat: z.enum(['png', 'jpeg', 'webp']).optional(),
+}).strict()
+const generationPolicyInput = z.object({
+  projectId: maybeId,
+  mode: z.enum(['draft', 'lookdev', 'final']),
+  label: z.string().min(1).max(120),
+  allowedProviderConfigIds: z.array(id).max(20),
+  maximumProviders: z.number().int().min(1).max(2),
+  automaticFallback: z.boolean(),
+  requireCostConfirmation: z.boolean(),
+  requireReferenceLocks: z.boolean(),
+}).strict()
+const providerDataPolicyInput = z.object({
+  providerKind: z.string().min(1).max(120),
+  regions: z.array(z.string().min(1).max(80)).max(30),
+  retentionSummary: z.string().max(1_000).optional(),
+  trainsOnInputs: z.enum(['no', 'yes', 'unknown', 'contract_only']),
+  sourceUrl: z.string().url().max(2_000).optional(),
+  lastVerifiedAt: z.string().max(80).optional(),
+  userAcknowledgedAt: z.string().max(80).optional(),
+}).strict()
+const generationRouteInput = z.object({
+  projectId: maybeId,
+  mode: z.enum(['draft', 'lookdev', 'final']),
+  allowedProviderConfigIds: z.array(id).max(20).optional(),
+  maximumProviders: z.number().int().min(1).max(2).optional(),
+}).strict()
+const analyticsEventInput = z.object({
+  eventName: z.enum(['demo_opened', 'first_shot_ready', 'retake_started', 'retake_succeeded', 'retake_adopted', 'review_exported', 'review_published', 'editor_exported']),
+  durationBucket: z.string().max(32).optional(),
+  resultCode: z.string().max(64).optional(),
+}).strict()
+const timelineScopeInput = z.object({
+  projectId: id,
+  adaptationProjectId: id,
+  episodeId: id,
+  frameRate: z.union([z.literal(24), z.literal(25), z.literal(30)]).optional(),
+  width: z.number().int().min(64).max(16_384).optional(),
+  height: z.number().int().min(64).max(16_384).optional(),
+}).strict()
 const ttsProviderConfigInput = z.object({
   name: z.string().min(1).max(120),
   kind: z.literal('openai_tts'),
@@ -877,6 +939,33 @@ export const IPC_EXACT_SCHEMAS: Record<string, z.ZodType<unknown>[]> = {
   'imageProvider:delete': [id],
   'imageProvider:setDefault': [id],
   'imageTask:create': [imageTaskInput],
+  'featureFlags:get': [],
+  'productionGraph:get': [id],
+  'productionGraph:coverage': [id],
+  'productionGraph:previewImpact': [id, productionNodeRef],
+  'productionGraph:resolveImpact': [id, z.enum(['accepted', 'resolved', 'waived']), z.string().max(2_000).optional()],
+  'retake:preflight': [retakeTaskInput],
+  'retake:create': [retakeTaskInput],
+  'retake:list': [id, maybeId],
+  'retake:adopt': [id],
+  'retake:discard': [id],
+  'generationRouting:listPolicies': [maybeId],
+  'generationRouting:savePolicy': [generationPolicyInput],
+  'generationRouting:listDataPolicies': [],
+  'generationRouting:saveDataPolicy': [providerDataPolicyInput],
+  'generationRouting:decision': [generationRouteInput],
+  'analytics:getConsent': [],
+  'analytics:setConsent': [z.enum(['granted', 'denied'])],
+  'analytics:record': [analyticsEventInput],
+  'analytics:exportLocal': [],
+  'analytics:clearPending': [],
+  'review:exportOffline': [timelineScopeInput],
+  'review:importOffline': [],
+  'review:publishCloud': [],
+  'review:sync': [id, maybeId],
+  'review:delete': [id],
+  'editorExport:preflight': [timelineScopeInput],
+  'editorExport:export': [timelineScopeInput],
   'ttsProvider:list': [],
   'ttsProvider:getDefault': [],
   'ttsProvider:create': [ttsProviderConfigInput],

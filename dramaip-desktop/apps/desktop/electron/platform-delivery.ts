@@ -166,6 +166,11 @@ async function preparePlatformDelivery(repos: Repositories, input: PlatformDeliv
   const currentCompliance = Boolean(selected && selected.task.status === 'success' && !selected.stale && compliance)
   const media = quality?.report.inspection ?? {}
   const evaluation = evaluatePlatformDeliveryPreflight({ profile, title: variant.title, description: variant.description, tags: variant.tags, hasCover: coverAvailable, complianceCurrent: currentCompliance, media, manualFieldsConfirmed: input.manualFieldsConfirmed })
+  const productionBlockers = repos.productionStudio.listProductionImpacts(repos.db, input.projectId, ['open', 'accepted'])
+    .filter((impact) => impact.severity === 'blocker')
+  if (productionBlockers.length) {
+    evaluation.blockers.push(`仍有 ${productionBlockers.length} 个未解决的生产影响；请先处理或带理由豁免。`)
+  }
   if (variant.status !== 'adopted') evaluation.blockers.push('请先采用一个标题/封面/简介/标签候选；候选草稿不会静默成为发布文案。')
   if (!render?.srtPath) evaluation.blockers.push('当前渲染归档缺少 SRT 字幕，不能生成完整平台交付包。')
   if (!quality || quality.report.blockerCount > 0) evaluation.blockers.push('当前媒体质检报告不可用或仍有 blocker。')

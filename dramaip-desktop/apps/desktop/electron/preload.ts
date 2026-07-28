@@ -56,6 +56,48 @@ const api = {
   imageTask: {
     create: (input: unknown) => invoke('imageTask:create', input),
   },
+  featureFlags: {
+    get: () => invoke('featureFlags:get'),
+  },
+  productionGraph: {
+    get: (projectId: string) => invoke('productionGraph:get', projectId),
+    coverage: (projectId: string) => invoke('productionGraph:coverage', projectId),
+    previewImpact: (projectId: string, source: unknown) => invoke('productionGraph:previewImpact', projectId, source),
+    resolveImpact: (id: string, status: 'accepted' | 'resolved' | 'waived', note?: string) =>
+      invoke('productionGraph:resolveImpact', id, status, note),
+  },
+  retake: {
+    preflight: (input: unknown) => invoke('retake:preflight', input),
+    create: (input: unknown) => invoke('retake:create', input),
+    list: (projectId: string, shotId?: string) => invoke('retake:list', projectId, shotId),
+    adopt: (id: string) => invoke('retake:adopt', id),
+    discard: (id: string) => invoke('retake:discard', id),
+  },
+  generationRouting: {
+    listPolicies: (projectId?: string) => invoke('generationRouting:listPolicies', projectId),
+    savePolicy: (input: unknown) => invoke('generationRouting:savePolicy', input),
+    listDataPolicies: () => invoke('generationRouting:listDataPolicies'),
+    saveDataPolicy: (input: unknown) => invoke('generationRouting:saveDataPolicy', input),
+    decision: (input: unknown) => invoke('generationRouting:decision', input),
+  },
+  analytics: {
+    getConsent: () => invoke('analytics:getConsent'),
+    setConsent: (consent: 'granted' | 'denied') => invoke('analytics:setConsent', consent),
+    record: (input: unknown) => invoke('analytics:record', input),
+    exportLocal: () => invoke('analytics:exportLocal'),
+    clearPending: () => invoke('analytics:clearPending'),
+  },
+  review: {
+    exportOffline: (input: unknown) => invoke('review:exportOffline', input),
+    importOffline: () => invoke('review:importOffline'),
+    publishCloud: () => invoke('review:publishCloud'),
+    sync: (projectId: string, episodeId?: string) => invoke('review:sync', projectId, episodeId),
+    delete: (id: string) => invoke('review:delete', id),
+  },
+  editorExport: {
+    preflight: (input: unknown) => invoke('editorExport:preflight', input),
+    export: (input: unknown) => invoke('editorExport:export', input),
+  },
   ttsProvider: {
     list: () => invoke('ttsProvider:list'),
     getDefault: () => invoke('ttsProvider:getDefault'),

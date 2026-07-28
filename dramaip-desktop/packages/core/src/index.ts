@@ -20,6 +20,7 @@ export * from './compliance'
 export * from './platform-delivery'
 export * from './feedback-import'
 export * from './localization'
+export * from './production-studio'
 // v0.8 内置 Agent / 类型预设种子数据（仅在 db seed 时使用，不进 UI 常量）
 export {
   BUILT_IN_AGENTS,

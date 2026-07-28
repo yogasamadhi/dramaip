@@ -37,6 +37,8 @@ import { registerPlatformDeliveryIpc } from './platform-delivery.ipc'
 import { registerFeedbackIpc } from './feedback.ipc'
 import { registerLocalizationIpc } from './localization.ipc'
 import { installIpcValidation } from './validation'
+import { registerProductionStudioIpc } from './production-studio.ipc'
+import { registerReviewEditorIpc } from './review-editor.ipc'
 
 export function registerAllIpc(): void {
   installIpcValidation()
@@ -58,6 +60,8 @@ export function registerAllIpc(): void {
   registerVisualAssetIpc()
   registerShotStillIpc()
   registerImageIpc()
+  registerProductionStudioIpc()
+  registerReviewEditorIpc()
   registerTtsIpc()
   registerAnimaticIpc()
   registerAudioIpc()

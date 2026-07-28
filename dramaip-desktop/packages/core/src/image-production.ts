@@ -49,14 +49,32 @@ export interface ImageGenerationResult {
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number }
 }
 
+/** Main-process-only edit inputs. Renderer IPC accepts asset ids, never paths or bytes. */
+export interface ImageEditFile {
+  localPath: string
+  fileName: string
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+}
+
+export interface ImageEditInput {
+  prompt: string
+  model?: string
+  images: ImageEditFile[]
+  mask?: ImageEditFile
+  size?: ImageGenerationInput['size']
+  quality?: ImageGenerationInput['quality']
+  outputFormat?: ImageGenerationInput['outputFormat']
+}
+
 export interface ImageProvider {
   readonly kind: ImageProviderKind
   generate(input: ImageGenerationInput, signal?: AbortSignal): Promise<ImageGenerationResult[]>
+  edit?(input: ImageEditInput, signal?: AbortSignal): Promise<ImageGenerationResult[]>
 }
 
 export function getImageProviderCapability(config: ImageProviderConfig): ImageProviderCapability {
   if (config.kind === 'mock') {
-    return { canSubmit: true, supportsTextToImage: true, supportsImageEdit: false, supportsReferenceImages: false, supportsRemoteCancel: false }
+    return { canSubmit: true, supportsTextToImage: true, supportsImageEdit: true, supportsReferenceImages: true, supportsRemoteCancel: false }
   }
   if (!config.apiKey?.trim()) {
     return { canSubmit: false, supportsTextToImage: true, supportsImageEdit: true, supportsReferenceImages: true, supportsRemoteCancel: false, reason: 'OpenAI Image 缺少 API Key，不能提交任务。' }

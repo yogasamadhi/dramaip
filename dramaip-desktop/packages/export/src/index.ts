@@ -78,3 +78,15 @@ export {
   type ProjectPackageAssetExportMode,
   type ProjectPackageOptions,
 } from './project-package'
+export {
+  preflightEditorTimeline,
+  renderCmx3600Edl,
+  renderEditorMediaCsv,
+  renderFcpxml110,
+  renderOfflineReviewHtml,
+  renderSrt,
+  validateReviewPackageManifest,
+  type Cmx3600Export,
+  type EditorExportPreflight,
+  type EditorExportWarning,
+} from './production-studio'

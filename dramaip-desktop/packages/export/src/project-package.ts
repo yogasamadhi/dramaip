@@ -66,6 +66,9 @@ import type {
   ProjectAsset,
   ProjectAgentScheme,
   ProjectSkill,
+  ProductionImpact,
+  RetakeRequest,
+  GenerationPolicyProfile,
   QualityGateReport,
   RevisionTask,
   Scene,
@@ -83,7 +86,7 @@ import { ProjectPackageSchema } from '@sdns/core'
 import type { Repositories } from '@sdns/db'
 
 export const PACKAGE_FORMAT = 'sdns-project-package'
-export const PACKAGE_VERSION = 12
+export const PACKAGE_VERSION = 13
 
 export interface ProjectPackageMeta {
   format: typeof PACKAGE_FORMAT
@@ -146,6 +149,10 @@ export interface ProjectPackage {
   /** 脱敏后的生产谱系和费用账本；不包含媒体二进制、密钥或 Provider 原始响应。 */
   generationLineages?: GenerationLineage[]
   generationCostEntries?: GenerationCostEntry[]
+  /** v2 生产影响与 Retake 决策；不包含 Provider 凭据、分享令牌或云对象位置。 */
+  productionImpacts?: ProductionImpact[]
+  retakeRequests?: RetakeRequest[]
+  generationPolicyProfiles?: GenerationPolicyProfile[]
   /** 用户明确选择后才附带的本地运营数据；不会默认进入项目包。 */
   feedback?: {
     batches: FeedbackImportBatch[]
@@ -239,6 +246,10 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const aiRuns = repos.aiRun.listAllAiRunsByProject(db, projectId)
   const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
   const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
+  const productionImpacts = repos.productionStudio.listProductionImpacts(db, projectId)
+  const retakeRequests = repos.productionStudio.listRetakeRequests(db, projectId)
+  const generationPolicyProfiles = repos.productionStudio.listGenerationPolicyProfiles(db, projectId)
+    .filter((profile) => profile.projectId === projectId)
   const feedback = options.includeFeedback ? {
     batches: repos.feedback.listFeedbackImportBatches(db, projectId),
     metrics: repos.feedback.listFeedbackMetrics(db, projectId),
@@ -318,6 +329,9 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
     audioTracks,
     generationLineages,
     generationCostEntries,
+    productionImpacts,
+    retakeRequests,
+    generationPolicyProfiles,
     feedback,
     localizationVariants,
     adaptations,
@@ -1044,6 +1058,65 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
         lineageId: cost.lineageId ? lineageIdMap.get(cost.lineageId) : undefined,
         taskId: undefined,
         actualCostNote: cost.actualCostNote ? `${cost.actualCostNote}（导入自项目包）` : undefined,
+      })
+    }
+
+    // 18.2 v2 生产影响、Retake 和项目级路由偏好。Provider 配置 id 属于当前机器，
+    // 导入时必须清空；运行中的 Retake 不能伪装成可恢复任务。
+    for (const impact of pkg.productionImpacts ?? []) {
+      const sourceId = remapTargetId(impact.source.id, idMap, oldProjectId, newProject.id)
+      const targetId = remapTargetId(impact.target.id, idMap, oldProjectId, newProject.id)
+      if (!sourceId || !targetId) continue
+      const created = repos.productionStudio.createProductionImpact(db, {
+        projectId: newProject.id,
+        source: { ...impact.source, id: sourceId },
+        target: { ...impact.target, id: targetId },
+        reason: impact.reason,
+        severity: impact.severity,
+        status: impact.status,
+        resolutionNote: impact.resolutionNote,
+        resolvedAt: impact.resolvedAt,
+      })
+      if (impact.status === 'resolved' || impact.status === 'waived') {
+        repos.productionStudio.resolveProductionImpact(db, created.id, impact.status, impact.resolutionNote)
+      } else if (impact.status === 'accepted') {
+        repos.productionStudio.resolveProductionImpact(db, created.id, 'accepted', impact.resolutionNote)
+      }
+    }
+    for (const retake of pkg.retakeRequests ?? []) {
+      const shotId = idMap.get(retake.shotId)
+      const sourceCandidateId = stillCandidateIdMap.get(retake.sourceCandidateId)
+      if (!shotId || !sourceCandidateId) continue
+      const resultCandidateId = retake.resultCandidateId ? stillCandidateIdMap.get(retake.resultCandidateId) : undefined
+      const status = ['queued', 'running'].includes(retake.status) ? 'failed' : retake.status
+      repos.productionStudio.createRetakeRequest(db, {
+        projectId: newProject.id,
+        shotId,
+        sourceCandidateId,
+        operation: retake.operation,
+        instruction: retake.instruction,
+        preserveFields: retake.preserveFields,
+        referenceAssetIds: retake.referenceAssetIds.flatMap((id) => assetIdMap.get(id) ?? []),
+        maskAssetId: retake.maskAssetId ? assetIdMap.get(retake.maskAssetId) : undefined,
+        providerConfigId: undefined,
+        status,
+        lineageId: retake.lineageId ? lineageIdMap.get(retake.lineageId) : undefined,
+        resultCandidateId,
+        errorMessage: status === 'failed' && retake.status !== 'failed'
+          ? '导入时中断的 Retake 已标记为失败，请重新提交。'
+          : retake.errorMessage,
+      })
+    }
+    for (const profile of pkg.generationPolicyProfiles ?? []) {
+      repos.productionStudio.saveGenerationPolicyProfile(db, {
+        projectId: newProject.id,
+        mode: profile.mode,
+        label: profile.label,
+        allowedProviderConfigIds: [],
+        maximumProviders: profile.maximumProviders,
+        automaticFallback: profile.automaticFallback,
+        requireCostConfirmation: profile.requireCostConfirmation,
+        requireReferenceLocks: profile.requireReferenceLocks,
       })
     }
 

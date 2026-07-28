@@ -102,6 +102,21 @@ import type {
   ShotVisualAssetLock,
   ShotStillCandidate,
   ImageProviderConfigRecord,
+  AssetCoverageItem,
+  FeatureFlagMap,
+  GenerationMode,
+  GenerationPolicyProfile,
+  GenerationRouteDecision,
+  ProductionGraphSnapshot,
+  ProductionImpact,
+  ProductionNodeRef,
+  ProviderDataPolicy,
+  RetakeOperation,
+  RetakeRequest,
+  EditorTimelineManifest,
+  ReviewComment,
+  ReviewDecision,
+  ReviewPackageRecord,
   WritingRoomResult,
   WritingRoomTargetKind,
   WorkflowRun,
@@ -127,6 +142,15 @@ export interface AiTaskInput {
   templateContent?: string
   /** v0.8 模板驱动生成：实际复用的生成类 taskType（如 generate_project） */
   templateScope?: NovelTaskType
+}
+
+export interface TimelineScopeInput {
+  projectId: string
+  adaptationProjectId: string
+  episodeId: string
+  frameRate?: 24 | 25 | 30
+  width?: number
+  height?: number
 }
 
 export interface AiTaskResult {
@@ -532,6 +556,21 @@ export interface CreateVideoTaskInput {
   note?: string
 }
 
+export interface RetakeRendererInput {
+  providerConfigId: string
+  projectId: string
+  shotId: string
+  sourceCandidateId: string
+  operation: RetakeOperation
+  instruction: string
+  preserveFields: string[]
+  referenceAssetIds?: string[]
+  maskAssetId?: string
+  size?: '1024x1024' | '1024x1536' | '1536x1024'
+  quality?: 'low' | 'medium' | 'high'
+  outputFormat?: 'png' | 'jpeg' | 'webp'
+}
+
 export interface StudioApi {
   search: {
     global(input: { query: string; limit?: number }): Promise<GlobalSearchResponse>
@@ -578,6 +617,47 @@ export interface StudioApi {
   }
   imageTask: {
     create(input: { providerConfigId: string; projectId: string; shotId: string; kind: 'still' | 'first_frame' | 'last_frame' | 'cover'; prompt: string; size?: '1024x1024' | '1024x1536' | '1536x1024'; quality?: 'low' | 'medium' | 'high'; outputFormat?: 'png' | 'jpeg' | 'webp' }): Promise<{ ok: boolean; error?: string; task?: LongTask; assets?: ProjectAsset[]; candidates?: ShotStillCandidate[] }>
+  }
+  featureFlags: {
+    get(): Promise<FeatureFlagMap>
+  }
+  productionGraph: {
+    get(projectId: string): Promise<ProductionGraphSnapshot>
+    coverage(projectId: string): Promise<AssetCoverageItem[]>
+    previewImpact(projectId: string, source: ProductionNodeRef): Promise<Array<{ target: ProductionNodeRef; relationPath: string[]; severity: 'info' | 'warning' | 'blocker' }>>
+    resolveImpact(id: string, status: 'accepted' | 'resolved' | 'waived', note?: string): Promise<ProductionImpact | undefined>
+  }
+  retake: {
+    preflight(input: RetakeRendererInput): Promise<{ canSubmit: boolean; issues: Array<{ code: string; message: string }> }>
+    create(input: RetakeRendererInput): Promise<{ ok: boolean; error?: string; request?: RetakeRequest; task?: LongTask; candidate?: ShotStillCandidate; asset?: ProjectAsset; lineageId?: string }>
+    list(projectId: string, shotId?: string): Promise<RetakeRequest[]>
+    adopt(id: string): Promise<{ request: RetakeRequest; candidate: ShotStillCandidate } | undefined>
+    discard(id: string): Promise<RetakeRequest | undefined>
+  }
+  generationRouting: {
+    listPolicies(projectId?: string): Promise<GenerationPolicyProfile[]>
+    savePolicy(input: Omit<GenerationPolicyProfile, 'id' | 'createdAt' | 'updatedAt'>): Promise<GenerationPolicyProfile>
+    listDataPolicies(): Promise<ProviderDataPolicy[]>
+    saveDataPolicy(input: Omit<ProviderDataPolicy, 'id' | 'createdAt' | 'updatedAt'>): Promise<ProviderDataPolicy>
+    decision(input: { projectId?: string; mode: GenerationMode; allowedProviderConfigIds?: string[]; maximumProviders?: number }): Promise<GenerationRouteDecision>
+  }
+  analytics: {
+    getConsent(): Promise<{ consent: 'unknown' | 'granted' | 'denied'; installationId: string; decidedAt?: string; updatedAt: string }>
+    setConsent(consent: 'granted' | 'denied'): Promise<{ consent: 'unknown' | 'granted' | 'denied'; installationId: string; decidedAt?: string; updatedAt: string }>
+    record(input: { eventName: 'demo_opened' | 'first_shot_ready' | 'retake_started' | 'retake_succeeded' | 'retake_adopted' | 'review_exported' | 'review_published' | 'editor_exported'; durationBucket?: string; resultCode?: string }): Promise<boolean>
+    exportLocal(): Promise<{ settings: Record<string, unknown>; events: Array<Record<string, unknown>> }>
+    clearPending(): Promise<number>
+  }
+  review: {
+    exportOffline(input: TimelineScopeInput): Promise<{ saved: boolean; canceled?: boolean; path?: string; packageId?: string; error?: string }>
+    importOffline(): Promise<{ imported: boolean; canceled?: boolean; packageId?: string; commentCount?: number; decisionCount?: number; error?: string }>
+    publishCloud(): Promise<{ published: boolean; error?: string }>
+    sync(projectId: string, episodeId?: string): Promise<{ packages: ReviewPackageRecord[]; comments: ReviewComment[]; decisions: ReviewDecision[] }>
+    delete(id: string): Promise<ReviewPackageRecord | undefined>
+  }
+  editorExport: {
+    preflight(input: TimelineScopeInput): Promise<{ manifest: EditorTimelineManifest; preflight: { canExport: boolean; blockers: string[]; warnings: Array<{ code: string; clipId?: string; message: string }>; totalDurationSeconds: number }; openProductionBlockers: number }>
+    export(input: TimelineScopeInput): Promise<{ saved: boolean; canceled?: boolean; directory?: string; bundlePath?: string; warnings?: Array<{ code: string; clipId?: string; message: string }>; error?: string }>
   }
   ttsProvider: {
     list(): Promise<TtsProviderConfigRecord[]>

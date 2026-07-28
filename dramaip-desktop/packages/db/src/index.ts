@@ -58,6 +58,7 @@ export * as complianceRuleProfileRepo from './repositories/compliance-rule-profi
 export * as platformDeliveryRepo from './repositories/platform-delivery.repo'
 export * as feedbackRepo from './repositories/feedback.repo'
 export * as localizationRepo from './repositories/localization.repo'
+export * as productionStudioRepo from './repositories/production-studio.repo'
 // v0.8 多 Agent 编剧室与模板系统
 export * as agentProfileRepo from './repositories/agent-profile.repo'
 export * as templateRepo from './repositories/template.repo'
@@ -122,6 +123,7 @@ import * as complianceRuleProfileRepo from './repositories/compliance-rule-profi
 import * as platformDeliveryRepo from './repositories/platform-delivery.repo'
 import * as feedbackRepo from './repositories/feedback.repo'
 import * as localizationRepo from './repositories/localization.repo'
+import * as productionStudioRepo from './repositories/production-studio.repo'
 import * as agentProfileRepo from './repositories/agent-profile.repo'
 import * as templateRepo from './repositories/template.repo'
 import * as genrePresetRepo from './repositories/genre-preset.repo'
@@ -189,6 +191,7 @@ export function createRepositories(db: DB) {
     platformDelivery: { ...platformDeliveryRepo },
     feedback: { ...feedbackRepo },
     localization: { ...localizationRepo },
+    productionStudio: { ...productionStudioRepo },
     // v0.8
     agentProfile: { ...agentProfileRepo },
     template: { ...templateRepo },

@@ -1031,6 +1031,84 @@ export const MIGRATIONS: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS idx_tts_provider_configs_default ON tts_provider_configs(is_default, updated_at);
   `) } },
+  { version: 42, name: 'production-impact-and-retake', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS production_impacts (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+      source_kind TEXT NOT NULL, source_id TEXT NOT NULL, source_version TEXT, source_label TEXT,
+      target_kind TEXT NOT NULL, target_id TEXT NOT NULL, target_version TEXT, target_label TEXT,
+      reason TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'warning', status TEXT NOT NULL DEFAULT 'open',
+      resolution_note TEXT, resolved_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_production_impacts_project_status
+      ON production_impacts(project_id, status, severity, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_production_impacts_open_edge
+      ON production_impacts(project_id, source_kind, source_id, target_kind, target_id, reason)
+      WHERE status IN ('open', 'accepted');
+    CREATE TABLE IF NOT EXISTS retake_requests (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, shot_id TEXT NOT NULL, source_candidate_id TEXT NOT NULL,
+      operation TEXT NOT NULL, instruction TEXT NOT NULL, preserve_fields TEXT NOT NULL DEFAULT '[]',
+      reference_asset_ids TEXT NOT NULL DEFAULT '[]', mask_asset_id TEXT, provider_config_id TEXT,
+      status TEXT NOT NULL DEFAULT 'draft', lineage_id TEXT, result_candidate_id TEXT, error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_retake_requests_shot_status
+      ON retake_requests(project_id, shot_id, status, updated_at);
+  `) } },
+  { version: 43, name: 'review-package-sync', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS review_package_records (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL, adaptation_project_id TEXT NOT NULL, episode_id TEXT NOT NULL,
+      kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'draft', title TEXT NOT NULL, manifest TEXT NOT NULL DEFAULT '{}',
+      output_path TEXT, cloud_package_id TEXT, sync_cursor TEXT, expires_at TEXT, error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_review_packages_episode
+      ON review_package_records(project_id, episode_id, updated_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_review_packages_cloud_id
+      ON review_package_records(cloud_package_id) WHERE cloud_package_id IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS review_comments (
+      id TEXT PRIMARY KEY, package_id TEXT NOT NULL, shot_id TEXT, timecode_seconds REAL, author_alias TEXT,
+      body TEXT NOT NULL, resolved INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_review_comments_package ON review_comments(package_id, created_at);
+    CREATE TABLE IF NOT EXISTS review_decisions (
+      id TEXT PRIMARY KEY, package_id TEXT NOT NULL, shot_id TEXT, decision TEXT NOT NULL,
+      author_alias TEXT, note TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_review_decisions_package ON review_decisions(package_id, created_at);
+  `) } },
+  { version: 44, name: 'generation-routing-and-consented-analytics', up(raw) { raw.exec(`
+    CREATE TABLE IF NOT EXISTS generation_policy_profiles (
+      id TEXT PRIMARY KEY, project_id TEXT, mode TEXT NOT NULL, label TEXT NOT NULL,
+      allowed_provider_config_ids TEXT NOT NULL DEFAULT '[]', maximum_providers INTEGER NOT NULL DEFAULT 1,
+      automatic_fallback INTEGER NOT NULL DEFAULT 0, require_cost_confirmation INTEGER NOT NULL DEFAULT 1,
+      require_reference_locks INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_generation_policy_project_mode
+      ON generation_policy_profiles(COALESCE(project_id, ''), mode);
+    CREATE TABLE IF NOT EXISTS provider_data_policies (
+      id TEXT PRIMARY KEY, provider_kind TEXT NOT NULL, regions TEXT NOT NULL DEFAULT '[]',
+      retention_summary TEXT, trains_on_inputs TEXT NOT NULL DEFAULT 'unknown', source_url TEXT,
+      last_verified_at TEXT, user_acknowledged_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_data_policy_kind ON provider_data_policies(provider_kind);
+    CREATE TABLE IF NOT EXISTS provider_observations (
+      id TEXT PRIMARY KEY, project_id TEXT, provider_config_id TEXT NOT NULL, provider_kind TEXT NOT NULL,
+      mode TEXT NOT NULL, task_kind TEXT NOT NULL, outcome TEXT NOT NULL, latency_ms INTEGER,
+      estimated_cost REAL, actual_cost REAL, currency TEXT, error_code TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_provider_observations_route
+      ON provider_observations(provider_config_id, task_kind, created_at);
+    CREATE TABLE IF NOT EXISTS product_analytics_settings (
+      id TEXT PRIMARY KEY, consent TEXT NOT NULL DEFAULT 'unknown', installation_id TEXT NOT NULL,
+      decided_at TEXT, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS product_analytics_events (
+      id TEXT PRIMARY KEY, event_name TEXT NOT NULL, app_version TEXT NOT NULL, operating_system TEXT NOT NULL,
+      duration_bucket TEXT, result_code TEXT, created_at TEXT NOT NULL, uploaded_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_product_analytics_pending
+      ON product_analytics_events(created_at) WHERE uploaded_at IS NULL;
+  `) } },
 ]
 
 /** 当前最新迁移版本（= MIGRATIONS 末项 version） */
