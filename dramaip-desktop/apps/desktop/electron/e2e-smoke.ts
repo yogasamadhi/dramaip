@@ -918,12 +918,6 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     return input
   }
 
-  function inputByPlaceholder(placeholder: string): HTMLInputElement {
-    const input = document.querySelector(`input[placeholder="${placeholder}"]`) as HTMLInputElement | null
-    if (!input) throw new Error(`未找到输入框占位提示：${placeholder}`)
-    return input
-  }
-
   function setInputValue(input: HTMLInputElement, value: string): void {
     const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
     descriptor?.set?.call(input, value)
@@ -1276,7 +1270,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     window.location.hash = '#/projects/new'
     await waitFor('导入 IP 创建页', () => text().includes('导入已有小说 / IP'))
     clickButton('导入已有小说 / IP')
-    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), importedIpTitle)
+    setInputValue(inputByLabel('作品名称'), importedIpTitle)
     clickButton('创建项目')
     await waitFor('受权 IP 项目概览', () => window.location.hash.startsWith('#/projects/') && text().includes('下一步：导入拥有授权的小说或剧本正文'))
     const importedIpId = window.location.hash.match(/^#\/projects\/([^/?#]+)/)?.[1] ?? ''
@@ -1289,7 +1283,7 @@ async function rendererSmokeMain(): Promise<RendererSmokeResult> {
     window.location.hash = '#/projects/new'
     await waitFor('直接漫剧创建页', () => text().includes('直接制作漫剧'))
     clickButton('直接制作漫剧')
-    setInputValue(inputByPlaceholder('天劫将至，我的废灵根觉醒了'), directTitle)
+    setInputValue(inputByLabel('作品名称'), directTitle)
     clickButton('创建并设置第一季')
     await waitFor('第一季设置页', () => window.location.hash.startsWith('#/adaptations/new') && text().includes('创建漫剧第一季'))
     const directProjectId = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('source') ?? ''

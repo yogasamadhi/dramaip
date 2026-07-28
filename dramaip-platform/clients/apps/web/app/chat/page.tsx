@@ -7,11 +7,18 @@ import { RequireAuth } from '../../components/RequireAuth'
 import { Button } from '../../components/ui/Button'
 import { parseApiError } from '../../lib/api-error'
 import { apiClient } from '../../lib/api-client'
+import {
+  chatStatusLabel,
+  conversationStateFromStatus,
+  streamTerminalOutcome,
+  type ChatStreamTerminalEvent,
+  type ConversationMessageState,
+} from '../../lib/chat-state'
 
 type ConversationMessage = ChatMessage & {
   id: string
   requestID?: string
-  state?: 'streaming' | 'completed' | 'failed' | 'canceled'
+  state?: ConversationMessageState
 }
 
 type ActiveRequest = {
@@ -81,6 +88,7 @@ export default function ChatPage() {
     setPreflight(null)
 
     try {
+      let terminalEvent: ChatStreamTerminalEvent | undefined
       const checked = await apiClient.preflightChat({
         provider: selectedModel.provider,
         model: selectedModel.model,
@@ -103,15 +111,21 @@ export default function ChatPage() {
           if (event.type === 'delta') {
             setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, content: message.content + event.delta })))
           }
-          if (event.type === 'completed' && event.reply) finishAssistant(setMessages, assistantID, event.reply)
+          if (event.type === 'completed') {
+            terminalEvent = 'completed'
+            if (event.reply) finishAssistant(setMessages, assistantID, event.reply)
+          }
           if (event.type === 'failed') {
-            setNotice(`生成未完成，可使用“恢复最近请求”查询结果。关联编号：${event.request_id || requestID}`)
+            terminalEvent = 'failed'
+            setNotice(streamTerminalOutcome('failed', event.request_id || requestID).notice)
             setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, state: 'failed' })))
           }
         },
       })
-      setNotice('生成完成。')
-      await invalidateUsage(queryClient)
+      const outcome = streamTerminalOutcome(terminalEvent, requestID)
+      setNotice(outcome.notice)
+      setMessages((current) => updateMessage(current, assistantID, (message) => ({ ...message, state: outcome.state })))
+      if (outcome.refreshUsage) await invalidateUsage(queryClient)
     } catch (error) {
       if (controller.signal.aborted) {
         setNotice('已请求取消，额度会在网关确认后释放。')
@@ -132,7 +146,7 @@ export default function ChatPage() {
     setNotice('正在向网关请求取消…')
     try {
       const result = await apiClient.cancelChat({ idempotency_key: active.idempotencyKey })
-      setNotice(result.status === 'cancellation_requested' ? '取消已受理，正在释放额度。' : `请求状态：${statusLabel(result.status)}`)
+      setNotice(result.status === 'cancellation_requested' ? '取消已受理，正在释放额度。' : `请求状态：${chatStatusLabel(result.status)}`)
     } catch (error) {
       setNotice(classifyChatError(error))
     }
@@ -148,10 +162,10 @@ export default function ChatPage() {
 	  const resultStatus = result.status ?? 'in_progress'
       setMessages((current) => {
         const exists = current.some((message) => message.id === assistantID)
-		const next = { id: assistantID, role: 'assistant' as const, content: result.content, requestID: result.request_id, state: stateFromStatus(resultStatus) }
+		const next = { id: assistantID, role: 'assistant' as const, content: result.content, requestID: result.request_id, state: conversationStateFromStatus(resultStatus) }
         return exists ? updateMessage(current, assistantID, () => next) : [...current, next]
       })
-	  setNotice(`已恢复请求状态：${statusLabel(resultStatus)}。`)
+	  setNotice(`已恢复请求状态：${chatStatusLabel(resultStatus)}。`)
 	  if (resultStatus === 'succeeded') await invalidateUsage(queryClient)
     } catch (error) {
       setNotice(classifyChatError(error))
@@ -288,16 +302,6 @@ function latestRequest(messages: ConversationMessage[]): ActiveRequest | null {
   const latest = [...messages].reverse().find((message) => message.requestID)
   if (!latest?.requestID) return null
   return { idempotencyKey: latest.requestID, requestID: latest.requestID, assistantID: `${latest.requestID}-assistant` }
-}
-
-function stateFromStatus(status: string): ConversationMessage['state'] {
-  if (status === 'succeeded') return 'completed'
-  if (status === 'canceled') return 'canceled'
-  return 'failed'
-}
-
-function statusLabel(status: string) {
-  return ({ succeeded: '已完成', canceled: '已取消', cancellation_requested: '取消已受理', in_progress: '生成中', not_found: '未找到' } as Record<string, string>)[status] ?? status
 }
 
 function classifyChatError(error: unknown) {

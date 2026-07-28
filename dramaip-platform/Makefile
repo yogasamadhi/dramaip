@@ -38,5 +38,6 @@ client-contracts:
 test:
 	$(MAKE) -C services test
 	cd clients && pnpm typecheck
+	cd clients && pnpm test
 	$(MAKE) client-contracts
 	$(MAKE) web-route-smoke

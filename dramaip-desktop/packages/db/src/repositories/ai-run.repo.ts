@@ -57,6 +57,15 @@ export function listAiRunsByProject(db: DB, projectId: string, limit = 100): AiR
     .all() as unknown as AiRun[]
 }
 
+export function listAllAiRunsByProject(db: DB, projectId: string): AiRun[] {
+  return db
+    .select()
+    .from(aiRuns)
+    .where(eq(aiRuns.projectId, projectId))
+    .orderBy(desc(aiRuns.createdAt))
+    .all() as unknown as AiRun[]
+}
+
 export function listAllAiRuns(db: DB, limit = 200): AiRun[] {
   return db.select().from(aiRuns).orderBy(desc(aiRuns.createdAt)).limit(limit).all() as unknown as AiRun[]
 }

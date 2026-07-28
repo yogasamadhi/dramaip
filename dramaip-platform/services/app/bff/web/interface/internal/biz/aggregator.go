@@ -58,7 +58,12 @@ func (u *BFFUsecase) Checks() map[string]func(context.Context) error {
 }
 
 func (u *BFFUsecase) Login(ctx context.Context, email string, password string, deviceID string) (*authv1.AuthReply, error) {
-	return u.data.Auth.Login(ctx, &authv1.LoginRequest{Email: email, Password: password, DeviceId: deviceID})
+	session, err := u.data.Auth.Login(ctx, &authv1.LoginRequest{Email: email, Password: password, DeviceId: deviceID})
+	if err != nil {
+		return nil, err
+	}
+	u.ensureSessionProfile(ctx, session, session.GetName(), "login")
+	return session, nil
 }
 
 func (u *BFFUsecase) Register(ctx context.Context, email string, password string, displayName string, deviceID string) (*authv1.AuthReply, error) {
@@ -66,12 +71,7 @@ func (u *BFFUsecase) Register(ctx context.Context, email string, password string
 	if err != nil {
 		return nil, err
 	}
-	_, err = u.data.User.EnsureProfile(ctx, &userv1.EnsureProfileRequest{
-		UserId: session.UserId, Email: session.Email, DisplayName: displayName, Status: "active",
-	})
-	if err != nil {
-		return nil, err
-	}
+	u.ensureSessionProfile(ctx, session, displayName, "register")
 	return session, nil
 }
 
@@ -79,7 +79,32 @@ func (u *BFFUsecase) Refresh(ctx context.Context, refreshToken string) (*authv1.
 	if refreshToken == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing_refresh_token")
 	}
-	return u.data.Auth.Refresh(ctx, &authv1.RefreshRequest{RefreshToken: refreshToken})
+	session, err := u.data.Auth.Refresh(ctx, &authv1.RefreshRequest{RefreshToken: refreshToken})
+	if err != nil {
+		return nil, err
+	}
+	u.ensureSessionProfile(ctx, session, session.GetName(), "refresh")
+	return session, nil
+}
+
+func (u *BFFUsecase) ensureSessionProfile(ctx context.Context, session *authv1.AuthReply, displayName string, operation string) {
+	if session == nil || strings.TrimSpace(session.GetUserId()) == "" {
+		return
+	}
+	profileCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		displayName = session.GetEmail()
+	}
+	_, err := u.data.User.EnsureProfile(profileCtx, &userv1.EnsureProfileRequest{
+		UserId: session.GetUserId(), Email: session.GetEmail(), DisplayName: displayName, Status: "active",
+	})
+	if err != nil {
+		platform.StructuredLog(ctx, "web-bff-interface", "warning", "profile_provision_deferred", map[string]any{
+			"user_id": session.GetUserId(), "operation": operation, "error": err,
+		})
+	}
 }
 
 func (u *BFFUsecase) Logout(ctx context.Context, refreshToken string, accessToken string, deviceID string) (*authv1.LogoutReply, error) {

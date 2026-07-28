@@ -236,7 +236,7 @@ export function collectProjectPackage(repos: Repositories, projectId: string, op
   const packageAssets = assets.map((asset) => asset.kind === 'rights_evidence'
     ? { ...asset, localPath: undefined, relativePath: undefined, status: 'missing' as const }
     : asset)
-  const aiRuns = repos.aiRun.listAiRunsByProject(db, projectId, 1000)
+  const aiRuns = repos.aiRun.listAllAiRunsByProject(db, projectId)
   const generationLineages = repos.generation.listGenerationLineagesByProject(db, projectId)
   const generationCostEntries = repos.generation.listGenerationCostEntriesByProject(db, projectId)
   const feedback = options.includeFeedback ? {
@@ -690,12 +690,13 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
       if (ap.episodeAnalysis) {
         repos.episodeAnalysis.upsertEpisodeAnalysis(db, {
           adaptationProjectId: newAdapt.id,
-          hookStrengthTrend: [],
-          retentionScoreTrend: [],
-          paceScoreTrend: [],
-          reversalDensityTrend: [],
-          visualAppealTrend: [],
-          summary: '（导入自项目包，趋势数据未还原）',
+          hookStrengthTrend: ap.episodeAnalysis.hookStrengthTrend ?? [],
+          retentionScoreTrend: ap.episodeAnalysis.retentionScoreTrend ?? [],
+          paceScoreTrend: ap.episodeAnalysis.paceScoreTrend ?? [],
+          reversalDensityTrend: ap.episodeAnalysis.reversalDensityTrend ?? [],
+          visualAppealTrend: ap.episodeAnalysis.visualAppealTrend ?? [],
+          summary: ap.episodeAnalysis.summary ?? '',
+          suggestions: ap.episodeAnalysis.suggestions,
         })
       }
     }
@@ -1050,6 +1051,7 @@ export function importProjectPackage(repos: Repositories, content: string): Proj
     for (const r of pkg.aiRuns) {
       repos.aiRun.createAiRun(db, {
         projectId: newProject.id,
+        chapterId: r.chapterId ? idMap.get(r.chapterId) : undefined,
         graphName: r.graphName,
         nodeName: r.nodeName,
         type: r.type,

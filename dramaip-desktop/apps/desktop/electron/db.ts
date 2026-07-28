@@ -22,6 +22,7 @@ import {
 } from '@sdns/core'
 import { initializeSecretStorage, installSecretProtection } from './secrets'
 import { logger } from './logger'
+import { runStartupDatabaseInitialization } from './startup-database'
 
 let repos: Repositories | null = null
 let rawDb: ReturnType<typeof createDb>['raw'] | null = null
@@ -327,15 +328,13 @@ export function getRepos(): Repositories {
   return repos
 }
 
-/** v1.0：数据库初始化失败时的顶层兜底，弹原生对话框提示而非静默崩溃 */
-export async function safeInitDatabase(): Promise<void> {
-  try {
-    await initDatabase()
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    void dialog.showErrorBox(
+/** v1.0：数据库初始化失败时的顶层兜底；调用方必须在 false 时停止启动。 */
+export async function safeInitDatabase(): Promise<boolean> {
+  const { dbPath, backupDir } = getDatabasePaths()
+  return runStartupDatabaseInitialization(initDatabase, (message) => {
+    dialog.showErrorBox(
       '数据库初始化失败',
-      `应用无法初始化数据库，请检查 userData 目录权限后重试。\n\n错误详情：${msg}`,
+      `应用无法初始化数据库，现已停止启动。请检查文件权限或数据库完整性后重新打开应用。\n\n数据库：${dbPath}\n备份目录：${backupDir}\n\n错误详情：${message}`,
     )
-  }
+  })
 }

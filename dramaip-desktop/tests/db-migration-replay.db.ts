@@ -1101,3 +1101,57 @@ test('versions voice profiles and episode audio tracks without overwriting adopt
     assert.equal(repos.audio.listAudioTracksByEpisode(db, importedEpisode.id).some((track) => track.status === 'stale'), true)
   } finally { closeRepositoryFixture(fixture) }
 })
+
+test('roundtrips every AI run and preserves episode analysis without truncation', () => {
+  const fixture = createRepositoryFixture()
+  try {
+    const { db, repos, project, chapter, adaptation } = fixture
+    const expectedAnalysis = repos.episodeAnalysis.upsertEpisodeAnalysis(db, {
+      adaptationProjectId: adaptation.id,
+      hookStrengthTrend: [71, 82, 93],
+      retentionScoreTrend: [65, 76, 87],
+      paceScoreTrend: [69, 79, 89],
+      reversalDensityTrend: [2, 3, 5],
+      visualAppealTrend: [74, 84, 94],
+      summary: '前三集钩子持续增强。',
+      suggestions: '第二集前置一次视觉反转。',
+    })
+    for (let index = 0; index < 1_005; index++) {
+      repos.aiRun.createAiRun(db, {
+        projectId: project.id,
+        chapterId: chapter.id,
+        graphName: 'package-roundtrip',
+        type: 'generate_chapter',
+        provider: 'test',
+        model: 'test-model',
+        input: `input-${index}`,
+        output: `output-${index}`,
+        status: 'success',
+      })
+    }
+
+    const pkg = collectProjectPackage(repos, project.id)
+    assert.equal(pkg.aiRuns.length, 1_005)
+    assert.deepEqual(pkg.adaptations[0]?.episodeAnalysis?.hookStrengthTrend, expectedAnalysis.hookStrengthTrend)
+    assert.equal(pkg.adaptations[0]?.episodeAnalysis?.suggestions, expectedAnalysis.suggestions)
+
+    const imported = importProjectPackage(repos, serializeProjectPackage(pkg))
+    const importedChapters = repos.chapter.listChapters(db, imported.id)
+    const importedRuns = repos.aiRun.listAllAiRunsByProject(db, imported.id)
+    assert.equal(importedRuns.length, 1_005)
+    assert.ok(importedRuns.every((run) => run.chapterId === importedChapters[0]?.id))
+
+    const importedAdaptation = repos.adaptationProject.listAdaptationsByProject(db, imported.id)[0]
+    assert.ok(importedAdaptation)
+    const importedAnalysis = repos.episodeAnalysis.getEpisodeAnalysis(db, importedAdaptation.id)
+    assert.deepEqual(importedAnalysis?.hookStrengthTrend, expectedAnalysis.hookStrengthTrend)
+    assert.deepEqual(importedAnalysis?.retentionScoreTrend, expectedAnalysis.retentionScoreTrend)
+    assert.deepEqual(importedAnalysis?.paceScoreTrend, expectedAnalysis.paceScoreTrend)
+    assert.deepEqual(importedAnalysis?.reversalDensityTrend, expectedAnalysis.reversalDensityTrend)
+    assert.deepEqual(importedAnalysis?.visualAppealTrend, expectedAnalysis.visualAppealTrend)
+    assert.equal(importedAnalysis?.summary, expectedAnalysis.summary)
+    assert.equal(importedAnalysis?.suggestions, expectedAnalysis.suggestions)
+  } finally {
+    closeRepositoryFixture(fixture)
+  }
+})

@@ -1,5 +1,5 @@
 // Electron 主进程入口
-import { app, BrowserWindow, shell, session } from 'electron'
+import { app, BrowserWindow, dialog, shell, session } from 'electron'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { DB_FILE_NAME } from '@sdns/core'
@@ -11,6 +11,7 @@ import { runDesktopUiBaseline } from './ui-baseline'
 import { canOpenExternalUrl, createContentSecurityPolicy } from './security-policy'
 import { initializeCloudAuth } from './cloud-auth'
 import { reconcileLongTasks } from './task-recovery'
+import { runDatabaseGatedStartup } from './startup-database'
 
 const PACKAGE_SMOKE_ENV = 'SDNS_PACKAGE_SMOKE'
 const PACKAGE_SMOKE_RESULT_ENV = 'SDNS_PACKAGE_SMOKE_RESULT'
@@ -317,15 +318,26 @@ app.whenReady().then(async () => {
     void runUiBaseline()
     return
   }
-  await safeInitDatabase()
-  recoverPersistedLongTasks()
-  await initializeCloudAuth()
-  registerAllIpc()
-  createWindow()
+  const started = await runDatabaseGatedStartup(safeInitDatabase, async () => {
+    recoverPersistedLongTasks()
+    await initializeCloudAuth()
+    registerAllIpc()
+    createWindow()
+  })
+  if (!started) {
+    logger.error('main', 'database initialization failed; quitting before application startup')
+    app.quit()
+    return
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((error) => {
+  const message = error instanceof Error ? error.message : String(error)
+  logger.error('main', 'application startup failed', { message, stack: error instanceof Error ? error.stack : undefined })
+  dialog.showErrorBox('应用启动失败', `应用启动过程中发生错误，现已安全退出。\n\n错误详情：${message}`)
+  app.quit()
 })
 
 app.on('window-all-closed', () => {

@@ -118,6 +118,27 @@ async function waitForNotification(type, timeoutMs = 15_000) {
 const health = await request('GET', '/v1/healthz')
 assert(health.ok === true, 'healthz did not report ok=true')
 
+const registrationRetryEmail = `registration-retry-${Date.now()}@example.com`
+const firstRegistration = await request('POST', '/v1/auth/register', {
+  body: { email: registrationRetryEmail, password, display_name: 'Registration Retry Original' },
+})
+const retriedRegistration = await request('POST', '/v1/auth/register', {
+  body: { email: registrationRetryEmail, password, display_name: 'Registration Retry Replacement' },
+})
+assert(
+  retriedRegistration.user?.id === firstRegistration.user?.id,
+  'same-credential registration retry did not return the existing account session',
+)
+await request('POST', '/v1/auth/register', {
+  expect: 409,
+  body: { email: registrationRetryEmail, password: `${password}-wrong` },
+})
+const retriedRegistrationProfile = await request('GET', '/v1/me/profile')
+assert(
+  retriedRegistrationProfile.display_name === 'Registration Retry Original',
+  'registration retry overwrote the existing profile display name',
+)
+
 const session = await request('POST', '/v1/auth/login', { body: { email, password } })
 assert(session.user?.id, 'auth did not return a user')
 assert(cookieJar.has('dramaip_web_access') && cookieJar.has('dramaip_web_refresh') && cookieJar.has(csrfCookieName), 'auth did not set a complete Cookie session')
@@ -133,6 +154,9 @@ const updatedProfile = await request('PATCH', '/v1/me/profile', {
   },
 })
 assert(updatedProfile.display_name === 'Platform E2E Updated', 'profile update did not persist display name')
+await request('POST', '/v1/auth/login', { body: { email, password } })
+const profileAfterLogin = await request('GET', '/v1/me/profile')
+assert(profileAfterLogin.display_name === 'Platform E2E Updated', 'login profile repair overwrote the user display name')
 
 const plans = await request('GET', '/v1/plans')
 assert(Array.isArray(plans.plans) && plans.plans.length > 0, 'plans list is empty')

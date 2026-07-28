@@ -8,6 +8,7 @@ import (
 
 	"github.com/dramaip/dramaip-platform/services/app/auth/service/internal/conf"
 	"github.com/dramaip/dramaip-platform/services/pkg/platform"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -17,6 +18,11 @@ var (
 	ErrEmailActionNotFound              = errors.New("email action not found")
 	ErrDesktopAuthorizationCodeNotFound = errors.New("desktop authorization code not found")
 )
+
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
 
 type Data struct {
 	DB    *gorm.DB

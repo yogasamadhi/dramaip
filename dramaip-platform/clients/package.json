@@ -11,9 +11,11 @@
     "dev:mobile": "pnpm --filter @dramaip/mobile start",
     "contracts:check": "node scripts/check-client-contracts.mjs",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "test": "pnpm --filter @dramaip/sdk test && pnpm --filter @dramaip/web test && pnpm --filter @dramaip/admin test && pnpm --filter @dramaip/mobile test:security"
   },
   "devDependencies": {
+    "tsx": "^4.22.4",
     "typescript": "^5.6.3"
   },
   "engines": {

@@ -5,7 +5,14 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from 'tiptap-markdown'
 import { AlignJustify, Bold, Crosshair, Eraser, Heading2, Italic, List, Quote, Sparkles, Target, Type } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Chapter } from '@sdns/core'
+import {
+  DEFAULT_CHAPTER_WORD_GOAL,
+  MAX_CHAPTER_WORD_GOAL,
+  chapterLengthRange,
+  countChapterCharacters,
+  normalizeChapterWordGoal,
+  type Chapter,
+} from '@sdns/core'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAutosaveDraft, type DraftSaveState } from '@/hooks/useAutosaveDraft'
@@ -26,7 +33,7 @@ const DEFAULT_PREFERENCES: ChapterEditorPreferences = {
   fontSize: 18,
   lineHeight: 1.85,
   contentWidth: 760,
-  wordGoal: 2000,
+  wordGoal: DEFAULT_CHAPTER_WORD_GOAL,
   wordGoalCustomized: false,
   typewriterMode: false,
 }
@@ -38,7 +45,7 @@ function readPreferences(): ChapterEditorPreferences {
     const lineHeight = candidate?.lineHeight === 1.65 || candidate?.lineHeight === 1.85 || candidate?.lineHeight === 2.05 ? candidate.lineHeight : DEFAULT_PREFERENCES.lineHeight
     const contentWidth = candidate?.contentWidth === 680 || candidate?.contentWidth === 760 || candidate?.contentWidth === 880 ? candidate.contentWidth : DEFAULT_PREFERENCES.contentWidth
     const wordGoal = candidate?.wordGoalCustomized === true && Number.isFinite(candidate?.wordGoal)
-      ? Math.min(100_000, Math.max(1, Math.round(Number(candidate.wordGoal))))
+      ? normalizeChapterWordGoal(candidate.wordGoal)
       : DEFAULT_PREFERENCES.wordGoal
     return {
       fontSize,
@@ -227,10 +234,9 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, ChapterEditorProps>
     return <div className="p-8 text-sm text-muted-foreground">编辑器加载中…</div>
   }
 
-  const wordCount = draftContent.replace(/\s/g, '').length
+  const wordCount = countChapterCharacters(draftContent)
   const goalProgress = Math.min(100, Math.round((wordCount / preferences.wordGoal) * 100))
-  const generatedMinimum = Math.max(1, preferences.wordGoal - 300)
-  const generatedMaximum = preferences.wordGoal + 300
+  const { minimum: generatedMinimum, maximum: generatedMaximum } = chapterLengthRange(preferences.wordGoal)
 
   return (
     <div className="flex h-full flex-col">
@@ -321,10 +327,10 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, ChapterEditorProps>
               aria-label="本章字数目标"
               type="number"
               min="1"
-              max="100000"
+              max={MAX_CHAPTER_WORD_GOAL}
               value={preferences.wordGoal}
               onChange={(event) => {
-                const wordGoal = Math.min(100_000, Math.max(1, Number(event.target.value) || 1))
+                const wordGoal = normalizeChapterWordGoal(Number(event.target.value) || 1)
                 setPreferences((current) => ({ ...current, wordGoal, wordGoalCustomized: true }))
                 onWordGoalChange?.(wordGoal)
               }}

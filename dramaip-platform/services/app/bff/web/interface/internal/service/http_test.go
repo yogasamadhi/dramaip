@@ -75,6 +75,34 @@ func TestBFFHTTPFlow(t *testing.T) {
 	}
 }
 
+func TestAuthenticationSucceedsWhileProfileProvisioningSelfHeals(t *testing.T) {
+	profiles := &recoveringProfileUser{failuresRemaining: 1}
+	uc := biz.NewBFFUsecase(&data.Data{Auth: registeringAuth{}, User: profiles})
+
+	registered, err := uc.Register(context.Background(), "creator@example.com", "correct-password", "Creator Name", "browser-1")
+	if err != nil || registered.GetUserId() != "u1" {
+		t.Fatalf("register = %#v, %v", registered, err)
+	}
+	if profiles.calls != 1 {
+		t.Fatalf("profile calls after register = %d, want 1", profiles.calls)
+	}
+
+	loggedIn, err := uc.Login(context.Background(), "creator@example.com", "correct-password", "browser-1")
+	if err != nil || loggedIn.GetUserId() != "u1" {
+		t.Fatalf("login = %#v, %v", loggedIn, err)
+	}
+	refreshed, err := uc.Refresh(context.Background(), "refresh")
+	if err != nil || refreshed.GetUserId() != "u1" {
+		t.Fatalf("refresh = %#v, %v", refreshed, err)
+	}
+	if profiles.calls != 3 || profiles.successes != 2 {
+		t.Fatalf("profile recovery calls = %d, successes = %d", profiles.calls, profiles.successes)
+	}
+	if profiles.requests[0].GetDisplayName() != "Creator Name" {
+		t.Fatalf("registration display name = %q", profiles.requests[0].GetDisplayName())
+	}
+}
+
 func TestCheckoutForwardsExplicitProviderAndExpiresAt(t *testing.T) {
 	billing := &captureCheckoutBilling{}
 	uc := biz.NewBFFUsecase(&data.Data{
@@ -682,6 +710,12 @@ type unverifiedAuth struct{ fakeAuth }
 
 type logoutErrorAuth struct{ fakeAuth }
 
+type registeringAuth struct{ fakeAuth }
+
+func (registeringAuth) Register(context.Context, *authv1.RegisterRequest, ...grpc.CallOption) (*authv1.AuthReply, error) {
+	return &authv1.AuthReply{AccessToken: "token", RefreshToken: "refresh", TokenType: "Bearer", ExpiresIn: 900, UserId: "u1", Email: "creator@example.com", Name: "Creator Name", EmailVerified: true}, nil
+}
+
 func (logoutErrorAuth) Logout(context.Context, *authv1.LogoutRequest, ...grpc.CallOption) (*authv1.LogoutReply, error) {
 	return nil, status.Error(codes.Unauthenticated, "invalid token")
 }
@@ -736,6 +770,25 @@ func (fakeAuth) SetUserStatus(_ context.Context, req *authv1.SetUserStatusReques
 }
 
 type fakeUser struct{}
+
+type recoveringProfileUser struct {
+	fakeUser
+	failuresRemaining int
+	calls             int
+	successes         int
+	requests          []*userv1.EnsureProfileRequest
+}
+
+func (u *recoveringProfileUser) EnsureProfile(_ context.Context, req *userv1.EnsureProfileRequest, _ ...grpc.CallOption) (*userv1.UserProfile, error) {
+	u.calls++
+	u.requests = append(u.requests, req)
+	if u.failuresRemaining > 0 {
+		u.failuresRemaining--
+		return nil, status.Error(codes.Unavailable, "profile service unavailable")
+	}
+	u.successes++
+	return &userv1.UserProfile{Id: req.UserId, Email: req.Email, DisplayName: req.DisplayName, Status: "active"}, nil
+}
 
 func (fakeUser) GetProfile(context.Context, *userv1.GetProfileRequest, ...grpc.CallOption) (*userv1.UserProfile, error) {
 	return &userv1.UserProfile{Id: "u1", Email: "creator@example.com", DisplayName: "Development Creator", Status: "active"}, nil

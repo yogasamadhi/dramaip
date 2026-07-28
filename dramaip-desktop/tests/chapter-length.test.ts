@@ -10,6 +10,12 @@ import {
   chapterRewriteLengthGuidance,
   countChapterCharacters,
 } from '../packages/ai/src/chapter-length'
+import {
+  DEFAULT_CHAPTER_WORD_GOAL,
+  MAX_CHAPTER_WORD_GOAL,
+  normalizeChapterWordGoal,
+  validateIpcArgs,
+} from '../packages/core/src'
 
 test('enforces the generated chapter range as the selected goal plus or minus 300 characters', () => {
   assert.equal(CHAPTER_WORD_GOAL_TOLERANCE, 300)
@@ -35,7 +41,8 @@ test('biases the first draft below the target and derives a bounded token guard'
     preferredMaximum: 1900,
   })
   assert.equal(chapterOutputTokenLimit(2000), 3732)
-  assert.equal(chapterOutputTokenLimit(100_000), 8192)
+  assert.equal(chapterOutputTokenLimit(5_000), 7932)
+  assert.equal(chapterOutputTokenLimit(100_000), 7932)
 })
 
 test('builds measured net-change guidance for full-chapter editing tasks', () => {
@@ -65,4 +72,27 @@ test('retries only the first out-of-range chapter result so the UI keeps its fal
     /超过目标 2000 字允许的上限 2300 字/,
   )
   assert.equal(chapterLengthRetryError('乙'.repeat(2350), 2000, 1), undefined)
+})
+
+test('chapter word goals share one bounded definition across core and AI', () => {
+  assert.equal(DEFAULT_CHAPTER_WORD_GOAL, 2_000)
+  assert.equal(MAX_CHAPTER_WORD_GOAL, 5_000)
+  assert.equal(normalizeChapterWordGoal(undefined), 2_000)
+  assert.equal(normalizeChapterWordGoal(100_000), 5_000)
+  assert.equal(normalizeChapterWordGoal(-10), 1)
+  assert.equal(chapterLengthPlan(100_000).target, 5_000)
+})
+
+test('AI IPC accepts the supported chapter maximum and rejects larger targets', () => {
+  assert.doesNotThrow(() => validateIpcArgs('ai:run', [{
+    taskType: 'generate_chapter',
+    chapterWordGoal: 5_000,
+  }]))
+  assert.throws(
+    () => validateIpcArgs('ai:run', [{
+      taskType: 'generate_chapter',
+      chapterWordGoal: 5_001,
+    }]),
+    /IPC 参数校验失败/,
+  )
 })

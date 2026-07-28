@@ -95,15 +95,23 @@ func (u *AuthUsecase) Register(ctx context.Context, email string, password strin
 	}
 	user, err := u.repo.InsertUser(ctx, platform.NewUUID(), email, string(hash))
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+		if !data.IsUniqueViolation(err) {
+			return Session{}, err
+		}
+		existing, findErr := u.repo.FindUserByEmail(ctx, email)
+		if findErr != nil || !registrationRetryAllowed(existing, password) {
 			return Session{}, status.Error(codes.AlreadyExists, "email already registered")
 		}
-		return Session{}, err
+		user = existing
 	}
 	if displayName != "" {
 		user.Name = displayName
 	}
 	return u.issueSession(ctx, user, deviceID)
+}
+
+func registrationRetryAllowed(user data.UserRow, password string) bool {
+	return user.ID != "" && bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) == nil
 }
 
 func (u *AuthUsecase) Login(ctx context.Context, email string, password string, deviceID string) (Session, error) {

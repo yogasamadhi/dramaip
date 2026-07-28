@@ -75,13 +75,11 @@ func (r *UserRepo) EnsureProfile(ctx context.Context, row ProfileRow) (ProfileRo
 		row.Status = "active"
 	}
 	if err := r.data.DB.WithContext(ctx).Exec(`
-		INSERT INTO user_profile.profiles (user_id, email, phone, display_name, status, locale, timezone)
+		INSERT INTO user_profile.profiles AS existing (user_id, email, phone, display_name, status, locale, timezone)
 		VALUES (?::uuid, ?, ?, ?, ?, 'zh-CN', 'Asia/Shanghai')
 		ON CONFLICT (user_id) DO UPDATE SET
 			email = EXCLUDED.email,
-			phone = EXCLUDED.phone,
-			display_name = EXCLUDED.display_name,
-			status = EXCLUDED.status,
+			display_name = COALESCE(NULLIF(existing.display_name, ''), EXCLUDED.display_name),
 			updated_at = now()
 	`, row.ID, row.Email, row.Phone, row.DisplayName, row.Status).Error; err != nil {
 		return ProfileRow{}, err

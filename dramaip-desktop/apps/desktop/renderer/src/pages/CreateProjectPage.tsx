@@ -187,8 +187,10 @@ export function CreateProjectPage() {
             ))}
           </section>
           <div className="space-y-2">
-            <Label className="text-base">作品名称 *</Label>
+            <Label htmlFor="create-project-title" className="text-base">作品名称 *</Label>
             <Input
+              id="create-project-title"
+              aria-label="作品名称"
               autoFocus
               value={title}
               onChange={(e) => setTitle(e.target.value)}

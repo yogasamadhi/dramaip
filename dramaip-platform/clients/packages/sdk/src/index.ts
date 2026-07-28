@@ -343,6 +343,12 @@ export interface ApiClientOptions {
   withCredentials?: boolean
 }
 
+export function resolveApiRequestURL(baseURL: string, path: string): string {
+  const normalizedPath = `/${path.replace(/^\/+/, '')}`
+  const normalizedBaseURL = baseURL.trim().replace(/\/+$/, '')
+  return normalizedBaseURL ? `${normalizedBaseURL}${normalizedPath}` : normalizedPath
+}
+
 export interface DramaIpApiClient {
   http: AxiosInstance
   register(input: { email: string; password: string; display_name?: string }): Promise<RegisterResponse>
@@ -554,7 +560,7 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       if (deviceID) headers['X-Device-Id'] = deviceID
       const csrfToken = await options.getCSRFToken?.()
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-      const response = await fetch(new URL('/v1/ai/chat/stream', options.baseURL).toString(), {
+      const response = await fetch(resolveApiRequestURL(options.baseURL, '/v1/ai/chat/stream'), {
         method: 'POST', headers, body: JSON.stringify(body), signal: streamOptions.signal,
         credentials: options.withCredentials === false ? 'omit' : 'include',
       })

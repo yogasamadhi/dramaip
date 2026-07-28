@@ -8,6 +8,7 @@ import {
   VIDEO_PROVIDER_KINDS,
   WRITING_ROOM_TARGET_KINDS,
 } from './constants'
+import { MAX_CHAPTER_WORD_GOAL } from './chapter-length'
 
 const id = z.string().min(1)
 const maybeId = z.string().min(1).optional()
@@ -425,7 +426,7 @@ const aiTaskInput = objectPayload.extend({
   taskType: novelTaskType,
   projectId: maybeId,
   chapterId: maybeId,
-  chapterWordGoal: z.number().int().min(1).max(100_000).optional(),
+  chapterWordGoal: z.number().int().min(1).max(MAX_CHAPTER_WORD_GOAL).optional(),
   characterId: maybeId,
   adaptationProjectId: maybeId,
   partialAdopt: z.boolean().optional(),

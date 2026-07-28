@@ -1,8 +1,19 @@
-/** 未在编辑器中另行设置时，每章正文默认目标字数。 */
-export const DEFAULT_CHAPTER_WORD_GOAL = 2000
+import {
+  chapterLengthRange,
+  countChapterCharacters,
+} from '@sdns/core'
 
-/** 章节生成允许相对目标字数上下浮动的字符数。 */
-export const CHAPTER_WORD_GOAL_TOLERANCE = 300
+export {
+  CHAPTER_WORD_GOAL_TOLERANCE,
+  DEFAULT_CHAPTER_WORD_GOAL,
+  MAX_CHAPTER_WORD_GOAL,
+  MIN_CHAPTER_WORD_GOAL,
+  chapterLengthPlan,
+  chapterLengthRange,
+  countChapterCharacters,
+  normalizeChapterWordGoal,
+  type ChapterLengthPlan,
+} from '@sdns/core'
 
 /**
  * 章节正文请求的输出 Token 上限。
@@ -12,62 +23,6 @@ export const CHAPTER_WORD_GOAL_TOLERANCE = 300
  * 最终是否合格仍以非空白字符数校验为准。
  */
 export const MAX_CHAPTER_OUTPUT_TOKENS = 8_192
-
-/** 防止异常输入把模型请求或 IPC 负载放大到不合理的程度。 */
-const MIN_CHAPTER_WORD_GOAL = 1
-const MAX_CHAPTER_WORD_GOAL = 100_000
-
-/** 将界面传入的目标字数规范化；未传入时沿用默认 2000 字。 */
-export function normalizeChapterWordGoal(wordGoal?: number): number {
-  if (!Number.isFinite(wordGoal)) return DEFAULT_CHAPTER_WORD_GOAL
-  return Math.min(MAX_CHAPTER_WORD_GOAL, Math.max(MIN_CHAPTER_WORD_GOAL, Math.round(Number(wordGoal))))
-}
-
-/** 计算本次生成可接受的字数范围，按非空白字符计，边界包含在内。 */
-export function chapterLengthRange(wordGoal?: number): { target: number; minimum: number; maximum: number } {
-  const target = normalizeChapterWordGoal(wordGoal)
-  return {
-    target,
-    minimum: Math.max(1, target - CHAPTER_WORD_GOAL_TOLERANCE),
-    maximum: target + CHAPTER_WORD_GOAL_TOLERANCE,
-  }
-}
-
-export interface ChapterLengthPlan {
-  target: number
-  minimum: number
-  maximum: number
-  preferredMinimum: number
-  preferredTarget: number
-  preferredMaximum: number
-}
-
-/**
- * 模型通常更容易超写而不是少写，因此首稿窗口主动偏向验收区间下半部。
- *
- * 以默认 2000 字为例：
- * - 最终验收：1700–2300
- * - 首稿优选：1750–1900（中心 1825）
- *
- * 即使模型比自估篇幅多写约 20%，通常仍不会撞过 2300 字红线；严格按
- * 指令生成的模型也仍处于验收范围内。
- */
-export function chapterLengthPlan(wordGoal?: number): ChapterLengthPlan {
-  const { target, minimum, maximum } = chapterLengthRange(wordGoal)
-  const lowerHalfWidth = target - minimum
-  const lowerGuard = Math.min(50, Math.floor(lowerHalfWidth / 4))
-  const upperBias = Math.min(100, Math.floor(lowerHalfWidth / 3))
-  const preferredMinimum = Math.min(maximum, minimum + lowerGuard)
-  const preferredMaximum = Math.max(preferredMinimum, target - upperBias)
-  return {
-    target,
-    minimum,
-    maximum,
-    preferredMinimum,
-    preferredTarget: Math.round((preferredMinimum + preferredMaximum) / 2),
-    preferredMaximum,
-  }
-}
 
 /**
  * 把目标字符数换算成宽松的输出 Token 预算。
@@ -93,10 +48,6 @@ export function chapterRewriteLengthGuidance(
     return `当前待改正文实测 ${sourceCount} 字。需要净补足：至少增加 ${preferredMinimum - sourceCount} 字，建议净增约 ${preferredTarget - sourceCount} 字；只补与原情节直接相关的动作、对白和必要过渡，不得新开支线。`
   }
   return `当前待改正文实测 ${sourceCount} 字，已在首稿优选区间。采用等量替换：新增钩子、冲突、爽点、对白或描写时，必须同步删去相近篇幅的低价值文字，使最终篇幅基本不增长。`
-}
-
-export function countChapterCharacters(content: string): number {
-  return content.replace(/\s/g, '').length
 }
 
 /** 返回越界原因；undefined 表示可采用。 */
