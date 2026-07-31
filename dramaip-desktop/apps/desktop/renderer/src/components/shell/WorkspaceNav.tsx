@@ -19,7 +19,7 @@ export function WorkspaceNavList({ activeSection, onSelect }: WorkspaceNavProps)
     <>
       {WORKSPACE_NAV_GROUPS.map((group) => (
         <div key={group.key} className="space-y-1">
-          <div className="px-3 pb-1 pt-2 text-base font-semibold text-foreground">{group.label}</div>
+          <div className="px-3 pb-1 pt-3 text-xs font-medium tracking-wide text-muted-foreground">{group.label}</div>
           {group.items.map((item) => {
             const active = activeSection === item.key
             return (
@@ -30,10 +30,10 @@ export function WorkspaceNavList({ activeSection, onSelect }: WorkspaceNavProps)
                 title={item.label}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                  'flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                   active
-                    ? 'bg-accent font-medium text-accent-foreground'
-                    : 'text-foreground hover:bg-accent/60 dark:!text-slate-200',
+                    ? 'bg-accent font-medium text-accent-foreground [box-shadow:inset_2px_0_0_hsl(var(--iris))]'
+                    : 'text-foreground hover:bg-accent/60',
                 )}
               >
                 {item.label}
@@ -54,7 +54,7 @@ export function WorkspaceNavDropdown({ onSelect }: WorkspaceNavProps) {
     <>
       {WORKSPACE_NAV_GROUPS.map((group) => (
         <div key={group.key} className="py-1">
-          <div className="px-2 pb-1 pt-2 text-base font-semibold text-foreground">{group.label}</div>
+          <div className="px-2 pb-1 pt-2 text-xs font-medium tracking-wide text-muted-foreground">{group.label}</div>
           {group.items.map((item) => (
             <DropdownMenuItem key={item.key} onClick={() => onSelect(item.key)}>
               {item.label}

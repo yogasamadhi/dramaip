@@ -663,7 +663,7 @@ function InspirationSchemeItemCard({
           {scheme.chapterRewriteBrief}
         </div>
         {scheme.riskNotes.length > 0 && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-900">
+          <div className="studio-status-warn rounded-md border p-2 text-xs leading-5">
             {scheme.riskNotes.join('；')}
           </div>
         )}
@@ -742,7 +742,7 @@ function InspirationCardItem({
           {card.applyTo}
         </div>
         {card.risk && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-900">
+          <div className="studio-status-warn rounded-md border p-2 text-xs leading-5">
             {card.risk}
           </div>
         )}

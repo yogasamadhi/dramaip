@@ -70,7 +70,7 @@ export function GenerationLedgerPanel({
       </div>
       {summary.totals.length > 0 && <p className="rounded border bg-background p-2.5 text-xs text-muted-foreground">项目汇总：{summary.totals.map(([currency, total]) => `${currency} 预计 ${total.estimated.toFixed(2)} · 实际 ${total.actual.toFixed(2)}`).join('；')}（未录入或不可得的费用不会按 0 计入。）</p>}
       {costs.length === 0 ? <p className="rounded border bg-background p-3 text-xs text-muted-foreground">还没有可记账的媒体任务。旧任务会在数据库升级时以“源/费用未知”的兼容谱系保留，不会被补成 0 元或已完成。</p> : (
-        <div className="overflow-hidden rounded border bg-background">
+        <div className="overflow-hidden rounded border bg-background transform-gpu">
           {costs.slice(0, 8).map((cost) => <div key={cost.id} className="flex flex-wrap items-center gap-2 border-b p-2.5 text-xs last:border-b-0">
             <WalletCards className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="font-medium">{cost.mediaType === 'video' ? '视频' : cost.mediaType}</span>

@@ -26,6 +26,11 @@ export default {
           foreground: 'hsl(var(--brand-foreground))',
           soft: 'hsl(var(--brand-soft))',
         },
+        iris: {
+          DEFAULT: 'hsl(var(--iris))',
+          foreground: 'hsl(var(--iris-foreground))',
+          soft: 'hsl(var(--iris-soft))',
+        },
         ai: {
           DEFAULT: 'hsl(var(--ai))',
           foreground: 'hsl(var(--ai-foreground))',
@@ -84,6 +89,13 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        xl: 'calc(var(--radius) + 4px)',
+        '2xl': 'calc(var(--radius) + 8px)',
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        hover: 'var(--shadow-hover)',
+        popover: 'var(--shadow-popover)',
       },
       fontFamily: {
         sans: ['var(--font-ui)'],

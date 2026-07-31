@@ -215,7 +215,7 @@ export function ScriptWorkspacePage() {
                     >
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">第 {ep.episodeNumber} 集</span>
-                        {has && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="已生成剧本" />}
+                        {has && <span className="h-1.5 w-1.5 rounded-full bg-success" title="已生成剧本" />}
                       </div>
                       <div className="truncate text-xs">{ep.title}</div>
                     </button>
@@ -528,7 +528,6 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                         key={b.type}
                         size="sm"
                         variant="ghost"
-                        className="dark:!text-slate-200"
                         disabled={busy !== null || busy2 !== null}
                         onClick={() => onTask(b.type)}
                       >
@@ -536,15 +535,15 @@ function ScriptEditor({ adaptationProjectId, sourceProjectId, episode, script, b
                         {b.label}
                       </Button>
                     ))}
-                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('run_quality_gate')}>
+                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('run_quality_gate')}>
                       <Sparkles className="h-3.5 w-3.5" />
                       质量闸门
                     </Button>
-                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('simulate_audience_reaction')}>
+                    <Button size="sm" variant="ghost" disabled={busy2 !== null} onClick={() => runCreativeScriptTask('simulate_audience_reaction')}>
                       <Sparkles className="h-3.5 w-3.5" />
                       观众模拟
                     </Button>
-                    <Button size="sm" variant="ghost" className="dark:!text-slate-200" onClick={saveScriptCheckpoint}>
+                    <Button size="sm" variant="ghost" onClick={saveScriptCheckpoint}>
                       <Pencil className="h-3.5 w-3.5" />
                       检查点
                     </Button>

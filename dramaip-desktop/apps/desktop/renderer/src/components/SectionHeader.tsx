@@ -18,9 +18,9 @@ const VARIANT_CLASS: Record<NonNullable<SectionHeaderProps['variant']>, string> 
 
 export function SectionHeader({ title, icon, actions, variant = 'sm' }: SectionHeaderProps) {
   return (
-    <div className="flex items-center gap-2 border-b px-4 py-2">
+    <div className="flex items-center gap-2 border-b px-4 py-2.5">
       {icon}
-      <h2 className={cn('font-semibold', VARIANT_CLASS[variant])}>{title}</h2>
+      <h2 className={cn('font-semibold tracking-tight', VARIANT_CLASS[variant])}>{title}</h2>
       {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
     </div>
   )

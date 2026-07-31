@@ -145,7 +145,7 @@ export function AppearanceSettingsPage() {
           <Card className="studio-ai-surface studio-card-interactive">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm"><Sparkles className="h-4 w-4 text-ai" />AI 行动</CardTitle>
-              <CardDescription>AI 用蓝色语义而非普通主按钮。</CardDescription>
+              <CardDescription>AI 行动使用全应用唯一的鸢尾紫强调色。</CardDescription>
             </CardHeader>
             <CardContent>
               <span className="inline-flex rounded-full bg-ai-soft px-2.5 py-1 text-xs font-medium text-ai">上下文已就绪</span>

@@ -176,7 +176,7 @@ export function TextDiffPreviewDialog({ open, preview, onAdopt, onCancel }: Prop
 
         <div className="flex flex-wrap items-center gap-2 border-y py-2 text-xs">
           <div className="mr-auto flex items-center gap-1 text-muted-foreground" aria-live="polite">
-            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><Plus className="h-3.5 w-3.5" />{changed.filter((block) => block.kind === 'add' || block.kind === 'replace').length}</span>
+            <span className="inline-flex items-center gap-1 text-success"><Plus className="h-3.5 w-3.5" />{changed.filter((block) => block.kind === 'add' || block.kind === 'replace').length}</span>
             <span className="inline-flex items-center gap-1 text-destructive"><Minus className="h-3.5 w-3.5" />{changed.filter((block) => block.kind === 'remove' || block.kind === 'replace').length}</span>
             <span>已选择 {selectedCount}/{changed.length} 处改动</span>
           </div>
@@ -226,7 +226,7 @@ function SideBySideDiff({ diff, selectedIds, onToggle, refs }: DiffProps) {
   return <div className="grid grid-cols-2 divide-x text-sm leading-relaxed">{diff.map((block, index) => (
     <div key={block.id} ref={(node) => { refs.current[index] = node }} className={cn('contents', block.kind !== 'same' && !selectedIds.has(block.id) && 'opacity-55')}>
       <button type="button" onClick={() => onToggle(block)} disabled={block.kind === 'same'} className={cn('min-h-16 whitespace-pre-wrap border-b p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none', block.kind === 'remove' || block.kind === 'replace' ? 'bg-destructive/10' : 'bg-muted/20')}>{block.before || <span className="text-muted-foreground">（新增段落）</span>}</button>
-      <button type="button" onClick={() => onToggle(block)} disabled={block.kind === 'same'} className={cn('min-h-16 whitespace-pre-wrap border-b p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none', block.kind === 'add' || block.kind === 'replace' ? 'bg-emerald-500/10' : 'bg-muted/20')}>{block.after || <span className="text-muted-foreground">（删除段落）</span>}</button>
+      <button type="button" onClick={() => onToggle(block)} disabled={block.kind === 'same'} className={cn('min-h-16 whitespace-pre-wrap border-b p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none', block.kind === 'add' || block.kind === 'replace' ? 'bg-success-soft' : 'bg-muted/20')}>{block.after || <span className="text-muted-foreground">（删除段落）</span>}</button>
     </div>
   ))}</div>
 }
@@ -235,7 +235,7 @@ type DiffProps = { diff: SegmentedDiffBlock[]; selectedIds: Set<string>; onToggl
 
 function DiffBlock({ block, selected, onToggle, changeRef }: { block: SegmentedDiffBlock; selected: boolean; onToggle: (block: SegmentedDiffBlock) => void; changeRef: (node: HTMLDivElement | null) => void }) {
   const changed = block.kind !== 'same'
-  return <div ref={changeRef} className={cn('rounded-md border p-3 transition-colors motion-reduce:transition-none', block.kind === 'same' && 'border-transparent bg-muted/20 text-muted-foreground', changed && selected && 'border-emerald-500/45 bg-emerald-500/10', changed && !selected && 'border-muted bg-muted/30 opacity-60')}>
+  return <div ref={changeRef} className={cn('rounded-md border p-3 transition-colors motion-reduce:transition-none', block.kind === 'same' && 'border-transparent bg-muted/20 text-muted-foreground', changed && selected && 'border-success/30 bg-success-soft', changed && !selected && 'border-muted bg-muted/30 opacity-60')}>
     <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs text-muted-foreground">{block.kind === 'same' ? '未变化' : block.kind === 'add' ? '新增段落' : block.kind === 'remove' ? '删除段落' : '替换段落'}</span>{changed && <Button type="button" size="sm" variant={selected ? 'secondary' : 'outline'} onClick={() => onToggle(block)} aria-pressed={selected}>{selected ? '采用此处' : '已拒绝'}</Button>}</div>
     {block.kind === 'replace' || block.kind === 'remove' ? <p className="whitespace-pre-wrap text-destructive line-through decoration-destructive/60">{block.before}</p> : null}
     {block.kind === 'replace' ? <div className="my-2 border-t" /> : null}

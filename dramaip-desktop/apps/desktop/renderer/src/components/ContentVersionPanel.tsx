@@ -154,7 +154,7 @@ export function ContentVersionPanel({
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge variant="outline">{SOURCE_LABEL[selected.source] ?? selected.source}</Badge>
                 <span>{formatTime(selected.createdAt)}</span>
-                <span className="inline-flex items-center gap-1 text-emerald-600">
+                <span className="inline-flex items-center gap-1 text-success">
                   <Plus className="h-3.5 w-3.5" />
                   {added}
                 </span>
@@ -174,7 +174,7 @@ export function ContentVersionPanel({
                         key={block.id}
                         className={cn(
                           'grid grid-cols-[1.75rem_1fr] gap-2 px-2 py-1',
-                          (block.kind === 'add' || block.kind === 'replace') && 'bg-emerald-500/10',
+                          (block.kind === 'add' || block.kind === 'replace') && 'bg-success-soft',
                           block.kind === 'remove' && 'bg-destructive/10 text-destructive',
                           block.kind === 'same' && 'text-muted-foreground',
                         )}

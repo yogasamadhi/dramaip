@@ -273,7 +273,7 @@ export function VideoProviderSettingsPage() {
                   />
                 </div>
                 {isFeatureGatedProvider(form.kind) && (
-                  <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+                  <div className="space-y-2 rounded-md border border-warn/30 bg-warn-soft p-3 text-xs">
                     <label className="flex cursor-pointer items-start gap-2 text-sm font-medium">
                       <input
                         type="checkbox"

@@ -39,7 +39,7 @@ export function ChapterLengthAdjustmentDialog({ open, status, adjusting, onAdjus
           <div className="rounded-md border bg-muted/40 p-3 text-sm">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-muted-foreground">当前字数</span>
-              <strong className={isLong ? 'text-destructive' : 'text-amber-700 dark:text-amber-300'}>{status.count} 字</strong>
+              <strong className={isLong ? 'text-destructive' : 'text-warn'}>{status.count} 字</strong>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-3">
               <span className="text-muted-foreground">目标 / 允许范围</span>

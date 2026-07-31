@@ -105,7 +105,7 @@ export function PilotProductionPanel({
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {truth.stages.map((stage) => (
             <div key={stage.key} className="flex items-start gap-2 rounded border p-2.5">
-              {stage.state === 'complete' ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" /> : stage.state === 'capability_gap' ? <ShieldAlert className="mt-0.5 h-4 w-4 text-muted-foreground" /> : <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />}
+              {stage.state === 'complete' ? <CheckCircle2 className="mt-0.5 h-4 w-4 text-success" /> : stage.state === 'capability_gap' ? <ShieldAlert className="mt-0.5 h-4 w-4 text-muted-foreground" /> : <AlertTriangle className="mt-0.5 h-4 w-4 text-warn" />}
               <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><span className="text-xs font-medium">{stage.label}</span><Badge variant={stageVariant(stage.state)}>{STAGE_LABEL[stage.state]}</Badge>{stage.completed !== undefined && stage.target !== undefined && <Badge variant="outline">{stage.completed}/{stage.target} 集</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{stage.detail}</p></div>
             </div>
           ))}
@@ -117,7 +117,7 @@ export function PilotProductionPanel({
         <div className="rounded-md border bg-background p-3"><div className="text-xs font-medium">任务状态</div><p className="mt-1 text-xs text-muted-foreground">进行中 {truth.activeTaskCount} 个 · 失败/取消 {truth.failedTaskCount} 个。失败详情和恢复入口在任务中心。</p></div>
       </div>
 
-      <div className="rounded-md border border-amber-500/30 bg-amber-50/40 p-3 text-xs dark:bg-amber-950/10"><div className="font-medium">全部阻塞与限制</div><ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">{truth.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>
+      <div className="rounded-md border border-warn/30 bg-warn-soft p-3 text-xs"><div className="font-medium">全部阻塞与限制</div><ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">{truth.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>
 
       {nextRange.length > 0 && (
         <div className="space-y-2 rounded-md border bg-background p-3 text-xs">

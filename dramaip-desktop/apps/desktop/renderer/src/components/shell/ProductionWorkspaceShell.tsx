@@ -106,7 +106,7 @@ export function ProductionWorkspaceShell({
                       aria-current={active ? 'step' : undefined}
                     >
                       <span className="flex items-center gap-1.5 text-xs font-medium">
-                        <span className={cn('h-2 w-2 rounded-full', item.state === 'complete' && 'bg-emerald-500', item.state === 'in_progress' && 'bg-primary', item.state === 'blocked' && 'bg-muted-foreground/45')} />
+                        <span className={cn('h-2 w-2 rounded-full', item.state === 'complete' && 'bg-success', item.state === 'in_progress' && 'bg-primary', item.state === 'blocked' && 'bg-muted-foreground/45')} />
                         {item.label}
                       </span>
                       <span className="truncate text-[10px] text-muted-foreground">{active ? '当前阶段' : `${STATE_LABEL[item.state]} · ${item.detail}`}</span>

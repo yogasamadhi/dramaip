@@ -609,7 +609,7 @@ function EpisodePlanningCard({
             {!inPilotScope && <Badge variant="outline">后续计划</Badge>}
             <span className="font-medium">{episode.title}</span>
             {hasScript && <Badge variant="secondary"><CheckCircle2 className="h-3 w-3" /> 已有剧本</Badge>}
-            {gaps.length > 0 && <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300"><CircleAlert className="h-3 w-3" /> 缺 {gaps.join('、')}</Badge>}
+            {gaps.length > 0 && <Badge variant="outline" className="border-warn/30 text-warn"><CircleAlert className="h-3 w-3" /> 缺 {gaps.join('、')}</Badge>}
           </div>
           <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{episode.summary || '尚未填写一句话梗概'}</p>
         </div>
@@ -652,7 +652,7 @@ function EpisodePlanningTable({ episodes, selectedIds, pilotEpisodeIds, scriptEp
             <td className="p-3"><div className="font-medium">第 {episode.episodeNumber} 集 · {episode.title}</div><div className="mt-1 max-w-[18rem] truncate text-muted-foreground">{episode.summary || '待补梗概'}</div></td>
             <td className="p-3"><div>{episode.hook || '待补钩子'}</div><div className="mt-1 text-muted-foreground">{episode.reversal || '待补反转'}</div></td>
             <td className="p-3"><div>{episode.mainConflict || '待补冲突'}</div><div className="mt-1 text-muted-foreground">{episode.cliffhanger || '待补悬念'}</div></td>
-            <td className="p-3">{gaps.length > 0 ? <span className="text-amber-700 dark:text-amber-300">缺 {gaps.join('、')}</span> : scriptEpisodeIds.has(episode.id) ? <span className="text-emerald-700 dark:text-emerald-300">剧本已就绪</span> : '大纲已就绪'}</td>
+            <td className="p-3">{gaps.length > 0 ? <span className="text-warn">缺 {gaps.join('、')}</span> : scriptEpisodeIds.has(episode.id) ? <span className="text-success">剧本已就绪</span> : '大纲已就绪'}</td>
             <td className="p-3 text-right"><Button size="sm" variant="ghost" onClick={() => onEdit(episode)}>编辑</Button><Button size="sm" variant="ghost" onClick={() => onOpenScript(episode.id)}>剧本</Button></td>
           </tr>
         })}</tbody>
@@ -669,7 +669,7 @@ function EpisodePaceLine({ episodes, onOpenScript }: { episodes: Episode[]; onOp
         {episodes.map((episode) => {
           const gaps = episodePlanningGaps(episode)
           return <li key={episode.id}><button className="studio-card-interactive w-full rounded-md border p-3 text-left hover:bg-accent/40" onClick={() => onOpenScript(episode.id)}>
-            <div className="flex items-center justify-between gap-2"><span className="font-medium text-sm">第 {episode.episodeNumber} 集</span><span className={cn('text-[11px]', gaps.length ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300')}>{gaps.length ? `待补 ${gaps.length} 项` : '节奏要素齐全'}</span></div>
+            <div className="flex items-center justify-between gap-2"><span className="font-medium text-sm">第 {episode.episodeNumber} 集</span><span className={cn('text-[11px]', gaps.length ? 'text-warn' : 'text-success')}>{gaps.length ? `待补 ${gaps.length} 项` : '节奏要素齐全'}</span></div>
             <div className="mt-3 grid grid-cols-3 gap-1 text-center text-[10px]"><PaceSignal label="钩子" complete={Boolean(episode.hook)} /><PaceSignal label="反转" complete={Boolean(episode.reversal)} /><PaceSignal label="悬念" complete={Boolean(episode.cliffhanger)} /></div>
             <p className="mt-2 truncate text-xs text-muted-foreground">{episode.title}</p>
           </button></li>
@@ -680,7 +680,7 @@ function EpisodePaceLine({ episodes, onOpenScript }: { episodes: Episode[]; onOp
 }
 
 function PaceSignal({ label, complete }: { label: string; complete: boolean }) {
-  return <span className={cn('rounded px-1.5 py-1', complete ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300')}>{label}<span className="sr-only">{complete ? '已填写' : '待补'}</span></span>
+  return <span className={cn('rounded px-1.5 py-1', complete ? 'bg-success-soft text-success' : 'bg-warn-soft text-warn')}>{label}<span className="sr-only">{complete ? '已填写' : '待补'}</span></span>
 }
 
 function episodePlanningGaps(episode: Episode): string[] {

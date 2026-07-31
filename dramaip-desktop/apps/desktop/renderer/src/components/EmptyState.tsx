@@ -15,8 +15,12 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
   }
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-      {icon && <div className="text-muted-foreground">{icon}</div>}
-      {title && <p className="text-sm font-medium">{title}</p>}
+      {icon && (
+        <div className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-5">
+          {icon}
+        </div>
+      )}
+      {title && <p className="text-sm font-medium tracking-tight">{title}</p>}
       {description && <p className="max-w-sm text-xs text-muted-foreground">{description}</p>}
       {action}
     </div>

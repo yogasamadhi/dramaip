@@ -115,7 +115,7 @@ export function StructuredScriptEditor({ content, disabled = false, onChange }: 
             <article
               key={block.id}
               ref={(node) => { if (node) blockRefs.current.set(index, node); else blockRefs.current.delete(index) }}
-              className={cn('group rounded-md border bg-background p-2.5 shadow-sm transition-colors motion-reduce:transition-none', block.kind === 'scene_heading' && 'border-primary/35 bg-primary/[0.035]', block.kind === 'dialogue' && 'border-sky-500/25')}
+              className={cn('group rounded-md border bg-background p-2.5 shadow-sm transition-colors motion-reduce:transition-none', block.kind === 'scene_heading' && 'border-primary/35 bg-primary/[0.035]', block.kind === 'dialogue' && 'border-iris/25')}
               data-script-block={block.kind}
               data-script-block-index={index}
               onKeyDown={(event) => handleBlockShortcut(event, block, index)}

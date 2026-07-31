@@ -160,7 +160,7 @@ export function StoryBibleChangeSetsSection({ projectId, chapter }: { projectId:
       <ScrollArea className="flex-1">
         <div className="space-y-3 p-4">
           {staleChapterIds.length > 0 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="rounded-md border border-warn/30 bg-warn-soft p-3 text-sm">
               <div className="flex items-center gap-2 font-medium"><AlertTriangle className="h-4 w-4" /> {staleChapterIds.length} 章的故事圣经或诊断需要回填</div>
               <p className="mt-1 text-xs text-muted-foreground">正文更新后，旧建议不会再被当作最新结果；可按章处理或把当前过期范围加入队列。</p>
               <Button size="sm" variant="outline" className="mt-2" onClick={() => void queueStaleRange()} disabled={busyId !== null}>

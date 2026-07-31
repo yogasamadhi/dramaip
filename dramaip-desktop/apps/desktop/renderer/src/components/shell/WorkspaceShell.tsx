@@ -80,23 +80,30 @@ export function GlobalRail() {
   }
 
   return (
-    <aside className="flex w-14 shrink-0 flex-col border-r bg-muted/30 px-1.5 py-2" aria-label="全局导航">
-      <div className="mb-2 flex h-9 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground" aria-label="短剧 IP 工作台">
+    <aside className="flex w-14 shrink-0 flex-col border-r px-1.5 py-2" aria-label="全局导航">
+      <div className="mb-2 flex h-9 items-center justify-center rounded-lg bg-primary text-[11px] font-semibold tracking-widest text-primary-foreground shadow-sm" aria-label="短剧 IP 工作台">
         IP
       </div>
       <div className="flex flex-1 flex-col gap-1">
-        {items.map(({ label, icon: Icon, path }) => (
-          <Button
-            key={path}
-            variant={isItemActive(path) ? 'secondary' : 'ghost'}
-            size="icon"
-            aria-label={label}
-            title={label}
-            onClick={() => navigate(path)}
-          >
-            <Icon />
-          </Button>
-        ))}
+        {items.map(({ label, icon: Icon, path }) => {
+          const active = isItemActive(path)
+          return (
+            <Button
+              key={path}
+              variant="ghost"
+              size="icon"
+              aria-label={label}
+              title={label}
+              onClick={() => navigate(path)}
+              className={cn(
+                'text-muted-foreground hover:text-foreground',
+                active && 'border border-border bg-surface text-foreground shadow-sm hover:bg-surface',
+              )}
+            >
+              <Icon />
+            </Button>
+          )
+        })}
       </div>
       <Button
         variant="ghost"
@@ -104,6 +111,7 @@ export function GlobalRail() {
         aria-label="切换明暗主题"
         title={`切换明暗主题（当前${resolvedTheme === 'dark' ? '暗夜' : '明亮'}）`}
         onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+        className="text-muted-foreground hover:text-foreground"
       >
         {resolvedTheme === 'dark' ? <Sun /> : <Moon />}
       </Button>
@@ -140,7 +148,7 @@ function ResizeHandle({ panel, onResize }: { panel: WorkspacePanel; onResize: (n
         onResize((event.currentTarget.parentElement?.getBoundingClientRect().width ?? 0) + (panel === 'context' ? delta : -delta))
       }}
       className={cn(
-        'absolute z-10 top-0 h-full w-2 cursor-col-resize touch-none outline-none transition-colors hover:bg-primary/20 focus-visible:bg-primary/25',
+        'absolute z-10 top-0 h-full w-2 cursor-col-resize touch-none outline-none transition-colors hover:bg-iris/20 focus-visible:bg-iris/25',
         panel === 'context' ? '-right-1' : '-left-1',
       )}
     />
@@ -186,7 +194,7 @@ export function WorkspaceShell({ title, breadcrumbs, badge, actions, context, in
               })}
             </nav>
             <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-base font-semibold">{title}</h1>
+              <h1 className="truncate text-[15px] font-semibold tracking-tight">{title}</h1>
               {badge}
             </div>
           </div>
@@ -256,7 +264,7 @@ export function WorkspaceShellState({
 }) {
   return (
     <div className="flex h-full items-center justify-center bg-background p-6 text-center">
-      <div className="max-w-md space-y-2 rounded-lg border bg-card p-6 shadow-sm">
+      <div className="max-w-md space-y-2 rounded-lg border bg-card p-6 shadow-card">
         <h1 className="text-base font-semibold">{title}</h1>
         <div className="text-sm text-muted-foreground">{children}</div>
       </div>

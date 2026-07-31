@@ -240,7 +240,7 @@ export const ChapterEditor = forwardRef<ChapterEditorHandle, ChapterEditorProps>
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-1 border-b bg-muted/30 px-3 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 border-b bg-surface px-3 py-1.5">
         <ToolbarButton isActive={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="加粗">
           <Bold />
         </ToolbarButton>

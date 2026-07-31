@@ -91,7 +91,7 @@ export function CloudAccountSettingsPage() {
         ) : status?.signedIn ? (
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-600" />
+              <ShieldCheck className="mt-0.5 h-5 w-5 text-success" />
               <div className="text-sm">
                 <p className="font-medium">已登录 {status.user?.name || status.user?.email}</p>
                 <p className="mt-1 text-muted-foreground">访问凭据只驻留主进程内存；刷新凭据保存在应用本地凭据文件。</p>
@@ -109,7 +109,7 @@ export function CloudAccountSettingsPage() {
               {busy ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}
               使用浏览器登录云端
             </Button>
-            {status?.error ? <p className="text-sm text-amber-700">{status.error}</p> : null}
+            {status?.error ? <p className="text-sm text-warn">{status.error}</p> : null}
           </div>
         )}
         {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}

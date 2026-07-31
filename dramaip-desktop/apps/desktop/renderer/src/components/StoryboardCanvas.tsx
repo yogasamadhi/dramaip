@@ -78,7 +78,7 @@ export function StoryboardCanvas({ shots, activeShotId, assetsByShot, busy = fal
               draggable={!busy}
               aria-current={active ? 'true' : undefined}
               data-storyboard-shot={shot.id}
-              className={cn('group relative overflow-hidden rounded-md border bg-background text-left shadow-sm outline-none transition-colors hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none', active && 'border-primary ring-1 ring-primary/40', draggingId === shot.id && 'opacity-55')}
+              className={cn('group relative overflow-hidden rounded-md border bg-background text-left shadow-sm outline-none transition-colors transform-gpu hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none', active && 'border-primary ring-1 ring-primary/40', draggingId === shot.id && 'opacity-55')}
               onClick={() => onSelect(shot.id)}
               onDragStart={(event) => {
                 if (busy) return
@@ -100,7 +100,7 @@ export function StoryboardCanvas({ shots, activeShotId, assetsByShot, busy = fal
                 void reorder(nudgeStoryboardShot(shots.map((item) => item.id), shot.id, event.key === 'ArrowLeft' ? -1 : 1))
               }}
             >
-              <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-primary/25 via-muted to-sky-500/15">
+              <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-primary/25 via-muted to-iris/15">
                 {imageUrl ? (
                   <img src={imageUrl} alt={`镜头 ${index + 1} ${image?.title ?? '素材缩略图'}`} className="h-full w-full object-cover" />
                 ) : (

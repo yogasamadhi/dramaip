@@ -1092,10 +1092,10 @@ export function WorkspacePage() {
                           title={item.label}
                           aria-current={active ? 'page' : undefined}
                           className={cn(
-                            'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            'flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                             active
-                              ? 'bg-accent font-medium text-accent-foreground'
-                              : 'text-foreground hover:bg-accent/60 dark:!text-slate-200',
+                              ? 'bg-accent font-medium text-accent-foreground [box-shadow:inset_2px_0_0_hsl(var(--iris))]'
+                              : 'text-foreground hover:bg-accent/60',
                             isChapterEntry && 'font-medium',
                           )}
                         >
@@ -1279,7 +1279,7 @@ export function WorkspacePage() {
           {section === 'overview' && (
             <ScrollArea ref={overviewScrollRef} className="h-full">
               <div className="space-y-3 p-6 text-sm">
-                <h2 className="text-lg font-semibold">{project.title}</h2>
+                <h2 className="text-lg font-semibold tracking-tight">{project.title}</h2>
                 <div className="grid gap-2 rounded-md border bg-muted/30 p-3 md:grid-cols-3">
                   <div><div className="text-xs text-muted-foreground">当前结果</div><div className="font-medium">{chapters.length} 章 · {chapters.reduce((sum, chapter) => sum + chapter.content.replace(/\s/g, '').length, 0).toLocaleString('zh-CN')} 字</div></div>
                   <div><div className="text-xs text-muted-foreground">主要下一步</div><div className="font-medium">{workflowStages.find((stage) => !stage.complete)?.actionLabel ?? '检查交付内容'}</div></div>
@@ -1296,7 +1296,7 @@ export function WorkspacePage() {
                         {workflowStages.filter((stage) => stage.complete).length}/{workflowStages.length}
                       </Badge>
                     </div>
-                    <div className="overflow-hidden rounded-md border">
+                    <div className="overflow-hidden rounded-md border transform-gpu">
                       {workflowStages.map((stage, index) => (
                         <WorkflowStageRow
                           key={stage.key}
@@ -1643,7 +1643,7 @@ function TaskZonePanel({
     <ScrollArea className="h-full">
       <div className="mx-auto max-w-3xl space-y-4 p-6">
         <div>
-          <h2 className="text-xl font-semibold">{title}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

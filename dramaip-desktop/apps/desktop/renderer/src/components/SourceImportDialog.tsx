@@ -172,8 +172,8 @@ export function SourceImportDialog({ projectId, open, onOpenChange, onImported }
                 <span className="text-xs text-muted-foreground">{contentSummary} · {preview.charCount.toLocaleString('zh-CN')} 字符</span>
                 <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void chooseFile()} disabled={choosing}>重新选择</Button>
               </div>
-              {preview.warnings.map((warning) => <p key={warning} className="rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-800 dark:text-amber-200">{warning}</p>)}
-              {hasDuplicates && <p className="rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-800 dark:text-amber-200">发现重复：{duplicates.chapters.length ? `${duplicates.chapters.length} 个同名章节` : ''}{duplicates.chapters.length && duplicates.episodes.length ? '；' : ''}{duplicates.episodes.length ? `${duplicates.episodes.length} 个同集号剧本` : ''}。默认会新建，不覆盖已有内容。</p>}
+              {preview.warnings.map((warning) => <p key={warning} className="rounded bg-warn-soft px-2 py-1 text-xs text-warn">{warning}</p>)}
+              {hasDuplicates && <p className="rounded bg-warn-soft px-2 py-1 text-xs text-warn">发现重复：{duplicates.chapters.length ? `${duplicates.chapters.length} 个同名章节` : ''}{duplicates.chapters.length && duplicates.episodes.length ? '；' : ''}{duplicates.episodes.length ? `${duplicates.episodes.length} 个同集号剧本` : ''}。默认会新建，不覆盖已有内容。</p>}
               <p className="text-xs text-muted-foreground">{writeSummary}</p>
             </div>
 
@@ -224,7 +224,7 @@ export function SourceImportDialog({ projectId, open, onOpenChange, onImported }
                   <option value="replace">覆盖同名内容</option>
                 </select>
               </label>
-              {strategy !== 'append' && <label className="flex items-start gap-2 text-amber-800 dark:text-amber-200"><input type="checkbox" checked={destructiveConfirmed} onChange={(event) => setDestructiveConfirmed(event.target.checked)} className="mt-0.5" />我理解这会修改已有内容；系统会先创建可恢复的检查点。</label>}
+              {strategy !== 'append' && <label className="flex items-start gap-2 text-warn"><input type="checkbox" checked={destructiveConfirmed} onChange={(event) => setDestructiveConfirmed(event.target.checked)} className="mt-0.5" />我理解这会修改已有内容；系统会先创建可恢复的检查点。</label>}
               <p className="text-muted-foreground">写入在一个事务中完成：取消、解析失败或中途出错都不会留下部分章节、分集或场景。导入后只提供建议，绝不自动采用人物、大纲或故事设定。</p>
             </div>
           </div>

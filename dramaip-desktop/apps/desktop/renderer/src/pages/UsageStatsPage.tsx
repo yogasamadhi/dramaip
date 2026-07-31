@@ -74,7 +74,7 @@ export function UsageStatsPage() {
               <Card>
                 <CardContent className="p-4">
                   <div className="text-xs text-muted-foreground">成功调用</div>
-                  <div className="text-2xl font-semibold text-green-600">{totalSuccess}</div>
+                  <div className="text-2xl font-semibold text-success">{totalSuccess}</div>
                 </CardContent>
               </Card>
               <Card>
