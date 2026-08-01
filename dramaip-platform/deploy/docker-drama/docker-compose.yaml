@@ -984,6 +984,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
       JWT_JWK_SET_URI: ${JWT_JWK_SET_URI:-http://identity:8080/.well-known/jwks.json}
       JWT_ENABLED: ${JWT_ENABLED:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3010}
       DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
     ports: ["8080:8080"]
     depends_on: { nacos: { condition: service_healthy }, java-migration: { condition: service_completed_successfully } }

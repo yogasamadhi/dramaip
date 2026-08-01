@@ -3,6 +3,7 @@ package com.dramaip.platform.gateway;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.Authentication;
@@ -28,7 +29,10 @@ class GatewaySecurityConfiguration {
     @Bean
     SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http, ServerAuthenticationConverter browserBearerTokenConverter) {
         return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchange -> exchange.pathMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/payment-webhooks/**").permitAll().anyExchange().authenticated())
+                .authorizeExchange(exchange -> exchange
+                        .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .pathMatchers("/actuator/**", "/api/v1/auth/**", "/api/v1/admin/auth/**", "/api/v1/payment-webhooks/**").permitAll()
+                        .anyExchange().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer.bearerTokenConverter(browserBearerTokenConverter).jwt(jwt -> { }))
                 .build();
     }

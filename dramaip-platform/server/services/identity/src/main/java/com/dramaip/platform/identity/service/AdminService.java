@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -42,7 +43,7 @@ public class AdminService {
         Principal publicPrincipal = publicPrincipal(principal);
         if (publicPrincipal.permissions().isEmpty()) throw new BusinessException("IDENTITY_ADMIN_ROLE_REQUIRED", "admin role is required", HttpStatus.FORBIDDEN);
         TokenService.AdminAccessToken issued = tokens.adminAccessToken(principal.id(), principal.email(), principal.roles());
-        jdbc.update("insert into admin.sessions(id, principal_id, token_id_hash, expires_at) values (?::uuid, ?::uuid, ?, ?::timestamptz)", UUID.randomUUID().toString(), principal.id(), hash(issued.tokenId()), issued.expiresAt());
+        jdbc.update("insert into admin.sessions(id, principal_id, token_id_hash, expires_at) values (?::uuid, ?::uuid, ?, ?::timestamptz)", UUID.randomUUID().toString(), principal.id(), hash(issued.tokenId()), Timestamp.from(issued.expiresAt()));
         return new Login(issued.token(), Math.max(1, ChronoUnit.SECONDS.between(Instant.now(), issued.expiresAt())), publicPrincipal);
     }
 
@@ -78,7 +79,7 @@ public class AdminService {
         jdbc.update("""
                 insert into admin.confirmations(id, actor_id, action, target_id, reason, expires_at)
                 values (?::uuid, ?::uuid, ?, ?::uuid, ?, ?::timestamptz)
-                """, id, actor.id(), normalizedAction, normalizedTarget, normalizedReason, expiresAt);
+                """, id, actor.id(), normalizedAction, normalizedTarget, normalizedReason, Timestamp.from(expiresAt));
         return new Confirmation(id, normalizedAction, normalizedTarget, expiresAt);
     }
 
