@@ -95,6 +95,10 @@ def request_shutdown(signum: int, _frame: object) -> None:
 def install_shutdown_handlers() -> None:
     signal.signal(signal.SIGINT, request_shutdown)
     signal.signal(signal.SIGTERM, request_shutdown)
+    if platform.system() == "Windows" and hasattr(signal, "SIGBREAK"):
+        # Some Windows terminals deliver Ctrl+Break-style console events for
+        # an interrupt. Handle it exactly like Ctrl+C.
+        signal.signal(signal.SIGBREAK, request_shutdown)
 
 
 def shutdown_reason() -> str:
@@ -368,7 +372,9 @@ def start_process(name: str, cmd: list[str], env: dict[str, str]) -> subprocess.
     options: dict[str, object] = {"cwd": str(CLIENTS_DIR), "env": env}
     command: list[str] | str = cmd
     if platform.system() == "Windows":
-        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        # Keep the clients in the launcher's console process group. Creating a
+        # separate group here can prevent Ctrl+C from reaching the Python
+        # launcher reliably in PowerShell/Windows Terminal.
         options["shell"] = True
         command = subprocess.list2cmdline(cmd)
     else:
