@@ -369,12 +369,21 @@ def release_port(port: int, label: str, kill_ports: bool) -> None:
 
 def start_process(name: str, cmd: list[str], env: dict[str, str]) -> subprocess.Popen:
     info(f"Starting {name}: {' '.join(cmd)}")
-    options: dict[str, object] = {"cwd": str(CLIENTS_DIR), "env": env}
+    options: dict[str, object] = {
+        "cwd": str(CLIENTS_DIR),
+        "env": env,
+        # Expo and other Node CLIs enable interactive/raw console input when
+        # they inherit the terminal. That can turn Ctrl+C into an input byte
+        # consumed by a child instead of a signal received by this launcher.
+        # Keep stdout/stderr visible, but reserve terminal input for Python.
+        "stdin": subprocess.DEVNULL,
+    }
     command: list[str] | str = cmd
     if platform.system() == "Windows":
-        # Keep the clients in the launcher's console process group. Creating a
-        # separate group here can prevent Ctrl+C from reaching the Python
-        # launcher reliably in PowerShell/Windows Terminal.
+        # Isolate each client from console control events. Combined with the
+        # DEVNULL stdin above, Ctrl+C remains owned by the Python launcher,
+        # which can then terminate every client tree in its finally block.
+        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         options["shell"] = True
         command = subprocess.list2cmdline(cmd)
     else:
