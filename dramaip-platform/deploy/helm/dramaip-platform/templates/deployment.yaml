@@ -35,6 +35,7 @@
   "billingJob" (dict "user" "dramaip_billing" "passwordKey" "POSTGRES_BILLING_PASSWORD")
   "quotaJob" (dict "user" "dramaip_quota" "passwordKey" "POSTGRES_QUOTA_PASSWORD")
 -}}
+{{- if .Values.legacy.enabled }}
 {{- range $index, $workload := $workloads }}
 {{- $key := index $workload "key" }}
 {{- $databaseRole := index $databaseRoles $key }}
@@ -47,6 +48,7 @@
 {{- if eq $key "webBff" }}
 {{- $healthPath = "/v1/healthz" }}
 {{- $metricsPath = "/v1/metrics" }}
+{{- end }}
 {{- end }}
 {{- if $index }}
 ---

@@ -38,7 +38,7 @@ same file configured as `JWT_JWKS_FILE`) on the release host, then render a
 Kong declaration containing the active and retained RS256 public keys:
 
 ```bash
-cd dramaip-platform/services
+cd dramaip-platform/legacy/go-services
 go run ./cmd/kong-jwt-config \
   -template ../deploy/kong/kong.yml \
   -jwks /secure/auth/jwks.json \

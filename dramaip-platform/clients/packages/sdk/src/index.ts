@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from 'axios'
 import { z } from 'zod'
-import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, AccountBootstrapQuerySchema, ListQuerySchema, UsageTrendQuerySchema, type AccountBootstrapQuery } from './contracts'
+import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, AccountBootstrapQuerySchema, ListQuerySchema, ResultSchema, UsageTrendQuerySchema, type AccountBootstrapQuery } from './contracts'
 
 export * from './contracts'
 
@@ -284,6 +284,133 @@ export const AccountBootstrapSchema = z.object({
 
 export type AccountBootstrap = z.infer<typeof AccountBootstrapSchema>
 
+const JavaProfileSchema = z.object({
+  id: z.string(), email: z.string(), phone: z.string().nullish(), status: z.string(), displayName: z.string().nullish(),
+  avatarUrl: z.string().nullish(), locale: z.string().nullish(), timezone: z.string().nullish(),
+})
+const JavaSubscriptionSchema = z.object({
+  id: z.string(), planId: z.string(), planCode: z.string(), planName: z.string(), provider: z.string(), status: z.string(),
+  currentPeriodStart: z.string(), currentPeriodEnd: z.string(), cancelAtPeriodEnd: z.boolean(),
+  renewalPlanCode: z.string().nullish(), entitlements: z.string().default('{}'),
+})
+const JavaTokenBalanceSchema = z.object({
+  planCode: z.string(), quotaTokens: z.number(), usedTokens: z.number(), remainingTokens: z.number(),
+  periodStart: z.string(), periodEnd: z.string(),
+})
+const JavaOrderSchema = z.object({
+  id: z.string(), planId: z.string(), planCode: z.string(), status: z.string(), provider: z.string(), amountMinor: z.number(),
+  currency: z.string(), createdAt: z.string(), paidAt: z.string().nullish(), paymentUrl: z.string().nullish(),
+  paymentExpiresAt: z.string().nullish(), subscriptionId: z.string().nullish(),
+})
+const JavaTokenUsageSchema = z.object({
+  id: z.string(), requestId: z.string(), model: z.string(), promptTokens: z.number(), completionTokens: z.number(),
+  totalTokens: z.number(), status: z.string(), createdAt: z.string(),
+})
+const JavaUsageTrendPointSchema = z.object({ date: z.string(), totalTokens: z.number() })
+const JavaNotificationSchema = z.object({
+  id: z.string(), type: z.string(), title: z.string(), body: z.string(), sourceEventId: z.string().nullish(),
+  readAt: z.string().nullish(), createdAt: z.string(),
+})
+
+function profileFromJava(value: unknown): Profile {
+  const item = JavaProfileSchema.parse(value)
+  return ProfileSchema.parse({
+    id: item.id, email: item.email, phone: item.phone ?? '', status: item.status, display_name: item.displayName ?? '',
+    avatar_url: item.avatarUrl ?? '', locale: item.locale ?? '', timezone: item.timezone ?? '',
+  })
+}
+
+function subscriptionFromJava(value: unknown): Subscription {
+  const item = JavaSubscriptionSchema.parse(value)
+  let entitlements: PlanEntitlements | undefined
+  try {
+    const parsed = PlanEntitlementsSchema.safeParse(JSON.parse(item.entitlements))
+    if (parsed.success) entitlements = parsed.data
+  } catch {
+    // A malformed historical snapshot must not make the whole account page unavailable.
+  }
+  return SubscriptionSchema.parse({
+    id: item.id, plan_id: item.planId, plan_code: item.planCode, status: item.status,
+    current_period_start: item.currentPeriodStart, current_period_end: item.currentPeriodEnd,
+    cancel_at_period_end: item.cancelAtPeriodEnd, renewal_plan_code: item.renewalPlanCode ?? '', entitlements,
+  })
+}
+
+function tokenBalanceFromJava(value: unknown): TokenBalance {
+  const item = JavaTokenBalanceSchema.parse(value)
+  return TokenBalanceSchema.parse({
+    plan: item.planCode, quota_tokens: item.quotaTokens, used_tokens: item.usedTokens,
+    remaining_tokens: item.remainingTokens, period_start: item.periodStart, period_end: item.periodEnd,
+  })
+}
+
+function orderFromJava(value: unknown): Order {
+  const item = JavaOrderSchema.parse(value)
+  return OrderSchema.parse({
+    id: item.id, plan_id: item.planId, plan_code: item.planCode, provider: item.provider,
+    amount: (item.amountMinor / 100).toFixed(2), currency: item.currency, status: item.status,
+    payment_url: item.paymentUrl ?? '', created_at: item.createdAt, expires_at: item.paymentExpiresAt ?? '',
+    paid_at: item.paidAt ?? undefined, subscription_id: item.subscriptionId || undefined,
+  })
+}
+
+function ordersFromJava(value: unknown): OrdersResponse {
+  return OrdersResponseSchema.parse({ orders: z.array(JavaOrderSchema).parse(value).map(orderFromJava) })
+}
+
+function tokenUsageFromJava(value: unknown): TokenUsageResponse {
+  const usage = z.array(JavaTokenUsageSchema).parse(value).map((item) => TokenUsageSchema.parse({
+    id: item.id, request_id: item.requestId, model: item.model, prompt_tokens: item.promptTokens,
+    completion_tokens: item.completionTokens, total_tokens: item.totalTokens, status: item.status, created_at: item.createdAt,
+  }))
+  return TokenUsageResponseSchema.parse({ usage })
+}
+
+function usageTrendFromJava(value: unknown): UsageTrendResponse {
+  const points = z.array(JavaUsageTrendPointSchema).parse(value).map((item) => ({ date: item.date, total_tokens: item.totalTokens }))
+  return UsageTrendResponseSchema.parse({ points })
+}
+
+function notificationFromJava(value: unknown): Notification {
+  const item = JavaNotificationSchema.parse(value)
+  return NotificationSchema.parse({
+    id: item.id, type: item.type, title: item.title, body: item.body, source_event_id: item.sourceEventId ?? '',
+    read_at: item.readAt ?? '', created_at: item.createdAt,
+  })
+}
+
+function notificationsFromJava(value: unknown): NotificationsResponse {
+  const items = z.array(JavaNotificationSchema).parse(value)
+  return NotificationsResponseSchema.parse({
+    notifications: items.map(notificationFromJava), unread_count: items.filter((item) => !item.readAt).length,
+  })
+}
+
+type AccountSection<T> = {
+  status: 'ready' | 'unavailable'
+  last_updated: string
+  trace_id: string
+  error_code: string
+  data?: T
+}
+
+function errorEnvelopeField(error: unknown, field: 'code' | 'traceId'): string {
+  if (!axios.isAxiosError(error) || !error.response?.data || typeof error.response.data !== 'object') return ''
+  const value = (error.response.data as Record<string, unknown>)[field]
+  return typeof value === 'string' ? value : ''
+}
+
+async function accountSection<T>(lastUpdated: string, load: () => Promise<T>): Promise<AccountSection<T>> {
+  try {
+    return { status: 'ready', last_updated: lastUpdated, trace_id: '', error_code: '', data: await load() }
+  } catch (error) {
+    return {
+      status: 'unavailable', last_updated: lastUpdated, trace_id: errorEnvelopeField(error, 'traceId'),
+      error_code: errorEnvelopeField(error, 'code') || 'COMMON_SECTION_UNAVAILABLE',
+    }
+  }
+}
+
 export const LogoutResponseSchema = z.object({
   ok: z.boolean(),
 })
@@ -425,6 +552,24 @@ export const ReviewPackageSchema = z.object({
 })
 export type ReviewPackage = z.infer<typeof ReviewPackageSchema>
 
+// Review pages retain their existing display model while the v2 resource API uses camelCase.
+const JavaReviewMediaSchema = z.object({
+  id: z.string(), relativePath: z.string(), mimeType: z.string(), sizeBytes: z.number().nonnegative(), sha256: z.string(), status: z.string(),
+  downloadUrl: z.string().nullable().optional(), downloadUrlExpiresAt: z.string().nullable().optional(),
+})
+const JavaReviewPackageSchema = z.object({
+  id: z.string(), workspaceId: z.string(), desktopPackageId: z.string(), title: z.string(), status: z.string(), manifestJson: z.string(),
+  storageBytes: z.number().nonnegative(), syncCursor: z.number().int().nonnegative(), expiresAt: z.string(), createdAt: z.string(), media: z.array(JavaReviewMediaSchema),
+})
+function reviewPackageFromJava(value: unknown): ReviewPackage {
+  const item = JavaReviewPackageSchema.parse(value)
+  return ReviewPackageSchema.parse({
+    id: item.id, workspace_id: item.workspaceId, desktop_package_id: item.desktopPackageId, title: item.title, status: item.status,
+    manifest_json: item.manifestJson, storage_bytes: item.storageBytes, sync_cursor: item.syncCursor, expires_at: item.expiresAt, created_at: item.createdAt,
+    media: item.media.map((media) => ({ id: media.id, relative_path: media.relativePath, mime_type: media.mimeType, size_bytes: media.sizeBytes, sha256: media.sha256, status: media.status, download_url: media.downloadUrl ?? '', download_url_expires_at: media.downloadUrlExpiresAt ?? '' })),
+  })
+}
+
 export const ReviewCommentSchema = z.object({
   id: z.string(),
   package_id: z.string(),
@@ -453,18 +598,87 @@ export const ReviewDecisionSchema = z.object({
 })
 export type ReviewDecision = z.infer<typeof ReviewDecisionSchema>
 
+const JavaReviewCommentSchema = z.object({
+  id: z.string(), packageId: z.string(), clientId: z.string(), shotId: z.string(), timecodeSeconds: z.number().nonnegative(), authorAlias: z.string(), body: z.string(), resolved: z.boolean(), cursor: z.number().int().nonnegative(), createdAt: z.string(), updatedAt: z.string(),
+})
+const JavaReviewDecisionSchema = z.object({
+  id: z.string(), packageId: z.string(), clientId: z.string(), shotId: z.string(), decision: z.enum(['approve', 'return', 'request_changes', 'note']), authorAlias: z.string(), note: z.string(), cursor: z.number().int().nonnegative(), createdAt: z.string(),
+})
+function javaReviewComment(value: unknown): ReviewComment {
+  const item = JavaReviewCommentSchema.parse(value)
+  return { id: item.id, package_id: item.packageId, client_id: item.clientId, shot_id: item.shotId, timecode_seconds: item.timecodeSeconds, author_alias: item.authorAlias, body: item.body, resolved: item.resolved, cursor: item.cursor, created_at: item.createdAt, updated_at: item.updatedAt }
+}
+function javaReviewDecision(value: unknown): ReviewDecision {
+  const item = JavaReviewDecisionSchema.parse(value)
+  return { id: item.id, package_id: item.packageId, client_id: item.clientId, shot_id: item.shotId, decision: item.decision, author_alias: item.authorAlias, note: item.note, cursor: item.cursor, created_at: item.createdAt }
+}
+
 export interface ApiClientOptions {
   baseURL: string
   getAccessToken?: () => string | undefined | Promise<string | undefined>
   getDeviceID?: () => string | undefined | Promise<string | undefined>
   getCSRFToken?: () => string | undefined | Promise<string | undefined>
   withCredentials?: boolean
+  /**
+   * Web is the only public client that exchanges credentials for an HttpOnly
+   * Cookie session. Native clients keep using the token response contract.
+   */
+  webSession?: boolean
 }
 
 export function resolveApiRequestURL(baseURL: string, path: string): string {
   const normalizedPath = `/${path.replace(/^\/+/, '')}`
   const normalizedBaseURL = baseURL.trim().replace(/\/+$/, '')
   return normalizedBaseURL ? `${normalizedBaseURL}${normalizedPath}` : normalizedPath
+}
+
+/** Maps the retired BFF-shaped URLs to the v2 resource owners at one boundary. */
+export function resourcePath(path: string): string {
+  const normalized = `/${path.replace(/^\/+/, '')}`
+  if (normalized.startsWith('/api/v1/')) return normalized
+  const exact: Record<string, string> = {
+    '/v1/healthz': '/internal/v1/health',
+    '/v1/plans': '/api/v1/plans',
+    '/v1/me/profile': '/api/v1/users/me/profile',
+    '/v1/me/dashboard': '/api/v1/users/me/context',
+    '/v1/me/account-bootstrap': '/api/v1/users/me/context',
+    '/v1/me/account-report': '/api/v1/reports/me',
+    '/v1/me/token-balance': '/api/v1/quota/balance',
+    '/v1/me/subscription': '/api/v1/subscriptions/current',
+    '/v1/me/token-usage': '/api/v1/quota/usage',
+    '/v1/me/usage-trend': '/api/v1/quota/usage/trend',
+    '/v1/me/notifications': '/api/v1/notifications',
+    '/v1/me/workspaces': '/api/v1/workspaces',
+    '/v1/billing/checkout': '/api/v1/orders',
+    '/v1/billing/payments/simulated/confirm': '/api/v1/payments/simulated/confirm',
+    '/v1/billing/sandbox/confirm-payment': '/api/v1/payments/simulated/confirm',
+    '/v1/subscription/cancel': '/api/v1/subscriptions/current/cancel',
+    '/v1/subscription/resume': '/api/v1/subscriptions/current/resume',
+    '/v1/subscription/change-plan': '/api/v1/subscriptions/current/plan',
+    '/v1/subscription/refund': '/api/v1/refunds',
+    '/v1/ai/models': '/api/v1/models',
+    '/v1/ai/preflight': '/api/v1/preflight',
+    '/v1/ai/chat': '/api/v1/chats',
+    '/v1/ai/chat/cancel': '/api/v1/cancel',
+    '/v1/ai/chat/status': '/api/v1/chats/status',
+    '/v1/review/package': '/api/v1/review-packages',
+    '/v1/review/comments': '/api/v1/review-packages/comments',
+    '/v1/review/decisions': '/api/v1/review-packages/decisions',
+  }
+  if (exact[normalized]) return exact[normalized]
+  const auth: Record<string, string> = {
+    '/v1/auth/login': '/api/v1/auth/token',
+    '/v1/auth/refresh': '/api/v1/auth/token/refresh',
+    '/v1/auth/logout': '/api/v1/auth/token/revoke',
+    '/v1/auth/session': '/api/v1/auth/session',
+  }
+  if (auth[normalized]) return auth[normalized]
+  if (normalized.startsWith('/v1/auth/')) return `/api/v1/auth/${normalized.slice('/v1/auth/'.length)}`
+  if (normalized.startsWith('/v1/admin/')) return `/api/v1/admin/${normalized.slice('/v1/admin/'.length)}`
+  if (normalized.startsWith('/v1/me/orders')) return `/api/v1/orders${normalized.slice('/v1/me/orders'.length)}`
+  if (normalized.startsWith('/v1/me/notifications/')) return `/api/v1/notifications/${normalized.slice('/v1/me/notifications/'.length)}`
+  if (normalized.startsWith('/v1/me/workspaces/')) return `/api/v1/workspaces/${normalized.slice('/v1/me/workspaces/'.length)}`
+  return normalized
 }
 
 export interface DramaIpApiClient {
@@ -523,14 +737,24 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
   const http = axios.create({ baseURL: options.baseURL, withCredentials: options.withCredentials ?? false })
 
   http.interceptors.request.use(async (config) => {
+    if (config.url) config.url = resourcePath(config.url)
     config.headers[API_CONTRACT_HEADER] = API_CONTRACT_VERSION
+    config.headers['X-Request-Id'] = globalThis.crypto?.randomUUID?.() ?? `sdk-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const token = await options.getAccessToken?.()
     if (token) config.headers.Authorization = `Bearer ${token}`
     const deviceID = await options.getDeviceID?.()
     if (deviceID) config.headers['X-Device-Id'] = deviceID
     const csrfToken = await options.getCSRFToken?.()
     if (csrfToken) config.headers['X-CSRF-Token'] = csrfToken
+    if (options.webSession) config.headers['X-DramaIP-Web-Session'] = '1'
     return config
+  })
+
+  http.interceptors.response.use((response) => {
+    const envelope = ResultSchema(z.unknown()).parse(response.data)
+    if (envelope.code !== 'OK') throw new Error(`${envelope.code}: ${envelope.message}`)
+    response.data = envelope.data
+    return response
   })
 
   return {
@@ -573,11 +797,13 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     },
     async getProfile() {
       const res = await http.get('/v1/me/profile')
-      return ProfileSchema.parse(res.data)
+      return profileFromJava(res.data)
     },
     async updateProfile(input) {
-      const res = await http.patch('/v1/me/profile', input)
-      return ProfileSchema.parse(res.data)
+      const res = await http.patch('/v1/me/profile', {
+        displayName: input.display_name, avatarUrl: input.avatar_url, locale: input.locale, timezone: input.timezone,
+      })
+      return profileFromJava(res.data)
     },
     async getDashboard() {
       const res = await http.get('/v1/me/dashboard')
@@ -585,39 +811,52 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     },
     async getTokenBalance() {
       const res = await http.get('/v1/me/token-balance')
-      return TokenBalanceSchema.parse(res.data)
+      return tokenBalanceFromJava(res.data)
     },
     async getSubscription() {
       const res = await http.get('/v1/me/subscription')
-      return SubscriptionSchema.parse(res.data)
+      return subscriptionFromJava(res.data)
     },
     async getOrders() {
       const res = await http.get('/v1/me/orders')
-      return OrdersResponseSchema.parse(res.data)
+      return ordersFromJava(res.data)
     },
     async getOrder(orderID) {
       const res = await http.get(`/v1/me/orders/${encodeURIComponent(orderID)}`)
-      return OrderSchema.parse(res.data)
+      return orderFromJava(res.data)
     },
     async getTokenUsage(input = {}) {
       const res = await http.get('/v1/me/token-usage', { params: ListQuerySchema.parse(input) })
-      return TokenUsageResponseSchema.parse(res.data)
+      return tokenUsageFromJava(res.data)
     },
     async getUsageTrend(input = {}) {
       const res = await http.get('/v1/me/usage-trend', { params: UsageTrendQuerySchema.parse(input) })
-      return UsageTrendResponseSchema.parse(res.data)
+      return usageTrendFromJava(res.data)
     },
     async getNotifications() {
       const res = await http.get('/v1/me/notifications')
-      return NotificationsResponseSchema.parse(res.data)
+      return notificationsFromJava(res.data)
     },
     async markNotificationRead(notificationID) {
       const res = await http.post(`/v1/me/notifications/${encodeURIComponent(notificationID)}/read`)
-      return NotificationSchema.parse(res.data)
+      return notificationFromJava(res.data)
     },
     async getAccountBootstrap(input = {}) {
-      const res = await http.get('/v1/me/account-bootstrap', { params: AccountBootstrapQuerySchema.parse(input) })
-      return AccountBootstrapSchema.parse(res.data)
+      const query = AccountBootstrapQuerySchema.parse(input)
+      const generatedAt = new Date().toISOString()
+      const [profile, subscription, tokenBalance, orders, usage, usageTrend, notifications] = await Promise.all([
+        accountSection(generatedAt, async () => profileFromJava((await http.get('/v1/me/profile')).data)),
+        accountSection(generatedAt, async () => subscriptionFromJava((await http.get('/v1/me/subscription')).data)),
+        accountSection(generatedAt, async () => tokenBalanceFromJava((await http.get('/v1/me/token-balance')).data)),
+        accountSection(generatedAt, async () => ordersFromJava((await http.get('/v1/me/orders')).data)),
+        accountSection(generatedAt, async () => tokenUsageFromJava((await http.get('/v1/me/token-usage', { params: { limit: query.usage_limit } })).data)),
+        accountSection(generatedAt, async () => usageTrendFromJava((await http.get('/v1/me/usage-trend', { params: { days: query.trend_days } })).data)),
+        accountSection(generatedAt, async () => notificationsFromJava((await http.get('/v1/me/notifications')).data)),
+      ])
+      return AccountBootstrapSchema.parse({
+        generated_at: generatedAt, cache_ttl_seconds: 30, usage_limit: query.usage_limit, trend_days: query.trend_days,
+        sections: { profile, subscription, token_balance: tokenBalance, orders, usage, usage_trend: usageTrend, notifications },
+      })
     },
     async getAccountReport() {
       const res = await http.get('/v1/me/account-report')
@@ -689,20 +928,22 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       return WorkspaceMemberSchema.parse(res.data)
     },
     async getPublicReview(input) {
-      const res = await http.post('/v1/review/package', input)
-      return z.object({ package: ReviewPackageSchema }).parse(res.data)
+      const res = await http.get(`/api/v1/review-packages/public/${encodeURIComponent(input.token)}`, { params: input.pin ? { pin: input.pin } : undefined })
+      return { package: reviewPackageFromJava(res.data) }
     },
     async submitPublicReviewComment(input) {
-      const res = await http.post('/v1/review/comments', input, {
+      const { token, ...body } = input
+      const res = await http.post(`/api/v1/review-packages/public/${encodeURIComponent(token)}/comments`, body, {
         headers: { 'Idempotency-Key': input.client_id },
       })
-      return ReviewCommentSchema.parse(res.data)
+      return ReviewCommentSchema.parse(javaReviewComment(res.data))
     },
     async submitPublicReviewDecision(input) {
-      const res = await http.post('/v1/review/decisions', input, {
+      const { token, ...body } = input
+      const res = await http.post(`/api/v1/review-packages/public/${encodeURIComponent(token)}/decisions`, body, {
         headers: { 'Idempotency-Key': input.client_id },
       })
-      return ReviewDecisionSchema.parse(res.data)
+      return ReviewDecisionSchema.parse(javaReviewDecision(res.data))
     },
     async refresh() {
       const res = await http.post('/v1/auth/refresh')
@@ -717,13 +958,13 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       return ChatModelsResponseSchema.parse(res.data)
     },
     async preflightChat(input) {
-      const res = await http.post('/v1/ai/preflight', input)
+      const res = await http.post('/v1/ai/preflight', javaChatBody(input))
       return ChatPreflightResponseSchema.parse(res.data)
     },
     async chat(input) {
       const { idempotency_key, ...body } = input
       const idempotencyKey = idempotency_key ?? input.request_id
-      const res = await http.post('/v1/ai/chat', body, {
+      const res = await http.post('/v1/ai/chat', javaChatBody(body), {
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       })
       return ChatResponseSchema.parse(res.data)
@@ -743,8 +984,8 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       if (deviceID) headers['X-Device-Id'] = deviceID
       const csrfToken = await options.getCSRFToken?.()
       if (csrfToken) headers['X-CSRF-Token'] = csrfToken
-      const response = await fetch(resolveApiRequestURL(options.baseURL, '/v1/ai/chat/stream'), {
-        method: 'POST', headers, body: JSON.stringify(body), signal: streamOptions.signal,
+      const response = await fetch(resolveApiRequestURL(options.baseURL, '/api/v1/stream'), {
+        method: 'POST', headers, body: JSON.stringify(javaChatBody(body)), signal: streamOptions.signal,
         credentials: options.withCredentials === false ? 'omit' : 'include',
       })
       if (!response.ok || !response.body) {
@@ -753,14 +994,19 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       await readSSE(response.body, (event) => streamOptions.onEvent?.(ChatStreamEventSchema.parse(event)))
     },
     async cancelChat(input) {
-      const res = await http.post('/v1/ai/chat/cancel', input)
+      const res = await http.post('/v1/ai/chat/cancel', { idempotencyKey: input.idempotency_key })
       return z.object({ status: z.string() }).parse(res.data)
     },
     async getChatStatus(input) {
-      const res = await http.get('/v1/ai/chat/status', { params: input })
+      const res = await http.get('/v1/ai/chat/status', { params: { idempotencyKey: input.idempotency_key } })
       return ChatResponseSchema.parse(res.data)
     },
   }
+}
+
+/** Converts the legacy TypeScript input spelling at the client boundary only. */
+function javaChatBody(input: { model?: string; messages?: ChatMessage[]; max_tokens?: number; maxTokens?: number }) {
+  return { model: input.model, messages: input.messages, maxTokens: input.maxTokens ?? input.max_tokens }
 }
 
 async function readSSE(stream: ReadableStream<Uint8Array>, onEvent: (event: unknown) => void) {

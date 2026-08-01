@@ -6,7 +6,6 @@ set -euo pipefail
 # has passed the vulnerability gate.
 root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 repo="$(CDPATH= cd -- "$root/.." && pwd)"
-services="$root/services"
 manifest="${DRAMAIP_IMAGE_MANIFEST:-$root/deploy/release/images.tsv}"
 registry="${IMAGE_REGISTRY:?IMAGE_REGISTRY is required, e.g. harbor.home.arpa/dramaip}"
 tag="${IMAGE_TAG:?IMAGE_TAG is required, e.g. sha-<full-git-sha>}"
@@ -37,22 +36,6 @@ if [[ -n "${DRAMAIP_DOCKER_MIRROR:-}" ]]; then
 else
   docker_mirror=""
 fi
-if [[ -n "${DRAMAIP_GO_PROXY:-}" ]]; then
-  [[ "$DRAMAIP_GO_PROXY" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[^,[:space:]]*)?(,direct)?$ ]] || {
-    echo "DRAMAIP_GO_PROXY must be an HTTPS Go module proxy, optionally followed by ,direct" >&2; exit 2;
-  }
-  go_proxy="$DRAMAIP_GO_PROXY"
-else
-  go_proxy=""
-fi
-if [[ -n "${DRAMAIP_GO_MAX_PROCS:-}" ]]; then
-  [[ "$DRAMAIP_GO_MAX_PROCS" =~ ^[1-9][0-9]*$ ]] || {
-    echo "DRAMAIP_GO_MAX_PROCS must be a positive integer" >&2; exit 2;
-  }
-  go_max_procs="$DRAMAIP_GO_MAX_PROCS"
-else
-  go_max_procs=""
-fi
 if [[ -n "${DRAMAIP_DOCKER_PLATFORM:-}" ]]; then
   [[ "$DRAMAIP_DOCKER_PLATFORM" =~ ^linux/(amd64|arm64)$ ]] || {
     echo "DRAMAIP_DOCKER_PLATFORM must be linux/amd64 or linux/arm64" >&2; exit 2;
@@ -76,7 +59,13 @@ if [[ -n "$source_url" ]]; then
   build_common+=(--label "org.opencontainers.image.source=$source_url")
 fi
 
-go_count=0
+echo "packaging Java runtime JARs with the local JDK 21 before Docker image assembly"
+(
+  cd "$root/server"
+  mvn -B -ntp -DskipTests package
+)
+
+java_count=0
 web_count=0
 while IFS='|' read -r chart_key image_name kind target; do
   [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
@@ -89,28 +78,8 @@ while IFS='|' read -r chart_key image_name kind target; do
   build_cmd+=("${build_common[@]}")
 
   case "$kind" in
-    go)
-      [[ -n "$target" ]] || { echo "Go image $image_name has no build target" >&2; exit 2; }
-      if [[ -n "$docker_mirror" ]]; then
-        build_cmd+=(
-          --build-arg "GO_IMAGE=$docker_mirror/library/golang:1.26-alpine"
-          --build-arg "RUNTIME_IMAGE=$docker_mirror/library/alpine:3.20"
-        )
-      fi
-      [[ -n "$go_proxy" ]] && build_cmd+=(--build-arg "GOPROXY=$go_proxy")
-      [[ -n "$go_max_procs" ]] && build_cmd+=(--build-arg "GOMAXPROCS=$go_max_procs")
-      build_cmd+=(
-        --file "$services/Dockerfile.service"
-        --build-arg "TARGET=$target"
-        --build-arg "OUTPUT=dramaip-$image_name"
-        --tag "$image"
-        "$services"
-      )
-      "${build_cmd[@]}"
-      go_count=$((go_count + 1))
-      ;;
     web)
-      [[ -z "$target" ]] || { echo "Web image must not define a Go build target" >&2; exit 2; }
+      [[ -z "$target" ]] || { echo "Web image must not define a build target" >&2; exit 2; }
       if [[ -n "$docker_mirror" ]]; then
         build_cmd+=(--build-arg "NODE_IMAGE=$docker_mirror/library/node:24-alpine")
       fi
@@ -124,6 +93,19 @@ while IFS='|' read -r chart_key image_name kind target; do
       "${build_cmd[@]}"
       web_count=$((web_count + 1))
       ;;
+    java)
+      [[ "$target" =~ ^(migration|gateway|services/(identity|support|creation|quota|ai|billing))$ ]] || {
+        echo "invalid Java Maven module '$target' for $image_name" >&2; exit 2;
+      }
+      build_cmd+=(
+        --file "$root/server/Dockerfile"
+        --build-arg "MODULE=$target"
+        --tag "$image"
+        "$root"
+      )
+      "${build_cmd[@]}"
+      java_count=$((java_count + 1))
+      ;;
     *)
       echo "unsupported image kind '$kind' for $image_name" >&2
       exit 2
@@ -131,8 +113,8 @@ while IFS='|' read -r chart_key image_name kind target; do
   esac
 done < "$manifest"
 
-[[ "$go_count" == "18" && "$web_count" == "1" ]] || {
-  echo "manifest must build 18 Go images and one Web image; got $go_count Go and $web_count Web" >&2
+[[ "$java_count" == "8" && "$web_count" == "1" ]] || {
+  echo "manifest must build 8 Java and one Web image; got $java_count Java and $web_count Web" >&2
   exit 2
 }
-echo "built immutable release bundle: 20 images under $registry with tag $tag (not pushed)"
+echo "built immutable Java release bundle: 9 images under $registry with tag $tag (not pushed)"

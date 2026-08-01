@@ -1,0 +1,104 @@
+{{- if .Values.java.enabled }}
+{{- $services := list
+  (dict "key" "gateway" "name" "gateway" "passwordKey" "POSTGRES_PASSWORD")
+  (dict "key" "identity" "name" "identity" "passwordKey" "POSTGRES_IDENTITY_SVC_PASSWORD")
+  (dict "key" "support" "name" "support" "passwordKey" "POSTGRES_SUPPORT_SVC_PASSWORD")
+  (dict "key" "creation" "name" "creation" "passwordKey" "POSTGRES_CREATION_SVC_PASSWORD")
+  (dict "key" "quota" "name" "quota" "passwordKey" "POSTGRES_QUOTA_SVC_PASSWORD")
+  (dict "key" "ai" "name" "ai" "passwordKey" "POSTGRES_AI_SVC_PASSWORD")
+  (dict "key" "billing" "name" "billing" "passwordKey" "POSTGRES_BILLING_SVC_PASSWORD")
+}}
+{{- if .Values.java.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "dramaip-platform.fullname" . }}-java-migration
+  labels:
+    {{- include "dramaip-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: java-migration
+  {{- if .Values.java.migration.useHelmHook }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    helm.sh/hook-weight: "-4"
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration
+          image: "{{ .Values.java.images.migration.repository }}:{{ .Values.java.images.migration.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - { name: POSTGRES_DSN, value: {{ .Values.java.postgresDsn | quote }} }
+            - { name: POSTGRES_USER, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" . }}, key: POSTGRES_USER } } }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" . }}, key: POSTGRES_PASSWORD } } }
+            - { name: DB_ROLE_BOOTSTRAP, value: {{ .Values.migrations.bootstrapRuntimeRoles | quote }} }
+---
+{{- end }}
+{{- range $index, $service := $services }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dramaip-platform.fullname" $ }}-java-{{ $service.name }}
+  labels:
+    {{- include "dramaip-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: java-{{ $service.name }}
+spec:
+  replicas: {{ $.Values.java.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: java-{{ $service.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "dramaip-platform.labels" $ | nindent 8 }}
+        app.kubernetes.io/component: java-{{ $service.name }}
+    spec:
+      containers:
+        - name: {{ $service.name }}
+          image: "{{ (index $.Values.java.images $service.key).repository }}:{{ (index $.Values.java.images $service.key).tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8080 }]
+          readinessProbe: { httpGet: { path: /actuator/health, port: http }, initialDelaySeconds: 15 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: http }, initialDelaySeconds: 30 }
+          env:
+            - { name: POSTGRES_DSN, value: {{ $.Values.java.postgresDsn | quote }} }
+            - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: {{ $service.passwordKey }} } } }
+            - { name: NACOS_SERVER_ADDR, value: {{ $.Values.java.nacosServerAddr | quote }} }
+            - { name: SEATA_SERVER_ADDR, value: {{ $.Values.java.seataServerAddr | quote }} }
+            - { name: JWT_ENABLED, value: {{ $.Values.java.jwtEnabled | quote }} }
+            - { name: JWT_JWK_SET_URI, value: {{ printf "http://%s-java-identity:8080/.well-known/jwks.json" (include "dramaip-platform.fullname" $) | quote }} }
+            - { name: DRAMAIP_INTERNAL_TOKEN, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: DRAMAIP_INTERNAL_TOKEN } } }
+          {{- if eq $service.name "creation" }}
+            - { name: REVIEW_S3_ENDPOINT, value: {{ $.Values.review.objectStore.endpoint | quote }} }
+            - { name: REVIEW_S3_REGION, value: {{ $.Values.review.objectStore.region | quote }} }
+            - { name: REVIEW_S3_BUCKET, value: {{ $.Values.review.objectStore.bucket | quote }} }
+            - { name: REVIEW_S3_ALLOW_INSECURE, value: {{ $.Values.review.objectStore.allowInsecure | quote }} }
+            - { name: REVIEW_S3_ACCESS_KEY, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: REVIEW_S3_ACCESS_KEY } } }
+            - { name: REVIEW_S3_SECRET_KEY, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: REVIEW_S3_SECRET_KEY } } }
+          {{- end }}
+          resources:
+            {{- toYaml $.Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dramaip-platform.fullname" $ }}-java-{{ $service.name }}
+  labels:
+    {{- include "dramaip-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: java-{{ $service.name }}
+spec:
+  type: ClusterIP
+  ports: [{ name: http, port: 8080, targetPort: http }]
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: java-{{ $service.name }}
+{{- end }}
+{{- end }}

@@ -1,24 +1,27 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
-COMPOSE_ENV ?= services/.env
+COMPOSE_ARGS = -f $(COMPOSE) --profile java
 
-.PHONY: platform-up platform-wait platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
+.PHONY: platform-package platform-up platform-wait platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
 
-platform-up:
-	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) up -d --build
-	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) restart kong
+platform-package:
+	cd server && mvn -B -ntp -DskipTests package
+
+platform-up: platform-package
+	docker compose $(COMPOSE_ARGS) up -d --build
+	docker compose $(COMPOSE_ARGS) restart java-gateway
 	$(MAKE) platform-wait
 
 platform-wait:
-	node scripts/wait-for-platform-ready.mjs
+	DRAMAIP_PLATFORM_HEALTH_URL=http://localhost:8080 node scripts/wait-for-platform-ready.mjs
 
 platform-down:
-	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) down
+	docker compose $(COMPOSE_ARGS) down
 
 platform-logs:
-	docker compose --env-file $(COMPOSE_ENV) -f $(COMPOSE) logs -f web-bff auth user billing quota ai-gateway notification notification-job billing-job quota-job kong postgres redis rabbitmq
+	docker compose $(COMPOSE_ARGS) logs -f java-gateway identity support creation java-quota ai java-billing java-migration postgres redis rabbitmq nacos seata minio
 
 platform-e2e:
-	node scripts/platform-e2e.mjs
+	DRAMAIP_API_BASE_URL=http://localhost:8080 node scripts/java-platform-e2e.mjs
 
 observability-smoke:
 	node scripts/observability-smoke.mjs
@@ -36,7 +39,7 @@ client-contracts:
 	cd clients && pnpm contracts:check
 
 test:
-	$(MAKE) -C services test
+	cd server && mvn -B -ntp verify
 	cd clients && pnpm typecheck
 	cd clients && pnpm test
 	$(MAKE) client-contracts

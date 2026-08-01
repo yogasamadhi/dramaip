@@ -1,4 +1,4 @@
-{{- if .Values.ingress.enabled -}}
+{{- if and .Values.ingress.enabled .Values.legacy.enabled -}}
 {{- $pluginNames := list -}}
 {{- $annotations := omit .Values.ingress.annotations "konghq.com/plugins" -}}
 {{- if and .Values.kong.plugins.enabled .Values.kong.plugins.cors.enabled -}}
@@ -62,7 +62,7 @@ spec:
           {{- end }}
 {{- end }}
 {{- end }}
-{{- if and .Values.ingress.enabled .Values.adminIngress.enabled }}
+{{- if and .Values.ingress.enabled .Values.legacy.enabled .Values.adminIngress.enabled }}
 {{- $adminPluginNames := list -}}
 {{- $adminAnnotations := omit .Values.adminIngress.annotations "konghq.com/plugins" -}}
 {{- if and .Values.kong.plugins.enabled .Values.adminIngress.cors.enabled -}}
@@ -111,7 +111,7 @@ spec:
                   number: 8130
     {{- end }}
 {{- end }}
-{{- if and .Values.ingress.enabled .Values.payment.wechat.enabled }}
+{{- if and .Values.ingress.enabled .Values.legacy.enabled .Values.payment.wechat.enabled }}
 ---
 {{- $webhookPluginNames := list -}}
 {{- if .Values.kong.plugins.enabled -}}
@@ -153,7 +153,7 @@ spec:
                   number: 8103
     {{- end }}
 {{- end }}
-{{- if and .Values.ingress.enabled .Values.payment.alipay.enabled }}
+{{- if and .Values.ingress.enabled .Values.legacy.enabled .Values.payment.alipay.enabled }}
 ---
 {{- $alipayWebhookPluginNames := list -}}
 {{- if .Values.kong.plugins.enabled -}}

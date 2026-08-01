@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.dramaip.local/http/v2.schema.json",
+  "title": "DramaIP Java public HTTP contract v2",
+  "description": "Breaking Java resource contract. Every public response is Result<T> with camelCase correlation identifiers.",
+  "type": "object",
+  "required": ["contractVersion", "limits", "result"],
+  "properties": {
+    "contractVersion": { "const": "2" },
+    "limits": {
+      "type": "object",
+      "required": ["listLimitMax", "usageTrendDaysMax"],
+      "properties": {
+        "listLimitMax": { "const": 100 },
+        "usageTrendDaysMax": { "const": 365 }
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["code", "message", "data", "requestId", "traceId"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string" },
+        "requestId": { "type": "string", "minLength": 1 },
+        "traceId": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

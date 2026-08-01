@@ -16,12 +16,14 @@
   (dict "component" "notification-job" "http" 8109 "grpc" 9111)
   (dict "component" "billing-job" "http" 8106 "grpc" 9110)
 -}}
+{{- if .Values.legacy.enabled }}
 {{- range $index, $service := $services }}
 {{- $component := index $service "component" }}
 {{- $http := index $service "http" }}
 {{- $grpc := index $service "grpc" }}
 {{- if $index }}
 ---
+{{- end }}
 {{- end }}
 apiVersion: v1
 kind: Service

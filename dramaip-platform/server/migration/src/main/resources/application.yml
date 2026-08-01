@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: migration
+  main:
+    web-application-type: none
+  flyway:
+    enabled: false
+  datasource:
+    url: ${POSTGRES_DSN:jdbc:postgresql://localhost:5432/dramaip}
+    username: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:postgres}
+
+dramaip:
+  migration:
+    legacy-migrations-dir: ${LEGACY_MIGRATIONS_DIR:../legacy/go-services/migrations}
+    role-bootstrap: ${DB_ROLE_BOOTSTRAP:false}
+    role-password: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:${POSTGRES_PASSWORD:}}

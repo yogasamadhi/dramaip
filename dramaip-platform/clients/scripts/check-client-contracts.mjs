@@ -5,16 +5,16 @@ import { resolve } from 'node:path'
 
 const clientsRoot = process.cwd()
 const platformRoot = resolve(clientsRoot, '..')
-const schemaPath = 'clients/packages/sdk/contracts/http-v1.schema.json'
+const schemaPath = 'clients/packages/sdk/contracts/http-v2.schema.json'
 const schemaRaw = readFileSync(resolve(platformRoot, schemaPath), 'utf8')
 const schema = JSON.parse(schemaRaw)
-const version = schema.properties?.contract_version?.const
+const version = schema.properties?.contractVersion?.const
 
-if (version !== '1' || schema.properties?.limits?.properties?.list_limit_max?.const !== 100 || schema.properties?.limits?.properties?.usage_trend_days_max?.const !== 365) {
-  throw new Error('HTTP contract schema must declare the v1 shared limits')
+if (version !== '2' || schema.properties?.limits?.properties?.listLimitMax?.const !== 100 || schema.properties?.limits?.properties?.usageTrendDaysMax?.const !== 365) {
+  throw new Error('HTTP contract schema must declare the v2 shared limits')
 }
-if (!schema.required?.includes('error') || !schema.properties?.error?.required?.includes('trace_id')) {
-  throw new Error('HTTP contract schema must require code/message/trace_id errors')
+if (!schema.required?.includes('result') || !schema.properties?.result?.required?.includes('requestId') || !schema.properties?.result?.required?.includes('traceId')) {
+  throw new Error('HTTP contract schema must require the Result correlation fields')
 }
 
 const sdk = readFileSync(resolve(platformRoot, 'clients/packages/sdk/src/contracts.ts'), 'utf8')
@@ -31,7 +31,7 @@ for (const [name, source] of Object.entries({ sdk, admin, mobileSession, desktop
 if (!admin.includes("@dramaip/sdk/contracts") || !mobileSession.includes("@dramaip/sdk/contracts")) {
   throw new Error('Admin and Mobile must validate key BFF responses through shared contract schemas')
 }
-if (!sdk.includes("API_CONTRACT_VERSION = '1'")) {
+if (!sdk.includes("API_CONTRACT_VERSION = '2'")) {
   throw new Error('SDK contract version and JSON schema version have diverged')
 }
 

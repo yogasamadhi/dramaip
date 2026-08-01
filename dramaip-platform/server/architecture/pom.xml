@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent><groupId>com.dramaip.platform</groupId><artifactId>server</artifactId><version>1.0.0-SNAPSHOT</version><relativePath>../pom.xml</relativePath></parent>
+  <artifactId>architecture</artifactId>
+  <dependencies>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>identity</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>support</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>creation</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>quota</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>ai</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>billing</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+    <dependency><groupId>com.tngtech.archunit</groupId><artifactId>archunit-junit5</artifactId><version>1.4.1</version><scope>test</scope></dependency>
+  </dependencies>
+</project>

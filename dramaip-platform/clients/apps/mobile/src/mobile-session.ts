@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store'
-import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, MobileBriefSchema, MobileSessionSchema, contractErrorCode } from '@dramaip/sdk/contracts'
+import { z } from 'zod'
+import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, MobileBriefSchema, MobileSessionSchema, ResultSchema, contractErrorCode } from '@dramaip/sdk/contracts'
+import { resourcePath } from '@dramaip/sdk'
 
 const REFRESH_TOKEN_KEY = 'com.dramaip.mobile.refresh-token.v1'
 const DEVICE_ID_KEY = 'com.dramaip.mobile.device-id.v1'
@@ -26,10 +28,9 @@ let accessToken: string | undefined
 let currentSession: MobileSession | undefined
 
 export async function signIn(email: string, password: string): Promise<MobileSession> {
-  const session = await requestSession('/v1/mobile/auth/login', {
+  const session = await requestSession('/api/v1/auth/token', {
     email: email.trim(),
     password,
-    device_id: await deviceID(),
   })
   await persistSession(session)
   return currentSession as MobileSession
@@ -42,7 +43,7 @@ export async function restoreSession(): Promise<RestoreResult> {
   const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
   if (!refreshToken) return { state: 'signed_out' }
   try {
-    const session = await requestSession('/v1/mobile/auth/refresh', { refresh_token: refreshToken })
+    const session = await requestSession('/api/v1/auth/token/refresh', { refreshToken })
     await persistSession(session)
     return { state: 'signed_in', session: currentSession as MobileSession }
   } catch (error) {
@@ -56,13 +57,13 @@ export async function restoreSession(): Promise<RestoreResult> {
 
 export async function getBrief(): Promise<MobileBrief> {
   const token = requireAccessToken()
-  const response = await requestJSON('/v1/mobile/me/brief', {
+  const response = await requestJSON('/api/v1/users/me/context', {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
   const payload = MobileBriefSchema.safeParse(response)
   if (!payload.success) throw new Error('移动端账户响应无效')
-  return { displayName: payload.data.display_name, plan: payload.data.plan, remainingTokens: payload.data.remaining_tokens }
+  return { displayName: payload.data.profile.displayName, plan: payload.data.workspaces[0]?.planCode || 'free', remainingTokens: 0 }
 }
 
 export async function signOut(): Promise<void> {
@@ -70,10 +71,10 @@ export async function signOut(): Promise<void> {
   const token = accessToken
   try {
     if (refreshToken) {
-      await requestJSON('/v1/mobile/auth/logout', {
+      await requestJSON('/api/v1/auth/token/revoke', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: JSON.stringify({ refresh_token: refreshToken, device_id: await deviceID() }),
+        body: JSON.stringify({ refreshToken }),
       })
     }
   } finally {
@@ -102,7 +103,7 @@ async function requestSession(path: string, body: Record<string, string>): Promi
   const response = await requestJSON(path, { method: 'POST', body: JSON.stringify(body) })
   const payload = MobileSessionSchema.safeParse(response)
   if (!payload.success) throw new Error('移动端会话响应无效')
-  return { access: payload.data.access_token, refresh: payload.data.refresh_token, expiresIn: payload.data.expires_in, user: payload.data.user }
+  return { access: payload.data.accessToken, refresh: payload.data.refreshToken, expiresIn: payload.data.expiresIn, user: { id: payload.data.userId, name: payload.data.name } }
 }
 
 async function persistSession(session: SessionReply): Promise<void> {
@@ -135,14 +136,17 @@ async function requestJSON(path: string, init: RequestInit): Promise<unknown> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const response = await fetch(`${mobileBFFOrigin()}${path}`, {
+    const response = await fetch(`${mobileBFFOrigin()}${resourcePath(path)}`, {
       ...init,
       signal: controller.signal,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', [API_CONTRACT_HEADER]: API_CONTRACT_VERSION, ...(init.headers ?? {}) },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', [API_CONTRACT_HEADER]: API_CONTRACT_VERSION,
+        'X-Device-Id': await deviceID(), ...(init.headers ?? {}) },
     })
     const body = await response.json().catch(() => undefined)
     if (!response.ok) throw new MobileRequestError(response.status, contractErrorCode(body))
-    return body
+    const envelope = ResultSchema(z.unknown()).parse(body)
+    if (envelope.code !== 'OK') throw new MobileRequestError(response.status, envelope.code)
+    return envelope.data
   } finally {
     clearTimeout(timeout)
   }

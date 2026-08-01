@@ -1,0 +1,33 @@
+spring:
+  application: { name: billing }
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=DRAMAIP"
+  flyway: { enabled: false }
+  datasource:
+    url: "${POSTGRES_DSN:jdbc:postgresql://localhost:5432/dramaip}"
+    username: "${POSTGRES_USER:dramaip_billing_svc}"
+    password: "${POSTGRES_PASSWORD:}"
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: "${JWT_JWK_SET_URI:}"
+  cloud:
+    nacos:
+      server-addr: "${NACOS_SERVER_ADDR:localhost:8848}"
+dramaip:
+  security:
+    jwt:
+      enabled: ${JWT_ENABLED:false}
+  internal:
+    token: "${DRAMAIP_INTERNAL_TOKEN:}"
+seata:
+  application-id: ${spring.application.name}
+  enable-auto-data-source-proxy: false
+  tx-service-group: dramaip_tx_group
+  service:
+    vgroup-mapping:
+      dramaip_tx_group: default
+    grouplist:
+      default: "${SEATA_SERVER_ADDR:seata:8091}"
+management.endpoints.web.exposure.include: health,info,metrics,prometheus

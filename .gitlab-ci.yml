@@ -18,7 +18,6 @@ workflow:
 variables:
   GIT_DEPTH: "0"
   GIT_TERMINAL_PROMPT: "0"
-  GOCACHE: "${CI_PROJECT_DIR}/.cache/go-build"
   PNPM_HOME: "${CI_PROJECT_DIR}/.cache/pnpm"
   SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
 
@@ -29,27 +28,26 @@ static_checks:
     entrypoint: [""]
   script:
     - git diff --check
-    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 19"
-    - "test \"$(awk -F '|' '$3 == \"go\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 18"
+    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 9"
+    - "test \"$(awk -F '|' '$3 == \"java\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 8"
     - "test \"$(awk -F '|' '$3 == \"web\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 1"
     - bash -n dramaip-platform/deploy/release/build-images.sh dramaip-platform/deploy/release/scan-images.sh dramaip-platform/deploy/release/push-images.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 
-platform_services:
+java_server:
   stage: validate
   image:
-    name: harbor.home.arpa/ci-tools/go-buf:1.26.0-buf1.47.2
+    name: maven:3.9.11-eclipse-temurin-21
     entrypoint: [""]
   script:
-    - cd dramaip-platform/services
-    - make event-contracts
-    - go test -coverprofile=coverage.out ./...
+    - cd dramaip-platform/server
+    - mvn -B -ntp verify
   artifacts:
     when: always
     paths:
-      - dramaip-platform/services/coverage.out
+      - dramaip-platform/server/**/target/
     expire_in: 1 day
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -76,6 +74,7 @@ platform_clients:
     - pnpm lint
     - pnpm typecheck
     - pnpm contracts:check
+    - pnpm test
     - pnpm build:web
     - pnpm build:admin
     - cd ..
@@ -118,7 +117,7 @@ sonarqube_platform:
     name: harbor.home.arpa/ci-tools/sonar-scanner:7.0.1
     entrypoint: [""]
   needs:
-    - job: platform_services
+    - job: java_server
       artifacts: true
   script:
     - >-

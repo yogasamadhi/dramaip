@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
 """
-Start dramaip-platform services and web app in development mode on an Apple
-Silicon Mac. Third-party runtime images are pinned to linux/arm64 before the
-Compose stack starts so an old amd64 cache is never run through emulation.
+Start the Java DramaIP platform in development mode.
 
-All 10 Go microservices (web-bff/auth/user/billing/quota/ai-gateway/notification/
-notification-job/billing-job/quota-job) plus Kong and the dev infra (postgres/redis/rabbitmq/otel/...) run
-as containers via docker compose; this launcher only brings the stack up and
-optionally starts the local Next.js web dev server.
+The Compose configuration intentionally uses the Docker daemon's native
+platform, so the same command works with Docker Desktop on Windows (amd64) and
+macOS (Apple Silicon or Intel).
+
+The Java migration job, Gateway, six Java domain services, and their local
+infrastructure run through Docker Compose. Legacy Go services are archived and
+are deliberately not started by this launcher.
+
+Use ``run-platform-clients.py`` separately to start the Web client.
 
 Usage:
   python3 run-platform.py
-  python3 run-platform.py --install
-  python3 run-platform.py --no-install
-  python3 run-platform.py --web-only        # assume the stack is already up
-  python3 run-platform.py --no-stack        # do not manage the compose stack
-  python3 run-platform.py --no-kill-ports
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -35,31 +33,33 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PLATFORM_DIR = SCRIPT_DIR / "dramaip-platform"
-SERVICES_DIR = PLATFORM_DIR / "services"
-SERVICES_ENV_FILE = SERVICES_DIR / ".env"
-CLIENTS_DIR = PLATFORM_DIR / "clients"
-CLIENT_INSTALL_MARKER = CLIENTS_DIR / "node_modules" / ".modules.yaml"
-NODE_MIN_MAJOR = 20
-WEB_APP_DIR = CLIENTS_DIR / "apps" / "web"
-SDK_DIR = CLIENTS_DIR / "packages" / "sdk"
-CLIENT_MODULE_CHECKS = (
-    ("@dramaip/web", WEB_APP_DIR, ("zod", "@dramaip/sdk")),
-    ("@dramaip/sdk", SDK_DIR, ("axios", "zod")),
-)
+SERVER_DIR = PLATFORM_DIR / "server"
 CURRENT_PID = os.getpid()
 _SHUTDOWN_SIGNAL: int | None = None
+TEXT_CAPTURE_OPTIONS = {
+    "capture_output": True,
+    "text": True,
+    "encoding": "mbcs" if os.name == "nt" else "utf-8",
+    "errors": "replace",
+}
 
-# All 10 Go services + Kong + dev infra live in docker-compose.yaml. This launcher
-# brings the stack up (Kong is the sole external entry, proxy port 8000 → web-bff:8100)
-# and optionally starts the local Next.js web dev server.
+# The single Compose file contains local infrastructure and the Java runtime.
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
-COMPOSE_ROOT_SERVICE = "kong"
-COMPOSE_TARGET_PLATFORM = "linux/arm64"
-KONG_PROXY_PORT = 8000
-KONG_HEALTH_TIMEOUT_S = 90.0   # full stack (build + 10 services + infra) takes longer than Kong alone
-WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
-DEV_ACCOUNT_EMAIL = "creator@example.com"
-DEV_ACCOUNT_PASSWORD = "password123"
+GATEWAY_PORT = 8080
+GATEWAY_HEALTH_TIMEOUT_S = 120.0
+JAVA_APPLICATION_PORTS = (
+    ("Java Gateway", GATEWAY_PORT),
+)
+JAVA_RUNTIME_MODULES = (
+    "migration",
+    "gateway",
+    "services/identity",
+    "services/support",
+    "services/creation",
+    "services/quota",
+    "services/ai",
+    "services/billing",
+)
 
 _COLOR = sys.stdout.isatty()
 
@@ -86,6 +86,8 @@ def err(msg: str) -> None:
 
 def request_shutdown(signum: int, _frame: object) -> None:
     global _SHUTDOWN_SIGNAL
+    if _SHUTDOWN_SIGNAL is not None:
+        return
     _SHUTDOWN_SIGNAL = signum
     raise KeyboardInterrupt
 
@@ -106,17 +108,17 @@ def shutdown_reason() -> str:
 
 def command_output(cmd: list[str], cwd: Path) -> str | None:
     try:
-        result = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
+        result = subprocess.run(cmd, cwd=str(cwd), **TEXT_CAPTURE_OPTIONS)
     except FileNotFoundError:
         return None
     if result.returncode != 0:
         return None
-    return result.stdout.strip()
+    return (result.stdout or "").strip()
 
 
 def command_ok(cmd: list[str], cwd: Path) -> bool:
     try:
-        result = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True)
+        result = subprocess.run(cmd, cwd=str(cwd), **TEXT_CAPTURE_OPTIONS)
     except FileNotFoundError:
         return False
     return result.returncode == 0
@@ -134,162 +136,179 @@ def run_foreground(cmd: list[str], cwd: Path, env: dict[str, str] | None = None)
 
 
 def compose_cmd(*args: str) -> list[str]:
-    cmd = ["docker", "compose"]
-    if SERVICES_ENV_FILE.exists():
-        cmd.extend(["--env-file", str(SERVICES_ENV_FILE)])
-    cmd.extend(["-f", str(COMPOSE_FILE), *args])
+    cmd = [
+        "docker", "compose", "--profile", "java",
+        "-f", str(COMPOSE_FILE),
+        *args,
+    ]
     return cmd
 
 
-def compose_env() -> dict[str, str]:
-    """Keep every Compose pull and build on the M4 Docker platform."""
-    env = os.environ.copy()
-    env["DOCKER_DEFAULT_PLATFORM"] = COMPOSE_TARGET_PLATFORM
-    return env
-
-
-def normalize_platform(value: str) -> str:
-    platform = value.strip().lower()
-    if "/" not in platform:
-        return platform
-    os_name, arch = platform.split("/", 1)
-    if arch == "aarch64":
-        arch = "arm64"
-    elif arch == "x86_64":
-        arch = "amd64"
-    return f"{os_name}/{arch}"
-
-
-def docker_image_platform(image: str) -> str | None:
+def docker_containers_publishing(port: int) -> list[str]:
     result = subprocess.run(
-        ["docker", "image", "inspect", image, "--format", "{{.Os}}/{{.Architecture}}"],
+        ["docker", "ps", "--filter", f"publish={port}", "--format", "{{.ID}}"],
         cwd=str(SCRIPT_DIR),
-        capture_output=True,
-        text=True,
+        **TEXT_CAPTURE_OPTIONS,
     )
     if result.returncode != 0:
-        return None
-    return normalize_platform(result.stdout)
+        raise RuntimeError(f"Could not inspect Docker containers publishing port {port}.")
+    return list(dict.fromkeys((result.stdout or "").split()))
 
 
-def compose_runtime_images(root_service: str) -> list[str]:
-    """Return non-build images in the dependency graph started by Compose."""
+def listening_pids(port: int) -> list[int]:
+    if platform.system() == "Windows":
+        result = subprocess.run(["netstat", "-ano", "-p", "TCP"], **TEXT_CAPTURE_OPTIONS)
+        if result.returncode != 0:
+            raise RuntimeError(f"netstat failed while checking port {port}.")
+        pids: list[int] = []
+        for line in (result.stdout or "").splitlines():
+            fields = line.split()
+            if len(fields) < 5 or fields[0].upper() != "TCP" or fields[-2].upper() != "LISTENING":
+                continue
+            if fields[1].rsplit(":", 1)[-1] != str(port):
+                continue
+            try:
+                pid = int(fields[-1])
+            except ValueError:
+                continue
+            if pid != CURRENT_PID and pid not in pids:
+                pids.append(pid)
+        return pids
+
+    if not shutil.which("lsof"):
+        raise RuntimeError("lsof is required to inspect occupied ports on this platform.")
     result = subprocess.run(
-        compose_cmd("config", "--format", "json"),
-        cwd=str(SCRIPT_DIR),
-        env=compose_env(),
-        capture_output=True,
-        text=True,
+        ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+        **TEXT_CAPTURE_OPTIONS,
     )
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout).strip()
-        raise RuntimeError(f"Cannot resolve Docker Compose configuration: {details or 'unknown error'}")
+    if result.returncode not in (0, 1):
+        raise RuntimeError(f"lsof failed while checking port {port}.")
+    return [
+        int(pid) for pid in (result.stdout or "").split()
+        if pid.isdigit() and int(pid) != CURRENT_PID
+    ]
 
+
+def process_command(pid: int) -> str:
+    command = (
+        ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"]
+        if platform.system() == "Windows"
+        else ["ps", "-p", str(pid), "-o", "command="]
+    )
+    result = subprocess.run(command, **TEXT_CAPTURE_OPTIONS)
+    return (result.stdout or "").strip() if result.returncode == 0 else ""
+
+
+def process_exists(pid: int) -> bool:
     try:
-        services = json.loads(result.stdout)["services"]
-    except (json.JSONDecodeError, KeyError, TypeError) as exc:
-        raise RuntimeError(f"Cannot parse Docker Compose service configuration: {exc}") from exc
-    if root_service not in services:
-        raise RuntimeError(f"Docker Compose service is missing: {root_service}")
-
-    images: set[str] = set()
-    pending = [root_service]
-    visited: set[str] = set()
-    while pending:
-        service_name = pending.pop()
-        if service_name in visited:
-            continue
-        visited.add(service_name)
-        service = services.get(service_name)
-        if not isinstance(service, dict):
-            raise RuntimeError(f"Docker Compose dependency is missing: {service_name}")
-
-        image = service.get("image")
-        if image and not service.get("build"):
-            images.add(str(image))
-
-        depends_on = service.get("depends_on", {})
-        if isinstance(depends_on, dict):
-            pending.extend(str(name) for name in depends_on)
-        elif isinstance(depends_on, list):
-            pending.extend(str(name) for name in depends_on)
-
-    return sorted(images)
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
-def ensure_compose_image_platforms() -> None:
-    server_platform = command_output(
-        ["docker", "info", "--format", "{{.OSType}}/{{.Architecture}}"],
-        SCRIPT_DIR,
-    )
-    if not server_platform:
-        raise RuntimeError("Cannot determine the Docker daemon platform.")
-    server_platform = normalize_platform(server_platform)
-    if server_platform != COMPOSE_TARGET_PLATFORM:
-        raise RuntimeError(
-            f"run-platform.py requires an M4/arm64 Docker daemon; found {server_platform}. "
-            f"Use run-platform-k8s.py for the Linux amd64 environment."
+def is_docker_process(pid: int) -> bool:
+    command = process_command(pid).lower()
+    docker_markers = ("com.docker", "docker-proxy", "dockerd", "vpnkit")
+    return any(marker in command for marker in docker_markers)
+
+
+def kill_pids(pids: list[int], label: str) -> None:
+    docker_pids = [pid for pid in pids if is_docker_process(pid)]
+    target_pids = [pid for pid in pids if pid not in docker_pids]
+    if docker_pids:
+        warn(
+            f"{label} is still held by Docker PID(s) "
+            f"{', '.join(str(pid) for pid in docker_pids)}; Docker Desktop itself will not be killed."
         )
+    if not target_pids:
+        return
 
-    for image in compose_runtime_images(COMPOSE_ROOT_SERVICE):
-        current_platform = docker_image_platform(image)
-        if current_platform == COMPOSE_TARGET_PLATFORM:
-            continue
-
-        if current_platform:
-            warn(
-                f"Replacing cached {current_platform} image with {COMPOSE_TARGET_PLATFORM}: {image}"
+    warn(f"{label} is occupied by PID(s) {', '.join(str(pid) for pid in target_pids)}; force-stopping them.")
+    for pid in target_pids:
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                **TEXT_CAPTURE_OPTIONS,
             )
-        else:
-            info(f"Pulling {COMPOSE_TARGET_PLATFORM} runtime image: {image}")
+            if result.returncode != 0:
+                warn(f"taskkill could not stop PID {pid}: {(result.stderr or result.stdout).strip()}")
+            continue
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        except PermissionError as exc:
+            raise RuntimeError(f"No permission to stop PID {pid} for {label}.") from exc
+
+    if platform.system() != "Windows":
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and any(process_exists(pid) for pid in target_pids):
+            time.sleep(0.2)
+        remaining = [pid for pid in target_pids if process_exists(pid)]
+        if remaining:
+            warn(f"{label} did not stop gracefully; force-killing PID(s) {', '.join(str(pid) for pid in remaining)}.")
+            for pid in remaining:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    continue
+                except PermissionError as exc:
+                    raise RuntimeError(f"No permission to force stop PID {pid} for {label}.") from exc
+
+
+def release_port(label: str, port: int) -> None:
+    containers = docker_containers_publishing(port)
+    if containers:
+        warn(
+            f"{label} port {port} is published by Docker container(s) "
+            f"{', '.join(containers)}; stopping them."
+        )
         result = subprocess.run(
-            ["docker", "pull", "--platform", COMPOSE_TARGET_PLATFORM, image],
+            ["docker", "stop", "--timeout", "3", *containers],
             cwd=str(SCRIPT_DIR),
-            env=compose_env(),
+            **TEXT_CAPTURE_OPTIONS,
         )
         if result.returncode != 0:
             raise RuntimeError(
-                f"Failed to pull {image} for {COMPOSE_TARGET_PLATFORM}; the Compose stack was not started."
-            )
-        pulled_platform = docker_image_platform(image)
-        if pulled_platform != COMPOSE_TARGET_PLATFORM:
-            raise RuntimeError(
-                f"Docker pulled {image} as {pulled_platform or 'unknown'}, expected {COMPOSE_TARGET_PLATFORM}."
+                f"Could not stop Docker container(s) on {label} port {port}: "
+                f"{(result.stderr or result.stdout).strip()}"
             )
 
-    ok(f"Compose runtime images match {COMPOSE_TARGET_PLATFORM}")
+    pids = listening_pids(port)
+    if pids:
+        kill_pids(pids, f"{label} port {port}")
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if not listening_pids(port):
+            return
+        time.sleep(0.2)
+    remaining = listening_pids(port)
+    raise RuntimeError(
+        f"{label} port {port} is still occupied by PID(s) "
+        f"{', '.join(str(pid) for pid in remaining)}."
+    )
+
+
+def release_required_ports() -> None:
+    info("Checking Java application ports before startup...")
+    for label, port in JAVA_APPLICATION_PORTS:
+        release_port(label, port)
+    ok("Java application ports are available")
 
 
 def check_layout() -> None:
-    missing = [path for path in (PLATFORM_DIR, SERVICES_DIR, CLIENTS_DIR) if not path.exists()]
+    missing = [path for path in (PLATFORM_DIR, SERVER_DIR, COMPOSE_FILE) if not path.exists()]
     if missing:
         err("Missing platform paths:")
         for path in missing:
             err(f"  {path}")
         sys.exit(1)
     ok("platform layout found")
-    if SERVICES_ENV_FILE.exists():
-        ok(f"services env loaded by compose: {SERVICES_ENV_FILE}")
-    else:
-        warn(f"services env file not found: {SERVICES_ENV_FILE}; compose will use defaults and shell environment")
-
-
-def check_node() -> None:
-    version = command_output(["node", "--version"], CLIENTS_DIR)
-    if not version:
-        err("Node.js is not available. Install Node.js >= 20 first.")
-        sys.exit(1)
-
-    try:
-        major = int(version.lstrip("v").split(".", 1)[0])
-    except ValueError:
-        err(f"Cannot parse Node.js version: {version}")
-        sys.exit(1)
-
-    if major < NODE_MIN_MAJOR:
-        err(f"Node.js version is too old: {version}. Need >= v{NODE_MIN_MAJOR}.")
-        sys.exit(1)
-    ok(f"node {version}")
+    ok("Java Compose layout found")
 
 
 def check_docker() -> None:
@@ -308,102 +327,107 @@ def check_docker() -> None:
     ok(compose_version)
 
 
-def resolve_pnpm() -> list[str]:
-    if shutil.which("pnpm"):
-        return ["pnpm"]
-    if shutil.which("corepack"):
-        warn("pnpm was not found on PATH; using corepack pnpm.")
-        return ["corepack", "pnpm"]
-    err("pnpm/corepack is not available. Install pnpm or enable corepack first.")
-    sys.exit(1)
+def resolve_global_maven_command() -> list[str] | None:
+    """Locate Maven installed for the current user or system, never a project wrapper."""
+    command_names = ("mvn.cmd", "mvn") if os.name == "nt" else ("mvn",)
+    for command_name in command_names:
+        maven = shutil.which(command_name)
+        if maven:
+            return [maven]
+
+    for variable in ("MAVEN_HOME", "M2_HOME"):
+        maven_home = os.environ.get(variable)
+        if not maven_home:
+            continue
+        executable = Path(maven_home) / "bin" / ("mvn.cmd" if os.name == "nt" else "mvn")
+        if executable.is_file():
+            return [str(executable)]
+    return None
 
 
-def ensure_client_deps(pnpm: list[str], install_mode: str) -> None:
-    if install_mode == "skip":
-        warn("Skipping clients dependency install.")
-        return
-
-    should_install = install_mode == "force" or not CLIENT_INSTALL_MARKER.exists() or not client_modules_resolve()
-    if not should_install:
-        ok("clients dependencies already installed")
-        return
-
-    info("Installing clients dependencies with pnpm install...")
-    run_foreground(pnpm + ["install"], CLIENTS_DIR)
-    if not client_modules_resolve():
-        err("Clients dependencies are still incomplete after pnpm install.")
+def package_java_server() -> None:
+    """Build all Java runtime JARs with the local JDK 21 before Docker packaging."""
+    maven_command = resolve_global_maven_command()
+    if not maven_command:
+        err("Global Maven is unavailable. Install Apache Maven, then add its bin directory to PATH (or set MAVEN_HOME/M2_HOME).")
         sys.exit(1)
-    ok("clients dependencies ready")
 
+    maven_version = command_output(maven_command + ["--version"], SERVER_DIR)
+    if not maven_version:
+        err("Global Maven could not start. Ensure it uses JDK 21, then retry.")
+        sys.exit(1)
 
-def client_modules_resolve() -> bool:
-    if not CLIENT_INSTALL_MARKER.exists():
-        return False
+    info("Packaging Java services locally with Maven (JDK 21)...")
+    run_foreground(maven_command + ["-B", "-ntp", "-DskipTests", "package"], SERVER_DIR)
 
-    for package_name, package_dir, modules in CLIENT_MODULE_CHECKS:
-        for module in modules:
-            result = subprocess.run(
-                [
-                    "node",
-                    "-e",
-                    "require.resolve(process.argv[1], { paths: [process.argv[2]] })",
-                    module,
-                    str(package_dir),
-                ],
-                cwd=str(CLIENTS_DIR),
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                warn(f"{package_name} cannot resolve {module}; reinstalling clients dependencies.")
-                return False
-    return True
+    missing = [
+        module for module in JAVA_RUNTIME_MODULES
+        if not list((SERVER_DIR / module / "target").glob("*-exec.jar"))
+    ]
+    if missing:
+        err("Local Maven package did not produce runnable JARs for: " + ", ".join(missing))
+        sys.exit(1)
+    ok("Java runtime JARs packaged locally")
 
 
 def ensure_stack_running() -> None:
-    """Bring up the full Compose business stack, Kong, and required dev infra.
-
-    Kong depends on `web-bff`, which (transitively) depends on postgres/redis/etc.,
-    so `up kong` pulls the whole stack. We `--build` so Go code changes are
-    picked up on each launch.
-    """
-    check_docker()
-    ensure_compose_image_platforms()
-    info(f"Starting platform stack: docker compose up -d --build kong (proxy :{KONG_PROXY_PORT})")
+    """Bring up every service in the Java Compose profile and required local infrastructure."""
+    info(f"Packaging runtime images and starting Java platform stack (Gateway :{GATEWAY_PORT})")
     up = subprocess.run(
-        compose_cmd("up", "-d", "--build", "kong"),
-        env=compose_env(),
+        compose_cmd("up", "-d", "--build"),
     )
     if up.returncode != 0:
         err(
-            "Stack failed to start. Review the Docker Compose error above; common "
-            "conflicts include ports 5432, 5672, 6379, 8000/8001, 15672, and 16686."
+            "Java stack failed to start. Review the Docker Compose error above; common "
+            "conflicts include ports 5432, 5672, 6379, 8080, 8848, 8091, 15672, and 16686."
         )
         sys.exit(1)
-    # Rebuilt Compose services can receive new container IPs while an existing
-    # DB-less Kong process still holds the previous Docker DNS result. Restart
-    # Kong after the dependency graph is up so its first proxy request resolves
-    # the current BFF addresses instead of returning a stale-upstream 502.
-    info("Restarting Kong to refresh upstream Docker DNS after service rebuilds")
-    refresh = subprocess.run(compose_cmd("restart", "kong"), env=compose_env())
+    # Rebuilt services may receive new container IPs. Restart Gateway after all
+    # profile services are up so its initial discovery state is fresh.
+    info("Restarting Java Gateway after service rebuild")
+    refresh = subprocess.run(compose_cmd("restart", "java-gateway"))
     if refresh.returncode != 0:
-        err("Kong failed to restart after the service rebuild.")
+        err("Java Gateway failed to restart after the service rebuild.")
         sys.exit(1)
-    health_url = f"http://localhost:{KONG_PROXY_PORT}/v1/healthz"
-    info(f"Waiting for Kong/BFF health: {health_url}")
-    deadline = time.monotonic() + KONG_HEALTH_TIMEOUT_S
+    health_url = f"http://localhost:{GATEWAY_PORT}/actuator/health"
+    info(f"Waiting for Java Gateway health: {health_url}")
+    deadline = time.monotonic() + GATEWAY_HEALTH_TIMEOUT_S
     last_error = ""
     while time.monotonic() < deadline:
         healthy, detail = http_ok(health_url, timeout=3.0)
         if healthy:
-            ok("Kong -> BFF health is ready")
+            ok("Java Gateway health is ready")
             print_compose_status()
             return
         last_error = detail
         time.sleep(2)
-    warn(f"Kong/BFF health did not become ready within {KONG_HEALTH_TIMEOUT_S:.0f}s: {last_error}")
+    warn(f"Java Gateway health did not become ready within {GATEWAY_HEALTH_TIMEOUT_S:.0f}s: {last_error}")
     print_compose_status()
-    warn(f"Continuing so you can inspect logs. Try `{' '.join(compose_cmd('logs', '-f', 'web-bff', 'kong'))}`.")
+    warn(f"Continuing so you can inspect logs. Try `{' '.join(compose_cmd('logs', '-f', 'java-gateway', 'identity'))}`.")
+
+
+def wait_for_shutdown() -> None:
+    """Keep the launcher attached so Ctrl+C owns the Compose lifecycle."""
+    ok("Java platform stack started")
+    print(f"Gateway: http://localhost:{GATEWAY_PORT}")
+    print("Start Web client separately: python run-platform-clients.py")
+    print("Press Ctrl+C to stop the Java platform stack.")
+    while True:
+        time.sleep(0.5)
+
+
+def stop_stack() -> None:
+    """Stop every service enabled by the Java Compose profile."""
+    warn("Stopping Java platform stack...")
+    try:
+        result = subprocess.run(compose_cmd("stop"), cwd=str(SCRIPT_DIR))
+    except FileNotFoundError:
+        warn("Docker command is unavailable; the Java platform stack may still be running.")
+        return
+    if result.returncode != 0:
+        warn("Docker Compose could not stop every Java platform service.")
+        return
+    ok("Java platform stack stopped")
 
 
 def http_ok(url: str, timeout: float) -> tuple[bool, str]:
@@ -426,293 +450,47 @@ def http_ok(url: str, timeout: float) -> tuple[bool, str]:
 def print_compose_status() -> None:
     result = subprocess.run(
         compose_cmd("ps"),
-        env=compose_env(),
-        capture_output=True,
-        text=True,
+        **TEXT_CAPTURE_OPTIONS,
     )
     if result.returncode != 0:
         warn("Could not read docker compose service status.")
         return
     print("")
-    print(result.stdout.rstrip())
+    output = result.stdout or ""
+    if output:
+        print(output.rstrip())
+    else:
+        warn("Docker Compose returned no service-status output.")
     print("")
 
 
-def listening_pids(port: int) -> list[int]:
-    if not shutil.which("lsof"):
-        warn("lsof was not found; cannot detect processes by port.")
-        return []
-
-    result = subprocess.run(
-        ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode not in (0, 1):
-        warn(f"lsof failed while checking port {port}.")
-        return []
-
-    pids: list[int] = []
-    for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            pid = int(line)
-        except ValueError:
-            continue
-        if pid != CURRENT_PID and pid not in pids:
-            pids.append(pid)
-    return pids
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Start the Java DramaIP Compose stack.")
+    return parser.parse_args()
 
 
-def kill_pids(pids: list[int], label: str) -> None:
-    if not pids:
-        return
-
-    docker_pids = [pid for pid in pids if is_docker_process(pid)]
-    target_pids = [pid for pid in pids if pid not in docker_pids]
-
-    if docker_pids:
-        warn(
-            f"{label} still has Docker container PID(s) "
-            f"{', '.join(str(pid) for pid in docker_pids)} bound; leaving them running."
-        )
-
-    if not target_pids:
-        return
-
-    warn(f"{label} is occupied by PID(s) {', '.join(str(pid) for pid in target_pids)}; stopping them.")
-    for pid in target_pids:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            continue
-        except PermissionError:
-            raise RuntimeError(f"No permission to stop PID {pid} for {label}.")
-
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        if all(not process_exists(pid) for pid in target_pids):
-            ok(f"{label} is free")
-            return
-        time.sleep(0.2)
-
-    warn(f"{label} did not stop after SIGTERM; forcing SIGKILL.")
-    for pid in target_pids:
-        if not process_exists(pid):
-            continue
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            continue
-        except PermissionError:
-            raise RuntimeError(f"No permission to force stop PID {pid} for {label}.")
-
-    time.sleep(0.3)
-    alive = [pid for pid in target_pids if process_exists(pid)]
-    if alive:
-        raise RuntimeError(f"PID(s) {', '.join(str(pid) for pid in alive)} still occupy {label}.")
-    ok(f"{label} is free")
-
-
-def process_exists(pid: int) -> bool:
+def main() -> int:
+    parse_args()
+    check_layout()
+    install_shutdown_handlers()
+    stack_start_attempted = False
     try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def process_command(pid: int) -> str:
-    try:
-        result = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "command="],
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        return ""
-    if result.returncode != 0:
-        return ""
-    return result.stdout.strip()
-
-
-def is_docker_process(pid: int) -> bool:
-    command = process_command(pid).lower()
-    if not command:
-        return False
-    # Docker Desktop (macOS) fronts published ports with com.docker.* / vpnkit
-    # proxies; on Linux it is docker-proxy / dockerd. Killing these tears down
-    # the user's containers, so they must be left alone when freeing a port.
-    docker_markers = ("com.docker", "docker-proxy", "dockerd", "vpnkit")
-    return any(marker in command for marker in docker_markers)
-
-
-def release_port(port: int, label: str, kill_ports: bool) -> None:
-    pids = listening_pids(port)
-    if not pids:
-        return
-    if not kill_ports:
-        raise RuntimeError(f"{label} port {port} is occupied by PID(s) {', '.join(str(pid) for pid in pids)}.")
-    kill_pids(pids, f"{label} port {port}")
-
-
-def start_process(name: str, cmd: list[str], cwd: Path, env: dict[str, str]) -> subprocess.Popen:
-    info(f"Starting {name}: {' '.join(cmd)}")
-    try:
-        return subprocess.Popen(
-            cmd,
-            cwd=str(cwd),
-            env=env,
-            start_new_session=True,
-        )
-    except FileNotFoundError:
-        err(f"Command not found for {name}: {cmd[0]}")
-        sys.exit(1)
-
-
-def ensure_process_started(process: subprocess.Popen, name: str, delay: float = 0.8) -> None:
-    time.sleep(delay)
-    code = process.poll()
-    if code is not None:
-        raise RuntimeError(f"{name} exited during startup with code {code}.")
-
-
-def stop_process(process: subprocess.Popen, name: str) -> None:
-    if process.poll() is not None:
-        return
-
-    warn(f"Stopping {name}...")
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        return
-    except OSError:
-        process.terminate()
-
-    try:
-        process.wait(timeout=8)
-    except subprocess.TimeoutExpired:
-        warn(f"Killing {name}...")
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except OSError:
-            process.kill()
-        process.wait()
-
-
-def watch(processes: list[tuple[str, subprocess.Popen]], urls: list[tuple[str, str]]) -> int:
-    ok("platform dev processes started")
-    print("")
-    for label, url in urls:
-        print(f"{label}: {url}")
-    print("")
-    print(f"Dev account: {DEV_ACCOUNT_EMAIL} / {DEV_ACCOUNT_PASSWORD}")
-    print("API entry: Kong :8000 -> BFF; clients should not call internal services directly.")
-    print("AI provider: test works in dev; real OpenAI-compatible keys are injected via AI_PROVIDER_API_KEY / AI_PROVIDER_BASE_URL.")
-    print("End-to-end check: cd dramaip-platform && make platform-e2e")
-    print("Stop stack: cd dramaip-platform && make platform-down")
-    print("")
-    print("Press Ctrl+C to stop all processes.")
-
-    try:
-        while True:
-            for name, process in processes:
-                code = process.poll()
-                if code is not None:
-                    warn(f"{name} exited with code {code}")
-                    return code
-            time.sleep(0.5)
+        check_docker()
+        release_required_ports()
+        package_java_server()
+        stack_start_attempted = True
+        ensure_stack_running()
+        wait_for_shutdown()
+    except RuntimeError as exc:
+        err(str(exc))
+        return 1
     except KeyboardInterrupt:
         print("")
         warn(f"Received {shutdown_reason()}.")
         return 0
     finally:
-        for name, process in reversed(processes):
-            stop_process(process, name)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start dramaip-platform compose stack and web dev server.")
-    parser.add_argument("--install", action="store_true", help="Force pnpm install before starting web.")
-    parser.add_argument("--no-install", action="store_true", help="Skip pnpm install even if node_modules is missing.")
-    parser.add_argument("--web-only", action="store_true", help="Only start the web app (assume the compose stack is already up).")
-    parser.add_argument("--no-stack", action="store_true", help="Do not bring up the docker compose stack.")
-    parser.add_argument("--no-kill-ports", action="store_true", help="Do not stop processes occupying the web port.")
-    parser.add_argument(
-        "--api-base-url",
-        default=None,
-        help="Kong or compatible API origin for the local Web proxy. Defaults to http://localhost:8000.",
-    )
-    args = parser.parse_args()
-
-    if args.install and args.no_install:
-        parser.error("--install and --no-install cannot be used together")
-
-    return args
-
-
-def main() -> int:
-    args = parse_args()
-    check_layout()
-    install_shutdown_handlers()
-
-    processes: list[tuple[str, subprocess.Popen]] = []
-    urls: list[tuple[str, str]] = []
-    env = os.environ.copy()
-    kill_ports = not args.no_kill_ports
-    stack_enabled = not args.no_stack
-
-    api_base_url = args.api_base_url or f"http://localhost:{KONG_PROXY_PORT}"
-
-    try:
-        if not args.web_only and stack_enabled:
-            ensure_stack_running()
-            urls.append(("Services", api_base_url))
-        elif args.web_only:
-            warn("--web-only: assuming the compose stack is already up.")
-            urls.append(("Services", api_base_url))
-        elif not stack_enabled:
-            warn("--no-stack: not bringing up docker compose; web will use the existing backend at " + api_base_url)
-            urls.append(("Services", api_base_url))
-
-        check_node()
-        pnpm = resolve_pnpm()
-        install_mode = "force" if args.install else "skip" if args.no_install else "auto"
-        ensure_client_deps(pnpm, install_mode)
-
-        release_port(WEB_PORT, "Web", kill_ports)
-        web_env = env.copy()
-        # Keep browser API requests on the Web origin and proxy them from the
-        # Next dev server.  A LAN browser's localhost refers to that browser's
-        # device, not this Mac; same-origin requests avoid that trap and also
-        # preserve Cookie-session semantics without a development CORS rule.
-        web_env["NEXT_PUBLIC_API_BASE_URL"] = ""
-        web_env["DRAMAIP_WEB_API_PROXY_TARGET"] = api_base_url
-        web_env.setdefault("NEXT_PUBLIC_PAYMENT_MODE", "simulated")
-        # web dev 端口固定在 package.json 的 `next dev -p 3009`；不要再设 PORT
-        # 环境变量，否则会与 -p 冲突。
-        web_cmd = pnpm + ["--filter", "@dramaip/web", "dev"]
-        web_process = start_process("clients:web", web_cmd, CLIENTS_DIR, web_env)
-        processes.append(("clients:web", web_process))
-        ensure_process_started(web_process, "clients:web")
-        urls.append(("Web", f"http://localhost:{WEB_PORT}"))
-    except RuntimeError as exc:
-        err(str(exc))
-        for name, process in reversed(processes):
-            stop_process(process, name)
-        return 1
-    except KeyboardInterrupt:
-        print("")
-        warn(f"Received {shutdown_reason()}.")
-        for name, process in reversed(processes):
-            stop_process(process, name)
-        return 0
-
-    return watch(processes, urls)
+        if stack_start_attempted:
+            stop_stack()
 
 
 if __name__ == "__main__":

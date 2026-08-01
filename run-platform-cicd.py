@@ -119,6 +119,8 @@ def run(
             check=True,
             capture_output=capture,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except FileNotFoundError as exc:
         fail(f"required command was not found: {command[0]}")
@@ -185,23 +187,25 @@ def parse_manifest(path: Path = MANIFEST_PATH) -> list[ImageSpec]:
         if len(fields) != 4:
             fail(f"invalid manifest row {line_number}: expected four pipe-delimited fields")
         spec = ImageSpec(*(field.strip() for field in fields))
-        if not spec.chart_key or not spec.image_name or spec.kind not in {"go", "web"}:
+        if not spec.chart_key or not spec.image_name or spec.kind not in {"java", "web"}:
             fail(f"invalid manifest row {line_number}")
         if spec.chart_key in seen_keys or spec.image_name in seen_names:
             fail(f"duplicate manifest value on row {line_number}")
-        if spec.kind == "go" and not spec.build_target:
-            fail(f"Go image {spec.image_name} has no build target")
+        if spec.kind == "java" and spec.build_target not in {
+            "migration", "gateway", "services/identity", "services/support",
+            "services/creation", "services/quota", "services/ai", "services/billing",
+        }:
+            fail(f"Java image {spec.image_name} has an invalid Maven module")
         if spec.kind == "web" and spec.build_target:
-            fail("web image must not declare a Go build target")
+            fail("web image must not declare a build target")
         seen_keys.add(spec.chart_key)
         seen_names.add(spec.image_name)
         specs.append(spec)
-    go_count = sum(spec.kind == "go" for spec in specs)
+    java_count = sum(spec.kind == "java" for spec in specs)
     web_count = sum(spec.kind == "web" for spec in specs)
-    if go_count != 18 or web_count != 1 or len(specs) != 19:
-        fail(f"manifest must contain 18 Go images and one web image; found {go_count} Go and {web_count} web")
-    if "snapshot" not in seen_keys or "migration" not in seen_keys or "web" not in seen_keys:
-        fail("manifest must contain snapshot, migration, and web")
+    expected_java = {"migration", "gateway", "identity", "support", "creation", "quota", "ai", "billing"}
+    if java_count != 8 or web_count != 1 or len(specs) != 9 or not expected_java.issubset(seen_keys) or "web" not in seen_keys:
+        fail(f"manifest must contain the eight Java runtime images and one web image; found {java_count} Java and {web_count} web")
     return specs
 
 
@@ -336,9 +340,8 @@ def ensure_pnpm(directory: Path, install_deps: bool) -> list[str]:
 
 def verify_command(args: argparse.Namespace) -> None:
     gitops_dir = resolve_gitops_dir(args.gitops_dir)
-    require_tools(("git", "go", "buf", "helm", "node"))
-    run(["make", "event-contracts"], cwd=PLATFORM_DIR / "services")
-    run(["go", "test", "./..."], cwd=PLATFORM_DIR / "services", env={**os.environ, "GOCACHE": os.environ.get("GOCACHE", "/tmp/dramaip-go-cicd")})
+    require_tools(("git", "helm", "mvn", "node"))
+    run(["mvn", "-B", "-ntp", "verify"], cwd=PLATFORM_DIR / "server")
 
     clients = PLATFORM_DIR / "clients"
     clients_pnpm = ensure_pnpm(clients, args.install_deps)
@@ -395,12 +398,17 @@ def initial_staging_values(args: argparse.Namespace, specs: list[ImageSpec], tag
         "replicaCount: 1",
         "imagePullSecrets:",
         "  - name: dramaip-staging-registry",
-        "images:",
+        "legacy:",
+        "  enabled: false",
+        "java:",
+        "  enabled: true",
+        f"  postgresDsn: jdbc:postgresql://{postgres_host}:5432/dramaip?sslmode=require",
+        "  images:",
     ]
     for spec in specs:
         if spec.kind == "web":
             continue
-        lines.extend((f"  {spec.chart_key}:", f"    repository: {args.registry}/{spec.image_name}", f"    tag: {tag}"))
+        lines.extend((f"    {spec.chart_key}:", f"      repository: {args.registry}/{spec.image_name}", f"      tag: {tag}"))
     lines.extend(
         (
             "web:",
@@ -440,7 +448,7 @@ def initial_staging_values(args: argparse.Namespace, specs: list[ImageSpec], tag
             "  hosts:",
             f"    - host: {ingress_host}",
             "      paths:",
-            "        - path: /v1",
+            "        - path: /api/v1",
             "          pathType: Prefix",
             "  tls:",
             "    - secretName: dramaip-staging-ingress-tls",
@@ -522,8 +530,8 @@ validate_staging:
     - helm lint helm/dramaip-platform -f helm/dramaip-platform/values-staging.yaml
     - helm template dramaip-staging helm/dramaip-platform -f helm/dramaip-platform/values-staging.yaml > /tmp/rendered.yaml
     - test -s /tmp/rendered.yaml
-    - 'test "$(grep -Ec "^[[:space:]]+repository: .+/.+$" helm/dramaip-platform/values-staging.yaml)" = 19'
-    - 'test "$(grep -Ec "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml)" = 19'
+    - 'test "$(grep -Ec "^[[:space:]]+repository: .+/.+$" helm/dramaip-platform/values-staging.yaml)" = 9'
+    - 'test "$(grep -Ec "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml)" = 9'
     - 'test "$(grep -E "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml | awk "{print \\$2}" | sort -u | wc -l | tr -d " ")" = 1'
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -681,8 +689,8 @@ def staging_values_update_expression(specs: list[ImageSpec], registry: str, tag:
             expression = f'.web.image.repository = "{registry}/web" | .web.image.tag = "{tag}"'
         else:
             expression = (
-                f'.images.{spec.chart_key}.repository = "{registry}/{spec.image_name}" | '
-                f'.images.{spec.chart_key}.tag = "{tag}"'
+                f'.java.images.{spec.chart_key}.repository = "{registry}/{spec.image_name}" | '
+                f'.java.images.{spec.chart_key}.tag = "{tag}"'
             )
         expressions.append(expression)
     expressions.append(f'.release.sourceRevision = "{revision}" | .release.imageTag = "{tag}"')
@@ -690,7 +698,7 @@ def staging_values_update_expression(specs: list[ImageSpec], registry: str, tag:
 
 
 def update_staging_values(values: Path, specs: list[ImageSpec], registry: str, tag: str, revision: str) -> None:
-    """Write all nineteen image references in one yq transaction."""
+    """Write the eight Java and one web image references in one yq transaction."""
 
     run(["yq", "-i", staging_values_update_expression(specs, registry, tag, revision), str(values)])
 
@@ -720,7 +728,7 @@ def release_command(args: argparse.Namespace) -> None:
         revision = source_revision()
         for command in (
             f"build-images.sh ({immutable_tag(revision)})", "scan-images.sh", "push-images.sh",
-            f"fast-forward GitOps {args.gitops_branch}", "yq update all 19 image references",
+            f"fast-forward GitOps {args.gitops_branch}", "yq update all 9 Java/Web image references",
             f"argocd app wait {args.argocd_app}",
         ):
             print(f"DRY-RUN $ {command}")

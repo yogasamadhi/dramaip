@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
-import { MobileDraftDeleteResponseSchema, MobileDraftPageSchema, MobileDraftResponseSchema, MobileExpansionResponseSchema, type MobileDraft } from '@dramaip/sdk/contracts'
+import { AiChatSchema, AiModelsSchema, MobileDraftDeleteResponseSchema, MobileDraftPageSchema, MobileDraftResponseSchema, type MobileDraft } from '@dramaip/sdk/contracts'
 import { authorizedMobileRequest } from './mobile-session'
 
 const DRAFT_QUEUE_KEY = 'com.dramaip.mobile.draft-outbox.v1'
@@ -90,7 +90,7 @@ export async function syncQueuedDrafts(): Promise<{ synced: number; deleted: num
   for (const draft of drafts) {
     if (draft.pendingDelete && draft.cloudId) {
       try {
-        const response = await authorizedMobileRequest(`/v1/mobile/drafts/${encodeURIComponent(draft.cloudId)}`, { method: 'DELETE' })
+        const response = await authorizedMobileRequest(`/api/v1/drafts/${encodeURIComponent(draft.cloudId)}`, { method: 'DELETE' })
         MobileDraftDeleteResponseSchema.parse(response)
         deleted += 1
         continue
@@ -104,14 +104,14 @@ export async function syncQueuedDrafts(): Promise<{ synced: number; deleted: num
       continue
     }
     try {
-      const response = await authorizedMobileRequest('/v1/mobile/drafts', {
+      const response = await authorizedMobileRequest('/api/v1/drafts', {
         method: 'POST',
         body: JSON.stringify({
-          client_id: draft.clientId, kind: draft.kind, capture_mode: draft.captureMode,
-          title: draft.title, content: draft.content, ai_expansion: draft.aiExpansion,
+          clientId: draft.clientId, kind: draft.kind, captureMode: draft.captureMode,
+          title: draft.title, content: draft.content,
         }),
       })
-      const remote = MobileDraftResponseSchema.parse(response).draft
+      const remote = MobileDraftResponseSchema.parse(response)
       next.push(fromRemote(draft, remote))
       synced += 1
     } catch (error) {
@@ -124,14 +124,14 @@ export async function syncQueuedDrafts(): Promise<{ synced: number; deleted: num
 }
 
 export async function listCloudDraftPage(cursor = ''): Promise<{ drafts: MobileDraft[]; nextCursor: string }> {
-  const params = new URLSearchParams({ limit: '50' }); if (cursor) params.set('cursor', cursor)
-  const response = await authorizedMobileRequest(`/v1/mobile/drafts?${params}`, { method: 'GET' })
+  void cursor
+  const response = await authorizedMobileRequest('/api/v1/drafts', { method: 'GET' })
   const page = MobileDraftPageSchema.parse(response)
-  return { drafts: page.drafts, nextCursor: page.next_cursor }
+  return { drafts: page, nextCursor: '' }
 }
 
 export async function deleteCloudDraft(draftID: string): Promise<void> {
-  MobileDraftDeleteResponseSchema.parse(await authorizedMobileRequest(`/v1/mobile/drafts/${encodeURIComponent(draftID)}`, { method: 'DELETE' }))
+  MobileDraftDeleteResponseSchema.parse(await authorizedMobileRequest(`/api/v1/drafts/${encodeURIComponent(draftID)}`, { method: 'DELETE' }))
   const drafts = await listLocalDrafts()
   await writeLocalDrafts(drafts.filter((draft) => draft.cloudId !== draftID))
 }
@@ -139,12 +139,17 @@ export async function deleteCloudDraft(draftID: string): Promise<void> {
 export async function expandMobileDraft(kind: MobileDraftKind, content: string): Promise<string> {
   const text = content.trim()
   if (!text || Array.from(text).length > 1_500) throw new Error('扩写内容需要在 1,500 字符以内')
-  const response = await authorizedMobileRequest('/v1/mobile/ai/expand', {
-    method: 'POST', body: JSON.stringify({ idempotency_key: newClientID(), kind, content: text }),
-  })
-  const payload = MobileExpansionResponseSchema.safeParse(response)
-  if (!payload.success) throw new Error('扩写响应无效')
-  return payload.data.expansion.trim()
+  const models = AiModelsSchema.parse(await authorizedMobileRequest('/api/v1/models', { method: 'GET' }))
+  const model = models[0]
+  if (!model) throw new Error('当前账户没有可用的 AI 模型')
+  const payload = AiChatSchema.parse(await authorizedMobileRequest('/api/v1/chats', {
+    method: 'POST', headers: { 'Idempotency-Key': newClientID() },
+    body: JSON.stringify({ model, maxTokens: 512, messages: [
+      { role: 'system', content: `将用户的${kind}草稿扩写为可供创作使用的中文文本。` },
+      { role: 'user', content: text },
+    ] }),
+  }))
+  return payload.content.trim()
 }
 
 export async function exportLocalDrafts(): Promise<{ uri: string; shared: boolean }> {

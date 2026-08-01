@@ -1,14 +1,10 @@
-# 全栈本地开发编排：基础设施 + 11 个 Go 微服务 + Kong + 可观测性。
-#
-# 10 个 Go 服务统一用 services/Dockerfile.service + build.args.TARGET 构建，
-# 与 K8s chart（deploy/helm/dramaip-platform/templates/deployment.yaml）同源。
-# 修改 Go 代码后用 `make platform-up`（即 docker compose up -d --build）重建。
-#
-# 服务间 gRPC 走 compose 内部 DNS（如 web-bff → auth:9101）；下游服务的
-# 8101–8108 / 9101–9106 不映射到主机，外部访问统一经 Kong :8000 → web-bff:8100。
+# Java 本地开发编排：基础设施、数据库迁移、Gateway 与六个 Java 领域服务。
+# `docker compose --profile java up -d --build` 只启动 Java 运行时；legacy/mixed
+# profile 仅保留在迁移归档期，待 Kratos 源码移除后会一并清理。
 
 # 共享锚点：所有 app 服务都继承这套通用 env + 重启策略 + 基础依赖。
 x-app-common: &app-common
+  profiles: [legacy, mixed]
   restart: unless-stopped
   depends_on:
     postgres:
@@ -46,6 +42,7 @@ x-app-common: &app-common
 
 services:
   postgres:
+    profiles: [legacy, mixed, java]
     container_name: drama-postgres
     image: postgres:18-alpine
     pull_policy: missing
@@ -64,6 +61,7 @@ services:
       retries: 20
 
   redis:
+    profiles: [legacy, mixed, java]
     container_name: drama-redis
     image: redis:8-alpine
     pull_policy: missing
@@ -80,6 +78,7 @@ services:
       retries: 20
 
   rabbitmq:
+    profiles: [legacy, mixed, java]
     container_name: drama-rabbitmq
     image: rabbitmq:4.3-management-alpine
     pull_policy: missing
@@ -99,6 +98,7 @@ services:
       retries: 12
 
   minio:
+    profiles: [legacy, mixed, java]
     container_name: drama-minio
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     pull_policy: missing
@@ -118,6 +118,7 @@ services:
       retries: 20
 
   minio-init:
+    profiles: [legacy, mixed, java]
     image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     restart: "no"
     depends_on:
@@ -130,7 +131,7 @@ services:
         "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}";
         mc mb --ignore-existing review/dramaip-review;
         mc anonymous set none review/dramaip-review;
-        mc ilm rule rm --all --force review/dramaip-review;
+        mc ilm rule rm --all --force review/dramaip-review || true;
         mc ilm rule add --expire-days 30 review/dramaip-review
     environment:
       MINIO_ROOT_USER: ${REVIEW_S3_ACCESS_KEY:-dramaip-review}
@@ -139,10 +140,11 @@ services:
   # ─────────────────────────── Go 微服务 ───────────────────────────
 
   migrate:
+    profiles: [legacy, mixed]
     container_name: drama-migrate
     image: dramaip-migrate
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/migration/job/cmd/server
@@ -173,7 +175,7 @@ services:
     container_name: drama-auth
     image: dramaip-auth
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/auth/service/cmd/server
@@ -214,7 +216,7 @@ services:
     container_name: drama-user
     image: dramaip-user
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/user/service/cmd/server
@@ -232,7 +234,7 @@ services:
     container_name: drama-billing
     image: dramaip-billing
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/billing/service/cmd/server
@@ -246,7 +248,7 @@ services:
       QUOTA_GRPC_ENDPOINT: quota:9104
       BILLING_QUOTA_DIAL_TIMEOUT: ${BILLING_QUOTA_DIAL_TIMEOUT:-10s}
       # Kept disabled by default. Sandbox credentials and certificate paths are
-      # supplied from services/.env or an operator-managed override; no secret
+      # supplied from legacy/go-services/.env or an operator-managed override; no secret
       # is committed to Compose.
       WECHAT_PAY_ENABLED: ${WECHAT_PAY_ENABLED:-false}
       WECHAT_PAY_APP_ID: ${WECHAT_PAY_APP_ID:-}
@@ -272,7 +274,7 @@ services:
     container_name: drama-quota
     image: dramaip-quota
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/quota/service/cmd/server
@@ -290,7 +292,7 @@ services:
     container_name: drama-ai-gateway
     image: dramaip-ai-gateway
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/ai_gateway/service/cmd/server
@@ -328,7 +330,7 @@ services:
     container_name: drama-notification
     image: dramaip-notification
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/notification/service/cmd/server
@@ -348,7 +350,7 @@ services:
     container_name: drama-inspiration
     image: dramaip-inspiration
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/inspiration/service/cmd/server
@@ -369,7 +371,7 @@ services:
     container_name: drama-snapshot
     image: dramaip-snapshot
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/snapshot/service/cmd/server
@@ -387,7 +389,7 @@ services:
     container_name: drama-review
     image: dramaip-review
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/review/service/cmd/server
@@ -424,7 +426,7 @@ services:
     container_name: drama-reporting
     image: dramaip-reporting
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/reporting/service/cmd/server
@@ -442,7 +444,7 @@ services:
     container_name: drama-notification-job
     image: dramaip-notification-job
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/notification/job/cmd/server
@@ -483,7 +485,7 @@ services:
     container_name: drama-reporting-job
     image: dramaip-reporting-job
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/reporting/job/cmd/server
@@ -522,7 +524,7 @@ services:
     container_name: drama-billing-job
     image: dramaip-billing-job
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/billing/job/cmd/server
@@ -566,7 +568,7 @@ services:
     container_name: drama-quota-job
     image: dramaip-quota-job
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/quota/job/cmd/server
@@ -584,7 +586,7 @@ services:
     container_name: drama-web-bff
     image: dramaip-web-bff
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/bff/web/interface/cmd/server
@@ -624,7 +626,7 @@ services:
     container_name: drama-desktop-bff
     image: dramaip-desktop-bff
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/bff/desktop/interface/cmd/server
@@ -665,7 +667,7 @@ services:
     container_name: drama-mobile-bff
     image: dramaip-mobile-bff
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/bff/mobile/interface/cmd/server
@@ -698,7 +700,7 @@ services:
     container_name: drama-admin-bff
     image: dramaip-admin-bff
     build:
-      context: ../../services
+      context: ../../legacy/go-services
       dockerfile: Dockerfile.service
       args:
         TARGET: ./app/admin/interface/cmd/server
@@ -755,6 +757,7 @@ services:
   # (postgres/redis/rabbitmq/prometheus/grafana/jaeger below are dev-time
   # infra ports; in prod (k8s) everything collapses to exposing Kong alone.)
   kong:
+    profiles: [legacy, mixed]
     container_name: drama-kong
     image: kong:3.9-ubuntu
     pull_policy: missing
@@ -791,6 +794,7 @@ services:
 
   # ────── 指标 (Metrics)：拉模型抓取 + TSDB 存储（告警/排障第一站）──────
   prometheus:
+    profiles: [observability]
     container_name: drama-prometheus
     image: prom/prometheus:v3.11.3
     pull_policy: missing
@@ -810,6 +814,7 @@ services:
   # otel-collector 横跨三支柱：traces 转发至 jaeger，metrics/logs 视
   # otel-collector/config.yaml 可下发到 prometheus / opensearch。
   otel-collector:
+    profiles: [observability]
     container_name: drama-otel-collector
     image: otel/opentelemetry-collector-contrib:0.155.0
     pull_policy: missing
@@ -823,6 +828,7 @@ services:
       - jaeger
 
   jaeger:
+    profiles: [observability]
     # v2 基于 OTel Collector；v1(all-in-one) 已于 2025-12-31 EOL。
     # badger 落盘到 docker-data/jaeger（见 jaeger/config.yaml）。
     container_name: drama-jaeger
@@ -841,6 +847,7 @@ services:
   # 挂宿主 /var/lib/docker/containers 是采集容器日志的标配；state 卷持久化 tail DB 偏移，
   # 避免 fluent-bit 重启后从头重读 → OpenSearch 日志重复。
   fluent-bit:
+    profiles: [observability]
     container_name: drama-fluent-bit
     image: fluent/fluent-bit:5.0.8
     pull_policy: missing
@@ -855,6 +862,7 @@ services:
   # 端口限制在 loopback。生产环境不得复用它，必须使用启用认证、TLS、索引
   # 生命周期和最小权限角色的受管/受控 OpenSearch 集群（见 docs/LOCAL_DEVELOPMENT.md）。
   opensearch:
+    profiles: [observability]
     container_name: drama-opensearch
     image: opensearchproject/opensearch:3.6.0
     pull_policy: missing
@@ -873,6 +881,9 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+    # Heap is 512m; allow headroom for Lucene off-heap segments and JVM
+    # overhead while still bounding the container under 1GB.
+    mem_limit: ${OPENSEARCH_MEM_LIMIT:-896m}
     ports:
       - "127.0.0.1:9200:9200"   # REST API（Dashboards / Fluent Bit 连）
       - "127.0.0.1:9600:9600"   # 性能指标，留作后续 prometheus 抓
@@ -880,6 +891,7 @@ services:
       - ./docker-data/opensearch:/usr/share/opensearch/data
 
   opensearch-dashboards:
+    profiles: [observability]
     container_name: drama-opensearch-dashboards
     image: opensearchproject/opensearch-dashboards:3.6.0
     pull_policy: missing
@@ -893,6 +905,7 @@ services:
 
   # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + OpenSearch(日志) ──────
   grafana:
+    profiles: [observability]
     container_name: drama-grafana
     image: grafana/grafana:12.3.8
     pull_policy: missing
@@ -908,3 +921,132 @@ services:
     depends_on:
       - prometheus
       - opensearch
+
+  # ─────────────────── Java 服务端 ───────────────────
+  # 镜像未指定 platform，Docker Desktop 会为 Windows/amd64、macOS/arm64
+  # 选择宿主机对应的多架构基础镜像；Java 服务本身从本地源码构建。
+  nacos:
+    image: nacos/nacos-server:v3.1.1
+    profiles: [mixed, java]
+    environment:
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      # Nacos 3 validates this value even when local authentication is not
+      # enabled. It is a development-only default; deployments inject it.
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-VGhpcy1pcy1hLWxvY2FsLWRldmVsb3BtZW50LXRva2VuLWNoYW5nZS1tZQ==}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-serverIdentity}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-security}
+      JVM_XMS: ${NACOS_JVM_XMS:-256m}
+      JVM_XMX: ${NACOS_JVM_XMX:-256m}
+      JVM_XMN: ${NACOS_JVM_XMN:-128m}
+    # Cap memory so the standalone JVM does not balloon on a dev host; the
+    # heap alone targets 256m, the rest covers metaspace + direct buffers.
+    mem_limit: ${NACOS_MEM_LIMIT:-512m}
+    # 8848 is the HTTP API, 8849 is the Nacos 3 console (container 8080), and
+    # 9848 is the Nacos gRPC client channel needed by Java services on the host.
+    ports: ["8848:8848", "8849:8080", "9848:9848"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v3/console/health/readiness >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  seata:
+    image: apache/seata-server:2.5.0.jdk21
+    profiles: [mixed, java]
+    environment:
+      SEATA_IP: seata
+      SEATA_PORT: 8091
+    # Seata's default heap easily exceeds 1GB without a cgroup limit. 768m is
+    # ample for single-node dev and keeps Docker Desktop memory predictable.
+    mem_limit: ${SEATA_MEM_LIMIT:-768m}
+    ports: ["8091:8091"]
+
+  java-migration:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: migration } }
+    environment:
+      POSTGRES_DSN: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dramaip}
+      POSTGRES_USER: ${POSTGRES_USER:-dramaip}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dramaip}
+      LEGACY_MIGRATIONS_DIR: /app/legacy-migrations
+      DB_ROLE_BOOTSTRAP: ${DB_ROLE_BOOTSTRAP:-true}
+      DRAMAIP_MIGRATION_ROLE_PASSWORD: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:-dramaip}
+    depends_on: { postgres: { condition: service_healthy } }
+
+  java-gateway:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: gateway } }
+    environment: &java-env
+      NACOS_SERVER_ADDR: nacos:8848
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
+      JWT_JWK_SET_URI: ${JWT_JWK_SET_URI:-http://identity:8080/.well-known/jwks.json}
+      JWT_ENABLED: ${JWT_ENABLED:-true}
+      DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
+    ports: ["8080:8080"]
+    depends_on: { nacos: { condition: service_healthy }, java-migration: { condition: service_completed_successfully } }
+
+  identity:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/identity } }
+    environment: &java-service-env
+      POSTGRES_DSN: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dramaip}
+      POSTGRES_PASSWORD: ${POSTGRES_IDENTITY_PASSWORD:-dramaip}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-dramaip}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-dramaip}
+      WEB_COOKIE_SECURE: ${WEB_COOKIE_SECURE:-false}
+      WEB_COOKIE_DOMAIN: ${WEB_COOKIE_DOMAIN:-}
+      WEB_REFRESH_COOKIE_TTL: ${WEB_REFRESH_COOKIE_TTL:-720h}
+      NACOS_SERVER_ADDR: nacos:8848
+      SEATA_SERVER_ADDR: seata:8091
+      JWT_ENABLED: ${JWT_ENABLED:-true}
+      JWT_JWK_SET_URI: ${JWT_JWK_SET_URI:-http://identity:8080/.well-known/jwks.json}
+      DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
+      IDENTITY_ALLOW_EPHEMERAL_JWT: ${IDENTITY_ALLOW_EPHEMERAL_JWT:-true}
+      REVIEW_S3_ENDPOINT: ${REVIEW_S3_ENDPOINT:-http://minio:9000}
+      REVIEW_S3_REGION: ${REVIEW_S3_REGION:-us-east-1}
+      REVIEW_S3_BUCKET: ${REVIEW_S3_BUCKET:-dramaip-review}
+      REVIEW_S3_ACCESS_KEY: ${REVIEW_S3_ACCESS_KEY:-dramaip-review}
+      REVIEW_S3_SECRET_KEY: ${REVIEW_S3_SECRET_KEY:-dramaip-review-development-secret}
+      REVIEW_S3_ALLOW_INSECURE: ${REVIEW_S3_ALLOW_INSECURE:-true}
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
+
+  support:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/support } }
+    environment: *java-service-env
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
+
+  creation:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/creation } }
+    environment: *java-service-env
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
+
+  java-quota:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/quota } }
+    environment: *java-service-env
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
+
+  ai:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/ai } }
+    environment: *java-service-env
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
+
+  java-billing:
+    profiles: [mixed, java]
+    build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/billing } }
+    environment: *java-service-env
+    depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }

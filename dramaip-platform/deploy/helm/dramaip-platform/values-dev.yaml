@@ -82,6 +82,7 @@ config:
 
 review:
   objectStore:
+    allowInsecure: true
     endpoint: http://minio:9000
     region: us-east-1
     bucket: dramaip-review

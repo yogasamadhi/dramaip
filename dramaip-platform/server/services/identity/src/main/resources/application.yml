@@ -1,0 +1,33 @@
+spring:
+  application: { name: identity }
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=DRAMAIP"
+  flyway: { enabled: false }
+  datasource:
+    url: "${POSTGRES_DSN:jdbc:postgresql://localhost:5432/dramaip}"
+    username: "${POSTGRES_USER:dramaip_identity_svc}"
+    password: "${POSTGRES_PASSWORD:}"
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: "${JWT_JWK_SET_URI:}"
+  cloud:
+    nacos:
+      server-addr: "${NACOS_SERVER_ADDR:localhost:8848}"
+dramaip:
+  security:
+    jwt:
+      enabled: ${JWT_ENABLED:false}
+  identity:
+    web-session:
+      secure: "${WEB_COOKIE_SECURE:false}"
+      cookie-domain: "${WEB_COOKIE_DOMAIN:}"
+      refresh-ttl: "${WEB_REFRESH_COOKIE_TTL:720h}"
+    jwt:
+      private-key-pem: "${IDENTITY_JWT_PRIVATE_KEY_PEM:}"
+      key-id: "${IDENTITY_JWT_KEY_ID:dramaip-current}"
+      issuer: "${IDENTITY_JWT_ISSUER:dramaip-identity}"
+      audience: "${IDENTITY_JWT_AUDIENCE:dramaip-clients}"
+      allow-ephemeral-key: ${IDENTITY_ALLOW_EPHEMERAL_JWT:false}
+management.endpoints.web.exposure.include: health,info,metrics,prometheus

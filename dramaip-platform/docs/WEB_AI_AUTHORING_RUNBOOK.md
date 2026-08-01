@@ -17,7 +17,7 @@
 
 ## 发布与回滚
 
-- 先发布 AI Gateway（新增 gRPC streaming/status/cancel），再发布 Web BFF，最后发布 Web 与 SDK；旧同步 `/v1/ai/chat` 保持兼容。
+- 先发布 Java AI 服务（SSE streaming/status/cancel），再发布 Web 与 SDK；切换后仅支持契约 2 的 `/api/v1/**`，旧 `/v1/**` 客户端必须升级。
 - 回滚 Web 可直接回到同步 Chat；回滚 BFF 前必须确认 Gateway 仍能完成或取消已在途的 stream。不得绕过 preflight、幂等 claim、预扣或最终结算。
 - 若上游不支持 `text/event-stream`，Gateway 以明确错误停止并释放 reservation；不要在客户端把本地打字动画伪装成模型流。
 
@@ -28,7 +28,7 @@ cd dramaip-platform/clients
 pnpm lint && pnpm typecheck && pnpm contracts:check && pnpm build:web
 node ../scripts/web-route-smoke.mjs
 
-cd ../services
+cd ../legacy/go-services
 GOCACHE=/tmp/dramaip-go-build go test ./...
 
 cd ..

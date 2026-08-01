@@ -1,0 +1,29 @@
+spring:
+  application: { name: creation }
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml?group=DRAMAIP"
+  flyway: { enabled: false }
+  datasource:
+    url: "${POSTGRES_DSN:jdbc:postgresql://localhost:5432/dramaip}"
+    username: "${POSTGRES_USER:dramaip_creation_svc}"
+    password: "${POSTGRES_PASSWORD:}"
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: "${JWT_JWK_SET_URI:}"
+  cloud:
+    nacos:
+      server-addr: "${NACOS_SERVER_ADDR:localhost:8848}"
+dramaip:
+  security:
+    jwt:
+      enabled: ${JWT_ENABLED:false}
+dramaip.review.object-store:
+  endpoint: ${REVIEW_S3_ENDPOINT:}
+  region: ${REVIEW_S3_REGION:us-east-1}
+  bucket: ${REVIEW_S3_BUCKET:}
+  access-key: ${REVIEW_S3_ACCESS_KEY:}
+  secret-key: ${REVIEW_S3_SECRET_KEY:}
+  allow-insecure: ${REVIEW_S3_ALLOW_INSECURE:false}
+management.endpoints.web.exposure.include: health,info,metrics,prometheus

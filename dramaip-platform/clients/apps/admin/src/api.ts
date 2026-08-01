@@ -24,6 +24,7 @@ import {
   AdminUsersResponseSchema,
   DEFAULT_LIST_LIMIT,
   ListQuerySchema,
+  ResultSchema,
   contractErrorCode,
   type AdminAuditEntry,
   type AdminCostAlert,
@@ -37,6 +38,8 @@ import {
   type AdminReconciliation,
   type AdminDeliveryAttempt,
 } from '@dramaip/sdk/contracts'
+import { resourcePath } from '@dramaip/sdk'
+import { z } from 'zod'
 
 export type { AdminAuditEntry as AuditEntry, AdminCostAlert as CostAlert, AdminCustomer as Customer, AdminOrderSummary as OrderSummary, AdminOverview as Overview, AdminPrincipal as Principal, AdminProjectionException as ProjectionException, AdminSubscriptionSummary as SubscriptionSummary, AdminUserSummary as UserSummary, AdminReconciliation as Reconciliation, AdminDeliveryAttempt as DeliveryAttempt }
 
@@ -49,8 +52,28 @@ export class APIError extends Error {
 
 type Parser<T> = { parse(value: unknown): T }
 
+const JavaAdminPrincipalSchema = z.object({ id: z.string(), email: z.string().email(), status: z.string(), roles: z.array(z.string()), permissions: z.array(z.string()) })
+const JavaAdminLoginSchema = z.object({ accessToken: z.string(), expiresIn: z.number().int().positive(), principal: JavaAdminPrincipalSchema })
+const JavaAdminConfirmationSchema = z.object({ id: z.string() })
+const JavaAdminAuditSchema = z.object({ id: z.string(), actorId: z.string(), action: z.string(), resourceType: z.string(), resourceId: z.string(), reason: z.string(), traceId: z.string(), createdAt: z.string() })
+function legacyPrincipal(value: z.infer<typeof JavaAdminPrincipalSchema>) {
+  return { id: value.id, email: value.email, status: value.status, roles: value.roles, permissions: value.permissions }
+}
+function legacyAdminLogin(value: unknown) {
+  const item = JavaAdminLoginSchema.parse(value)
+  return AdminLoginResponseSchema.parse({ access_token: item.accessToken, expires_in: item.expiresIn, principal: legacyPrincipal(item.principal) })
+}
+function legacyAdminConfirmation(value: unknown) {
+  const item = JavaAdminConfirmationSchema.parse(value)
+  return AdminConfirmationResponseSchema.parse({ confirmation: { id: item.id } })
+}
+function legacyAdminAudit(value: unknown) {
+  const entries = z.array(JavaAdminAuditSchema).parse(value)
+  return AdminAuditResponseSchema.parse({ entries: entries.map((entry) => ({ id: entry.id, actor_id: entry.actorId, action: entry.action, resource_type: entry.resourceType, resource_id: entry.resourceId, reason: entry.reason, trace_id: entry.traceId, created_at: entry.createdAt })) })
+}
+
 async function request<T>(path: string, parser: Parser<T>, token?: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${baseURL}${path}`, {
+  const response = await fetch(`${baseURL}${resourcePath(path)}`, {
     ...init,
     headers: {
       Accept: 'application/json',
@@ -62,22 +85,24 @@ async function request<T>(path: string, parser: Parser<T>, token?: string, init?
   })
   const body: unknown = await response.json().catch(() => ({}))
   if (!response.ok) throw new APIError(contractErrorCode(body) || `request_failed_${response.status}`, response.status)
-  return parser.parse(body)
+  const envelope = ResultSchema(z.unknown()).parse(body)
+  if (envelope.code !== 'OK') throw new APIError(envelope.code, response.status)
+  return parser.parse(envelope.data)
 }
 
 export const adminAPI = {
-  login: (email: string, password: string) => request('/v1/admin/auth/login', AdminLoginResponseSchema, undefined, { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: async (email: string, password: string) => legacyAdminLogin(await request('/v1/admin/auth/login', z.unknown(), undefined, { method: 'POST', body: JSON.stringify({ email, password }) })),
   overview: (token: string) => request('/v1/admin/reporting/overview', AdminOverviewSchema, token),
   users: (token: string, cursor = '', query = '') => request(`/v1/admin/reporting/users?limit=${defaultListQuery.limit}&cursor=${encodeURIComponent(cursor)}&query=${encodeURIComponent(query)}`, AdminUsersResponseSchema, token),
   orders: (token: string, cursor = '', query = '') => request(`/v1/admin/reporting/orders?limit=${defaultListQuery.limit}&cursor=${encodeURIComponent(cursor)}&query=${encodeURIComponent(query)}`, AdminOrdersResponseSchema, token),
   subscriptions: (token: string, cursor = '', query = '') => request(`/v1/admin/reporting/subscriptions?limit=${defaultListQuery.limit}&cursor=${encodeURIComponent(cursor)}&query=${encodeURIComponent(query)}`, AdminSubscriptionsResponseSchema, token),
   exceptions: (token: string, includeResolved = false) => request(`/v1/admin/reporting/exceptions?limit=${defaultListQuery.limit}&include_resolved=${includeResolved}`, AdminExceptionsResponseSchema, token),
-  audit: (token: string) => request(`/v1/admin/audit?limit=${defaultListQuery.limit}`, AdminAuditResponseSchema, token),
-  createResolutionConfirmation: (token: string, exceptionID: string, reason: string) => request('/v1/admin/confirmations', AdminConfirmationResponseSchema, token, { method: 'POST', body: JSON.stringify({ action: 'reporting.exception.resolve', target_id: exceptionID, reason }) }),
+  audit: async (token: string) => legacyAdminAudit(await request(`/v1/admin/audit?limit=${defaultListQuery.limit}`, z.unknown(), token)),
+  createResolutionConfirmation: async (token: string, exceptionID: string, reason: string) => legacyAdminConfirmation(await request('/v1/admin/confirmations', z.unknown(), token, { method: 'POST', body: JSON.stringify({ action: 'reporting.exception.resolve', targetId: exceptionID, reason }) })),
   resolveException: (token: string, exceptionID: string, confirmationID: string) => request('/v1/admin/reporting/exceptions/resolve', AdminExceptionResolutionResponseSchema, token, { method: 'POST', body: JSON.stringify({ exception_id: exceptionID, confirmation_id: confirmationID }) }),
   customer: (token: string, userID: string) => request(`/v1/admin/customers/${encodeURIComponent(userID)}`, AdminCustomerResponseSchema, token),
   costAlerts: (token: string, userID = '') => request(`/v1/admin/ai/cost-alerts?limit=${defaultListQuery.limit}${userID ? `&user_id=${encodeURIComponent(userID)}` : ''}`, AdminCostAlertsResponseSchema, token),
-  createConfirmation: (token: string, action: string, targetID: string, reason: string) => request('/v1/admin/confirmations', AdminConfirmationResponseSchema, token, { method: 'POST', body: JSON.stringify({ action, target_id: targetID, reason }) }),
+  createConfirmation: async (token: string, action: string, targetID: string, reason: string) => legacyAdminConfirmation(await request('/v1/admin/confirmations', z.unknown(), token, { method: 'POST', body: JSON.stringify({ action, targetId: targetID, reason }) })),
   setCustomerStatus: (token: string, userID: string, status: 'active' | 'suspended', confirmationID: string) => request('/v1/admin/customers/status', AdminProfileResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, status, confirmation_id: confirmationID }) }),
   requestRefund: (token: string, userID: string, subscriptionID: string, confirmationID: string) => request('/v1/admin/billing/refunds', AdminRefundResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, subscription_id: subscriptionID, confirmation_id: confirmationID }) }),
   resumeSubscription: (token: string, userID: string, subscriptionID: string, confirmationID: string) => request('/v1/admin/billing/subscriptions/resume', AdminSubscriptionResponseSchema, token, { method: 'POST', body: JSON.stringify({ user_id: userID, subscription_id: subscriptionID, confirmation_id: confirmationID }) }),

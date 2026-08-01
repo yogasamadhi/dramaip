@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const defaultBaseURL = 'http://localhost:8000'
-const defaultTimeoutMs = 90_000
+const defaultBaseURL = 'http://localhost:8080'
+const defaultTimeoutMs = 120_000
 const defaultIntervalMs = 1_000
 const defaultRequestTimeoutMs = 2_500
 
@@ -25,7 +25,7 @@ function healthURLFromEnvironment() {
   if (!['http:', 'https:'].includes(baseURL.protocol) || baseURL.username || baseURL.password) {
     throw new Error('DRAMAIP_PLATFORM_HEALTH_URL must be a credential-free HTTP(S) URL')
   }
-  return new URL('/v1/healthz', baseURL)
+  return new URL('/actuator/health', baseURL)
 }
 
 function publicURL(url) {
@@ -71,11 +71,11 @@ while (Date.now() <= deadline) {
       } catch {
         lastFailure = 'health response was not JSON'
       }
-      if (body?.ok === true) {
+      if (body?.status === 'UP') {
         console.log(JSON.stringify({ ok: true, healthURL: publicURL(healthURL), attempts }))
         process.exit(0)
       }
-      if (body) lastFailure = 'health response did not contain ok=true'
+      if (body) lastFailure = 'health response did not contain status=UP'
       nextDelayMs = intervalMs
     }
   } catch (error) {

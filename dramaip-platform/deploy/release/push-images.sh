@@ -27,5 +27,5 @@ while IFS='|' read -r chart_key image_name kind target; do
   docker push "$image"
   push_count=$((push_count + 1))
 done < "$manifest"
-[[ "$push_count" == "20" ]] || { echo "manifest must push exactly 20 images; pushed $push_count" >&2; exit 2; }
-echo "pushed immutable release bundle: $registry:*:$tag"
+[[ "$push_count" == "9" ]] || { echo "manifest must push exactly 9 images; pushed $push_count" >&2; exit 2; }
+echo "pushed immutable Java release bundle: $registry:*:$tag"

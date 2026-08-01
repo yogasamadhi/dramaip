@@ -28,6 +28,7 @@ export const apiClient = createApiClient({
   withCredentials: true,
   getDeviceID,
   getCSRFToken,
+  webSession: true,
 })
 
 export function getDeviceID() {

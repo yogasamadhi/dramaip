@@ -1,0 +1,13 @@
+# Docker is a runtime packager. The local Maven build supplies only runnable
+# Spring Boot JARs; source files, test outputs and dependency caches stay local.
+**
+
+!server/
+!server/**/
+!server/**/target/
+!server/**/target/*-exec.jar
+
+!legacy/
+!legacy/go-services/
+!legacy/go-services/migrations/
+!legacy/go-services/migrations/**

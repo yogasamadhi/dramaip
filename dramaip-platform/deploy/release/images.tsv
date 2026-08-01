@@ -1,25 +1,14 @@
 # helm_key|image_name|kind|build_target
 #
-# This is the authoritative release inventory.  Every build, scan, push and
-# GitOps update must consume this file so an added workload cannot silently
-# skip a release gate.
-webBff|web-bff|go|./app/bff/web/interface/cmd/server
-desktopBff|desktop-bff|go|./app/bff/desktop/interface/cmd/server
-mobileBff|mobile-bff|go|./app/bff/mobile/interface/cmd/server
-adminBff|admin-bff|go|./app/admin/interface/cmd/server
-auth|auth|go|./app/auth/service/cmd/server
-user|user|go|./app/user/service/cmd/server
-billing|billing|go|./app/billing/service/cmd/server
-quota|quota|go|./app/quota/service/cmd/server
-aiGateway|ai-gateway|go|./app/ai_gateway/service/cmd/server
-notification|notification|go|./app/notification/service/cmd/server
-inspiration|inspiration|go|./app/inspiration/service/cmd/server
-snapshot|snapshot|go|./app/snapshot/service/cmd/server
-review|review|go|./app/review/service/cmd/server
-reporting|reporting|go|./app/reporting/service/cmd/server
-notificationJob|notification-job|go|./app/notification/job/cmd/server
-reportingJob|reporting-job|go|./app/reporting/job/cmd/server
-billingJob|billing-job|go|./app/billing/job/cmd/server
-quotaJob|quota-job|go|./app/quota/job/cmd/server
-migration|migrate|go|./app/migration/job/cmd/server
+# This is the authoritative Java-only release inventory. Every build, scan,
+# push and GitOps update consumes this file so a Java workload cannot skip a
+# release gate. The Go tree remains an archive and is intentionally absent.
+migration|java-migration|java|migration
+gateway|java-gateway|java|gateway
+identity|java-identity|java|services/identity
+support|java-support|java|services/support
+creation|java-creation|java|services/creation
+quota|java-quota|java|services/quota
+ai|java-ai|java|services/ai
+billing|java-billing|java|services/billing
 web|web|web|

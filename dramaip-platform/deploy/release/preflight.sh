@@ -31,7 +31,7 @@ fi
 
 git -C "$repo" diff --check
 bash -n "$platform/deploy/release/build-images.sh" "$platform/deploy/release/scan-images.sh" "$platform/deploy/release/push-images.sh" "$platform/deploy/release/helm-release.sh" "$platform/deploy/release/staging-prerequisites.sh" "$platform/deploy/release/staging-smoke.sh" "$platform/deploy/release/sync-release-workspace.sh" "$platform/deploy/release/preflight.sh"
-docker compose -f "$platform/deploy/docker-drama/docker-compose.yaml" config --quiet
+docker compose -f "$platform/deploy/docker-drama/docker-compose.yaml" --profile java config --quiet
 helm lint "$chart" -f "$chart/values-staging.yaml"
 helm template dramaip-platform "$chart" -f "$chart/values-staging.yaml" >/dev/null
 helm template dramaip-platform "$chart" >/dev/null
@@ -40,14 +40,12 @@ if [[ -f "$chart/values-dev.yaml" ]]; then
   helm template dramaip-platform "$chart" -f "$chart/values-dev.yaml" --set-string devInfra.persistence.hostPathBase=/tmp/dramaip-helm-preflight >/dev/null
 fi
 (
-  cd "$platform/services"
-  buf format --diff --exit-code
-  buf lint
-  GOCACHE="${GOCACHE:-/tmp/dramaip-go-release}" go test ./...
-)
-(
   cd "$platform/clients"
   pnpm lint
   pnpm typecheck
   pnpm build:admin
+)
+(
+  cd "$platform/server"
+  mvn -B -ntp verify
 )

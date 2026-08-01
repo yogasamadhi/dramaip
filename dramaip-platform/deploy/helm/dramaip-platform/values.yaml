@@ -1,5 +1,32 @@
 replicaCount: 2
 
+# Java is the only default runtime family. The archived Go stack can still be
+# enabled explicitly for an operator-led rollback, but is never deployed by a
+# normal local, CI/CD, or Helm release.
+legacy:
+  enabled: false
+
+java:
+  enabled: true
+  replicaCount: 2
+  migration:
+    enabled: true
+    useHelmHook: true
+  nacosServerAddr: nacos:8848
+  seataServerAddr: seata:8091
+  postgresDsn: jdbc:postgresql://postgres:5432/dramaip
+  jwtEnabled: "true"
+  jwkSetUri: http://identity:8080/.well-known/jwks.json
+  images:
+    migration: { repository: ghcr.io/dramaip/dramaip-java-migration, tag: "0.1.0" }
+    gateway: { repository: ghcr.io/dramaip/dramaip-java-gateway, tag: "0.1.0" }
+    identity: { repository: ghcr.io/dramaip/dramaip-java-identity, tag: "0.1.0" }
+    support: { repository: ghcr.io/dramaip/dramaip-java-support, tag: "0.1.0" }
+    creation: { repository: ghcr.io/dramaip/dramaip-java-creation, tag: "0.1.0" }
+    quota: { repository: ghcr.io/dramaip/dramaip-java-quota, tag: "0.1.0" }
+    ai: { repository: ghcr.io/dramaip/dramaip-java-ai, tag: "0.1.0" }
+    billing: { repository: ghcr.io/dramaip/dramaip-java-billing, tag: "0.1.0" }
+
 image:
   repository: ghcr.io/dramaip/dramaip-web-bff
   tag: "0.1.0"
@@ -115,7 +142,7 @@ ingress:
   hosts:
     - host: api.example.com
       paths:
-        - path: /v1
+        - path: /api/v1
           pathType: Prefix
   tls: []
 
@@ -183,6 +210,7 @@ review:
     endpoint: ""
     region: us-east-1
     bucket: ""
+    allowInsecure: false
     # Required for a releasable Studio deployment. The Secret contains only
     # the dedicated private-bucket access key and secret key.
     credentialsSecret: ""
@@ -222,13 +250,17 @@ kong:
       minute: 120
       policy: local
 
+# Sized to match the Dockerfile default (-XX:MaxRAMPercentage=50): the 768Mi
+# limit yields a ~384Mi heap, and the 384Mi request covers Spring Boot startup
+# so pods are not OOM-killed or throttled while warming up. Override per
+# environment in values-*.yaml when a profile needs more headroom.
 resources:
   requests:
     cpu: 100m
-    memory: 128Mi
+    memory: 384Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 768Mi
 
 autoscaling:
   enabled: false
@@ -407,6 +439,13 @@ secret:
   postgresReportingPassword: change-me
   postgresSnapshotPassword: change-me
   postgresReviewPassword: change-me
+  postgresIdentitySvcPassword: change-me
+  postgresSupportSvcPassword: change-me
+  postgresCreationSvcPassword: change-me
+  postgresQuotaSvcPassword: change-me
+  postgresAiSvcPassword: change-me
+  postgresBillingSvcPassword: change-me
+  internalToken: change-me-internal
   reviewS3AccessKey: change-me
   reviewS3SecretKey: change-me
   redisPassword: change-me

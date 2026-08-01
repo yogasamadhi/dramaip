@@ -34,7 +34,10 @@ const nextConfig: NextConfig = {
   // already owns /v1 routing and deliberately leaves this unset.
   async rewrites() {
     if (!apiTarget) return []
-    return [{ source: '/v1/:path*', destination: `${apiTarget}/v1/:path*` }]
+    return [
+      { source: '/api/v1/:path*', destination: `${apiTarget}/api/v1/:path*` },
+      { source: '/v1/:path*', destination: `${apiTarget}/v1/:path*` },
+    ]
   },
 }
 

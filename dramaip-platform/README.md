@@ -1,131 +1,51 @@
 # DramaIP Platform
 
-Closed-source platform workspace for DramaIP web, mobile, and cloud services.
+DramaIP 的闭源云端平台工作区，包含 Web、Mobile、Admin、部署资产和后端服务。
 
-See the shared architecture document:
+后端已收口为 JDK 21 的 Java / Spring Cloud Alibaba 运行时。`legacy/go-services`
+保留为归档和人工回滚参考，但默认本地、CI/CD 和 Helm 发布均不会启动或构建 Go 服务。
 
-- [../docs/技术架构.md](../docs/技术架构.md)
-- [Local development guide](docs/LOCAL_DEVELOPMENT.md)
-- [Platform baseline](docs/PLATFORM_BASELINE.md)
+## 文档
 
-## Workspace
+- [技术架构](../docs/技术架构.md)
+- [后端 Java 重构方案](../docs/后端Java重构方案.md)
+- [Java 本地开发与切流手册](deploy/docker-drama/JAVA_MIGRATION_RUNBOOK.md)
+- [归档 Go 平台基线](docs/PLATFORM_BASELINE.md)
 
-```txt
-clients/
-  package.json
-  pnpm-workspace.yaml
-  tsconfig.base.json
-  apps/
-    web/       Next.js website, pricing, account, billing
-    mobile/    Expo mobile lightweight creation app
-    admin/     Vite management console (separate Admin BFF session)
-  packages/
-    sdk/       TypeScript API client shared by clients
+## 目录
 
-services/
-  api/       Proto contracts
-  app/       Kratos service apps
-  pkg/       Go shared packages
-  migrations/
-
-deploy/
-  docker/
-  kong/
-  k8s/
+```text
+clients/                    Web、Mobile、Admin 和 TypeScript SDK
+server/                     Java 21 Maven 工程（migration、gateway 和六个业务服务）
+legacy/go-services/         归档的 Go/Kratos 旧后端、契约与迁移参考
+deploy/                     Java Compose、Helm 和发布资产
+docs/                       平台开发与运维文档
+scripts/                    E2E 和可观测性检查
 ```
 
-## Commands
+## 当前开发入口
+
+后端与 Web 客户端分开启动。先启动 Java migration、Gateway、identity、support、creation、quota、ai、billing
+及所需基础设施，再启动 Web 客户端；浏览器 API 通过 Java Gateway 的 `http://localhost:8080/api/v1` 访问：
 
 ```bash
-cd clients
-pnpm install
-pnpm dev:web
-pnpm dev:mobile
-pnpm dev:admin
+python run-platform.py
+python run-platform-clients.py
 
-cd ../services
-GOCACHE=/tmp/dramaip-go-build go test ./...
-```
-
-The clients workspace is managed from `clients/`. The Go services are a
-single-module Kratos monorepo under `services/`; runnable apps use
-`cmd/server` plus `internal/server`, `internal/service`, `internal/biz`, and
-`internal/data`. Generated Go gRPC stubs under `services/api/**` are the
-service-to-service contract.
-
-## Docker Platform
-
-The runnable platform uses the Docker stack instead of in-memory fake data:
-
-```bash
+# 或只管理后端 Compose 栈
+cd dramaip-platform
 make platform-up
-```
-
-Start the Web app in another terminal:
-
-```bash
-cd clients
-pnpm dev:web
-```
-
-`run-platform.py` serves browser API requests through the Next.js dev server,
-which proxies them to Kong at `http://localhost:8000`. This also works when the
-Web URL is opened from another device on the LAN: the browser does not try to
-call that device's own `localhost:8000`. Verify the proxy with:
-
-```bash
 make platform-e2e
+make platform-down
 ```
 
-The platform path is:
+CI/CD 仅验证、构建、扫描和发布八个 Java 镜像与 Web 镜像。`/v1/**`、Kong 和 Go
+服务只存在于 legacy/rollback 资产，不能通过默认启动命令进入运行态。
 
-1. Website home page calls Kong -> BFF health, including Postgres/Redis/RabbitMQ checks.
-2. Pricing loads plans from PostgreSQL via `GET /v1/plans`.
-3. Login calls `POST /v1/auth/login`, verifies the bcrypt password hash in
-   PostgreSQL, sets HttpOnly access/refresh Cookie sessions (production also
-   requires Secure), stores the access session in Redis, and stores the
-   refresh-token hash in PostgreSQL. Tokens are never returned to Web JavaScript.
-4. Account reads subscription and token balance from PostgreSQL.
-5. Checkout writes a PostgreSQL order/outbox event and publishes a RabbitMQ
-   event over AMQP.
-6. Prometheus scrapes BFF/Kong/RabbitMQ/Collector metrics; BFF container logs
-   are collected by Fluent Bit into OpenSearch.
-7. Simulated payment confirmation turns a pending checkout into an active
-   subscription and token account in dev/test environments.
-8. AI authoring through provider `test` exercises the same model catalog,
-   preflight, SSE stream, cancellation/recovery, quota reservation and
-   settlement path without a real upstream API key.
+## 迁移约束
 
-Open `http://localhost:3009`, then use the seeded development account:
-
-- Email: `creator@example.com`
-- Password: `password123`
-
-Implementation notes:
-
-- Kong owns CORS and edge concerns. The BFF intentionally does not emit CORS
-  headers.
-- Client code should go through `clients/packages/sdk` instead of handwritten
-  HTTP calls.
-- The BFF container is not exposed directly; clients enter through Kong on
-  `http://localhost:8000`.
-- Server-side AI provider keys stay inside `ai-gateway`; clients use the
-  BFF/SDK Cloud AI Gateway contract and never call billing/quota directly.
-- `POST /v1/billing/payments/simulated/confirm` is dev/test only and verifies the
-  checkout -> subscription -> token-account state machine before real payment
-  webhooks are added. `POST /v1/billing/sandbox/confirm-payment` remains as a
-  deprecated compatibility endpoint.
-
-## Release preparation
-
-Production delivery is intentionally operator-invoked rather than a hosted
-pipeline. Start with `bash deploy/release/preflight.sh`; the release procedure,
-secret boundaries, image scan, staging deploy, and rollback requirements are in
-[`../docs/loop/LM3-32-无流水线发布准备.md`](../docs/loop/LM3-32-无流水线发布准备.md).
-Before a staging release, run `IMAGE_REGISTRY=<approved-registry/project> bash
-deploy/release/staging-prerequisites.sh staging` to read-only validate the
-operator-managed namespace, release permissions, Kong, Secrets, and registry.
-Use `sync-release-workspace.sh` only for a dedicated release workspace: it
-deletes excluded runtime data and credential-shaped files from that directory.
-The release scripts require explicit approval for cluster changes and never
-perform a real payment.
+- 旧 Go 目录只接受归档、兼容和迁移阻塞修复，不再参与默认构建或发布。
+- 任一业务表同一时刻只能有一个权威写入实现。
+- Java 仅提供契约 2 的 `/api/v1/**`、`X-DramaIP-Contract-Version: 2` 和 `Result<T>`。
+- billing、quota、ai-gateway 必须分别完成并发、对账和回滚演练。
+- Java 全量稳定并度过观察窗前，不删除 Go 源码和回滚资产。

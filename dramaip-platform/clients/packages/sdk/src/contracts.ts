@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
-// Every public BFF accepts a missing version during the v1 compatibility
-// window, but shipped clients always declare the contract they understand.
-export const API_CONTRACT_VERSION = '1' as const
+// Contract v2 is deliberately breaking: Java exposes only /api/v1 resources.
+export const API_CONTRACT_VERSION = '2' as const
 export const API_CONTRACT_HEADER = 'X-DramaIP-Contract-Version' as const
 export const DEFAULT_LIST_LIMIT = 50
 export const MAX_LIST_LIMIT = 100
@@ -28,13 +27,16 @@ export const AccountBootstrapQuerySchema = z.object({
 })
 export type AccountBootstrapQuery = z.infer<typeof AccountBootstrapQuerySchema>
 
-export const ContractErrorSchema = z.object({
-  error: z.object({
-    code: z.string().min(1),
-    message: z.string().min(1),
-    trace_id: z.string().min(1),
-  }),
+export const ResultSchema = <T extends z.ZodType>(data: T) => z.object({
+  code: z.string().min(1),
+  message: z.string(),
+  data,
+  requestId: z.string(),
+  traceId: z.string(),
 })
+export type Result<T> = { code: string; message: string; data: T; requestId: string; traceId: string }
+
+export const ContractErrorSchema = ResultSchema(z.null())
 export type ContractError = z.infer<typeof ContractErrorSchema>
 
 export function contractHeaders(headers: HeadersInit = {}): HeadersInit {
@@ -42,44 +44,45 @@ export function contractHeaders(headers: HeadersInit = {}): HeadersInit {
 }
 
 export function contractErrorCode(payload: unknown): string | undefined {
-  return ContractErrorSchema.safeParse(payload).data?.error.code
+  return ContractErrorSchema.safeParse(payload).data?.code
 }
 
 const IdentifierSchema = z.string().min(1)
 const NonnegativeIntegerSchema = z.number().int().nonnegative()
 const PositiveIntegerSchema = z.number().int().positive()
 
-export const MobileUserSchema = z.object({ id: IdentifierSchema, name: IdentifierSchema })
+export const MobileUserSchema = z.object({ id: IdentifierSchema, name: z.string() })
 export const MobileSessionSchema = z.object({
-  access_token: IdentifierSchema,
-  refresh_token: IdentifierSchema,
-  expires_in: PositiveIntegerSchema,
-  token_type: z.literal('Bearer'),
-  user: MobileUserSchema,
+  accessToken: IdentifierSchema,
+  refreshToken: IdentifierSchema,
+  expiresIn: PositiveIntegerSchema,
+  tokenType: z.literal('Bearer'),
+  userId: IdentifierSchema,
+  email: z.string().email(),
+  name: z.string(),
 })
 export const MobileBriefSchema = z.object({
-  display_name: IdentifierSchema,
-  plan: IdentifierSchema,
-  remaining_tokens: NonnegativeIntegerSchema,
+  profile: z.object({ id: IdentifierSchema, displayName: z.string() }),
+  workspaces: z.array(z.object({ planCode: z.string() })),
 })
 export const MobileDraftSchema = z.object({
   id: IdentifierSchema,
-  client_id: IdentifierSchema,
+  clientId: IdentifierSchema,
   kind: z.enum(['inspiration', 'character', 'project']),
-  capture_mode: z.enum(['text', 'voice']),
+  captureMode: z.enum(['text', 'voice']),
   title: IdentifierSchema,
   content: IdentifierSchema,
-  ai_expansion: z.string(),
-  created_at: z.string(),
-  updated_at: z.string(),
-  adoption_count: NonnegativeIntegerSchema,
-  last_adopted_at: z.string(),
+  aiExpansion: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 })
-export const MobileDraftsResponseSchema = z.object({ drafts: z.array(MobileDraftSchema) })
-export const MobileDraftResponseSchema = z.object({ draft: MobileDraftSchema })
-export const MobileDraftPageSchema = z.object({ drafts: z.array(MobileDraftSchema), next_cursor: z.string() })
-export const MobileDraftDeleteResponseSchema = z.object({ draft_id: IdentifierSchema, deleted_at: z.string() })
-export const MobileExpansionResponseSchema = z.object({ expansion: IdentifierSchema })
+export const MobileDraftsResponseSchema = z.array(MobileDraftSchema)
+export const MobileDraftResponseSchema = MobileDraftSchema
+export const MobileDraftPageSchema = z.array(MobileDraftSchema)
+export const MobileDraftDeleteResponseSchema = z.null()
+export const MobileExpansionResponseSchema = z.object({ content: IdentifierSchema })
+export const AiModelsSchema = z.array(IdentifierSchema)
+export const AiChatSchema = z.object({ requestId: IdentifierSchema, content: IdentifierSchema, model: IdentifierSchema, totalTokens: NonnegativeIntegerSchema, status: IdentifierSchema })
 export type MobileSession = z.infer<typeof MobileSessionSchema>
 export type MobileBrief = z.infer<typeof MobileBriefSchema>
 export type MobileDraft = z.infer<typeof MobileDraftSchema>

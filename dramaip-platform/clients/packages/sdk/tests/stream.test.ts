@@ -4,10 +4,10 @@ import test from 'node:test'
 import { createApiClient, resolveApiRequestURL } from '../src/index'
 
 test('resolveApiRequestURL supports same-origin, absolute, and relative API bases', () => {
-  assert.equal(resolveApiRequestURL('', '/v1/ai/chat/stream'), '/v1/ai/chat/stream')
-  assert.equal(resolveApiRequestURL('https://api.example.test', '/v1/ai/chat/stream'), 'https://api.example.test/v1/ai/chat/stream')
-  assert.equal(resolveApiRequestURL('https://api.example.test/', 'v1/ai/chat/stream'), 'https://api.example.test/v1/ai/chat/stream')
-  assert.equal(resolveApiRequestURL('/gateway/', '/v1/ai/chat/stream'), '/gateway/v1/ai/chat/stream')
+  assert.equal(resolveApiRequestURL('', '/api/v1/stream'), '/api/v1/stream')
+  assert.equal(resolveApiRequestURL('https://api.example.test', '/api/v1/stream'), 'https://api.example.test/api/v1/stream')
+  assert.equal(resolveApiRequestURL('https://api.example.test/', 'api/v1/stream'), 'https://api.example.test/api/v1/stream')
+  assert.equal(resolveApiRequestURL('/gateway/', '/api/v1/stream'), '/gateway/api/v1/stream')
 })
 
 test('streamChat uses a relative URL when the API base is empty', async () => {
@@ -31,7 +31,7 @@ test('streamChat uses a relative URL when the API base is empty', async () => {
     }, {
       onEvent: (event) => events.push(event.type),
     })
-    assert.equal(requestedURL, '/v1/ai/chat/stream')
+    assert.equal(requestedURL, '/api/v1/stream')
     assert.deepEqual(events, ['completed'])
   } finally {
     globalThis.fetch = originalFetch

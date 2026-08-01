@@ -113,9 +113,9 @@ if [[ "$action" == "apply" ]]; then
     --set "ingress.enabled=true"
     --set-string "ingress.hosts[0].host=$ingress_host"
     # Helm's indexed --set for the host creates an overlay list item. Set the
-    # API path explicitly as well so that overlay cannot discard the /v1 path
+    # API path explicitly as well so that overlay cannot discard the /api/v1 path
     # from values-staging.yaml and accidentally claim the browser UI's root.
-    --set-string "ingress.hosts[0].paths[0].path=/v1"
+    --set-string "ingress.hosts[0].paths[0].path=/api/v1"
     --set-string "ingress.hosts[0].paths[0].pathType=Prefix"
     --set-string "ingress.tls[0].secretName=$ingress_tls_secret"
     --set-string "ingress.tls[0].hosts[0]=$ingress_host"
@@ -128,6 +128,9 @@ if [[ "$action" == "apply" ]]; then
     --set-string "config.rabbitmq.host=$rabbitmq_host"
     --set-string "config.rabbitmq.port=$rabbitmq_port"
     --set-string "config.otel.endpoint=$otel_endpoint"
+    --set "legacy.enabled=false"
+    --set "java.enabled=true"
+    --set-string "java.postgresDsn=jdbc:postgresql://$postgres_host:5432/dramaip?sslmode=require"
   )
   image_count=0
   while IFS='|' read -r key name kind target; do
@@ -135,13 +138,16 @@ if [[ "$action" == "apply" ]]; then
     if [[ "$kind" == "web" ]]; then
       image_overrides+=(--set-string "web.image.repository=$image_registry/$name")
       image_overrides+=(--set-string "web.image.tag=$image_tag")
+    elif [[ "$kind" == "java" ]]; then
+      image_overrides+=(--set-string "java.images.$key.repository=$image_registry/$name")
+      image_overrides+=(--set-string "java.images.$key.tag=$image_tag")
     else
       image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
       image_overrides+=(--set-string "images.$key.tag=$image_tag")
     fi
     image_count=$((image_count + 1))
   done < "$manifest"
-  [[ "$image_count" == "20" ]] || { echo "image manifest must contain 20 images; found $image_count" >&2; exit 2; }
+  [[ "$image_count" == "9" ]] || { echo "image manifest must contain 9 Java/Web images; found $image_count" >&2; exit 2; }
   if [[ "$diagnostic_retain" == "1" ]]; then
     # This diagnostic escape hatch is deliberately limited to the explicitly
     # authorized disposable staging namespace.  It lets an operator inspect

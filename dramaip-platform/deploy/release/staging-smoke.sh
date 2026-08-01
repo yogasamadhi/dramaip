@@ -15,7 +15,6 @@ esac
 
 namespace="${DRAMAIP_NAMESPACE:-$default_namespace}"
 release="${DRAMAIP_RELEASE:-dramaip-platform}"
-mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-$default_mtls_secret}"
 timeout="${DRAMAIP_ROLLOUT_TIMEOUT:-10m}"
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 manifest="${DRAMAIP_IMAGE_MANIFEST:-$script_dir/images.tsv}"
@@ -44,16 +43,9 @@ while IFS='|' read -r key component kind target; do
     component_count=$((component_count + 1))
     continue
   fi
-  actual_secret="$("${kubectl_cmd[@]}" -n "$namespace" get deployment \
-    -l "app.kubernetes.io/instance=$release,app.kubernetes.io/component=$component" \
-    -o jsonpath='{.items[0].spec.template.spec.volumes[?(@.name=="internal-mtls")].secret.secretName}')"
-  [[ "$actual_secret" == "$mtls_secret" ]] || {
-    echo "$component does not mount expected internal mTLS Secret $mtls_secret" >&2
-    exit 1
-  }
   component_count=$((component_count + 1))
 done < "$manifest"
-[[ "$component_count" -ge "17" ]] || { echo "expected at least 17 running Staging workloads; found $component_count" >&2; exit 1; }
+[[ "$component_count" -ge "7" && "$component_count" -le "8" ]] || { echo "expected Gateway, six Java services, and optional Web; found $component_count workloads" >&2; exit 1; }
 
 base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required, e.g. https://api.staging.example.com}"
 base_url="${base_url%/}"
@@ -69,7 +61,8 @@ if [[ -n "${SMOKE_CURL_RESOLVE:-}" ]]; then
   }
   curl_common+=(--resolve "$SMOKE_CURL_RESOLVE")
 fi
-"${curl_common[@]}" --fail "$base_url/v1/healthz" >/dev/null
+gateway_status="$("${curl_common[@]}" --output /dev/null --write-out '%{http_code}' -H 'X-DramaIP-Contract-Version: 2' "$base_url/api/v1/plans")"
+[[ "$gateway_status" == "401" ]] || { echo "Java Gateway did not enforce JWT on /api/v1/plans: HTTP $gateway_status" >&2; exit 1; }
 
 [[ "${SMOKE_RATE_LIMIT_TEST:-0}" == "1" ]] || {
   echo "set SMOKE_RATE_LIMIT_TEST=1 for the approved Kong rate-limit probe" >&2
@@ -80,10 +73,10 @@ attempts="${SMOKE_RATE_LIMIT_ATTEMPTS:?SMOKE_RATE_LIMIT_ATTEMPTS must exceed the
   echo "SMOKE_RATE_LIMIT_ATTEMPTS must be an integer greater than one" >&2
   exit 2
 }
-rate_url="${SMOKE_RATE_LIMIT_URL:-$base_url/v1/plans}"
+rate_url="${SMOKE_RATE_LIMIT_URL:-$base_url/api/v1/plans}"
 seen_limited=0
 for ((attempt = 1; attempt <= attempts; attempt++)); do
-  status="$("${curl_common[@]}" --output /dev/null --write-out '%{http_code}' "$rate_url")"
+  status="$("${curl_common[@]}" --output /dev/null --write-out '%{http_code}' -H 'X-DramaIP-Contract-Version: 2' "$rate_url")"
   if [[ "$status" == "429" ]]; then
     seen_limited=1
     break
@@ -99,4 +92,4 @@ done
 # above must remain the reachability check rather than treating that expected
 # rate-limit response as an application failure.
 
-echo "$environment smoke passed: rollout, mTLS Secret mounts, health, and Kong rate limiting"
+echo "$environment smoke passed: Java rollout, Gateway JWT boundary, and ingress rate limiting"

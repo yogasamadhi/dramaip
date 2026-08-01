@@ -40,9 +40,10 @@ export interface PublishCloudReviewInput extends TimelineScope {
 
 export async function listCloudReviewWorkspaces(): Promise<CloudWorkspace[]> {
   assertCloudReviewEnabled()
-  const payload = await cloudRequest('/v1/desktop/me/workspaces', { method: 'GET' }) as { workspaces?: unknown }
-  if (!Array.isArray(payload.workspaces)) throw new Error('云端工作区响应无效')
-  return payload.workspaces.map(parseWorkspace)
+  const payload = await cloudRequest('/api/v1/workspaces', { method: 'GET' })
+  const items = Array.isArray(payload) ? payload : object(payload).workspaces
+  if (!Array.isArray(items)) throw new Error('云端工作区响应无效')
+  return items.map(parseWorkspace)
 }
 
 export async function publishCloudReview(repos: Repositories, input: PublishCloudReviewInput): Promise<{
@@ -68,19 +69,19 @@ export async function publishCloudReview(repos: Repositories, input: PublishClou
       title: staging.manifest.title,
       manifest: staging.manifest,
     })
-    const created = parseCreatedPackage(await cloudRequest('/v1/desktop/review/packages', {
+    const created = parseCreatedPackage(await cloudRequest('/api/v1/review-packages', {
       method: 'POST',
       body: JSON.stringify({
-        workspace_id: input.workspaceId,
-        desktop_package_id: staging.manifest.packageId,
+        workspaceId: input.workspaceId,
+        desktopPackageId: staging.manifest.packageId,
         title: staging.manifest.title,
-        manifest_json: JSON.stringify(staging.manifest),
+        manifestJson: JSON.stringify(staging.manifest),
         pin: input.pin ?? '',
         media: staging.media.map((item) => ({
           id: item.id,
-          relative_path: item.relativePath,
-          mime_type: item.mimeType,
-          size_bytes: item.sizeBytes,
+          relativePath: item.relativePath,
+          mimeType: item.mimeType,
+          sizeBytes: item.sizeBytes,
           sha256: item.sha256,
         })),
       }),
@@ -98,16 +99,14 @@ export async function publishCloudReview(repos: Repositories, input: PublishClou
         await uploadMedia(media.filePath, target)
       } catch (error) {
         if (!isExpiredUploadError(error)) throw error
-        target = parseUploadTarget(await cloudRequest('/v1/desktop/review/packages/upload-target', {
+        target = parseUploadTarget(await cloudRequest(`/api/v1/review-packages/${encodeURIComponent(created.packageID)}/media/${encodeURIComponent(media.id)}/upload-target`, {
           method: 'POST',
-          body: JSON.stringify({ package_id: created.packageID, media_id: media.id }),
         }))
         await uploadMedia(media.filePath, target)
       }
     }
-    const completed = parseCompletedPackage(await cloudRequest('/v1/desktop/review/packages/complete', {
+    const completed = parseCompletedPackage(await cloudRequest(`/api/v1/review-packages/${encodeURIComponent(created.packageID)}/complete`, {
       method: 'POST',
-      body: JSON.stringify({ package_id: created.packageID }),
     }))
     repos.productionStudio.updateReviewPackageRecord(repos.db, localRecord.id, {
       status: 'published',
@@ -131,7 +130,7 @@ export async function publishCloudReview(repos: Repositories, input: PublishClou
     }
   } catch (error) {
     if (remotePackageID) {
-      await cloudRequest(`/v1/desktop/review/packages?id=${encodeURIComponent(remotePackageID)}`, { method: 'DELETE' }).catch(() => undefined)
+      await cloudRequest(`/api/v1/review-packages/${encodeURIComponent(remotePackageID)}`, { method: 'DELETE' }).catch(() => undefined)
     }
     if (localRecord) {
       repos.productionStudio.updateReviewPackageRecord(repos.db, localRecord.id, {
@@ -152,7 +151,8 @@ export async function syncCloudReviews(repos: Repositories, projectId: string, e
   for (const record of records) {
     const afterCursor = Number.parseInt(record.syncCursor ?? '0', 10)
     try {
-      const payload = await cloudRequest(`/v1/desktop/review/packages/sync?id=${encodeURIComponent(record.cloudPackageId!)}&after_cursor=${Number.isSafeInteger(afterCursor) && afterCursor >= 0 ? afterCursor : 0}`, { method: 'GET' }) as Record<string, unknown>
+      const cursorQuery = Number.isSafeInteger(afterCursor) && afterCursor >= 0 ? afterCursor : 0
+      const payload = await cloudRequest(`/api/v1/review-packages/${encodeURIComponent(record.cloudPackageId!)}/sync?afterCursor=${cursorQuery}`, { method: 'GET' }) as Record<string, unknown>
       const comments = Array.isArray(payload.comments) ? payload.comments.map((value) => parseComment(value, record.id)) : []
       const decisions = Array.isArray(payload.decisions) ? payload.decisions.map((value) => parseDecision(value, record.id)) : []
       for (const comment of comments) repos.productionStudio.upsertReviewComment(repos.db, comment)
@@ -178,7 +178,7 @@ export async function deleteCloudReview(repos: Repositories, id: string): Promis
   const record = repos.productionStudio.getReviewPackageRecord(repos.db, id)
   if (!record) return undefined
   if (record.kind === 'cloud' && record.cloudPackageId && !['deleted', 'expired'].includes(record.status)) {
-    await cloudRequest(`/v1/desktop/review/packages?id=${encodeURIComponent(record.cloudPackageId)}`, { method: 'DELETE' })
+    await cloudRequest(`/api/v1/review-packages/${encodeURIComponent(record.cloudPackageId)}`, { method: 'DELETE' })
   }
   return repos.productionStudio.updateReviewPackageRecord(repos.db, id, {
     status: 'deleted',
@@ -199,7 +199,10 @@ async function cloudRequest(path: string, init: RequestInit): Promise<unknown> {
       },
     }, REQUEST_TIMEOUT_MS)
     if (!response.ok) throw new Error(`云审片请求失败（${response.status}）`)
-    return response.status === 204 ? {} : response.json()
+    if (response.status === 204) return {}
+    const envelope = object(await response.json())
+    if (text(envelope.code) !== 'OK') throw new Error(`云审片请求失败（${text(envelope.code) || 'unknown'}）`)
+    return envelope.data
   })
 }
 
