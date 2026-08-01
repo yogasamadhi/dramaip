@@ -49,6 +49,14 @@ export function getCSRFToken() {
   return value ? decodeURIComponent(value) : undefined
 }
 
+/**
+ * The readable CSRF cookie is issued together with the HttpOnly Web session
+ * cookies. It lets public pages avoid an expected unauthenticated probe.
+ */
+export function hasWebSessionMarker() {
+  return Boolean(getCSRFToken())
+}
+
 let refreshInFlight: Promise<void> | undefined
 
 async function sessionCookieIsValid() {

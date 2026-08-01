@@ -24,7 +24,7 @@ server:
 
 dramaip:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3010}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3009,http://127.0.0.1:3009,http://localhost:3010,http://127.0.0.1:3010}
   security:
     jwt:
       enabled: ${JWT_ENABLED:false}

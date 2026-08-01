@@ -1,6 +1,7 @@
 package com.dramaip.platform.support.service;
 
 import com.dramaip.platform.common.web.BusinessException;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,23 @@ public class NotificationService {
                 rs.getObject(6, Instant.class), rs.getObject(7, Instant.class)), userId, bounded);
     }
 
+    public List<DeliveryAttempt> deliveryAttempts(String status, int limit) {
+        String requestedStatus = status == null ? "" : status.trim();
+        if (!requestedStatus.isEmpty() && !"failed".equals(requestedStatus) && !"delivered".equals(requestedStatus)) {
+            throw new BusinessException("SUPPORT_DELIVERY_STATUS_INVALID", "delivery status is invalid", HttpStatus.BAD_REQUEST);
+        }
+        int bounded = Math.max(1, Math.min(limit, 100));
+        return jdbc.query("""
+                select attempt.id::text, attempt.event_id, attempt.notification_id::text, notification.user_id::text,
+                       attempt.channel, attempt.status, coalesce(attempt.failure, ''), attempt.attempted_at::text
+                from notification.delivery_attempts attempt
+                join notification.notifications notification on notification.id = attempt.notification_id
+                where (? = '' or attempt.status = ?)
+                order by attempt.attempted_at desc limit ?
+                """, (rs, row) -> new DeliveryAttempt(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                rs.getString(6), rs.getString(7), rs.getString(8)), requestedStatus, requestedStatus, bounded);
+    }
+
     @Transactional
     public Notification markRead(String userId, String notificationId) {
         Notification notification = jdbc.query("""
@@ -35,4 +53,7 @@ public class NotificationService {
     }
 
     public record Notification(String id, String type, String title, String body, String sourceEventId, Instant readAt, Instant createdAt) { }
+    public record DeliveryAttempt(String id, @JsonProperty("event_id") String eventId, @JsonProperty("notification_id") String notificationId,
+                                  @JsonProperty("user_id") String userId, String channel, String status, String failure,
+                                  @JsonProperty("attempted_at") String attemptedAt) { }
 }

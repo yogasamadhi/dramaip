@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import shlex
 import shutil
 import signal
 import socket
@@ -50,6 +51,12 @@ GATEWAY_PORT = 8080
 # heavy GC and paging. Use a fixed, conservative heap by default; override with
 # the DRAMAIP_JAVA_OPTS environment variable when a service needs more.
 DEFAULT_JAVA_OPTS = "-Xmx512m -Xms256m -XX:MaxRAMPercentage=50 -XX:+UseG1GC"
+# Some managed shells expose their SOCKS proxy as JVM system properties. Raw
+# socket clients such as PostgreSQL, RabbitMQ and Nacos do not consistently
+# honour NO_PROXY, so a host-run local stack must explicitly keep those
+# loopback connections direct. HTTP(S) proxy properties remain untouched for
+# services that intentionally call external providers.
+LOCAL_DIRECT_SOCKET_JAVA_OPTS = ("-DsocksProxyHost=", "-DsocksProxyPort=")
 LOCAL_SERVICES = (
     ("identity", "services/identity", 8081, "dramaip_identity_svc"),
     ("support", "services/support", 8082, "dramaip_support_svc"),
@@ -248,6 +255,10 @@ def local_environment() -> dict[str, str]:
         {
             "POSTGRES_DSN": f"jdbc:postgresql://127.0.0.1:5432/{environment.get('POSTGRES_DB', 'dramaip')}",
             "POSTGRES_PASSWORD": database_password,
+            # Local developer volumes can legitimately predate the final Go
+            # migration (049). Permit the archived, transactional SQL to
+            # resume only in this local launcher; production remains strict.
+            "LEGACY_MIGRATIONS_APPLY_PENDING": "true",
             "NACOS_SERVER_ADDR": "127.0.0.1:8848",
             "SPRING_CLOUD_NACOS_DISCOVERY_IP": "127.0.0.1",
             # Keep host-run services isolated from Docker services that use
@@ -298,7 +309,11 @@ def run_migration(environment: dict[str, str]) -> None:
         }
     )
     info("Running the Java migration job locally...")
-    run_checked(["java", "-jar", str(migration_jar)], SERVER_DIR, migration_environment)
+    run_checked(
+        ["java", *LOCAL_DIRECT_SOCKET_JAVA_OPTS, "-jar", str(migration_jar)],
+        SERVER_DIR,
+        migration_environment,
+    )
     ok("local Java migration job completed")
 
 
@@ -477,7 +492,7 @@ def start_process(name: str, jar: Path, environment: dict[str, str], port: int, 
     info(f"{name} JVM: {java_opts}")
     with log_path.open("ab") as log_file:
         process = subprocess.Popen(
-            ["java", *java_opts.split(), "-jar", str(jar)],
+            ["java", *shlex.split(java_opts), *LOCAL_DIRECT_SOCKET_JAVA_OPTS, "-jar", str(jar)],
             stdout=log_file,
             stderr=subprocess.STDOUT,
             **options,

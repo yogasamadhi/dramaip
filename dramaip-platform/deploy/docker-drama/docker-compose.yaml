@@ -786,10 +786,10 @@ services:
 
   # ─────────────────── 可观测性 ───────────────────
   # 三大支柱（10 个 Go 微服务是数据源）：traces/metrics 经 OTLP 推送到 otel-collector，
-  # logs 走 stdout 由宿主 docker json-file 落盘、再由 fluent-bit 采集。
+  # logs 走 stdout 由宿主 docker json-file 落盘、再由 Filebeat 采集。
   # 书写顺序≠启动顺序（启动由 depends_on 拓扑决定），这里按「排查优先级」排——
   # 接到告警后的典型动线：指标发现问题 → 链路定位服务 → 日志深挖到行。
-  # 故顺序为 指标(Prometheus) → 链路(Jaeger + otel-collector) → 日志(OpenSearch 栈)
+  # 故顺序为 指标(Prometheus) → 链路(Jaeger + otel-collector) → 日志(Elastic Stack)
   # → 可视化前端(Grafana) 收尾。
 
   # ────── 指标 (Metrics)：拉模型抓取 + TSDB 存储（告警/排障第一站）──────
@@ -812,7 +812,7 @@ services:
   # ────── 链路追踪 (Tracing)：定位「哪个服务、哪一跳」出问题 ──────
   # 数据流：Go 服务 → otel-collector（中转）→ jaeger（存储/UI）。
   # otel-collector 横跨三支柱：traces 转发至 jaeger，metrics/logs 视
-  # otel-collector/config.yaml 可下发到 prometheus / opensearch。
+  # otel-collector/config.yaml 可下发到 Prometheus 或其他观测后端。
   otel-collector:
     profiles: [observability]
     container_name: drama-otel-collector
@@ -842,38 +842,39 @@ services:
       - ./docker-data/jaeger:/badger
 
   # ────── 日志 (Logging)：采集 → 存储/检索 → UI（深挖到「哪一行」）──────
-  # 日志采集：tail docker json-file + 本机开发 OpenSearch 直连（无认证）。
-  # 注：Fluent Bit 无 `docker` filter 插件；容器【名】需改用 fluentbit 日志驱动或 Lua 注入。
-  # 挂宿主 /var/lib/docker/containers 是采集容器日志的标配；state 卷持久化 tail DB 偏移，
-  # 避免 fluent-bit 重启后从头重读 → OpenSearch 日志重复。
-  fluent-bit:
+  # Filebeat tail Docker json-file，并经 Docker socket 注入容器元数据；registry 卷持久化
+  # 读取偏移，避免重启后重复采集。此配置仅用于本机开发，Elasticsearch 安全功能关闭。
+  filebeat:
     profiles: [observability]
-    container_name: drama-fluent-bit
-    image: fluent/fluent-bit:5.0.8
+    container_name: drama-filebeat
+    image: elastic/filebeat:9.4.2
     pull_policy: missing
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
     volumes:
-      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./docker-data/fluent-bit:/fluent-bit/state
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker-data/filebeat:/usr/share/filebeat/data
     depends_on:
-      - opensearch
+      - elasticsearch
 
-  # OpenSearch 存储/检索。此 Compose 服务仅用于本机开发：安全插件关闭且所有
-  # 端口限制在 loopback。生产环境不得复用它，必须使用启用认证、TLS、索引
-  # 生命周期和最小权限角色的受管/受控 OpenSearch 集群（见 docs/LOCAL_DEVELOPMENT.md）。
-  opensearch:
+  # Elasticsearch 存储/检索。此 Compose 服务仅用于本机开发：安全功能关闭且所有
+  # 端口限制在 loopback。生产环境必须使用启用认证、TLS、索引生命周期和最小权限
+  # 角色的受管/受控 Elastic 集群（见 docs/LOCAL_DEVELOPMENT.md）。
+  elasticsearch:
     profiles: [observability]
-    container_name: drama-opensearch
-    image: opensearchproject/opensearch:3.6.0
+    container_name: drama-elasticsearch
+    image: elasticsearch:9.4.2
     pull_policy: missing
     environment:
       cluster.name: dramaip-logs
-      node.name: drama-opensearch
+      node.name: drama-elasticsearch
       discovery.type: single-node
       bootstrap.memory_lock: "true"
-      plugins.security.disabled: "true"
-      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "Dramaip@2026"   # 兜底：3.x 镜像 entrypoint 即便 security 禁用也可能强制检查
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     ulimits:
       memlock:
         soft: -1
@@ -883,27 +884,26 @@ services:
         hard: 65536
     # Heap is 512m; allow headroom for Lucene off-heap segments and JVM
     # overhead while still bounding the container under 1GB.
-    mem_limit: ${OPENSEARCH_MEM_LIMIT:-896m}
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-896m}
     ports:
-      - "127.0.0.1:9200:9200"   # REST API（Dashboards / Fluent Bit 连）
-      - "127.0.0.1:9600:9600"   # 性能指标，留作后续 prometheus 抓
+      - "127.0.0.1:9200:9200"   # REST API（Kibana / Filebeat 连）
     volumes:
-      - ./docker-data/opensearch:/usr/share/opensearch/data
+      - ./docker-data/elasticsearch:/usr/share/elasticsearch/data
 
-  opensearch-dashboards:
+  kibana:
     profiles: [observability]
-    container_name: drama-opensearch-dashboards
-    image: opensearchproject/opensearch-dashboards:3.6.0
+    container_name: drama-kibana
+    image: kibana:9.4.2
     pull_policy: missing
     environment:
-      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
-      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"   # 配合 OS 侧 plugins.security.disabled=true，移除登录页与 tenantinfo 400
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      XPACK_SECURITY_ENABLED: "false"
     ports:
       - "127.0.0.1:5601:5601"
     depends_on:
-      - opensearch
+      - elasticsearch
 
-  # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + OpenSearch(日志) ──────
+  # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + Elasticsearch(日志) ──────
   grafana:
     profiles: [observability]
     container_name: drama-grafana
@@ -920,7 +920,7 @@ services:
       - ./docker-data/grafana:/var/lib/grafana
     depends_on:
       - prometheus
-      - opensearch
+      - elasticsearch
 
   # ─────────────────── Java 服务端 ───────────────────
   # 镜像未指定 platform，Docker Desktop 会为 Windows/amd64、macOS/arm64
@@ -971,6 +971,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-dramaip}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dramaip}
       LEGACY_MIGRATIONS_DIR: /app/legacy-migrations
+      LEGACY_MIGRATIONS_APPLY_PENDING: ${LEGACY_MIGRATIONS_APPLY_PENDING:-true}
       DB_ROLE_BOOTSTRAP: ${DB_ROLE_BOOTSTRAP:-true}
       DRAMAIP_MIGRATION_ROLE_PASSWORD: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:-dramaip}
     depends_on: { postgres: { condition: service_healthy } }
@@ -984,7 +985,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
       JWT_JWK_SET_URI: ${JWT_JWK_SET_URI:-http://identity:8080/.well-known/jwks.json}
       JWT_ENABLED: ${JWT_ENABLED:-true}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3010}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3009,http://127.0.0.1:3009,http://localhost:3010,http://127.0.0.1:3010}
       DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
     ports: ["8080:8080"]
     depends_on: { nacos: { condition: service_healthy }, java-migration: { condition: service_completed_successfully } }

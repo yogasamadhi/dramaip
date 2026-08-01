@@ -25,7 +25,7 @@ Browser / Next.js Web
         -> Redis: access-token session cache
         -> RabbitMQ topic exchange: versioned events; notification-job consumes its dedicated queue
       -> Prometheus: /metrics scrape
-      -> Fluent Bit -> OpenSearch: container logs
+      -> Filebeat -> Elasticsearch: container logs
 ```
 
 Kong is the only external API entry. The BFF is private inside the Docker
@@ -42,8 +42,8 @@ network and is reached by Kong through `http://web-bff:8100`.
 | RabbitMQ | Versioned event topic exchange with dedicated domain queues and dead-letter queues |
 | Prometheus | Metrics scrape for BFF, Kong, RabbitMQ, and OTel Collector |
 | Grafana | Metrics UI |
-| Fluent Bit | Docker log collection |
-| OpenSearch / Dashboards | Log storage and inspection |
+| Filebeat | Docker log collection |
+| Elasticsearch / Kibana | Log storage and inspection |
 | OpenTelemetry Collector / Jaeger | Trace pipeline foundation for later service traces |
 
 ## Platform API

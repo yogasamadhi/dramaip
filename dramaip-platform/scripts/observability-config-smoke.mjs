@@ -13,14 +13,14 @@ async function read(relativePath) {
   return readFile(resolve(root, relativePath), 'utf8')
 }
 
-const [prometheus, alerts, compose, dashboardProvisioning, dashboardSource, prometheusDatasource, opensearchDatasource] = await Promise.all([
+const [prometheus, alerts, compose, dashboardProvisioning, dashboardSource, prometheusDatasource, elasticsearchDatasource] = await Promise.all([
   read('deploy/docker-drama/prometheus/prometheus.yml'),
   read('deploy/docker-drama/prometheus/alerts.yml'),
   read('deploy/docker-drama/docker-compose.yaml'),
   read('deploy/docker-drama/grafana/provisioning/dashboards/dashboard.yml'),
   read('deploy/docker-drama/grafana/dashboards/platform-reliability.json'),
   read('deploy/docker-drama/grafana/provisioning/datasources/prometheus.yml'),
-  read('deploy/docker-drama/grafana/provisioning/datasources/opensearch.yml'),
+  read('deploy/docker-drama/grafana/provisioning/datasources/elasticsearch.yml'),
 ])
 
 const requiredTargets = ['web-bff:8100', 'billing:8103', 'quota:8104', 'ai-gateway:8105', 'billing-job:8106', 'rabbitmq:15692']
@@ -58,6 +58,13 @@ for (const metric of ['dramaip_requests_total', 'dramaip_business_events_total',
 assert(dashboard.panels.every((panel) => panel.datasource?.uid === 'prometheus'), 'Dashboard panels must use the provisioned Prometheus source')
 assert(dashboardProvisioning.includes('/var/lib/grafana/dashboards'), 'Grafana dashboard provider path is incorrect')
 assert(prometheusDatasource.includes('uid: prometheus'), 'Prometheus datasource UID is missing')
-assert(opensearchDatasource.includes('uid: opensearch'), 'OpenSearch datasource UID is missing')
+assert(elasticsearchDatasource.includes('uid: elasticsearch'), 'Elasticsearch datasource UID is missing')
+assert(elasticsearchDatasource.includes('type: elasticsearch'), 'Grafana must use the Elasticsearch datasource')
+for (const image of [
+  'elastic/filebeat:9.4.2',
+  'elasticsearch:9.4.2',
+  'kibana:9.4.2',
+]) assert(compose.includes(image), `Elastic Stack image is missing: ${image}`)
+assert(!/opensearch|fluent-bit/i.test(compose), 'Compose must not retain the legacy OpenSearch or Fluent Bit stack')
 
 console.log(JSON.stringify({ ok: true, alerts: requiredAlerts.length, panels: dashboard.panels.length }, null, 2))

@@ -3,6 +3,7 @@ package com.dramaip.platform.billing.service;
 import com.dramaip.platform.billing.client.QuotaProvisionClient;
 import com.dramaip.platform.billing.client.QuotaRefundClient;
 import com.dramaip.platform.common.web.BusinessException;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -206,6 +207,29 @@ public class PlanService {
                 """, (rs, row) -> new Reconciliation(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getLong(5), rs.getString(6), instant(rs, 7)), userId, Math.max(1, Math.min(limit, 200)));
     }
 
+    public AdminReconciliation adminReconciliation(String status, int limit) {
+        String requestedStatus = status == null ? "" : status.trim();
+        int bounded = limit <= 0 || limit > 100 ? 50 : limit;
+        AdminReconciliationRun latest = jdbc.query("""
+                select id::text, trigger, requested_by, status, scanned_orders, detected_items,
+                       started_at::text, coalesce(finished_at::text, ''), coalesce(failure_reason, '')
+                from billing.reconciliation_runs order by started_at desc limit 1
+                """, rs -> rs.next() ? new AdminReconciliationRun(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                rs.getLong(5), rs.getLong(6), rs.getString(7), rs.getString(8), rs.getString(9)) : null);
+        List<AdminReconciliationItem> items = jdbc.query("""
+                select id::text, coalesce(order_id::text, ''), coalesce(subscription_id::text, ''), mismatch_type, severity,
+                       recommended_action, status, occurrences, first_detected_at::text, last_detected_at::text,
+                       coalesce(resolved_at::text, ''), coalesce(resolved_by, ''), coalesce(resolution_note, '')
+                from billing.reconciliation_items
+                where (? = '' or status = ?)
+                order by case severity when 'critical' then 0 when 'warning' then 1 else 2 end, last_detected_at desc
+                limit ?
+                """, (rs, row) -> new AdminReconciliationItem(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4),
+                rs.getString(5), rs.getString(6), rs.getString(7), rs.getLong(8), rs.getString(9), rs.getString(10), rs.getString(11),
+                rs.getString(12), rs.getString(13)), requestedStatus, requestedStatus, bounded);
+        return new AdminReconciliation(latest, items);
+    }
+
     private Subscription currentSubscriptionForUpdate(String userId) {
         Subscription subscription = jdbc.query("""
                 select id::text, plan_id::text, plan_code, plan_name, provider, status, current_period_start, current_period_end,
@@ -236,4 +260,15 @@ public class PlanService {
     public record Payment(String id, String orderId, String provider, String status, long amountMinor, String currency, Instant createdAt) { }
     public record Refund(String id, String subscriptionId, String provider, String status, String reason, Instant createdAt) { }
     public record Reconciliation(String orderId, String provider, String orderStatus, String paymentStatus, long amountMinor, String currency, Instant createdAt) { }
+    public record AdminReconciliation(@JsonProperty("latest_run") AdminReconciliationRun latestRun, List<AdminReconciliationItem> items) { }
+    public record AdminReconciliationRun(String id, String trigger, @JsonProperty("requested_by") String requestedBy, String status,
+                                         @JsonProperty("scanned_items") long scannedItems, @JsonProperty("detected_items") long detectedItems,
+                                         @JsonProperty("started_at") String startedAt, @JsonProperty("completed_at") String completedAt,
+                                         String failure) { }
+    public record AdminReconciliationItem(String id, @JsonProperty("order_id") String orderId,
+                                          @JsonProperty("subscription_id") String subscriptionId, @JsonProperty("mismatch_type") String mismatchType,
+                                          String severity, String recommendation, String status, long occurrences,
+                                          @JsonProperty("first_detected_at") String firstDetectedAt, @JsonProperty("last_detected_at") String lastDetectedAt,
+                                          @JsonProperty("resolved_at") String resolvedAt, @JsonProperty("resolved_by") String resolvedBy,
+                                          @JsonProperty("resolution_note") String resolutionNote) { }
 }

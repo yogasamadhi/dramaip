@@ -1,0 +1,17 @@
+# Grafana provisioning: query local Elasticsearch logs alongside Prometheus.
+apiVersion: 1
+
+datasources:
+  - name: Elasticsearch
+    uid: elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    isDefault: false
+    editable: true
+    jsonData:
+      index: "dramaip-logs-*"
+      interval: Daily
+      timeField: "@timestamp"
+      logMessageField: message
+      version: "9.4.2"

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { apiClient } from '../lib/api-client'
+import { apiClient, hasWebSessionMarker } from '../lib/api-client'
 import { displayNameLabel } from '../lib/display'
 import { Button } from './ui/Button'
 
@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const session = useQuery({
     queryKey: ['session'],
     queryFn: () => apiClient.getSession(),
-    enabled: mounted,
+    enabled: mounted && hasWebSessionMarker(),
     retry: false,
   })
   const hasSession = session.isSuccess

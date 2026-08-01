@@ -33,6 +33,8 @@ python .\run-platform-dev.py
 
 该命令不会启动任何 Java 容器。它会停止已有的 Compose Java 应用容器、使用全局 Maven 在本地打包并执行 migration，然后启动本地 Gateway（`8080`）及六个服务（`8081`–`8086`）。Ctrl+C 只停止本地 Java 进程，Docker 基础设施继续运行。
 
+本地 migration 会续跑开发卷中尚未执行的旧版 001–049 SQL，再建立 Flyway 49 基线；该兼容开关仅由本地启动器启用，生产环境仍要求旧迁移账本预先完整。启动器也会让 PostgreSQL、RabbitMQ、Nacos 等回环 TCP 连接绕过 JVM SOCKS 代理，HTTP/HTTPS 外部代理配置不受影响。
+
 启动器会启动 Java Compose profile、等待 Gateway 的 `/actuator/health`，然后启动 Web 开发服务器。只管理后端时可使用：
 
 ```bash
@@ -69,6 +71,8 @@ docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profi
 | Nacos gRPC（本机 Java 开发） | `localhost:9848` |
 | RabbitMQ 管理台 | `http://localhost:15672` |
 | MinIO Console | `http://localhost:9001` |
+| Elasticsearch（启用 observability profile 后） | `http://localhost:9200` |
+| Kibana（启用 observability profile 后） | `http://localhost:5601` |
 
 ## 验证
 

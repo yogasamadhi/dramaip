@@ -1,6 +1,7 @@
 package com.dramaip.platform.ai.controller;
 
 import com.dramaip.platform.ai.service.ChatService;
+import com.dramaip.platform.common.security.AdminAccess;
 import com.dramaip.platform.common.security.CurrentUser;
 import com.dramaip.platform.common.web.Result;
 import jakarta.validation.Valid;
@@ -37,6 +38,12 @@ public class AiController {
     @PostMapping("/cancel") public Result<ChatService.CancelResult> cancel(Authentication authentication, @Valid @RequestBody KeyRequest request) { return Result.ok(chats.cancel(CurrentUser.id(authentication), request.idempotencyKey())); }
     @GetMapping("/chats/status") public Result<ChatService.Chat> status(Authentication authentication, @RequestParam("idempotencyKey") String key) { return Result.ok(chats.status(CurrentUser.id(authentication), key)); }
     @GetMapping("/cost-alerts") public Result<List<ChatService.CostAlert>> alerts(Authentication authentication, @RequestParam(defaultValue = "50") int limit) { return Result.ok(chats.costAlerts(CurrentUser.id(authentication), limit)); }
+    @GetMapping("/admin/ai/cost-alerts")
+    public Result<AdminCostAlerts> adminAlerts(Authentication authentication, @RequestParam(defaultValue = "50") int limit,
+                                               @RequestParam(name = "user_id", defaultValue = "") String userId) {
+        AdminAccess.require(authentication, "audit.read");
+        return Result.ok(new AdminCostAlerts(chats.adminCostAlerts(limit, userId)));
+    }
     @PostMapping("/expansions") public Result<ChatService.Chat> expansion(Authentication authentication, @RequestHeader("Idempotency-Key") String key, @Valid @RequestBody ExpansionRequest request) {
         return Result.ok(chats.chat(CurrentUser.id(authentication), key, request.model(), List.of(new ChatService.Message("user", request.text())), request.maxTokens()));
     }
@@ -47,4 +54,5 @@ public class AiController {
     public record ExpansionRequest(@NotBlank String model, @NotBlank String text, @Positive int maxTokens) { }
     public record MessageRequest(@NotBlank String role, @NotBlank String content) { }
     public record KeyRequest(@NotBlank String idempotencyKey) { }
+    public record AdminCostAlerts(List<ChatService.AdminCostAlert> alerts) { }
 }

@@ -1,6 +1,7 @@
 package com.dramaip.platform.billing.controller;
 
 import com.dramaip.platform.billing.service.PlanService;
+import com.dramaip.platform.common.security.AdminAccess;
 import com.dramaip.platform.common.security.CurrentUser;
 import com.dramaip.platform.common.web.Result;
 import jakarta.validation.Valid;
@@ -34,6 +35,13 @@ public class BillingController {
     @PostMapping("/api/v1/subscriptions/current/plan") public Result<PlanService.Subscription> changePlan(Authentication authentication, @RequestHeader(value = "Idempotency-Key", required = false) String key, @Valid @RequestBody ChangePlanRequest request) { return Result.ok(plans.schedulePlanChange(CurrentUser.id(authentication), request.planCode(), key)); }
     @PostMapping("/api/v1/refunds") public ResponseEntity<Result<PlanService.Refund>> refund(Authentication authentication, @RequestHeader(value = "Idempotency-Key", required = false) String key, @Valid @RequestBody RefundRequest request) { return ResponseEntity.status(HttpStatus.ACCEPTED).body(Result.ok(plans.requestRefund(CurrentUser.id(authentication), request.reason(), key))); }
     @GetMapping("/api/v1/reconciliation") public Result<List<PlanService.Reconciliation>> reconciliation(Authentication authentication, @org.springframework.web.bind.annotation.RequestParam(defaultValue = "50") int limit) { return Result.ok(plans.reconciliation(CurrentUser.id(authentication), limit)); }
+    @GetMapping("/api/v1/admin/billing/reconciliation")
+    public Result<PlanService.AdminReconciliation> adminReconciliation(Authentication authentication,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "50") int limit,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "") String status) {
+        AdminAccess.require(authentication, "billing.write");
+        return Result.ok(plans.adminReconciliation(status, limit));
+    }
     public record CreateOrderRequest(@NotBlank String planCode, @NotBlank String provider) { }
     public record ConfirmPaymentRequest(@NotBlank String orderId) { }
     public record CancelRequest(boolean immediate) { }

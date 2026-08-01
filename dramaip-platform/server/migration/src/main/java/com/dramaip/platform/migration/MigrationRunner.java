@@ -42,12 +42,12 @@ class MigrationRunner implements ApplicationRunner {
             flyway.migrate();
             return;
         }
-        if (legacyLedgerExists()) {
-            verifyLegacyLedger();
-        } else {
+        boolean legacyLedgerExists = legacyLedgerExists();
+        if (!legacyLedgerExists || properties.isApplyPendingLegacyMigrations()) {
+            if (legacyLedgerExists) verifyLegacyLedgerPrefix();
             applyLegacyMigrations();
-            verifyLegacyLedger();
         }
+        verifyLegacyLedger();
         flyway.baseline();
         flyway.migrate();
     }
@@ -70,6 +70,19 @@ class MigrationRunner implements ApplicationRunner {
         }
     }
 
+    private void verifyLegacyLedgerPrefix() throws SQLException {
+        try (Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(
+                "select count(*), coalesce(min(version), 0), coalesce(max(version), 0), coalesce(bool_or(dirty), false) from public.schema_migrations"); ResultSet result = statement.executeQuery()) {
+            result.next();
+            long count = result.getLong(1);
+            long minimum = result.getLong(2);
+            long maximum = result.getLong(3);
+            if ((count > 0 && minimum != 1) || count != maximum || maximum > LEGACY_BASELINE || result.getBoolean(4)) {
+                throw new IllegalStateException("legacy schema_migrations must be a clean, contiguous prefix of 001-049 before local resume");
+            }
+        }
+    }
+
     private void applyLegacyMigrations() throws IOException, SQLException {
         Path root = properties.getLegacyMigrationsDir().toAbsolutePath().normalize();
         if (!Files.isDirectory(root)) throw new IllegalStateException("legacy migrations directory is required for an empty database: " + root);
@@ -79,7 +92,9 @@ class MigrationRunner implements ApplicationRunner {
                     .filter(path -> LEGACY_FILE.matcher(path.getFileName().toString()).matches())
                     .map(this::legacyMigration).sorted(Comparator.comparingInt(LegacyMigration::version)).toList();
         }
-        if (migrations.size() != LEGACY_BASELINE || migrations.stream().mapToInt(LegacyMigration::version).distinct().count() != LEGACY_BASELINE) {
+        if (migrations.size() != LEGACY_BASELINE || migrations.getFirst().version() != 1
+                || migrations.getLast().version() != LEGACY_BASELINE
+                || migrations.stream().mapToInt(LegacyMigration::version).distinct().count() != LEGACY_BASELINE) {
             throw new IllegalStateException("legacy migration files must contain exactly one forward migration for every version 001-049");
         }
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {

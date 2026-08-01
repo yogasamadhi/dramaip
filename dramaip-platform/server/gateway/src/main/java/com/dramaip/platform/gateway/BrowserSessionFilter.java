@@ -30,8 +30,12 @@ public class BrowserSessionFilter implements GlobalFilter, Ordered {
         String accessToken = cookieValue(exchange, ACCESS_COOKIE);
         boolean browserSession = (authorization == null || authorization.isBlank())
                 && (!accessToken.isBlank() || !cookieValue(exchange, REFRESH_COOKIE).isBlank());
-        if (browserSession && unsafe(original.getMethod()) && !csrfMatches(exchange)) return csrfRejected(exchange);
-        if (!authorizationIsAbsent(authorization) || accessToken.isBlank() || credentialEndpoint(original)) return chain.filter(exchange);
+        boolean credentialEndpoint = credentialEndpoint(original);
+        // A stale Cookie session must not prevent a visitor from signing in
+        // again. Credential endpoints don't authenticate through the Cookie
+        // session and therefore don't need its double-submit CSRF proof.
+        if (browserSession && !credentialEndpoint && unsafe(original.getMethod()) && !csrfMatches(exchange)) return csrfRejected(exchange);
+        if (!authorizationIsAbsent(authorization) || accessToken.isBlank() || credentialEndpoint) return chain.filter(exchange);
 
         ServerHttpRequest request = original.mutate().headers(headers -> headers.setBearerAuth(accessToken)).build();
         return chain.filter(exchange.mutate().request(request).build());

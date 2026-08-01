@@ -46,6 +46,44 @@ type PendingJobOperation = {
   targetID: string;
   action?: string;
 };
+type StoredAdminSession = {
+  token: string;
+  principal: Principal;
+  expiresAt: number;
+};
+
+const adminSessionKey = "dramaip.admin.session";
+
+function readAdminSession(): StoredAdminSession | null {
+  try {
+    const raw = window.sessionStorage.getItem(adminSessionKey);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as StoredAdminSession;
+    if (!session.token || !session.principal || session.expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(adminSessionKey);
+      return null;
+    }
+    return session;
+  } catch {
+    window.sessionStorage.removeItem(adminSessionKey);
+    return null;
+  }
+}
+
+function writeAdminSession(
+  token: string,
+  principal: Principal,
+  expiresIn: number,
+) {
+  window.sessionStorage.setItem(
+    adminSessionKey,
+    JSON.stringify({ token, principal, expiresAt: Date.now() + expiresIn * 1000 }),
+  );
+}
+
+function clearAdminSession() {
+  window.sessionStorage.removeItem(adminSessionKey);
+}
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("zh-CN").format(value);
@@ -98,7 +136,7 @@ function OverviewChart({ overview }: { overview: Overview }) {
 function Login({
   onLogin,
 }: {
-  onLogin: (token: string, principal: Principal) => void;
+  onLogin: (token: string, principal: Principal, expiresIn: number) => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -107,10 +145,10 @@ function Login({
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setError("");
+      setError("");
     try {
       const login = await adminAPI.login(email, password);
-      onLogin(login.access_token, login.principal);
+      onLogin(login.access_token, login.principal, login.expires_in);
     } catch (cause) {
       setError(cause instanceof APIError ? cause.message : "登录暂不可用");
     } finally {
@@ -152,15 +190,18 @@ function Login({
           )}
           <button disabled={busy}>{busy ? "验证中…" : "安全登录"}</button>
         </form>
-        <small>令牌仅存在当前页面内存；刷新后需重新登录。</small>
+        <small>令牌仅保留在当前浏览器标签页；关闭标签页或令牌过期后需重新登录。</small>
       </section>
     </main>
   );
 }
 
 function App() {
-  const [token, setToken] = useState<string | null>(null);
-  const [principal, setPrincipal] = useState<Principal | null>(null);
+  const [initialSession] = useState(readAdminSession);
+  const [token, setToken] = useState<string | null>(initialSession?.token || null);
+  const [principal, setPrincipal] = useState<Principal | null>(
+    initialSession?.principal || null,
+  );
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -233,6 +274,7 @@ function App() {
         cause instanceof APIError ? cause.message : "报表暂不可用";
       setError(message);
       if (cause instanceof APIError && cause.status === 401) {
+        clearAdminSession();
         setToken(null);
         setPrincipal(null);
         setData(null);
@@ -474,7 +516,8 @@ function App() {
   if (!token || !principal)
     return (
       <Login
-        onLogin={(nextToken, nextPrincipal) => {
+        onLogin={(nextToken, nextPrincipal, expiresIn) => {
+          writeAdminSession(nextToken, nextPrincipal, expiresIn);
           setToken(nextToken);
           setPrincipal(nextPrincipal);
         }}
@@ -493,6 +536,7 @@ function App() {
           <button
             className="quiet"
             onClick={() => {
+              clearAdminSession();
               setToken(null);
               setPrincipal(null);
               setData(null);

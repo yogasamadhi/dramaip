@@ -15,8 +15,8 @@ class GatewayCorsConfiguration {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Accept", "Authorization", "Content-Type", "X-CSRF-Token",
-                "X-DramaIP-Contract-Version", "X-Request-Id", "X-Trace-Id"));
+        configuration.setAllowedHeaders(List.of("Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Device-Id",
+                "X-DramaIP-Web-Session", "X-DramaIP-Contract-Version", "X-Request-Id", "X-Trace-Id"));
         configuration.setExposedHeaders(List.of("X-DramaIP-Contract-Version", "X-Request-Id", "X-Trace-Id"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

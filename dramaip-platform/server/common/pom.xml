@@ -23,5 +23,6 @@
     <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-common</artifactId><version>${springdoc.version}</version></dependency>
     <dependency><groupId>jakarta.validation</groupId><artifactId>jakarta.validation-api</artifactId></dependency>
     <dependency><groupId>jakarta.servlet</groupId><artifactId>jakarta.servlet-api</artifactId><scope>provided</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
 </project>

@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '../../components/ui/Button'
 import { parseApiError } from '../../lib/api-error'
-import { apiClient } from '../../lib/api-client'
+import { apiClient, hasWebSessionMarker } from '../../lib/api-client'
 import { safeNextPath } from '../../lib/routes'
 
 const RegisterSchema = z.object({
@@ -30,6 +30,7 @@ export default function RegisterPage() {
   })
 
   useEffect(() => {
+    if (!hasWebSessionMarker()) return
     apiClient.getSession().then(() => router.replace(currentNextPath())).catch(() => undefined)
   }, [router])
 

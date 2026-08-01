@@ -14,8 +14,8 @@ DATA_DIR="${COMPOSE_DIR}/docker-data"
 # 业务数据：交给镜像初始化权限（不 chmod，postgres 对过宽权限会报错）
 mkdir -p "${DATA_DIR}"/{postgres,redis,rabbitmq}
 
-# 可观测性：非 root 容器，放开写权限（含 fluent-bit 的 tail DB state 目录）
-mkdir -p "${DATA_DIR}"/{prometheus,jaeger,grafana,opensearch,fluent-bit}
-chmod 777 "${DATA_DIR}"/{prometheus,jaeger,grafana,opensearch,fluent-bit}
+# 可观测性：非 root 容器，放开写权限（含 Filebeat registry 状态目录）
+mkdir -p "${DATA_DIR}"/{prometheus,jaeger,grafana,elasticsearch,filebeat}
+chmod 777 "${DATA_DIR}"/{prometheus,jaeger,grafana,elasticsearch,filebeat}
 
 echo "[init] data dirs ready under ${DATA_DIR}"

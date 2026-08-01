@@ -2,7 +2,7 @@
 
 const apiBaseURL = process.env.DRAMAIP_API_BASE_URL ?? 'http://localhost:8000'
 const jaegerBaseURL = process.env.DRAMAIP_JAEGER_URL ?? 'http://localhost:16686'
-const openSearchBaseURL = process.env.DRAMAIP_OPENSEARCH_URL ?? 'http://localhost:9200'
+const elasticsearchBaseURL = process.env.DRAMAIP_ELASTICSEARCH_URL ?? 'http://localhost:9200'
 const traceID = process.env.DRAMAIP_TRACE_ID ?? randomTraceID()
 const requestID = process.env.DRAMAIP_REQUEST_ID ?? `observability-${Date.now()}`
 
@@ -76,7 +76,7 @@ const jaegerTrace = await waitFor(async () => {
 }, 'Jaeger cross-service trace')
 
 await waitFor(async () => {
-  const { body } = await getJSON(new URL('/dramaip-logs-*/_search', openSearchBaseURL), {
+  const { body } = await getJSON(new URL('/dramaip-logs-*/_search', elasticsearchBaseURL), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -87,6 +87,6 @@ await waitFor(async () => {
   })
   const hits = body.hits?.hits ?? []
   return hits.some((hit) => hit._source?.trace_id === traceID && hit._source?.service) ? hits : null
-}, 'OpenSearch structured log')
+}, 'Elasticsearch structured log')
 
 console.log(JSON.stringify({ ok: true, traceID, requestID, spanCount: jaegerTrace.spans.length }, null, 2))

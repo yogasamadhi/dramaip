@@ -3,6 +3,7 @@ package com.dramaip.platform.ai.service;
 import com.dramaip.platform.ai.AiProperties;
 import com.dramaip.platform.ai.client.QuotaClient;
 import com.dramaip.platform.common.web.BusinessException;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
@@ -95,6 +96,25 @@ public class ChatService {
                 order by created_at desc limit ?
                 """, (rs, row) -> new CostAlert(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getObject(6, Instant.class)),
                 userId, Math.max(1, Math.min(limit, 200)));
+    }
+
+    /** Admin view deliberately excludes prompts, client IP addresses, and provider credentials. */
+    public List<AdminCostAlert> adminCostAlerts(int limit, String userId) {
+        String requestedUser = userId == null ? "" : userId.trim();
+        if (!requestedUser.isEmpty()) {
+            try { UUID.fromString(requestedUser); } catch (IllegalArgumentException exception) {
+                throw new BusinessException("AI_ADMIN_USER_ID_INVALID", "user id is invalid", HttpStatus.BAD_REQUEST);
+            }
+        }
+        int bounded = limit <= 0 || limit > 100 ? 50 : limit;
+        return jdbc.query("""
+                select alert.id::text, alert.audit_id::text, alert.user_id::text, alert.event_type,
+                       alert.observed_cost_cny::text, alert.threshold_cny::text, '', alert.created_at::text
+                from ai_gateway.provider_cost_alerts alert
+                where (? = '' or alert.user_id = nullif(?, '')::uuid)
+                order by alert.created_at desc, alert.id desc limit ?
+                """, (rs, row) -> new AdminCostAlert(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
+                rs.getString(6), rs.getString(7), rs.getString(8)), requestedUser, requestedUser, bounded);
     }
 
     /**
@@ -303,6 +323,10 @@ public class ChatService {
     public record Chat(String requestId, String provider, String model, String content, long promptTokens, long completionTokens, long totalTokens, String reservationId, String status) { }
     public record CancelResult(String status) { }
     public record CostAlert(String id, String auditId, String eventType, String observedCostCny, String thresholdCny, Instant createdAt) { }
+    public record AdminCostAlert(String id, @JsonProperty("audit_id") String auditId, @JsonProperty("user_id") String userId,
+                                 @JsonProperty("event_type") String eventType, @JsonProperty("observed_cost_cny") String observedCostCny,
+                                 @JsonProperty("threshold_cny") String thresholdCny, @JsonProperty("trace_id") String traceId,
+                                 @JsonProperty("created_at") String createdAt) { }
     private record Audit(String id, String requestId, String idempotencyKey, String requestHash, String provider, String model, String reservationId, String content, long promptTokens, long completionTokens, long totalTokens, String status) { }
     private record Claim(Audit audit, boolean created) { }
     private record ProviderRequest(String model, List<Message> messages, int max_tokens, boolean stream) { }
