@@ -14,9 +14,6 @@ services/bin
 services/tmp
 services/**/*.db
 services/**/target
-legacy/go-services/bin
-legacy/go-services/tmp
-legacy/go-services/**/*.db
 
 .data
 !deploy/k8s/.data/

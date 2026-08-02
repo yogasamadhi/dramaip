@@ -1,84 +1,20 @@
 replicaCount: 1
 
 image:
-  repository: dramaip-web-bff
-  tag: dev
   pullPolicy: IfNotPresent
 
-images:
-  webBff:
-    repository: dramaip-web-bff
-    tag: dev
-  desktopBff:
-    repository: dramaip-desktop-bff
-    tag: dev
-  mobileBff:
-    repository: dramaip-mobile-bff
-    tag: dev
-  adminBff:
-    repository: dramaip-admin-bff
-    tag: dev
-  auth:
-    repository: dramaip-auth
-    tag: dev
-  user:
-    repository: dramaip-user
-    tag: dev
-  billing:
-    repository: dramaip-billing
-    tag: dev
-  quota:
-    repository: dramaip-quota
-    tag: dev
-  aiGateway:
-    repository: dramaip-ai-gateway
-    tag: dev
-  notification:
-    repository: dramaip-notification
-    tag: dev
-  inspiration:
-    repository: dramaip-inspiration
-    tag: dev
-  snapshot:
-    repository: dramaip-snapshot
-    tag: dev
-  review:
-    repository: dramaip-review
-    tag: dev
-  reporting:
-    repository: dramaip-reporting
-    tag: dev
-  notificationJob:
-    repository: dramaip-notification-job
-    tag: dev
-  reportingJob:
-    repository: dramaip-reporting-job
-    tag: dev
-  billingJob:
-    repository: dramaip-billing-job
-    tag: dev
-  quotaJob:
-    repository: dramaip-quota-job
-    tag: dev
-  migration:
-    repository: dramaip-migrate
-    tag: dev
-
-config:
-  env: dev
-  logLevel: debug
-  autoMigrate: "false"
-  postgres:
-    host: postgres
-    sslmode: disable
-  redis:
-    addr: redis:6379
-  rabbitmq:
-    host: rabbitmq
-    port: "5672"
-    vhost: /
-  otel:
-    endpoint: http://otel-collector:4318
+java:
+  replicaCount: 1
+  images:
+    migration: { repository: dramaip-java-migration, tag: dev }
+    gateway: { repository: dramaip-java-gateway, tag: dev }
+    identity: { repository: dramaip-java-identity, tag: dev }
+    notification: { repository: dramaip-java-notification, tag: dev }
+    reporting: { repository: dramaip-java-reporting, tag: dev }
+    creation: { repository: dramaip-java-creation, tag: dev }
+    quota: { repository: dramaip-java-quota, tag: dev }
+    ai: { repository: dramaip-java-ai, tag: dev }
+    billing: { repository: dramaip-java-billing, tag: dev }
 
 review:
   objectStore:
@@ -88,32 +24,23 @@ review:
     bucket: dramaip-review
     credentialsSecret: ""
 
-internalMTLS:
-  enabled: false
-
 devInfra:
   enabled: true
   persistence:
     enabled: true
     hostPathBase: ""
 
-migrations:
-  enabled: false
-
 secret:
   postgresUser: dramaip
   postgresPassword: dramaip
-  postgresAuthPassword: dramaip
-  postgresUserProfilePassword: dramaip
-  postgresBillingPassword: dramaip
-  postgresQuotaPassword: dramaip
-  postgresAIGatewayPassword: dramaip
-  postgresNotificationPassword: dramaip
-  postgresInspirationPassword: dramaip
-  postgresAdminPassword: dramaip
-  postgresReportingPassword: dramaip
-  postgresSnapshotPassword: dramaip
-  postgresReviewPassword: dramaip
+  postgresIdentitySvcPassword: dramaip
+  postgresNotificationSvcPassword: dramaip
+  postgresReportingSvcPassword: dramaip
+  postgresCreationSvcPassword: dramaip
+  postgresQuotaSvcPassword: dramaip
+  postgresAiSvcPassword: dramaip
+  postgresBillingSvcPassword: dramaip
+  internalToken: change-me-internal
   reviewS3AccessKey: dramaip-review
   reviewS3SecretKey: dramaip-review-development-secret
   redisPassword: dramaip

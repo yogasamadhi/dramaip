@@ -11,9 +11,8 @@
 
 - Desktop 全量测试、Electron E2E、31 个 UI/a11y 基线（0 条观察）和本机 macOS arm64 DMG/ZIP
   package smoke 已通过。
-- Platform clients lint/typecheck/contracts/build、全量 Go 服务测试、健康 Compose E2E 和
-  trace/observability smoke 已通过；`make platform-up` 会重启 Kong 并有界等待健康端点，避免
-  重建后命中已退休的 Web BFF 上游地址。
+- Platform clients lint/typecheck/contracts/build、Java Maven 测试、健康 Compose E2E 和
+  trace/observability smoke 已通过；`make platform-up` 会有界等待 Java Gateway 健康端点。
 - 端到端加密项目快照的本地安全边界已验证：密钥仅在本机 Keychain，服务端只处理不透明密文；
   8–64 MiB 上传可续传、暂存 24 小时过期、正式快照 30 天留存。
 

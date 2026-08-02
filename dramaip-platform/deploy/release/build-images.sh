@@ -94,7 +94,7 @@ while IFS='|' read -r chart_key image_name kind target; do
       web_count=$((web_count + 1))
       ;;
     java)
-      [[ "$target" =~ ^(migration|gateway|services/(identity|support|creation|quota|ai|billing))$ ]] || {
+      [[ "$target" =~ ^(migration|gateway|services/(identity|notification|reporting|creation|quota|ai|billing))$ ]] || {
         echo "invalid Java Maven module '$target' for $image_name" >&2; exit 2;
       }
       build_cmd+=(
@@ -113,8 +113,8 @@ while IFS='|' read -r chart_key image_name kind target; do
   esac
 done < "$manifest"
 
-[[ "$java_count" == "8" && "$web_count" == "1" ]] || {
-  echo "manifest must build 8 Java and one Web image; got $java_count Java and $web_count Web" >&2
+[[ "$java_count" == "9" && "$web_count" == "1" ]] || {
+  echo "manifest must build 9 Java and one Web image; got $java_count Java and $web_count Web" >&2
   exit 2
 }
-echo "built immutable Java release bundle: 9 images under $registry with tag $tag (not pushed)"
+echo "built immutable Java release bundle: 10 images under $registry with tag $tag (not pushed)"

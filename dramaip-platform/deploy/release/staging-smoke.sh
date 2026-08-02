@@ -8,8 +8,8 @@ environment="${1:?usage: staging-smoke.sh <staging|production>}"
 [[ "${DRAMAIP_SMOKE_AUTHORIZED:-}" == "1" ]] || { echo "set DRAMAIP_SMOKE_AUTHORIZED=1 after approval" >&2; exit 2; }
 
 case "$environment" in
-  staging) default_namespace="dramaip-staging"; default_mtls_secret="dramaip-staging-internal-mtls" ;;
-  production) default_namespace="dramaip-production"; default_mtls_secret="dramaip-internal-mtls" ;;
+  staging) default_namespace="dramaip-staging" ;;
+  production) default_namespace="dramaip-production" ;;
   *) echo "environment must be staging or production" >&2; exit 2 ;;
 esac
 
@@ -45,7 +45,7 @@ while IFS='|' read -r key component kind target; do
   fi
   component_count=$((component_count + 1))
 done < "$manifest"
-[[ "$component_count" -ge "7" && "$component_count" -le "8" ]] || { echo "expected Gateway, six Java services, and optional Web; found $component_count workloads" >&2; exit 1; }
+[[ "$component_count" -ge "8" && "$component_count" -le "9" ]] || { echo "expected Gateway, seven Java services, and optional Web; found $component_count workloads" >&2; exit 1; }
 
 base_url="${SMOKE_BASE_URL:?SMOKE_BASE_URL is required, e.g. https://api.staging.example.com}"
 base_url="${base_url%/}"
@@ -65,7 +65,7 @@ gateway_status="$("${curl_common[@]}" --output /dev/null --write-out '%{http_cod
 [[ "$gateway_status" == "401" ]] || { echo "Java Gateway did not enforce JWT on /api/v1/plans: HTTP $gateway_status" >&2; exit 1; }
 
 [[ "${SMOKE_RATE_LIMIT_TEST:-0}" == "1" ]] || {
-  echo "set SMOKE_RATE_LIMIT_TEST=1 for the approved Kong rate-limit probe" >&2
+  echo "set SMOKE_RATE_LIMIT_TEST=1 for the approved ingress rate-limit probe" >&2
   exit 2
 }
 attempts="${SMOKE_RATE_LIMIT_ATTEMPTS:?SMOKE_RATE_LIMIT_ATTEMPTS must exceed the configured minute limit}"
@@ -86,8 +86,8 @@ for ((attempt = 1; attempt <= attempts; attempt++)); do
     exit 1
   fi
 done
-[[ "$seen_limited" == "1" ]] || { echo "Kong rate limit was not observed" >&2; exit 1; }
-# The probe intentionally exhausts the per-client Kong budget. A second
+[[ "$seen_limited" == "1" ]] || { echo "ingress rate limit was not observed" >&2; exit 1; }
+# The probe intentionally exhausts the per-client ingress budget. A second
 # request from this same client can correctly be 429, so the health assertion
 # above must remain the reachability check rather than treating that expected
 # rate-limit response as an application failure.

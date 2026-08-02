@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const apiBaseURL = process.env.DRAMAIP_API_BASE_URL ?? 'http://localhost:8000'
+const apiBaseURL = process.env.DRAMAIP_API_BASE_URL ?? 'http://localhost:8080'
 const jaegerBaseURL = process.env.DRAMAIP_JAEGER_URL ?? 'http://localhost:16686'
 const elasticsearchBaseURL = process.env.DRAMAIP_ELASTICSEARCH_URL ?? 'http://localhost:9200'
 const traceID = process.env.DRAMAIP_TRACE_ID ?? randomTraceID()
@@ -56,15 +56,17 @@ async function waitFor(check, name, timeoutMs = 30_000) {
   throw new Error(`${name} was not ready within ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ''}`)
 }
 
-// `/v1/plans` crosses Kong -> Web BFF -> billing gRPC without needing a
-// session. The fixed incoming traceparent makes the expected trace ID
-// deterministic and verifies propagation rather than merely trace creation.
-const { response } = await getJSON(new URL('/v1/plans', apiBaseURL), {
+// A protected Java Gateway route returns 401 before forwarding without a
+// session. The fixed traceparent verifies that the gateway preserves request
+// correlation into tracing and structured logs.
+const response = await fetch(new URL('/api/v1/plans', apiBaseURL), {
   headers: {
     traceparent: traceparent(traceID),
     'X-Request-Id': requestID,
+    'X-DramaIP-Contract-Version': '2',
   },
 })
+assert(response.status === 401, `API returned ${response.status} instead of 401`)
 assert(response.headers.get('x-trace-id') === traceID, `API returned ${response.headers.get('x-trace-id')} instead of ${traceID}`)
 assert(response.headers.get('x-request-id') === requestID, `API returned ${response.headers.get('x-request-id')} instead of ${requestID}`)
 
@@ -72,8 +74,8 @@ const jaegerTrace = await waitFor(async () => {
   const { body } = await getJSON(new URL(`/api/traces/${traceID}`, jaegerBaseURL))
   const spans = body.data?.[0]?.spans ?? []
   const services = new Set(spans.map((span) => span.processID).filter(Boolean))
-  return spans.length >= 2 && services.size >= 2 ? { spans, services } : null
-}, 'Jaeger cross-service trace')
+  return spans.length >= 1 && services.size >= 1 ? { spans, services } : null
+}, 'Jaeger gateway trace')
 
 await waitFor(async () => {
   const { body } = await getJSON(new URL('/dramaip-logs-*/_search', elasticsearchBaseURL), {

@@ -2,11 +2,12 @@
 #
 # This is the authoritative Java-only release inventory. Every build, scan,
 # push and GitOps update consumes this file so a Java workload cannot skip a
-# release gate. The Go tree remains an archive and is intentionally absent.
+# release gate.
 migration|java-migration|java|migration
 gateway|java-gateway|java|gateway
 identity|java-identity|java|services/identity
-support|java-support|java|services/support
+notification|java-notification|java|services/notification
+reporting|java-reporting|java|services/reporting
 creation|java-creation|java|services/creation
 quota|java-quota|java|services/quota
 ai|java-ai|java|services/ai

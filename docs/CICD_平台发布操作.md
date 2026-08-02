@@ -12,9 +12,9 @@ CD 安装后，管理员需要手工创建：
 
 - GitLab 项目 `platform/dramaip` 与空项目 `platform/dramaip-gitops`；
 - Harbor 私有项目 `dramaip`，本机发布者使用 Push Robot 登录，Kubernetes 使用仅 Pull Robot；
-- `dramaip-staging` 命名空间中的 runtime、Auth JWT、Admin JWT、内部 mTLS、Registry Pull、Ingress TLS Secret；
+- `dramaip-staging` 命名空间中的 runtime、Registry Pull、Ingress TLS Secret；
 - Argo CD 到 GitOps 仓库的只读凭据、GitOps `main` 保护规则和允许发布者直推的 `staging` 分支；
-- Harbor 中固定版本的 Go+Buf、Node、Desktop Node、Docker、Trivy、Helm 和 SonarScanner 工具镜像。
+- Harbor 中固定版本的 JDK 21、Maven、Node、Desktop Node、Docker、Trivy、Helm 和 SonarScanner 工具镜像。
 
 本机需要预先执行 `docker login harbor.home.arpa`，并通过 `ssh-add -l` 确认
 GitLab SSH Key 已加载。不要把密码、Robot Token、GitLab Token 或 kubeconfig

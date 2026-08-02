@@ -54,22 +54,11 @@ if [[ "$action" == "apply" ]]; then
   case "$environment" in
     staging)
       runtime_secret="${DRAMAIP_RUNTIME_SECRET:-dramaip-staging-runtime}"
-      mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
       image_pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:-dramaip-staging-registry}"
       ingress_tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
-      if [[ "$temporary_staging" == "1" ]]; then
-        auth_jwt_secret=""
-        admin_jwt_secret=""
-      else
-        auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:-dramaip-staging-auth-jwt}"
-        admin_jwt_secret="${DRAMAIP_ADMIN_JWT_SECRET:-dramaip-staging-admin-jwt}"
-      fi
       ;;
     production)
       runtime_secret="${DRAMAIP_RUNTIME_SECRET:?DRAMAIP_RUNTIME_SECRET is required for production apply}"
-      auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:?DRAMAIP_AUTH_JWT_SECRET is required for production apply}"
-      admin_jwt_secret="${DRAMAIP_ADMIN_JWT_SECRET:?DRAMAIP_ADMIN_JWT_SECRET is required for production apply}"
-      mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:?DRAMAIP_INTERNAL_MTLS_SECRET is required for production apply}"
       image_pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:?DRAMAIP_IMAGE_PULL_SECRET is required for production apply}"
       ingress_tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:?DRAMAIP_INGRESS_TLS_SECRET is required for production apply}"
       ;;
@@ -79,36 +68,21 @@ if [[ "$action" == "apply" ]]; then
   if [[ "$temporary_staging" == "1" ]]; then
     [[ "$image_registry" == "dramaip-staging.local" ]] || { echo "temporary staging requires IMAGE_REGISTRY=dramaip-staging.local (node-local images only)" >&2; exit 2; }
     postgres_host="${DRAMAIP_POSTGRES_HOST:-postgres}"
-    redis_addr="${DRAMAIP_REDIS_ADDR:-redis:6379}"
-    rabbitmq_host="${DRAMAIP_RABBITMQ_HOST:-rabbitmq}"
-    rabbitmq_port="${DRAMAIP_RABBITMQ_PORT:-5672}"
-    otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:-http://otel-collector:4318}"
     ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
     web_origin="${DRAMAIP_WEB_ORIGIN:-https://app.staging.internal}"
-    admin_origin="${DRAMAIP_ADMIN_ORIGIN:-https://admin.staging.internal}"
   else
     postgres_host="${DRAMAIP_POSTGRES_HOST:?DRAMAIP_POSTGRES_HOST is required for apply}"
-    redis_addr="${DRAMAIP_REDIS_ADDR:?DRAMAIP_REDIS_ADDR is required for apply}"
-    rabbitmq_host="${DRAMAIP_RABBITMQ_HOST:?DRAMAIP_RABBITMQ_HOST is required for apply}"
-    rabbitmq_port="${DRAMAIP_RABBITMQ_PORT:?DRAMAIP_RABBITMQ_PORT is required for apply}"
-    otel_endpoint="${DRAMAIP_OTEL_ENDPOINT:?DRAMAIP_OTEL_ENDPOINT is required for apply}"
     ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:?DRAMAIP_PUBLIC_INGRESS_HOST is required for apply}"
     web_origin="${DRAMAIP_WEB_ORIGIN:?DRAMAIP_WEB_ORIGIN is required for apply}"
-    admin_origin="${DRAMAIP_ADMIN_ORIGIN:?DRAMAIP_ADMIN_ORIGIN is required for apply}"
   fi
 
-  required_secrets=("$runtime_secret" "$mtls_secret" "$image_pull_secret" "$ingress_tls_secret")
-  if [[ -n "$auth_jwt_secret" ]]; then required_secrets+=("$auth_jwt_secret"); fi
-  if [[ -n "$admin_jwt_secret" ]]; then required_secrets+=("$admin_jwt_secret"); fi
+  required_secrets=("$runtime_secret" "$image_pull_secret" "$ingress_tls_secret")
   for secret in "${required_secrets[@]}"; do
     "${kubectl_cmd[@]}" -n "$namespace" get secret "$secret" >/dev/null
   done
 
   image_overrides=(
     --set-string "secret.existingSecret=$runtime_secret"
-    --set-string "authJWT.keysetSecret=$auth_jwt_secret"
-    --set-string "adminJWT.keysetSecret=$admin_jwt_secret"
-    --set-string "internalMTLS.existingSecret=$mtls_secret"
     --set-string "imagePullSecrets[0].name=$image_pull_secret"
     --set "ingress.enabled=true"
     --set-string "ingress.hosts[0].host=$ingress_host"
@@ -120,15 +94,6 @@ if [[ "$action" == "apply" ]]; then
     --set-string "ingress.tls[0].secretName=$ingress_tls_secret"
     --set-string "ingress.tls[0].hosts[0]=$ingress_host"
     --set-string "kong.plugins.cors.origins[0]=$web_origin"
-    --set "adminIngress.cors.enabled=true"
-    --set-string "adminIngress.cors.origins[0]=$admin_origin"
-    --set-string "config.env=$environment"
-    --set-string "config.postgres.host=$postgres_host"
-    --set-string "config.redis.addr=$redis_addr"
-    --set-string "config.rabbitmq.host=$rabbitmq_host"
-    --set-string "config.rabbitmq.port=$rabbitmq_port"
-    --set-string "config.otel.endpoint=$otel_endpoint"
-    --set "legacy.enabled=false"
     --set "java.enabled=true"
     --set-string "java.postgresDsn=jdbc:postgresql://$postgres_host:5432/dramaip?sslmode=require"
   )
@@ -142,12 +107,12 @@ if [[ "$action" == "apply" ]]; then
       image_overrides+=(--set-string "java.images.$key.repository=$image_registry/$name")
       image_overrides+=(--set-string "java.images.$key.tag=$image_tag")
     else
-      image_overrides+=(--set-string "images.$key.repository=$image_registry/$name")
-      image_overrides+=(--set-string "images.$key.tag=$image_tag")
+      echo "unsupported image kind in manifest: $kind" >&2
+      exit 2
     fi
     image_count=$((image_count + 1))
   done < "$manifest"
-  [[ "$image_count" == "9" ]] || { echo "image manifest must contain 9 Java/Web images; found $image_count" >&2; exit 2; }
+  [[ "$image_count" == "10" ]] || { echo "image manifest must contain 10 Java/Web images; found $image_count" >&2; exit 2; }
   if [[ "$diagnostic_retain" == "1" ]]; then
     # This diagnostic escape hatch is deliberately limited to the explicitly
     # authorized disposable staging namespace.  It lets an operator inspect

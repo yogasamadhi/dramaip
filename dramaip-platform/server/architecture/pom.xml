@@ -5,7 +5,8 @@
   <artifactId>architecture</artifactId>
   <dependencies>
     <dependency><groupId>com.dramaip.platform</groupId><artifactId>identity</artifactId><version>${project.version}</version><scope>test</scope></dependency>
-    <dependency><groupId>com.dramaip.platform</groupId><artifactId>support</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>notification</artifactId><version>${project.version}</version><scope>test</scope></dependency>
+    <dependency><groupId>com.dramaip.platform</groupId><artifactId>reporting</artifactId><version>${project.version}</version><scope>test</scope></dependency>
     <dependency><groupId>com.dramaip.platform</groupId><artifactId>creation</artifactId><version>${project.version}</version><scope>test</scope></dependency>
     <dependency><groupId>com.dramaip.platform</groupId><artifactId>quota</artifactId><version>${project.version}</version><scope>test</scope></dependency>
     <dependency><groupId>com.dramaip.platform</groupId><artifactId>ai</artifactId><version>${project.version}</version><scope>test</scope></dependency>

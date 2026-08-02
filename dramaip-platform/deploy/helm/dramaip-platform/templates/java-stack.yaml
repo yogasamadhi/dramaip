@@ -2,7 +2,8 @@
 {{- $services := list
   (dict "key" "gateway" "name" "gateway" "passwordKey" "POSTGRES_PASSWORD")
   (dict "key" "identity" "name" "identity" "passwordKey" "POSTGRES_IDENTITY_SVC_PASSWORD")
-  (dict "key" "support" "name" "support" "passwordKey" "POSTGRES_SUPPORT_SVC_PASSWORD")
+  (dict "key" "notification" "name" "notification" "passwordKey" "POSTGRES_NOTIFICATION_SVC_PASSWORD" "databaseUser" "dramaip_notification_svc")
+  (dict "key" "reporting" "name" "reporting" "passwordKey" "POSTGRES_REPORTING_SVC_PASSWORD" "databaseUser" "dramaip_reporting_svc")
   (dict "key" "creation" "name" "creation" "passwordKey" "POSTGRES_CREATION_SVC_PASSWORD")
   (dict "key" "quota" "name" "quota" "passwordKey" "POSTGRES_QUOTA_SVC_PASSWORD")
   (dict "key" "ai" "name" "ai" "passwordKey" "POSTGRES_AI_SVC_PASSWORD")
@@ -70,6 +71,9 @@ spec:
           livenessProbe: { httpGet: { path: /actuator/health, port: http }, initialDelaySeconds: 30 }
           env:
             - { name: POSTGRES_DSN, value: {{ $.Values.java.postgresDsn | quote }} }
+          {{- if hasKey $service "databaseUser" }}
+            - { name: POSTGRES_USER, value: {{ index $service "databaseUser" | quote }} }
+          {{- end }}
             - { name: POSTGRES_PASSWORD, valueFrom: { secretKeyRef: { name: {{ include "dramaip-platform.secretName" $ }}, key: {{ $service.passwordKey }} } } }
             - { name: NACOS_SERVER_ADDR, value: {{ $.Values.java.nacosServerAddr | quote }} }
             - { name: SEATA_SERVER_ADDR, value: {{ $.Values.java.seataServerAddr | quote }} }

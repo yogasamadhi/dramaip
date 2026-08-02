@@ -5,7 +5,7 @@ set -euo pipefail
 # environment. It has no production path and refuses a namespace outside the
 # dramaip-staging family. It does not use a registry: the application images
 # are loaded by exact tag into the Docker cache of worker nodes only.
-action="${1:?usage: temporary-staging.sh <bootstrap|rotate-mtls|rotate-ingress-tls|install-kong|archive-images|preload-images|remove-images|teardown>}"
+action="${1:?usage: temporary-staging.sh <bootstrap|rotate-ingress-tls|install-kong|archive-images|preload-images|remove-images|teardown>}"
 [[ "${DRAMAIP_TEMPORARY_STAGING_AUTHORIZED:-}" == "1" ]] || {
   echo "set DRAMAIP_TEMPORARY_STAGING_AUTHORIZED=1 after approving temporary staging" >&2
   exit 2
@@ -50,12 +50,7 @@ while IFS='|' read -r chart_key image_name kind target; do
   [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
   images+=("$image_name")
 done < "$manifest"
-[[ "${#images[@]}" == "20" ]] || { echo "image manifest must contain 20 images; found ${#images[@]}" >&2; exit 2; }
-cert_components=(
-  web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway
-  notification-service inspiration-service snapshot-service review-service reporting-service notification-job
-  reporting-job billing-job quota-job
-)
+[[ "${#images[@]}" == "10" ]] || { echo "image manifest must contain 10 images; found ${#images[@]}" >&2; exit 2; }
 # EXIT traps can run after function-local variables have been unwound by
 # `set -e`. Keep transient preload cleanup state at script scope so a failed
 # verification removes the Docker-socket DaemonSet and archive server by
@@ -95,76 +90,6 @@ create_or_update_secret() {
   "${kubectl_cmd[@]}" -n "$namespace" create secret generic "$name" "$@" --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
 }
 
-create_mtls_secret() {
-  local mtls_secret="$1"
-  local tmp component principal service_name san
-  tmp="$(mktemp -d)"
-  chmod 700 "$tmp"
-
-  openssl genrsa -out "$tmp/ca.key" 4096 >/dev/null 2>&1
-  openssl req -x509 -new -sha256 -key "$tmp/ca.key" -out "$tmp/ca.crt" -days 2 \
-    -subj '/CN=dramaip-temporary-staging-ca' \
-    -addext 'basicConstraints=critical,CA:TRUE' \
-    -addext 'keyUsage=critical,keyCertSign,cRLSign' >/dev/null 2>&1
-  local -a mtls_args=(--from-file="$tmp/ca.crt")
-  for component in "${cert_components[@]}"; do
-    # The SAN is the Kubernetes Service DNS identity used by TLS hostname
-    # verification. The CN is the logical workload principal evaluated by
-    # GRPCPeerAuthorization, so service components use their explicit service
-    # principal rather than the Helm resource name.  A certificate key may use
-    # the logical principal name (for example notification-service) while the
-    # Helm Service remains notification; keep those identities separate.
-    case "$component" in
-      auth)
-        principal="auth-service"
-        service_name="${release}-auth"
-        ;;
-      user)
-        principal="user-service"
-        service_name="${release}-user"
-        ;;
-      billing)
-        principal="billing-service"
-        service_name="${release}-billing"
-        ;;
-      quota)
-        principal="quota-service"
-        service_name="${release}-quota"
-        ;;
-      ai-gateway)
-        principal="ai-gateway-service"
-        service_name="${release}-ai-gateway"
-        ;;
-      notification-service)
-        principal="notification-service"
-        service_name="${release}-notification"
-        ;;
-      inspiration-service)
-        principal="inspiration-service"
-        service_name="${release}-inspiration"
-        ;;
-      reporting-service)
-        principal="reporting-service"
-        service_name="${release}-reporting"
-        ;;
-      *)
-        principal="$component"
-        service_name="${release}-${component}"
-        ;;
-    esac
-    san="DNS:${service_name},DNS:${service_name}.${namespace},DNS:${service_name}.${namespace}.svc"
-    openssl genrsa -out "$tmp/${component}.key" 2048 >/dev/null 2>&1
-    openssl req -new -sha256 -key "$tmp/${component}.key" -out "$tmp/${component}.csr" \
-      -subj "/CN=${principal}" >/dev/null 2>&1
-    openssl x509 -req -sha256 -in "$tmp/${component}.csr" -CA "$tmp/ca.crt" -CAkey "$tmp/ca.key" \
-      -CAcreateserial -out "$tmp/${component}.crt" -days 2 \
-      -extfile <(printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth,clientAuth\nsubjectAltName=%s\n' "$san") >/dev/null 2>&1
-    mtls_args+=(--from-file="$tmp/${component}.crt" --from-file="$tmp/${component}.key")
-  done
-  create_or_update_secret "$mtls_secret" "${mtls_args[@]}"
-  rm -rf "$tmp"
-}
-
 create_ingress_tls_secret() (
   local tls_secret="$1"
   local ingress_host="${DRAMAIP_PUBLIC_INGRESS_HOST:-api.staging.internal}"
@@ -190,25 +115,21 @@ bootstrap() {
   "${kubectl_cmd[@]}" create namespace "$namespace" --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
 
   local runtime_secret="${DRAMAIP_RUNTIME_SECRET:-dramaip-staging-runtime}"
-  local mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
   local pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:-dramaip-staging-registry}"
   local tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
 
   local -a runtime_keys=(
-    POSTGRES_USER POSTGRES_PASSWORD POSTGRES_AUTH_PASSWORD POSTGRES_USER_PROFILE_PASSWORD
-    POSTGRES_BILLING_PASSWORD POSTGRES_QUOTA_PASSWORD POSTGRES_AI_GATEWAY_PASSWORD
-    POSTGRES_NOTIFICATION_PASSWORD POSTGRES_INSPIRATION_PASSWORD POSTGRES_ADMIN_PASSWORD
-    POSTGRES_REPORTING_PASSWORD POSTGRES_SNAPSHOT_PASSWORD POSTGRES_REVIEW_PASSWORD
+    POSTGRES_USER POSTGRES_PASSWORD POSTGRES_IDENTITY_SVC_PASSWORD
+    POSTGRES_NOTIFICATION_SVC_PASSWORD POSTGRES_REPORTING_SVC_PASSWORD
+    POSTGRES_CREATION_SVC_PASSWORD POSTGRES_QUOTA_SVC_PASSWORD
+    POSTGRES_AI_SVC_PASSWORD POSTGRES_BILLING_SVC_PASSWORD DRAMAIP_INTERNAL_TOKEN
     REVIEW_S3_ACCESS_KEY REVIEW_S3_SECRET_KEY REDIS_PASSWORD RABBITMQ_USER RABBITMQ_PASSWORD
-    AI_PROVIDER_API_KEY AUTH_EMAIL_DELIVERY_TOKEN
   )
   local -a runtime_args=()
   local key value
   for key in "${runtime_keys[@]}"; do
     case "$key" in
       POSTGRES_USER|RABBITMQ_USER) value="dramaip" ;;
-      AI_PROVIDER_API_KEY) value="temporary-staging-no-external-provider" ;;
-      AUTH_EMAIL_DELIVERY_TOKEN) value="temporary-staging-disabled" ;;
       *) value="$(openssl rand -hex 32)" ;;
     esac
     runtime_args+=(--from-literal="$key=$value")
@@ -222,22 +143,9 @@ bootstrap() {
     --from-literal='.dockerconfigjson={"auths":{}}' \
     --dry-run=client -o yaml | "${kubectl_cmd[@]}" apply -f - >/dev/null
 
-  create_mtls_secret "$mtls_secret"
   create_ingress_tls_secret "$tls_secret"
 
-  echo "temporary staging bootstrap completed: namespace and short-lived runtime, mTLS, pull, and ingress TLS Secrets were created"
-}
-
-rotate_mtls() {
-  require_command openssl
-  require_command kubectl
-  "${kubectl_cmd[@]}" get namespace "$namespace" >/dev/null || {
-    echo "run bootstrap before rotate-mtls" >&2
-    exit 1
-  }
-  local mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
-  create_mtls_secret "$mtls_secret"
-  echo "temporary staging mTLS Secret rotated; restart workloads to load the new certificates"
+  echo "temporary staging bootstrap completed: namespace and short-lived runtime, pull, and ingress TLS Secrets were created"
 }
 
 rotate_ingress_tls() {
@@ -514,7 +422,7 @@ spec:
               # immutable application tag.  Checking in the worker avoids a
               # false-positive DaemonSet rollout and keeps Docker work off
               # the control plane.
-              for expected_image in web-bff desktop-bff mobile-bff admin-bff auth user billing quota ai-gateway notification inspiration reporting notification-job reporting-job billing-job quota-job migrate; do
+              for expected_image in ${images[*]}; do
                 if ! docker image inspect "${image_registry}/\$expected_image:${image_tag}" >/dev/null 2>&1; then
                   echo "expected application image tag is absent after Docker load: \$expected_image" >&2
                   docker image ls --format '{{.Repository}}:{{.Tag}}' >&2 || true
@@ -664,12 +572,11 @@ teardown() {
 
 case "$action" in
   bootstrap) bootstrap ;;
-  rotate-mtls) rotate_mtls ;;
   rotate-ingress-tls) rotate_ingress_tls ;;
   install-kong) install_kong ;;
   archive-images) archive_images ;;
   preload-images) preload_images ;;
   remove-images) remove_images ;;
   teardown) teardown ;;
-  *) echo "action must be bootstrap, rotate-mtls, rotate-ingress-tls, install-kong, archive-images, preload-images, remove-images, or teardown" >&2; exit 2 ;;
+  *) echo "action must be bootstrap, rotate-ingress-tls, install-kong, archive-images, preload-images, remove-images, or teardown" >&2; exit 2 ;;
 esac

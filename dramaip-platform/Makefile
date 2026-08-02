@@ -18,7 +18,7 @@ platform-down:
 	docker compose $(COMPOSE_ARGS) down
 
 platform-logs:
-	docker compose $(COMPOSE_ARGS) logs -f java-gateway identity support creation java-quota ai java-billing java-migration postgres redis rabbitmq nacos seata minio
+	docker compose $(COMPOSE_ARGS) logs -f java-gateway identity java-notification java-reporting creation java-quota ai java-billing java-migration postgres redis rabbitmq nacos seata minio
 
 platform-e2e:
 	DRAMAIP_API_BASE_URL=http://localhost:8080 node scripts/java-platform-e2e.mjs

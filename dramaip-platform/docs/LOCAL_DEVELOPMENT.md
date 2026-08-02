@@ -1,8 +1,6 @@
 # 本地开发（Java）
 
-当前本地运行时是 JDK 21 的 Java 平台：Gateway、独立 migration Job、identity、support、creation、quota、ai 和 billing。公共入口为 Gateway `http://localhost:8080`，业务接口使用 `/api/v1/**` 并要求 `X-DramaIP-Contract-Version: 2`。
-
-Go/Kratos 与 Kong 仅作为迁移归档/回滚材料保留在 `legacy/go-services`，不会被默认命令启动；迁移验收完成后再统一删除。
+当前本地运行时是 JDK 21 的 Java 平台：Gateway、独立 migration Job、identity、notification、reporting、creation、quota、ai 和 billing。公共入口为 Gateway `http://localhost:8080`，业务接口使用 `/api/v1/**` 并要求 `X-DramaIP-Contract-Version: 2`。
 
 ## 前置条件
 
@@ -31,9 +29,9 @@ python3 run-platform.py
 python .\run-platform-dev.py
 ```
 
-该命令不会启动任何 Java 容器。它会停止已有的 Compose Java 应用容器、使用全局 Maven 在本地打包并执行 migration，然后启动本地 Gateway（`8080`）及六个服务（`8081`–`8086`）。Ctrl+C 只停止本地 Java 进程，Docker 基础设施继续运行。
+该命令不会启动任何 Java 容器。它会停止已有的 Compose Java 应用容器、使用全局 Maven 在本地打包并执行 migration，然后启动本地 Gateway（`8080`）及七个服务（`8081`–`8087`）。Ctrl+C 只停止本地 Java 进程，Docker 基础设施继续运行。
 
-本地 migration 会续跑开发卷中尚未执行的旧版 001–049 SQL，再建立 Flyway 49 基线；该兼容开关仅由本地启动器启用，生产环境仍要求旧迁移账本预先完整。启动器也会让 PostgreSQL、RabbitMQ、Nacos 等回环 TCP 连接绕过 JVM SOCKS 代理，HTTP/HTTPS 外部代理配置不受影响。
+本地 migration 会续跑开发卷中尚未执行的历史 001–049 SQL，再建立 Flyway 49 基线；该兼容开关仅由本地启动器启用，生产环境仍要求迁移账本预先完整。启动器也会让 PostgreSQL、RabbitMQ、Nacos 等回环 TCP 连接绕过 JVM SOCKS 代理，HTTP/HTTPS 外部代理配置不受影响。
 
 启动器会启动 Java Compose profile、等待 Gateway 的 `/actuator/health`，然后启动 Web 开发服务器。只管理后端时可使用：
 
@@ -53,7 +51,7 @@ docker compose -f deploy/docker-drama/docker-compose.yaml --profile java logs -f
 docker compose -f deploy/docker-drama/docker-compose.yaml --profile java down
 ```
 
-Java profile 包含 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos、Seata、migration Job、Gateway 和六个 Java 业务服务，不包含任何 Go/Kratos 服务或 Kong。可观测性栈按需额外启动：
+Java profile 包含 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos、Seata、migration Job、Gateway 和七个 Java 业务服务。可观测性栈按需额外启动：
 
 ```bash
 docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile observability up -d

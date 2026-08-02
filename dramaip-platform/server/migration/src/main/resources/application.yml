@@ -12,7 +12,7 @@ spring:
 
 dramaip:
   migration:
-    legacy-migrations-dir: ${LEGACY_MIGRATIONS_DIR:../legacy/go-services/migrations}
+    historical-migrations-dir: ${HISTORICAL_MIGRATIONS_DIR:migration/historical-migrations}
     role-bootstrap: ${DB_ROLE_BOOTSTRAP:false}
-    apply-pending-legacy-migrations: ${LEGACY_MIGRATIONS_APPLY_PENDING:false}
+    apply-pending-historical-migrations: ${HISTORICAL_MIGRATIONS_APPLY_PENDING:false}
     role-password: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:${POSTGRES_PASSWORD:}}

@@ -29,7 +29,7 @@ for (const [name, source] of Object.entries({ sdk, admin, mobileSession, desktop
   }
 }
 if (!admin.includes("@dramaip/sdk/contracts") || !mobileSession.includes("@dramaip/sdk/contracts")) {
-  throw new Error('Admin and Mobile must validate key BFF responses through shared contract schemas')
+  throw new Error('Admin and Mobile must validate key API responses through shared contract schemas')
 }
 if (!sdk.includes("API_CONTRACT_VERSION = '2'")) {
   throw new Error('SDK contract version and JSON schema version have diverged')

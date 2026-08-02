@@ -1,0 +1,11 @@
+package com.dramaip.platform.notification;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
+
+@SpringBootApplication(scanBasePackages = {"com.dramaip.platform.notification", "com.dramaip.platform.common"})
+@EnableFeignClients(basePackages = "com.dramaip.platform.notification")
+public class NotificationApplication {
+    public static void main(String[] args) { SpringApplication.run(NotificationApplication.class, args); }
+}

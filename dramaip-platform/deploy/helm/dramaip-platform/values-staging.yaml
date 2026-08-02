@@ -6,26 +6,20 @@ replicaCount: 1
 imagePullSecrets:
   - name: dramaip-staging-registry
 
-images:
-  webBff: { repository: registry.example.invalid/dramaip/web-bff, tag: candidate }
-  desktopBff: { repository: registry.example.invalid/dramaip/desktop-bff, tag: candidate }
-  mobileBff: { repository: registry.example.invalid/dramaip/mobile-bff, tag: candidate }
-  adminBff: { repository: registry.example.invalid/dramaip/admin-bff, tag: candidate }
-  auth: { repository: registry.example.invalid/dramaip/auth, tag: candidate }
-  user: { repository: registry.example.invalid/dramaip/user, tag: candidate }
-  billing: { repository: registry.example.invalid/dramaip/billing, tag: candidate }
-  quota: { repository: registry.example.invalid/dramaip/quota, tag: candidate }
-  aiGateway: { repository: registry.example.invalid/dramaip/ai-gateway, tag: candidate }
-  notification: { repository: registry.example.invalid/dramaip/notification, tag: candidate }
-  inspiration: { repository: registry.example.invalid/dramaip/inspiration, tag: candidate }
-  snapshot: { repository: registry.example.invalid/dramaip/snapshot, tag: candidate }
-  review: { repository: registry.example.invalid/dramaip/review, tag: candidate }
-  reporting: { repository: registry.example.invalid/dramaip/reporting, tag: candidate }
-  notificationJob: { repository: registry.example.invalid/dramaip/notification-job, tag: candidate }
-  reportingJob: { repository: registry.example.invalid/dramaip/reporting-job, tag: candidate }
-  billingJob: { repository: registry.example.invalid/dramaip/billing-job, tag: candidate }
-  quotaJob: { repository: registry.example.invalid/dramaip/quota-job, tag: candidate }
-  migration: { repository: registry.example.invalid/dramaip/migrate, tag: candidate }
+java:
+  migration:
+    enabled: true
+    useHelmHook: true
+  images:
+    migration: { repository: registry.example.invalid/dramaip/java-migration, tag: candidate }
+    gateway: { repository: registry.example.invalid/dramaip/java-gateway, tag: candidate }
+    identity: { repository: registry.example.invalid/dramaip/java-identity, tag: candidate }
+    notification: { repository: registry.example.invalid/dramaip/java-notification, tag: candidate }
+    reporting: { repository: registry.example.invalid/dramaip/java-reporting, tag: candidate }
+    creation: { repository: registry.example.invalid/dramaip/java-creation, tag: candidate }
+    quota: { repository: registry.example.invalid/dramaip/java-quota, tag: candidate }
+    ai: { repository: registry.example.invalid/dramaip/java-ai, tag: candidate }
+    billing: { repository: registry.example.invalid/dramaip/java-billing, tag: candidate }
 
 config:
   env: staging
@@ -52,16 +46,6 @@ review:
     bucket: dramaip-review-staging
     credentialsSecret: dramaip-staging-review-object-store
 
-authJWT:
-  keysetSecret: dramaip-staging-auth-jwt
-
-adminJWT:
-  keysetSecret: dramaip-staging-admin-jwt
-
-internalMTLS:
-  enabled: true
-  existingSecret: dramaip-staging-internal-mtls
-
 ingress:
   enabled: true
   className: kong
@@ -81,23 +65,5 @@ kong:
       origins:
         - https://app.staging.example.invalid
 
-adminIngress:
-  cors:
-    enabled: true
-    origins:
-      - https://admin.staging.example.invalid
-
-autoscaling:
-  enabled: true
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 70
-
-pdb:
-  enabled: true
-  minAvailable: 1
-
 migrations:
-  enabled: true
-  useHelmHook: true
   bootstrapRuntimeRoles: false

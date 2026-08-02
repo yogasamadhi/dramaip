@@ -11,7 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
-/** Issues the Web BFF-compatible Cookie session without exposing credentials to JavaScript. */
+/** Issues the Web Cookie session without exposing credentials to JavaScript. */
 @Component
 public class WebSessionCookies {
     public static final String ACCESS_COOKIE = "dramaip_web_access";

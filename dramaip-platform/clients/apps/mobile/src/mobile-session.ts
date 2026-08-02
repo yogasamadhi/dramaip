@@ -1,7 +1,6 @@
 import * as SecureStore from 'expo-secure-store'
 import { z } from 'zod'
 import { API_CONTRACT_HEADER, API_CONTRACT_VERSION, MobileBriefSchema, MobileSessionSchema, ResultSchema, contractErrorCode } from '@dramaip/sdk/contracts'
-import { resourcePath } from '@dramaip/sdk'
 
 const REFRESH_TOKEN_KEY = 'com.dramaip.mobile.refresh-token.v1'
 const DEVICE_ID_KEY = 'com.dramaip.mobile.device-id.v1'
@@ -89,7 +88,7 @@ export function activeSession(): MobileSession | undefined {
   return currentSession
 }
 
-// Domain modules may make authenticated BFF requests without learning the
+// Domain modules may make authenticated API requests without learning the
 // access token. This keeps the token's lifetime and storage boundary inside
 // this module even as Mobile gains small creative workflows.
 export async function authorizedMobileRequest(path: string, init: RequestInit): Promise<unknown> {
@@ -136,7 +135,7 @@ async function requestJSON(path: string, init: RequestInit): Promise<unknown> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const response = await fetch(`${mobileBFFOrigin()}${resourcePath(path)}`, {
+    const response = await fetch(`${apiOrigin()}${path}`, {
       ...init,
       signal: controller.signal,
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', [API_CONTRACT_HEADER]: API_CONTRACT_VERSION,
@@ -152,11 +151,11 @@ async function requestJSON(path: string, init: RequestInit): Promise<unknown> {
   }
 }
 
-function mobileBFFOrigin(): string {
-  const origin = (process.env.EXPO_PUBLIC_MOBILE_BFF_ORIGIN ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
+function apiOrigin(): string {
+  const origin = (process.env.EXPO_PUBLIC_MOBILE_API_ORIGIN ?? process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8080').replace(/\/$/, '')
   const url = new URL(origin)
-  if (!__DEV__ && url.protocol !== 'https:') throw new Error('生产移动端 BFF 必须使用 HTTPS')
-  if (__DEV__ && !['http:', 'https:'].includes(url.protocol)) throw new Error('移动端 BFF 地址无效')
+  if (!__DEV__ && url.protocol !== 'https:') throw new Error('生产移动端 API 必须使用 HTTPS')
+  if (__DEV__ && !['http:', 'https:'].includes(url.protocol)) throw new Error('移动端 API 地址无效')
   return url.origin
 }
 

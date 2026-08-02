@@ -249,7 +249,7 @@ export const AccountReportSchema = z.object({
   token_balance: TokenBalanceSchema.nullish(),
   order_summary: z.object({ paid: z.number(), pending: z.number(), total: z.number() }),
   usage_summary: z.object({ total_tokens: z.number(), requests: z.number() }),
-  // Older temporary-staging BFFs emitted null for a protobuf empty repeated
+  // Earlier temporary-staging API responses emitted null for a protobuf empty repeated
   // field. Normalize it at the client boundary so an empty history remains a
   // valid account report while the server-side contract is being upgraded.
   usage_trend: z.array(UsageTrendPointSchema).nullish().transform((points) => points ?? []),
@@ -632,55 +632,6 @@ export function resolveApiRequestURL(baseURL: string, path: string): string {
   return normalizedBaseURL ? `${normalizedBaseURL}${normalizedPath}` : normalizedPath
 }
 
-/** Maps the retired BFF-shaped URLs to the v2 resource owners at one boundary. */
-export function resourcePath(path: string): string {
-  const normalized = `/${path.replace(/^\/+/, '')}`
-  if (normalized.startsWith('/api/v1/')) return normalized
-  const exact: Record<string, string> = {
-    '/v1/healthz': '/internal/v1/health',
-    '/v1/plans': '/api/v1/plans',
-    '/v1/me/profile': '/api/v1/users/me/profile',
-    '/v1/me/dashboard': '/api/v1/users/me/context',
-    '/v1/me/account-bootstrap': '/api/v1/users/me/context',
-    '/v1/me/account-report': '/api/v1/reports/me',
-    '/v1/me/token-balance': '/api/v1/quota/balance',
-    '/v1/me/subscription': '/api/v1/subscriptions/current',
-    '/v1/me/token-usage': '/api/v1/quota/usage',
-    '/v1/me/usage-trend': '/api/v1/quota/usage/trend',
-    '/v1/me/notifications': '/api/v1/notifications',
-    '/v1/me/workspaces': '/api/v1/workspaces',
-    '/v1/billing/checkout': '/api/v1/orders',
-    '/v1/billing/payments/simulated/confirm': '/api/v1/payments/simulated/confirm',
-    '/v1/billing/sandbox/confirm-payment': '/api/v1/payments/simulated/confirm',
-    '/v1/subscription/cancel': '/api/v1/subscriptions/current/cancel',
-    '/v1/subscription/resume': '/api/v1/subscriptions/current/resume',
-    '/v1/subscription/change-plan': '/api/v1/subscriptions/current/plan',
-    '/v1/subscription/refund': '/api/v1/refunds',
-    '/v1/ai/models': '/api/v1/models',
-    '/v1/ai/preflight': '/api/v1/preflight',
-    '/v1/ai/chat': '/api/v1/chats',
-    '/v1/ai/chat/cancel': '/api/v1/cancel',
-    '/v1/ai/chat/status': '/api/v1/chats/status',
-    '/v1/review/package': '/api/v1/review-packages',
-    '/v1/review/comments': '/api/v1/review-packages/comments',
-    '/v1/review/decisions': '/api/v1/review-packages/decisions',
-  }
-  if (exact[normalized]) return exact[normalized]
-  const auth: Record<string, string> = {
-    '/v1/auth/login': '/api/v1/auth/token',
-    '/v1/auth/refresh': '/api/v1/auth/token/refresh',
-    '/v1/auth/logout': '/api/v1/auth/token/revoke',
-    '/v1/auth/session': '/api/v1/auth/session',
-  }
-  if (auth[normalized]) return auth[normalized]
-  if (normalized.startsWith('/v1/auth/')) return `/api/v1/auth/${normalized.slice('/v1/auth/'.length)}`
-  if (normalized.startsWith('/v1/admin/')) return `/api/v1/admin/${normalized.slice('/v1/admin/'.length)}`
-  if (normalized.startsWith('/v1/me/orders')) return `/api/v1/orders${normalized.slice('/v1/me/orders'.length)}`
-  if (normalized.startsWith('/v1/me/notifications/')) return `/api/v1/notifications/${normalized.slice('/v1/me/notifications/'.length)}`
-  if (normalized.startsWith('/v1/me/workspaces/')) return `/api/v1/workspaces/${normalized.slice('/v1/me/workspaces/'.length)}`
-  return normalized
-}
-
 export interface DramaIpApiClient {
   http: AxiosInstance
   register(input: { email: string; password: string; display_name?: string }): Promise<RegisterResponse>
@@ -737,7 +688,6 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
   const http = axios.create({ baseURL: options.baseURL, withCredentials: options.withCredentials ?? false })
 
   http.interceptors.request.use(async (config) => {
-    if (config.url) config.url = resourcePath(config.url)
     config.headers[API_CONTRACT_HEADER] = API_CONTRACT_VERSION
     config.headers['X-Request-Id'] = globalThis.crypto?.randomUUID?.() ?? `sdk-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const token = await options.getAccessToken?.()
@@ -760,98 +710,98 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
   return {
     http,
     async register(input) {
-      const res = await http.post('/v1/auth/register', input)
+      const res = await http.post('/api/v1/auth/register', input)
       return RegisterResponseSchema.parse(res.data)
     },
     async login(input) {
-      const res = await http.post('/v1/auth/login', input)
+      const res = await http.post('/api/v1/auth/token', input)
       return LoginResponseSchema.parse(res.data)
     },
     async requestEmailVerification() {
-      const res = await http.post('/v1/auth/email-verification/request')
+      const res = await http.post('/api/v1/auth/email-verification/request')
       return EmailActionResponseSchema.parse(res.data)
     },
     async verifyEmail(input) {
-      const res = await http.post('/v1/auth/email-verification/confirm', input)
+      const res = await http.post('/api/v1/auth/email-verification/confirm', input)
       return EmailActionResponseSchema.parse(res.data)
     },
     async requestPasswordReset(input) {
-      const res = await http.post('/v1/auth/password-reset/request', input)
+      const res = await http.post('/api/v1/auth/password-reset/request', input)
       return EmailActionResponseSchema.parse(res.data)
     },
     async resetPassword(input) {
-      const res = await http.post('/v1/auth/password-reset/confirm', input)
+      const res = await http.post('/api/v1/auth/password-reset/confirm', input)
       return EmailActionResponseSchema.parse(res.data)
     },
     async getSession() {
-      const res = await http.get('/v1/auth/session')
+      const res = await http.get('/api/v1/auth/session')
       return LoginResponseSchema.parse(res.data)
     },
     async getHealth() {
-      const res = await http.get('/v1/healthz')
+      const res = await http.get('/internal/v1/health')
       return HealthSchema.parse(res.data)
     },
     async getPlans() {
-      const res = await http.get('/v1/plans')
+      const res = await http.get('/api/v1/plans')
       return PlansResponseSchema.parse(res.data)
     },
     async getProfile() {
-      const res = await http.get('/v1/me/profile')
+      const res = await http.get('/api/v1/users/me/profile')
       return profileFromJava(res.data)
     },
     async updateProfile(input) {
-      const res = await http.patch('/v1/me/profile', {
+      const res = await http.patch('/api/v1/users/me/profile', {
         displayName: input.display_name, avatarUrl: input.avatar_url, locale: input.locale, timezone: input.timezone,
       })
       return profileFromJava(res.data)
     },
     async getDashboard() {
-      const res = await http.get('/v1/me/dashboard')
+      const res = await http.get('/api/v1/users/me/context')
       return DashboardSchema.parse(res.data)
     },
     async getTokenBalance() {
-      const res = await http.get('/v1/me/token-balance')
+      const res = await http.get('/api/v1/quota/balance')
       return tokenBalanceFromJava(res.data)
     },
     async getSubscription() {
-      const res = await http.get('/v1/me/subscription')
+      const res = await http.get('/api/v1/subscriptions/current')
       return subscriptionFromJava(res.data)
     },
     async getOrders() {
-      const res = await http.get('/v1/me/orders')
+      const res = await http.get('/api/v1/orders')
       return ordersFromJava(res.data)
     },
     async getOrder(orderID) {
-      const res = await http.get(`/v1/me/orders/${encodeURIComponent(orderID)}`)
+      const res = await http.get(`/api/v1/orders/${encodeURIComponent(orderID)}`)
       return orderFromJava(res.data)
     },
     async getTokenUsage(input = {}) {
-      const res = await http.get('/v1/me/token-usage', { params: ListQuerySchema.parse(input) })
+      const res = await http.get('/api/v1/quota/usage', { params: ListQuerySchema.parse(input) })
       return tokenUsageFromJava(res.data)
     },
     async getUsageTrend(input = {}) {
-      const res = await http.get('/v1/me/usage-trend', { params: UsageTrendQuerySchema.parse(input) })
+      const res = await http.get('/api/v1/quota/usage/trend', { params: UsageTrendQuerySchema.parse(input) })
       return usageTrendFromJava(res.data)
     },
     async getNotifications() {
-      const res = await http.get('/v1/me/notifications')
+      const res = await http.get('/api/v1/notifications')
       return notificationsFromJava(res.data)
     },
     async markNotificationRead(notificationID) {
-      const res = await http.post(`/v1/me/notifications/${encodeURIComponent(notificationID)}/read`)
+      const res = await http.post(`/api/v1/notifications/${encodeURIComponent(notificationID)}/read`)
       return notificationFromJava(res.data)
     },
     async getAccountBootstrap(input = {}) {
       const query = AccountBootstrapQuerySchema.parse(input)
       const generatedAt = new Date().toISOString()
       const [profile, subscription, tokenBalance, orders, usage, usageTrend, notifications] = await Promise.all([
-        accountSection(generatedAt, async () => profileFromJava((await http.get('/v1/me/profile')).data)),
-        accountSection(generatedAt, async () => subscriptionFromJava((await http.get('/v1/me/subscription')).data)),
-        accountSection(generatedAt, async () => tokenBalanceFromJava((await http.get('/v1/me/token-balance')).data)),
-        accountSection(generatedAt, async () => ordersFromJava((await http.get('/v1/me/orders')).data)),
-        accountSection(generatedAt, async () => tokenUsageFromJava((await http.get('/v1/me/token-usage', { params: { limit: query.usage_limit } })).data)),
-        accountSection(generatedAt, async () => usageTrendFromJava((await http.get('/v1/me/usage-trend', { params: { days: query.trend_days } })).data)),
-        accountSection(generatedAt, async () => notificationsFromJava((await http.get('/v1/me/notifications')).data)),
+        accountSection(generatedAt, async () => profileFromJava((await http.get('/api/v1/users/me/profile')).data)),
+        accountSection(generatedAt, async () => subscriptionFromJava((await http.get('/api/v1/subscriptions/current')).data)),
+        accountSection(generatedAt, async () => tokenBalanceFromJava((await http.get('/api/v1/quota/balance')).data)),
+        accountSection(generatedAt, async () => ordersFromJava((await http.get('/api/v1/orders')).data)),
+        accountSection(generatedAt, async () => tokenUsageFromJava((await http.get('/api/v1/quota/usage', { params: { limit: query.usage_limit } })).data)),
+        accountSection(generatedAt, async () => usageTrendFromJava((await http.get('/api/v1/quota/usage/trend', { params: { days: query.trend_days } })).data)),
+        accountSection(generatedAt, async () => notificationsFromJava((await http.get('/api/v1/notifications')).data)),
       ])
       return AccountBootstrapSchema.parse({
         generated_at: generatedAt, cache_ttl_seconds: 30, usage_limit: query.usage_limit, trend_days: query.trend_days,
@@ -859,72 +809,72 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       })
     },
     async getAccountReport() {
-      const res = await http.get('/v1/me/account-report')
+      const res = await http.get('/api/v1/reports/me')
       return AccountReportSchema.parse(res.data)
     },
     async createCheckout(input) {
-      const res = await http.post('/v1/billing/checkout', input)
+      const res = await http.post('/api/v1/orders', input)
       return CheckoutResponseSchema.parse(res.data)
     },
     async confirmSimulatedPayment(input) {
-      const res = await http.post('/v1/billing/payments/simulated/confirm', input)
+      const res = await http.post('/api/v1/payments/simulated/confirm', input)
       return PaymentConfirmationResponseSchema.parse(res.data)
     },
     async confirmSandboxPayment(input) {
       return this.confirmSimulatedPayment(input)
     },
     async cancelSubscription(input = {}) {
-      const res = await http.post('/v1/subscription/cancel', input)
+      const res = await http.post('/api/v1/subscriptions/current/cancel', input)
       return SubscriptionSchema.parse(res.data)
     },
     async resumeSubscription(input = {}) {
-      const res = await http.post('/v1/subscription/resume', input)
+      const res = await http.post('/api/v1/subscriptions/current/resume', input)
       return SubscriptionSchema.parse(res.data)
     },
     async changeSubscriptionPlan(input) {
-      const res = await http.post('/v1/subscription/change-plan', input)
+      const res = await http.post('/api/v1/subscriptions/current/plan', input)
       return SubscriptionSchema.parse(res.data)
     },
     async requestRefund(input = {}) {
-      const res = await http.post('/v1/subscription/refund', input)
+      const res = await http.post('/api/v1/refunds', input)
       return RefundSchema.parse(res.data)
     },
     async getWorkspaces() {
-      const res = await http.get('/v1/me/workspaces')
+      const res = await http.get('/api/v1/workspaces')
       return z.object({ workspaces: z.array(WorkspaceSchema) }).parse(res.data)
     },
     async getWorkspaceMembers(workspaceID) {
-      const res = await http.get('/v1/me/workspaces/members', { params: { workspace_id: workspaceID } })
+      const res = await http.get('/api/v1/workspaces/members', { params: { workspace_id: workspaceID } })
       return z.object({ members: z.array(WorkspaceMemberSchema) }).parse(res.data)
     },
     async getWorkspaceInvitations(workspaceID) {
-      const res = await http.get('/v1/me/workspaces/invitations', { params: { workspace_id: workspaceID } })
+      const res = await http.get('/api/v1/workspaces/invitations', { params: { workspace_id: workspaceID } })
       return z.object({ invitations: z.array(WorkspaceInvitationSchema) }).parse(res.data)
     },
     async inviteWorkspaceMember(input) {
       const { workspace_id, ...body } = input
-      const res = await http.post('/v1/me/workspaces/invitations', body, { params: { workspace_id } })
+      const res = await http.post('/api/v1/workspaces/invitations', body, { params: { workspace_id } })
       return WorkspaceInvitationSchema.parse(res.data)
     },
     async updateWorkspaceMember(input) {
       const { workspace_id, ...body } = input
-      const res = await http.patch('/v1/me/workspaces/members', body, { params: { workspace_id } })
+      const res = await http.patch('/api/v1/workspaces/members', body, { params: { workspace_id } })
       return WorkspaceMemberSchema.parse(res.data)
     },
     async removeWorkspaceMember(input) {
-      const res = await http.delete('/v1/me/workspaces/members', {
+      const res = await http.delete('/api/v1/workspaces/members', {
         params: { workspace_id: input.workspace_id, member_user_id: input.member_user_id },
       })
       return WorkspaceMemberSchema.parse(res.data)
     },
     async revokeWorkspaceInvitation(input) {
-      const res = await http.delete('/v1/me/workspaces/invitations', {
+      const res = await http.delete('/api/v1/workspaces/invitations', {
         params: { workspace_id: input.workspace_id, invitation_id: input.invitation_id },
       })
       return WorkspaceInvitationSchema.parse(res.data)
     },
     async acceptWorkspaceInvitation(token) {
-      const res = await http.post('/v1/me/workspace-invitations/accept', { token })
+      const res = await http.post('/api/v1/workspace-invitations/accept', { token })
       return WorkspaceMemberSchema.parse(res.data)
     },
     async getPublicReview(input) {
@@ -946,25 +896,25 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       return ReviewDecisionSchema.parse(javaReviewDecision(res.data))
     },
     async refresh() {
-      const res = await http.post('/v1/auth/refresh')
+      const res = await http.post('/api/v1/auth/token/refresh')
       return LoginResponseSchema.parse(res.data)
     },
     async logout() {
-      const res = await http.post('/v1/auth/logout')
+      const res = await http.post('/api/v1/auth/token/revoke')
       return LogoutResponseSchema.parse(res.data)
     },
     async getChatModels() {
-      const res = await http.get('/v1/ai/models')
+      const res = await http.get('/api/v1/models')
       return ChatModelsResponseSchema.parse(res.data)
     },
     async preflightChat(input) {
-      const res = await http.post('/v1/ai/preflight', javaChatBody(input))
+      const res = await http.post('/api/v1/preflight', javaChatBody(input))
       return ChatPreflightResponseSchema.parse(res.data)
     },
     async chat(input) {
       const { idempotency_key, ...body } = input
       const idempotencyKey = idempotency_key ?? input.request_id
-      const res = await http.post('/v1/ai/chat', javaChatBody(body), {
+      const res = await http.post('/api/v1/chats', javaChatBody(body), {
         headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
       })
       return ChatResponseSchema.parse(res.data)
@@ -994,17 +944,17 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
       await readSSE(response.body, (event) => streamOptions.onEvent?.(ChatStreamEventSchema.parse(event)))
     },
     async cancelChat(input) {
-      const res = await http.post('/v1/ai/chat/cancel', { idempotencyKey: input.idempotency_key })
+      const res = await http.post('/api/v1/cancel', { idempotencyKey: input.idempotency_key })
       return z.object({ status: z.string() }).parse(res.data)
     },
     async getChatStatus(input) {
-      const res = await http.get('/v1/ai/chat/status', { params: { idempotencyKey: input.idempotency_key } })
+      const res = await http.get('/api/v1/chats/status', { params: { idempotencyKey: input.idempotency_key } })
       return ChatResponseSchema.parse(res.data)
     },
   }
 }
 
-/** Converts the legacy TypeScript input spelling at the client boundary only. */
+/** Converts the TypeScript input spelling at the client boundary only. */
 function javaChatBody(input: { model?: string; messages?: ChatMessage[]; max_tokens?: number; maxTokens?: number }) {
   return { model: input.model, messages: input.messages, maxTokens: input.maxTokens ?? input.max_tokens }
 }

@@ -1,5 +1,0 @@
-server:
-  http:
-    addr: 127.0.0.1:8114
-  grpc:
-    addr: 127.0.0.1:9109

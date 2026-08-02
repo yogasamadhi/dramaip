@@ -64,6 +64,17 @@ SECRET_VALUE_KEYS = (
     "postgresAdminPassword",
     "postgresReportingPassword",
     "postgresSnapshotPassword",
+    "postgresReviewPassword",
+    "postgresIdentitySvcPassword",
+    "postgresNotificationSvcPassword",
+    "postgresReportingSvcPassword",
+    "postgresCreationSvcPassword",
+    "postgresQuotaSvcPassword",
+    "postgresAiSvcPassword",
+    "postgresBillingSvcPassword",
+    "internalToken",
+    "reviewS3AccessKey",
+    "reviewS3SecretKey",
     "redisPassword",
     "rabbitmqPassword",
     "aiProviderApiKey",
@@ -192,7 +203,7 @@ def parse_manifest(path: Path = MANIFEST_PATH) -> list[ImageSpec]:
         if spec.chart_key in seen_keys or spec.image_name in seen_names:
             fail(f"duplicate manifest value on row {line_number}")
         if spec.kind == "java" and spec.build_target not in {
-            "migration", "gateway", "services/identity", "services/support",
+            "migration", "gateway", "services/identity", "services/notification", "services/reporting",
             "services/creation", "services/quota", "services/ai", "services/billing",
         }:
             fail(f"Java image {spec.image_name} has an invalid Maven module")
@@ -203,9 +214,9 @@ def parse_manifest(path: Path = MANIFEST_PATH) -> list[ImageSpec]:
         specs.append(spec)
     java_count = sum(spec.kind == "java" for spec in specs)
     web_count = sum(spec.kind == "web" for spec in specs)
-    expected_java = {"migration", "gateway", "identity", "support", "creation", "quota", "ai", "billing"}
-    if java_count != 8 or web_count != 1 or len(specs) != 9 or not expected_java.issubset(seen_keys) or "web" not in seen_keys:
-        fail(f"manifest must contain the eight Java runtime images and one web image; found {java_count} Java and {web_count} web")
+    expected_java = {"migration", "gateway", "identity", "notification", "reporting", "creation", "quota", "ai", "billing"}
+    if java_count != 9 or web_count != 1 or len(specs) != 10 or not expected_java.issubset(seen_keys) or "web" not in seen_keys:
+        fail(f"manifest must contain the nine Java runtime images and one web image; found {java_count} Java and {web_count} web")
     return specs
 
 
@@ -526,12 +537,12 @@ validate_staging:
     - test -f helm/dramaip-platform/values-staging.yaml
     - '! grep -RInE "registry\\.example\\.invalid|REPLACE_WITH_|change-me|sk-replace-me|<[A-Z0-9_]+>|\\.invalid" helm argocd'
     - '! grep -RInE "^[[:space:]]*kind:[[:space:]]*Secret[[:space:]]*$" helm/dramaip-platform/templates'
-    - '! grep -RInE "^[[:space:]]*(postgresPassword|postgresAuthPassword|postgresUserProfilePassword|postgresBillingPassword|postgresQuotaPassword|postgresAIGatewayPassword|postgresNotificationPassword|postgresInspirationPassword|postgresAdminPassword|postgresReportingPassword|postgresSnapshotPassword|redisPassword|rabbitmqPassword|aiProviderApiKey|authEmailDeliveryToken):[[:space:]]*[^[:space:]#]" helm argocd'
+    - '! grep -RInE "^[[:space:]]*(postgresPassword|postgresAuthPassword|postgresUserProfilePassword|postgresBillingPassword|postgresQuotaPassword|postgresAIGatewayPassword|postgresNotificationPassword|postgresInspirationPassword|postgresAdminPassword|postgresReportingPassword|postgresSnapshotPassword|postgresReviewPassword|postgresIdentitySvcPassword|postgresNotificationSvcPassword|postgresReportingSvcPassword|postgresCreationSvcPassword|postgresQuotaSvcPassword|postgresAiSvcPassword|postgresBillingSvcPassword|internalToken|reviewS3AccessKey|reviewS3SecretKey|redisPassword|rabbitmqPassword|aiProviderApiKey|authEmailDeliveryToken):[[:space:]]*[^[:space:]#]" helm argocd'
     - helm lint helm/dramaip-platform -f helm/dramaip-platform/values-staging.yaml
     - helm template dramaip-staging helm/dramaip-platform -f helm/dramaip-platform/values-staging.yaml > /tmp/rendered.yaml
     - test -s /tmp/rendered.yaml
-    - 'test "$(grep -Ec "^[[:space:]]+repository: .+/.+$" helm/dramaip-platform/values-staging.yaml)" = 9'
-    - 'test "$(grep -Ec "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml)" = 9'
+    - 'test "$(grep -Ec "^[[:space:]]+repository: .+/.+$" helm/dramaip-platform/values-staging.yaml)" = 10'
+    - 'test "$(grep -Ec "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml)" = 10'
     - 'test "$(grep -E "^[[:space:]]+tag: sha-[0-9a-f]{40}$" helm/dramaip-platform/values-staging.yaml | awk "{print \\$2}" | sort -u | wc -l | tr -d " ")" = 1'
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -698,7 +709,7 @@ def staging_values_update_expression(specs: list[ImageSpec], registry: str, tag:
 
 
 def update_staging_values(values: Path, specs: list[ImageSpec], registry: str, tag: str, revision: str) -> None:
-    """Write the eight Java and one web image references in one yq transaction."""
+    """Write the nine Java and one web image references in one yq transaction."""
 
     run(["yq", "-i", staging_values_update_expression(specs, registry, tag, revision), str(values)])
 
@@ -728,7 +739,7 @@ def release_command(args: argparse.Namespace) -> None:
         revision = source_revision()
         for command in (
             f"build-images.sh ({immutable_tag(revision)})", "scan-images.sh", "push-images.sh",
-            f"fast-forward GitOps {args.gitops_branch}", "yq update all 9 Java/Web image references",
+            f"fast-forward GitOps {args.gitops_branch}", "yq update all 10 Java/Web image references",
             f"argocd app wait {args.argocd_app}",
         ):
             print(f"DRY-RUN $ {command}")

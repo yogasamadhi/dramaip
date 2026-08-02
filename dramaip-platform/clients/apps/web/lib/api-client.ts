@@ -11,13 +11,13 @@ declare module 'axios' {
 export const DEVICE_ID_STORAGE_KEY = 'dramaip.device_id'
 const CSRF_COOKIE_NAME = 'dramaip_web_csrf'
 // An empty value intentionally means the current Web origin.  In local
-// development run-platform.py configures a server-side rewrite to Kong; in
-// deployment the ingress routes /v1 itself.  This keeps Cookie sessions and
+// development run-platform.py configures a server-side rewrite to the Java
+// Gateway; in deployment the ingress routes /api/v1 itself. This keeps Cookie sessions and
 // LAN development on one browser origin.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 
 if (typeof window !== 'undefined') {
-  // Cookie migration intentionally invalidates legacy JavaScript-readable
+  // Cookie migration intentionally invalidates obsolete JavaScript-readable
   // credentials instead of attempting an unsafe token handoff.
   window.localStorage.removeItem('dramaip.access_token')
   window.localStorage.removeItem('dramaip.refresh_token')
@@ -61,7 +61,7 @@ let refreshInFlight: Promise<void> | undefined
 
 async function sessionCookieIsValid() {
   try {
-    await apiClient.http.get('/v1/auth/session', { __dramaipSkipRefresh: true })
+    await apiClient.http.get('/api/v1/auth/session', { __dramaipSkipRefresh: true })
     return true
   } catch {
     return false

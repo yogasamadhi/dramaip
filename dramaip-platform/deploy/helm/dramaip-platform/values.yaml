@@ -1,10 +1,6 @@
 replicaCount: 2
 
-# Java is the only default runtime family. The archived Go stack can still be
-# enabled explicitly for an operator-led rollback, but is never deployed by a
-# normal local, CI/CD, or Helm release.
-legacy:
-  enabled: false
+# Java is the only runtime family deployed by this chart.
 
 java:
   enabled: true
@@ -21,79 +17,16 @@ java:
     migration: { repository: ghcr.io/dramaip/dramaip-java-migration, tag: "0.1.0" }
     gateway: { repository: ghcr.io/dramaip/dramaip-java-gateway, tag: "0.1.0" }
     identity: { repository: ghcr.io/dramaip/dramaip-java-identity, tag: "0.1.0" }
-    support: { repository: ghcr.io/dramaip/dramaip-java-support, tag: "0.1.0" }
+    notification: { repository: ghcr.io/dramaip/dramaip-java-notification, tag: "0.1.0" }
+    reporting: { repository: ghcr.io/dramaip/dramaip-java-reporting, tag: "0.1.0" }
     creation: { repository: ghcr.io/dramaip/dramaip-java-creation, tag: "0.1.0" }
     quota: { repository: ghcr.io/dramaip/dramaip-java-quota, tag: "0.1.0" }
     ai: { repository: ghcr.io/dramaip/dramaip-java-ai, tag: "0.1.0" }
     billing: { repository: ghcr.io/dramaip/dramaip-java-billing, tag: "0.1.0" }
 
-image:
-  repository: ghcr.io/dramaip/dramaip-web-bff
-  tag: "0.1.0"
-  pullPolicy: IfNotPresent
-
-images:
-  webBff:
-    repository: ghcr.io/dramaip/dramaip-web-bff
-    tag: "0.1.0"
-  desktopBff:
-    repository: ghcr.io/dramaip/dramaip-desktop-bff
-    tag: "0.1.0"
-  mobileBff:
-    repository: ghcr.io/dramaip/dramaip-mobile-bff
-    tag: "0.1.0"
-  adminBff:
-    repository: ghcr.io/dramaip/dramaip-admin-bff
-    tag: "0.1.0"
-  auth:
-    repository: ghcr.io/dramaip/dramaip-auth
-    tag: "0.1.0"
-  user:
-    repository: ghcr.io/dramaip/dramaip-user
-    tag: "0.1.0"
-  billing:
-    repository: ghcr.io/dramaip/dramaip-billing
-    tag: "0.1.0"
-  quota:
-    repository: ghcr.io/dramaip/dramaip-quota
-    tag: "0.1.0"
-  aiGateway:
-    repository: ghcr.io/dramaip/dramaip-ai-gateway
-    tag: "0.1.0"
-  notification:
-    repository: ghcr.io/dramaip/dramaip-notification
-    tag: "0.1.0"
-  inspiration:
-    repository: ghcr.io/dramaip/dramaip-inspiration
-    tag: "0.1.0"
-  snapshot:
-    repository: ghcr.io/dramaip/dramaip-snapshot
-    tag: "0.1.0"
-  review:
-    repository: ghcr.io/dramaip/dramaip-review
-    tag: "0.1.0"
-  reporting:
-    repository: ghcr.io/dramaip/dramaip-reporting
-    tag: "0.1.0"
-  notificationJob:
-    repository: ghcr.io/dramaip/dramaip-notification-job
-    tag: "0.1.0"
-  reportingJob:
-    repository: ghcr.io/dramaip/dramaip-reporting-job
-    tag: "0.1.0"
-  billingJob:
-    repository: ghcr.io/dramaip/dramaip-billing-job
-    tag: "0.1.0"
-  quotaJob:
-    repository: ghcr.io/dramaip/dramaip-quota-job
-    tag: "0.1.0"
-  migration:
-    repository: ghcr.io/dramaip/dramaip-migrate
-    tag: "0.1.0"
-
-# The browser-facing Next.js UI is deliberately separate from the Web BFF.
+# The browser-facing Next.js UI is deliberately separate from the Java Gateway.
 # When both are routed through the same Gateway host, leave apiBaseURL empty
-# so the emitted browser bundle calls relative /v1 endpoints on that origin.
+# so the emitted browser bundle calls relative /api/v1 endpoints on that origin.
 web:
   enabled: false
   replicaCount: 1
@@ -103,6 +36,9 @@ web:
   port: 3000
   apiBaseURL: ""
   paymentMode: simulated
+
+image:
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
@@ -130,11 +66,6 @@ securityContext:
     drop:
       - ALL
 
-service:
-  type: ClusterIP
-  port: 8100
-  targetPort: 8100
-
 ingress:
   enabled: false
   className: kong
@@ -145,36 +76,6 @@ ingress:
         - path: /api/v1
           pathType: Prefix
   tls: []
-
-# Admin uses its own BFF route and edge rate limit. It deliberately does not
-# inherit the Web Cookie CORS policy: set an exact Admin origin only when the
-# separately deployed Admin SPA cannot be served from the same origin as Kong.
-adminIngress:
-  enabled: true
-  hosts: []
-  annotations: {}
-  cors:
-    enabled: false
-    origins: []
-    methods:
-      - GET
-      - POST
-      - OPTIONS
-    headers:
-      - Authorization
-      - Content-Type
-      - X-Request-Id
-      - traceparent
-      - tracestate
-    exposedHeaders:
-      - Content-Type
-      - X-Request-Id
-    credentials: false
-    maxAge: 3600
-  rateLimiting:
-    enabled: true
-    minute: 30
-    policy: local
 
 # Payment providers are off unless an operator supplies their dedicated
 # credentials Secret. Provider secrets are mounted only in billing-service.
@@ -272,137 +173,6 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
-config:
-  env: prod
-  logLevel: info
-  timezone: Asia/Shanghai
-  webBffHttpAddr: :8100
-  desktopBffHttpAddr: :8110
-  mobileBffHttpAddr: :8120
-  adminBffHttpAddr: :8130
-  webSession:
-    refreshCookieTtl: 720h
-    # Empty preserves a host-only Cookie for same-origin Web/API deployment.
-    # With separate controlled subdomains, set their common parent domain.
-    cookieDomain: ""
-  authHttpAddr: :8101
-  authGrpcAddr: :9101
-  userHttpAddr: :8102
-  userGrpcAddr: :9102
-  billingHttpAddr: :8103
-  billingGrpcAddr: :9103
-  quotaHttpAddr: :8104
-  quotaGrpcAddr: :9104
-  aiGatewayHttpAddr: :8105
-  aiGatewayGrpcAddr: :9105
-  notificationHttpAddr: :8108
-  notificationGrpcAddr: :9106
-  inspirationHttpAddr: :8111
-  inspirationGrpcAddr: :9107
-  snapshotHttpAddr: :8114
-  snapshotGrpcAddr: :9109
-  reviewHttpAddr: :8115
-  reviewGrpcAddr: :9112
-  reportingHttpAddr: :8112
-  reportingGrpcAddr: :9108
-  notificationJobHttpAddr: :8109
-  notificationJobGrpcAddr: :9111
-  reportingJobHttpAddr: :8113
-  billingJobHttpAddr: :8106
-  billingJobGrpcAddr: :9110
-  quotaJobHttpAddr: :8107
-  autoMigrate: "false"
-  migrationsDir: /app/migrations
-  postgres:
-    host: postgres
-    port: "5432"
-    database: dramaip
-    sslmode: require
-  redis:
-    addr: redis:6379
-    db: "0"
-  rabbitmq:
-    host: rabbitmq
-    port: "5672"
-    vhost: /
-    exchange: dramaip.platform.events
-    eventsQueue: dramaip.platform.events
-  notificationConsumer:
-    eventsQueue: dramaip.notification.events
-    deadLetterExchange: dramaip.platform.events.dlx
-    deadLetterQueue: dramaip.notification.events.dlq
-    prefetch: "1"
-    maxRetries: "3"
-    inboxLease: 1m
-    channels: in_app
-  reportingConsumer:
-    eventsQueue: dramaip.reporting.events
-    deadLetterExchange: dramaip.platform.events.dlx
-    deadLetterQueue: dramaip.reporting.events.dlq
-    prefetch: "10"
-    maxRetries: "3"
-    rebuildOnStart: "false"
-  billingJob:
-    outboxLease: 30s
-    outboxRetryDelay: 5s
-    reconciliationEnabled: "true"
-    reconciliationInterval: 1h
-    reconciliationBatchSize: "100"
-  jwt:
-    issuer: dramaip
-    audience: dramaip-api
-    activeKeyID: ""
-    accessTtlSeconds: "900"
-    refreshTtlSeconds: "2592000"
-  adminJWT:
-    issuer: dramaip-admin
-    audience: dramaip-admin-api
-    activeKeyID: ""
-    accessTokenTtl: 10m
-  email:
-    # Provider-owned HTTPS gateway. Public registration must not be enabled
-    # until this is configured together with the Secret token below.
-    deliveryURL: ""
-    from: ""
-    timeout: 10s
-  otel:
-    endpoint: http://otel-collector:4318
-    serviceName: dramaip-web-bff
-  downstream:
-    authGrpcEndpoint: dramaip-platform-auth:9101
-    userGrpcEndpoint: dramaip-platform-user:9102
-    billingGrpcEndpoint: dramaip-platform-billing:9103
-    quotaGrpcEndpoint: dramaip-platform-quota:9104
-    aiGatewayGrpcEndpoint: dramaip-platform-ai-gateway:9105
-    notificationGrpcEndpoint: dramaip-platform-notification:9106
-    billingJobGrpcEndpoint: dramaip-platform-billing-job:9110
-    notificationJobGrpcEndpoint: dramaip-platform-notification-job:9111
-    inspirationGrpcEndpoint: dramaip-platform-inspiration:9107
-    snapshotGrpcEndpoint: dramaip-platform-snapshot:9109
-    reviewGrpcEndpoint: dramaip-platform-review:9112
-    reportingGrpcEndpoint: dramaip-platform-reporting:9108
-  ai:
-    providers: openai-compatible
-    defaultProvider: openai-compatible
-    # Only the isolated temporary-staging overlay may turn this on. Normal
-    # environments must use a reviewed external provider configuration.
-    testProviderEnabled: "false"
-    providerBaseUrl: https://api.openai.com/v1
-    defaultModel: gpt-4o-mini
-    timeoutSeconds: "90"
-    # Values are intentionally blank until FinOps supplies a reviewed price
-    # snapshot and CNY exchange rate. ai-gateway fails closed without them.
-    openaiCompatibleGpt4oMini:
-      inputPricePerMillion: ""
-      outputPricePerMillion: ""
-      currency: USD
-      exchangeRateToCny: ""
-    costGuard:
-      window: 5m
-      userLimitCny: "5"
-      ipLimitCny: "20"
-      requestAlertCny: "1"
-
 devInfra:
   enabled: false
   persistence:
@@ -424,23 +194,12 @@ devInfra:
 
 secret:
   existingSecret: ""
-  # DDL-only identity used by the migration Job. It is intentionally overridden
-  # in every runtime workload by its schema-specific role below.
+  # DDL-only identity used by the Java migration Job.
   postgresUser: dramaip
   postgresPassword: change-me
-  postgresAuthPassword: change-me
-  postgresUserProfilePassword: change-me
-  postgresBillingPassword: change-me
-  postgresQuotaPassword: change-me
-  postgresAIGatewayPassword: change-me
-  postgresNotificationPassword: change-me
-  postgresInspirationPassword: change-me
-  postgresAdminPassword: change-me
-  postgresReportingPassword: change-me
-  postgresSnapshotPassword: change-me
-  postgresReviewPassword: change-me
   postgresIdentitySvcPassword: change-me
-  postgresSupportSvcPassword: change-me
+  postgresNotificationSvcPassword: change-me
+  postgresReportingSvcPassword: change-me
   postgresCreationSvcPassword: change-me
   postgresQuotaSvcPassword: change-me
   postgresAiSvcPassword: change-me
@@ -451,87 +210,10 @@ secret:
   redisPassword: change-me
   rabbitmqUser: dramaip
   rabbitmqPassword: change-me
-  aiProviderApiKey: sk-replace-me
-  authEmailDeliveryToken: ""
-
-# Production must set this to a Secret containing private.pem and jwks.json.
-# The private key is mounted only into auth-service; the JWKS contains public
-# keys for the current and retained rotation window.
-authJWT:
-  keysetSecret: ""
-  privateKeyFile: private.pem
-  jwksFile: jwks.json
-
-# Admin uses a separate RSA key set, issuer and audience from C-end auth.
-# Mount it only in admin-bff; no private key is rendered by this chart.
-adminJWT:
-  keysetSecret: ""
-  privateKeyFile: private.pem
-  jwksFile: jwks.json
-
-# Production mTLS material is operator-owned. The Secret contains one
-# certificate/key pair per workload plus the shared CA; it is never generated
-# by this chart or committed to the repository.
-internalMTLS:
-  enabled: true
-  existingSecret: dramaip-internal-mtls
-  caKey: ca.crt
-  certKeys:
-    webBff: web-bff.crt
-    desktopBff: desktop-bff.crt
-    mobileBff: mobile-bff.crt
-    adminBff: admin-bff.crt
-    auth: auth.crt
-    user: user.crt
-    billing: billing.crt
-    quota: quota.crt
-    aiGateway: ai-gateway.crt
-    notification: notification-service.crt
-    inspiration: inspiration-service.crt
-    snapshot: snapshot-service.crt
-    review: review-service.crt
-    reporting: reporting-service.crt
-    notificationJob: notification-job.crt
-    reportingJob: reporting-job.crt
-    billingJob: billing-job.crt
-    quotaJob: quota-job.crt
-  keyKeys:
-    webBff: web-bff.key
-    desktopBff: desktop-bff.key
-    mobileBff: mobile-bff.key
-    adminBff: admin-bff.key
-    auth: auth.key
-    user: user.key
-    billing: billing.key
-    quota: quota.key
-    aiGateway: ai-gateway.key
-    notification: notification-service.key
-    inspiration: inspiration-service.key
-    snapshot: snapshot-service.key
-    review: review-service.key
-    reporting: reporting-service.key
-    notificationJob: notification-job.key
-    reportingJob: reporting-job.key
-    billingJob: billing-job.key
-    quotaJob: quota-job.key
 
 migrations:
-  enabled: true
-  useHelmHook: true
-  # A chart whose temporary database is installed in the same release cannot
-  # use a pre-install hook, but may opt into hook semantics on later upgrades
-  # so an immutable completed Job never blocks a new application image tag.
-  useHelmHookOnUpgrade: false
-  # Requires the migration identity to have CREATEROLE. Set false only after
-  # all runtime roles have been pre-provisioned by the database operator.
+  # Requires the migration identity to have CREATEROLE. Set false after all
+  # Java runtime roles have been pre-provisioned by the database operator.
   bootstrapRuntimeRoles: true
   serviceAccountName: ""
   backoffLimit: 2
-
-prometheus:
-  annotations:
-    enabled: true
-
-pdb:
-  enabled: false
-  minAvailable: 1

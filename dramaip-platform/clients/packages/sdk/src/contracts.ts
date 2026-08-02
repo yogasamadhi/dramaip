@@ -20,7 +20,7 @@ export type UsageTrendQuery = z.infer<typeof UsageTrendQuerySchema>
 
 // The account read model intentionally makes its two potentially expensive
 // windows explicit. Defaults match the account UI, while validation prevents
-// callers from quietly asking the BFF for unbounded histories.
+// callers from quietly asking the API for unbounded histories.
 export const AccountBootstrapQuerySchema = z.object({
   usage_limit: z.number().int().min(1).max(MAX_LIST_LIMIT).default(DEFAULT_LIST_LIMIT),
   trend_days: z.number().int().min(1).max(MAX_USAGE_TREND_DAYS).default(30),

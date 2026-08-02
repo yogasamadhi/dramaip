@@ -37,7 +37,7 @@ export default function DesktopAuthorizePage() {
         setMessage('正在安全返回桌面应用…')
         // Empty API base means same-origin /v1.  Resolve against the current
         // page so the local Web proxy is used instead of an invalid URL.
-        const target = new URL('/v1/auth/desktop/authorize', API_BASE_URL || window.location.origin)
+        const target = new URL('/api/v1/auth/desktop/authorize', API_BASE_URL || window.location.origin)
         target.searchParams.set('code_challenge', codeChallenge)
         target.searchParams.set('state', state)
         target.searchParams.set('redirect_uri', redirectURI)

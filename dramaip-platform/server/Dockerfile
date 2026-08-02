@@ -1,6 +1,6 @@
 # Java sources are compiled with the developer or CI JDK 21 before this image
 # is built. Docker is intentionally a thin runtime packager: it never downloads
-# Maven dependencies or recompiles the eight services.
+# Maven dependencies or recompiles the nine services.
 FROM amazoncorretto:21-alpine
 
 WORKDIR /app
@@ -14,7 +14,7 @@ RUN mkdir -p /logs/nacos && chown -R 10001:0 /logs
 # Every runnable module produces exactly one Spring Boot *-exec.jar. Keeping the
 # module argument in the path lets the same Dockerfile package all Java services.
 COPY server/${MODULE}/target/*-exec.jar /app/app.jar
-COPY legacy/go-services/migrations /app/legacy-migrations
+COPY server/migration/historical-migrations /app/historical-migrations
 
 USER 10001:0
 EXPOSE 8080

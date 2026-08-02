@@ -1,6 +1,5 @@
-# Prometheus 抓取配置（对应 docs/技术架构.md §12 指标支柱）。
+# Prometheus 抓取配置（对应 docs/技术架构.md 指标支柱）。
 # 容器在 compose 默认网络内，可用 service name 互访；
-# 本地 `go run` 的 Kratos 服务经 host.docker.internal 访问（macOS 默认可用）。
 
 global:
   scrape_interval: 15s
@@ -14,43 +13,23 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Kong —— 需先在 deploy/kong/kong.yml 全局启用 prometheus 插件，否则 /metrics 为空。
-  - job_name: kong
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["kong:8000"]
-
-  - job_name: dramaip-web-bff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["web-bff:8100"]
-
-  - job_name: dramaip-mobile-bff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["mobile-bff:8120"]
-
-  - job_name: dramaip-admin-bff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ["admin-bff:8130"]
-
-  - job_name: dramaip-services
-    metrics_path: /metrics
+  - job_name: java-gateway
+    metrics_path: /actuator/prometheus
     static_configs:
       - targets:
-          - "auth:8101"
-          - "user:8102"
-          - "billing:8103"
-          - "quota:8104"
-          - "ai-gateway:8105"
-          - "notification:8108"
-          - "inspiration:8111"
-          - "reporting:8112"
-          - "notification-job:8109"
-          - "reporting-job:8113"
-          - "billing-job:8106"
-          - "quota-job:8107"
+          - "java-gateway:8080"
+
+  - job_name: java-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - "identity:8080"
+          - "java-notification:8080"
+          - "java-reporting:8080"
+          - "creation:8080"
+          - "java-quota:8080"
+          - "ai:8080"
+          - "java-billing:8080"
 
   # RabbitMQ 4.x management 镜像自带 rabbitmq_prometheus exporter（端口 15692）。
   - job_name: rabbitmq

@@ -65,7 +65,7 @@ while IFS='|' read -r chart_key image_name kind target; do
   scan_count=$((scan_count + 1))
 done < "$manifest"
 
-[[ "$scan_count" == "9" ]] || { echo "manifest must scan exactly 9 images; scanned $scan_count" >&2; exit 2; }
+[[ "$scan_count" == "10" ]] || { echo "manifest must scan exactly 10 images; scanned $scan_count" >&2; exit 2; }
 {
   printf '{\n  "registry": "%s",\n  "tag": "%s",\n  "images": [' "$registry" "$tag"
   for index in "${!report_names[@]}"; do
@@ -75,4 +75,4 @@ done < "$manifest"
   printf '\n  ]\n}\n'
 } > "$report_dir/index.json"
 printf '%s\n' "$registry:$tag" > "$pass_marker"
-echo "Trivy passed for 9 Java/Web images; reports: $report_dir"
+echo "Trivy passed for 10 Java/Web images; reports: $report_dir"

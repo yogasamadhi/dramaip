@@ -69,10 +69,7 @@ spec:
                   name: {{ include "dramaip-platform.secretName" . }}
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
-              valueFrom:
-                configMapKeyRef:
-                  name: {{ include "dramaip-platform.fullname" . }}-config
-                  key: POSTGRES_DB
+              value: dramaip
           readinessProbe:
             exec:
               command:

@@ -30,14 +30,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The local launcher configures this server-only target.  Browser requests
   // remain relative, so opening the dev UI from a LAN device does not make
-  // that device try to reach its own localhost:8000.  Production ingress
+  // that device try to reach its own localhost:8080. Production ingress
   // already owns /v1 routing and deliberately leaves this unset.
   async rewrites() {
     if (!apiTarget) return []
     return [
-      { source: '/api/v1/:path*', destination: `${apiTarget}/api/v1/:path*` },
-      { source: '/v1/:path*', destination: `${apiTarget}/v1/:path*` },
-    ]
+                ]
   },
 }
 

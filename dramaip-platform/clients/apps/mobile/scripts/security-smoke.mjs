@@ -14,7 +14,7 @@ if (!session.includes('let accessToken')) throw new Error('access token must rem
 if (/AsyncStorage|setItemAsync\(ACCESS_TOKEN/i.test(session)) throw new Error('mobile session exposes an unsafe token storage path')
 if (!appConfig.includes('expo-secure-store')) throw new Error('Expo SecureStore native plugin is not enabled')
 if (!drafts.includes("from '@react-native-async-storage/async-storage'")) throw new Error('offline draft queue must use local non-secret storage')
-if (!drafts.includes("'/v1/mobile/drafts'")) throw new Error('offline draft queue has no mobile handoff endpoint')
+if (!drafts.includes("'/api/v1/drafts'")) throw new Error('offline draft queue has no mobile API endpoint')
 if (drafts.includes('expo-secure-store') || /refresh[_-]?token|access[_-]?token/i.test(drafts)) throw new Error('draft queue must not read or persist session credentials')
 
 console.log('Mobile security storage smoke OK')

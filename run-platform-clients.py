@@ -510,7 +510,7 @@ def main() -> int:
         admin_env["VITE_ADMIN_API_BASE_URL"] = api_base_url
 
         mobile_env = os.environ.copy()
-        mobile_env["EXPO_PUBLIC_MOBILE_BFF_ORIGIN"] = api_base_url
+        mobile_env["EXPO_PUBLIC_MOBILE_API_ORIGIN"] = api_base_url
         mobile_env["EXPO_PUBLIC_API_BASE_URL"] = api_base_url
 
         client_commands = (

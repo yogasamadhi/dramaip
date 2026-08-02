@@ -2,7 +2,7 @@ groups:
   - name: dramaip-platform-reliability
     rules:
       - alert: DramaipTargetDown
-        expr: up{job=~"dramaip-.*|kong|rabbitmq|otel-collector"} == 0
+        expr: up{job=~"java-gateway|java-services|rabbitmq|otel-collector"} == 0
         for: 2m
         labels:
           severity: critical

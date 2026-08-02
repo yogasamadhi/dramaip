@@ -128,7 +128,6 @@ loop 分支默认是本地临时分支，不单独推送。若需要远端 revie
 
 ```bash
 git diff --check
-go test ./...
 npm test
 npm run typecheck
 pnpm test

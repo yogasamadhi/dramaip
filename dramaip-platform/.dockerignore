@@ -6,8 +6,3 @@
 !server/**/
 !server/**/target/
 !server/**/target/*-exec.jar
-
-!legacy/
-!legacy/go-services/
-!legacy/go-services/migrations/
-!legacy/go-services/migrations/**

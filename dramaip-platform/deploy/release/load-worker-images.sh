@@ -31,7 +31,7 @@ while IFS='|' read -r chart_key image_name kind target; do
   [[ -z "${chart_key// }" || "$chart_key" == \#* ]] && continue
   images+=("$image_name")
 done < "$manifest"
-[[ "${#images[@]}" == "20" ]] || { echo "image manifest must contain 20 images; found ${#images[@]}" >&2; exit 2; }
+[[ "${#images[@]}" == "10" ]] || { echo "image manifest must contain 10 images; found ${#images[@]}" >&2; exit 2; }
 
 docker load -i "$archive"
 for image in "${images[@]}"; do

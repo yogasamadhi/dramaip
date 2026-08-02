@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { createApiClient } from '../src/index'
 
-test('builds the legacy account view from Java resource responses', async () => {
+test('builds the account view from Java resource responses', async () => {
   const client = createApiClient({ baseURL: 'http://example.test', webSession: true })
   const requested: string[] = []
   const responses: Record<string, unknown> = {

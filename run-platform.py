@@ -6,9 +6,8 @@ The Compose configuration intentionally uses the Docker daemon's native
 platform, so the same command works with Docker Desktop on Windows (amd64) and
 macOS (Apple Silicon or Intel).
 
-The Java migration job, Gateway, six Java domain services, and their local
-infrastructure run through Docker Compose. Legacy Go services are archived and
-are deliberately not started by this launcher.
+The Java migration job, Gateway, seven Java domain services, and their local
+infrastructure run through Docker Compose.
 
 Use ``run-platform-clients.py`` separately to start the Web client.
 
@@ -54,7 +53,8 @@ JAVA_RUNTIME_MODULES = (
     "migration",
     "gateway",
     "services/identity",
-    "services/support",
+    "services/notification",
+    "services/reporting",
     "services/creation",
     "services/quota",
     "services/ai",

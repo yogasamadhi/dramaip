@@ -18,9 +18,6 @@ temporary_staging="${DRAMAIP_TEMPORARY_STAGING_INFRA:-0}"
 image_distribution="${DRAMAIP_STAGING_IMAGE_DISTRIBUTION:-registry}"
 
 runtime_secret="${DRAMAIP_RUNTIME_SECRET:-dramaip-staging-runtime}"
-auth_jwt_secret="${DRAMAIP_AUTH_JWT_SECRET:-dramaip-staging-auth-jwt}"
-admin_jwt_secret="${DRAMAIP_ADMIN_JWT_SECRET:-dramaip-staging-admin-jwt}"
-mtls_secret="${DRAMAIP_INTERNAL_MTLS_SECRET:-dramaip-staging-internal-mtls}"
 image_pull_secret="${DRAMAIP_IMAGE_PULL_SECRET:-dramaip-staging-registry}"
 ingress_tls_secret="${DRAMAIP_INGRESS_TLS_SECRET:-dramaip-staging-ingress-tls}"
 
@@ -99,10 +96,7 @@ done
   exit 1
 }
 
-required_secrets=("$runtime_secret" "$mtls_secret")
-if [[ "$temporary_staging" != "1" ]]; then
-  required_secrets+=("$auth_jwt_secret" "$admin_jwt_secret")
-fi
+required_secrets=("$runtime_secret")
 for secret in "${required_secrets[@]}"; do
   "${kubectl_cmd[@]}" --namespace "$namespace" get secret "$secret" >/dev/null || {
     echo "required operator-managed Secret does not exist: $secret" >&2

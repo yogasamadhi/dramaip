@@ -23,7 +23,7 @@ const [prometheus, alerts, compose, dashboardProvisioning, dashboardSource, prom
   read('deploy/docker-drama/grafana/provisioning/datasources/elasticsearch.yml'),
 ])
 
-const requiredTargets = ['web-bff:8100', 'billing:8103', 'quota:8104', 'ai-gateway:8105', 'billing-job:8106', 'rabbitmq:15692']
+const requiredTargets = ['java-gateway:8080', 'identity:8080', 'java-notification:8080', 'java-reporting:8080', 'creation:8080', 'java-quota:8080', 'ai:8080', 'java-billing:8080', 'rabbitmq:15692']
 for (const target of requiredTargets) assert(prometheus.includes(target), `Prometheus target is missing: ${target}`)
 assert(prometheus.includes('/etc/prometheus/alerts.yml'), 'Prometheus does not load the alert rule file')
 assert(compose.includes('./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro'), 'Compose does not mount alert rules')

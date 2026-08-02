@@ -3,7 +3,7 @@
 
 This launcher deliberately starts no Java application container. PostgreSQL,
 Redis, RabbitMQ, MinIO, Nacos and Seata continue to use the single Compose
-file, while migration, Gateway and all six domain services run with the local
+file, while migration, Gateway and all seven domain services run with the local
 JDK 21. It is intended for debugger and hot-code-package development. Start
 the Web client separately with ``run-platform-clients.py``.
 
@@ -40,7 +40,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PLATFORM_DIR = SCRIPT_DIR / "dramaip-platform"
 SERVER_DIR = PLATFORM_DIR / "server"
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
-LEGACY_MIGRATIONS_DIR = PLATFORM_DIR / "legacy" / "go-services" / "migrations"
+HISTORICAL_MIGRATIONS_DIR = SERVER_DIR / "migration" / "historical-migrations"
 LOCAL_LOG_DIR = SERVER_DIR / "target" / "local-dev"
 
 CURRENT_PID = os.getpid()
@@ -59,14 +59,15 @@ DEFAULT_JAVA_OPTS = "-Xmx512m -Xms256m -XX:MaxRAMPercentage=50 -XX:+UseG1GC"
 LOCAL_DIRECT_SOCKET_JAVA_OPTS = ("-DsocksProxyHost=", "-DsocksProxyPort=")
 LOCAL_SERVICES = (
     ("identity", "services/identity", 8081, "dramaip_identity_svc"),
-    ("support", "services/support", 8082, "dramaip_support_svc"),
+    ("notification", "services/notification", 8082, "dramaip_notification_svc"),
+    ("reporting", "services/reporting", 8087, "dramaip_reporting_svc"),
     ("creation", "services/creation", 8083, "dramaip_creation_svc"),
     ("quota", "services/quota", 8084, "dramaip_quota_svc"),
     ("ai", "services/ai", 8085, "dramaip_ai_svc"),
     ("billing", "services/billing", 8086, "dramaip_billing_svc"),
 )
 DOCKER_INFRA_SERVICES = ("postgres", "redis", "rabbitmq", "minio", "minio-init", "nacos", "seata")
-DOCKER_JAVA_SERVICES = ("java-migration", "java-gateway", "identity", "support", "creation", "java-quota", "ai", "java-billing")
+DOCKER_JAVA_SERVICES = ("java-migration", "java-gateway", "identity", "java-notification", "java-reporting", "creation", "java-quota", "ai", "java-billing")
 LOCAL_JAVA_PORTS = (
     ("Java Gateway", GATEWAY_PORT),
     *((f"Java {name}", port) for name, _, port, _ in LOCAL_SERVICES),
@@ -140,7 +141,7 @@ def resolve_global_maven_command() -> list[str] | None:
 
 
 def check_layout() -> None:
-    missing = [path for path in (PLATFORM_DIR, SERVER_DIR, COMPOSE_FILE, LEGACY_MIGRATIONS_DIR) if not path.exists()]
+    missing = [path for path in (PLATFORM_DIR, SERVER_DIR, COMPOSE_FILE, HISTORICAL_MIGRATIONS_DIR) if not path.exists()]
     if missing:
         raise RuntimeError("missing required paths: " + ", ".join(str(path) for path in missing))
     ok("platform development layout found")
@@ -255,10 +256,10 @@ def local_environment() -> dict[str, str]:
         {
             "POSTGRES_DSN": f"jdbc:postgresql://127.0.0.1:5432/{environment.get('POSTGRES_DB', 'dramaip')}",
             "POSTGRES_PASSWORD": database_password,
-            # Local developer volumes can legitimately predate the final Go
-            # migration (049). Permit the archived, transactional SQL to
+            # Local developer volumes can legitimately predate the final
+            # historical SQL migration (049). Permit the transactional SQL to
             # resume only in this local launcher; production remains strict.
-            "LEGACY_MIGRATIONS_APPLY_PENDING": "true",
+            "HISTORICAL_MIGRATIONS_APPLY_PENDING": "true",
             "NACOS_SERVER_ADDR": "127.0.0.1:8848",
             "SPRING_CLOUD_NACOS_DISCOVERY_IP": "127.0.0.1",
             # Keep host-run services isolated from Docker services that use
@@ -305,7 +306,7 @@ def run_migration(environment: dict[str, str]) -> None:
             "POSTGRES_USER": migration_environment.get("POSTGRES_USER", "dramaip"),
             "DB_ROLE_BOOTSTRAP": migration_environment.get("DB_ROLE_BOOTSTRAP", "true"),
             "DRAMAIP_MIGRATION_ROLE_PASSWORD": migration_environment["POSTGRES_PASSWORD"],
-            "LEGACY_MIGRATIONS_DIR": str(LEGACY_MIGRATIONS_DIR),
+            "HISTORICAL_MIGRATIONS_DIR": str(HISTORICAL_MIGRATIONS_DIR),
         }
     )
     info("Running the Java migration job locally...")

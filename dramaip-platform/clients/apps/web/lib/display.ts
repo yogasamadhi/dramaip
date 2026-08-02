@@ -30,13 +30,7 @@ export function aiProviderLabel(value?: string) {
 }
 
 export function serviceLabel(value?: string) {
-  const labels: Record<string, string> = {
-    'web-bff': 'Web 平台 BFF',
-    'dramaip-web-bff': 'Web 平台 BFF',
-    'web-bff-interface': 'Web 平台 BFF',
-    'dramaip-web-bff-interface': 'Web 平台 BFF',
-  }
-  return value ? labels[value] ?? value : '-'
+  return value ?? '-'
 }
 
 export function displayNameLabel(value?: string) {

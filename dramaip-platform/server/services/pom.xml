@@ -13,7 +13,8 @@
     <packaging>pom</packaging>
     <modules>
         <module>identity</module>
-        <module>support</module>
+        <module>notification</module>
+        <module>reporting</module>
         <module>creation</module>
         <module>quota</module>
         <module>ai</module>
