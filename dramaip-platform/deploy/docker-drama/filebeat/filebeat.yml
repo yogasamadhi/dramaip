@@ -8,9 +8,10 @@ filebeat.inputs:
     parsers:
       - container: ~
     prospector.scanner.check_interval: 5s
-    # Filebeat 9.x waits until a file reaches the fingerprint length. Lower it
-    # so short-lived containers and smoke-test logs are collected promptly.
-    prospector.scanner.fingerprint.length: 64
+    # Docker's json-file logs frequently begin with the same startup output.
+    # A content fingerprint would merge different containers before their
+    # first distinctive byte is reached, so use their stable mounted inode.
+    file_identity.native: ~
 
 processors:
   - decode_json_fields:
@@ -21,13 +22,27 @@ processors:
       add_error_key: false
   - add_docker_metadata:
       host: "unix:///var/run/docker.sock"
+  # Java's JSON contract deliberately exposes top-level service. Normalize
+  # ECS-shaped container logs (for example Filebeat's service.name) to the
+  # same scalar before Elasticsearch maps the field.
+  - script:
+      lang: javascript
+      id: normalize-service-field
+      source: >
+        function process(event) {
+          var serviceName = event.Get("service.name");
+          if (serviceName) {
+            event.Put("service", serviceName);
+            event.Delete("service.name");
+          }
+        }
 
-# Keep the existing dramaip-logs-* query contract used by Grafana and smoke
-# checks. A custom index requires a matching template and disabled default ILM.
+# Java emits a scalar `service` field. The Compose entrypoint installs a
+# higher-priority Java template for this index, so it cannot conflict with
+# Filebeat's generic ECS `service.*` object mapping.
 setup.ilm.enabled: false
-setup.template.name: "dramaip-logs"
-setup.template.pattern: "dramaip-logs-*"
+setup.template.enabled: false
 
 output.elasticsearch:
   hosts: ["http://elasticsearch:9200"]
-  index: "dramaip-logs-%{+yyyy.MM.dd}"
+  index: "dramaip-logs-java-%{+yyyy.MM.dd}"

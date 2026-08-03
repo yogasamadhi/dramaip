@@ -15,6 +15,7 @@ RUN mkdir -p /logs/nacos && chown -R 10001:0 /logs
 # module argument in the path lets the same Dockerfile package all Java services.
 COPY server/${MODULE}/target/*-exec.jar /app/app.jar
 COPY server/migration/historical-migrations /app/historical-migrations
+COPY server/target/observability/opentelemetry-javaagent.jar /app/observability/opentelemetry-javaagent.jar
 
 USER 10001:0
 EXPOSE 8080
@@ -25,4 +26,6 @@ EXPOSE 8080
 # 512m limit) and keeps the JVM small enough for local dev; raise it or pass a
 # fixed -Xmx via JAVA_OPTS for larger production profiles.
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=50 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
-ENTRYPOINT java $JAVA_OPTS -jar /app/app.jar
+# Left empty by platform-up; the observability target supplies -javaagent.
+ENV OTEL_JAVAAGENT_OPTS=""
+ENTRYPOINT java $JAVA_OPTS $OTEL_JAVAAGENT_OPTS -jar /app/app.jar

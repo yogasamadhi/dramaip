@@ -31,3 +31,5 @@ dramaip:
       audience: "${IDENTITY_JWT_AUDIENCE:dramaip-clients}"
       allow-ephemeral-key: ${IDENTITY_ALLOW_EPHEMERAL_JWT:false}
 management.endpoints.web.exposure.include: health,info,metrics,prometheus
+logging.structured.format.console: logstash
+logging.structured.json.add.service: ${spring.application.name}

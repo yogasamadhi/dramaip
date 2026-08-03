@@ -1,0 +1,35 @@
+# Host-JVM development targets. run-platform-dev.py writes only the services it
+# starts to file-SD JSON, so a selected subset never shows false TargetDown.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: java-gateway
+    metrics_path: /actuator/prometheus
+    file_sd_configs:
+      - files: ["/etc/prometheus/host-targets/gateway.json"]
+
+  - job_name: java-services
+    metrics_path: /actuator/prometheus
+    file_sd_configs:
+      - files: ["/etc/prometheus/host-targets/services.json"]
+
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["host.docker.internal:15692"]
+
+  - job_name: jaeger
+    static_configs:
+      - targets: ["jaeger:8888"]
+
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8888"]

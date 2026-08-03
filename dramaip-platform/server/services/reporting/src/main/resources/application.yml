@@ -20,3 +20,5 @@ dramaip:
     jwt:
       enabled: ${JWT_ENABLED:false}
 management.endpoints.web.exposure.include: health,info,metrics,prometheus
+logging.structured.format.console: logstash
+logging.structured.json.add.service: ${spring.application.name}

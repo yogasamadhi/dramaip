@@ -33,3 +33,5 @@ seata:
     grouplist:
       default: "${SEATA_SERVER_ADDR:seata:8091}"
 management.endpoints.web.exposure.include: health,info,metrics,prometheus
+logging.structured.format.console: logstash
+logging.structured.json.add.service: ${spring.application.name}

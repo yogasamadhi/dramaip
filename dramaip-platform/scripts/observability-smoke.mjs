@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const apiBaseURL = process.env.DRAMAIP_API_BASE_URL ?? 'http://localhost:8080'
+const prometheusBaseURL = process.env.DRAMAIP_PROMETHEUS_URL ?? 'http://localhost:9090'
 const jaegerBaseURL = process.env.DRAMAIP_JAEGER_URL ?? 'http://localhost:16686'
 const elasticsearchBaseURL = process.env.DRAMAIP_ELASTICSEARCH_URL ?? 'http://localhost:9200'
 const traceID = process.env.DRAMAIP_TRACE_ID ?? randomTraceID()
@@ -29,19 +30,12 @@ async function getJSON(url, options = {}) {
   const text = await response.text()
   let body = {}
   if (text) {
-    try {
-      body = JSON.parse(text)
-    } catch {
-      body = { raw: text }
-    }
+    try { body = JSON.parse(text) } catch { body = { raw: text } }
   }
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status}: ${text}`)
-  }
-  return { response, body }
+  return { response, body, text }
 }
 
-async function waitFor(check, name, timeoutMs = 30_000) {
+async function waitFor(check, name, timeoutMs = 60_000) {
   const deadline = Date.now() + timeoutMs
   let lastError
   while (Date.now() < deadline) {
@@ -56,39 +50,63 @@ async function waitFor(check, name, timeoutMs = 30_000) {
   throw new Error(`${name} was not ready within ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ''}`)
 }
 
-// A protected Java Gateway route returns 401 before forwarding without a
-// session. The fixed traceparent verifies that the gateway preserves request
-// correlation into tracing and structured logs.
-const response = await fetch(new URL('/api/v1/plans', apiBaseURL), {
+// An invalid credential request is public and reaches identity through the
+// Gateway. It creates a real two-service trace without creating user data.
+const response = await fetch(new URL('/api/v1/auth/token', apiBaseURL), {
+  method: 'POST',
   headers: {
+    'content-type': 'application/json',
     traceparent: traceparent(traceID),
     'X-Request-Id': requestID,
     'X-DramaIP-Contract-Version': '2',
   },
+  body: '{}',
 })
-assert(response.status === 401, `API returned ${response.status} instead of 401`)
+const responseBody = await response.json()
+assert(response.status === 400, `API returned ${response.status} instead of 400`)
 assert(response.headers.get('x-trace-id') === traceID, `API returned ${response.headers.get('x-trace-id')} instead of ${traceID}`)
 assert(response.headers.get('x-request-id') === requestID, `API returned ${response.headers.get('x-request-id')} instead of ${requestID}`)
-
-const jaegerTrace = await waitFor(async () => {
-  const { body } = await getJSON(new URL(`/api/traces/${traceID}`, jaegerBaseURL))
-  const spans = body.data?.[0]?.spans ?? []
-  const services = new Set(spans.map((span) => span.processID).filter(Boolean))
-  return spans.length >= 1 && services.size >= 1 ? { spans, services } : null
-}, 'Jaeger gateway trace')
+assert(responseBody.traceId === traceID, `Result traceId is ${responseBody.traceId} instead of ${traceID}`)
 
 await waitFor(async () => {
-  const { body } = await getJSON(new URL('/dramaip-logs-*/_search', elasticsearchBaseURL), {
+  // /targets describes the active configuration. An instant `up` query can
+  // retain stale series from the other development mode for several minutes.
+  const { response: prometheusResponse, body } = await getJSON(new URL('/api/v1/targets', prometheusBaseURL))
+  if (!prometheusResponse.ok) return null
+  const targets = (body.data?.activeTargets ?? []).filter((target) => /^(java-gateway|java-services)$/.test(target.labels?.job ?? ''))
+  return targets.length > 0 && targets.every((target) => target.health === 'up') ? targets : null
+}, 'Prometheus Java targets')
+
+await waitFor(async () => {
+  const metrics = await fetch(new URL('/actuator/prometheus', apiBaseURL)).then((result) => result.text())
+  return metrics.includes('jvm_memory_used_bytes') && metrics.includes('dramaip_requests_total')
+    && metrics.includes('dramaip_request_duration_seconds') ? metrics : null
+}, 'Gateway Prometheus metric contract')
+
+const jaegerTrace = await waitFor(async () => {
+  const { response: jaegerResponse, body } = await getJSON(new URL(`/api/traces/${traceID}`, jaegerBaseURL))
+  if (!jaegerResponse.ok) return null
+  const trace = body.data?.[0]
+  const services = new Set(Object.values(trace?.processes ?? {}).map((process) => process.serviceName))
+  return trace?.spans?.length >= 2 && services.has('gateway') && services.has('identity') ? { trace, services } : null
+}, 'Jaeger Gateway to identity trace')
+
+await waitFor(async () => {
+  const { response: elasticsearchResponse, body } = await getJSON(new URL('/dramaip-logs-*/_search', elasticsearchBaseURL), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      size: 20,
-      query: { term: { trace_id: traceID } },
-      _source: ['service', 'trace_id', 'request_id', 'operation'],
+      size: 50,
+      query: { match: { trace_id: traceID } },
+      _source: ['service', 'trace_id', 'span_id', 'request_id', 'operation', 'authorization', 'cookie', 'prompt', 'body'],
     }),
   })
+  if (!elasticsearchResponse.ok) return null
   const hits = body.hits?.hits ?? []
-  return hits.some((hit) => hit._source?.trace_id === traceID && hit._source?.service) ? hits : null
-}, 'Elasticsearch structured log')
+  return hits.some((hit) => hit._source?.trace_id === traceID && hit._source?.service
+    && hit._source?.request_id === requestID && hit._source?.operation
+    && !('authorization' in hit._source) && !('cookie' in hit._source)
+    && !('prompt' in hit._source) && !('body' in hit._source)) ? hits : null
+}, 'Elasticsearch structured access log', 90_000)
 
-console.log(JSON.stringify({ ok: true, traceID, requestID, spanCount: jaegerTrace.spans.length }, null, 2))
+console.log(JSON.stringify({ ok: true, traceID, requestID, spanCount: jaegerTrace.trace.spans.length }, null, 2))

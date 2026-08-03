@@ -1,6 +1,7 @@
 package com.dramaip.platform.quota.service;
 
 import com.dramaip.platform.common.web.BusinessException;
+import com.dramaip.platform.common.observability.DramaipMetrics;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -15,8 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class QuotaService {
     private final JdbcTemplate jdbc;
+    private final DramaipMetrics metrics;
 
-    public QuotaService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public QuotaService(JdbcTemplate jdbc, DramaipMetrics metrics) {
+        this.jdbc = jdbc;
+        this.metrics = metrics;
+    }
 
     public Balance balance(String userId) {
         return jdbc.query("""
@@ -160,6 +165,7 @@ public class QuotaService {
         if (replay != null) {
             String owner = jdbc.queryForObject("select user_id::text from quota.token_reservations where id = ?::uuid", String.class, replay.id());
             if (!owner.equals(userId)) throw new BusinessException("QUOTA_IDEMPOTENCY_CONFLICT", "requestId belongs to another user", HttpStatus.CONFLICT);
+            metrics.quotaReservation("replayed");
             return replay;
         }
         Account account = jdbc.query("""
@@ -178,9 +184,11 @@ public class QuotaService {
                 insert into quota.token_reservations(id, user_id, token_account_id, request_id, reserved_tokens, status)
                 values (?::uuid, ?::uuid, ?::uuid, ?, ?, 'reserved')
                 """, id, userId, account.id(), requestId, requestedTokens);
-        return jdbc.query("select id::text, token_account_id::text, request_id, reserved_tokens, status, created_at from quota.token_reservations where id = ?::uuid", rs -> {
+        Reservation reserved = jdbc.query("select id::text, token_account_id::text, request_id, reserved_tokens, status, created_at from quota.token_reservations where id = ?::uuid", rs -> {
             rs.next(); return reservation(rs);
         }, id);
+        metrics.quotaReservation("accepted");
+        return reserved;
     }
 
     @Transactional

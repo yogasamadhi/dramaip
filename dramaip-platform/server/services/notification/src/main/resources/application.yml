@@ -24,3 +24,5 @@ dramaip:
   events:
     notification-queue: "${NOTIFICATION_EVENT_QUEUE:${SUPPORT_EVENT_QUEUE:dramaip.notification.java}}"
 management.endpoints.web.exposure.include: health,info,metrics,prometheus
+logging.structured.format.console: logstash
+logging.structured.json.add.service: ${spring.application.name}

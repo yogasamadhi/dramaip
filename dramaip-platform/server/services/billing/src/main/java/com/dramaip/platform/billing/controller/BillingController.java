@@ -1,6 +1,7 @@
 package com.dramaip.platform.billing.controller;
 
 import com.dramaip.platform.billing.service.PlanService;
+import com.dramaip.platform.common.observability.DramaipMetrics;
 import com.dramaip.platform.common.security.AdminAccess;
 import com.dramaip.platform.common.security.CurrentUser;
 import com.dramaip.platform.common.web.Result;
@@ -21,14 +22,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class BillingController {
     private final PlanService plans;
-    public BillingController(PlanService plans) { this.plans = plans; }
+    private final DramaipMetrics metrics;
+    public BillingController(PlanService plans, DramaipMetrics metrics) {
+        this.plans = plans;
+        this.metrics = metrics;
+    }
     @GetMapping("/api/v1/plans") public Result<List<PlanService.Plan>> listPlans() { return Result.ok(plans.listPlans()); }
     @PostMapping("/api/v1/orders") public ResponseEntity<Result<PlanService.Order>> createOrder(Authentication authentication, @Valid @RequestBody CreateOrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(plans.createOrder(CurrentUser.id(authentication), new PlanService.CreateOrder(request.planCode(), request.provider()))));
     }
     @GetMapping("/api/v1/orders") public Result<List<PlanService.Order>> orders(Authentication authentication) { return Result.ok(plans.orders(CurrentUser.id(authentication))); }
     @GetMapping("/api/v1/orders/{orderId}") public Result<PlanService.Order> order(Authentication authentication, @PathVariable String orderId) { return Result.ok(plans.order(orderId, CurrentUser.id(authentication))); }
-    @PostMapping("/api/v1/payments/simulated/confirm") public Result<PlanService.Payment> confirmSimulated(Authentication authentication, @Valid @RequestBody ConfirmPaymentRequest request) { return Result.ok(plans.confirmSimulatedPayment(CurrentUser.id(authentication), request.orderId())); }
+    @PostMapping("/api/v1/payments/simulated/confirm")
+    public Result<PlanService.Payment> confirmSimulated(Authentication authentication, @Valid @RequestBody ConfirmPaymentRequest request) {
+        try {
+            PlanService.Payment payment = plans.confirmSimulatedPayment(CurrentUser.id(authentication), request.orderId());
+            metrics.paymentConfirmation("succeeded");
+            return Result.ok(payment);
+        } catch (RuntimeException exception) {
+            metrics.paymentConfirmation("failed");
+            throw exception;
+        }
+    }
     @GetMapping("/api/v1/subscriptions/current") public Result<PlanService.Subscription> subscription(Authentication authentication) { return Result.ok(plans.currentSubscription(CurrentUser.id(authentication))); }
     @PostMapping("/api/v1/subscriptions/current/cancel") public Result<PlanService.Subscription> cancel(Authentication authentication, @RequestBody(required = false) CancelRequest request) { return Result.ok(plans.cancelSubscription(CurrentUser.id(authentication), request != null && request.immediate())); }
     @PostMapping("/api/v1/subscriptions/current/resume") public Result<PlanService.Subscription> resume(Authentication authentication) { return Result.ok(plans.resumeSubscription(CurrentUser.id(authentication))); }

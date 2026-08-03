@@ -1,7 +1,9 @@
 COMPOSE ?= deploy/docker-drama/docker-compose.yaml
 COMPOSE_ARGS = -f $(COMPOSE) --profile java
+OBSERVABILITY_COMPOSE_ARGS = -f $(COMPOSE) --profile java --profile observability
+OTEL_JAVAAGENT_OPTS = -javaagent:/app/observability/opentelemetry-javaagent.jar
 
-.PHONY: platform-package platform-up platform-wait platform-down platform-logs platform-e2e observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
+.PHONY: platform-package platform-up platform-wait platform-down platform-logs platform-e2e platform-observability-up platform-observability-smoke platform-observability-down observability-smoke observability-config-smoke observability-rule-test web-route-smoke client-contracts test
 
 platform-package:
 	cd server && mvn -B -ntp -DskipTests package
@@ -18,10 +20,21 @@ platform-down:
 	docker compose $(COMPOSE_ARGS) down
 
 platform-logs:
-	docker compose $(COMPOSE_ARGS) logs -f java-gateway identity java-notification java-reporting creation java-quota ai java-billing java-migration postgres redis rabbitmq nacos seata minio
+	docker compose $(COMPOSE_ARGS) logs -f java-gateway identity java-notification java-reporting creation java-quota ai java-billing java-migration postgres redis rabbitmq nacos-mysql nacos seata minio
 
 platform-e2e:
 	DRAMAIP_API_BASE_URL=http://localhost:8080 node scripts/java-platform-e2e.mjs
+
+platform-observability-up: platform-package
+	OTEL_JAVAAGENT_OPTS='$(OTEL_JAVAAGENT_OPTS)' docker compose $(OBSERVABILITY_COMPOSE_ARGS) up -d --build
+	docker compose $(OBSERVABILITY_COMPOSE_ARGS) restart java-gateway
+	$(MAKE) platform-wait
+
+platform-observability-smoke:
+	$(MAKE) observability-smoke
+
+platform-observability-down:
+	docker compose $(OBSERVABILITY_COMPOSE_ARGS) down
 
 observability-smoke:
 	node scripts/observability-smoke.mjs

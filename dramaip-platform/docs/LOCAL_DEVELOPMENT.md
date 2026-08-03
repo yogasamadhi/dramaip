@@ -23,7 +23,7 @@ macOS：
 python3 run-platform.py
 ```
 
-仅在本机 JDK 中调试 Java 服务、并把 PostgreSQL/Redis/RabbitMQ/MinIO/Nacos/Seata 留在 Docker 时，使用：
+仅在本机 JDK 中调试 Java 服务、并把 PostgreSQL/Redis/RabbitMQ/MinIO/Nacos MySQL/Nacos/Seata 留在 Docker 时，使用：
 
 ```powershell
 python .\run-platform-dev.py
@@ -51,11 +51,30 @@ docker compose -f deploy/docker-drama/docker-compose.yaml --profile java logs -f
 docker compose -f deploy/docker-drama/docker-compose.yaml --profile java down
 ```
 
-Java profile 包含 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos、Seata、migration Job、Gateway 和七个 Java 业务服务。可观测性栈按需额外启动：
+Java profile 包含 PostgreSQL、Redis、RabbitMQ、MinIO、Nacos MySQL、Nacos、Seata、migration Job、Gateway 和七个 Java 业务服务。Nacos 使用本机已有的 `mysql:8` 镜像，数据保存在 `deploy/docker-drama/docker-data/nacos-mysql`；首次启动会从同版本 Nacos 镜像导出的官方 schema 自动建表。默认数据库和账户为 `nacos_config` / `nacos` / `nacos`，可分别通过 `NACOS_MYSQL_DATABASE`、`NACOS_MYSQL_USER`、`NACOS_MYSQL_PASSWORD`、`NACOS_MYSQL_ROOT_PASSWORD` 覆盖；这些 MySQL 初始化变量只会在空数据目录的首次启动时生效。可观测性栈按需额外启动：
 
 ```bash
 docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profile observability up -d
 ```
+
+推荐使用已封装的观测入口。它会在 Java 镜像中启用 OTel Java Agent（traces 走 OTLP HTTP，metrics 仍由 Micrometer/Prometheus 抓取，日志仍由 Filebeat 采集），并保留普通 `make platform-up` 不挂 Agent 的行为：
+
+```bash
+cd dramaip-platform
+make platform-observability-up
+make platform-observability-smoke
+make platform-observability-down
+```
+
+本机 JDK 调试也可启用同一套栈：
+
+```bash
+python run-platform-dev.py --obs
+python run-platform-dev.py --obs --services creation,quota
+python run-platform-dev.py --obs --services creation --no-gateway --smoke
+```
+
+`--obs` 会先启动 Prometheus、Collector、Jaeger、Elasticsearch、Kibana、Filebeat 与 Grafana，再以 `127.0.0.1:4318` 作为 OTLP 地址运行 migration 和选中的 Java 进程。Prometheus 的 file-SD 文件仅列出实际启动的 `host.docker.internal:8080–8087`，所以子集调试不会产生伪 TargetDown。`--skip-package --obs` 要求 `server/target/observability/opentelemetry-javaagent.jar` 已由一次 Maven package 生成。Ctrl+C 仍只停止本机 Java；使用 `make platform-observability-down` 停止观测容器。
 
 ## 本地地址
 
@@ -71,6 +90,9 @@ docker compose -f deploy/docker-drama/docker-compose.yaml --profile java --profi
 | MinIO Console | `http://localhost:9001` |
 | Elasticsearch（启用 observability profile 后） | `http://localhost:9200` |
 | Kibana（启用 observability profile 后） | `http://localhost:5601` |
+| Prometheus（启用 observability profile 后） | `http://localhost:9090` |
+| Jaeger（启用 observability profile 后） | `http://localhost:16686` |
+| Grafana（启用 observability profile 后） | `http://localhost:3000`（`dramaip` / `dramaip`） |
 
 ## 验证
 
@@ -83,6 +105,8 @@ node scripts/java-platform-e2e.mjs
 ```
 
 `java-platform-e2e.mjs` 验证 Gateway 健康检查、契约版本缺失时的拒绝行为，以及携带契约头的受保护资源请求。完整业务验证由各服务的 Maven 测试、客户端契约测试与发布前预检完成。
+
+观测 smoke 会向公开登录端点发送固定 `traceparent` 和无效 JSON，不会创建用户或订单；它验证 Gateway→identity trace、响应/REST trace ID、Prometheus Java target 以及 Elasticsearch 的结构化访问日志一致。11 条本地告警、指标契约和排障步骤见 [LM3-22 runbook](loop/LM3-22-指标告警与错误聚合.md)。
 
 ## 常见问题
 

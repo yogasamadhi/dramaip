@@ -1,5 +1,6 @@
 package com.dramaip.platform.common.web;
 
+import com.dramaip.platform.common.observability.DramaipMetrics;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,25 +14,32 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ApiExceptionHandler {
     private static final Logger LOG = LoggerFactory.getLogger(ApiExceptionHandler.class);
+    private final DramaipMetrics metrics;
+
+    public ApiExceptionHandler(DramaipMetrics metrics) { this.metrics = metrics; }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> business(BusinessException exception) {
+        metrics.error("business", "mvc");
         return ResponseEntity.status(exception.status()).body(Result.failure(exception.code(), exception.getMessage()));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, ConstraintViolationException.class})
     public ResponseEntity<Result<Void>> validation(Exception exception) {
+        metrics.error("validation", "mvc");
         return ResponseEntity.badRequest().body(Result.failure("COMMON_VALIDATION_FAILED", "request validation failed"));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Result<Void>> notFound(NoResourceFoundException exception) {
+        metrics.error("not_found", "mvc");
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Result.failure("COMMON_RESOURCE_NOT_FOUND", "resource not found"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> unexpected(Exception exception) {
+        metrics.error("internal", "mvc");
         LOG.error("Unhandled API exception", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Result.failure("COMMON_INTERNAL_ERROR", "internal server error"));

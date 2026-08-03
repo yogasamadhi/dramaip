@@ -35,7 +35,13 @@ const nextConfig: NextConfig = {
   async rewrites() {
     if (!apiTarget) return []
     return [
-                ]
+      {
+        // Forward browser-relative API calls to the Java Gateway so the Web UI
+        // and its session cookies stay on a single origin in local development.
+        source: '/api/:path*',
+        destination: `${apiTarget}/api/:path*`,
+      },
+    ]
   },
 }
 

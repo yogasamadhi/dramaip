@@ -1,6 +1,7 @@
 package com.dramaip.platform.quota.controller;
 
 import com.dramaip.platform.common.security.CurrentUser;
+import com.dramaip.platform.common.observability.DramaipMetrics;
 import com.dramaip.platform.common.web.Result;
 import com.dramaip.platform.quota.service.QuotaService;
 import jakarta.validation.Valid;
@@ -22,7 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/quota")
 public class QuotaController {
     private final QuotaService quota;
-    public QuotaController(QuotaService quota) { this.quota = quota; }
+    private final DramaipMetrics metrics;
+    public QuotaController(QuotaService quota, DramaipMetrics metrics) {
+        this.quota = quota;
+        this.metrics = metrics;
+    }
 
     @GetMapping("/balance")
     public Result<QuotaService.Balance> balance(Authentication authentication) {
@@ -41,7 +46,12 @@ public class QuotaController {
 
     @PostMapping("/reservations")
     public ResponseEntity<Result<QuotaService.Reservation>> reserve(Authentication authentication, @Valid @RequestBody ReserveRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(quota.reserve(CurrentUser.id(authentication), request.requestId(), request.reservedTokens())));
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED).body(Result.ok(quota.reserve(CurrentUser.id(authentication), request.requestId(), request.reservedTokens())));
+        } catch (RuntimeException exception) {
+            metrics.quotaReservation("rejected");
+            throw exception;
+        }
     }
 
     @PostMapping("/reservations/{reservationId}/settlements")

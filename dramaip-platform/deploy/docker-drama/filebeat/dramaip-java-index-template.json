@@ -1,0 +1,23 @@
+{
+  "index_patterns": ["dramaip-logs-java-*"],
+  "priority": 250,
+  "template": {
+    "settings": {
+      "index.number_of_shards": 1,
+      "index.number_of_replicas": 0
+    },
+    "mappings": {
+      "dynamic": true,
+      "properties": {
+        "@timestamp": { "type": "date" },
+        "service": { "type": "keyword" },
+        "level": { "type": "keyword" },
+        "message": { "type": "match_only_text" },
+        "trace_id": { "type": "keyword" },
+        "span_id": { "type": "keyword" },
+        "request_id": { "type": "keyword" },
+        "operation": { "type": "keyword" }
+      }
+    }
+  }
+}

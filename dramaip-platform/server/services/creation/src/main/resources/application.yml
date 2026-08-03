@@ -27,3 +27,5 @@ dramaip.review.object-store:
   secret-key: ${REVIEW_S3_SECRET_KEY:}
   allow-insecure: ${REVIEW_S3_ALLOW_INSECURE:false}
 management.endpoints.web.exposure.include: health,info,metrics,prometheus
+logging.structured.format.console: logstash
+logging.structured.json.add.service: ${spring.application.name}

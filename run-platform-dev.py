@@ -2,10 +2,10 @@
 """Run the Java DramaIP services on the host and development infrastructure in Docker.
 
 This launcher deliberately starts no Java application container. PostgreSQL,
-Redis, RabbitMQ, MinIO, Nacos and Seata continue to use the single Compose
-file, while migration, Gateway and all seven domain services run with the local
-JDK 21. It is intended for debugger and hot-code-package development. Start
-the Web client separately with ``run-platform-clients.py``.
+Redis, RabbitMQ, MinIO, Nacos (backed by MySQL) and Seata continue to use the
+single Compose file, while migration, Gateway and all seven domain services run
+with the local JDK 21. It is intended for debugger and hot-code-package
+development. Start the Web client separately with ``run-platform-clients.py``.
 
 Usage:
   python run-platform-dev.py
@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import platform
 import shlex
@@ -42,6 +43,11 @@ SERVER_DIR = PLATFORM_DIR / "server"
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 HISTORICAL_MIGRATIONS_DIR = SERVER_DIR / "migration" / "historical-migrations"
 LOCAL_LOG_DIR = SERVER_DIR / "target" / "local-dev"
+OTEL_JAVA_AGENT = SERVER_DIR / "target" / "observability" / "opentelemetry-javaagent.jar"
+OBSERVABILITY_COMPOSE_DIR = PLATFORM_DIR / "deploy" / "docker-drama"
+HOST_PROMETHEUS_CONFIG = OBSERVABILITY_COMPOSE_DIR / "prometheus" / "prometheus-host.yml"
+HOST_FILEBEAT_CONFIG = OBSERVABILITY_COMPOSE_DIR / "filebeat" / "filebeat-host.yml"
+HOST_PROMETHEUS_TARGETS = LOCAL_LOG_DIR / "prometheus-targets"
 
 CURRENT_PID = os.getpid()
 GATEWAY_PORT = 8080
@@ -66,8 +72,12 @@ LOCAL_SERVICES = (
     ("ai", "services/ai", 8085, "dramaip_ai_svc"),
     ("billing", "services/billing", 8086, "dramaip_billing_svc"),
 )
-DOCKER_INFRA_SERVICES = ("postgres", "redis", "rabbitmq", "minio", "minio-init", "nacos", "seata")
+DOCKER_INFRA_SERVICES = (
+    "postgres", "redis", "rabbitmq", "minio", "minio-init",
+    "nacos-mysql-schema", "nacos-mysql", "nacos", "seata",
+)
 DOCKER_JAVA_SERVICES = ("java-migration", "java-gateway", "identity", "java-notification", "java-reporting", "creation", "java-quota", "ai", "java-billing")
+DOCKER_OBSERVABILITY_SERVICES = ("prometheus", "otel-collector", "jaeger", "elasticsearch", "kibana", "filebeat", "grafana")
 LOCAL_JAVA_PORTS = (
     ("Java Gateway", GATEWAY_PORT),
     *((f"Java {name}", port) for name, _, port, _ in LOCAL_SERVICES),
@@ -173,6 +183,10 @@ def compose_command(*args: str) -> list[str]:
     return ["docker", "compose", "--profile", "java", "-f", str(COMPOSE_FILE), *args]
 
 
+def observability_compose_command(*args: str) -> list[str]:
+    return ["docker", "compose", "--profile", "java", "--profile", "observability", "-f", str(COMPOSE_FILE), *args]
+
+
 def run_checked(command: list[str], cwd: Path, env: dict[str, str] | None = None) -> None:
     try:
         subprocess.run(command, cwd=str(cwd), env=env, check=True)
@@ -195,6 +209,15 @@ def package_java_services(maven_command: list[str], skip_package: bool) -> None:
     ok("local Java runtime JARs are ready")
 
 
+def require_observability_agent() -> Path:
+    if not OTEL_JAVA_AGENT.is_file() or OTEL_JAVA_AGENT.stat().st_size == 0:
+        raise RuntimeError(
+            "OpenTelemetry Java agent is missing. Run without --skip-package once so Maven downloads "
+            "server/target/observability/opentelemetry-javaagent.jar."
+        )
+    return OTEL_JAVA_AGENT
+
+
 def runnable_jar(module: str) -> Path | None:
     jars = sorted((SERVER_DIR / module / "target").glob("*-exec.jar"))
     return jars[0] if len(jars) == 1 else None
@@ -209,7 +232,7 @@ def stop_docker_java_services() -> None:
 
 
 def start_docker_infrastructure() -> None:
-    info("Starting PostgreSQL, Redis, RabbitMQ, MinIO, Nacos and Seata in Docker...")
+    info("Starting PostgreSQL, Redis, RabbitMQ, MinIO, Nacos MySQL, Nacos and Seata in Docker...")
     run_checked(compose_command("up", "-d", *DOCKER_INFRA_SERVICES), SCRIPT_DIR)
     wait_for_tcp("PostgreSQL", 5432, 90.0)
     wait_for_tcp("Redis", 6379, 90.0)
@@ -219,6 +242,41 @@ def start_docker_infrastructure() -> None:
     wait_for_tcp("Nacos gRPC", 9848, 120.0)
     wait_for_tcp("Seata", 8091, 90.0)
     ok("Docker development infrastructure is ready")
+
+
+def write_host_prometheus_targets(service_names: set[str], include_gateway: bool) -> None:
+    """Write file-SD target lists for only the host JVMs launched this run."""
+    HOST_PROMETHEUS_TARGETS.mkdir(parents=True, exist_ok=True)
+    gateway_targets = [{"targets": ["host.docker.internal:8080"], "labels": {"service": "gateway"}}] if include_gateway else []
+    service_ports = {name: port for name, _, port, _ in LOCAL_SERVICES}
+    service_targets = [
+        {"targets": [f"host.docker.internal:{service_ports[name]}"], "labels": {"service": name}}
+        for name in sorted(service_names)
+    ]
+    (HOST_PROMETHEUS_TARGETS / "gateway.json").write_text(json.dumps(gateway_targets), encoding="utf-8")
+    (HOST_PROMETHEUS_TARGETS / "services.json").write_text(json.dumps(service_targets), encoding="utf-8")
+
+
+def start_observability(service_names: set[str], include_gateway: bool) -> None:
+    write_host_prometheus_targets(service_names, include_gateway)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "DRAMAIP_PROMETHEUS_CONFIG": str(HOST_PROMETHEUS_CONFIG),
+            "DRAMAIP_FILEBEAT_CONFIG": str(HOST_FILEBEAT_CONFIG),
+            "DRAMAIP_HOST_LOG_DIR": str(LOCAL_LOG_DIR),
+            "DRAMAIP_PROMETHEUS_TARGETS_DIR": str(HOST_PROMETHEUS_TARGETS),
+        }
+    )
+    info("Starting Prometheus, Collector, Jaeger, Elasticsearch, Kibana, Filebeat and Grafana...")
+    run_checked(observability_compose_command("up", "-d", *DOCKER_OBSERVABILITY_SERVICES), SCRIPT_DIR, environment)
+    wait_for_http("Prometheus", "http://127.0.0.1:9090/-/ready", 90.0)
+    wait_for_tcp("OpenTelemetry Collector", 4318, 90.0)
+    wait_for_http("Jaeger", "http://127.0.0.1:16686/", 90.0)
+    wait_for_http("Elasticsearch", "http://127.0.0.1:9200/", 120.0)
+    wait_for_http("Kibana", "http://127.0.0.1:5601/api/status", 180.0)
+    wait_for_http("Grafana", "http://127.0.0.1:3000/api/health", 120.0)
+    ok("local observability stack is ready")
 
 
 def wait_for_tcp(label: str, port: int, timeout: float) -> None:
@@ -249,7 +307,7 @@ def wait_for_http(label: str, url: str, timeout: float, process: subprocess.Pope
     raise RuntimeError(f"{label} was not healthy within {timeout:.0f}s: {last_error}")
 
 
-def local_environment() -> dict[str, str]:
+def local_environment(observability: bool = False) -> dict[str, str]:
     environment = os.environ.copy()
     database_password = environment.get("DRAMAIP_MIGRATION_ROLE_PASSWORD", environment.get("POSTGRES_PASSWORD", "dramaip"))
     environment.update(
@@ -293,10 +351,25 @@ def local_environment() -> dict[str, str]:
             "REVIEW_S3_ALLOW_INSECURE": environment.get("REVIEW_S3_ALLOW_INSECURE", "true"),
         }
     )
+    if observability:
+        environment.update(
+            {
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4318",
+                "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+                "OTEL_TRACES_EXPORTER": "otlp",
+                "OTEL_METRICS_EXPORTER": "none",
+                "OTEL_LOGS_EXPORTER": "none",
+                "OTEL_PROPAGATORS": "tracecontext,baggage",
+                "OTEL_TRACES_SAMPLER": "always_on",
+                "OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST": "",
+                "OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST": "",
+                "OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED": "true",
+            }
+        )
     return environment
 
 
-def run_migration(environment: dict[str, str]) -> None:
+def run_migration(environment: dict[str, str], agent: Path | None = None) -> None:
     migration_jar = runnable_jar("migration")
     if not migration_jar:
         raise RuntimeError("migration executable JAR is missing")
@@ -310,8 +383,13 @@ def run_migration(environment: dict[str, str]) -> None:
         }
     )
     info("Running the Java migration job locally...")
+    command = ["java", *LOCAL_DIRECT_SOCKET_JAVA_OPTS]
+    if agent:
+        migration_environment["OTEL_SERVICE_NAME"] = "migration"
+        command.append(f"-javaagent:{agent}")
+    command.extend(["-jar", str(migration_jar)])
     run_checked(
-        ["java", *LOCAL_DIRECT_SOCKET_JAVA_OPTS, "-jar", str(migration_jar)],
+        command,
         SERVER_DIR,
         migration_environment,
     )
@@ -476,11 +554,20 @@ def release_required_ports(service_names: set[str] | None = None, include_gatewa
     ok("local Java application ports are available")
 
 
-def start_process(name: str, jar: Path, environment: dict[str, str], port: int, database_user: str | None = None) -> subprocess.Popen[object]:
+def start_process(
+    name: str,
+    jar: Path,
+    environment: dict[str, str],
+    port: int,
+    database_user: str | None = None,
+    agent: Path | None = None,
+) -> subprocess.Popen[object]:
     service_environment = environment.copy()
     service_environment["SERVER_PORT"] = str(port)
     if database_user:
         service_environment["POSTGRES_USER"] = database_user
+    if agent:
+        service_environment["OTEL_SERVICE_NAME"] = name
     info(f"Starting local Java {name} on :{port}")
     options: dict[str, object] = {"cwd": str(SERVER_DIR), "env": service_environment}
     if os.name == "nt":
@@ -492,8 +579,12 @@ def start_process(name: str, jar: Path, environment: dict[str, str], port: int, 
     java_opts = service_environment.get("DRAMAIP_JAVA_OPTS") or DEFAULT_JAVA_OPTS
     info(f"{name} JVM: {java_opts}")
     with log_path.open("ab") as log_file:
+        command = ["java", *shlex.split(java_opts), *LOCAL_DIRECT_SOCKET_JAVA_OPTS]
+        if agent:
+            command.append(f"-javaagent:{agent}")
+        command.extend(["-jar", str(jar)])
         process = subprocess.Popen(
-            ["java", *shlex.split(java_opts), *LOCAL_DIRECT_SOCKET_JAVA_OPTS, "-jar", str(jar)],
+            command,
             stdout=log_file,
             stderr=subprocess.STDOUT,
             **options,
@@ -553,6 +644,7 @@ def start_local_java_services(
     processes: list[tuple[str, subprocess.Popen[object]]],
     selected: set[str] | None = None,
     start_gateway: bool = True,
+    agent: Path | None = None,
 ) -> None:
     names, gateway_wanted = resolve_selected_services(selected)
     gateway_wanted = gateway_wanted and start_gateway
@@ -562,7 +654,7 @@ def start_local_java_services(
     identity_jar = runnable_jar("services/identity")
     if not identity_jar:
         raise RuntimeError("identity executable JAR is missing")
-    identity = start_process("identity", identity_jar, environment, 8081, "dramaip_identity_svc")
+    identity = start_process("identity", identity_jar, environment, 8081, "dramaip_identity_svc", agent)
     processes.append(("identity", identity))
     wait_for_http("identity", "http://127.0.0.1:8081/actuator/health", 90.0, identity)
 
@@ -575,7 +667,7 @@ def start_local_java_services(
         jar = runnable_jar(module)
         if not jar:
             raise RuntimeError(f"{name} executable JAR is missing")
-        processes.append((name, start_process(name, jar, environment, port, database_user)))
+        processes.append((name, start_process(name, jar, environment, port, database_user, agent)))
         started_names.add(name)
     for name, _, port, _ in LOCAL_SERVICES[1:]:
         if name not in started_names:
@@ -590,12 +682,12 @@ def start_local_java_services(
     gateway_jar = runnable_jar("gateway")
     if not gateway_jar:
         raise RuntimeError("gateway executable JAR is missing")
-    gateway = start_process("gateway", gateway_jar, environment, GATEWAY_PORT)
+    gateway = start_process("gateway", gateway_jar, environment, GATEWAY_PORT, agent=agent)
     processes.append(("gateway", gateway))
     wait_for_http("gateway", f"http://127.0.0.1:{GATEWAY_PORT}/actuator/health", 90.0, gateway)
 
 
-def watch(processes: list[tuple[str, subprocess.Popen[object]]]) -> int:
+def watch(processes: list[tuple[str, subprocess.Popen[object]]], observability: bool = False) -> int:
     ok("local Java development stack is ready")
     print("")
     running_names = [name for name, _ in processes]
@@ -609,6 +701,8 @@ def watch(processes: list[tuple[str, subprocess.Popen[object]]]) -> int:
     detail = ", ".join(f"{name} :{service_ports[name]}" for name in started)
     print(f"Java services: {detail}")
     print("Start Web client separately: python run-platform-clients.py")
+    if observability:
+        print("Observability: Prometheus http://127.0.0.1:9090 · Jaeger http://127.0.0.1:16686 · Grafana http://127.0.0.1:3000")
     print("Press Ctrl+C to stop local Java processes. Docker infrastructure remains running.")
     try:
         while True:
@@ -626,6 +720,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run Java services locally and DramaIP infrastructure in Docker.")
     parser.add_argument("--skip-package", action="store_true", help="Use existing local executable JARs without Maven packaging.")
     parser.add_argument("--no-infra", action="store_true", help="Assume Docker infrastructure is already running.")
+    parser.add_argument("--obs", action="store_true", help="Start local Prometheus, OTLP, Jaeger, Elastic Stack and Grafana; attach the OTel Java agent.")
     parser.add_argument("--smoke", action="store_true", help="Start and health-check local Java services, then stop them and exit.")
     parser.add_argument(
         "--services",
@@ -665,21 +760,28 @@ def main() -> int:
             include_gateway=not args.no_gateway,
         )
         package_java_services(maven_command, args.skip_package)
+        agent = require_observability_agent() if args.obs else None
         if not args.no_infra:
             start_docker_infrastructure()
         else:
             warn("--no-infra: assuming Docker infrastructure is already running")
-        environment = local_environment()
-        run_migration(environment)
+        if args.obs:
+            start_observability(resolved, include_gateway=not args.no_gateway)
+        environment = local_environment(observability=args.obs)
+        run_migration(environment, agent)
         if selected is None:
             info("Starting the full local Java stack")
         else:
             info(f"--services: starting {', '.join(sorted(resolved))}" + (" (plus gateway)" if not args.no_gateway else " (--no-gateway)"))
-        start_local_java_services(environment, processes, selected=selected, start_gateway=not args.no_gateway)
+        start_local_java_services(environment, processes, selected=selected, start_gateway=not args.no_gateway, agent=agent)
         if args.smoke:
+            if args.obs and not args.no_gateway:
+                run_checked(["node", str(PLATFORM_DIR / "scripts" / "observability-smoke.mjs")], PLATFORM_DIR, environment)
+            elif args.obs:
+                warn("--obs --smoke without Gateway: Java health smoke passed; observability request smoke was skipped")
             ok("local Java development smoke check passed")
             return 0
-        return watch(processes)
+        return watch(processes, observability=args.obs)
     except (KeyboardInterrupt, RuntimeError) as exception:
         if isinstance(exception, RuntimeError):
             err(str(exception))

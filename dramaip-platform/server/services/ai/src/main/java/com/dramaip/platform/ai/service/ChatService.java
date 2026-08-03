@@ -2,6 +2,7 @@ package com.dramaip.platform.ai.service;
 
 import com.dramaip.platform.ai.AiProperties;
 import com.dramaip.platform.ai.client.QuotaClient;
+import com.dramaip.platform.common.observability.DramaipMetrics;
 import com.dramaip.platform.common.web.BusinessException;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.FutureTask;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -47,16 +49,19 @@ public class ChatService {
     private final RestClient restClient;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
+    private final DramaipMetrics metrics;
     private final HttpClient streamClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final ExecutorService streams = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
     private final ConcurrentHashMap<String, FutureTask<Void>> activeStreams = new ConcurrentHashMap<>();
 
-    public ChatService(AiProperties properties, QuotaClient quota, RestClient.Builder restClient, JdbcTemplate jdbc, ObjectMapper json) {
+    public ChatService(AiProperties properties, QuotaClient quota, RestClient.Builder restClient, JdbcTemplate jdbc, ObjectMapper json,
+            DramaipMetrics metrics) {
         this.properties = properties;
         this.quota = quota;
         this.restClient = restClient.build();
         this.jdbc = jdbc;
         this.json = json;
+        this.metrics = metrics;
     }
 
     public List<String> models() {
@@ -171,10 +176,12 @@ public class ChatService {
         Audit claimed = claim.audit();
 
         QuotaClient.Reservation reservation = null;
+        Timer.Sample providerSample = null;
         try {
             requireProvider();
             reservation = quota.reserve(new QuotaClient.ReserveRequest(idempotencyKey, estimateTokens(messages, preflight.maxTokens()))).data();
             jdbc.update("update ai_gateway.request_audits set reservation_id = ?::uuid, updated_at = now() where id = ?::uuid", reservation.id(), claimed.id());
+            providerSample = metrics.startProvider();
             ProviderReply reply = delta == null
                     ? providerCompletion(model, messages, preflight.maxTokens())
                     : providerStream(model, messages, preflight.maxTokens(), delta);
@@ -185,11 +192,14 @@ public class ChatService {
                         response_payload = jsonb_build_object('content', ?), finished_at = now(), updated_at = now()
                     where id = ?::uuid
                     """, reply.promptTokens(), reply.completionTokens(), usage.totalTokens(), reply.content(), claimed.id());
+            metrics.provider(providerSample, PROVIDER, "succeeded");
             return new Chat(idempotencyKey, PROVIDER, model, reply.content(), reply.promptTokens(), reply.completionTokens(), usage.totalTokens(), reservation.id(), "succeeded");
         } catch (ChatCancelledException exception) {
+            if (providerSample != null) metrics.provider(providerSample, PROVIDER, "failed");
             compensate(userId, reservation, claimed.id(), "canceled", "author canceled generation");
             throw exception;
         } catch (RuntimeException exception) {
+            if (providerSample != null) metrics.provider(providerSample, PROVIDER, "failed");
             compensate(userId, reservation, claimed.id(), "failed", safeError(exception));
             throw exception;
         }

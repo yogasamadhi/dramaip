@@ -113,9 +113,12 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${DRAMAIP_PROMETHEUS_CONFIG:-./prometheus/prometheus.yml}:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ./docker-data/prometheus:/prometheus
+      - ${DRAMAIP_PROMETHEUS_TARGETS_DIR:-../../server/target/local-dev/prometheus-targets}:/etc/prometheus/host-targets:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -162,14 +165,23 @@ services:
     image: elastic/filebeat:9.4.2
     pull_policy: missing
     user: root
-    command: ["filebeat", "-e", "--strict.perms=false"]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        curl -fsS -X PUT http://elasticsearch:9200/_index_template/dramaip-logs-java \
+          -H 'Content-Type: application/json' \
+          --data-binary @/usr/share/filebeat/dramaip-java-index-template.json >/dev/null
+        exec filebeat -e --strict.perms=false
     volumes:
-      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ${DRAMAIP_FILEBEAT_CONFIG:-./filebeat/filebeat.yml}:/usr/share/filebeat/filebeat.yml:ro
+      - ./filebeat/dramaip-java-index-template.json:/usr/share/filebeat/dramaip-java-index-template.json:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-data/filebeat:/usr/share/filebeat/data
+      - ${DRAMAIP_HOST_LOG_DIR:-../../server/target/local-dev}:/var/log/dramaip:ro
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
   # Elasticsearch 存储/检索。此 Compose 服务仅用于本机开发：安全功能关闭且所有
   # 端口限制在 loopback。生产环境必须使用启用认证、TLS、索引生命周期和最小权限
@@ -186,7 +198,9 @@ services:
       bootstrap.memory_lock: "true"
       xpack.security.enabled: "false"
       xpack.security.http.ssl.enabled: "false"
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # 256m keeps the full local Java + observability stack usable on the
+      # default 8GB Docker Desktop allocation. Override for larger data sets.
+      ES_JAVA_OPTS: "-Xms256m -Xmx256m -XX:MaxDirectMemorySize=128m"
     ulimits:
       memlock:
         soft: -1
@@ -194,13 +208,21 @@ services:
       nofile:
         soft: 65536
         hard: 65536
-    # Heap is 512m; allow headroom for Lucene off-heap segments and JVM
-    # overhead while still bounding the container under 1GB.
-    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-896m}
+    # Leave headroom for Lucene off-heap segments while keeping the entire
+    # local platform below Docker Desktop's common 8GB allocation.
+    # The 256MB heap still needs native/Lucene/ML headroom. One GiB remains
+    # well below the prior unbounded footprint and is stable alongside the
+    # heap-bounded Java services on an 8GB Docker Desktop allocation.
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
     ports:
       - "127.0.0.1:9200:9200"   # REST API（Kibana / Filebeat 连）
     volumes:
       - ./docker-data/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   kibana:
     profiles: [observability]
@@ -213,7 +235,8 @@ services:
     ports:
       - "127.0.0.1:5601:5601"
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
 
   # ────── 可视化前端：统一大盘，provisioning 同时接 Prometheus(指标,默认) + Elasticsearch(日志) ──────
   grafana:
@@ -231,18 +254,69 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./docker-data/grafana:/var/lib/grafana
     depends_on:
-      - prometheus
-      - elasticsearch
+      prometheus:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
 
   # ─────────────────── Java 服务端 ───────────────────
   # 镜像未指定 platform，Docker Desktop 会为 Windows/amd64、macOS/arm64
   # 选择宿主机对应的多架构基础镜像；Java 服务本身从本地源码构建。
+  # 从与运行中 Nacos 相同的镜像导出官方建表脚本。这样不需要在仓库中
+  # 复制一份会随 Nacos 版本漂移的 SQL；MySQL 仅在空数据目录初始化时执行它。
+  nacos-mysql-schema:
+    profiles: [java]
+    image: nacos/nacos-server:v3.1.1
+    pull_policy: missing
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    # Compose does not apply shell parsing to a string `command`; pass one
+    # complete script to `sh -ec` so cp receives both source and destination.
+    command: ["cp /home/nacos/conf/mysql-schema.sql /nacos-schema/01-nacos-schema.sql"]
+    volumes:
+      - nacos-mysql-schema:/nacos-schema
+
+  # Nacos 的持久化存储。mysql:8 由本机已有镜像满足，不会强制拉取。
+  nacos-mysql:
+    profiles: [java]
+    container_name: drama-nacos-mysql
+    image: mysql:8
+    pull_policy: missing
+    environment:
+      MYSQL_DATABASE: ${NACOS_MYSQL_DATABASE:-nacos_config}
+      MYSQL_USER: ${NACOS_MYSQL_USER:-nacos}
+      MYSQL_PASSWORD: ${NACOS_MYSQL_PASSWORD:-nacos}
+      MYSQL_ROOT_PASSWORD: ${NACOS_MYSQL_ROOT_PASSWORD:-nacos-root}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - ./docker-data/nacos-mysql:/var/lib/mysql
+      - nacos-mysql-schema:/docker-entrypoint-initdb.d:ro
+    depends_on:
+      nacos-mysql-schema:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   nacos:
     image: nacos/nacos-server:v3.1.1
     profiles: [java]
     environment:
       MODE: standalone
       PREFER_HOST_MODE: hostname
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: nacos-mysql
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: ${NACOS_MYSQL_DATABASE:-nacos_config}
+      MYSQL_SERVICE_USER: ${NACOS_MYSQL_USER:-nacos}
+      MYSQL_SERVICE_PASSWORD: ${NACOS_MYSQL_PASSWORD:-nacos}
+      # mysql:8 currently uses caching_sha2_password by default. The Nacos
+      # JDBC driver must retrieve the server key for this private Compose
+      # network connection when TLS is disabled.
+      MYSQL_SERVICE_DB_PARAM: "characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true"
       # Nacos 3 validates this value even when local authentication is not
       # enabled. It is a development-only default; deployments inject it.
       NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN:-VGhpcy1pcy1hLWxvY2FsLWRldmVsb3BtZW50LXRva2VuLWNoYW5nZS1tZQ==}
@@ -257,6 +331,9 @@ services:
     # 8848 is the HTTP API, 8849 is the Nacos 3 console (container 8080), and
     # 9848 is the Nacos gRPC client channel needed by Java services on the host.
     ports: ["8848:8848", "8849:8080", "9848:9848"]
+    depends_on:
+      nacos-mysql:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/v3/console/health/readiness >/dev/null"]
       interval: 5s
@@ -279,6 +356,10 @@ services:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: migration } }
     environment:
+      # Eight Spring Boot JVMs plus the local Elastic stack run together in
+      # observability mode. Bound each heap so Docker Desktop does not evict
+      # Elasticsearch on an 8GB development allocation.
+      JAVA_OPTS: "${JAVA_OPTS:--Xms64m -Xmx256m -XX:+UseG1GC}"
       POSTGRES_DSN: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dramaip}
       POSTGRES_USER: ${POSTGRES_USER:-dramaip}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dramaip}
@@ -286,12 +367,25 @@ services:
       HISTORICAL_MIGRATIONS_APPLY_PENDING: ${HISTORICAL_MIGRATIONS_APPLY_PENDING:-true}
       DB_ROLE_BOOTSTRAP: ${DB_ROLE_BOOTSTRAP:-true}
       DRAMAIP_MIGRATION_ROLE_PASSWORD: ${DRAMAIP_MIGRATION_ROLE_PASSWORD:-dramaip}
+      OTEL_SERVICE_NAME: migration
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST: ""
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST: ""
+      OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED: "true"
+      OTEL_JAVAAGENT_OPTS: ${OTEL_JAVAAGENT_OPTS:-}
     depends_on: { postgres: { condition: service_healthy } }
 
   java-gateway:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: gateway } }
     environment: &java-env
+      JAVA_OPTS: "${JAVA_OPTS:--Xms64m -Xmx256m -XX:+UseG1GC}"
       NACOS_SERVER_ADDR: nacos:8848
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD:-dramaip}
@@ -299,6 +393,18 @@ services:
       JWT_ENABLED: ${JWT_ENABLED:-true}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3009,http://127.0.0.1:3009,http://localhost:3010,http://127.0.0.1:3010}
       DRAMAIP_INTERNAL_TOKEN: ${DRAMAIP_INTERNAL_TOKEN:-change-me-internal}
+      OTEL_SERVICE_NAME: gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST: ""
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST: ""
+      OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED: "true"
+      OTEL_JAVAAGENT_OPTS: ${OTEL_JAVAAGENT_OPTS:-}
     ports: ["8080:8080"]
     depends_on: { nacos: { condition: service_healthy }, java-migration: { condition: service_completed_successfully } }
 
@@ -306,6 +412,7 @@ services:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/identity } }
     environment: &java-service-env
+      JAVA_OPTS: "${JAVA_OPTS:--Xms64m -Xmx256m -XX:+UseG1GC}"
       POSTGRES_DSN: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-dramaip}
       POSTGRES_PASSWORD: ${POSTGRES_IDENTITY_PASSWORD:-dramaip}
       REDIS_HOST: redis
@@ -333,6 +440,18 @@ services:
       REVIEW_S3_ACCESS_KEY: ${REVIEW_S3_ACCESS_KEY:-dramaip-review}
       REVIEW_S3_SECRET_KEY: ${REVIEW_S3_SECRET_KEY:-dramaip-review-development-secret}
       REVIEW_S3_ALLOW_INSECURE: ${REVIEW_S3_ALLOW_INSECURE:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_PROPAGATORS: tracecontext,baggage
+      OTEL_TRACES_SAMPLER: always_on
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_SERVER_REQUEST: ""
+      OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS_CLIENT_REQUEST: ""
+      OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED: "true"
+      OTEL_JAVAAGENT_OPTS: ${OTEL_JAVAAGENT_OPTS:-}
+      OTEL_SERVICE_NAME: identity
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
 
   java-notification:
@@ -342,6 +461,7 @@ services:
       <<: *java-service-env
       POSTGRES_USER: dramaip_notification_svc
       POSTGRES_PASSWORD: ${POSTGRES_NOTIFICATION_SVC_PASSWORD:-dramaip}
+      OTEL_SERVICE_NAME: notification
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
 
   java-reporting:
@@ -351,28 +471,40 @@ services:
       <<: *java-service-env
       POSTGRES_USER: dramaip_reporting_svc
       POSTGRES_PASSWORD: ${POSTGRES_REPORTING_SVC_PASSWORD:-dramaip}
+      OTEL_SERVICE_NAME: reporting
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
 
   creation:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/creation } }
-    environment: *java-service-env
+    environment:
+      <<: *java-service-env
+      OTEL_SERVICE_NAME: creation
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy } }
 
   java-quota:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/quota } }
-    environment: *java-service-env
+    environment:
+      <<: *java-service-env
+      OTEL_SERVICE_NAME: quota
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
 
   ai:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/ai } }
-    environment: *java-service-env
+    environment:
+      <<: *java-service-env
+      OTEL_SERVICE_NAME: ai
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
 
   java-billing:
     profiles: [java]
     build: { context: ../.., dockerfile: server/Dockerfile, args: { MODULE: services/billing } }
-    environment: *java-service-env
+    environment:
+      <<: *java-service-env
+      OTEL_SERVICE_NAME: billing
     depends_on: { java-migration: { condition: service_completed_successfully }, nacos: { condition: service_healthy }, seata: { condition: service_started } }
+
+volumes:
+  nacos-mysql-schema:
