@@ -31,7 +31,7 @@ A request without the required contract header receives HTTP 426 and
 `COMMON_CONTRACT_VERSION_UNSUPPORTED`. Breaking changes require a new
 versioned contract; additive fields stay optional in the current version.
 
-`pnpm contracts:check` is the CI gate. When it can inspect `origin/main`, any
+`bun run contracts:check` is the CI gate. When it can inspect `origin/main`, any
 change to the published schema without a contract-version bump fails the gate.
 The command also verifies that Admin and Mobile parse key responses through
 the shared schemas and that each public client declares the version header.

@@ -21,8 +21,8 @@ DramaIP 是一个以本地优先为基础的 AI 短剧 IP 创作工作台。工�
 
 ```bash
 cd dramaip-desktop
-pnpm test
-pnpm test:e2e
+bun run test
+bun run test:e2e
 ```
 
 平台端：

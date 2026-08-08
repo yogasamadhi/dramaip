@@ -49,11 +49,11 @@ web-route-smoke:
 	node scripts/web-route-smoke.mjs
 
 client-contracts:
-	cd clients && pnpm contracts:check
+	cd clients && bun run contracts:check
 
 test:
 	cd server && mvn -B -ntp verify
-	cd clients && pnpm typecheck
-	cd clients && pnpm test
+	cd clients && bun run typecheck
+	cd clients && bun run test
 	$(MAKE) client-contracts
 	$(MAKE) web-route-smoke

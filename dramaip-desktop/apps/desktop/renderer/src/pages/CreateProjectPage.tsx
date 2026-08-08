@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronDown, ChevronUp, FilePlus2, Library, Lightbulb, MessageSquare, Sparkles, Upload } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, FilePlus2, Library, Lightbulb, MessageSquare, Sparkles, Upload } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { GenrePreset } from '@sdns/core'
 import {
   DEFAULT_GENRE_MARKET_SNAPSHOT,
@@ -179,18 +180,47 @@ export function CreateProjectPage() {
         <Button variant="ghost" size="icon" aria-label="返回项目列表" onClick={() => navigate('/')}>
           <ArrowLeft />
         </Button>
-        <h1 className="text-lg font-semibold">创建项目</h1>
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold">创建项目</h1>
+          <p className="text-xs text-muted-foreground">选择创作路径并填写作品名称，其余设定可稍后补全。</p>
+        </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center overflow-auto p-6">
-        <div className="w-full max-w-xl space-y-6">
-          <section className="grid gap-2 sm:grid-cols-3" aria-label="创建路径">
-            {PROJECT_CREATION_GOAL_OPTIONS.map((option) => (
-              <Button key={option.value} variant={creationGoal === option.value ? 'secondary' : 'outline'} className="h-auto justify-start py-3 text-left" onClick={() => chooseCreationGoal(option.value)}>
-                {option.value === 'novel_to_drama' ? <Lightbulb /> : option.value === 'adapt_existing_ip' ? <Library /> : <FilePlus2 />}
-                <span><span className="block">{option.label}</span><span className="block text-xs font-normal text-muted-foreground">{option.description}</span></span>
-              </Button>
-            ))}
+      <main className="flex flex-1 items-start justify-center overflow-auto p-6">
+        <div className="studio-rise-in my-auto w-full max-w-xl space-y-7 py-2">
+          <section className="space-y-2.5" aria-label="创建路径">
+            <div className="text-sm font-medium">选择创作路径</div>
+            <div className="grid gap-2.5 sm:grid-cols-3">
+              {PROJECT_CREATION_GOAL_OPTIONS.map((option) => {
+                const selected = creationGoal === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => chooseCreationGoal(option.value)}
+                    className={cn(
+                      'group relative flex min-w-0 flex-col items-start gap-2.5 rounded-xl border p-4 text-left transition-[background-color,border-color,box-shadow] duration-150',
+                      selected
+                        ? 'border-iris/50 bg-iris-soft shadow-sm ring-1 ring-iris/30'
+                        : 'border-border bg-surface hover:border-iris/30 hover:bg-accent/50',
+                    )}
+                  >
+                    {selected && <CheckCircle2 aria-hidden className="absolute right-3 top-3 h-4 w-4 text-iris" />}
+                    <span
+                      className={cn(
+                        'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
+                        selected ? 'bg-iris text-iris-foreground' : 'bg-muted text-muted-foreground group-hover:text-foreground',
+                      )}
+                    >
+                      {option.value === 'novel_to_drama' ? <Lightbulb className="h-4 w-4" /> : option.value === 'adapt_existing_ip' ? <Library className="h-4 w-4" /> : <FilePlus2 className="h-4 w-4" />}
+                    </span>
+                    <span className="block text-sm font-semibold leading-tight">{option.label}</span>
+                    <span className="block text-xs leading-relaxed text-muted-foreground">{option.description}</span>
+                  </button>
+                )
+              })}
+            </div>
           </section>
           <div className="space-y-2">
             <Label htmlFor="create-project-title" className="text-base">作品名称 *</Label>
@@ -221,7 +251,17 @@ export function CreateProjectPage() {
           {!advanced && (
             <div className="space-y-2">
               <div className="text-sm font-medium">先选一个类型（可选）</div>
-              <div className="flex flex-wrap gap-2">{typeOptions.slice(0, 8).map((type) => <Button key={type} size="sm" variant={shortDramaType === type ? 'secondary' : 'outline'} onClick={() => chooseType(type)}>{type}</Button>)}</div>
+              <div className="flex flex-wrap gap-2">{typeOptions.slice(0, 8).map((type) => (
+                <Button
+                  key={type}
+                  size="sm"
+                  variant={shortDramaType === type ? 'default' : 'outline'}
+                  className={cn('rounded-full', shortDramaType !== type && 'bg-surface text-muted-foreground hover:text-foreground')}
+                  onClick={() => chooseType(type)}
+                >
+                  {type}
+                </Button>
+              ))}</div>
             </div>
           )}
 
@@ -235,7 +275,7 @@ export function CreateProjectPage() {
           </button>
 
           {advanced && (
-            <div className="space-y-3 rounded-md border p-4">
+            <div className="space-y-3 rounded-xl border bg-surface p-4 shadow-card">
               <div className="space-y-2">
                 <Label>题材机会（可选）</Label>
                 <Select value={genreOpportunityId || 'none'} onValueChange={(value) => value === 'none' ? setGenreOpportunityId('') : chooseOpportunity(value)}>
@@ -282,7 +322,7 @@ export function CreateProjectPage() {
                   管理类型库
                 </Button>
               </div>
-              <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+              <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                 <div>
                   <Label>生产 Profile</Label>
                   <p className="mt-1 text-xs text-muted-foreground">这些是可编辑的制作建议，会随项目简报保存；不是平台热度、费用或效果承诺。</p>
@@ -334,7 +374,7 @@ export function CreateProjectPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 border-t pt-5">
             <Button size="lg" onClick={handleSubmit} disabled={submitting}>
               <Sparkles />
               {creationGoal === 'direct_drama' ? '创建并设置第一季' : '创建项目'}

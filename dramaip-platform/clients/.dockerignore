@@ -8,4 +8,5 @@ coverage
 .env.*
 !.env.example
 npm-debug.log*
-pnpm-debug.log*
+bun-debug.log*
+bun-error.log*

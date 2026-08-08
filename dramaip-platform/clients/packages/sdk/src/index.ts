@@ -311,6 +311,11 @@ const JavaNotificationSchema = z.object({
   id: z.string(), type: z.string(), title: z.string(), body: z.string(), sourceEventId: z.string().nullish(),
   readAt: z.string().nullish(), createdAt: z.string(),
 })
+const JavaPlanSchema = z.object({
+  id: z.string(), code: z.string(), name: z.string(), billingPeriod: z.string(), amountMinor: z.number(),
+  currency: z.string(), monthlyTokenQuota: z.number(), maxRpm: z.number(), maxContextTokens: z.number(),
+  modelLevel: z.string(), purchaseMode: z.string(), entitlements: z.string().default('{}'),
+})
 
 function profileFromJava(value: unknown): Profile {
   const item = JavaProfileSchema.parse(value)
@@ -384,6 +389,44 @@ function notificationsFromJava(value: unknown): NotificationsResponse {
   return NotificationsResponseSchema.parse({
     notifications: items.map(notificationFromJava), unread_count: items.filter((item) => !item.readAt).length,
   })
+}
+
+// Entitlements are stored server-side as a JSON string (selected via entitlements::text);
+// parse it back into the object the catalogue expects, falling back to an empty
+// entitlement set so a single malformed plan row never blanks the whole page.
+const EmptyPlanEntitlements = {
+  included_seats: 0, byok_enabled: false, offline_review_enabled: false, advanced_export_enabled: false,
+  cloud_review_enabled: false, review_storage_bytes: 0, review_retention_days: 0, private_gateway_enabled: false,
+}
+function planEntitlementsFromJava(raw: string): PlanEntitlements {
+  try {
+    const parsed = PlanEntitlementsSchema.safeParse(JSON.parse(raw))
+    if (parsed.success) return parsed.data
+  } catch {
+    // A malformed historical plan row must not blank the whole catalogue.
+  }
+  return PlanEntitlementsSchema.parse(EmptyPlanEntitlements)
+}
+
+// The catalogue treats the plan code as the stable identifier (sorting, plan-code
+// matching, checkout); the Java Plan record exposes it as `code`, with `id` being
+// the row UUID. Amounts arrive as minor units (fen) and purchase modes use the
+// backend spelling, so both are normalised at the client boundary.
+function planFromJava(value: unknown): Plan {
+  const item = JavaPlanSchema.parse(value)
+  return PlanSchema.parse({
+    id: item.code,
+    name: item.name,
+    price_cny: item.amountMinor / 100,
+    quota_tokens: item.monthlyTokenQuota,
+    description: '',
+    purchase_mode: item.purchaseMode === 'sales_contact' ? 'sales_contact' : 'self_serve',
+    entitlements: planEntitlementsFromJava(item.entitlements),
+  })
+}
+
+function plansFromJava(value: unknown): PlansResponse {
+  return PlansResponseSchema.parse({ plans: z.array(JavaPlanSchema).parse(value).map(planFromJava) })
 }
 
 type AccountSection<T> = {
@@ -743,7 +786,7 @@ export function createApiClient(options: ApiClientOptions): DramaIpApiClient {
     },
     async getPlans() {
       const res = await http.get('/api/v1/plans')
-      return PlansResponseSchema.parse(res.data)
+      return plansFromJava(res.data)
     },
     async getProfile() {
       const res = await http.get('/api/v1/users/me/profile')

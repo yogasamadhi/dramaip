@@ -8,7 +8,7 @@ let packageJsonPath
 try {
   packageJsonPath = requireFromDesktop.resolve('better-sqlite3/package.json')
 } catch {
-  console.error('Cannot resolve better-sqlite3 from apps/desktop. Run pnpm install first.')
+  console.error('Cannot resolve better-sqlite3 from apps/desktop. Run bun install first.')
   process.exit(1)
 }
 

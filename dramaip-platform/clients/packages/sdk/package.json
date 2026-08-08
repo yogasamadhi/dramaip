@@ -10,9 +10,9 @@
     "./contracts": "./src/contracts.ts"
   },
   "scripts": {
-    "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "lint": "bun --bun run tsc --noEmit",
+    "typecheck": "bun --bun run tsc --noEmit",
+    "test": "bun test tests/*.test.ts"
   },
   "dependencies": {
     "axios": "^1.7.7",

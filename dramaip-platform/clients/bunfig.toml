@@ -1,0 +1,7 @@
+[install]
+# Metro/Babel (Expo) resolve plugins by *name string* via Node's classic
+# upward module resolution, which requires transitive deps to be hoisted to the
+# project root. The "isolated" linker leaves them only in the .bun store and
+# breaks that lookup ("Cannot find module '@babel/plugin-transform-react-jsx'").
+linker = "hoisted"
+auto = "disable"

@@ -5,7 +5,7 @@
 ## 前置条件
 
 - Docker Desktop（Windows 和 macOS 均使用本机 Linux containers 模式）
-- JDK 21、全局 Apache Maven 3.9+、Node.js 20+、pnpm（运行 Web 时）
+- JDK 21、全局 Apache Maven 3.9+、Bun 1.3.14（Web、Admin、SDK 工具链）和 Node.js 20+（Mobile Expo 运行时）
 
 不要强制 Docker 平台。Docker Desktop 会按当前主机选择 amd64 或 arm64 的多架构镜像。服务 JAR 由本机 JDK 21/全局 Maven 构建，Docker 仅使用 `amazoncorretto:21-alpine` 将其封装为运行时镜像。
 
@@ -40,6 +40,17 @@ cd dramaip-platform
 make platform-up
 make platform-e2e
 make platform-down
+```
+
+客户端 workspace 使用 Bun 1.3.14。Web、Admin 和 SDK 的开发、构建、检查和测试均由 Bun 执行；Mobile 由 Bun 调度，
+但 Expo CLI 和安全 smoke 明确使用 Node 运行：
+
+```bash
+cd dramaip-platform/clients
+bun install
+bun run dev:web
+bun run dev:admin
+bun run dev:mobile
 ```
 
 等价的直接 Compose 命令为：

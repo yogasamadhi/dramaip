@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const bun = process.platform === 'win32' ? 'bun.exe' : 'bun'
 
 function run(command, args) {
   const result = spawnSync(command, args, {
@@ -30,6 +30,6 @@ if (status === 0) {
   status = run(process.execPath, ['--import', 'tsx', '--test', ...testFiles('tests')])
 }
 
-// 单测无论成功或失败都恢复桌面运行时，避免下一次 pnpm dev 命中 Node ABI。
-const restoreStatus = run(pnpm, ['rebuild:electron'])
+// 单测无论成功或失败都恢复桌面运行时，避免下一次 bun dev 命中 Node ABI。
+const restoreStatus = run(bun, ['run', 'rebuild:electron'])
 process.exit(status || restoreStatus)

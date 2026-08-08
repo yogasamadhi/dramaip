@@ -17,17 +17,17 @@ public class ReportingService {
         var summary = jdbc.query("""
                 select first_seen_at, last_seen_at, total_tokens, last_plan_code
                 from reporting.user_summaries where user_id = ?::uuid
-                """, (rs, row) -> new UsageSummary(rs.getObject(1, Instant.class), rs.getObject(2, Instant.class), rs.getLong(3), rs.getString(4)), userId);
+                """, (rs, row) -> new UsageSummary(instant(rs, 1), instant(rs, 2), rs.getLong(3), rs.getString(4)), userId);
         var orders = jdbc.query("""
                 select order_id::text, plan_code, provider, round(amount * 100)::bigint, currency, status, subscription_id::text, updated_at
                 from reporting.order_summaries where user_id = ?::uuid order by updated_at desc limit ?
                 """, (rs, row) -> new OrderSummary(rs.getString(1), rs.getString(2), rs.getString(3), rs.getLong(4), rs.getString(5),
-                rs.getString(6), rs.getString(7), rs.getObject(8, Instant.class)), userId, bounded);
+                rs.getString(6), rs.getString(7), instant(rs, 8)), userId, bounded);
         var subscriptions = jdbc.query("""
                 select subscription_id::text, plan_code, status, period_start, period_end, updated_at
                 from reporting.subscription_summaries where user_id = ?::uuid order by updated_at desc limit ?
-                """, (rs, row) -> new SubscriptionSummary(rs.getString(1), rs.getString(2), rs.getString(3), rs.getObject(4, Instant.class),
-                rs.getObject(5, Instant.class), rs.getObject(6, Instant.class)), userId, bounded);
+                """, (rs, row) -> new SubscriptionSummary(rs.getString(1), rs.getString(2), rs.getString(3), instant(rs, 4),
+                instant(rs, 5), instant(rs, 6)), userId, bounded);
         return new UserReport(summary.isEmpty() ? UsageSummary.empty() : summary.getFirst(), orders, subscriptions);
     }
 
@@ -109,6 +109,10 @@ public class ReportingService {
     }
 
     private static String clean(String value) { return value == null ? "" : value.trim(); }
+    private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException {
+        var timestamp = rs.getTimestamp(index);
+        return timestamp == null ? null : timestamp.toInstant();
+    }
 
     private record Page(int limit, int offset) {
         <T> List<T> rows(List<T> rows) { return rows.size() > limit ? rows.subList(0, limit) : rows; }

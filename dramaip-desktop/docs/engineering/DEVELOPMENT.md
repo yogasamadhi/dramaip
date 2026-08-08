@@ -12,7 +12,7 @@
 | AI 编排 | LangGraph（`@langchain/langgraph`） |
 | AI 模型 | OpenAI-compatible（任意符合该协议的 Provider） |
 | 本地存储 | SQLite（better-sqlite3）+ Drizzle ORM |
-| 包管理 | pnpm workspace |
+| 包管理 | Bun workspace（1.3.14） |
 
 ## 仓库结构
 
@@ -79,7 +79,7 @@ DB 层 (packages/db/repositories/*) → SQLite
 - **新增迁移**：在 `MIGRATIONS` 数组追加一个 `{ version, name, up(raw) }`。新表使用 `CREATE TABLE IF NOT EXISTS`，新增列使用 `addColumnIfMissing` 或 `migrations.ts` 的列级 helper，保持幂等。
 - `createDb(dbPath)` 启动时自动 `runMigrations`：首次建全部表为 v1；旧库经 IF NOT EXISTS 安全补齐，**数据零丢失**。
 - **新增列**（对已有表）：优先在 `migrations.ts` 的 `ADD_COLUMN_SPECS` 加 `{ table, column, sql }`，`ensureColumns` 会用 `PRAGMA table_info` 探测后 `ALTER TABLE ADD COLUMN`。
-- 验证：`pnpm test:db` 会运行迁移回放测试和 `scripts/smoke-db.ts`，并在结束后恢复 Electron ABI。
+- 验证：`bun run test:db` 会运行迁移回放测试和 `scripts/smoke-db.ts`，并在结束后恢复 Electron ABI。
 
 ## 模型配置（v1.0）
 
@@ -96,24 +96,23 @@ DB 层 (packages/db/repositories/*) → SQLite
 ## 构建与打包
 
 ```bash
-pnpm install            # 安装依赖（.npmrc 已配置 Electron 镜像）
-pnpm install:electron   # 下载 Electron 43.2.0 二进制
-pnpm typecheck          # 全量类型检查（5 个包）
-pnpm test:unit          # Node 内置 test runner + tsx 的轻量单元测试
-pnpm test:db            # 切 Node ABI → 迁移/DB smoke → 切回 Electron ABI
-pnpm test:e2e          # Electron E2E smoke：创建项目/章节/模型配置/项目包往返
-pnpm test              # typecheck + unit + DB smoke
-pnpm format:check      # 轻量格式检查（尾随空白/文件末尾换行）
-pnpm dev                # 启动开发模式
-pnpm --filter @sdns/desktop build   # 构建产物
-pnpm package            # electron-builder 打包（mac dmg / win nsis / linux AppImage+deb）
-pnpm package:smoke      # 本平台安装包 + 打包后启动/DB 初始化 smoke
+bun install                 # 安装依赖（.npmrc 已配置 Electron 镜像）
+bun run typecheck           # 全量类型检查（5 个包）
+bun run test:unit           # Node 内置 test runner + tsx 的轻量单元测试
+bun run test:db             # 切 Node ABI → 迁移/DB smoke → 切回 Electron ABI
+bun run test:e2e            # Electron E2E smoke：创建项目/章节/模型配置/项目包往返
+bun run test                # typecheck + unit + DB smoke
+bun run format:check        # 轻量格式检查（尾随空白/文件末尾换行）
+bun run dev                 # 启动开发模式
+bun run --filter @sdns/desktop build   # 构建产物
+bun run package             # electron-builder 打包（mac dmg / win nsis / linux AppImage+deb）
+bun run package:smoke       # 本平台安装包 + 打包后启动/DB 初始化 smoke
 ```
 
-- `pnpm test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a pnpm test:e2e`。
+- `bun run test:e2e` 会先构建桌面端并把 `better-sqlite3` 重编到 Electron ABI；Linux 无显示环境可用 `xvfb-run -a bun run test:e2e`。
 - 原生模块 `.node` 二进制在 `electron-builder.yml` 的 `asarUnpack` 中解包。
 - 打包 smoke 详见 [RELEASE.md](../release/RELEASE.md)。
-- `pnpm test:db` 封装了 `pnpm rebuild:node` 与 `pnpm rebuild:electron`，通常不需要手动进入 `node_modules` 重编。
+- `bun run test:db` 封装了 `bun run rebuild:node` 与 `bun run rebuild:electron`，通常不需要手动进入 `node_modules` 重编。
 
 ## 安全与运行时边界
 

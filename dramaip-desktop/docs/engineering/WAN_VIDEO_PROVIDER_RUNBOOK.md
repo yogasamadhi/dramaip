@@ -50,7 +50,7 @@ Wan 的成功 `video_url` 只保留约 24 小时，Desktop 主进程在成功轮
 真实 smoke 会创建一个会计费视频，因此只能在拥有账号、预算和内容授权的受控环境执行：
 
 ```bash
-pnpm test:wan:sandbox
+bun run test:wan:sandbox
 ```
 
 该命令要求受管环境提供 `WAN_SANDBOX_API_KEY` 和明确的

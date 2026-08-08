@@ -20,7 +20,7 @@ public class NotificationService {
                 select id::text, type, title, body, source_event_id, read_at, created_at
                 from notification.notifications where user_id = ?::uuid order by created_at desc limit ?
                 """, (rs, row) -> new Notification(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
-                rs.getObject(6, Instant.class), rs.getObject(7, Instant.class)), userId, bounded);
+                instant(rs, 6), instant(rs, 7)), userId, bounded);
     }
 
     public List<DeliveryAttempt> deliveryAttempts(String status, int limit) {
@@ -47,9 +47,14 @@ public class NotificationService {
                 where id = ?::uuid and user_id = ?::uuid
                 returning id::text, type, title, body, source_event_id, read_at, created_at
                 """, rs -> rs.next() ? new Notification(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5),
-                rs.getObject(6, Instant.class), rs.getObject(7, Instant.class)) : null, notificationId, userId);
+                instant(rs, 6), instant(rs, 7)) : null, notificationId, userId);
         if (notification == null) throw new BusinessException("SUPPORT_NOTIFICATION_NOT_FOUND", "notification not found", HttpStatus.NOT_FOUND);
         return notification;
+    }
+
+    private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException {
+        var timestamp = rs.getTimestamp(index);
+        return timestamp == null ? null : timestamp.toInstant();
     }
 
     public record Notification(String id, String type, String title, String body, String sourceEventId, Instant readAt, Instant createdAt) { }

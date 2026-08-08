@@ -7,17 +7,17 @@
 在干净的 release 分支和已注入签名凭据的环境中执行：
 
 ```bash
-pnpm format:check
-pnpm typecheck
-pnpm test:unit
-pnpm test:db
-pnpm --filter @sdns/desktop rebuild:electron
-pnpm build
-pnpm test:e2e:skip-build
-pnpm test:ui:skip-build
-pnpm package:smoke
-pnpm release:metadata
-DRAMAIP_RELEASE_STAGE=ga pnpm release:gate
+bun run format:check
+bun run typecheck
+bun run test:unit
+bun run test:db
+bun run --filter @sdns/desktop rebuild:electron
+bun run build
+bun run test:e2e:skip-build
+bun run test:ui:skip-build
+bun run package:smoke
+bun run release:metadata
+DRAMAIP_RELEASE_STAGE=ga bun run release:gate
 ```
 
 `test:unit` 会先为当前 Node ABI 重建 `better-sqlite3`，并且无论成功或失败都会恢复
@@ -30,7 +30,7 @@ Electron ABI；`test:db` 结束时也会恢复原生模块。因此发布 Gate �
 
 ## 打包、安装与升级
 
-`pnpm package:smoke` 会产出本平台安装包（macOS 为 DMG/ZIP），并从未签名的解包应用启动 smoke，验证：主进程、
+`bun run package:smoke` 会产出本平台安装包（macOS 为 DMG/ZIP），并从未签名的解包应用启动 smoke，验证：主进程、
 preload、SQLite 迁移、FFmpeg、asar 解包的原生模块、文件关联与首启。它不替代 macOS 公证、Windows 签名或 Linux
 发行包的人工安装。
 

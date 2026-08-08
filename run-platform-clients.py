@@ -11,6 +11,7 @@ Usage:
   python3 run-platform-clients.py --no-install
   python3 run-platform-clients.py --no-kill-ports
   python3 run-platform-clients.py --api-base-url http://localhost:8080
+  python3 run-platform-clients.py --mobile-target ios|android|none
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import os
 import platform
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -29,7 +31,11 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CLIENTS_DIR = SCRIPT_DIR / "dramaip-platform" / "clients"
-CLIENT_INSTALL_MARKER = CLIENTS_DIR / "node_modules" / ".modules.yaml"
+# node_modules/.bin is produced by Bun under BOTH the "isolated" and "hoisted"
+# install linkers (unlike node_modules/.bun, which only exists under "isolated").
+# Metro/Babel require the "hoisted" linker, so this marker must be layout-agnostic
+# or the dep-completeness gate fails after switching off the isolated layout.
+CLIENT_INSTALL_MARKER = CLIENTS_DIR / "node_modules" / ".bin"
 WEB_APP_DIR = CLIENTS_DIR / "apps" / "web"
 ADMIN_APP_DIR = CLIENTS_DIR / "apps" / "admin"
 MOBILE_APP_DIR = CLIENTS_DIR / "apps" / "mobile"
@@ -41,6 +47,7 @@ CLIENT_MODULE_CHECKS = (
     ("@dramaip/sdk", SDK_DIR, ("axios", "zod")),
 )
 NODE_MIN_MAJOR = 20
+BUN_VERSION = "1.3.14"
 GATEWAY_PORT = 8080
 WEB_PORT = 3009  # 与 clients/apps/web/package.json 的 `next dev -p 3009` 对齐
 ADMIN_PORT = 3010  # 与 clients/apps/admin/package.json 的 Vite 端口对齐
@@ -125,8 +132,8 @@ def run_foreground(cmd: list[str], cwd: Path) -> None:
     options: dict[str, object] = {"cwd": str(cwd), "check": True}
     if os.name == "nt":
         # Windows' CreateProcess does not resolve batch files by command name.
-        # Let cmd.exe resolve `pnpm` through PATHEXT without changing the
-        # command itself to a batch filename.
+        # Let cmd.exe resolve Bun and Node through PATHEXT without changing
+        # the command itself to a platform-specific executable filename.
         command = subprocess.list2cmdline(cmd)
         options["shell"] = True
     try:
@@ -170,17 +177,22 @@ def check_node() -> None:
     ok(f"node {version}")
 
 
-def resolve_pnpm() -> list[str]:
-    if shutil.which("pnpm"):
-        return ["pnpm"]
-    if shutil.which("corepack"):
-        warn("pnpm was not found on PATH; using corepack pnpm.")
-        return ["corepack", "pnpm"]
-    err("pnpm/corepack is not available. Install pnpm or enable corepack first.")
+def resolve_bun() -> list[str]:
+    if shutil.which("bun"):
+        return ["bun"]
+    err("Bun is not available. Install Bun 1.3.14 first: https://bun.sh/docs/installation")
     sys.exit(1)
 
 
-def ensure_client_deps(pnpm: list[str], install_mode: str) -> None:
+def check_bun(bun: list[str]) -> None:
+    version = command_output(bun + ["--version"], CLIENTS_DIR)
+    if version != BUN_VERSION:
+        err(f"Bun version mismatch: found {version or 'unknown'}, need {BUN_VERSION}.")
+        sys.exit(1)
+    ok(f"bun {version}")
+
+
+def ensure_client_deps(bun: list[str], install_mode: str) -> None:
     if install_mode == "skip":
         warn("Skipping clients dependency install.")
         return
@@ -190,10 +202,10 @@ def ensure_client_deps(pnpm: list[str], install_mode: str) -> None:
         ok("clients dependencies already installed")
         return
 
-    info("Installing clients dependencies with pnpm install...")
-    run_foreground(pnpm + ["install"], CLIENTS_DIR)
+    info("Installing clients dependencies with bun install...")
+    run_foreground(bun + ["install"], CLIENTS_DIR)
     if not client_modules_resolve():
-        err("Clients dependencies are still incomplete after pnpm install.")
+        err("Clients dependencies are still incomplete after bun install.")
         sys.exit(1)
     ok("clients dependencies ready")
 
@@ -438,7 +450,7 @@ def cleanup_client_processes(
         except RuntimeError as exc:
             errors.append(str(exc))
 
-    # pnpm runs through cmd.exe on Windows. If a shell already exited, locate
+    # Bun commands run through cmd.exe on Windows. If a shell already exited, locate
     # and remove any surviving Next.js, Vite, or Expo listener by port.
     for _, label, port, _ in processes:
         try:
@@ -452,33 +464,118 @@ def cleanup_client_processes(
     ok(f"Client processes stopped; port(s) {ports} are free")
 
 
-def watch(processes: list[tuple[str, str, int, subprocess.Popen]], api_base_url: str) -> int:
+def lan_ip() -> str | None:
+    """Best-effort primary LAN IPv4 address (UDP connect trick; sends no packets)."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+        finally:
+            sock.close()
+    except OSError:
+        return None
+
+
+def qrcode_terminal_root() -> Path | None:
+    """Resolve the qrcode-terminal package bun vendors as a transitive Expo dep."""
+    store = CLIENTS_DIR / "node_modules" / ".bun"
+    matches = sorted(store.glob("qrcode-terminal@*/node_modules/qrcode-terminal"))
+    return matches[0] if matches else None
+
+
+def print_expo_go_qr() -> None:
+    """Print a scannable Expo Go QR (exp://<lan-ip>:<port>) for physical devices."""
+    ip = lan_ip()
+    if not ip:
+        warn("Could not detect a LAN IP; Expo Go on a physical device needs one on the same network.")
+        return
+    url = f"exp://{ip}:{MOBILE_PORT}"
+    info("Expo Go (physical device, same Wi-Fi): scan this QR in the Expo Go app, or enter the URL")
+    print(f"  {url}")
+    root = qrcode_terminal_root()
+    if not root:
+        warn("qrcode-terminal not found under node_modules; run with --install to render the QR art.")
+        return
+    # qrcode-terminal is a transitive Expo dependency already on disk; reuse it
+    # so the launcher needs no extra Python/Node packages.
+    script = (
+        "const qt=require(process.argv[1]);"
+        "qt.generate(process.argv[2],{small:true},function(q){process.stdout.write(q+'\\n')});"
+    )
+    result = subprocess.run(
+        ["node", "-e", script, str(root), url],
+        cwd=str(CLIENTS_DIR),
+        **TEXT_CAPTURE_OPTIONS,
+    )
+    if result.returncode != 0 or not result.stdout:
+        warn("Failed to render the Expo Go QR; open the URL above in Expo Go instead.")
+        return
+    # qrcode-terminal's small mode renders the last module row in the lower half
+    # of the final line and omits the bottom quiet zone. Pad above and below so
+    # the QR is not flush against the surrounding text and stays scannable.
+    print()
+    print(result.stdout, end="")
+    print()
+
+
+def watch(
+    processes: list[tuple[str, str, int, subprocess.Popen]],
+    api_base_url: str,
+    mobile_target: str,
+) -> int:
     ok("Web, Admin, and Mobile clients started")
     print(f"Web: http://localhost:{WEB_PORT}")
     print(f"Admin: http://localhost:{ADMIN_PORT}")
     print(f"Mobile Metro: http://localhost:{MOBILE_PORT}")
+    if mobile_target == "ios":
+        print("Expo Go: launching on iOS Simulator (use --mobile-target android|none to change)")
+    elif mobile_target == "android":
+        print("Expo Go: launching on Android emulator (use --mobile-target ios|none to change)")
+    print_expo_go_qr()
     print(f"Gateway: {api_base_url}")
     print(f"Dev account: {DEV_ACCOUNT_EMAIL} / {DEV_ACCOUNT_PASSWORD}")
     print("Press Ctrl+C to stop all clients. The Java platform stack stays running.")
+    # Keep the remaining clients alive when one dies: a flaky mobile process
+    # should not tear down web and admin. Ctrl+C still stops everything.
+    alive = list(processes)
+    exit_code = 0
     try:
-        while True:
-            for process_name, _, _, process in processes:
+        while alive:
+            for entry in list(alive):
+                process_name, _, _, process = entry
                 if process.poll() is not None:
-                    warn(f"{process_name} exited with code {process.returncode}")
-                    return process.returncode or 1
+                    warn(
+                        f"{process_name} exited with code {process.returncode}; "
+                        "remaining clients keep running."
+                    )
+                    exit_code = exit_code or (process.returncode or 1)
+                    alive.remove(entry)
             time.sleep(0.5)
     except KeyboardInterrupt:
         print("")
         warn(f"Received {shutdown_reason()}.")
         return 0
+    warn("All clients have exited.")
+    return exit_code
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Start the DramaIP Web, Admin, and Mobile development clients.")
-    parser.add_argument("--install", action="store_true", help="Force pnpm install before starting clients.")
-    parser.add_argument("--no-install", action="store_true", help="Skip pnpm install even if node_modules is missing.")
+    parser.add_argument("--install", action="store_true", help="Force bun install before starting clients.")
+    parser.add_argument("--no-install", action="store_true", help="Skip bun install even if node_modules is missing.")
     parser.add_argument("--no-kill-ports", action="store_true", help="Do not stop processes occupying client ports.")
     parser.add_argument("--api-base-url", default=None, help="Java Gateway API origin. Defaults to http://localhost:8080.")
+    parser.add_argument(
+        "--mobile-target",
+        choices=("ios", "android", "none"),
+        default="none",
+        help=(
+            "Launch Expo Go in a simulator/emulator after starting Metro: ios (iOS Simulator), "
+            "android (Android emulator), or none (Metro + scannable QR only). Defaults to none. "
+            "ios/android download Expo Go from Expo's CDN and require network access."
+        ),
+    )
     args = parser.parse_args()
     if args.install and args.no_install:
         parser.error("--install and --no-install cannot be used together")
@@ -490,9 +587,10 @@ def main() -> int:
     check_layout()
     install_shutdown_handlers()
     check_node()
-    pnpm = resolve_pnpm()
+    bun = resolve_bun()
+    check_bun(bun)
     install_mode = "force" if args.install else "skip" if args.no_install else "auto"
-    ensure_client_deps(pnpm, install_mode)
+    ensure_client_deps(bun, install_mode)
 
     api_base_url = args.api_base_url or f"http://localhost:{GATEWAY_PORT}"
     processes: list[tuple[str, str, int, subprocess.Popen]] = []
@@ -513,16 +611,16 @@ def main() -> int:
         mobile_env["EXPO_PUBLIC_MOBILE_API_ORIGIN"] = api_base_url
         mobile_env["EXPO_PUBLIC_API_BASE_URL"] = api_base_url
 
+        mobile_cmd = bun + ["run", "--filter", "@dramaip/mobile", "start", "--", "--port", str(MOBILE_PORT)]
+        if args.mobile_target != "none":
+            # `expo start --ios`/`--android` boots the simulator/emulator and
+            # opens the app in Expo Go in addition to running Metro on MOBILE_PORT.
+            mobile_cmd.append(f"--{args.mobile_target}")
+
         client_commands = (
-            ("clients:web", "Web", WEB_PORT, pnpm + ["--filter", "@dramaip/web", "dev"], web_env),
-            ("clients:admin", "Admin", ADMIN_PORT, pnpm + ["--filter", "@dramaip/admin", "dev"], admin_env),
-            (
-                "clients:mobile",
-                "Mobile Metro",
-                MOBILE_PORT,
-                pnpm + ["--filter", "@dramaip/mobile", "exec", "expo", "start", "--port", str(MOBILE_PORT)],
-                mobile_env,
-            ),
+            ("clients:web", "Web", WEB_PORT, bun + ["run", "--filter", "@dramaip/web", "dev"], web_env),
+            ("clients:admin", "Admin", ADMIN_PORT, bun + ["run", "--filter", "@dramaip/admin", "dev"], admin_env),
+            ("clients:mobile", "Mobile Metro", MOBILE_PORT, mobile_cmd, mobile_env),
         )
         for process_name, label, port, command, environment in client_commands:
             process = start_process(process_name, command, environment)
@@ -531,7 +629,7 @@ def main() -> int:
             if process.poll() is not None:
                 raise RuntimeError(f"{process_name} exited during startup with code {process.returncode}.")
 
-        exit_code = watch(processes, api_base_url)
+        exit_code = watch(processes, api_base_url, args.mobile_target)
     except RuntimeError as exc:
         err(str(exc))
         exit_code = 1

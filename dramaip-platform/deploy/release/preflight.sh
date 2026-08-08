@@ -41,9 +41,9 @@ if [[ -f "$chart/values-dev.yaml" ]]; then
 fi
 (
   cd "$platform/clients"
-  pnpm lint
-  pnpm typecheck
-  pnpm build:admin
+  bun run lint
+  bun run typecheck
+  bun run build:admin
 )
 (
   cd "$platform/server"

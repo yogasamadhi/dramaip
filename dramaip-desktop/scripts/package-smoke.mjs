@@ -158,17 +158,7 @@ function validateInstallers() {
 }
 
 function loadAsarModule() {
-  try {
-    return createRequire(join(desktopDir, 'package.json'))('@electron/asar')
-  } catch {
-    const pnpmDir = join(rootDir, 'node_modules', '.pnpm')
-    if (!existsSync(pnpmDir)) return undefined
-    const packageDir = readdirSync(pnpmDir).find((name) => name.startsWith('@electron+asar@'))
-    if (!packageDir) return undefined
-    return createRequire(join(rootDir, 'package.json'))(
-      join(pnpmDir, packageDir, 'node_modules', '@electron', 'asar'),
-    )
-  }
+  return createRequire(join(desktopDir, 'package.json'))('@electron/asar')
 }
 
 function forbiddenPackageEntries(entries) {
@@ -179,7 +169,7 @@ function forbiddenPackageEntries(entries) {
     { pattern: /(^|\/)\.env(\..*)?$/i, label: 'environment file' },
     // Dependency packages may legitimately ship their own tsconfig metadata.
     // Only repository-root workspace configuration is forbidden here.
-    { pattern: /^\/?(pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json)$/i, label: 'workspace config' },
+    { pattern: /^\/?(bun\.lock|bunfig\.toml|tsconfig[^/]*\.json)$/i, label: 'workspace config' },
   ]
   return entries
     .map((entry) => entry.replaceAll('\\', '/'))

@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
-// pnpm 在包目录下执行脚本，cwd 即 apps/desktop
+// Bun 在包目录下执行 workspace 脚本，cwd 即 apps/desktop
 const root = process.cwd()
 const pkgSrc = (p: string) => resolve(root, '../../packages', p, 'src/index.ts')
 

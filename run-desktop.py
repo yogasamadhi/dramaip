@@ -3,25 +3,25 @@
 一键启动 dramaip-desktop（Electron + Vite 开发模式）。
 
 流程：
-  1. 前置检查：Node >= 20、pnpm 可用
-  2. 依赖：node_modules 缺失时自动 pnpm install
+  1. 前置检查：Bun 1.3.14、Node >= 22.12.0 可用
+  2. 依赖：node_modules 缺失时自动 bun install
   3. electron 二进制：确保 electron/dist + path.txt 就位
-     —— pnpm 有时只装了 electron 的 JS 壳、没下载二进制本体（postinstall 未完成），
+     —— 安装脚本未完成时，可能只装了 electron 的 JS 壳、没下载二进制本体，
         表现为 dev 报 "Error: Electron uninstall"。
         优先用已缓存的 zip 解压（秒级、可靠），无缓存再跑 install.js 下载。
   4. 原生模块：按需按 Electron ABI 重编 better-sqlite3
-  5. 启动：pnpm dev，并剥离 ELECTRON_RUN_AS_NODE（否则 electron 以 node 模式启动，
+  5. 启动：bun run dev，并剥离 ELECTRON_RUN_AS_NODE（否则 electron 以 node 模式启动，
      dev 报 "Cannot read properties of undefined (reading 'whenReady')" 崩溃）
 
 用法：
   python3 run-desktop.py             # 默认：检查 + 修补 + 按需 rebuild + 启动 dev
   python3 run-desktop.py --rebuild   # 强制重编 better-sqlite3（Electron ABI）
   python3 run-desktop.py --no-rebuild
-  python3 run-desktop.py --install   # 强制 pnpm install
+  python3 run-desktop.py --install   # 强制 bun install
 
 注意：
-  - 重编用 `pnpm run rebuild`（显式走根脚本 → electron-rebuild）。
-    裸 `pnpm rebuild` 命中的是 pnpm 内建命令（Node ABI），不是 Electron 重编。
+  - 重编用 `bun run rebuild`（显式走根脚本 → electron-rebuild）。
+    不要使用裸 `bun rebuild`；它不会执行项目的 Electron ABI 重编脚本。
 """
 
 from __future__ import annotations
@@ -41,9 +41,10 @@ from pathlib import Path
 # --- 路径定位（基于脚本位置，不依赖 CWD）---
 SCRIPT_DIR = Path(__file__).resolve().parent
 DESKTOP_DIR = SCRIPT_DIR / "dramaip-desktop"
-INSTALL_MARKER = DESKTOP_DIR / "node_modules" / ".modules.yaml"
+INSTALL_MARKER = DESKTOP_DIR / "node_modules" / ".bun"
 REBUILD_MARKER = DESKTOP_DIR / "node_modules" / ".rebuild-electron-marker"
-NODE_MIN_MAJOR = 20
+NODE_MIN_VERSION = (22, 12, 0)
+BUN_VERSION = "1.3.14"
 
 # --- 输出（非 TTY 自动去色）---
 _COLOR = sys.stdout.isatty()
@@ -97,31 +98,41 @@ def sh(cmd: list[str], env: dict | None = None) -> str | None:
 def check_node() -> str:
     ver = sh(["node", "--version"])
     if not ver:
-        err("未检测到 node。请先安装 Node.js >= 20。")
+        err("未检测到 node。请先安装 Node.js >= 22.12.0（Electron 运行时/ABI 边界）。")
         sys.exit(1)
-    major = int(ver.lstrip("v").split(".")[0])
-    if major < NODE_MIN_MAJOR:
-        err(f"node 版本过低：{ver}，需要 >= v{NODE_MIN_MAJOR}。")
+    try:
+        version = tuple(int(part) for part in ver.lstrip("v").split(".")[:3])
+    except ValueError:
+        err(f"无法解析 node 版本：{ver}")
+        sys.exit(1)
+    if version < NODE_MIN_VERSION:
+        err(f"node 版本过低：{ver}，需要 >= v{'.'.join(map(str, NODE_MIN_VERSION))}。")
         sys.exit(1)
     ok(f"node {ver}")
     return ver
 
 
-def resolve_pnpm() -> list[str]:
-    """优先用 PATH 上的 pnpm；缺失则尝试 corepack；都没有则报错。"""
-    if shutil.which("pnpm"):
-        return ["pnpm"]
-    if shutil.which("corepack"):
-        warn("PATH 上无 pnpm，改用 corepack pnpm（按 packageManager 锁版本）。")
-        return ["corepack", "pnpm"]
-    err("未检测到 pnpm / corepack。安装：npm i -g pnpm，或 corepack enable。")
+def resolve_bun() -> list[str]:
+    """要求 PATH 上存在项目固定版本的 Bun。"""
+    if shutil.which("bun"):
+        return ["bun"]
+    err("未检测到 Bun。请安装 Bun 1.3.14 后重试：https://bun.sh/docs/installation")
     sys.exit(1)
 
 
-def ensure_deps(pnpm: list[str], force_install: bool) -> None:
+def check_bun(bun: list[str]) -> str:
+    ver = sh(bun + ["--version"])
+    if ver != BUN_VERSION:
+        err(f"Bun 版本不匹配：检测到 {ver or '未知'}，需要 {BUN_VERSION}。")
+        sys.exit(1)
+    ok(f"bun {ver}")
+    return ver
+
+
+def ensure_deps(bun: list[str], force_install: bool) -> None:
     if force_install or not INSTALL_MARKER.exists():
-        info("安装依赖（pnpm install）……首次可能较慢。")
-        run(pnpm + ["install"])
+        info("安装依赖（bun install）……首次可能较慢。")
+        run(bun + ["install"])
         ok("依赖就绪")
     else:
         ok("依赖已安装，跳过 install")
@@ -141,7 +152,10 @@ def _pkg_ver(path: Path) -> str | None:
 
 
 def _electron_pkg_dir() -> Path | None:
-    base = DESKTOP_DIR / "node_modules" / ".pnpm"
+    workspace_package = DESKTOP_DIR / "apps" / "desktop" / "node_modules" / "electron"
+    if workspace_package.exists():
+        return workspace_package
+    base = DESKTOP_DIR / "node_modules" / ".bun"
     hits = sorted(base.glob("electron@*/node_modules/electron"))
     return hits[0] if hits else None
 
@@ -222,7 +236,7 @@ def _extract_zip(zip_path: Path, dest: Path) -> None:
 def ensure_electron() -> None:
     elex = _electron_pkg_dir()
     if not elex:
-        warn("找不到 electron 包（node_modules/.pnpm/electron@*），跳过二进制检查")
+        warn("找不到 electron 包（apps/desktop/node_modules/electron），跳过二进制检查")
         return
     ver = _pkg_ver(elex / "package.json") or "?"
     plat, _arch = _electron_platform_arch()
@@ -248,8 +262,8 @@ def ensure_electron() -> None:
                 return
             warn("缓存解压后校验仍失败，改用 install.js 下载")
 
-    # 2) 退路：跑 electron 自带 install.js 下载（可能需 1~2 分钟）
-    info("electron 二进制缺失，运行 install.js 下载（首次可能较慢）…")
+    # 2) 退路：用 Bun 运行 electron 自带 install.js 下载（可能需 1~2 分钟）
+    info("electron 二进制缺失，用 Bun 运行 install.js 下载（首次可能较慢）…")
     install_js = elex / "install.js"
     env = os.environ.copy()
     mirror = _read_electron_mirror()
@@ -257,14 +271,14 @@ def ensure_electron() -> None:
         env["ELECTRON_MIRROR"] = mirror
         env["npm_config_electron_mirror"] = mirror
     try:
-        subprocess.run(["node", str(install_js)], cwd=str(elex), env=env, check=True)
+        subprocess.run(["bun", "run", str(install_js)], cwd=str(elex), env=env, check=True)
     except subprocess.CalledProcessError as e:
         err(f"electron install.js 失败（退出码 {e.returncode}）")
         sys.exit(1)
     if _binary_ok(elex):
         ok(f"electron 二进制就绪（v{ver}）")
     else:
-        err("electron 二进制仍未就绪。手动修复：到 electron 包目录跑 `node install.js`，"
+        err("electron 二进制仍未就绪。手动修复：到 electron 包目录跑 `bun run install.js`，"
             "或检查 npmmirror 网络后重试。")
         sys.exit(1)
 
@@ -288,9 +302,9 @@ def need_rebuild(force: bool, skip: bool, node_ver: str) -> bool:
     return True
 
 
-def do_rebuild(pnpm: list[str], node_ver: str) -> None:
-    info("按 Electron ABI 重编 better-sqlite3（pnpm run rebuild）……")
-    run(pnpm + ["run", "rebuild"])  # 根脚本 -> electron-rebuild -f -w better-sqlite3
+def do_rebuild(bun: list[str], node_ver: str) -> None:
+    info("按 Electron ABI 重编 better-sqlite3（bun run rebuild）……")
+    run(bun + ["run", "rebuild"])  # 根脚本 -> electron-rebuild -f -w better-sqlite3
     electron = _pkg_ver(DESKTOP_DIR / "apps/desktop/node_modules/electron/package.json")
     bsqlite = _pkg_ver(DESKTOP_DIR / "apps/desktop/node_modules/better-sqlite3/package.json")
     if electron and bsqlite:
@@ -313,7 +327,7 @@ def clean_env() -> dict:
 
 
 def stop_dev_process(process: subprocess.Popen) -> None:
-    """终止 pnpm dev 及其派生的 Electron / Vite 进程。"""
+    """终止 bun run dev 及其派生的 Electron / Vite 进程。"""
     warn("正在关闭 Electron 与开发服务器……")
     if os.name == "nt":
         if process.poll() is not None:
@@ -333,7 +347,7 @@ def stop_dev_process(process: subprocess.Popen) -> None:
             process.terminate()
             return
 
-    # 即使 pnpm 已先退出，Electron 仍可能由 init 接管，但会留在原进程组。
+    # 即使 Bun 已先退出，Electron 仍可能由 init 接管，但会留在原进程组。
     # 因此不能根据 process.poll() 提前返回，必须始终清理 process.pid 对应的组。
     process_group = process.pid
     try:
@@ -399,7 +413,7 @@ def run_dev(cmd: list[str], env: dict) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="一键启动 dramaip-desktop 开发模式")
-    ap.add_argument("--install", action="store_true", help="强制 pnpm install")
+    ap.add_argument("--install", action="store_true", help="强制 bun install")
     ap.add_argument("--rebuild", action="store_true", help="强制重编 better-sqlite3（Electron ABI）")
     ap.add_argument("--no-rebuild", action="store_true", help="跳过原生模块重编检查")
     args = ap.parse_args()
@@ -410,15 +424,14 @@ def main() -> None:
 
     print(_c("1;36", "▶ dramaip-desktop 一键启动"))
     node_ver = check_node()
-    pnpm = resolve_pnpm()
-    pnpm_ver = sh(pnpm + ["--version"]) or "?"
-    ok(f"pnpm {pnpm_ver}" + ("（corepack）" if pnpm[0] == "corepack" else ""))
+    bun = resolve_bun()
+    check_bun(bun)
 
-    ensure_deps(pnpm, args.install)
+    ensure_deps(bun, args.install)
     ensure_electron()
 
     if need_rebuild(args.rebuild, args.no_rebuild, node_ver):
-        do_rebuild(pnpm, node_ver)
+        do_rebuild(bun, node_ver)
     else:
         ok("原生模块已是最新，跳过 rebuild")
 
@@ -426,8 +439,8 @@ def main() -> None:
     if "ELECTRON_RUN_AS_NODE" in os.environ:
         warn(f"已剥离环境变量 ELECTRON_RUN_AS_NODE={os.environ['ELECTRON_RUN_AS_NODE']!r}（避免 dev 崩溃）")
 
-    info("启动开发模式（pnpm dev）……Ctrl-C 退出。")
-    run_dev(pnpm + ["dev"], env=env)  # electron-vite dev
+    info("启动开发模式（bun run dev）……Ctrl-C 退出。")
+    run_dev(bun + ["run", "dev"], env=env)  # electron-vite dev
 
 
 if __name__ == "__main__":

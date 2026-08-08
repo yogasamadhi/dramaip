@@ -2,7 +2,6 @@
 node_modules/
 **/node_modules/
 .pnp.*
-.pnpm-store/
 
 # Build output
 dist/
@@ -46,7 +45,8 @@ coverage/
 logs/
 **/logs/
 npm-debug.log*
-pnpm-debug.log*
+bun-debug.log*
+bun-error.log*
 yarn-debug.log*
 yarn-error.log*
 _tmp_*

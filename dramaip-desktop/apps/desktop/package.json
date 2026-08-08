@@ -7,15 +7,15 @@
   "license": "UNLICENSED",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "preview": "electron-vite preview",
-    "rebuild": "pnpm run rebuild:electron",
-    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
-    "package": "electron-vite build && pnpm run rebuild:electron && electron-builder",
-    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
-    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
-    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web"
+    "dev": "bun --bun run electron-vite dev",
+    "build": "bun --bun run electron-vite build",
+    "preview": "bun --bun run electron-vite preview",
+    "rebuild": "bun run rebuild:electron",
+    "rebuild:electron": "bun --bun run electron-rebuild -f -w better-sqlite3",
+    "package": "bun run build && bun run rebuild:electron && bun --bun run electron-builder",
+    "typecheck:node": "bun --bun run tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "bun --bun run tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "bun run typecheck:node && bun run typecheck:web"
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",
@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
+    "@electron/asar": "^3.4.1",
     "@types/archiver": "^8.0.0",
     "@types/node": "^22.7.4",
     "@types/react": "^19.0.0",

@@ -74,7 +74,7 @@ public class ProjectSnapshotService {
                 from snapshot.project_snapshots where user_id = ?::uuid and id = ?::uuid and deleted_at is null
                   and purged_at is null and expires_at > now()
                 """, (rs, row) -> new DownloadedSnapshot(new Snapshot(rs.getString(1), rs.getLong(3), rs.getString(4),
-                        rs.getObject(5, Instant.class), rs.getObject(6, Instant.class)), rs.getBytes(2)), userId, snapshotId);
+                        instant(rs, 5), instant(rs, 6)), rs.getBytes(2)), userId, snapshotId);
         if (rows.isEmpty()) notFound("CREATION_SNAPSHOT_NOT_FOUND", "project snapshot not found");
         return rows.getFirst();
     }
@@ -85,7 +85,7 @@ public class ProjectSnapshotService {
                 update snapshot.project_snapshots set encrypted_envelope = null, deleted_at = now()
                 where user_id = ?::uuid and id = ?::uuid and deleted_at is null and purged_at is null
                 returning id::text, deleted_at
-                """, (rs, row) -> new DeletedSnapshot(rs.getString(1), rs.getObject(2, Instant.class)), userId, snapshotId);
+                """, (rs, row) -> new DeletedSnapshot(rs.getString(1), instant(rs, 2)), userId, snapshotId);
         if (rows.isEmpty()) notFound("CREATION_SNAPSHOT_NOT_FOUND", "project snapshot not found");
         return rows.getFirst();
     }
@@ -243,12 +243,13 @@ public class ProjectSnapshotService {
         var id = rs.getString(1);
         var indexes = jdbc.query("select chunk_index from snapshot.project_snapshot_upload_chunks where upload_id = ?::uuid order by chunk_index",
                 (chunkRs, row) -> chunkRs.getInt(1), id);
-        return new Upload(id, rs.getString(2), rs.getLong(3), rs.getString(4), rs.getObject(5, Instant.class), rs.getObject(6, Instant.class), indexes);
+        return new Upload(id, rs.getString(2), rs.getLong(3), rs.getString(4), instant(rs, 5), instant(rs, 6), indexes);
     }
 
     private static Snapshot snapshot(ResultSet rs) throws SQLException {
-        return new Snapshot(rs.getString(1), rs.getLong(2), rs.getString(3), rs.getObject(4, Instant.class), rs.getObject(5, Instant.class));
+        return new Snapshot(rs.getString(1), rs.getLong(2), rs.getString(3), instant(rs, 4), instant(rs, 5));
     }
+    private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException { var timestamp = rs.getTimestamp(index); return timestamp == null ? null : timestamp.toInstant(); }
     private static int chunksFor(long bytes) { return Math.toIntExact((bytes + CHUNK_BYTES - 1) / CHUNK_BYTES); }
     private static int expectedChunkBytes(long bytes, int index) { return (int) Math.min(CHUNK_BYTES, bytes - (long) index * CHUNK_BYTES); }
     private static String sha256(byte[] value) {

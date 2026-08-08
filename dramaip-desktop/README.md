@@ -40,46 +40,46 @@ packages/
 ## 快速开始
 
 ```bash
-pnpm install          # 安装依赖
-pnpm install:electron # 下载 Electron 43.2.0 二进制
-pnpm rebuild          # 按 Electron ABI 重编 better-sqlite3（首次/切换 Node↔Electron 后必做）
-pnpm dev              # 启动开发模式（Electron + Vite）
+bun install              # 安装依赖并下载 Electron 43.2.0 二进制
+bun run rebuild          # 按 Electron ABI 重编 better-sqlite3（首次/切换 Node↔Electron 后必做）
+bun run dev              # 启动开发模式（Electron + Vite）
 ```
 
-> **重要**：如果 `pnpm dev` 启动时报 `Cannot read properties of undefined (reading 'whenReady')`，
+> **迁移提示**：从 pnpm 迁移时，请先清理本项目旧的 `node_modules`，再执行 `bun install`；不要复用 pnpm 的依赖布局。
+
+> **重要**：如果 `bun run dev` 启动时报 `Cannot read properties of undefined (reading 'whenReady')`，
 > 说明当前 shell 设了 `ELECTRON_RUN_AS_NODE=1`（常见于从其它基于 Electron 的工具里启动）。
-> 解决：`env -u ELECTRON_RUN_AS_NODE pnpm dev`，或在新终端里运行。
+> 解决：`env -u ELECTRON_RUN_AS_NODE bun run dev`，或在新终端里运行。
 
 数据库连接由 `packages/db/src/client.ts` 的 `createDb()` 创建；应用启动时会自动执行
 `packages/db/src/migrator.ts` 中的版本化迁移，并记录到 `schema_migrations`。无需手动跑
-数据库迁移；`pnpm db:generate` / `pnpm db:push` 仅用于维护 Drizzle schema 相关产物，不是运行时升级入口。
+数据库迁移；`bun run db:generate` / `bun run db:push` 仅用于维护 Drizzle schema 相关产物，不是运行时升级入口。
 
 ## 常用脚本
 
 | 命令 | 说明 |
 | --- | --- |
-| `pnpm dev` | 启动 Electron + Vite 开发服务 |
-| `pnpm install:electron` | 按需下载 Electron 43.2.0 二进制 |
-| `pnpm build` | 构建产物（main / preload / renderer） |
-| `pnpm package` | 用 electron-builder 打包 |
-| `pnpm package:smoke` | 构建本平台安装包并启动打包后应用验证 DB 初始化 |
-| `pnpm db:generate` | 根据 schema 生成 SQL 迁移（可选） |
-| `pnpm rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
-| `pnpm typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
-| `pnpm test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / 导出包 / JSON parser） |
-| `pnpm test:db` | 运行迁移回放与 DB 冒烟测试，并在结束后恢复 Electron ABI |
-| `pnpm test:e2e` | 构建桌面端并运行 Electron E2E smoke（项目/章节/模型配置、P0 主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出、项目包往返） |
-| `pnpm test` | 类型检查 + 单元测试 + DB 冒烟测试 |
+| `bun run dev` | 启动 Electron + Vite 开发服务 |
+| `bun run build` | 构建产物（main / preload / renderer） |
+| `bun run package` | 用 electron-builder 打包 |
+| `bun run package:smoke` | 构建本平台安装包并启动打包后应用验证 DB 初始化 |
+| `bun run db:generate` | 根据 schema 生成 SQL 迁移（可选） |
+| `bun run rebuild` | 按 Electron ABI 重编原生模块 better-sqlite3 |
+| `bun run typecheck` | 全仓类型检查（core / db / ai / export / desktop） |
+| `bun run test:unit` | 轻量单元测试（IPC 契约 / AI 任务注册 / 导出包 / JSON parser） |
+| `bun run test:db` | 运行迁移回放与 DB 冒烟测试，并在结束后恢复 Electron ABI |
+| `bun run test:e2e` | 构建桌面端并运行 Electron E2E smoke（项目/章节/模型配置、P0 主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出、项目包往返） |
+| `bun run test` | 类型检查 + 单元测试 + DB 冒烟测试 |
 
 ## 数据层冒烟测试
 
-`pnpm test:unit` 会先把 better-sqlite3 编译到当前 Node ABI，避免刚运行过
+`bun run test:unit` 会先把 better-sqlite3 编译到当前 Node ABI，避免刚运行过
 Electron 构建后因 ABI 不匹配导致数据库类单测失败，并且无论测试成功或失败都会恢复
-Electron ABI。`pnpm test:db` 会运行迁移回放与 `scripts/smoke-db.ts`，结束时同样恢复 Electron ABI。
+Electron ABI。`bun run test:db` 会运行迁移回放与 `scripts/smoke-db.ts`，结束时同样恢复 Electron ABI。
 `scripts/smoke-db.ts` 覆盖全部实体的 CRUD、级联删除、持久化和项目包往返（注入式，无需 API key）。
 
 ```bash
-pnpm test:db
+bun run test:db
 ```
 
 ## 数据存储
@@ -103,7 +103,7 @@ pnpm test:db
 DESKTOP_CLOUD_LOGIN_ENABLED=true \
 DESKTOP_CLOUD_WEB_ORIGIN=http://127.0.0.1:3009 \
 DESKTOP_CLOUD_BFF_ORIGIN=http://127.0.0.1:8000 \
-pnpm dev
+bun run dev
 ```
 
 登录使用系统浏览器、一次性 code + PKCE 和 `127.0.0.1` 临时回调；refresh token 保存在系统

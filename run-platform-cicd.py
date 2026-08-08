@@ -47,6 +47,7 @@ DEFAULT_GITOPS_DIR = os.environ.get("DRAMAIP_GITOPS_DIR", "")
 DEFAULT_NAMESPACE = "dramaip-staging"
 DEFAULT_APP = "dramaip-staging"
 DEFAULT_ROOT_APP = "platform-bootstrap"
+BUN_VERSION = "1.3.14"
 MAX_TRIVY_DB_AGE_SECONDS = 48 * 60 * 60
 TAG_RE = re.compile(r"^sha-[0-9a-f]{40}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}$")
@@ -54,17 +55,6 @@ GITOPS_SEED_EXCLUDED_FILES = ("values-dev.yaml", "values-staging.yaml", "values-
 GITOPS_SEED_EXCLUDED_TEMPLATES = ("secret.yaml", "dev-infra.yaml")
 SECRET_VALUE_KEYS = (
     "postgresPassword",
-    "postgresAuthPassword",
-    "postgresUserProfilePassword",
-    "postgresBillingPassword",
-    "postgresQuotaPassword",
-    "postgresAIGatewayPassword",
-    "postgresNotificationPassword",
-    "postgresInspirationPassword",
-    "postgresAdminPassword",
-    "postgresReportingPassword",
-    "postgresSnapshotPassword",
-    "postgresReviewPassword",
     "postgresIdentitySvcPassword",
     "postgresNotificationSvcPassword",
     "postgresReportingSvcPassword",
@@ -77,8 +67,6 @@ SECRET_VALUE_KEYS = (
     "reviewS3SecretKey",
     "redisPassword",
     "rabbitmqPassword",
-    "aiProviderApiKey",
-    "authEmailDeliveryToken",
 )
 
 
@@ -337,16 +325,19 @@ def check_command(args: argparse.Namespace) -> None:
     ok(f"release preflight passed for {len(specs)} images and {immutable_tag(revision)}")
 
 
-def ensure_pnpm(directory: Path, install_deps: bool) -> list[str]:
-    pnpm = ["pnpm"] if shutil.which("pnpm") else ["corepack", "pnpm"] if shutil.which("corepack") else []
-    if not pnpm:
-        fail("pnpm or corepack is required")
-    marker = directory / "node_modules" / ".modules.yaml"
+def ensure_bun(directory: Path, install_deps: bool) -> list[str]:
+    bun = ["bun"] if shutil.which("bun") else []
+    if not bun:
+        fail("Bun 1.3.14 is required")
+    version = command_output([*bun, "--version"], cwd=directory)
+    if version != BUN_VERSION:
+        fail(f"Bun version mismatch: found {version or 'unknown'}, need {BUN_VERSION}")
+    marker = directory / "node_modules" / ".bun"
     if not marker.exists():
         if not install_deps:
             fail(f"dependencies are missing in {directory}; rerun verify with --install-deps")
-        run([*pnpm, "install", "--frozen-lockfile"], cwd=directory)
-    return pnpm
+        run([*bun, "ci"], cwd=directory)
+    return bun
 
 
 def verify_command(args: argparse.Namespace) -> None:
@@ -355,15 +346,15 @@ def verify_command(args: argparse.Namespace) -> None:
     run(["mvn", "-B", "-ntp", "verify"], cwd=PLATFORM_DIR / "server")
 
     clients = PLATFORM_DIR / "clients"
-    clients_pnpm = ensure_pnpm(clients, args.install_deps)
-    for command in (("lint",), ("typecheck",), ("contracts:check",), ("build:web",), ("build:admin",)):
-        run([*clients_pnpm, *command], cwd=clients)
+    clients_bun = ensure_bun(clients, args.install_deps)
+    for script in ("lint", "typecheck", "contracts:check", "build:web", "build:admin"):
+        run([*clients_bun, "run", script], cwd=clients)
     run(["make", "web-route-smoke"], cwd=PLATFORM_DIR)
 
     desktop = SCRIPT_DIR / "dramaip-desktop"
-    desktop_pnpm = ensure_pnpm(desktop, args.install_deps)
-    for command in (("lint",), ("test:unit",), ("test:db",), ("build",)):
-        run([*desktop_pnpm, *command], cwd=desktop)
+    desktop_bun = ensure_bun(desktop, args.install_deps)
+    for script in ("lint", "test:unit", "test:db", "build"):
+        run([*desktop_bun, "run", script], cwd=desktop)
 
     chart = gitops_chart(gitops_dir)
     values = staging_values(gitops_dir)
@@ -809,7 +800,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
     verify = subparsers.add_parser("verify", help="run source and GitOps validation")
     add_common_options(verify)
-    verify.add_argument("--install-deps", action="store_true", help="allow frozen pnpm installs when dependencies are absent")
+    verify.add_argument("--install-deps", action="store_true", help="allow frozen Bun installs when dependencies are absent")
     verify.set_defaults(handler=verify_command)
 
     update_db = subparsers.add_parser("update-trivy-db", help="explicitly refresh the local Trivy database")
@@ -833,7 +824,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     add_common_options(release)
     release.add_argument("--platform", default="linux/amd64", choices=("linux/amd64", "linux/arm64"))
     release.add_argument("--argocd-timeout", type=int, default=600)
-    release.add_argument("--install-deps", action="store_true", help="allow frozen pnpm installs when dependencies are absent")
+    release.add_argument("--install-deps", action="store_true", help="allow frozen Bun installs when dependencies are absent")
     release.add_argument("--dry-run", action="store_true", help="print the release sequence without building, pushing, or changing GitOps")
     release.set_defaults(handler=release_command)
 

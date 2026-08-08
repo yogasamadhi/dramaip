@@ -7,13 +7,13 @@
 ### 从源码启动
 
 ```bash
-pnpm install
-pnpm rebuild
-pnpm dev
+bun install
+bun run rebuild
+bun run dev
 ```
 
-- `pnpm rebuild` 会把 better-sqlite3 编译到 Electron ABI；首次安装或刚跑过 `pnpm test:db` 后建议执行。
-- 如果从其它 Electron 工具的终端启动时报 `Cannot read properties of undefined (reading 'whenReady')`，使用 `env -u ELECTRON_RUN_AS_NODE pnpm dev`。
+- `bun run rebuild` 会把 better-sqlite3 编译到 Electron ABI；首次安装或刚跑过 `bun run test:db` 后建议执行。
+- 如果从其它 Electron 工具的终端启动时报 `Cannot read properties of undefined (reading 'whenReady')`，使用 `env -u ELECTRON_RUN_AS_NODE bun run dev`。
 - 所有项目数据默认保存在本机 Electron `userData` 目录下的 `studio.db`，不会上传到云端。
 
 ### 打包版启动

@@ -138,7 +138,8 @@ public class AdminService {
         String[] roles = values == null ? new String[0] : (String[]) values.getArray();
         return new Principal(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), List.of(roles), permissions(List.of(roles)));
     }
-    private static AuditLog audit(ResultSet rs) throws SQLException { return new AuditLog(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), rs.getObject(10, Instant.class)); }
+    private static AuditLog audit(ResultSet rs) throws SQLException { return new AuditLog(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getString(6), rs.getString(7), rs.getString(8), rs.getString(9), instant(rs, 10)); }
+    private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException { var timestamp = rs.getTimestamp(index); return timestamp == null ? null : timestamp.toInstant(); }
     private static Principal publicPrincipal(Principal principal) { return new Principal(principal.id(), principal.email(), "", principal.status(), principal.roles(), permissions(principal.roles())); }
     private static List<String> permissions(List<String> roles) { return roles.stream().flatMap(role -> switch (role) {
         case "viewer" -> java.util.stream.Stream.of("audit.read");

@@ -99,9 +99,11 @@ public class ChatService {
                 select id::text, audit_id::text, event_type, observed_cost_cny::text, threshold_cny::text, created_at
                 from ai_gateway.provider_cost_alerts where user_id = ?::uuid
                 order by created_at desc limit ?
-                """, (rs, row) -> new CostAlert(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), rs.getObject(6, Instant.class)),
+                """, (rs, row) -> new CostAlert(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5), instant(rs, 6)),
                 userId, Math.max(1, Math.min(limit, 200)));
     }
+
+    private static Instant instant(java.sql.ResultSet rs, int index) throws java.sql.SQLException { var timestamp = rs.getTimestamp(index); return timestamp == null ? null : timestamp.toInstant(); }
 
     /** Admin view deliberately excludes prompts, client IP addresses, and provider credentials. */
     public List<AdminCostAlert> adminCostAlerts(int limit, String userId) {

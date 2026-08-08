@@ -23,10 +23,10 @@ SPEC.loader.exec_module(cicd)
 class ManifestTests(unittest.TestCase):
     def test_release_manifest_has_complete_unique_bundle(self) -> None:
         specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
-        self.assertEqual(19, len(specs))
-        self.assertEqual(18, sum(spec.kind == "go" for spec in specs))
+        self.assertEqual(10, len(specs))
+        self.assertEqual(9, sum(spec.kind == "java" for spec in specs))
         self.assertEqual(1, sum(spec.kind == "web" for spec in specs))
-        self.assertTrue({"snapshot", "migration", "web"}.issubset({spec.chart_key for spec in specs}))
+        self.assertTrue({"gateway", "migration", "web"}.issubset({spec.chart_key for spec in specs}))
 
     def test_manifest_rejects_duplicate_names(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -54,7 +54,7 @@ class ValuesTests(unittest.TestCase):
     def test_staging_values_are_secret_free_and_complete(self) -> None:
         specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
         value = cicd.initial_staging_values(self.bootstrap_args(), specs, "sha-" + "a" * 40)
-        self.assertEqual(19, value.count("tag: sha-" + "a" * 40))
+        self.assertEqual(len(specs), value.count("tag: sha-" + "a" * 40))
         self.assertNotIn("registry.example.invalid", value)
         self.assertNotIn("change-me", value)
         self.assertIn("existingSecret: dramaip-staging-runtime", value)
@@ -68,7 +68,7 @@ class ValuesTests(unittest.TestCase):
         expression = cicd.staging_values_update_expression(
             specs, "harbor.home.arpa/dramaip", "sha-" + "b" * 40, "b" * 40
         )
-        self.assertEqual(19, expression.count('tag = "sha-' + "b" * 40 + '"'))
+        self.assertEqual(len(specs), expression.count('tag = "sha-' + "b" * 40 + '"'))
         self.assertIn('.release.sourceRevision = "' + "b" * 40 + '"', expression)
 
     def test_gitops_chart_seed_excludes_development_secret_paths(self) -> None:

@@ -21,7 +21,7 @@ for (const path of artifacts) {
 await writeFile(join(output, 'SHA256SUMS'), `${checksums.join('\n')}\n`)
 
 const components = []
-const packageRoot = join(root, 'node_modules/.pnpm')
+const packageRoot = join(root, 'node_modules/.bun')
 for (const directory of await safeReadDir(packageRoot)) {
   const packageJSON = await findPackageJSON(join(packageRoot, directory))
   if (!packageJSON) continue

@@ -330,17 +330,17 @@ git diff --check
 
 # Desktop（仓库根目录下的 dramaip-desktop）
 cd dramaip-desktop
-pnpm format:check
-pnpm typecheck
-pnpm test:unit
-pnpm test:db
-pnpm test:ui
-pnpm test:e2e
-pnpm package:smoke
+bun run format:check
+bun run typecheck
+bun run test:unit
+bun run test:db
+bun run test:ui
+bun run test:e2e
+bun run package:smoke
 
 # 供应商沙箱（仅在获得授权并通过交互式安全配置后）
-pnpm test:hailuo:sandbox
-pnpm test:wan:sandbox
+bun run test:hailuo:sandbox
+bun run test:wan:sandbox
 ```
 
 新增图片、TTS、媒体导出或平台 Profile 后，必须在对应 loop 内增加专用最小测试命令，并在
@@ -444,7 +444,7 @@ pnpm test:wan:sandbox
 - **不在范围**：实现新入口、新导入、新生产功能；重写现有 UI。
 - **验收**：后续执行者可以从一个命令和一份人工脚本重复得到相同 fixture；基线明确显示现有
   能力和缺口；隐私检查能发现故意注入的测试密钥/正文泄漏。
-- **验证**：`pnpm format:check`、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:ui`；人工打开
+- **验证**：`bun run format:check`、`bun run typecheck`、`bun run test:unit`、`bun run test:ui`；人工打开
   fixture 项目核对项目概览、章节、剧本、Storyboard、视频和导出入口。
 - **风险与回滚边界**：fixture 不得连接真实 Provider 或写用户数据库；失败时整体撤销测试/文档
   基线，不影响业务 schema。
@@ -469,7 +469,7 @@ pnpm test:wan:sandbox
 - **不在范围**：实时爬榜、自动发布研究报告、购买付费数据、替用户承诺爆款。
 - **验收**：新用户能区分“热门、上升、稳定、经典、饱和”；每项显示日期、来源、适合形式、
   制作难度和风险；升级不删除用户自定义类型；离线仍可选择最近快照。
-- **验证**：`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、`pnpm test:ui`；人工核对热门/经典、
+- **验证**：`bun run typecheck`、`bun run test:unit`、`bun run test:db`、`bun run test:ui`；人工核对热门/经典、
   空来源、过期快照、筛选和离线状态。
 - **风险与回滚边界**：DB 迁移只增加字段/表并提供兼容默认；回滚应用后旧 `GenrePreset` 仍可读，
   不删除用户自定义数据。
@@ -494,7 +494,7 @@ pnpm test:wan:sandbox
 - **不在范围**：文件正文解析、真实生成、直接平台发布。
 - **验收**：三条入口均能建立项目；直接漫剧不要求先创建小说章节；导入路径不会先创建大量空章节；
   用户可选择 2D/3D/仿真人等形式并修改集数/时长建议；旧项目可正常打开。
-- **验证**：`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、`pnpm test:ui`、`pnpm test:e2e`；
+- **验证**：`bun run typecheck`、`bun run test:unit`、`bun run test:db`、`bun run test:ui`、`bun run test:e2e`；
   人工分别走完三条创建入口并返回/重进检查持久化。
 - **风险与回滚边界**：新字段向后兼容；失败时回滚创建 UI 和新增字段读取，保留已创建项目数据，
   不级联删除用户内容。
@@ -519,8 +519,8 @@ pnpm test:wan:sandbox
 - **不在范围**：PDF OCR、DRM 绕过、抓取付费小说、自动证明版权、未经确认覆盖现有正文。
 - **验收**：四种小说文件和至少一种剧本交换格式能预览并正确导入；用户修正章节边界后结果一致；
   取消/失败无半写入；重复导入有明确策略；导入内容能进入现有写作/改编路径。
-- **验证**：parser 单元测试、恶意/超大/乱码 fixture、`pnpm typecheck`、`pnpm test:unit`、
-  `pnpm test:db`、`pnpm test:e2e`；人工导入每种格式并核对前后章节与剧本结构。
+- **验证**：parser 单元测试、恶意/超大/乱码 fixture、`bun run typecheck`、`bun run test:unit`、
+  `bun run test:db`、`bun run test:e2e`；人工导入每种格式并核对前后章节与剧本结构。
 - **风险与回滚边界**：高风险数据写入 loop；迁移与写入必须事务化。回滚删除本次 import batch 创建的
   实体，不碰导入前内容；原始文件只读，不原地修改。
 
@@ -543,7 +543,7 @@ pnpm test:wan:sandbox
 - **不在范围**：删除任何底层功能、重写业务 repository、改变 AI 写入权限。
 - **验收**：默认一级区域不超过四个；新用户可从项目概览进入下一步而无需理解 Agent/Memory 术语；
   高级用户仍能到达全部旧能力；已保存旧链接不会 404 或打开错误项目。
-- **验证**：`pnpm typecheck`、`pnpm test:unit`、`pnpm test:ui`、`pnpm test:e2e`；人工验证 1024、
+- **验证**：`bun run typecheck`、`bun run test:unit`、`bun run test:ui`、`bun run test:e2e`；人工验证 1024、
   1320、1440px，键盘、前进/后退、基础/高级和旧深链。
 - **风险与回滚边界**：只改变导航与容器，不迁移/删除业务数据；失败时整体恢复旧导航，保留新路由映射
   直到下个兼容窗口。
@@ -568,8 +568,8 @@ pnpm test:wan:sandbox
 - **不在范围**：键入级实时抽取、无确认写入、自动改写用户正文。
 - **验收**：完成一章后用户不需进入多个页面重复操作；一次采用可更新所有相关记录并可撤销；
   章节修改后旧记忆不会继续显示为最新；批量失败不影响成功项且可恢复。
-- **验证**：AI parser/transaction 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、
-  `pnpm test:e2e`；人工检查关闭自动建议、费用未知、冲突、撤销和批量恢复。
+- **验证**：AI parser/transaction 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:db`、
+  `bun run test:e2e`；人工检查关闭自动建议、费用未知、冲突、撤销和批量恢复。
 - **风险与回滚边界**：高影响 AI 写入必须有内容版本和事务；回滚撤销变更包产生的实体版本，不删除原章节。
 
 ### LM5-06 — 覆盖率真值与试播编排
@@ -593,7 +593,7 @@ pnpm test:wan:sandbox
 - **不在范围**：本 loop 不实现图片、TTS、剪辑或最终视频；不自动提交整季。
 - **验收**：20 集目标只有 3 集剧本时显示 3/20；一个最佳镜头视频不能让整季完成；用户可选择 1～3 集，
   查看全部阻塞并逐阶段继续；未通过试播时没有整季外部任务。
-- **验证**：workflow truth 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:ui`、`pnpm test:e2e`；
+- **验证**：workflow truth 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:ui`、`bun run test:e2e`；
   人工验证空项目、部分项目、过期项目、失败任务和已交付项目。
 - **风险与回滚边界**：状态计算变化不删除产物；回滚只恢复旧展示逻辑。新状态字段保持兼容，禁止将
   显示回滚写回业务记录。
@@ -621,8 +621,8 @@ pnpm test:wan:sandbox
 - **不在范围**：统一供应商计费、保证完全确定性、把估算当账单、实现新媒体 Provider。
 - **验收**：任一采用资产可回溯到源版本和任务；配置修改后历史任务不变；重试创建新任务；项目能显示
   试播估算、实际值和未知项；旧视频任务仍可查看。
-- **验证**：schema/parser/repository 单测、迁移回放、项目包往返、`pnpm typecheck`、`pnpm test:unit`、
-  `pnpm test:db`、相关 E2E。
+- **验证**：schema/parser/repository 单测、迁移回放、项目包往返、`bun run typecheck`、`bun run test:unit`、
+  `bun run test:db`、相关 E2E。
 - **风险与回滚边界**：高风险共享数据迁移；只增表/字段和兼容回填。回滚应用版本时老任务仍可读，
   不删除 lineage 或费用记录；不得修改历史任务原始字段。
 
@@ -647,7 +647,7 @@ pnpm test:wan:sandbox
 - **不在范围**：自动判定法律效力、公共版权数据库检索、替用户取得授权。
 - **验收**：每个最终采用媒体都有明确 `verified/declared/unknown/expired/restricted` 状态；缺失版权不会
   阻止写草稿但阻止最终交付；项目包往返保持清单和安全策略；过期授权能准确定位受影响成片。
-- **验证**：migration/repository/project-package 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、
+- **验证**：migration/repository/project-package 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:db`、
   UI baseline；人工验证未知、过期、地区不匹配、证据丢失和重新定位。
 - **风险与回滚边界**：高风险合规数据；迁移只增不删。回滚不得把 unknown 自动提升为已授权，
   不删除用户证据文件；最终 Gate 始终 fail closed。
@@ -671,7 +671,7 @@ pnpm test:wan:sandbox
 - **不在范围**：真实生图调用、LoRA 训练、自动修图、无授权真人定妆。
 - **验收**：用户仅用本地授权图片也能建立角色/场景包并锁定到镜头；替换服装不会误改旧集；
   每个镜头能显示具体版本和过期原因；项目包往返不丢引用。
-- **验证**：asset/version 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、`pnpm test:ui`、
+- **验证**：asset/version 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:db`、`bun run test:ui`、
   项目包往返与人工资产替换 smoke。
 - **风险与回滚边界**：不原地覆盖媒体；回滚只撤销新 UI/关联，保留已导入资产和版本记录。
 
@@ -695,7 +695,7 @@ pnpm test:wan:sandbox
 - **不在范围**：一次接通所有图片平台、绕过内容审核、自动训练模型。
 - **验收**：授权沙箱能生成并归档至少一张角色图、一张场景图和一个参考图变体；任务可追溯且费用状态
   可信；关闭 Feature Flag 后不能提交；无凭据时 UI 不误报可用。
-- **验证**：adapter 合同单测、`pnpm typecheck`、`pnpm test:unit`、专用图片沙箱 smoke、`pnpm test:e2e`；
+- **验证**：adapter 合同单测、`bun run typecheck`、`bun run test:unit`、专用图片沙箱 smoke、`bun run test:e2e`；
   未取得外部证据时只能 `partial`。
 - **风险与回滚边界**：外部费用和隐私独立边界；回滚关闭 Feature Flag 并保留本地资产/任务历史，
   不删除远端任务证据，不把密钥写入日志。
@@ -720,7 +720,7 @@ pnpm test:wan:sandbox
 - **不在范围**：最终视频质量、嘴型、音频、法律结论。
 - **验收**：试播镜头能达到“目标镜头数/已采用静帧数”覆盖真值；已采用版本不会被批量覆盖；
   一致性问题可定位到具体镜头和资产版本；只重做失败/过期镜头。
-- **验证**：continuity/batch 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:ui`、`pnpm test:e2e`；
+- **验证**：continuity/batch 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:ui`、`bun run test:e2e`；
   人工验证多结果、批量失败、采用/回退和源变化过期。
 - **风险与回滚边界**：生成结果不可变；回滚只撤销采用关系或 UI，不删除本地图片和历史 review。
 
@@ -746,8 +746,8 @@ pnpm test:wan:sandbox
 - **不在范围**：最终调色、正式混音、高清成片、真实 TTS。
 - **验收**：用户可播放一集完整 Animatic，修改镜头时长后重新渲染且旧版本可回看；批注能定位镜头；
   未通过时不会产生整季高费用任务。
-- **验证**：timeline/render 单测、固定媒体 fixture hash/时长检查、`pnpm typecheck`、`pnpm test:unit`、
-  `pnpm test:e2e`、`pnpm package:smoke`；人工检查播放、拖拽、批注、通过/退回。
+- **验证**：timeline/render 单测、固定媒体 fixture hash/时长检查、`bun run typecheck`、`bun run test:unit`、
+  `bun run test:e2e`、`bun run package:smoke`；人工检查播放、拖拽、批注、通过/退回。
 - **风险与回滚边界**：媒体运行时与打包为独立风险；回滚保留 timeline JSON、静帧和批注，删除可重建的
   临时预览缓存，不删除源资产。
 
@@ -771,7 +771,7 @@ pnpm test:wan:sandbox
 - **不在范围**：真实外部 TTS、未经授权声音克隆、专业 DAW 全功能。
 - **验收**：用户可为一集完成角色声音绑定、人工对白/旁白、BGM/SFX 和采用；台词变化正确标记过期；
   音频权利和源版本可追溯；项目包往返保持关系。
-- **验证**：audio schema/timeline 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、`pnpm test:ui`、
+- **验证**：audio schema/timeline 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:db`、`bun run test:ui`、
   E2E 人工音频导入 smoke。
 - **风险与回滚边界**：不破坏源音频；回滚保留音频文件、版本和授权记录，只撤销新轨道引用/UI。
 
@@ -795,7 +795,7 @@ pnpm test:wan:sandbox
 - **不在范围**：任意真人声音复刻、绕过供应商实名/授权、自动发布音频。
 - **验收**：授权沙箱能生成、归档、采用至少两个角色和一段旁白；读音词典生效；克隆入口在无授权时
   fail closed；批量失败可恢复；成本和能力显示真实。
-- **验证**：adapter 合同单测、`pnpm typecheck`、`pnpm test:unit`、专用 TTS 沙箱 smoke、相关 E2E；
+- **验证**：adapter 合同单测、`bun run typecheck`、`bun run test:unit`、专用 TTS 沙箱 smoke、相关 E2E；
   未取得外部证据时只能 `partial`。
 - **风险与回滚边界**：外部费用、生物特征和授权独立边界；回滚关闭 Provider/克隆 Flag，保留已归档音频、
   任务、成本和授权证据。
@@ -819,8 +819,8 @@ pnpm test:wan:sandbox
 - **不在范围**：专业级调色/合成/特效软件替代、直接平台上传。
 - **验收**：一集可在应用内预览并导出可播放 MP4；字幕安全区正确；音轨可听且无占位；取消/失败可恢复；
   旧成片可回看并显示过期；manifest 可追溯全部输入。
-- **验证**：timeline/subtitle/render 单测、媒体 fixture 时长/分辨率/音轨/字幕断言、`pnpm typecheck`、
-  `pnpm test:unit`、`pnpm test:e2e`、`pnpm package:smoke`；人工完整播放至少一集。
+- **验证**：timeline/subtitle/render 单测、媒体 fixture 时长/分辨率/音轨/字幕断言、`bun run typecheck`、
+  `bun run test:unit`、`bun run test:e2e`、`bun run package:smoke`；人工完整播放至少一集。
 - **风险与回滚边界**：高风险媒体处理与打包；回滚保留 timeline、manifest 和已导出成片，清理仅限可重建缓存。
 
 ### LM5-16 — 自动媒体质检与最小返工
@@ -842,7 +842,7 @@ pnpm test:wan:sandbox
 - **不在范围**：自动判定艺术好坏、保证平台审核通过、未经确认自动替换最终成片。
 - **验收**：故意注入的黑帧、缺镜头、字幕越界、削波和过期报告均被发现；问题可定位且只重做失败项；
   人工风险接受有审计；重新渲染后必须复检。
-- **验证**：媒体 fixture/analyzer 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:ui`、`pnpm test:e2e`；
+- **验证**：媒体 fixture/analyzer 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:ui`、`bun run test:e2e`；
   人工核对报告与实际时间点。
 - **风险与回滚边界**：质检默认只读，不删除媒体；回滚报告与任务接线，不修改源资产或历史风险接受记录。
 
@@ -868,8 +868,8 @@ pnpm test:wan:sandbox
 - **不在范围**：法律意见、代办许可证/备案、保证审核通过、自动抓取平台后台规则。
 - **验收**：使用正式 Profile 导出的 MP4/manifest 包含要求的显式和隐式标识；征求意见稿不会被当作强制
   blocker；缺权利/新鲜质检/必要字段时不能最终交付；规则来源可点击查看。
-- **验证**：rule engine、metadata/watermark、transcode persistence 单测，`pnpm typecheck`、`pnpm test:unit`、
-  `pnpm test:e2e`、`pnpm package:smoke`；人工用媒体检查工具核对成片与 metadata。
+- **验证**：rule engine、metadata/watermark、transcode persistence 单测，`bun run typecheck`、`bun run test:unit`、
+  `bun run test:e2e`、`bun run package:smoke`；人工用媒体检查工具核对成片与 metadata。
 - **风险与回滚边界**：发布阻断且 fail closed；回滚不得删除已写标识或放宽历史规则，只能禁用有缺陷的新
   Profile 并恢复上一已验证版本。
 
@@ -893,8 +893,8 @@ pnpm test:wan:sandbox
 - **不在范围**：自动登录平台、代投、投流、抓取私有规则或数据。
 - **验收**：至少两个 Profile 能从同一成片生成不同且可验证的交付包；A/B 候选有采用和版本；缺字段
   被阻断；重复导出可回看；包内 checksum 与 manifest 一致。
-- **验证**：export/profile 单测、golden package fixture、`pnpm typecheck`、`pnpm test:unit`、
-  `pnpm test:e2e`、`pnpm package:smoke`；人工核对两个平台包。
+- **验证**：export/profile 单测、golden package fixture、`bun run typecheck`、`bun run test:unit`、
+  `bun run test:e2e`、`bun run package:smoke`；人工核对两个平台包。
 - **风险与回滚边界**：Profile 独立版本化；回滚禁用错误 Profile，不删除已导出包或采用记录。
 
 ### LM5-19 — 真实运营与读者反馈回流
@@ -917,8 +917,8 @@ pnpm test:wan:sandbox
 - **不在范围**：平台爬虫、自动投流、实时数据仓库、用户画像交易、用模拟观众替代真实指标。
 - **验收**：用户可导入至少两种指标文件和评论文件，预览/去重正确；反馈能定位内容并创建修订任务；
   删除一次 import batch 不影响正文；项目包可选择是否包含敏感评论。
-- **验证**：parser/mapping/dedup/revision 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:db`、
-  `pnpm test:ui`、E2E 导入/回滚 smoke。
+- **验证**：parser/mapping/dedup/revision 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:db`、
+  `bun run test:ui`、E2E 导入/回滚 smoke。
 - **风险与回滚边界**：评论和运营数据可能含个人信息；默认本地、导出可排除。回滚按 import batch 删除
   派生指标/聚类，不删除用户正文和已采用版本。
 
@@ -942,7 +942,7 @@ pnpm test:wan:sandbox
 - **不在范围**：保证海外商业表现、机器翻译免审、全球平台直发、未经授权声音克隆。
 - **验收**：至少一个非中文语言版本能完成字幕、文案和音频候选、人工采用和独立交付；母版变化只
   标记相关段落；语言包可追溯且不影响中文母版。
-- **验证**：localization/stale/subtitle 单测、`pnpm typecheck`、`pnpm test:unit`、`pnpm test:e2e`、
+- **验证**：localization/stale/subtitle 单测、`bun run typecheck`、`bun run test:unit`、`bun run test:e2e`、
   golden delivery package；至少一名人工 reviewer 检查试播集语言和字幕可读性。
 - **风险与回滚边界**：本地化版本独立于母版；回滚删除/禁用该语言 delivery，不修改中文母版和历史翻译。
 
@@ -972,13 +972,13 @@ pnpm test:wan:sandbox
 
   ```bash
   cd dramaip-desktop
-  pnpm format:check
-  pnpm typecheck
-  pnpm test:unit
-  pnpm test:db
-  pnpm test:ui
-  pnpm test:e2e
-  pnpm package:smoke
+  bun run format:check
+  bun run typecheck
+  bun run test:unit
+  bun run test:db
+  bun run test:ui
+  bun run test:e2e
+  bun run package:smoke
   # 加上 LM5-10 / LM5-14 建立的图片与 TTS 沙箱命令，
   # 以及至少一个已启用视频供应商的官方沙箱 smoke。
   ```

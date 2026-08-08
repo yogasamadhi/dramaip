@@ -6,9 +6,9 @@
 
 | 现象 | 常见原因 | 处理方式 |
 | --- | --- | --- |
-| `Cannot read properties of undefined (reading 'whenReady')` | 当前 shell 设置了 `ELECTRON_RUN_AS_NODE=1` | 使用 `env -u ELECTRON_RUN_AS_NODE pnpm dev`，或换一个新终端 |
-| `better-sqlite3` 相关 native module 报错 | better-sqlite3 ABI 与当前运行环境不一致 | 开发启动前运行 `pnpm rebuild`；跑测试用 `pnpm test:db`，它会自动切回 Electron ABI |
-| 安装 Electron 慢或失败 | 网络无法下载 Electron 二进制 | 确认 `.npmrc` 镜像配置可用，或设置本地网络代理后重新 `pnpm install` |
+| `Cannot read properties of undefined (reading 'whenReady')` | 当前 shell 设置了 `ELECTRON_RUN_AS_NODE=1` | 使用 `env -u ELECTRON_RUN_AS_NODE bun run dev`，或换一个新终端 |
+| `better-sqlite3` 相关 native module 报错 | better-sqlite3 ABI 与当前运行环境不一致 | 开发启动前运行 `bun run rebuild`；跑测试用 `bun run test:db`，它会自动切回 Electron ABI |
+| 安装 Electron 慢或失败 | 网络无法下载 Electron 二进制 | 确认 `.npmrc` 镜像配置可用，或设置本地网络代理后重新 `bun install` |
 
 ## 模型配置与 AI 失败
 
@@ -84,9 +84,9 @@
 
 | 现象 | 常见原因 | 处理方式 |
 | --- | --- | --- |
-| `pnpm test:db` 在 native rebuild 阶段失败 | better-sqlite3 需要写入本机 Node/Electron 编译缓存 | 确认当前用户可写 npm、node-gyp 和 Electron 缓存目录；修复后重新执行 `pnpm test:db` |
-| `pnpm test:e2e` 在 Electron rebuild 阶段失败 | Electron 原生模块缓存不可写或 Electron 二进制不可用 | 先运行 `pnpm rebuild`；确认 Electron 缓存和网络环境可用后重新执行 |
-| `pnpm test:e2e` 没有看到 P0 步骤 | smoke 日志被截断或旧构建未更新 | 重新运行 `pnpm test:e2e`，正常日志会输出主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出和项目包往返步骤 |
+| `bun run test:db` 在 native rebuild 阶段失败 | better-sqlite3 需要写入本机 Node/Electron 编译缓存 | 确认当前用户可写 npm、node-gyp 和 Electron 缓存目录；修复后重新执行 `bun run test:db` |
+| `bun run test:e2e` 在 Electron rebuild 阶段失败 | Electron 原生模块缓存不可写或 Electron 二进制不可用 | 先运行 `bun run rebuild`；确认 Electron 缓存和网络环境可用后重新执行 |
+| `bun run test:e2e` 没有看到 P0 步骤 | smoke 日志被截断或旧构建未更新 | 重新运行 `bun run test:e2e`，正常日志会输出主流程、Agent 指挥台、拆书卡片、修稿采用、投稿包导出和项目包往返步骤 |
 | 真实图片/TTS/视频 sandbox 被拒绝 | 未注入专用 API Key 或未显式授权计费 | 保持 Provider 关闭；由账户所有者在隔离环境按对应 Provider Runbook 注入凭据并执行 smoke，不能使用 Gitee 凭据替代 |
 
 ## 日志与诊断

@@ -35,6 +35,8 @@ make platform-e2e
 make platform-down
 ```
 
+客户端依赖与 Web/Admin 工具链固定为 Bun 1.3.14；Mobile 的 Expo 运行时仍需 Node.js。手动运行命令见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
+
 本地可观测性（Prometheus、Jaeger、Elastic Stack、Grafana）使用 `make platform-observability-up`；宿主机 Java 调试使用 `python run-platform-dev.py --obs`。详见[本地开发手册](docs/LOCAL_DEVELOPMENT.md)。
 
 CI/CD 验证、构建、扫描和发布九个 Java 镜像与 Web 镜像。

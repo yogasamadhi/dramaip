@@ -2,23 +2,32 @@
   "name": "dramaip-platform-clients",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@11.2.2",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev:web": "pnpm --filter @dramaip/web dev",
-    "build:web": "pnpm --filter @dramaip/web build",
-    "dev:admin": "pnpm --filter @dramaip/admin dev",
-    "build:admin": "pnpm --filter @dramaip/admin build",
-    "dev:mobile": "pnpm --filter @dramaip/mobile start",
-    "contracts:check": "node scripts/check-client-contracts.mjs",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
-    "test": "pnpm --filter @dramaip/sdk test && pnpm --filter @dramaip/web test && pnpm --filter @dramaip/admin test && pnpm --filter @dramaip/mobile test:security"
+    "dev:web": "bun run --filter @dramaip/web dev",
+    "build:web": "bun run --filter @dramaip/web build",
+    "dev:admin": "bun run --filter @dramaip/admin dev",
+    "build:admin": "bun run --filter @dramaip/admin build",
+    "dev:mobile": "bun run --filter @dramaip/mobile start",
+    "contracts:check": "bun run scripts/check-client-contracts.mjs",
+    "typecheck": "bun run --workspaces --sequential typecheck",
+    "lint": "bun run --workspaces --sequential lint",
+    "test": "bun run --filter @dramaip/sdk test && bun run --filter @dramaip/web test && bun run --filter @dramaip/admin test && bun run --filter @dramaip/mobile test:security"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
     "typescript": "^5.6.3"
   },
+  "trustedDependencies": [
+    "esbuild",
+    "sharp"
+  ],
   "engines": {
+    "bun": ">=1.3.14",
     "node": ">=20"
   }
 }
