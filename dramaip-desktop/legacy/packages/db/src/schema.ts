@@ -1,0 +1,1385 @@
+// Drizzle ORM schema —— 对应 SQLite 七张表（PROJECT_BRIEF.md §8）
+import { integer, primaryKey, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  shortDramaType: text('short_drama_type').notNull(),
+  targetAudience: text('target_audience'),
+  targetWordCount: integer('target_word_count'),
+  targetEpisodeCount: integer('target_episode_count'),
+  coreHook: text('core_hook'),
+  emotionalCore: text('emotional_core'),
+  coreSellingPoint: text('core_selling_point'),
+  synopsis: text('synopsis'),
+  styleGuide: text('style_guide'),
+  visualStyleDirection: text('visual_style_direction'),
+  activeAdaptationId: text('active_adaptation_id'),
+  genreOpportunity: text('genre_opportunity'),
+  productionBrief: text('production_brief'),
+  /** 移入废纸篓的时间；为空表示项目正常可用。 */
+  deletedAt: text('deleted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const characters = sqliteTable('characters', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  role: text('role').notNull(),
+  identity: text('identity'),
+  personality: text('personality'),
+  desire: text('desire'),
+  secret: text('secret'),
+  weakness: text('weakness'),
+  arc: text('arc'),
+  relationshipToProtagonist: text('relationship_to_protagonist'),
+  conflictTarget: text('conflict_target'),
+  emotionalFunction: text('emotional_function'),
+  shortDramaFunction: text('short_drama_function'),
+  visualDescription: text('visual_description'),
+  appearancePrompt: text('appearance_prompt'),
+  negativePrompt: text('negative_prompt'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const outlines = sqliteTable('outlines', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  type: text('type', { enum: ['book', 'chapter'] }).notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull().default(''),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const storyArcs = sqliteTable('story_arcs', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  parentId: text('parent_id'),
+  kind: text('kind', { enum: ['volume', 'unit', 'stage'] }).notNull(),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  targetWordCount: integer('target_word_count'),
+  targetChapterCount: integer('target_chapter_count'),
+  chapterStart: integer('chapter_start'),
+  chapterEnd: integer('chapter_end'),
+  coreConflict: text('core_conflict'),
+  keyHighlights: text('key_highlights').notNull().default('[]'),
+  foreshadowingPayoffs: text('foreshadowing_payoffs').notNull().default('[]'),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const projectSkills = sqliteTable('project_skills', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  category: text('category', {
+    enum: ['genre_pacing', 'dialogue', 'shot_prompt', 'platform_delivery', 'style', 'custom'],
+  }).notNull(),
+  description: text('description'),
+  taskTypes: text('task_types').notNull().default('[]'),
+  content: text('content').notNull().default(''),
+  priority: integer('priority').notNull().default(0),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const projectAgentSchemes = sqliteTable('project_agent_schemes', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  primaryAgentId: text('primary_agent_id'),
+  agentIds: text('agent_ids').notNull().default('[]'),
+  skillIds: text('skill_ids').notNull().default('[]'),
+  modelBindings: text('model_bindings').notNull().default('{}'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const inspirationFavorites = sqliteTable('inspiration_favorites', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  cardKey: text('card_key').notNull(),
+  sourceKind: text('source_kind', { enum: ['genre_preset', 'case_study', 'template', 'anti_trope', 'mobile_import'] }).notNull(),
+  sourceId: text('source_id'),
+  kind: text('kind', { enum: ['opening', 'relationship', 'conflict', 'reversal', 'cliffhanger', 'visual'] }).notNull(),
+  title: text('title').notNull(),
+  pattern: text('pattern').notNull().default(''),
+  applyTo: text('apply_to').notNull().default(''),
+  risk: text('risk'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const cloudMobileDraftAdoptions = sqliteTable('cloud_mobile_draft_adoptions', {
+  cloudDraftId: text('cloud_draft_id').notNull(),
+  projectId: text('project_id').notNull(),
+  adoptedAt: text('adopted_at').notNull(),
+}, (table) => ({ primary: primaryKey({ columns: [table.cloudDraftId, table.projectId] }) }))
+
+export const chapters = sqliteTable('chapters', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  summary: text('summary'),
+  outline: text('outline'),
+  content: text('content').notNull().default(''),
+  mainConflict: text('main_conflict'),
+  hook: text('hook'),
+  highlight: text('highlight'),
+  reversal: text('reversal'),
+  cliffhanger: text('cliffhanger'),
+  shortDramaNote: text('short_drama_note'),
+  aiVideoNote: text('ai_video_note'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const evaluations = sqliteTable('evaluations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id'),
+  totalScore: real('total_score').notNull(),
+  hookScore: real('hook_score').notNull(),
+  conflictScore: real('conflict_score').notNull(),
+  reversalScore: real('reversal_score').notNull(),
+  emotionScore: real('emotion_score').notNull(),
+  visualizationScore: real('visualization_score').notNull(),
+  aiVideoFeasibilityScore: real('ai_video_feasibility_score').notNull(),
+  characterConsistencyScore: real('character_consistency_score').notNull(),
+  shotClarityScore: real('shot_clarity_score').notNull(),
+  cliffhangerScore: real('cliffhanger_score').notNull(),
+  adaptationDifficultyScore: real('adaptation_difficulty_score').notNull(),
+  issues: text('issues').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  rawResult: text('raw_result'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const aiRuns = sqliteTable('ai_runs', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  chapterId: text('chapter_id'),
+  graphName: text('graph_name').notNull(),
+  nodeName: text('node_name'),
+  type: text('type').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  input: text('input').notNull().default(''),
+  output: text('output').notNull().default(''),
+  status: text('status', { enum: ['success', 'failed'] }).notNull(),
+  errorMessage: text('error_message'),
+  tokenUsage: integer('token_usage'),
+  latencyMs: integer('latency_ms'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const aiBudgetSettings = sqliteTable('ai_budget_settings', {
+  id: text('id').primaryKey(),
+  singleRunTokenLimit: integer('single_run_token_limit'),
+  dailyTokenLimit: integer('daily_token_limit'),
+  singleRunCostLimit: real('single_run_cost_limit'),
+  dailyCostLimit: real('daily_cost_limit'),
+  costPer1kTokens: real('cost_per_1k_tokens').notNull().default(0),
+  currency: text('currency').notNull().default('USD'),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const longTasks = sqliteTable('long_tasks', {
+  id: text('id').primaryKey(),
+  kind: text('kind', { enum: ['ai', 'image', 'audio', 'video', 'batch'] }).notNull(),
+  status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
+  title: text('title').notNull(),
+  taskType: text('task_type'),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  relatedEntityId: text('related_entity_id'),
+  input: text('input'),
+  output: text('output'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  startedAt: text('started_at'),
+  finishedAt: text('finished_at'),
+})
+
+export const modelConfigs = sqliteTable('model_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  provider: text('provider').notNull(),
+  baseUrl: text('base_url').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-10：图片 Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
+export const imageProviderConfigs = sqliteTable('image_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  featureEnabled: integer('feature_enabled', { mode: 'boolean' }).notNull().default(false),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-14：TTS Provider 的 API Key 只保存 Keychain 引用，开关独立持久化。 */
+export const ttsProviderConfigs = sqliteTable('tts_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model').notNull(),
+  featureEnabled: integer('feature_enabled', { mode: 'boolean' }).notNull().default(false),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.2 长篇一致性与视觉记忆系统（ROADMAP v0.2 §1-6）
+
+export const chapterMemories = sqliteTable('chapter_memories', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  summary: text('summary').notNull(),
+  importantEvents: text('important_events').notNull().default('[]'),
+  characterChanges: text('character_changes').notNull().default('[]'),
+  revealedSecrets: text('revealed_secrets').notNull().default('[]'),
+  newForeshadowing: text('new_foreshadowing').notNull().default('[]'),
+  resolvedForeshadowing: text('resolved_foreshadowing').notNull().default('[]'),
+  keyVisualElements: text('key_visual_elements').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const characterStates = sqliteTable('character_states', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  characterId: text('character_id').notNull(),
+  chapterId: text('chapter_id'),
+  currentStatus: text('current_status').notNull(),
+  emotionalState: text('emotional_state'),
+  relationshipChanges: text('relationship_changes'),
+  knownSecrets: text('known_secrets').notNull().default('[]'),
+  hiddenSecrets: text('hidden_secrets').notNull().default('[]'),
+  visualContinuityNotes: text('visual_continuity_notes'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const characterVisualProfiles = sqliteTable('character_visual_profiles', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  characterId: text('character_id').notNull(),
+  appearancePrompt: text('appearance_prompt').notNull(),
+  castingPrompt: text('casting_prompt'),
+  faceDescription: text('face_description'),
+  hairstyle: text('hairstyle'),
+  clothingStyle: text('clothing_style'),
+  bodyType: text('body_type'),
+  ageLook: text('age_look'),
+  temperament: text('temperament'),
+  colorPalette: text('color_palette'),
+  negativePrompt: text('negative_prompt'),
+  referenceImageUrl: text('reference_image_url'),
+  actorReferenceUrl: text('actor_reference_url'),
+  voiceTone: text('voice_tone'),
+  voiceSampleUrl: text('voice_sample_url'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const visualSettings = sqliteTable('visual_settings', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  type: text('type', { enum: ['world', 'location', 'style', 'object'] }).notNull(),
+  visualPrompt: text('visual_prompt').notNull(),
+  negativePrompt: text('negative_prompt'),
+  referenceImageUrl: text('reference_image_url'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const storyEvents = sqliteTable('story_events', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id'),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  eventType: text('event_type').notNull(),
+  relatedCharacterIds: text('related_character_ids').notNull().default('[]'),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+})
+
+export const foreshadowings = sqliteTable('foreshadowings', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  setupChapterId: text('setup_chapter_id'),
+  payoffChapterId: text('payoff_chapter_id'),
+  status: text('status', { enum: ['planned', 'setup', 'paid_off', 'abandoned'] }).notNull().default('planned'),
+  description: text('description').notNull(),
+  payoffPlan: text('payoff_plan'),
+  relatedCharacterIds: text('related_character_ids').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// LM5-05：故事圣经变更包。AI 结果先以草案保存，采用时才写入记忆/状态/时间线等实体。
+export const storyBibleSettings = sqliteTable('story_bible_settings', {
+  projectId: text('project_id').primaryKey(),
+  autoSuggest: integer('auto_suggest', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const storyBibleChangeSets = sqliteTable('story_bible_change_sets', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  sourceChapterUpdatedAt: text('source_chapter_updated_at').notNull(),
+  sourceContentHash: text('source_content_hash').notNull(),
+  taskId: text('task_id'),
+  status: text('status').notNull(),
+  estimatedTokens: integer('estimated_tokens'),
+  estimatedCost: real('estimated_cost'),
+  currency: text('currency'),
+  payload: text('payload'),
+  conflicts: text('conflicts').notNull().default('[]'),
+  undoPayload: text('undo_payload'),
+  errorMessage: text('error_message'),
+  appliedAt: text('applied_at'),
+  undoneAt: text('undone_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** 章节变化产生的下游回填提醒；不改写原有诊断记录。 */
+export const storyBibleStaleMarks = sqliteTable('story_bible_stale_marks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  targetKind: text('target_kind', { enum: ['story_bible', 'diagnostic'] }).notNull(),
+  reason: text('reason').notNull(),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.3 AI 短剧小说强化系统（ROADMAP v0.3 §2-4）
+
+export const beats = sqliteTable('beats', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id'),
+  type: text('type', {
+    enum: ['hook', 'conflict', 'reversal', 'reveal', 'emotion', 'payoff', 'cliffhanger', 'visual'],
+  }).notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  dramaValue: real('drama_value').notNull(),
+  visualValue: real('visual_value').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  relatedCharacterIds: text('related_character_ids').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const highlightAnalyses = sqliteTable('highlight_analyses', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  faceSlap: real('face_slap').notNull(),
+  revenge: real('revenge').notNull(),
+  identityReveal: real('identity_reveal').notNull(),
+  misunderstandingCleared: real('misunderstanding_cleared').notNull(),
+  pampering: real('pampering').notNull(),
+  counterKill: real('counter_kill').notNull(),
+  counterattack: real('counterattack').notNull(),
+  angst: real('angst').notNull(),
+  highlightTypes: text('highlight_types').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  suggestions: text('suggestions'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const aiVideoFeasibilityReports = sqliteTable('ai_video_feasibility_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  chapterId: text('chapter_id').notNull(),
+  characterCountScore: real('character_count_score').notNull(),
+  actionComplexityScore: real('action_complexity_score').notNull(),
+  interactionDensityScore: real('interaction_density_score').notNull(),
+  sceneStabilityScore: real('scene_stability_score').notNull(),
+  visualClarityScore: real('visual_clarity_score').notNull(),
+  characterConsistencyScore: real('character_consistency_score').notNull(),
+  generatableScore: real('generatable_score').notNull(),
+  verticalSuitabilityScore: real('vertical_suitability_score').notNull(),
+  promptControllabilityScore: real('prompt_controllability_score').notNull(),
+  overallScore: real('overall_score').notNull(),
+  risks: text('risks').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const dramaTrendReports = sqliteTable('drama_trend_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  hookTrend: text('hook_trend').notNull().default('[]'),
+  conflictTrend: text('conflict_trend').notNull().default('[]'),
+  reversalTrend: text('reversal_trend').notNull().default('[]'),
+  emotionTrend: text('emotion_trend').notNull().default('[]'),
+  cliffhangerTrend: text('cliffhanger_trend').notNull().default('[]'),
+  visualizationTrend: text('visualization_trend').notNull().default('[]'),
+  aiVideoFeasibilityTrend: text('ai_video_feasibility_trend').notNull().default('[]'),
+  characterConsistencyTrend: text('character_consistency_trend').notNull().default('[]'),
+  shotClarityTrend: text('shot_clarity_trend').notNull().default('[]'),
+  overallTrend: text('overall_trend').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.4 小说 / 大纲转 AI 短剧分集大纲（ROADMAP v0.4 §1/§3 + episode_analyses）
+
+export const adaptationProjects = sqliteTable('adaptation_projects', {
+  id: text('id').primaryKey(),
+  sourceProjectId: text('source_project_id'),
+  title: text('title').notNull(),
+  targetEpisodeCount: integer('target_episode_count').notNull(),
+  episodeDuration: text('episode_duration'),
+  adaptationStyle: text('adaptation_style').notNull(),
+  visualStyleDirection: text('visual_style_direction'),
+  audience: text('audience'),
+  /** v1.0 多季连载：第几季 */
+  seasonNumber: integer('season_number'),
+  /** v1.0 多季连载：本季改编的章节范围，JSON 文本 {from,to} */
+  sourceChapterRange: text('source_chapter_range'),
+  strategy: text('strategy'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const episodes = sqliteTable('episodes', {
+  id: text('id').primaryKey(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeNumber: integer('episode_number').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull(),
+  hook: text('hook').notNull(),
+  mainConflict: text('main_conflict').notNull(),
+  reversal: text('reversal'),
+  emotionalBeat: text('emotional_beat'),
+  cliffhanger: text('cliffhanger').notNull(),
+  aiVideoNote: text('ai_video_note'),
+  keyVisuals: text('key_visuals').notNull().default('[]'),
+  relatedChapterIds: text('related_chapter_ids').notNull().default('[]'),
+  relatedBeatIds: text('related_beat_ids').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const episodeAnalyses = sqliteTable('episode_analyses', {
+  id: text('id').primaryKey(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  hookStrengthTrend: text('hook_strength_trend').notNull().default('[]'),
+  retentionScoreTrend: text('retention_score_trend').notNull().default('[]'),
+  paceScoreTrend: text('pace_score_trend').notNull().default('[]'),
+  reversalDensityTrend: text('reversal_density_trend').notNull().default('[]'),
+  visualAppealTrend: text('visual_appeal_trend').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  suggestions: text('suggestions'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.5 AI 短剧剧本生成（ROADMAP v0.5 §1/§2 + script_reviews）
+
+export const scripts = sqliteTable('scripts', {
+  id: text('id').primaryKey(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  episodeNumber: integer('episode_number').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull().default(''),
+  hook: text('hook'),
+  mainConflict: text('main_conflict'),
+  emotionalBeat: text('emotional_beat'),
+  reversal: text('reversal'),
+  cliffhanger: text('cliffhanger'),
+  estimatedDuration: text('estimated_duration'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const scenes = sqliteTable('scenes', {
+  id: text('id').primaryKey(),
+  scriptId: text('script_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  sceneNumber: integer('scene_number').notNull(),
+  title: text('title').notNull(),
+  location: text('location').notNull(),
+  timeOfDay: text('time_of_day'),
+  visualDescription: text('visual_description').notNull().default(''),
+  characters: text('characters').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const scriptReviews = sqliteTable('script_reviews', {
+  id: text('id').primaryKey(),
+  scriptId: text('script_id').notNull(),
+  hookStrengthScore: real('hook_strength_score').notNull(),
+  dialogueScore: real('dialogue_score').notNull(),
+  conflictScore: real('conflict_score').notNull(),
+  visualClarityScore: real('visual_clarity_score').notNull(),
+  sceneClarityScore: real('scene_clarity_score').notNull(),
+  characterFitScore: real('character_fit_score').notNull(),
+  shotReadinessScore: real('shot_readiness_score').notNull(),
+  aiVideoFeasibilityScore: real('ai_video_feasibility_score').notNull(),
+  cliffhangerScore: real('cliffhanger_score').notNull(),
+  overallScore: real('overall_score').notNull(),
+  issues: text('issues').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.6 分镜与镜头 Prompt 生成（ROADMAP v0.6 §1 + shot_reviews + prompt_versions）
+
+export const shots = sqliteTable('shots', {
+  id: text('id').primaryKey(),
+  sceneId: text('scene_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  shotNumber: integer('shot_number').notNull(),
+  durationSeconds: integer('duration_seconds'),
+  visualDescription: text('visual_description').notNull().default(''),
+  characterIds: text('character_ids').notNull().default('[]'),
+  dialogue: text('dialogue'),
+  narration: text('narration'),
+  subtitleDraft: text('subtitle_draft'),
+  cameraAngle: text('camera_angle'),
+  cameraMovement: text('camera_movement'),
+  emotion: text('emotion'),
+  action: text('action'),
+  videoPrompt: text('video_prompt').notNull().default(''),
+  negativePrompt: text('negative_prompt'),
+  imagePrompt: text('image_prompt'),
+  coverPrompt: text('cover_prompt'),
+  consistencyNotes: text('consistency_notes'),
+  aiVideoDifficulty: text('ai_video_difficulty', { enum: ['low', 'medium', 'high'] }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotReviews = sqliteTable('shot_reviews', {
+  id: text('id').primaryKey(),
+  shotId: text('shot_id').notNull(),
+  lengthScore: real('length_score').notNull(),
+  characterCountScore: real('character_count_score').notNull(),
+  actionComplexityScore: real('action_complexity_score').notNull(),
+  visualClarityScore: real('visual_clarity_score').notNull(),
+  characterConsistencyScore: real('character_consistency_score').notNull(),
+  sceneContinuityScore: real('scene_continuity_score').notNull(),
+  promptControllabilityScore: real('prompt_controllability_score').notNull(),
+  verticalSuitabilityScore: real('vertical_suitability_score').notNull(),
+  overallScore: real('overall_score').notNull(),
+  aiVideoDifficulty: text('ai_video_difficulty', { enum: ['low', 'medium', 'high'] }).notNull(),
+  issues: text('issues').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const promptVersions = sqliteTable('prompt_versions', {
+  id: text('id').primaryKey(),
+  shotId: text('shot_id').notNull(),
+  version: integer('version').notNull(),
+  taskType: text('task_type').notNull(),
+  videoPrompt: text('video_prompt').notNull().default(''),
+  negativePrompt: text('negative_prompt'),
+  imagePrompt: text('image_prompt'),
+  note: text('note'),
+  createdAt: text('created_at').notNull(),
+})
+
+// v0.7 AI 视频平台对接（ROADMAP v0.7 §1-2）
+
+export const videoProviderConfigs = sqliteTable('video_provider_configs', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull(),
+  baseUrl: text('base_url'),
+  apiKey: text('api_key').notNull().default(''),
+  model: text('model'),
+  defaultParams: text('default_params'),
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const videoGenerationTasks = sqliteTable('video_generation_tasks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  lineageId: text('lineage_id'),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  prompt: text('prompt').notNull().default(''),
+  negativePrompt: text('negative_prompt'),
+  referenceImageUrls: text('reference_image_urls').notNull().default('[]'),
+  status: text('status', { enum: ['pending', 'running', 'success', 'failed', 'canceled'] }).notNull().default('pending'),
+  remoteTaskId: text('remote_task_id'),
+  errorMessage: text('error_message'),
+  note: text('note'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const videoResults = sqliteTable('video_results', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull(),
+  shotId: text('shot_id'),
+  resultVideoUrl: text('result_video_url').notNull(),
+  remoteVideoUrl: text('remote_video_url'),
+  localVideoPath: text('local_video_path'),
+  coverImageUrl: text('cover_image_url'),
+  remoteCoverImageUrl: text('remote_cover_image_url'),
+  localCoverImagePath: text('local_cover_image_path'),
+  rawMeta: text('raw_meta'),
+  archivedAt: text('archived_at'),
+  archiveError: text('archive_error'),
+  isBest: integer('is_best', { mode: 'boolean' }).notNull().default(false),
+  note: text('note'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const projectAssets = sqliteTable('project_assets', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  kind: text('kind', {
+    enum: [
+      'character_reference',
+      'casting_reference',
+      'voice_reference',
+      'scene_reference',
+      'style_reference',
+      'video_result',
+      'cover_image',
+      'first_frame_image',
+      'narration_audio',
+      'dialogue_audio',
+      'bgm_audio',
+      'sfx_audio',
+      'subtitle_file',
+      'source_media',
+      'rights_evidence',
+      'other',
+    ],
+  }).notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  sourceEntityKind: text('source_entity_kind'),
+  sourceEntityId: text('source_entity_id'),
+  localPath: text('local_path'),
+  relativePath: text('relative_path'),
+  remoteUrl: text('remote_url'),
+  mimeType: text('mime_type'),
+  originalName: text('original_name'),
+  sha256: text('sha256'),
+  sizeBytes: integer('size_bytes'),
+  width: integer('width'),
+  height: integer('height'),
+  durationSeconds: real('duration_seconds'),
+  tags: text('tags').notNull().default('[]'),
+  metadata: text('metadata').notNull().default('{}'),
+  status: text('status', { enum: ['available', 'missing', 'remote_only'] }).notNull().default('available'),
+  packagePolicy: text('package_policy', { enum: ['exclude', 'reference_only', 'include_binary'] }).notNull().default('reference_only'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** LM5-08：证据与媒体本体分离的权利台账。每个资产最多一条当前权利记录。 */
+export const assetRightsRecords = sqliteTable('asset_rights_records', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  rightsholder: text('rightsholder'),
+  source: text('source'),
+  rightsTypes: text('rights_types').notNull().default('[]'),
+  permittedUses: text('permitted_uses').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  regions: text('regions').notNull().default('[]'),
+  validFrom: text('valid_from'),
+  validUntil: text('valid_until'),
+  evidenceAssetId: text('evidence_asset_id'),
+  evidenceSha256: text('evidence_sha256'),
+  aiGenerated: integer('ai_generated', { mode: 'boolean' }).notNull().default(false),
+  status: text('status', { enum: ['verified', 'declared', 'unknown', 'expired', 'restricted'] }).notNull().default('unknown'),
+  reviewedAt: text('reviewed_at'),
+  reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const visualAssetVersions = sqliteTable('visual_asset_versions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  ownerKind: text('owner_kind', { enum: ['visual_profile', 'visual_setting'] }).notNull(),
+  ownerId: text('owner_id').notNull(),
+  assetId: text('asset_id').notNull(),
+  slot: text('slot').notNull(),
+  label: text('label').notNull(),
+  versionNumber: integer('version_number').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  notes: text('notes'),
+  adoptedAt: text('adopted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotVisualAssetLocks = sqliteTable('shot_visual_asset_locks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  shotId: text('shot_id').notNull(),
+  visualAssetVersionId: text('visual_asset_version_id').notNull(),
+  role: text('role').notNull(),
+  staleAt: text('stale_at'),
+  staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const shotStillCandidates = sqliteTable('shot_still_candidates', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), shotId: text('shot_id').notNull(), assetId: text('asset_id').notNull(),
+  kind: text('kind', { enum: ['still', 'first_frame', 'last_frame', 'cover'] }).notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  label: text('label').notNull(), notes: text('notes'), sourceFingerprint: text('source_fingerprint'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const animaticDrafts = sqliteTable('animatic_drafts', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  versionNumber: integer('version_number').notNull(), status: text('status', { enum: ['draft', 'approved', 'returned'] }).notNull().default('draft'),
+  sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), annotations: text('annotations').notNull().default('[]'), reviewNote: text('review_note'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const voiceProfiles = sqliteTable('voice_profiles', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), characterId: text('character_id'), label: text('label').notNull(),
+  status: text('status', { enum: ['candidate', 'adopted', 'superseded', 'rejected'] }).notNull().default('candidate'),
+  voiceTone: text('voice_tone'), speed: real('speed'), emotion: text('emotion'), language: text('language'), pronunciationDictionary: text('pronunciation_dictionary').notNull().default('{}'), sampleAssetId: text('sample_asset_id'), notes: text('notes'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const audioTracks = sqliteTable('audio_tracks', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  kind: text('kind', { enum: ['dialogue', 'narration', 'bgm', 'sfx'] }).notNull(), label: text('label').notNull(), status: text('status', { enum: ['draft', 'adopted', 'superseded', 'stale'] }).notNull().default('draft'), versionNumber: integer('version_number').notNull(), sourceFingerprint: text('source_fingerprint').notNull(), clips: text('clips').notNull().default('[]'), staleAt: text('stale_at'), staleReason: text('stale_reason'),
+  createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+export const localizationVariants = sqliteTable('localization_variants', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), adaptationProjectId: text('adaptation_project_id').notNull(), episodeId: text('episode_id').notNull(),
+  targetLocale: text('target_locale').notNull(), targetRegion: text('target_region'), label: text('label').notNull(), status: text('status').notNull().default('draft'), sourceFingerprint: text('source_fingerprint').notNull(),
+  title: text('title').notNull(), description: text('description'), glossary: text('glossary').notNull().default('{}'), culturalNotes: text('cultural_notes').notNull().default('[]'), cues: text('cues').notNull().default('[]'),
+  voiceProfileId: text('voice_profile_id'), audioCandidateNote: text('audio_candidate_note'), reviewedAt: text('reviewed_at'), reviewNote: text('review_note'), staleAt: text('stale_at'), staleReason: text('stale_reason'), createdAt: text('created_at').notNull(), updatedAt: text('updated_at').notNull(),
+})
+
+// LM5-07：所有媒体生成均可共用的提交时谱系和费用账本。JSON 字段只保留脱敏后的
+// 结构化快照，不放 API Key、原始 Provider 响应或媒体二进制。
+export const generationLineages = sqliteTable('generation_lineages', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  mediaType: text('media_type').notNull(),
+  taskKind: text('task_kind').notNull(),
+  taskId: text('task_id'),
+  parentLineageId: text('parent_lineage_id'),
+  retryOfLineageId: text('retry_of_lineage_id'),
+  sourceEntityKind: text('source_entity_kind'),
+  sourceEntityId: text('source_entity_id'),
+  sourceVersion: text('source_version'),
+  sourceSnapshot: text('source_snapshot').notNull().default('{}'),
+  providerSnapshot: text('provider_snapshot').notNull().default('{}'),
+  parameterSnapshot: text('parameter_snapshot').notNull().default('{}'),
+  referenceAssets: text('reference_assets').notNull().default('[]'),
+  seed: text('seed'),
+  completeness: text('completeness').notNull().default('unknown'),
+  adoptedOutputKind: text('adopted_output_kind'),
+  adoptedOutputId: text('adopted_output_id'),
+  adoptedAt: text('adopted_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const generationCostEntries = sqliteTable('generation_cost_entries', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  episodeId: text('episode_id'),
+  sceneId: text('scene_id'),
+  shotId: text('shot_id'),
+  lineageId: text('lineage_id'),
+  taskId: text('task_id'),
+  mediaType: text('media_type').notNull(),
+  status: text('status').notNull().default('unknown'),
+  currency: text('currency'),
+  estimatedCost: real('estimated_cost'),
+  actualCost: real('actual_cost'),
+  estimateBasis: text('estimate_basis'),
+  actualCostNote: text('actual_cost_note'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v0.8 多 Agent 编剧室与模板系统（ROADMAP v0.8）
+
+export const agentProfiles = sqliteTable('agent_profiles', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  /** 角色标识（chief_editor / highlight_optimizer …），内置预设按 role 幂等 */
+  role: text('role').notNull(),
+  systemPrompt: text('system_prompt').notNull(),
+  outputSchema: text('output_schema'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const templates = sqliteTable('templates', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  /** 可驱动的生成类 taskType（generate_project 等），可空=纯片段模板 */
+  scope: text('scope'),
+  description: text('description'),
+  content: text('content').notNull().default(''),
+  variables: text('variables').notNull().default('[]'),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const genrePresets = sqliteTable('genre_presets', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  commonRelationships: text('common_relationships').notNull().default('[]'),
+  commonHighlights: text('common_highlights').notNull().default('[]'),
+  commonReversals: text('common_reversals').notNull().default('[]'),
+  commonOpenings: text('common_openings').notNull().default('[]'),
+  commonCliffhangers: text('common_cliffhangers').notNull().default('[]'),
+  visualStyle: text('visual_style').notNull(),
+  shotPromptAdvice: text('shot_prompt_advice').notNull(),
+  aiVideoRisks: text('ai_video_risks').notNull(),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/**
+ * 离线题材市场快照：保留每一个导入版本，active 仅指向当前用于新项目的版本。
+ * 项目自身会保存选择时的副本，切换 active 不会改写历史项目。
+ */
+export const genreMarketSnapshots = sqliteTable('genre_market_snapshots', {
+  version: text('version').primaryKey(),
+  observedAt: text('observed_at').notNull(),
+  sources: text('sources').notNull(),
+  opportunities: text('opportunities').notNull(),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const templateRuns = sqliteTable('template_runs', {
+  id: text('id').primaryKey(),
+  templateId: text('template_id').notNull(),
+  projectId: text('project_id'),
+  scope: text('scope').notNull(),
+  renderedContent: text('rendered_content').notNull().default(''),
+  variables: text('variables').notNull().default('{}'),
+  aiRunId: text('ai_run_id'),
+  createdAt: text('created_at').notNull(),
+})
+
+// v1.0 模型配置增强：按任务组指定模型（ROADMAP v1.0-3）
+// task_group 唯一：每个任务组最多绑定一个模型，缺省回退默认模型。
+export const taskModelBindings = sqliteTable('task_model_bindings', {
+  id: text('id').primaryKey(),
+  /** 任务组标识（见 core 的 TASK_GROUPS，如 writing / analysis / script / shot / video / writing_room） */
+  taskGroup: text('task_group').notNull(),
+  modelConfigId: text('model_config_id').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// v1.1 创意诊断与反套路迭代系统
+
+export const creativeCaseStudies = sqliteTable('creative_case_studies', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  sourceType: text('source_type'),
+  genre: text('genre'),
+  summary: text('summary'),
+  relationshipPatterns: text('relationship_patterns').notNull().default('[]'),
+  openingHooks: text('opening_hooks').notNull().default('[]'),
+  highlightBeats: text('highlight_beats').notNull().default('[]'),
+  reversalMechanisms: text('reversal_mechanisms').notNull().default('[]'),
+  cliffhangers: text('cliffhangers').notNull().default('[]'),
+  visualPatterns: text('visual_patterns').notNull().default('[]'),
+  rhythmCurve: text('rhythm_curve').notNull().default('[]'),
+  creativeCards: text('creative_cards').notNull().default('[]'),
+  riskTags: text('risk_tags').notNull().default('[]'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const caseStudyDocuments = sqliteTable('case_study_documents', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  fileName: text('file_name').notNull(),
+  sourceType: text('source_type'),
+  chapterCount: integer('chapter_count').notNull().default(0),
+  totalChars: integer('total_chars').notNull().default(0),
+  truncated: integer('truncated', { mode: 'boolean' }).notNull().default(false),
+  parseWarnings: text('parse_warnings').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const caseStudyChapters = sqliteTable('case_study_chapters', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull(),
+  orderIndex: integer('order_index').notNull().default(0),
+  title: text('title').notNull(),
+  textPreview: text('text_preview').notNull().default(''),
+  charCount: integer('char_count').notNull().default(0),
+  wordCount: integer('word_count').notNull().default(0),
+  status: text('status', { enum: ['parsed', 'needs_review', 'manual'] }).notNull().default('parsed'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const freshnessReports = sqliteTable('freshness_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  targetTitle: text('target_title'),
+  originalityScore: real('originality_score').notNull(),
+  predictabilityScore: real('predictability_score').notNull(),
+  tropeRiskScore: real('trope_risk_score').notNull(),
+  characterFreshnessScore: real('character_freshness_score').notNull(),
+  conflictFreshnessScore: real('conflict_freshness_score').notNull(),
+  reversalFreshnessScore: real('reversal_freshness_score').notNull(),
+  emotionalFreshnessScore: real('emotional_freshness_score').notNull(),
+  overallScore: real('overall_score').notNull(),
+  clicheSignals: text('cliche_signals').notNull().default('[]'),
+  audiencePredictionPoints: text('audience_prediction_points').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  rawResult: text('raw_result'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const antiTropeVariants = sqliteTable('anti_trope_variants', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  mode: text('mode', { enum: ['conservative', 'balanced', 'wild'] }).notNull(),
+  title: text('title').notNull(),
+  premise: text('premise').notNull(),
+  pressureMechanism: text('pressure_mechanism').notNull(),
+  preservedPayoffs: text('preserved_payoffs').notNull().default('[]'),
+  keyChanges: text('key_changes').notNull().default('[]'),
+  risks: text('risks').notNull().default('[]'),
+  sampleRewrite: text('sample_rewrite'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const revisionTasks = sqliteTable('revision_tasks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  sourceReportId: text('source_report_id'),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  priority: text('priority', { enum: ['must', 'should', 'could'] }).notNull(),
+  status: text('status', { enum: ['open', 'accepted', 'preview_ready', 'applied', 'undone', 'dismissed'] }).notNull().default('open'),
+  suggestedAction: text('suggested_action').notNull(),
+  expectedBenefit: text('expected_benefit').notNull().default('{}'),
+  previewPayload: text('preview_payload'),
+  previewFingerprint: text('preview_fingerprint'),
+  appliedVersionId: text('applied_version_id'),
+  undoVersionId: text('undo_version_id'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const contentVersions = sqliteTable('content_versions', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id').notNull(),
+  label: text('label').notNull(),
+  source: text('source', { enum: ['ai_overwrite', 'adopt_preview', 'revision_task', 'manual_checkpoint', 'restore'] }).notNull(),
+  content: text('content').notNull().default(''),
+  meta: text('meta'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const qualityGateReports = sqliteTable('quality_gate_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  stage: text('stage', {
+    enum: ['novel_to_adaptation', 'episodes_to_scripts', 'scripts_to_shots', 'shots_to_video'],
+  }).notNull(),
+  score: real('score').notNull(),
+  verdict: text('verdict', { enum: ['pass', 'warn', 'block'] }).notNull(),
+  blockingIssues: text('blocking_issues').notNull().default('[]'),
+  warnings: text('warnings').notNull().default('[]'),
+  suggestions: text('suggestions').notNull().default('[]'),
+  sourceFingerprint: text('source_fingerprint'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** 质量项处置审计：追加写入，保留原报告和每次本地风险决策。 */
+export const qualityIssueAcknowledgements = sqliteTable('quality_issue_acknowledgements', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id'),
+  issueId: text('issue_id').notNull(),
+  issueKind: text('issue_kind').notNull(),
+  issueTitle: text('issue_title').notNull(),
+  issueDetail: text('issue_detail'),
+  disposition: text('disposition', { enum: ['accepted', 'ignored'] }).notNull(),
+  note: text('note'),
+  actorLabel: text('actor_label').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+/** Versioned, offline compliance profiles. The selected delivery task snapshots its exact version. */
+export const complianceRuleProfiles = sqliteTable('compliance_rule_profiles', {
+  id: text('id').primaryKey(),
+  version: text('version').notNull().unique(),
+  title: text('title').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  sourceStatus: text('source_status', { enum: ['official', 'consultation', 'platform_guidance', 'unknown'] }).notNull(),
+  publishedAt: text('published_at').notNull(),
+  effectiveAt: text('effective_at'),
+  regions: text('regions').notNull().default('[]'),
+  platforms: text('platforms').notNull().default('[]'),
+  requiredVisibleLabel: text('required_visible_label').notNull(),
+  requiredMetadataKeys: text('required_metadata_keys').notNull().default('[]'),
+  contentChecksum: text('content_checksum').notNull(),
+  signature: text('signature').notNull(),
+  integrityStatus: text('integrity_status', { enum: ['verified', 'unchecked', 'invalid'] }).notNull().default('unchecked'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(false),
+  builtIn: integer('built_in', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+/** Creative metadata variants and immutable platform-delivery archive pointers. */
+export const deliveryCreativeVariants = sqliteTable('delivery_creative_variants', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  label: text('label').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  tags: text('tags').notNull().default('[]'),
+  coverAssetId: text('cover_asset_id'),
+  source: text('source', { enum: ['manual', 'ai_draft'] }).notNull().default('manual'),
+  status: text('status', { enum: ['candidate', 'adopted', 'archived'] }).notNull().default('candidate'),
+  versionNumber: integer('version_number').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const platformDeliveryExports = sqliteTable('platform_delivery_exports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  profileId: text('profile_id').notNull(),
+  profileVersion: text('profile_version').notNull(),
+  creativeVariantId: text('creative_variant_id').notNull(),
+  complianceTaskId: text('compliance_task_id').notNull(),
+  deliveryVersion: integer('delivery_version').notNull(),
+  outputDirectory: text('output_directory').notNull(),
+  manifestPath: text('manifest_path').notNull(),
+  sourceFingerprint: text('source_fingerprint').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+/** User-selected operational exports and comments stay local; derived clusters are separately removable. */
+export const feedbackImportBatches = sqliteTable('feedback_import_batches', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  kind: text('kind', { enum: ['metrics', 'comments'] }).notNull(),
+  sourceName: text('source_name').notNull(),
+  platform: text('platform').notNull(),
+  sourceVersion: text('source_version'),
+  timeWindowStart: text('time_window_start'),
+  timeWindowEnd: text('time_window_end'),
+  privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  contentSha256: text('content_sha256').notNull(),
+  importedRecordCount: integer('imported_record_count').notNull().default(0),
+  skippedDuplicateCount: integer('skipped_duplicate_count').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+})
+
+export const feedbackMetrics = sqliteTable('feedback_metrics', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), metricKey: text('metric_key').notNull(),
+  metricLabel: text('metric_label').notNull(), definition: text('definition').notNull(), value: real('value').notNull(),
+  denominator: real('denominator'), targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'),
+  variantKey: text('variant_key'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackComments = sqliteTable('feedback_comments', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(),
+  platform: text('platform').notNull(), sourceVersion: text('source_version'), externalId: text('external_id'), authorAlias: text('author_alias'),
+  text: text('text').notNull(), privacy: text('privacy', { enum: ['local_only', 'redacted'] }).notNull().default('local_only'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), recordedAt: text('recorded_at'), rowFingerprint: text('row_fingerprint').notNull(), createdAt: text('created_at').notNull(),
+})
+
+export const feedbackCommentClusters = sqliteTable('feedback_comment_clusters', {
+  id: text('id').primaryKey(), batchId: text('batch_id').notNull(), projectId: text('project_id').notNull(), label: text('label').notNull(),
+  summary: text('summary').notNull(), tone: text('tone', { enum: ['positive', 'negative', 'mixed', 'unknown'] }).notNull(),
+  method: text('method', { enum: ['keyword-v1', 'ai'] }).notNull(), commentIds: text('comment_ids').notNull().default('[]'),
+  targetKind: text('target_kind').notNull(), targetId: text('target_id'), createdAt: text('created_at').notNull(),
+})
+
+export const audienceSimulations = sqliteTable('audience_simulations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  audienceProfile: text('audience_profile').notNull(),
+  retentionScore: real('retention_score').notNull(),
+  emotionalEngagementScore: real('emotional_engagement_score').notNull(),
+  noveltyScore: real('novelty_score').notNull(),
+  likelyDropOffPoints: text('likely_drop_off_points').notNull().default('[]'),
+  mostMemorableMoments: text('most_memorable_moments').notNull().default('[]'),
+  complaints: text('complaints').notNull().default('[]'),
+  shareableClips: text('shareable_clips').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const narrativeCurveReports = sqliteTable('narrative_curve_reports', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id'),
+  hookCurve: text('hook_curve').notNull().default('[]'),
+  conflictCurve: text('conflict_curve').notNull().default('[]'),
+  reversalCurve: text('reversal_curve').notNull().default('[]'),
+  emotionCurve: text('emotion_curve').notNull().default('[]'),
+  cliffhangerCurve: text('cliffhanger_curve').notNull().default('[]'),
+  freshnessCurve: text('freshness_curve').notNull().default('[]'),
+  summary: text('summary').notNull(),
+  weakSpots: text('weak_spots').notNull().default('[]'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const workflowRuns = sqliteTable('workflow_runs', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  adaptationProjectId: text('adaptation_project_id'),
+  templateKey: text('template_key').notNull(),
+  title: text('title').notNull(),
+  status: text('status', { enum: ['pending', 'running', 'paused', 'success', 'failed'] }).notNull().default('pending'),
+  currentStep: text('current_step'),
+  steps: text('steps').notNull().default('[]'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// DramaIP v2：只持久化未解决/已审计的生产影响；生产图本体由现有规范化实体派生。
+export const productionImpacts = sqliteTable('production_impacts', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  sourceKind: text('source_kind').notNull(),
+  sourceId: text('source_id').notNull(),
+  sourceVersion: text('source_version'),
+  sourceLabel: text('source_label'),
+  targetKind: text('target_kind').notNull(),
+  targetId: text('target_id').notNull(),
+  targetVersion: text('target_version'),
+  targetLabel: text('target_label'),
+  reason: text('reason').notNull(),
+  severity: text('severity', { enum: ['info', 'warning', 'blocker'] }).notNull().default('warning'),
+  status: text('status', { enum: ['open', 'accepted', 'resolved', 'waived'] }).notNull().default('open'),
+  resolutionNote: text('resolution_note'),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const retakeRequests = sqliteTable('retake_requests', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  shotId: text('shot_id').notNull(),
+  sourceCandidateId: text('source_candidate_id').notNull(),
+  operation: text('operation').notNull(),
+  instruction: text('instruction').notNull(),
+  preserveFields: text('preserve_fields').notNull().default('[]'),
+  referenceAssetIds: text('reference_asset_ids').notNull().default('[]'),
+  maskAssetId: text('mask_asset_id'),
+  providerConfigId: text('provider_config_id'),
+  status: text('status').notNull().default('draft'),
+  lineageId: text('lineage_id'),
+  resultCandidateId: text('result_candidate_id'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewPackageRecords = sqliteTable('review_package_records', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  adaptationProjectId: text('adaptation_project_id').notNull(),
+  episodeId: text('episode_id').notNull(),
+  kind: text('kind', { enum: ['offline', 'cloud'] }).notNull(),
+  status: text('status').notNull().default('draft'),
+  title: text('title').notNull(),
+  manifest: text('manifest').notNull().default('{}'),
+  outputPath: text('output_path'),
+  cloudPackageId: text('cloud_package_id'),
+  syncCursor: text('sync_cursor'),
+  expiresAt: text('expires_at'),
+  errorMessage: text('error_message'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewComments = sqliteTable('review_comments', {
+  id: text('id').primaryKey(),
+  packageId: text('package_id').notNull(),
+  shotId: text('shot_id'),
+  timecodeSeconds: real('timecode_seconds'),
+  authorAlias: text('author_alias'),
+  body: text('body').notNull(),
+  resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const reviewDecisions = sqliteTable('review_decisions', {
+  id: text('id').primaryKey(),
+  packageId: text('package_id').notNull(),
+  shotId: text('shot_id'),
+  decision: text('decision', { enum: ['approve', 'return', 'request_changes', 'note'] }).notNull(),
+  authorAlias: text('author_alias'),
+  note: text('note'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const generationPolicyProfiles = sqliteTable('generation_policy_profiles', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  mode: text('mode', { enum: ['draft', 'lookdev', 'final'] }).notNull(),
+  label: text('label').notNull(),
+  allowedProviderConfigIds: text('allowed_provider_config_ids').notNull().default('[]'),
+  maximumProviders: integer('maximum_providers').notNull().default(1),
+  automaticFallback: integer('automatic_fallback', { mode: 'boolean' }).notNull().default(false),
+  requireCostConfirmation: integer('require_cost_confirmation', { mode: 'boolean' }).notNull().default(true),
+  requireReferenceLocks: integer('require_reference_locks', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const providerDataPolicies = sqliteTable('provider_data_policies', {
+  id: text('id').primaryKey(),
+  providerKind: text('provider_kind').notNull(),
+  regions: text('regions').notNull().default('[]'),
+  retentionSummary: text('retention_summary'),
+  trainsOnInputs: text('trains_on_inputs', { enum: ['no', 'yes', 'unknown', 'contract_only'] }).notNull().default('unknown'),
+  sourceUrl: text('source_url'),
+  lastVerifiedAt: text('last_verified_at'),
+  userAcknowledgedAt: text('user_acknowledged_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const providerObservations = sqliteTable('provider_observations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id'),
+  providerConfigId: text('provider_config_id').notNull(),
+  providerKind: text('provider_kind').notNull(),
+  mode: text('mode', { enum: ['draft', 'lookdev', 'final'] }).notNull(),
+  taskKind: text('task_kind').notNull(),
+  outcome: text('outcome', { enum: ['success', 'failed', 'canceled'] }).notNull(),
+  latencyMs: integer('latency_ms'),
+  estimatedCost: real('estimated_cost'),
+  actualCost: real('actual_cost'),
+  currency: text('currency'),
+  errorCode: text('error_code'),
+  createdAt: text('created_at').notNull(),
+})
+
+export const productAnalyticsSettings = sqliteTable('product_analytics_settings', {
+  id: text('id').primaryKey(),
+  consent: text('consent', { enum: ['unknown', 'granted', 'denied'] }).notNull().default('unknown'),
+  installationId: text('installation_id').notNull(),
+  decidedAt: text('decided_at'),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const productAnalyticsEvents = sqliteTable('product_analytics_events', {
+  id: text('id').primaryKey(),
+  eventName: text('event_name').notNull(),
+  appVersion: text('app_version').notNull(),
+  operatingSystem: text('operating_system').notNull(),
+  durationBucket: text('duration_bucket'),
+  resultCode: text('result_code'),
+  createdAt: text('created_at').notNull(),
+  uploadedAt: text('uploaded_at'),
+})
+
+export type DatabaseSchema = typeof import('./schema')

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@sdns/core": ["../../packages/core/src/index.ts"],
+      "@sdns/db": ["../../packages/db/src/index.ts"],
+      "@sdns/ai": ["../../packages/ai/src/index.ts"],
+      "@sdns/export": ["../../packages/export/src/index.ts"]
+    }
+  },
+  "include": ["electron/**/*.ts"]
+}

@@ -1,0 +1,233 @@
+// 项目 / 章节 / 人物 / 大纲 / 评分 CRUD（项目说明.md §17：Repository 不进 React）
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { writeFile } from 'node:fs/promises'
+import { parseMobileInspirationImport, type MobileInspirationImportInput } from '@sdns/core'
+import { getRepos } from '../db'
+import { createAiContextPreview, createAiRunDebugPayload } from '../ai-context-preview'
+
+const STORY_BIBLE_STABLE_SAVE_MS = 1_500
+const storyBibleSuggestionTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** 只在正文停止编辑并已保存后排队；此处不会调用模型或改写故事圣经。 */
+function scheduleStoryBibleSuggestion(chapterId: string): void {
+  const previous = storyBibleSuggestionTimers.get(chapterId)
+  if (previous) clearTimeout(previous)
+  storyBibleSuggestionTimers.set(chapterId, setTimeout(() => {
+    storyBibleSuggestionTimers.delete(chapterId)
+    try {
+      const r = getRepos()
+      const chapter = r.chapter.getChapter(r.db, chapterId)
+      if (!chapter?.content.trim()) return
+      const settings = r.storyBible.getStoryBibleSettings(r.db, chapter.projectId)
+      if (!settings.autoSuggest) return
+      const budget = r.aiBudget.getAiBudgetSettings(r.db)
+      r.storyBible.queueStoryBibleChangeSet(r.db, {
+        projectId: chapter.projectId,
+        chapterId,
+        costPer1kTokens: budget.costPer1kTokens,
+        currency: budget.currency,
+      })
+    } catch {
+      // 自动建议只是可选辅助；队列失败不能影响用户已保存的正文。
+    }
+  }, STORY_BIBLE_STABLE_SAVE_MS))
+}
+
+export function registerProjectIpc(): void {
+  const repos = () => getRepos()
+
+  // ---------- 项目 ----------
+  ipcMain.handle('project:list', () => repos().project.listProjects(repos().db))
+  ipcMain.handle('project:listHomeSummaries', () => repos().project.listProjectHomeSummaries(repos().db))
+  ipcMain.handle('project:listTrash', () => repos().project.listTrashedProjects(repos().db))
+  ipcMain.handle('project:get', (_e, id: string) => repos().project.getProject(repos().db, id))
+  ipcMain.handle('project:resolveActiveAdaptation', (_e, projectId: string, requestedAdaptationId?: string) =>
+    repos().project.resolveActiveAdaptation(repos().db, projectId, requestedAdaptationId),
+  )
+  ipcMain.handle('project:setActiveAdaptation', (_e, projectId: string, adaptationId?: string) =>
+    repos().project.setActiveAdaptation(repos().db, projectId, adaptationId),
+  )
+  ipcMain.handle('project:create', (_e, data: unknown) => repos().project.createProject(repos().db, data as never))
+  ipcMain.handle('project:update', (_e, id: string, patch: unknown) =>
+    repos().project.updateProject(repos().db, id, patch as never),
+  )
+  ipcMain.handle('project:delete', (_e, id: string) => {
+    // 兼容旧 renderer；删除永远只会移入废纸篓，不能绕过最终清理确认。
+    return Boolean(repos().project.trashProject(repos().db, id))
+  })
+  ipcMain.handle('project:trash', (_e, id: string) => repos().project.trashProject(repos().db, id))
+  ipcMain.handle('project:restore', (_e, id: string) => repos().project.restoreProject(repos().db, id))
+  ipcMain.handle('project:deletionPreview', (_e, id: string) => repos().project.getProjectDeletionPreview(repos().db, id))
+  ipcMain.handle('project:purge', (_e, id: string, confirmationTitle: string) =>
+    repos().project.purgeProject(repos().db, id, confirmationTitle),
+  )
+
+  // ---------- 章节 ----------
+  ipcMain.handle('chapter:list', (_e, projectId: string) =>
+    repos().chapter.listChapters(repos().db, projectId),
+  )
+  ipcMain.handle('chapter:get', (_e, id: string) => repos().chapter.getChapter(repos().db, id))
+  ipcMain.handle('chapter:create', (_e, data: unknown) => repos().chapter.createChapter(repos().db, data as never))
+  ipcMain.handle('chapter:update', (_e, id: string, patch: unknown) => {
+    const updated = repos().chapter.updateChapter(repos().db, id, patch as never)
+    if (updated && typeof patch === 'object' && patch !== null && Object.prototype.hasOwnProperty.call(patch, 'content')) scheduleStoryBibleSuggestion(id)
+    return updated
+  })
+  ipcMain.handle('chapter:reorder', (_e, projectId: string, orderedIds: string[]) =>
+    repos().chapter.reorderChapters(repos().db, projectId, orderedIds),
+  )
+  ipcMain.handle('chapter:updateContent', (_e, id: string, content: string) => {
+    const updated = repos().chapter.updateChapterContent(repos().db, id, content)
+    if (updated) scheduleStoryBibleSuggestion(id)
+    return updated
+  })
+  ipcMain.handle('chapter:delete', (_e, id: string) => {
+    repos().chapter.deleteChapter(repos().db, id)
+    return true
+  })
+
+  // ---------- 人物 ----------
+  ipcMain.handle('character:list', (_e, projectId: string) =>
+    repos().character.listCharacters(repos().db, projectId),
+  )
+  ipcMain.handle('character:create', (_e, data: unknown) =>
+    repos().character.createCharacter(repos().db, data as never),
+  )
+  ipcMain.handle('character:update', (_e, id: string, patch: unknown) =>
+    repos().character.updateCharacter(repos().db, id, patch as never),
+  )
+  ipcMain.handle('character:delete', (_e, id: string) => {
+    repos().character.deleteCharacter(repos().db, id)
+    return true
+  })
+
+  // ---------- 大纲 ----------
+  ipcMain.handle('outline:list', (_e, projectId: string, type?: 'book' | 'chapter') =>
+    repos().outline.listOutlines(repos().db, projectId, type),
+  )
+  ipcMain.handle('outline:create', (_e, data: unknown) => repos().outline.createOutline(repos().db, data as never))
+  ipcMain.handle('outline:update', (_e, id: string, patch: unknown) =>
+    repos().outline.updateOutline(repos().db, id, patch as never),
+  )
+  ipcMain.handle('outline:delete', (_e, id: string) => {
+    repos().outline.deleteOutline(repos().db, id)
+    return true
+  })
+
+  // ---------- 长篇规划：卷 / 单元 / 剧情阶段 ----------
+  ipcMain.handle('storyArc:list', (_e, projectId: string, kind?: 'volume' | 'unit' | 'stage') =>
+    repos().storyArc.listStoryArcs(repos().db, projectId, kind),
+  )
+  ipcMain.handle('storyArc:create', (_e, data: unknown) => repos().storyArc.createStoryArc(repos().db, data as never))
+  ipcMain.handle('storyArc:update', (_e, id: string, patch: unknown) =>
+    repos().storyArc.updateStoryArc(repos().db, id, patch as never),
+  )
+  ipcMain.handle('storyArc:delete', (_e, id: string) => {
+    repos().storyArc.deleteStoryArc(repos().db, id)
+    return true
+  })
+
+  // ---------- 项目级创作规范 / Skills ----------
+  ipcMain.handle('projectSkill:list', (_e, projectId: string) =>
+    repos().projectSkill.listProjectSkills(repos().db, projectId),
+  )
+  ipcMain.handle('projectSkill:create', (_e, data: unknown) =>
+    repos().projectSkill.createProjectSkill(repos().db, data as never),
+  )
+  ipcMain.handle('projectSkill:update', (_e, id: string, patch: unknown) =>
+    repos().projectSkill.updateProjectSkill(repos().db, id, patch as never),
+  )
+  ipcMain.handle('projectSkill:delete', (_e, id: string) => {
+    repos().projectSkill.deleteProjectSkill(repos().db, id)
+    return true
+  })
+
+  // ---------- 项目级 Agent 方案 ----------
+  ipcMain.handle('projectAgentScheme:list', (_e, projectId: string) =>
+    repos().projectAgentScheme.listProjectAgentSchemes(repos().db, projectId),
+  )
+  ipcMain.handle('projectAgentScheme:getActive', (_e, projectId: string) =>
+    repos().projectAgentScheme.getActiveProjectAgentScheme(repos().db, projectId),
+  )
+  ipcMain.handle('projectAgentScheme:create', (_e, data: unknown) =>
+    repos().projectAgentScheme.createProjectAgentScheme(repos().db, data as never),
+  )
+  ipcMain.handle('projectAgentScheme:update', (_e, id: string, patch: unknown) =>
+    repos().projectAgentScheme.updateProjectAgentScheme(repos().db, id, patch as never),
+  )
+  ipcMain.handle('projectAgentScheme:setActive', (_e, id: string) =>
+    repos().projectAgentScheme.setActiveProjectAgentScheme(repos().db, id),
+  )
+  ipcMain.handle('projectAgentScheme:delete', (_e, id: string) => {
+    repos().projectAgentScheme.deleteProjectAgentScheme(repos().db, id)
+    return true
+  })
+
+  // ---------- 灵感台收藏 ----------
+  ipcMain.handle('inspirationFavorite:list', (_e, projectId: string) =>
+    repos().inspirationFavorite.listInspirationFavorites(repos().db, projectId),
+  )
+  ipcMain.handle('inspirationFavorite:upsert', (_e, data: unknown) =>
+    repos().inspirationFavorite.upsertInspirationFavorite(repos().db, data as never),
+  )
+  ipcMain.handle('inspirationFavorite:importMobile', (_e, data: unknown) => {
+    const parsed = parseMobileInspirationImport(data as MobileInspirationImportInput)
+    const favorites = parsed.items.map((item) =>
+      repos().inspirationFavorite.upsertInspirationFavorite(repos().db, item),
+    )
+    return {
+      imported: favorites.length,
+      skipped: parsed.skipped,
+      warnings: parsed.warnings,
+      favorites,
+    }
+  })
+  ipcMain.handle('inspirationFavorite:delete', (_e, id: string) => {
+    repos().inspirationFavorite.deleteInspirationFavorite(repos().db, id)
+    return true
+  })
+  ipcMain.handle('inspirationFavorite:deleteByCardKey', (_e, projectId: string, cardKey: string) => {
+    repos().inspirationFavorite.deleteInspirationFavoriteByCardKey(repos().db, projectId, cardKey)
+    return true
+  })
+
+  // ---------- 评分（只读列表，生成在 ai 流程中） ----------
+  ipcMain.handle('evaluation:list', (_e, projectId: string) =>
+    repos().evaluation.listEvaluations(repos().db, projectId),
+  )
+  ipcMain.handle('evaluation:listByChapter', (_e, chapterId: string) =>
+    repos().evaluation.listEvaluationsByChapter(repos().db, chapterId),
+  )
+
+  // ---------- AI 调用记录（只读） ----------
+  ipcMain.handle('aiRun:list', (_e, projectId: string) =>
+    repos().aiRun.listAiRunsByProject(repos().db, projectId),
+  )
+  ipcMain.handle('aiRun:listRecent', (_e, projectId?: string) => {
+    const r = repos()
+    return projectId ? r.aiRun.listAiRunsByProject(r.db, projectId) : r.aiRun.listAllAiRuns(r.db)
+  })
+  ipcMain.handle('aiRun:contextPreview', (_e, id: string) => {
+    const r = repos()
+    const run = r.aiRun.getAiRun(r.db, id)
+    if (!run) return { ok: false, error: '未找到 AI 调用记录' }
+    return { ok: true, preview: createAiContextPreview(run) }
+  })
+  ipcMain.handle('aiRun:exportDebugContext', async (_e, id: string) => {
+    const r = repos()
+    const run = r.aiRun.getAiRun(r.db, id)
+    if (!run) return { saved: false, error: '未找到 AI 调用记录' }
+    const win = BrowserWindow.getFocusedWindow() ?? undefined
+    const res = await dialog.showSaveDialog(win!, {
+      defaultPath: `ai-run-${run.id}-debug.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (res.canceled || !res.filePath) return { saved: false }
+    try {
+      await writeFile(res.filePath, JSON.stringify(createAiRunDebugPayload(run), null, 2), 'utf8')
+      return { saved: true, path: res.filePath }
+    } catch (e) {
+      return { saved: false, error: '写盘失败：' + (e instanceof Error ? e.message : String(e)) }
+    }
+  })
+}
