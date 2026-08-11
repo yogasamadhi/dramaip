@@ -30,6 +30,7 @@ import {
   type ProductionBriefDraft,
   type ProjectCreationSource,
 } from "./project-intake";
+import { deriveProjectCockpit } from "./project-cockpit";
 import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_RELEASE,
@@ -1201,6 +1202,7 @@ function ProjectWorkspace() {
           {exportNotice}
         </p>
       )}
+      <ProjectCockpitPanel project={project} chapters={chapters} />
       {showProjectSettings && (
         <ProjectSettingsEditor project={project} onSave={updateProject} />
       )}
@@ -1272,6 +1274,137 @@ function ProjectWorkspace() {
         )}
       </div>
     </div>
+  );
+}
+
+function ProjectCockpitPanel(props: { project: Project; chapters: Chapter[] }) {
+  const client = useStudio();
+  const { data: graph, error: graphError } = useQuery({
+    queryKey: ["production-graph", props.project.id],
+    queryFn: () => client.production.graph(props.project.id),
+  });
+  const { data: tasks = [], error: taskError } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: client.tasks.list,
+    refetchInterval: 15_000,
+  });
+  if (graphError || taskError)
+    return (
+      <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+        项目驾驶舱暂时无法读取真实状态：{message(graphError ?? taskError)}
+      </p>
+    );
+  if (!graph)
+    return (
+      <section
+        aria-label="项目驾驶舱"
+        className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted"
+      >
+        正在根据已保存的项目资料整理阶段、阻断项和下一步…
+      </section>
+    );
+  const cockpit = deriveProjectCockpit({
+    project: props.project,
+    chapters: props.chapters,
+    graph,
+    tasks,
+  });
+  const context = new URLSearchParams({
+    projectId: props.project.id,
+  }).toString();
+  const zones = [
+    {
+      label: "创作",
+      to: `/projects/${props.project.id}`,
+      detail: "正文与项目设定",
+    },
+    {
+      label: "改编",
+      to: `/adapt?${context}`,
+      detail: "方案、分集、剧本和分镜",
+    },
+    {
+      label: "制作",
+      to: `/produce?${context}`,
+      detail: "资产、静帧与视听制作",
+    },
+    {
+      label: "审核交付",
+      to: `/review?${context}`,
+      detail: "质量、审片与交付记录",
+    },
+  ];
+  return (
+    <section
+      aria-label="项目驾驶舱"
+      className="rounded-2xl border border-brand/30 bg-gradient-to-br from-brand-soft/50 to-surface p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-brand">项目驾驶舱</p>
+          <h2 className="mt-1 text-xl font-semibold">{cockpit.statusLabel}</h2>
+          <p className="mt-1 text-sm text-muted">{cockpit.recentResult}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs text-brand">
+          {cockpit.status}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+        <article className="rounded-xl border border-brand/20 bg-white p-4">
+          <p className="text-xs font-medium text-muted">唯一推荐下一步</p>
+          <p className="mt-1 font-semibold">{cockpit.primaryAction.label}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {cockpit.primaryAction.description}
+          </p>
+          <Link
+            className="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white"
+            to={cockpit.primaryAction.to}
+          >
+            {cockpit.primaryAction.label}
+          </Link>
+        </article>
+        <div className="rounded-xl border border-line bg-white p-4">
+          <p className="text-xs font-medium text-muted">真实覆盖情况</p>
+          <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {cockpit.coverage.map((item) => (
+              <div key={item.label} className="rounded-lg bg-canvas p-2">
+                <dt className="text-xs text-muted">{item.label}</dt>
+                <dd className="mt-1 font-semibold">
+                  {item.required === undefined
+                    ? item.current
+                    : `${item.current}/${item.required}`}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {cockpit.blockers.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-medium">当前阻断项</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {cockpit.blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+      <nav
+        aria-label="项目四区导航"
+        className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {zones.map((zone) => (
+          <Link
+            key={zone.label}
+            to={zone.to}
+            className="rounded-lg border border-line bg-white p-3 transition hover:border-brand"
+          >
+            <p className="font-medium">{zone.label}</p>
+            <p className="mt-1 text-xs text-muted">{zone.detail}</p>
+          </Link>
+        ))}
+      </nav>
+    </section>
   );
 }
 
@@ -3069,6 +3202,8 @@ function CreativeCaseStudyCard(props: { item: CreativeCaseStudy }) {
 function TaskPage() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const projectId = new URLSearchParams(location.search).get("projectId");
   const [retryEngine, setRetryEngine] = useState<AgentEngineKind>("opencode");
   const { data: items = [], error } = useQuery({
     queryKey: ["tasks"],
@@ -3097,9 +3232,15 @@ function TaskPage() {
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
+  const visibleItems = projectId
+    ? items.filter((item) => item.projectId === projectId)
+    : items;
   return (
     <section>
       <h1 className="text-2xl font-semibold">任务</h1>
+      {projectId && (
+        <p className="mt-1 text-sm text-muted">正在显示当前项目的任务。</p>
+      )}
       <label className="mt-4 flex max-w-xs flex-col gap-1 text-sm text-muted">
         重试使用的智能引擎
         <select
@@ -3116,7 +3257,7 @@ function TaskPage() {
       </label>
       {error && <p className="mt-4 text-sm text-red-600">{message(error)}</p>}
       <div className="mt-5 space-y-2">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <div
             key={item.id}
             className="rounded-xl border border-line bg-surface p-4"
@@ -4749,6 +4890,7 @@ function DomainWorkspace(props: {
 function AdaptationWorkspace() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -4792,9 +4934,29 @@ function AdaptationWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      ["adaptations", "episodes", "scripts", "scenes", "shots"].includes(
+        requested,
+      )
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
   useEffect(() => {
     const project = projects.find((item) => item.id === projectId);
     if (
@@ -4808,6 +4970,11 @@ function AdaptationWorkspace() {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
   useEffect(() => {
     if (scriptId && !scripts.some((item) => item.id === scriptId))
       setScriptId("");
@@ -5539,6 +5706,7 @@ function ReviewFindings(props: { issues: string[]; suggestions: string[] }) {
 
 function ProductionWorkspace() {
   const client = useStudio();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -5589,6 +5757,29 @@ function ProductionWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      [
+        "assets",
+        "rights",
+        "visual-assets",
+        "shot-stills",
+        "image",
+        "audio",
+        "video",
+        "animatics",
+        "renders",
+      ].includes(requested)
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
@@ -5604,12 +5795,22 @@ function ProductionWorkspace() {
     );
   }, [adaptationId, adaptations, projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
+  useEffect(() => {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
   useEffect(() => {
     if (!episodeId && episodes[0]) setEpisodeId(episodes[0].id);
   }, [episodeId, episodes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
   useEffect(() => {
     if (scriptId && !scripts.some((item) => item.id === scriptId))
       setScriptId("");
@@ -5620,6 +5821,11 @@ function ProductionWorkspace() {
   useEffect(() => {
     if (shotId && !shots.some((item) => item.id === shotId)) setShotId("");
   }, [shotId, shots]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("shotId");
+    if (requested && shots.some((item) => item.id === requested))
+      setShotId(requested);
+  }, [location.search, shots]);
   const parentId =
     stage === "audio" || stage === "animatics" || stage === "renders"
       ? episodeId
@@ -7003,6 +7209,7 @@ function ProductionGraphPanel(props: { projectId: string }) {
 
 function ReviewDeliveryWorkspace() {
   const client = useStudio();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -7027,6 +7234,21 @@ function ReviewDeliveryWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      ["quality", "compliance", "localization", "review", "delivery"].includes(
+        requested,
+      )
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
@@ -7042,12 +7264,22 @@ function ReviewDeliveryWorkspace() {
     );
   }, [adaptationId, adaptations, projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
+  useEffect(() => {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
   useEffect(() => {
     if (!episodeId && episodes[0]) setEpisodeId(episodes[0].id);
   }, [episodeId, episodes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
   return (
     <section className="space-y-5">
       <div>
