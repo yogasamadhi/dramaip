@@ -93,6 +93,7 @@ import type {
   AssetCenterPreviewMedia,
   TimelineManifest,
   TimelineEditCommand,
+  TimelineDeliveryExportFormat,
   VideoGenerationInput,
   VideoGenerationPreflight,
 } from "@sdns/schema";
@@ -9313,6 +9314,9 @@ function TimelineEditorPanel(props: {
   >([]);
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState(false);
+  const [deliveryWorking, setDeliveryWorking] = useState<
+    TimelineDeliveryExportFormat | undefined
+  >();
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const audioMediaRefs = useRef<Record<string, HTMLAudioElement | null>>({});
   const { data: timeline, error } = useQuery({
@@ -9323,6 +9327,13 @@ function TimelineEditorPanel(props: {
     queryKey: ["timeline", "history", timeline?.id],
     queryFn: () => client.timeline.history(timeline!.id),
     enabled: Boolean(timeline?.id),
+  });
+  const {
+    data: deliveryManifest,
+    error: deliveryError,
+  } = useQuery({
+    queryKey: ["timeline", "delivery", props.episodeId],
+    queryFn: () => client.timeline.deliveryManifest(props.episodeId),
   });
   const {
     data: audioAssembly,
@@ -9482,7 +9493,12 @@ function TimelineEditorPanel(props: {
       });
       queryClient.setQueryData(["timeline", props.episodeId], saved);
       setNotice("编辑已自动保存；源媒体没有被修改。");
-      await refreshHistory();
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
+      ]);
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -9498,7 +9514,12 @@ function TimelineEditorPanel(props: {
       setNotice(
         direction === "undo" ? "已撤销最近一次编辑。" : "已重做最近一次编辑。",
       );
-      await refreshHistory();
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
+      ]);
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -9541,6 +9562,9 @@ function TimelineEditorPanel(props: {
         queryClient.invalidateQueries({
           queryKey: ["timeline", "audio-assembly", props.episodeId],
         }),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
       ]);
     } catch (cause) {
       setNotice(message(cause));
@@ -9566,6 +9590,25 @@ function TimelineEditorPanel(props: {
     if (event.key === "ArrowRight" && timeline) {
       event.preventDefault();
       setPlayhead((current) => Math.min(timeline.durationSeconds, current + 1));
+    }
+  };
+  const exportDelivery = async (format: TimelineDeliveryExportFormat) => {
+    setDeliveryWorking(format);
+    setNotice(undefined);
+    try {
+      const document = await client.timeline.exportDelivery(
+        props.episodeId,
+        format,
+      );
+      const result = await window.desktop.saveTextFile({
+        suggestedName: document.fileName,
+        content: document.content,
+      });
+      setNotice(result.saved ? "已导出可重链接时间线资料。" : "已取消导出。");
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setDeliveryWorking(undefined);
     }
   };
 
@@ -9701,6 +9744,66 @@ function TimelineEditorPanel(props: {
               )}
             </div>
           </div>
+        )}
+      </section>
+      <section
+        className="rounded-xl border border-line bg-page p-3"
+        aria-label="已验证 NLE 交付"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-medium">已验证 NLE 交付</h3>
+            <p className="mt-1 text-xs text-muted">
+              从当前 canonical timeline 生成 FCPXML、OTIO、CMX 3600 EDL、字幕和媒体重链接清单；只含相对路径、checksum 与最小谱系。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["fcpxml", "导出 FCPXML"],
+                ["otio", "导出 OTIO"],
+                ["edl", "导出 EDL"],
+                ["srt", "导出 SRT"],
+                ["vtt", "导出 WebVTT"],
+                ["relink", "导出重链接清单"],
+                ["manifest", "导出交付清单"],
+              ] as const
+            ).map(([format, label]) => (
+              <button
+                key={format}
+                className="rounded border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                disabled={working || Boolean(deliveryWorking)}
+                onClick={() => void exportDelivery(format)}
+              >
+                {deliveryWorking === format ? "正在导出…" : label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {deliveryManifest && (
+          <div className="mt-3 grid gap-3 text-xs text-muted lg:grid-cols-2">
+            <p>
+              时间线版本 {deliveryManifest.timeline.version} · 媒体 {deliveryManifest.media.length} 个 · 已校验 {deliveryManifest.media.filter((item) => Boolean(item.checksum)).length} 个
+            </p>
+            <p>
+              MP4 仅在 Provider 显式声明 timeline_render 时提供；当前目录未声明该能力，因此未生成或伪造成片。
+            </p>
+            {deliveryManifest.unsupportedFeatures.length > 0 && (
+              <p className="rounded bg-amber-50 p-2 text-amber-900">
+                兼容性报告：{deliveryManifest.unsupportedFeatures.join("；")}
+              </p>
+            )}
+            {deliveryManifest.warnings.map((warning) => (
+              <p key={warning} className="rounded bg-amber-50 p-2 text-amber-900">
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+        {deliveryError && (
+          <p className="mt-3 rounded bg-red-50 p-2 text-xs text-red-700">
+            {message(deliveryError)}
+          </p>
         )}
       </section>
       <section className="grid gap-3 rounded-xl border border-line bg-page p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">

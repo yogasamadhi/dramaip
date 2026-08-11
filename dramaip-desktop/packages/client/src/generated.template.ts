@@ -104,6 +104,8 @@ import type {
   TimelineCommandInput,
   TimelineHistoryAvailability,
   TimelineMediaPreview,
+  TimelineDeliveryManifest,
+  TimelineDeliveryExportFormat,
   AudioAssemblyPreview,
   AudioAssemblyApplyInput,
   EditorExportPreflight,
@@ -336,6 +338,11 @@ export interface StudioClient {
     redo(id: string): Promise<TimelineManifest>;
     history(id: string): Promise<TimelineHistoryAvailability>;
     preview(id: string): Promise<TimelineMediaPreview>;
+    deliveryManifest(episodeId: string): Promise<TimelineDeliveryManifest>;
+    exportDelivery(
+      episodeId: string,
+      format: TimelineDeliveryExportFormat,
+    ): Promise<ExportDocument>;
     audioAssemblyPreview(episodeId: string): Promise<AudioAssemblyPreview>;
     applyAudioAssembly(
       episodeId: string,
@@ -1026,6 +1033,14 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
       preview: (id) =>
         request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
+      deliveryManifest: (episodeId) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/manifest`,
+        ),
+      exportDelivery: (episodeId, format) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/export/${encodeURIComponent(format)}`,
+        ),
       audioAssemblyPreview: (episodeId) =>
         request(
           `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,

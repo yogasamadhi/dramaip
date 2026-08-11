@@ -106,6 +106,8 @@ import {
   TimelineCommandInput,
   TimelineHistoryAvailability,
   TimelineMediaPreview,
+  TimelineDeliveryManifest,
+  TimelineDeliveryExportFormat,
   AudioAssemblyPreview,
   AudioAssemblyApplyInput,
   EditorExportPreflight,
@@ -888,6 +890,28 @@ const TimelineGroup = HttpApiGroup.make("timeline")
       success: TimelineMediaPreview,
       error: ApiError,
     }),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "deliveryManifest",
+      `${API_PREFIX}/episodes/:id/timeline-delivery/manifest`,
+      {
+        params: { id: Schema.String },
+        success: TimelineDeliveryManifest,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "exportDelivery",
+      `${API_PREFIX}/episodes/:id/timeline-delivery/export/:format`,
+      {
+        params: { id: Schema.String, format: TimelineDeliveryExportFormat },
+        success: ExportDocument,
+        error: ApiError,
+      },
+    ),
   )
   .add(
     HttpApiEndpoint.get(
