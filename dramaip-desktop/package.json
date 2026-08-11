@@ -46,7 +46,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "bunx oxlint --deny-warnings packages apps",
     "test:node": "node --import tsx --test packages/db/src/v3.node.test.ts packages/server/src/sidecar.node.test.ts",
-    "test:unit": "bun test --cwd apps/desktop/electron && bun test --cwd packages/schema && bun test --cwd packages/tasks && bun test --cwd packages/ai && bun test --cwd packages/app && bun test --cwd packages/mcp && bun test packages/db/src/v3.bun.test.ts && bun run test:node",
+    "test:unit": "bun test --cwd apps/desktop/electron && bun test --cwd packages/schema && bun test --cwd packages/tasks && bun test --cwd packages/ai && bun test --cwd packages/app && bun test --cwd packages/mcp && bun test packages/db/src/v3.bun.test.ts && bun test tests/lm6/lm6-00.test.ts && bun run test:node",
     "test": "bun run typecheck && bun run test:unit",
     "test:e2e": "bun run build && playwright test",
     "format": "bunx prettier --write README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages/{ai,ai-legacy,app,client,db,mcp,protocol,schema,server,tasks,ui}",
