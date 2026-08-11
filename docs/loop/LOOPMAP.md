@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-15`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-20`。
 
 ## 1. 总体目标与范围
 
@@ -346,7 +346,7 @@ make platform-down
 | LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过         | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | done   | 1        | 侧栏、选择性采用、完整回归和远端 main 推送通过   | 章节编辑器常驻 Story Bible            | LM6-13        |
-| LM6-15  | P1 Gate  | Release             | todo   | 0        | —                                                | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
+| LM6-15  | P1 Gate  | Release             | done   | 1        | P1 矩阵、三集 Gate、完整回归和远端 main 推送通过 | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
 | LM6-20  | P2       | Timeline Editor     | todo   | 0        | —                                                | 可播放、可编辑的多轨时间线            | LM6-15        |
 | LM6-21  | P2       | Media Pipeline      | todo   | 0        | —                                                | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | todo   | 0        | —                                                | 真实可验证的后期交付路径              | LM6-21        |
@@ -1236,3 +1236,28 @@ LM6-00
 - Evidence: `dramaip-desktop/packages/app/src/story-bible-sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-14.test.ts`、`dramaip-desktop/tests/electron/lm6-14.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-14/`、用户指南、功能 merge 与远端推送。
 - Next attempt: 开始 LM6-15，先运行 `git fetch origin` 并创建 `loop/lm6-15-p1-pilot-gate`; fallback: 先复核 LM6-10 至 LM6-14 的权威资产、静帧 Gate、节奏与 Story Bible 证据矩阵，再实现 P1 视觉试制 Gate 的负向阻断与 Electron 放行旅程。
 - Sweep cursor: LM6-15
+
+### LM6-15 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-15
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-15-p1-pilot-gate`
+- Commit(s): `8aa1d112 test(gate): add LM6-15 P1 pilot evidence`
+- Merge commit: `78559e6b merge: LM6-15 P1 pilot gate`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、307 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 18 个 Electron 场景全部通过。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 三章来源确认后确实生成 3 集并报告 `coverage.episodes = 3`；超出 1–3 集限制、重复确认、来源 stale / resume 仍维持既有原子边界。
+  - `tests/electron/lm6-15.spec.ts`: PASS — 1280×720 下建立并确认 3 集试制，搜索并以键盘折叠 Story Bible，显式回到带权威静帧的改编 / 分集 / 剧本 / 场景 / 分镜，展示导演看板和采用静帧；视频预检按钮保持禁用，未发送视频提交请求。
+  - `tests/lm6/lm6-15.test.ts` 与 P1 matrix fixture: PASS — 锁定资产、分镜、静帧、节奏与 Story Bible 的既有自动化证据，以及缺媒体、权利、成本、Provider、长列表和窄窗口边界均被纳入 P1 Gate。
+- Diff review: PASS — 仅包含 P1 Gate 证据矩阵、三集服务端合同和跨工作区 Electron 场景；没有产品范围外的时间线 / 云端能力、凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `f798f3b3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `78559e6b` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-15-p1-pilot-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-15`。
+- Current branch/worktree: `integrate/lm6-15-p1-pilot-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-15`; 仅有本执行记录的显式改动。
+- Completed: P1 视觉试制 Gate 已把 1 集恢复证据与新的 3 集试制证据合并为可执行矩阵。导演必须在明确的权威层级中查看锁定资产、卡片分镜、采用静帧、节奏和 Story Bible；发生媒体 / 权利 / 成本 / Provider 缺口时，服务端视频 Gate 仍在厂商请求前阻断，不能由 UI 或新 Gate 场景绕过。
+- Unfinished: 无；多轨时间线、自动音频编排、最终交付、系列资产库与云审片均为 P2 后续工作，未在 P1 Gate 中提前实现。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-15.test.ts`、`dramaip-desktop/tests/electron/lm6-15.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-15/`、LM6-10…LM6-14 既有测试、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-20，先运行 `git fetch origin` 并创建 `loop/lm6-20-multitrack-timeline`; fallback: 先以稳定 canonical timeline schema、短 / 长 fixture、缺媒体和 undo 命令测试建立独立编辑器模型，再接桌面播放与编辑交互。
+- Sweep cursor: LM6-20
