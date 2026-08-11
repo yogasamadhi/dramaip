@@ -3,6 +3,7 @@ import {
   QueryClientProvider,
   useMutation,
   useQuery,
+  useQueries,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
@@ -10,6 +11,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import ReactDOM from "react-dom/client";
@@ -89,6 +91,8 @@ import type {
   RevisionPreview,
   AssetCenterAsset,
   AssetCenterPreviewMedia,
+  TimelineManifest,
+  TimelineEditCommand,
   VideoGenerationInput,
   VideoGenerationPreflight,
 } from "@sdns/schema";
@@ -143,6 +147,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   audio: "音频制作",
   video: "视频制作",
   animatics: "动态分镜",
+  timeline: "多轨时间线",
   renders: "成片渲染",
   quality: "质量检查",
   compliance: "合规检查",
@@ -6987,6 +6992,7 @@ function ProductionWorkspace() {
     | "audio"
     | "video"
     | "animatics"
+    | "timeline"
     | "renders"
   >("assets");
   const { data: adaptations = [] } = useQuery({
@@ -7037,6 +7043,7 @@ function ProductionWorkspace() {
         "audio",
         "video",
         "animatics",
+        "timeline",
         "renders",
       ].includes(requested)
     )
@@ -7107,7 +7114,10 @@ function ProductionWorkspace() {
       setShotId(requested);
   }, [location.search, shots]);
   const parentId =
-    stage === "audio" || stage === "animatics" || stage === "renders"
+    stage === "audio" ||
+    stage === "animatics" ||
+    stage === "timeline" ||
+    stage === "renders"
       ? episodeId
       : stage === "video" || stage === "shot-stills"
         ? shotId
@@ -7115,6 +7125,7 @@ function ProductionWorkspace() {
   const parentRequired =
     stage === "audio" ||
     stage === "animatics" ||
+    stage === "timeline" ||
     stage === "renders" ||
     stage === "video" ||
     stage === "shot-stills";
@@ -7287,6 +7298,7 @@ function ProductionWorkspace() {
             "audio",
             "video",
             "animatics",
+            "timeline",
             "renders",
           ] as const
         ).map((item) => (
@@ -7337,6 +7349,12 @@ function ProductionWorkspace() {
         />
       ) : stage === "animatics" && episodeId ? (
         <AnimaticProductionPanel projectId={projectId} episodeId={episodeId} />
+      ) : stage === "timeline" && episodeId && adaptationId ? (
+        <TimelineEditorPanel
+          projectId={projectId}
+          adaptationId={adaptationId}
+          episodeId={episodeId}
+        />
       ) : stage === "renders" && episodeId ? (
         <EpisodeRenderPreflightPanel episodeId={episodeId} />
       ) : (
@@ -9241,6 +9259,602 @@ function AnimaticProductionPanel(props: {
     </section>
   );
 }
+
+function timelineTrackLabel(
+  kind: TimelineManifest["tracks"][number]["kind"],
+): string {
+  return {
+    video: "视频",
+    dialogue: "对白",
+    narration: "旁白",
+    bgm: "配乐",
+    sfx: "音效",
+    subtitle: "字幕",
+  }[kind];
+}
+
+function timelineMediaStatusLabel(
+  status: TimelineManifest["tracks"][number]["clips"][number]["mediaStatus"],
+): string {
+  return {
+    linked: "已链接",
+    missing: "文件缺失",
+    unsupported: "编码不支持",
+    proxy: "使用代理",
+    unattached: "未附加媒体",
+  }[status];
+}
+
+function TimelineEditorPanel(props: {
+  projectId: string;
+  adaptationId: string;
+  episodeId: string;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [playhead, setPlayhead] = useState(0);
+  const playheadRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const [zoom, setZoom] = useState(56);
+  const [selectedClipId, setSelectedClipId] = useState("");
+  const [moveStart, setMoveStart] = useState("");
+  const [trimStart, setTrimStart] = useState("");
+  const [trimDuration, setTrimDuration] = useState("");
+  const [relinkAssetId, setRelinkAssetId] = useState("");
+  const [notice, setNotice] = useState<string>();
+  const [working, setWorking] = useState(false);
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const audioMediaRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const { data: timeline, error } = useQuery({
+    queryKey: ["timeline", props.episodeId],
+    queryFn: () => client.timeline.get(props.episodeId),
+  });
+  const { data: history } = useQuery({
+    queryKey: ["timeline", "history", timeline?.id],
+    queryFn: () => client.timeline.history(timeline!.id),
+    enabled: Boolean(timeline?.id),
+  });
+  const { data: mediaAssets = [] } = useQuery({
+    queryKey: ["timeline", "media-assets", props.projectId],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          ["assets", "visual-assets", "video", "shot-stills"].map((domain) =>
+            client.resources.list(domain, props.projectId),
+          ),
+        )
+      ).flat(),
+  });
+  const selected = timeline?.tracks
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .find((item) => item.clip.id === selectedClipId);
+  const activeMedia = timeline?.tracks
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .filter(
+      (item) =>
+        item.clip.assetId &&
+        item.clip.mediaStatus === "linked" &&
+        playhead >= item.clip.startSeconds &&
+        playhead < item.clip.startSeconds + item.clip.durationSeconds,
+    );
+  const activeVideo = activeMedia?.find((item) => item.track.kind === "video");
+  const hasSolo = Boolean(timeline?.tracks.some((track) => track.solo));
+  const activeAudio = (activeMedia ?? []).filter(
+    (item) =>
+      ["dialogue", "narration", "bgm", "sfx"].includes(item.track.kind) &&
+      !item.track.muted &&
+      (!hasSolo || item.track.solo),
+  );
+  const active = activeVideo ?? activeAudio[0];
+  const { data: preview, error: previewError } = useQuery({
+    queryKey: ["timeline", "media-preview", active?.clip.assetId],
+    queryFn: () => client.timeline.preview(active!.clip.assetId!),
+    enabled: Boolean(active?.clip.assetId),
+  });
+  const audioPreviews = useQueries({
+    queries: activeAudio.map((item) => ({
+      queryKey: ["timeline", "audio-preview", item.clip.assetId],
+      queryFn: () => client.timeline.preview(item.clip.assetId!),
+      enabled: Boolean(item.clip.assetId),
+    })),
+  });
+  const activeVideoAudible =
+    Boolean(activeVideo) &&
+    !activeVideo!.track.muted &&
+    (!hasSolo || activeVideo!.track.solo);
+
+  useEffect(() => {
+    playheadRef.current = playhead;
+  }, [playhead]);
+  useEffect(() => {
+    if (!timeline || !playing) return;
+    const startedAt = Date.now() - playheadRef.current * 1_000;
+    const timer = window.setInterval(() => {
+      const next = Math.min(
+        timeline.durationSeconds,
+        (Date.now() - startedAt) / 1_000,
+      );
+      setPlayhead(next);
+      if (next >= timeline.durationSeconds) setPlaying(false);
+    }, 40);
+    return () => window.clearInterval(timer);
+  }, [playing, timeline?.durationSeconds]);
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media || !activeVideo) return;
+    const offset = Math.max(
+      0,
+      playhead -
+        activeVideo.clip.startSeconds +
+        activeVideo.clip.sourceOffsetSeconds,
+    );
+    if (Math.abs(media.currentTime - offset) > 0.15) media.currentTime = offset;
+    if (playing && activeVideoAudible) void media.play().catch(() => undefined);
+    else media.pause();
+  }, [
+    activeVideo?.clip.id,
+    activeVideo?.clip.sourceOffsetSeconds,
+    activeVideoAudible,
+    playhead,
+    playing,
+    preview?.dataUrl,
+  ]);
+  useEffect(() => {
+    activeAudio.forEach((item, index) => {
+      const media = audioMediaRefs.current[item.clip.id];
+      const preview = audioPreviews[index]?.data;
+      if (!media || !preview) return;
+      const offset = Math.max(
+        0,
+        playhead - item.clip.startSeconds + item.clip.sourceOffsetSeconds,
+      );
+      if (Math.abs(media.currentTime - offset) > 0.15)
+        media.currentTime = offset;
+      if (playing) void media.play().catch(() => undefined);
+      else media.pause();
+    });
+  }, [activeAudio, audioPreviews, playhead, playing]);
+  useEffect(() => {
+    if (!timeline) return;
+    const found = timeline.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === selectedClipId);
+    if (!found)
+      setSelectedClipId(
+        timeline.tracks.flatMap((track) => track.clips)[0]?.id ?? "",
+      );
+  }, [selectedClipId, timeline]);
+  useEffect(() => {
+    if (!selected) return;
+    setMoveStart(String(selected.clip.startSeconds));
+    setTrimStart(String(selected.clip.startSeconds));
+    setTrimDuration(String(selected.clip.durationSeconds));
+    setRelinkAssetId(selected.clip.assetId ?? "");
+  }, [selectedClipId]);
+
+  const refreshHistory = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["timeline", "history", timeline?.id],
+    });
+  };
+  const apply = async (command: TimelineEditCommand) => {
+    if (!timeline) return;
+    setWorking(true);
+    setNotice(undefined);
+    try {
+      const saved = await client.timeline.command(timeline.id, {
+        version: timeline.version,
+        command,
+      });
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice("编辑已自动保存；源媒体没有被修改。");
+      await refreshHistory();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const restore = async (direction: "undo" | "redo") => {
+    if (!timeline) return;
+    setWorking(true);
+    try {
+      const saved = await client.timeline[direction](timeline.id);
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice(
+        direction === "undo" ? "已撤销最近一次编辑。" : "已重做最近一次编辑。",
+      );
+      await refreshHistory();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const selectClip = (id: string) => {
+    setSelectedClipId(id);
+    const found = timeline?.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === id);
+    if (found) setPlayhead(found.startSeconds);
+  };
+  const onKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) void restore("redo");
+      else void restore("undo");
+      return;
+    }
+    if (event.key === " ") {
+      event.preventDefault();
+      setPlaying((current) => !current);
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setPlayhead((current) => Math.max(0, current - 1));
+    }
+    if (event.key === "ArrowRight" && timeline) {
+      event.preventDefault();
+      setPlayhead((current) => Math.min(timeline.durationSeconds, current + 1));
+    }
+  };
+
+  if (error)
+    return (
+      <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        {message(error)}
+      </p>
+    );
+  if (!timeline)
+    return (
+      <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+        正在建立当前分集的时间线…
+      </p>
+    );
+  const pixels = Math.max(680, timeline.durationSeconds * zoom + 120);
+  return (
+    <section
+      className="space-y-4 rounded-2xl border border-line bg-surface p-4"
+      aria-label="多轨时间线编辑器"
+      tabIndex={0}
+      onKeyDown={onKeyboard}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">版本化剪辑工作区</p>
+          <h2 className="mt-1 text-lg font-semibold">多轨时间线</h2>
+          <p className="mt-1 text-sm text-muted">
+            25 fps、秒级
+            timebase；编辑逐条自动保存并可撤销。媒体始终以引用方式使用，不会复制或改写源文件。
+          </p>
+        </div>
+        <p className="text-xs text-muted">
+          v{timeline.version} · 总长 {timeline.durationSeconds.toFixed(2)} 秒
+        </p>
+      </div>
+      <section className="grid gap-3 rounded-xl border border-line bg-page p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-lg bg-brand px-3 py-2 text-sm text-white"
+              onClick={() => setPlaying((current) => !current)}
+            >
+              {playing ? "暂停" : "播放"}
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm"
+              onClick={() => setPlayhead(0)}
+            >
+              回到开头
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm disabled:opacity-50"
+              disabled={working || !history?.canUndo}
+              onClick={() => void restore("undo")}
+            >
+              撤销
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm disabled:opacity-50"
+              disabled={working || !history?.canRedo}
+              onClick={() => void restore("redo")}
+            >
+              重做
+            </button>
+            <span className="text-sm text-muted">{playhead.toFixed(2)} 秒</span>
+          </div>
+          <input
+            className="mt-3 w-full accent-brand"
+            aria-label="播放头定位"
+            type="range"
+            min="0"
+            max={timeline.durationSeconds}
+            step="0.04"
+            value={Math.min(playhead, timeline.durationSeconds)}
+            onChange={(event) => setPlayhead(Number(event.target.value))}
+          />
+          <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+            缩放
+            <input
+              aria-label="时间线缩放"
+              type="range"
+              min="24"
+              max="160"
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+            />
+            {zoom} px/秒
+          </label>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-2 text-xs text-muted">
+          <p className="font-medium text-ink">预览主时钟</p>
+          {preview && active ? (
+            preview.kind === "video" ? (
+              <video
+                ref={mediaRef as React.RefObject<HTMLVideoElement>}
+                className="mt-2 max-h-40 w-full rounded"
+                controls
+                src={preview.dataUrl}
+              />
+            ) : preview.kind === "audio" ? (
+              <audio
+                ref={(node) => {
+                  audioMediaRefs.current[active.clip.id] = node;
+                }}
+                className="mt-2 w-full"
+                controls
+                src={preview.dataUrl}
+              />
+            ) : (
+              <img
+                className="mt-2 max-h-40 w-full rounded object-contain"
+                src={preview.dataUrl}
+                alt={`${active.clip.name} 预览`}
+              />
+            )
+          ) : (
+            <p className="mt-2">
+              播放头未落在可播放的本地媒体上；可继续定位、编辑或为缺失片段重链接。
+            </p>
+          )}
+          {activeAudio.map((item, index) => {
+            const audioPreview = audioPreviews[index]?.data;
+            if (!audioPreview || item.clip.id === active?.clip.id) return null;
+            return (
+              <audio
+                key={item.clip.id}
+                ref={(node) => {
+                  audioMediaRefs.current[item.clip.id] = node;
+                }}
+                className="hidden"
+                src={audioPreview.dataUrl}
+              />
+            );
+          })}
+          {previewError && (
+            <p className="mt-2 text-red-700">{message(previewError)}</p>
+          )}
+        </div>
+      </section>
+      <section
+        className="overflow-x-auto rounded-xl border border-line bg-page p-3"
+        aria-label="时间线轨道"
+      >
+        <div className="min-w-max" style={{ width: pixels }}>
+          <div className="relative mb-2 h-5 border-b border-line text-[10px] text-muted">
+            {Array.from(
+              { length: Math.ceil(timeline.durationSeconds) + 1 },
+              (_, second) => (
+                <span
+                  key={second}
+                  className="absolute top-0"
+                  style={{ left: second * zoom }}
+                >
+                  {second}s
+                </span>
+              ),
+            )}
+            <span
+              className="absolute -bottom-1 top-0 w-0.5 bg-red-500"
+              style={{ left: playhead * zoom }}
+            />
+          </div>
+          <div className="space-y-2">
+            {timeline.tracks.map((track) => (
+              <div key={track.id} className="grid grid-cols-[7rem_1fr] gap-2">
+                <div className="rounded-lg border border-line bg-surface p-2 text-xs">
+                  <p className="font-medium">
+                    {timelineTrackLabel(track.kind)}
+                  </p>
+                  <div className="mt-1 flex gap-1">
+                    <button
+                      aria-label={`${timelineTrackLabel(track.kind)}静音`}
+                      className={`rounded px-1.5 py-0.5 ${track.muted ? "bg-red-100 text-red-700" : "bg-page text-muted"}`}
+                      onClick={() =>
+                        void apply({
+                          type: "set-track-audio",
+                          trackId: track.id,
+                          muted: !track.muted,
+                        })
+                      }
+                    >
+                      静音
+                    </button>
+                    <button
+                      aria-label={`${timelineTrackLabel(track.kind)}独听`}
+                      className={`rounded px-1.5 py-0.5 ${track.solo ? "bg-brand-soft text-brand" : "bg-page text-muted"}`}
+                      onClick={() =>
+                        void apply({
+                          type: "set-track-audio",
+                          trackId: track.id,
+                          solo: !track.solo,
+                        })
+                      }
+                    >
+                      独听
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="relative h-14 overflow-hidden rounded-lg bg-canvas"
+                  style={{ width: pixels - 120 }}
+                >
+                  <span
+                    className="absolute bottom-0 top-0 z-10 w-0.5 bg-red-500"
+                    style={{ left: playhead * zoom }}
+                  />
+                  {track.clips.map((clip) => (
+                    <button
+                      key={clip.id}
+                      aria-label={`选择片段：${clip.name}`}
+                      className={`absolute top-2 h-10 overflow-hidden rounded border px-2 text-left text-xs ${selectedClipId === clip.id ? "border-brand bg-brand-soft text-brand" : clip.mediaStatus === "linked" ? "border-line bg-surface" : "border-amber-300 bg-amber-50 text-amber-900"}`}
+                      style={{
+                        left: clip.startSeconds * zoom,
+                        width: Math.max(42, clip.durationSeconds * zoom - 2),
+                      }}
+                      onClick={() => selectClip(clip.id)}
+                    >
+                      {clip.name} · {timelineMediaStatusLabel(clip.mediaStatus)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      {selected && (
+        <section className="grid gap-3 rounded-xl border border-line p-3 xl:grid-cols-3">
+          <div>
+            <h3 className="font-medium">{selected.clip.name}</h3>
+            <p className="mt-1 text-xs text-muted">
+              {timelineTrackLabel(selected.track.kind)} ·{" "}
+              {timelineMediaStatusLabel(selected.clip.mediaStatus)} ·{" "}
+              {selected.clip.manuallyEdited ? "有人工编辑" : "源装配"}
+            </p>
+            {selected.clip.text && (
+              <p className="mt-2 text-sm">{selected.clip.text}</p>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs">
+              移动到秒
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0"
+                step="0.04"
+                value={moveStart}
+                onChange={(event) => setMoveStart(event.target.value)}
+              />
+            </label>
+            <button
+              className="self-end rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "move",
+                  clipId: selected.clip.id,
+                  startSeconds: Number(moveStart),
+                })
+              }
+            >
+              移动
+            </button>
+            <label className="grid gap-1 text-xs">
+              裁切起点
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0"
+                step="0.04"
+                value={trimStart}
+                onChange={(event) => setTrimStart(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs">
+              裁切时长
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0.04"
+                step="0.04"
+                value={trimDuration}
+                onChange={(event) => setTrimDuration(event.target.value)}
+              />
+            </label>
+            <button
+              className="rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "trim",
+                  clipId: selected.clip.id,
+                  startSeconds: Number(trimStart),
+                  durationSeconds: Number(trimDuration),
+                })
+              }
+            >
+              裁切
+            </button>
+            <button
+              className="rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "split",
+                  clipId: selected.clip.id,
+                  atSeconds:
+                    selected.clip.startSeconds +
+                    selected.clip.durationSeconds / 2,
+                })
+              }
+            >
+              在中点分割
+            </button>
+          </div>
+          <div className="grid gap-2">
+            <label className="grid gap-1 text-xs">
+              重链接到项目媒体
+              <select
+                className="rounded border border-line px-2 py-1 text-sm"
+                value={relinkAssetId}
+                onChange={(event) => setRelinkAssetId(event.target.value)}
+              >
+                <option value="">选择归档媒体</option>
+                {mediaAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="w-fit rounded border border-brand px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working || !relinkAssetId}
+              onClick={() =>
+                void apply({
+                  type: "relink",
+                  clipId: selected.clip.id,
+                  assetId: relinkAssetId,
+                })
+              }
+            >
+              保存重链接
+            </button>
+          </div>
+        </section>
+      )}
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+    </section>
+  );
+}
+
+
 
 function EpisodeRenderPreflightPanel(props: { episodeId: string }) {
   const client = useStudio();

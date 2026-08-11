@@ -1191,6 +1191,185 @@ export interface EditorTimelineManifest {
   clips: EditorTimelineClip[];
   createdAt: IsoDateTime;
 }
+
+/**
+ * 编辑器唯一权威时间线。它只保存媒体实体引用和时间信息，绝不保存本地绝对路径或修改源媒体。
+ * 旧的 EditorTimelineManifest 仍用于审片交接导出；后续 NLE 交付应从此结构读取。
+ */
+export const TimelineTrackKind = Schema.Literals([
+  "video",
+  "dialogue",
+  "narration",
+  "bgm",
+  "sfx",
+  "subtitle",
+]);
+export type TimelineTrackKind =
+  "video" | "dialogue" | "narration" | "bgm" | "sfx" | "subtitle";
+
+export const TimelineMediaStatus = Schema.Literals([
+  "linked",
+  "missing",
+  "unsupported",
+  "proxy",
+  "unattached",
+]);
+export type TimelineMediaStatus =
+  "linked" | "missing" | "unsupported" | "proxy" | "unattached";
+
+export const TimelineClip = Schema.Struct({
+  id: Id,
+  sourceClipId: Schema.optionalKey(Id),
+  shotId: Schema.optionalKey(Id),
+  assetId: Schema.optionalKey(Id),
+  audioTrackId: Schema.optionalKey(Id),
+  name: Schema.String,
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  sourceOffsetSeconds: Schema.Number,
+  mediaStatus: TimelineMediaStatus,
+  text: Schema.optionalKey(Schema.String),
+  manuallyEdited: Schema.Boolean,
+});
+export interface TimelineClip {
+  id: Id;
+  sourceClipId?: Id;
+  shotId?: Id;
+  assetId?: Id;
+  audioTrackId?: Id;
+  name: string;
+  startSeconds: number;
+  durationSeconds: number;
+  sourceOffsetSeconds: number;
+  mediaStatus: TimelineMediaStatus;
+  text?: string;
+  manuallyEdited: boolean;
+}
+
+export const TimelineTrack = Schema.Struct({
+  id: Id,
+  kind: TimelineTrackKind,
+  label: Schema.String,
+  muted: Schema.Boolean,
+  solo: Schema.Boolean,
+  clips: Schema.Array(TimelineClip),
+});
+export interface TimelineTrack {
+  id: Id;
+  kind: TimelineTrackKind;
+  label: string;
+  muted: boolean;
+  solo: boolean;
+  clips: TimelineClip[];
+}
+
+export const TimelineManifest = Schema.Struct({
+  format: Schema.Literal("dramaip-timeline"),
+  schemaVersion: Schema.Literal(1),
+  id: Id,
+  projectId: Id,
+  adaptationId: Id,
+  episodeId: Id,
+  sourceFingerprint: Schema.String,
+  frameRate: Schema.Literal(25),
+  timebase: Schema.Literal("seconds"),
+  durationSeconds: Schema.Number,
+  tracks: Schema.Array(TimelineTrack),
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface TimelineManifest {
+  format: "dramaip-timeline";
+  schemaVersion: 1;
+  id: Id;
+  projectId: Id;
+  adaptationId: Id;
+  episodeId: Id;
+  sourceFingerprint: string;
+  frameRate: 25;
+  timebase: "seconds";
+  durationSeconds: number;
+  tracks: TimelineTrack[];
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const TimelineEditCommand = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("move"),
+    clipId: Id,
+    startSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("trim"),
+    clipId: Id,
+    startSeconds: Schema.optionalKey(Schema.Number),
+    durationSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("split"),
+    clipId: Id,
+    atSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("set-track-audio"),
+    trackId: Id,
+    muted: Schema.optionalKey(Schema.Boolean),
+    solo: Schema.optionalKey(Schema.Boolean),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("relink"),
+    clipId: Id,
+    assetId: Id,
+  }),
+]);
+export type TimelineEditCommand =
+  | { type: "move"; clipId: Id; startSeconds: number }
+  | {
+      type: "trim";
+      clipId: Id;
+      startSeconds?: number;
+      durationSeconds: number;
+    }
+  | { type: "split"; clipId: Id; atSeconds: number }
+  | {
+      type: "set-track-audio";
+      trackId: Id;
+      muted?: boolean;
+      solo?: boolean;
+    }
+  | { type: "relink"; clipId: Id; assetId: Id };
+
+export const TimelineCommandInput = Schema.Struct({
+  version: Schema.Int,
+  command: TimelineEditCommand,
+});
+export interface TimelineCommandInput {
+  version: number;
+  command: TimelineEditCommand;
+}
+
+export const TimelineHistoryAvailability = Schema.Struct({
+  canUndo: Schema.Boolean,
+  canRedo: Schema.Boolean,
+});
+export interface TimelineHistoryAvailability {
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+export const TimelineMediaPreview = Schema.Struct({
+  id: Id,
+  kind: Schema.Literals(["image", "audio", "video"]),
+  dataUrl: Schema.String,
+});
+export interface TimelineMediaPreview {
+  id: Id;
+  kind: "image" | "audio" | "video";
+  dataUrl: string;
+}
 export const EditorExportPreflight = Schema.Struct({
   canExport: Schema.Boolean,
   blockers: Schema.Array(Schema.String),

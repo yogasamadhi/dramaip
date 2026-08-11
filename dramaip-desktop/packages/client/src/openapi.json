@@ -8934,6 +8934,1228 @@
         }
       }
     },
+    "/api/v1/episodes/{id}/timeline": {
+      "get": {
+        "tags": ["timeline"],
+        "operationId": "timeline.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string",
+                      "enum": ["dramaip-timeline"]
+                    },
+                    "schemaVersion": { "type": "number", "enum": [1] },
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "adaptationId": { "type": "string" },
+                    "episodeId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "frameRate": { "type": "number", "enum": [25] },
+                    "timebase": { "type": "string", "enum": ["seconds"] },
+                    "durationSeconds": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "video",
+                              "dialogue",
+                              "narration",
+                              "bgm",
+                              "sfx",
+                              "subtitle"
+                            ]
+                          },
+                          "label": { "type": "string" },
+                          "muted": { "type": "boolean" },
+                          "solo": { "type": "boolean" },
+                          "clips": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string" },
+                                "sourceClipId": { "type": "string" },
+                                "shotId": { "type": "string" },
+                                "assetId": { "type": "string" },
+                                "audioTrackId": { "type": "string" },
+                                "name": { "type": "string" },
+                                "startSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "durationSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "sourceOffsetSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "mediaStatus": {
+                                  "type": "string",
+                                  "enum": [
+                                    "linked",
+                                    "missing",
+                                    "unsupported",
+                                    "proxy",
+                                    "unattached"
+                                  ]
+                                },
+                                "text": { "type": "string" },
+                                "manuallyEdited": { "type": "boolean" }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "startSeconds",
+                                "durationSeconds",
+                                "sourceOffsetSeconds",
+                                "mediaStatus",
+                                "manuallyEdited"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "label",
+                          "muted",
+                          "solo",
+                          "clips"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "version": { "type": "integer" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "format",
+                    "schemaVersion",
+                    "id",
+                    "projectId",
+                    "adaptationId",
+                    "episodeId",
+                    "sourceFingerprint",
+                    "frameRate",
+                    "timebase",
+                    "durationSeconds",
+                    "tracks",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/timelines/{id}/commands": {
+      "post": {
+        "tags": ["timeline"],
+        "operationId": "timeline.command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string",
+                      "enum": ["dramaip-timeline"]
+                    },
+                    "schemaVersion": { "type": "number", "enum": [1] },
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "adaptationId": { "type": "string" },
+                    "episodeId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "frameRate": { "type": "number", "enum": [25] },
+                    "timebase": { "type": "string", "enum": ["seconds"] },
+                    "durationSeconds": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "video",
+                              "dialogue",
+                              "narration",
+                              "bgm",
+                              "sfx",
+                              "subtitle"
+                            ]
+                          },
+                          "label": { "type": "string" },
+                          "muted": { "type": "boolean" },
+                          "solo": { "type": "boolean" },
+                          "clips": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string" },
+                                "sourceClipId": { "type": "string" },
+                                "shotId": { "type": "string" },
+                                "assetId": { "type": "string" },
+                                "audioTrackId": { "type": "string" },
+                                "name": { "type": "string" },
+                                "startSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "durationSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "sourceOffsetSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "mediaStatus": {
+                                  "type": "string",
+                                  "enum": [
+                                    "linked",
+                                    "missing",
+                                    "unsupported",
+                                    "proxy",
+                                    "unattached"
+                                  ]
+                                },
+                                "text": { "type": "string" },
+                                "manuallyEdited": { "type": "boolean" }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "startSeconds",
+                                "durationSeconds",
+                                "sourceOffsetSeconds",
+                                "mediaStatus",
+                                "manuallyEdited"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "label",
+                          "muted",
+                          "solo",
+                          "clips"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "version": { "type": "integer" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "format",
+                    "schemaVersion",
+                    "id",
+                    "projectId",
+                    "adaptationId",
+                    "episodeId",
+                    "sourceFingerprint",
+                    "frameRate",
+                    "timebase",
+                    "durationSeconds",
+                    "tracks",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": { "type": "integer" },
+                  "command": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["move"] },
+                          "clipId": { "type": "string" },
+                          "startSeconds": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["type", "clipId", "startSeconds"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["trim"] },
+                          "clipId": { "type": "string" },
+                          "startSeconds": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "durationSeconds": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["type", "clipId", "durationSeconds"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["split"] },
+                          "clipId": { "type": "string" },
+                          "atSeconds": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["type", "clipId", "atSeconds"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["set-track-audio"]
+                          },
+                          "trackId": { "type": "string" },
+                          "muted": { "type": "boolean" },
+                          "solo": { "type": "boolean" }
+                        },
+                        "required": ["type", "trackId"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "enum": ["relink"] },
+                          "clipId": { "type": "string" },
+                          "assetId": { "type": "string" }
+                        },
+                        "required": ["type", "clipId", "assetId"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": ["version", "command"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/timelines/{id}/undo": {
+      "post": {
+        "tags": ["timeline"],
+        "operationId": "timeline.undo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string",
+                      "enum": ["dramaip-timeline"]
+                    },
+                    "schemaVersion": { "type": "number", "enum": [1] },
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "adaptationId": { "type": "string" },
+                    "episodeId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "frameRate": { "type": "number", "enum": [25] },
+                    "timebase": { "type": "string", "enum": ["seconds"] },
+                    "durationSeconds": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "video",
+                              "dialogue",
+                              "narration",
+                              "bgm",
+                              "sfx",
+                              "subtitle"
+                            ]
+                          },
+                          "label": { "type": "string" },
+                          "muted": { "type": "boolean" },
+                          "solo": { "type": "boolean" },
+                          "clips": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string" },
+                                "sourceClipId": { "type": "string" },
+                                "shotId": { "type": "string" },
+                                "assetId": { "type": "string" },
+                                "audioTrackId": { "type": "string" },
+                                "name": { "type": "string" },
+                                "startSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "durationSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "sourceOffsetSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "mediaStatus": {
+                                  "type": "string",
+                                  "enum": [
+                                    "linked",
+                                    "missing",
+                                    "unsupported",
+                                    "proxy",
+                                    "unattached"
+                                  ]
+                                },
+                                "text": { "type": "string" },
+                                "manuallyEdited": { "type": "boolean" }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "startSeconds",
+                                "durationSeconds",
+                                "sourceOffsetSeconds",
+                                "mediaStatus",
+                                "manuallyEdited"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "label",
+                          "muted",
+                          "solo",
+                          "clips"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "version": { "type": "integer" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "format",
+                    "schemaVersion",
+                    "id",
+                    "projectId",
+                    "adaptationId",
+                    "episodeId",
+                    "sourceFingerprint",
+                    "frameRate",
+                    "timebase",
+                    "durationSeconds",
+                    "tracks",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/timelines/{id}/redo": {
+      "post": {
+        "tags": ["timeline"],
+        "operationId": "timeline.redo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "format": {
+                      "type": "string",
+                      "enum": ["dramaip-timeline"]
+                    },
+                    "schemaVersion": { "type": "number", "enum": [1] },
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "adaptationId": { "type": "string" },
+                    "episodeId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "frameRate": { "type": "number", "enum": [25] },
+                    "timebase": { "type": "string", "enum": ["seconds"] },
+                    "durationSeconds": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "tracks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "video",
+                              "dialogue",
+                              "narration",
+                              "bgm",
+                              "sfx",
+                              "subtitle"
+                            ]
+                          },
+                          "label": { "type": "string" },
+                          "muted": { "type": "boolean" },
+                          "solo": { "type": "boolean" },
+                          "clips": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string" },
+                                "sourceClipId": { "type": "string" },
+                                "shotId": { "type": "string" },
+                                "assetId": { "type": "string" },
+                                "audioTrackId": { "type": "string" },
+                                "name": { "type": "string" },
+                                "startSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "durationSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "sourceOffsetSeconds": {
+                                  "anyOf": [
+                                    {
+                                      "anyOf": [
+                                        { "type": "number" },
+                                        { "type": "string", "enum": ["NaN"] },
+                                        {
+                                          "type": "string",
+                                          "enum": ["Infinity"]
+                                        },
+                                        {
+                                          "type": "string",
+                                          "enum": ["-Infinity"]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "string",
+                                      "enum": ["Infinity", "-Infinity", "NaN"]
+                                    }
+                                  ]
+                                },
+                                "mediaStatus": {
+                                  "type": "string",
+                                  "enum": [
+                                    "linked",
+                                    "missing",
+                                    "unsupported",
+                                    "proxy",
+                                    "unattached"
+                                  ]
+                                },
+                                "text": { "type": "string" },
+                                "manuallyEdited": { "type": "boolean" }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "startSeconds",
+                                "durationSeconds",
+                                "sourceOffsetSeconds",
+                                "mediaStatus",
+                                "manuallyEdited"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "label",
+                          "muted",
+                          "solo",
+                          "clips"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "version": { "type": "integer" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "format",
+                    "schemaVersion",
+                    "id",
+                    "projectId",
+                    "adaptationId",
+                    "episodeId",
+                    "sourceFingerprint",
+                    "frameRate",
+                    "timebase",
+                    "durationSeconds",
+                    "tracks",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/timelines/{id}/history": {
+      "get": {
+        "tags": ["timeline"],
+        "operationId": "timeline.history",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "canUndo": { "type": "boolean" },
+                    "canRedo": { "type": "boolean" }
+                  },
+                  "required": ["canUndo", "canRedo"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/timeline-media/{id}/preview": {
+      "get": {
+        "tags": ["timeline"],
+        "operationId": "timeline.preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["image", "audio", "video"]
+                    },
+                    "dataUrl": { "type": "string" }
+                  },
+                  "required": ["id", "kind", "dataUrl"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/episodes/{id}/editor-timeline": {
       "get": {
         "tags": ["review-editor"],
@@ -21598,6 +22820,7 @@
     { "name": "localization" },
     { "name": "delivery" },
     { "name": "platform-delivery" },
+    { "name": "timeline" },
     { "name": "review-editor" },
     { "name": "compliance" },
     { "name": "analysis" },

@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "e07be5542935df01ddc6121ceb620395e97c02c47df6f814c3243679d35ee79f";
+  "7e8e780e9c6e6e4bba27915ee1a1dca108b058ae5e9276365817614c122e0ed4";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -101,6 +101,10 @@ import type {
   PlatformDeliveryPreflightInput,
   PlatformDeliveryArchive,
   EditorTimelineManifest,
+  TimelineManifest,
+  TimelineCommandInput,
+  TimelineHistoryAvailability,
+  TimelineMediaPreview,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -323,6 +327,14 @@ export interface StudioClient {
       input: PlatformDeliveryPreflightInput,
     ): Promise<PlatformDeliveryArchive>;
     exportArchive(id: string): Promise<ExportDocument>;
+  };
+  timeline: {
+    get(episodeId: string): Promise<TimelineManifest>;
+    command(id: string, input: TimelineCommandInput): Promise<TimelineManifest>;
+    undo(id: string): Promise<TimelineManifest>;
+    redo(id: string): Promise<TimelineManifest>;
+    history(id: string): Promise<TimelineHistoryAvailability>;
+    preview(id: string): Promise<TimelineMediaPreview>;
   };
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
@@ -987,6 +999,27 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       exportArchive: (id) =>
         request(`/api/v1/platform-deliveries/${encodeURIComponent(id)}/export`),
+    },
+    timeline: {
+      get: (episodeId) =>
+        request(`/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline`),
+      command: (id, input) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/commands`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      undo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/undo`, {
+          method: "POST",
+        }),
+      redo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/redo`, {
+          method: "POST",
+        }),
+      history: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
+      preview: (id) =>
+        request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
     },
     reviewEditor: {
       timeline: (episodeId) =>

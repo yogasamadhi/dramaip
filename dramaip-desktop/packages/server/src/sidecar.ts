@@ -43,6 +43,10 @@ import type {
   ImportExtractionChangeSet,
   PilotPlan,
   EpisodeWorkflowKind,
+  TimelineEditCommand,
+  TimelineCommandInput,
+  TimelineManifest,
+  TimelineTrackKind,
   AudioTrackKind,
   AudioTrackInput,
   VoiceProfileInput,
@@ -1090,6 +1094,36 @@ async function route(
       platformDeliveryArchiveExportId,
       requestId,
     );
+  const episodeTimelineId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline$/,
+  );
+  if (episodeTimelineId && method === "GET")
+    return getTimeline(res, episodeTimelineId, requestId);
+  const timelineCommandId = match(
+    path,
+    /^\/api\/v1\/timelines\/([^/]+)\/commands$/,
+  );
+  if (timelineCommandId && method === "POST")
+    return applyTimelineCommand(req, res, timelineCommandId, requestId);
+  const timelineUndoId = match(path, /^\/api\/v1\/timelines\/([^/]+)\/undo$/);
+  if (timelineUndoId && method === "POST")
+    return undoTimelineCommand(res, timelineUndoId, requestId);
+  const timelineRedoId = match(path, /^\/api\/v1\/timelines\/([^/]+)\/redo$/);
+  if (timelineRedoId && method === "POST")
+    return redoTimelineCommand(res, timelineRedoId, requestId);
+  const timelineHistoryId = match(
+    path,
+    /^\/api\/v1\/timelines\/([^/]+)\/history$/,
+  );
+  if (timelineHistoryId && method === "GET")
+    return timelineHistory(res, timelineHistoryId, requestId);
+  const timelineMediaPreviewId = match(
+    path,
+    /^\/api\/v1\/timeline-media\/([^/]+)\/preview$/,
+  );
+  if (timelineMediaPreviewId && method === "GET")
+    return timelineMediaPreview(res, timelineMediaPreviewId, requestId);
   const editorTimelineId = match(
     path,
     /^\/api\/v1\/episodes\/([^/]+)\/editor-timeline$/,
@@ -13473,6 +13507,634 @@ function evaluatePlatformDeliveryPreflight(
       : {}),
     sourceFingerprint: `sha256:${sourceFingerprint}`,
   };
+}
+
+const TIMELINE_TRACK_DEFINITIONS: Array<{
+  kind: TimelineTrackKind;
+  label: string;
+}> = [
+  { kind: "video", label: "视频" },
+  { kind: "dialogue", label: "对白" },
+  { kind: "narration", label: "旁白" },
+  { kind: "bgm", label: "配乐" },
+  { kind: "sfx", label: "音效" },
+  { kind: "subtitle", label: "字幕" },
+];
+
+type StoredTimeline = TimelineManifest;
+
+function timelineTime(value: number): number {
+  return Math.round(value * 25) / 25;
+}
+
+function timelineMediaStatus(
+  assetId: string | undefined,
+): "linked" | "missing" | "unsupported" | "proxy" | "unattached" {
+  if (!assetId) return "unattached";
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset) return "missing";
+  const file = domainPayload(asset.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName) return "unattached";
+  if (!hasArchivedFile(asset)) return "missing";
+  if (
+    [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".webp",
+      ".gif",
+      ".mp3",
+      ".wav",
+      ".ogg",
+      ".m4a",
+      ".mp4",
+      ".webm",
+    ].includes(extname(storedName).toLowerCase())
+  )
+    return "linked";
+  return "unsupported";
+}
+
+function timelineDuration(tracks: StoredTimeline["tracks"]): number {
+  return timelineTime(
+    tracks.reduce(
+      (latest, track) =>
+        Math.max(
+          latest,
+          ...track.clips.map(
+            (clip) => clip.startSeconds + clip.durationSeconds,
+          ),
+        ),
+      0,
+    ),
+  );
+}
+
+function parseTimelineManifest(value: unknown): StoredTimeline | undefined {
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const manifest = value as Partial<StoredTimeline>;
+  if (
+    manifest.format !== "dramaip-timeline" ||
+    manifest.schemaVersion !== 1 ||
+    !Array.isArray(manifest.tracks) ||
+    !manifest.id ||
+    !manifest.projectId ||
+    !manifest.adaptationId ||
+    !manifest.episodeId
+  )
+    return undefined;
+  return manifest as StoredTimeline;
+}
+
+function cloneTimeline(timeline: StoredTimeline): StoredTimeline {
+  return JSON.parse(JSON.stringify(timeline)) as StoredTimeline;
+}
+
+function timelineForResponse(timeline: StoredTimeline): StoredTimeline {
+  const next = cloneTimeline(timeline);
+  next.tracks = next.tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) => ({
+      ...clip,
+      ...(clip.assetId
+        ? { mediaStatus: timelineMediaStatus(clip.assetId) }
+        : {}),
+    })),
+  }));
+  next.durationSeconds = timelineDuration(next.tracks);
+  return next;
+}
+
+function buildInitialTimeline(context: {
+  episode: Record<string, any>;
+  adaptationId: string;
+  projectId: string;
+}): StoredTimeline {
+  const mediaContext = episodeMediaContext(String(context.episode.id));
+  const sourceFingerprint =
+    mediaContext?.sourceFingerprint ?? "sha256:unavailable";
+  const now = timestamp();
+  let cursor = 0;
+  const videoClips = (mediaContext?.shots ?? []).map((shot) => {
+    const durationSeconds = timelineTime(shotDuration(shot));
+    const source = visualSourceForShot(context.projectId, String(shot.id));
+    const clip = {
+      id: `timeline-video-${String(shot.id)}`,
+      shotId: String(shot.id),
+      ...(source ? { assetId: source.id } : {}),
+      name: String(shot.title),
+      startSeconds: timelineTime(cursor),
+      durationSeconds,
+      sourceOffsetSeconds: 0,
+      mediaStatus: timelineMediaStatus(source?.id),
+      manuallyEdited: false,
+    };
+    cursor += durationSeconds;
+    return clip;
+  });
+  const audioRows = rows(
+    "SELECT * FROM audio_tracks WHERE episode_id = ? AND status = ? ORDER BY updated_at DESC",
+    [context.episode.id, "adopted"],
+  );
+  const audioClipsByKind = new Map<
+    TimelineTrackKind,
+    StoredTimeline["tracks"][number]["clips"]
+  >();
+  for (const kind of ["dialogue", "narration", "bgm", "sfx"] as const) {
+    const row = audioRows.find((item) => item.kind === kind);
+    audioClipsByKind.set(
+      kind,
+      row
+        ? parseAudioTrackClips(row.clips_json).map((clip) => ({
+            id: `timeline-audio-${String(row.id)}-${clip.id}`,
+            ...(clip.shotId ? { shotId: clip.shotId } : {}),
+            ...(clip.assetId ? { assetId: clip.assetId } : {}),
+            audioTrackId: String(row.id),
+            name: String(row.label),
+            startSeconds: timelineTime(clip.startSeconds),
+            durationSeconds: timelineTime(clip.durationSeconds),
+            sourceOffsetSeconds: 0,
+            mediaStatus: timelineMediaStatus(clip.assetId),
+            ...(clip.text ? { text: clip.text } : {}),
+            manuallyEdited: false,
+          }))
+        : [],
+    );
+  }
+  const subtitleClips = (mediaContext?.shots ?? []).flatMap((shot) => {
+    const textValue = firstTextPayload(domainPayload(shot.payload_json), [
+      "字幕",
+      "字幕草稿",
+      "对白",
+      "旁白",
+    ]);
+    const video = videoClips.find((clip) => clip.shotId === String(shot.id));
+    if (!textValue || !video) return [];
+    return [
+      {
+        id: `timeline-subtitle-${String(shot.id)}`,
+        shotId: String(shot.id),
+        name: String(shot.title),
+        startSeconds: video.startSeconds,
+        durationSeconds: video.durationSeconds,
+        sourceOffsetSeconds: 0,
+        mediaStatus: "linked" as const,
+        text: textValue,
+        manuallyEdited: false,
+      },
+    ];
+  });
+  const tracks = TIMELINE_TRACK_DEFINITIONS.map(({ kind, label }) => ({
+    id: `timeline-track-${kind}`,
+    kind,
+    label,
+    muted: false,
+    solo: false,
+    clips:
+      kind === "video"
+        ? videoClips
+        : kind === "subtitle"
+          ? subtitleClips
+          : (audioClipsByKind.get(kind) ?? []),
+  }));
+  return {
+    format: "dramaip-timeline",
+    schemaVersion: 1,
+    id: randomUUID(),
+    projectId: context.projectId,
+    adaptationId: context.adaptationId,
+    episodeId: String(context.episode.id),
+    sourceFingerprint,
+    frameRate: 25,
+    timebase: "seconds",
+    durationSeconds: timelineDuration(tracks),
+    tracks,
+    version: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function getOrCreateTimeline(episodeId: string): StoredTimeline | undefined {
+  const context = episodeDeliveryContext(episodeId);
+  if (!context) return undefined;
+  const current = one("SELECT * FROM timelines WHERE episode_id = ?", [
+    episodeId,
+  ]);
+  if (current) {
+    const parsed = parseTimelineManifest(current.manifest_json);
+    if (parsed) return parsed;
+  }
+  const timeline = buildInitialTimeline(context);
+  db!
+    .prepare(
+      "INSERT INTO timelines (id, project_id, adaptation_id, episode_id, source_fingerprint, manifest_json, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(
+      timeline.id,
+      timeline.projectId,
+      timeline.adaptationId,
+      timeline.episodeId,
+      timeline.sourceFingerprint,
+      JSON.stringify(timeline),
+      timeline.version,
+      timeline.createdAt,
+      timeline.updatedAt,
+    );
+  emit("timeline.initialized", timeline);
+  return timeline;
+}
+
+function getTimeline(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const timeline = getOrCreateTimeline(episodeId);
+  if (!timeline)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  json(res, 200, timelineForResponse(timeline));
+}
+
+function timelineRow(id: string): Record<string, any> | undefined {
+  return one("SELECT * FROM timelines WHERE id = ?", [id]);
+}
+
+function timelineWithVersion(
+  timeline: StoredTimeline,
+  version: number,
+): StoredTimeline {
+  const next = cloneTimeline(timeline);
+  next.version = version;
+  next.updatedAt = timestamp();
+  next.durationSeconds = timelineDuration(next.tracks);
+  return next;
+}
+
+function findTimelineClip(timeline: StoredTimeline, clipId: string) {
+  for (const track of timeline.tracks) {
+    const index = track.clips.findIndex((clip) => clip.id === clipId);
+    if (index >= 0) return { track, clip: track.clips[index]!, index };
+  }
+  return undefined;
+}
+
+function applyTimelineEdit(
+  timeline: StoredTimeline,
+  command: TimelineEditCommand,
+  projectId: string,
+): string | undefined {
+  if (command.type === "set-track-audio") {
+    const track = timeline.tracks.find((item) => item.id === command.trackId);
+    if (!track) return "未找到目标轨道";
+    if (command.muted === undefined && command.solo === undefined)
+      return "请指定静音或独听状态";
+    if (command.muted !== undefined) track.muted = command.muted;
+    if (command.solo !== undefined) {
+      if (command.solo)
+        for (const item of timeline.tracks) item.solo = item.id === track.id;
+      else track.solo = false;
+    }
+    return undefined;
+  }
+  const found = findTimelineClip(timeline, command.clipId);
+  if (!found) return "未找到目标片段";
+  const { track, clip, index } = found;
+  if (command.type === "move") {
+    if (
+      !Number.isFinite(command.startSeconds) ||
+      command.startSeconds < 0 ||
+      command.startSeconds > 86_400
+    )
+      return "片段起点必须是非负时间";
+    clip.startSeconds = timelineTime(command.startSeconds);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "trim") {
+    if (
+      !Number.isFinite(command.durationSeconds) ||
+      command.durationSeconds <= 0 ||
+      command.durationSeconds > 3_600
+    )
+      return "片段时长必须大于零";
+    const startSeconds =
+      command.startSeconds === undefined
+        ? clip.startSeconds
+        : timelineTime(command.startSeconds);
+    if (
+      !Number.isFinite(startSeconds) ||
+      startSeconds < 0 ||
+      startSeconds > 86_400
+    )
+      return "片段起点必须是非负时间";
+    clip.sourceOffsetSeconds = timelineTime(
+      clip.sourceOffsetSeconds + (startSeconds - clip.startSeconds),
+    );
+    clip.startSeconds = startSeconds;
+    clip.durationSeconds = timelineTime(command.durationSeconds);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "split") {
+    if (!Number.isFinite(command.atSeconds)) return "分割点必须是有效时间";
+    const atSeconds = timelineTime(command.atSeconds);
+    if (
+      atSeconds <= clip.startSeconds ||
+      atSeconds >= clip.startSeconds + clip.durationSeconds
+    )
+      return "分割点必须落在片段内部";
+    const firstDuration = timelineTime(atSeconds - clip.startSeconds);
+    const secondDuration = timelineTime(clip.durationSeconds - firstDuration);
+    const second = {
+      ...clip,
+      id: randomUUID(),
+      sourceClipId: clip.sourceClipId ?? clip.id,
+      startSeconds: atSeconds,
+      durationSeconds: secondDuration,
+      sourceOffsetSeconds: timelineTime(
+        clip.sourceOffsetSeconds + firstDuration,
+      ),
+      manuallyEdited: true,
+    };
+    clip.durationSeconds = firstDuration;
+    clip.manuallyEdited = true;
+    track.clips.splice(index + 1, 0, second);
+    return undefined;
+  }
+  if (command.type === "relink") {
+    const asset = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND project_id = ? AND domain IN ('assets', 'video', 'shot-stills', 'visual-assets')",
+      [command.assetId, projectId],
+    );
+    if (!asset) return "重链接媒体不属于当前项目或不受支持";
+    clip.assetId = command.assetId;
+    clip.mediaStatus = timelineMediaStatus(command.assetId);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  return "不支持的时间线编辑命令";
+}
+
+async function applyTimelineCommand(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = timelineRow(id);
+  if (!current)
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  const input = (await body(req)) as Partial<TimelineCommandInput>;
+  const timeline = parseTimelineManifest(current.manifest_json);
+  if (!timeline)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Timeline data is invalid",
+      requestId,
+    );
+  if (
+    !Number.isInteger(input.version) ||
+    input.version !== Number(current.version)
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "时间线已被更新，请刷新后重试。",
+      requestId,
+      {
+        current: timelineForResponse(timeline),
+      },
+    );
+  const command = input.command as TimelineEditCommand | undefined;
+  if (!command || typeof command.type !== "string")
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "缺少有效的时间线编辑命令",
+      requestId,
+    );
+  const before = cloneTimeline(timeline);
+  const next = cloneTimeline(timeline);
+  const problem = applyTimelineEdit(next, command, String(current.project_id));
+  if (problem)
+    return respondError(res, 400, "VALIDATION_ERROR", problem, requestId);
+  const saved = timelineWithVersion(next, Number(current.version) + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "DELETE FROM timeline_history WHERE timeline_id = ? AND undone = 1",
+      )
+      .run(id);
+    db!
+      .prepare(
+        "UPDATE timelines SET source_fingerprint = ?, manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        saved.sourceFingerprint,
+        JSON.stringify(saved),
+        saved.version,
+        saved.updatedAt,
+        id,
+      );
+    db!
+      .prepare(
+        "INSERT INTO timeline_history (id, timeline_id, command_json, before_json, after_json, undone, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+      )
+      .run(
+        randomUUID(),
+        id,
+        JSON.stringify(command),
+        JSON.stringify(before),
+        JSON.stringify(saved),
+        saved.updatedAt,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit("timeline.edited", { id, command, version: saved.version });
+  json(res, 200, timelineForResponse(saved));
+}
+
+function timelineHistory(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  if (!timelineRow(id))
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  json(res, 200, {
+    canUndo: Boolean(
+      one(
+        "SELECT id FROM timeline_history WHERE timeline_id = ? AND undone = 0 LIMIT 1",
+        [id],
+      ),
+    ),
+    canRedo: Boolean(
+      one(
+        "SELECT id FROM timeline_history WHERE timeline_id = ? AND undone = 1 LIMIT 1",
+        [id],
+      ),
+    ),
+  });
+}
+
+function restoreTimelineHistory(
+  res: ServerResponse,
+  id: string,
+  direction: "undo" | "redo",
+  requestId: string,
+): void {
+  const current = timelineRow(id);
+  if (!current)
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  const history = one(
+    `SELECT * FROM timeline_history WHERE timeline_id = ? AND undone = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    [id, direction === "undo" ? 0 : 1],
+  );
+  if (!history)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      direction === "undo" ? "没有可撤销的操作" : "没有可重做的操作",
+      requestId,
+    );
+  const restored = parseTimelineManifest(
+    direction === "undo" ? history.before_json : history.after_json,
+  );
+  if (!restored)
+    return respondError(res, 409, "CONFLICT", "历史时间线数据无效", requestId);
+  const saved = timelineWithVersion(restored, Number(current.version) + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "UPDATE timelines SET manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify(saved), saved.version, saved.updatedAt, id);
+    db!
+      .prepare("UPDATE timeline_history SET undone = ? WHERE id = ?")
+      .run(direction === "undo" ? 1 : 0, history.id);
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit(`timeline.${direction}`, { id, version: saved.version });
+  json(res, 200, timelineForResponse(saved));
+}
+
+function undoTimelineCommand(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  restoreTimelineHistory(res, id, "undo", requestId);
+}
+
+function redoTimelineCommand(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  restoreTimelineHistory(res, id, "redo", requestId);
+}
+
+function timelineMediaPreview(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const asset = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain IN ('assets', 'video', 'shot-stills', 'visual-assets')",
+    [id],
+  );
+  if (!asset)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Timeline media not found",
+      requestId,
+    );
+  const file = domainPayload(asset.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName || !hasArchivedFile(asset))
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Timeline media file is missing",
+      requestId,
+    );
+  const path = join(command!.assetDirectory, storedName);
+  if (statSync(path).size > 12 * 1024 * 1024)
+    return respondError(
+      res,
+      413,
+      "VALIDATION_ERROR",
+      "Timeline preview exceeds 12 MB",
+      requestId,
+    );
+  const mime = (
+    {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+      ".gif": "image/gif",
+      ".mp3": "audio/mpeg",
+      ".wav": "audio/wav",
+      ".ogg": "audio/ogg",
+      ".m4a": "audio/mp4",
+      ".mp4": "video/mp4",
+      ".webm": "video/webm",
+    } as Record<string, string>
+  )[extname(storedName).toLowerCase()];
+  if (!mime)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "媒体编码不受本地预览支持",
+      requestId,
+    );
+  json(res, 200, {
+    id,
+    kind: mime.startsWith("video/")
+      ? "video"
+      : mime.startsWith("audio/")
+        ? "audio"
+        : "image",
+    dataUrl: `data:${mime};base64,${readFileSync(path).toString("base64")}`,
+  });
 }
 
 function getEditorTimeline(

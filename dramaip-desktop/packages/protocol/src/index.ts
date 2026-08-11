@@ -102,6 +102,10 @@ import {
   PlatformDeliveryPreflightInput,
   PlatformDeliveryArchive,
   EditorTimelineManifest,
+  TimelineManifest,
+  TimelineCommandInput,
+  TimelineHistoryAvailability,
+  TimelineMediaPreview,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -837,6 +841,51 @@ const PlatformDeliveryGroup = HttpApiGroup.make("platform-delivery")
         error: ApiError,
       },
     ),
+  );
+
+const TimelineGroup = HttpApiGroup.make("timeline")
+  .add(
+    HttpApiEndpoint.get("get", `${API_PREFIX}/episodes/:id/timeline`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("command", `${API_PREFIX}/timelines/:id/commands`, {
+      params: { id: Schema.String },
+      payload: TimelineCommandInput,
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("undo", `${API_PREFIX}/timelines/:id/undo`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("redo", `${API_PREFIX}/timelines/:id/redo`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("history", `${API_PREFIX}/timelines/:id/history`, {
+      params: { id: Schema.String },
+      success: TimelineHistoryAvailability,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("preview", `${API_PREFIX}/timeline-media/:id/preview`, {
+      params: { id: Schema.String },
+      success: TimelineMediaPreview,
+      error: ApiError,
+    }),
   );
 
 const ReviewEditorGroup = HttpApiGroup.make("review-editor")
@@ -1869,6 +1918,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(LocalizationGroup)
   .add(DeliveryGroup)
   .add(PlatformDeliveryGroup)
+  .add(TimelineGroup)
   .add(ReviewEditorGroup)
   .add(ComplianceGroup)
   .add(AnalysisGroup)
