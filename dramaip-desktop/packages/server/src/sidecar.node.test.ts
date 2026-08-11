@@ -2713,6 +2713,172 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(renderPreflight.body.ok, true);
     assert.ok(renderPreflight.body.audioTrackIds.includes(audioTrack.body.id));
     assert.equal(renderPreflight.body.blockers.length, 0);
+    const canonicalTimeline = await request<{
+      id: string;
+      version: number;
+      timebase: string;
+      durationSeconds: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{
+          id: string;
+          shotId?: string;
+          startSeconds: number;
+          durationSeconds: number;
+          mediaStatus: string;
+        }>;
+      }>;
+    }>(`/api/v1/episodes/${first.body.id}/timeline`);
+    assert.equal(canonicalTimeline.status, 200);
+    assert.equal(canonicalTimeline.body.timebase, "seconds");
+    const reopenedCanonicalTimeline = await request<
+      typeof canonicalTimeline.body
+    >(`/api/v1/episodes/${first.body.id}/timeline`);
+    assert.equal(reopenedCanonicalTimeline.status, 200);
+    assert.deepEqual(reopenedCanonicalTimeline.body, canonicalTimeline.body);
+    assert.deepEqual(
+      canonicalTimeline.body.tracks.map((track) => track.kind),
+      ["video", "dialogue", "narration", "bgm", "sfx", "subtitle"],
+    );
+    const canonicalVideo = canonicalTimeline.body.tracks
+      .find((track) => track.kind === "video")!
+      .clips.find((clip) => clip.shotId === shot.body.id)!;
+    assert.ok(canonicalVideo.id);
+    const canonicalNarration = canonicalTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!;
+    assert.equal(canonicalNarration.clips.length, 1);
+    const movedTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ startSeconds: number }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: canonicalTimeline.body.version,
+        command: {
+          type: "move",
+          clipId: canonicalVideo.id,
+          startSeconds: 1.21,
+        },
+      }),
+    });
+    assert.equal(movedTimeline.status, 200);
+    assert.equal(
+      movedTimeline.body.version,
+      canonicalTimeline.body.version + 1,
+    );
+    assert.equal(
+      movedTimeline.body.tracks.find((track) => track.kind === "video")
+        ?.clips[0]?.startSeconds,
+      1.2,
+    );
+    const splitTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: movedTimeline.body.version,
+        command: {
+          type: "split",
+          clipId: canonicalVideo.id,
+          atSeconds: 2.4,
+        },
+      }),
+    });
+    assert.equal(splitTimeline.status, 200);
+    assert.equal(
+      splitTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      2,
+    );
+    const undoTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(undoTimeline.status, 200);
+    assert.equal(
+      undoTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      1,
+    );
+    const redoTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/redo`, {
+      method: "POST",
+    });
+    assert.equal(redoTimeline.status, 200);
+    assert.equal(
+      redoTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      2,
+    );
+    const timelineHistory = await request<{
+      canUndo: boolean;
+      canRedo: boolean;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/history`);
+    assert.equal(timelineHistory.status, 200);
+    assert.equal(timelineHistory.body.canUndo, true);
+    assert.equal(timelineHistory.body.canRedo, false);
+    const playableTimelineAudio = await request<{ id: string }>(
+      "/api/v1/assets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          title: "可播放时间线短音频",
+          payload: {
+            file: {
+              name: "timeline-tone.wav",
+              storedName: "timeline-tone.wav",
+            },
+          },
+        }),
+      },
+    );
+    assert.equal(playableTimelineAudio.status, 201);
+    writeFileSync(
+      join(directory, "assets", "timeline-tone.wav"),
+      Buffer.from([
+        0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+        0x66, 0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+        0x44, 0xac, 0x00, 0x00, 0x88, 0x58, 0x01, 0x00, 0x02, 0x00, 0x10, 0x00,
+        0x64, 0x61, 0x74, 0x61, 0x00, 0x00, 0x00, 0x00,
+      ]),
+    );
+    const relinkedTimeline = await request<{
+      version: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{ assetId?: string; mediaStatus: string }>;
+      }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: redoTimeline.body.version,
+        command: {
+          type: "relink",
+          clipId: canonicalNarration.clips[0]!.id,
+          assetId: playableTimelineAudio.body.id,
+        },
+      }),
+    });
+    assert.equal(relinkedTimeline.status, 200);
+    const relinkedClip = relinkedTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!.clips[0]!;
+    assert.equal(relinkedClip.assetId, playableTimelineAudio.body.id);
+    assert.equal(relinkedClip.mediaStatus, "linked");
+    const timelineAudioPreview = await request<{
+      kind: string;
+      dataUrl: string;
+    }>(`/api/v1/timeline-media/${playableTimelineAudio.body.id}/preview`);
+    assert.equal(timelineAudioPreview.status, 200);
+    assert.equal(timelineAudioPreview.body.kind, "audio");
+    assert.match(timelineAudioPreview.body.dataUrl, /^data:audio\/wav;base64,/);
     const timeline = await request<{
       clips: Array<{ shotId: string; mediaStatus: string }>;
     }>(`/api/v1/episodes/${first.body.id}/editor-timeline`);

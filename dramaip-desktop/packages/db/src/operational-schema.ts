@@ -109,6 +109,19 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       UNIQUE(episode_id, profile_id, delivery_version)
     );
     CREATE INDEX IF NOT EXISTS platform_delivery_archives_episode ON platform_delivery_archives(episode_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS timelines (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      adaptation_id TEXT NOT NULL, episode_id TEXT NOT NULL UNIQUE,
+      source_fingerprint TEXT NOT NULL, manifest_json TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS timelines_episode ON timelines(episode_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS timeline_history (
+      id TEXT PRIMARY KEY, timeline_id TEXT NOT NULL REFERENCES timelines(id) ON DELETE CASCADE,
+      command_json TEXT NOT NULL, before_json TEXT NOT NULL, after_json TEXT NOT NULL,
+      undone INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS timeline_history_timeline ON timeline_history(timeline_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS review_packages (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       adaptation_id TEXT NOT NULL, episode_id TEXT NOT NULL, kind TEXT NOT NULL,

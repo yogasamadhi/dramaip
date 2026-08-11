@@ -100,6 +100,10 @@ import type {
   PlatformDeliveryPreflightInput,
   PlatformDeliveryArchive,
   EditorTimelineManifest,
+  TimelineManifest,
+  TimelineCommandInput,
+  TimelineHistoryAvailability,
+  TimelineMediaPreview,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -322,6 +326,14 @@ export interface StudioClient {
       input: PlatformDeliveryPreflightInput,
     ): Promise<PlatformDeliveryArchive>;
     exportArchive(id: string): Promise<ExportDocument>;
+  };
+  timeline: {
+    get(episodeId: string): Promise<TimelineManifest>;
+    command(id: string, input: TimelineCommandInput): Promise<TimelineManifest>;
+    undo(id: string): Promise<TimelineManifest>;
+    redo(id: string): Promise<TimelineManifest>;
+    history(id: string): Promise<TimelineHistoryAvailability>;
+    preview(id: string): Promise<TimelineMediaPreview>;
   };
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
@@ -986,6 +998,27 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       exportArchive: (id) =>
         request(`/api/v1/platform-deliveries/${encodeURIComponent(id)}/export`),
+    },
+    timeline: {
+      get: (episodeId) =>
+        request(`/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline`),
+      command: (id, input) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/commands`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      undo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/undo`, {
+          method: "POST",
+        }),
+      redo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/redo`, {
+          method: "POST",
+        }),
+      history: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
+      preview: (id) =>
+        request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
     },
     reviewEditor: {
       timeline: (episodeId) =>
