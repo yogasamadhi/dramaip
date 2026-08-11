@@ -63,6 +63,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
   let agentProviderActionShotId = "";
   let opencodeSessionSequence = 0;
   let bridgedEngineSessionSequence = 0;
+  let videoProviderCalls = 0;
   let codexShouldFailForNoFallbackTest = true;
   let lastSidecarDiagnostic = "";
   let port: number;
@@ -203,6 +204,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       return;
     }
     if (request.url?.endsWith("/videos") && request.method === "POST") {
+      videoProviderCalls += 1;
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify({ id: "video-test-job", status: "processing" }),
@@ -848,6 +850,8 @@ test("production-structure HTTP contract persists active adaptation and atomical
         payload: {
           资产类型: "角色",
           关联对象: "林晚",
+          权利状态: "已授权",
+          费用状态: "已核对",
           锁定状态: "未锁定",
         },
       }),
@@ -1435,6 +1439,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
             服务地址: `http://127.0.0.1:${imageAddress.port}/v1`,
             模型名称: "test-image-model",
             凭据引用: "test-image-credential",
+            并发上限: 1,
           },
         }),
       },
@@ -1995,7 +2000,12 @@ test("production-structure HTTP contract persists active adaptation and atomical
       if (providerTaskStatus !== "queued") break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    assert.equal(providerTaskStatus, "running");
+    assert.equal(
+      providerTaskStatus,
+      "failed",
+      "未携带静帧预检快照的厂商预览不得绕过视频门禁",
+    );
+    assert.equal(videoProviderCalls, 0, "门禁失败前不得调用视频服务商");
     const replayedProviderTask = await request<{ id: string }>(
       `/api/v1/provider-action-previews/${providerActionPreview.id}/execute`,
       {
@@ -2067,6 +2077,211 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(discardedPreview.status, 200);
     assert.equal(discardedPreview.body.status, "discarded");
+    const blockedVideo = await request<{ code: string }>(
+      "/api/v1/video-generation/runs",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "video-generation-blocked-contract" },
+        body: JSON.stringify({
+          providerId: imageProviderConfig.body.id,
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          shotId: shot.body.id,
+          prompt: "雨夜信封特写，竖屏构图，冷色光线",
+          seconds: 5,
+        }),
+      },
+    );
+    assert.equal(blockedVideo.status, 409);
+    assert.equal(blockedVideo.body.code, "VIDEO_NOT_READY");
+    assert.equal(videoProviderCalls, 0, "负向视频请求不能触发厂商调用");
+
+    const videoReadyAsset = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "视频门禁·林晚雨夜服装",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚视频造型",
+          权利状态: "已授权",
+          费用状态: "已核对",
+          服务状态: "可用",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(videoReadyAsset.status, 201);
+    const adoptedVideoReadyAsset = await request<{
+      id: string;
+      version: number;
+    }>(`/api/v1/visual-assets/${videoReadyAsset.body.id}/adopt`, {
+      method: "POST",
+    });
+    assert.equal(adoptedVideoReadyAsset.status, 200);
+    const lockedVideoReadyAsset = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${videoReadyAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "lock",
+        version: adoptedVideoReadyAsset.body.version,
+      }),
+    });
+    assert.equal(lockedVideoReadyAsset.status, 200);
+    const lockedVideoReadyAssetVersion = lockedVideoReadyAsset.body.assets.find(
+      (asset) => asset.id === videoReadyAsset.body.id,
+    )?.version;
+    assert.ok(lockedVideoReadyAssetVersion);
+    const assignedVideoReadyAsset = await request<unknown>(
+      `/api/v1/asset-center/${videoReadyAsset.body.id}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action: "assign-shot",
+          version: lockedVideoReadyAssetVersion,
+          shotId: shot.body.id,
+        }),
+      },
+    );
+    assert.equal(assignedVideoReadyAsset.status, 200);
+    const shotForVideo = await request<{
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/shots/${shot.body.id}`);
+    const videoBaselineShot = await request<{ version: number }>(
+      `/api/v1/shots/${shot.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: shotForVideo.body.title,
+          version: shotForVideo.body.version,
+          payload: { ...shotForVideo.body.payload, 时长: 5 },
+        }),
+      },
+    );
+    assert.equal(videoBaselineShot.status, 200);
+    const adoptedStill = await request<{ id: string }>(
+      `/api/v1/shot-stills/${imageRun.body.candidates[0]!.id}/adopt`,
+      { method: "POST" },
+    );
+    assert.equal(adoptedStill.status, 200);
+    const videoPreflight = await request<{
+      ready: boolean;
+      snapshotHash: string;
+      lockedAssetIds: string[];
+      adoptedStillId?: string;
+      costStatus: string;
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
+        seconds: 5,
+        confirmUnknownCost: true,
+      }),
+    });
+    assert.equal(videoPreflight.status, 200);
+    assert.equal(videoPreflight.body.ready, true);
+    assert.equal(
+      videoPreflight.body.adoptedStillId,
+      imageRun.body.candidates[0]?.id,
+    );
+    assert.ok(
+      videoPreflight.body.lockedAssetIds.includes(videoReadyAsset.body.id),
+    );
+    assert.equal(videoPreflight.body.costStatus, "unknown");
+    const changedPromptPreflight = await request<{
+      ready: boolean;
+      blockers: string[];
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "改写后的镜头提示不得静默继承旧静帧",
+        seconds: 5,
+        confirmUnknownCost: true,
+      }),
+    });
+    assert.equal(changedPromptPreflight.status, 200);
+    assert.equal(changedPromptPreflight.body.ready, false);
+    assert.ok(
+      changedPromptPreflight.body.blockers.some((item) =>
+        item.includes("偏离"),
+      ),
+    );
+    const unconfirmedCostPreflight = await request<{
+      ready: boolean;
+      blockers: string[];
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
+        seconds: 5,
+      }),
+    });
+    assert.equal(unconfirmedCostPreflight.status, 200);
+    assert.equal(unconfirmedCostPreflight.body.ready, false);
+    assert.ok(
+      unconfirmedCostPreflight.body.blockers.some((item) =>
+        item.includes("费用未知"),
+      ),
+    );
+    const videoBatchPreflight = await request<{
+      ready: boolean;
+      unknownCostCount: number;
+      blockers: string[];
+      items: Array<{ ready: boolean }>;
+    }>(`/api/v1/projects/${project.body.id}/video-generation/batch-preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        submissions: [
+          {
+            providerId: imageProviderConfig.body.id,
+            projectId: project.body.id,
+            episodeId: first.body.id,
+            shotId: shot.body.id,
+            prompt: "雨夜信封特写，竖屏构图，冷色光线",
+            seconds: 5,
+            confirmUnknownCost: true,
+          },
+          {
+            providerId: imageProviderConfig.body.id,
+            projectId: project.body.id,
+            episodeId: first.body.id,
+            shotId: shot.body.id,
+            prompt: "雨夜信封特写，竖屏构图，冷色光线",
+            seconds: 5,
+            confirmUnknownCost: true,
+          },
+        ],
+      }),
+    });
+    assert.equal(videoBatchPreflight.status, 200);
+    assert.equal(videoBatchPreflight.body.ready, false);
+    assert.equal(videoBatchPreflight.body.unknownCostCount, 2);
+    assert.ok(videoBatchPreflight.body.items.every((item) => !item.ready));
+    assert.ok(
+      videoBatchPreflight.body.blockers.some((item) =>
+        item.includes("批量并发上限"),
+      ),
+    );
+
     const videoRun = await request<{
       id: string;
       status: string;
@@ -2079,12 +2294,43 @@ test("production-structure HTTP contract persists active adaptation and atomical
         projectId: project.body.id,
         episodeId: first.body.id,
         shotId: shot.body.id,
-        prompt: "雨夜信封缓慢推进，竖屏电影光影",
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
         seconds: 5,
+        confirmUnknownCost: true,
+        readinessHash: videoPreflight.body.snapshotHash,
       }),
     });
     assert.equal(videoRun.status, 201);
     assert.equal(videoRun.body.status, "running");
+    assert.equal(videoProviderCalls, 1, "通过预检后才允许发起一次视频调用");
+    const replayedVideoRun = await request<{ id: string }>(
+      "/api/v1/video-generation/runs",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "video-generation-contract" },
+        body: JSON.stringify({
+          providerId: imageProviderConfig.body.id,
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          shotId: shot.body.id,
+          prompt: "雨夜信封特写，竖屏构图，冷色光线",
+          seconds: 5,
+          confirmUnknownCost: true,
+          readinessHash: videoPreflight.body.snapshotHash,
+        }),
+      },
+    );
+    assert.equal(replayedVideoRun.status, 201);
+    assert.equal(replayedVideoRun.body.id, videoRun.body.id);
+    assert.equal(videoProviderCalls, 1, "幂等重放不得重复调用视频服务商");
+    const videoLedger = await request<
+      Array<{ taskId?: string; kind: string; summary: string }>
+    >(`/api/v1/projects/${project.body.id}/generation-ledger`);
+    const videoLedgerRecord = videoLedger.body.find(
+      (item) => item.taskId === videoRun.body.taskId,
+    );
+    assert.equal(videoLedgerRecord?.kind, "视频生成");
+    assert.match(videoLedgerRecord?.summary ?? "", /费用未知已由用户确认/);
     const refreshedVideo = await request<{
       status: string;
       results: Array<{

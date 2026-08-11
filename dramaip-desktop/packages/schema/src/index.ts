@@ -2385,6 +2385,8 @@ export const VideoGenerationInput = Schema.Struct({
   negativePrompt: Schema.optionalKey(Schema.String),
   seconds: Schema.optionalKey(Schema.Int),
   size: Schema.optionalKey(Schema.String),
+  readinessHash: Schema.optionalKey(Schema.String),
+  confirmUnknownCost: Schema.optionalKey(Schema.Boolean),
 });
 export interface VideoGenerationInput {
   providerId: Id;
@@ -2395,6 +2397,62 @@ export interface VideoGenerationInput {
   negativePrompt?: string;
   seconds?: number;
   size?: string;
+  readinessHash?: string;
+  confirmUnknownCost?: boolean;
+}
+
+/** A server-derived, short-lived submission snapshot for the still-first gate. */
+export const VideoGenerationPreflight = Schema.Struct({
+  shotId: Id,
+  providerId: Id,
+  snapshotHash: Schema.String,
+  ready: Schema.Boolean,
+  adoptedStillId: Schema.optionalKey(Id),
+  lockedAssetIds: Schema.Array(Id),
+  blockers: Schema.Array(Schema.String),
+  warnings: Schema.Array(Schema.String),
+  costStatus: Schema.Literals(["known", "unknown"]),
+  estimatedCost: Schema.optionalKey(Schema.Number),
+  currency: Schema.optionalKey(Schema.String),
+});
+export interface VideoGenerationPreflight {
+  shotId: Id;
+  providerId: Id;
+  snapshotHash: string;
+  ready: boolean;
+  adoptedStillId?: Id;
+  lockedAssetIds: Id[];
+  blockers: string[];
+  warnings: string[];
+  costStatus: "known" | "unknown";
+  estimatedCost?: number;
+  currency?: string;
+}
+
+export const VideoGenerationBatchPreflightInput = Schema.Struct({
+  projectId: Id,
+  submissions: Schema.Array(VideoGenerationInput),
+});
+export interface VideoGenerationBatchPreflightInput {
+  projectId: Id;
+  submissions: VideoGenerationInput[];
+}
+
+export const VideoGenerationBatchPreflight = Schema.Struct({
+  projectId: Id,
+  ready: Schema.Boolean,
+  items: Schema.Array(VideoGenerationPreflight),
+  blockers: Schema.Array(Schema.String),
+  knownEstimatedCost: Schema.Number,
+  unknownCostCount: Schema.Int,
+});
+export interface VideoGenerationBatchPreflight {
+  projectId: Id;
+  ready: boolean;
+  items: VideoGenerationPreflight[];
+  blockers: string[];
+  knownEstimatedCost: number;
+  unknownCostCount: number;
 }
 
 export const VideoGenerationJob = Schema.Struct({
