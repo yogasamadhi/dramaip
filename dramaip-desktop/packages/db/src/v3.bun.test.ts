@@ -23,6 +23,9 @@ test("bun:sqlite 适配器与 Node 适配器使用同一正式 Schema", () => {
     expect(
       tables.some((table) => table.name === "agent_experiment_reviews"),
     ).toBe(true);
+    expect(
+      tables.some((table) => table.name === "import_extraction_change_sets"),
+    ).toBe(true);
   } finally {
     sqlite.close();
     rmSync(directory, { recursive: true, force: true });

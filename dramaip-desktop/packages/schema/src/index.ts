@@ -1668,6 +1668,123 @@ export interface SourceImportCommitInput {
   preview: SourceImportPreview;
 }
 
+/** A traceable text range used by the post-import review workflow. */
+export const ImportExtractionSourceRef = Schema.Struct({
+  sourceKey: Schema.String,
+  chapterTitle: Schema.String,
+  start: Schema.Int,
+  end: Schema.Int,
+  excerpt: Schema.String,
+  sourceVersion: Schema.Int,
+});
+export interface ImportExtractionSourceRef {
+  sourceKey: string;
+  chapterTitle: string;
+  start: number;
+  end: number;
+  excerpt: string;
+  sourceVersion: number;
+}
+
+export const ImportExtractionCandidateType = Schema.Union([
+  Schema.Literal("character"),
+  Schema.Literal("scene"),
+  Schema.Literal("prop"),
+  Schema.Literal("chapter-summary"),
+  Schema.Literal("adaptation"),
+]);
+export type ImportExtractionCandidateType =
+  "character" | "scene" | "prop" | "chapter-summary" | "adaptation";
+
+export const ImportExtractionCandidateStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("rejected"),
+  Schema.Literal("adopted"),
+  Schema.Literal("conflict"),
+]);
+export type ImportExtractionCandidateStatus =
+  "draft" | "rejected" | "adopted" | "conflict";
+
+export const ImportExtractionCandidate = Schema.Struct({
+  id: Id,
+  type: ImportExtractionCandidateType,
+  title: Schema.String,
+  summary: Schema.String,
+  confidence: Schema.Number,
+  sourceRefs: Schema.Array(ImportExtractionSourceRef),
+  status: ImportExtractionCandidateStatus,
+  conflictNote: Schema.optionalKey(Schema.String),
+});
+export interface ImportExtractionCandidate {
+  id: Id;
+  type: ImportExtractionCandidateType;
+  title: string;
+  summary: string;
+  confidence: number;
+  sourceRefs: ImportExtractionSourceRef[];
+  status: ImportExtractionCandidateStatus;
+  conflictNote?: string;
+}
+
+export const ImportExtractionChangeSetStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("applied"),
+  Schema.Literal("stale"),
+  Schema.Literal("discarded"),
+  Schema.Literal("failed"),
+]);
+export type ImportExtractionChangeSetStatus =
+  "draft" | "applied" | "stale" | "discarded" | "failed";
+
+export const ImportExtractionChangeSet = Schema.Struct({
+  id: Id,
+  projectId: Id,
+  sourceFingerprint: Schema.String,
+  sourceTitle: Schema.String,
+  status: ImportExtractionChangeSetStatus,
+  summary: Schema.String,
+  candidates: Schema.Array(ImportExtractionCandidate),
+  appliedAt: Schema.optionalKey(IsoDateTime),
+  undoneAt: Schema.optionalKey(IsoDateTime),
+  errorMessage: Schema.optionalKey(Schema.String),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface ImportExtractionChangeSet {
+  id: Id;
+  projectId: Id;
+  sourceFingerprint: string;
+  sourceTitle: string;
+  status: ImportExtractionChangeSetStatus;
+  summary: string;
+  candidates: ImportExtractionCandidate[];
+  appliedAt?: IsoDateTime;
+  undoneAt?: IsoDateTime;
+  errorMessage?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const ImportExtractionCandidatePatch = Schema.Struct({
+  title: Schema.optionalKey(Schema.String),
+  summary: Schema.optionalKey(Schema.String),
+  status: Schema.optionalKey(
+    Schema.Union([Schema.Literal("draft"), Schema.Literal("rejected")]),
+  ),
+});
+export interface ImportExtractionCandidatePatch {
+  title?: string;
+  summary?: string;
+  status?: "draft" | "rejected";
+}
+
+export const ImportExtractionAdoptInput = Schema.Struct({
+  candidateIds: Schema.optionalKey(Schema.Array(Id)),
+});
+export interface ImportExtractionAdoptInput {
+  candidateIds?: Id[];
+}
+
 export const SourceImportCommitResult = Schema.Struct({
   createdChapters: Schema.Int,
   updatedChapters: Schema.Int,
@@ -1677,6 +1794,7 @@ export const SourceImportCommitResult = Schema.Struct({
   createdScenes: Schema.Int,
   adaptationProjectId: Schema.optionalKey(Id),
   checkpointCount: Schema.Int,
+  extractionChangeSet: Schema.optionalKey(ImportExtractionChangeSet),
 });
 export interface SourceImportCommitResult {
   createdChapters: number;
@@ -1687,6 +1805,7 @@ export interface SourceImportCommitResult {
   createdScenes: number;
   adaptationProjectId?: Id;
   checkpointCount: number;
+  extractionChangeSet?: ImportExtractionChangeSet;
 }
 
 export const EpisodeWorkflowKind = Schema.Union([

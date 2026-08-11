@@ -196,6 +196,16 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS source_imports_expiry ON source_imports(expires_at);
+    CREATE TABLE IF NOT EXISTS import_extraction_change_sets (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_import_id TEXT NOT NULL, source_fingerprint TEXT NOT NULL, source_title TEXT NOT NULL,
+      source_versions_json TEXT NOT NULL, status TEXT NOT NULL, summary TEXT NOT NULL,
+      candidates_json TEXT NOT NULL, created_entity_ids_json TEXT NOT NULL DEFAULT '[]',
+      adoption_json TEXT NOT NULL DEFAULT '[]', error_message TEXT,
+      applied_at TEXT, undone_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS import_extraction_change_sets_project
+      ON import_extraction_change_sets(project_id, updated_at DESC);
     CREATE TABLE IF NOT EXISTS feedback_previews (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       kind TEXT NOT NULL, source_name TEXT NOT NULL, rows_json TEXT NOT NULL,
