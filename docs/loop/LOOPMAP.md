@@ -4,7 +4,7 @@
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
 > - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23 已完成并已推送；LM6-24 为可恢复的 `partial`；LM6-25 为 `todo`。
-> - 执行模式：无人值守 sweep；LM6-24 / Attempt 2 已收束，LM6-25 因依赖未完成被本轮跳过；下一游标回到 `LM6-24`。
+> - 执行模式：无人值守 sweep；LM6-24 / Attempt 3 已收束，LM6-25 因依赖未完成被本轮跳过；下一游标回到 `LM6-24`。
 
 ## 1. 总体目标与范围
 
@@ -351,7 +351,7 @@ make platform-down
 | LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
 | LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过 | 系列 Story Bible 与跨项目资产库       | LM6-22        |
-| LM6-24  | P2       | Review Integration  | partial| 2        | 桌面云审片 gateway checkpoint 已推送；接线待完成 | 桌面到云审片再到本地反馈闭环          | LM6-23        |
+| LM6-24  | P2       | Review Integration  | partial| 3        | 桌面发布/同步 checkpoint 已推送；删除和修订待完成 | 桌面到云审片再到本地反馈闭环          | LM6-23        |
 | LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
 ## 8. Loop 详细定义
@@ -788,7 +788,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Review Integration
-- **Status**：partial（Attempt 2；`loop/lm6-24-cloud-review` 已推送 checkpoint）
+- **Status**：partial（Attempt 3；`loop/lm6-24-cloud-review` 已推送 checkpoint）
 - **Depends on**：LM6-23
 - **Goal**：复用现有平台能力，让用户显式发布选定成片 / 片段，邀请多人带时间码评论，并把评论和决策幂等同步回本地修订流程。
 - **Scope**：账号 / workspace 选择、review manifest、选定媒体上传、PIN / 到期 / 撤销 / 删除、Web 播放与评论、成员角色、游标同步、本地反馈映射与任务创建。
@@ -1427,4 +1427,38 @@ LM6-00
 - Reason: LM6-24 仍为 `partial`，且 Gate 的云审片回流、撤销/删除阶段尚未形成独立的用户结果；不将其与 gateway 接线混入同一 Gate diff。
 - Completed: 无代码或目标分支改动；保留上一轮已审计的离线/NLE/series `done` 证据。
 - Next attempt: LM6-24 完成至少可操作的本地 fake gateway 发布/同步契约后，运行 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若云端仍未闭环，只记录不依赖云端的 Gate 回归，不能标记 done。
+- Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 3 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 3
+- Outcome: partial
+- Target branch: main（未合并）
+- Loop branch: `loop/lm6-24-cloud-review`
+- Checkpoint: `45b5da7d loop(lm6-24): checkpoint desktop cloud review flow`（建立于 `a45d2233`、`5698877c` 之上）
+- Merge commit: 无；checkpoint 已推送至 `origin/loop/lm6-24-cloud-review`，不得作为完成或 main 合入证据。
+- Completed: 通过 schema / protocol / generated client / SQLite / sidecar / UI 完成桌面最小云审片主链：平台地址、workspace 与只含 `credentialRef` 的本机连接；用户显式选择 file capability、相对发布路径和关联 shot 的发布清单；本地 SHA-256；平台 create → presigned upload → complete；一次性受控分享 URL；按 cursor 同步 comment/decision，并以 `(local package, kind, client ID)` 幂等更新既有本地记录。Bearer token 不会发送至对象存储，manifest 在离开机器前拒绝 secret-bearing 字段；用户指南明确本地优先降级边界和可选 PIN。
+- Unfinished: 桌面尚未显示已发布 package 的持久状态或提供显式撤销/删除操作；同步只落入本地审片记录，尚未创建可审查的上下文修订动作。跨栈 Compose E2E 仍不能运行（Docker daemon 不可用）；专用 Electron runner 两次均只输出“Running 1 test”后无终态，不能计为通过。
+- Verification:
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run build`: PASS — 12 个 TypeScript 包、无 warning lint 和 Electron 三阶段生产构建通过。
+  - `cd dramaip-desktop && bun test tests/lm6/lm6-24.test.ts`: PASS — 15 assertions，检查协议、最小上传、凭据隔离、客户端 cursor、UI、用户指南和 Electron 入口存在。
+  - `cd dramaip-desktop && node --import tsx --test packages/server/src/sidecar.node.test.ts`: PASS — fake platform + object store + synthetic file capability 验证发布、无 Bearer 对象上传、member/guest 两身份 cursor 回流及重复同步不生成重复本地记录。
+  - `cd dramaip-desktop && bun run check:generated`: PASS。
+  - `cd dramaip-desktop && bunx playwright test tests/electron/lm6-24.spec.ts --reporter=list`: INCONCLUSIVE — Electron 下载后启动 1 个场景但没有终态输出；保留为未完成证据，不冒充 PASS。
+- Diff review: PASS — 仅限云审片连接/绑定/事件表、受控 gateway 接线、协议生成物、审片 UI、fixture、Node fake gateway、Electron 入口和用户指南；无真实 token、私有媒体、绝对用户路径或构建产物。
+- Evidence: `dramaip-desktop/packages/server/src/cloud-review.ts`、`packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`packages/app/src/main.tsx`、`packages/{schema,protocol,client,db}`、`tests/{lm6,electron,fixtures}/lm6-24/`、`docs/product/USER_GUIDE.md`、已推送 checkpoint `45b5da7d`。
+- Next attempt: 在 `/Volumes/A/code/project/dramaIp-lm6-24` 为 `cloud_review_bindings` 增加读取和 DELETE 路由/客户端/UI，并让每条已同步的 request_changes/return 形成需人工确认的 revision/change preview；若 Electron runner仍无终态，先在 `packages/server/src/sidecar.node.test.ts` 扩展撤销/删除与本地保持的 fake contract，再重试单测。Docker 仍不可用时不得重复等待 Compose，保留 Node fake 为必达验证。
+- Current branch/worktree: `loop/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-lm6-24`；`45b5da7d` 后工作树干净，保留以供自动重试。
+- Sweep cursor: LM6-25
+- Notes: 此 checkpoint 没有宣称实际平台登录、对象保留期、撤销删除或 Electron E2E 已完成；离线审片与本地项目始终仍可用。
+
+### Sweep 3 / LM6-25 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 0（本 sweep 未创建开发分支）
+- Outcome: skipped / todo
+- Reason: LM6-24 仍为 `partial`，全链 Gate 的云审片撤销/删除、修订回流和可判定 Electron 证据未完成；这些不得混进 Gate 假装完成。
+- Completed: 无代码或目标分支改动；保留既有 P2 本地/NLE/series `done` 证据。
+- Next attempt: 完成 LM6-24 的删除和 revision preview 后，先重跑 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若 runner仍无终态，使用其对应的 deterministic local harness 记录覆盖范围，不得标记 Gate done。
 - Sweep cursor: LM6-24
