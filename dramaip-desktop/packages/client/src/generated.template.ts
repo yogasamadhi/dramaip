@@ -39,6 +39,16 @@ import type {
   Project,
   ProjectInput,
   ProjectPatch,
+  Series,
+  SeriesInput,
+  ProjectSeriesInput,
+  SeriesLibrary,
+  SeriesStoryBible,
+  SeriesStoryBibleInput,
+  SeriesStoryBibleOverrideInput,
+  SeriesStoryBibleUpgradeInput,
+  SeriesAssetLink,
+  SeriesAssetTransferInput,
   ProjectAgentSettings,
   ProjectAgentSettingsInput,
   ProviderActionPreview,
@@ -178,6 +188,33 @@ export interface StudioClient {
     trash(id: string): Promise<Project>;
     restore(id: string): Promise<Project>;
     purge(id: string, confirmationTitle: string): Promise<void>;
+  };
+  series: {
+    list(): Promise<Series[]>;
+    create(input: SeriesInput): Promise<Series>;
+    library(projectId: string): Promise<SeriesLibrary>;
+    setProjectSeries(
+      projectId: string,
+      input: ProjectSeriesInput,
+    ): Promise<Project>;
+    createStoryBible(
+      seriesId: string,
+      input: SeriesStoryBibleInput,
+    ): Promise<SeriesStoryBible>;
+    overrideStoryBible(
+      projectId: string,
+      storyBibleId: string,
+      input: SeriesStoryBibleOverrideInput,
+    ): Promise<SeriesStoryBible>;
+    upgradeStoryBible(
+      projectId: string,
+      storyBibleId: string,
+      input: SeriesStoryBibleUpgradeInput,
+    ): Promise<SeriesStoryBible>;
+    transferAsset(
+      projectId: string,
+      input: SeriesAssetTransferInput,
+    ): Promise<SeriesAssetLink>;
   };
   chapters: {
     list(projectId: string): Promise<Chapter[]>;
@@ -681,6 +718,46 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "DELETE",
           body: JSON.stringify({ confirmationTitle }),
         }),
+    },
+    series: {
+      list: () => request("/api/v1/series"),
+      create: (input) =>
+        request("/api/v1/series", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      library: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-library`,
+        ),
+      setProjectSeries: (projectId, input) =>
+        request(`/api/v1/projects/${encodeURIComponent(projectId)}/series`, {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      createStoryBible: (seriesId, input) =>
+        request(`/api/v1/series/${encodeURIComponent(seriesId)}/story-bible`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      overrideStoryBible: (projectId, storyBibleId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/override`,
+          { method: "PUT", body: JSON.stringify(input) },
+        ),
+      upgradeStoryBible: (projectId, storyBibleId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/upgrade`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+      transferAsset: (projectId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-assets`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
     },
     chapters: {
       list: (projectId) => request(`/api/v1/projects/${projectId}/chapters`),

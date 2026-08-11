@@ -164,6 +164,7 @@ const RESOURCE_DOMAINS = new Set([
   "story-bible-settings",
   "story-bible-stale",
   "story-bible-sidecar-preferences",
+  "series-library-snapshots",
   "memory",
   "chapter-memories",
   "character-states",
@@ -891,6 +892,59 @@ async function route(
     );
   if (method === "POST" && path === "/api/v1/projects")
     return createProject(req, res, requestId);
+  if (method === "GET" && path === "/api/v1/series")
+    return json(
+      res,
+      200,
+      rows("SELECT * FROM series ORDER BY updated_at DESC").map(seriesRecord),
+    );
+  if (method === "POST" && path === "/api/v1/series")
+    return createSeries(req, res, requestId);
+  const seriesStoryBibleId = match(
+    path,
+    /^\/api\/v1\/series\/([^/]+)\/story-bible$/,
+  );
+  if (seriesStoryBibleId && method === "POST")
+    return createSeriesStoryBible(req, res, seriesStoryBibleId, requestId);
+  const projectSeriesLibraryId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/series-library$/,
+  );
+  if (projectSeriesLibraryId && method === "GET")
+    return getProjectSeriesLibrary(res, projectSeriesLibraryId, requestId);
+  const projectSeriesId = match(path, /^\/api\/v1\/projects\/([^/]+)\/series$/);
+  if (projectSeriesId && method === "PUT")
+    return setProjectSeries(req, res, projectSeriesId, requestId);
+  const seriesStoryBibleOverride =
+    /^\/api\/v1\/projects\/([^/]+)\/series-story-bible\/([^/]+)\/override$/.exec(
+      path,
+    );
+  if (seriesStoryBibleOverride && method === "PUT")
+    return overrideSeriesStoryBible(
+      req,
+      res,
+      decodeURIComponent(seriesStoryBibleOverride[1]),
+      decodeURIComponent(seriesStoryBibleOverride[2]),
+      requestId,
+    );
+  const seriesStoryBibleUpgrade =
+    /^\/api\/v1\/projects\/([^/]+)\/series-story-bible\/([^/]+)\/upgrade$/.exec(
+      path,
+    );
+  if (seriesStoryBibleUpgrade && method === "POST")
+    return upgradeSeriesStoryBible(
+      req,
+      res,
+      decodeURIComponent(seriesStoryBibleUpgrade[1]),
+      decodeURIComponent(seriesStoryBibleUpgrade[2]),
+      requestId,
+    );
+  const seriesAssetProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/series-assets$/,
+  );
+  if (seriesAssetProjectId && method === "POST")
+    return transferSeriesAsset(req, res, seriesAssetProjectId, requestId);
   if (method === "GET" && path === "/api/v1/projects/trash")
     return json(
       res,
@@ -1635,9 +1689,14 @@ function exportProject(
       "Unsupported export format",
       requestId,
     );
+  const seriesLibrary = projectSeriesLibrary(projectId);
   const snapshot = {
     exportedAt: timestamp(),
     project: project(source),
+    // A package is self-explanatory away from the originating library. It is
+    // deliberately a snapshot only: importing it never silently joins a new
+    // project to a mutable series.
+    ...(seriesLibrary.series ? { seriesLibrary } : {}),
     chapters: rows(
       "SELECT * FROM chapters WHERE project_id = ? ORDER BY order_index",
       [projectId],
@@ -3059,6 +3118,584 @@ function assetCenterUsages(
       },
     ];
   });
+}
+
+function seriesRecord(row: Record<string, any>) {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description ?? ""),
+    version: Number(row.version),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function seriesAssetLink(row: Record<string, any>) {
+  return {
+    id: String(row.id),
+    seriesId: String(row.series_id),
+    sourceAssetId: String(row.source_asset_id),
+    sourceVersion: Number(row.source_version),
+    targetProjectId: String(row.target_project_id),
+    targetAssetId: String(row.target_asset_id),
+    mode: String(row.mode) as "copy" | "fork" | "link",
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** Project settings resolve from their last deliberately adopted source version. */
+function projectSeriesLibrary(projectId: string) {
+  const membership = one(
+    `SELECT s.* FROM project_series ps
+     JOIN series s ON s.id = ps.series_id
+     WHERE ps.project_id = ?`,
+    [projectId],
+  );
+  if (!membership)
+    return {
+      projectId,
+      storyBible: [],
+      assets: [] as ReturnType<typeof seriesAssetLink>[],
+    };
+  const storyBible = rows(
+    `SELECT s.id, s.series_id,
+       v.title AS snapshot_title, v.payload_json AS snapshot_payload_json,
+       v.source_version AS snapshot_source_version, v.version AS snapshot_version,
+       v.created_at AS snapshot_created_at, v.updated_at AS snapshot_updated_at,
+       o.id AS override_id, o.title AS override_title,
+       o.payload_json AS override_payload_json, o.version AS override_version,
+       o.created_at AS override_created_at, o.updated_at AS override_updated_at
+     FROM series_story_bible s
+     JOIN project_series_story_bible_versions v
+       ON v.source_id = s.id AND v.project_id = ?
+     LEFT JOIN series_story_bible_overrides o
+       ON o.source_id = s.id AND o.project_id = ?
+     WHERE s.series_id = ?
+     ORDER BY v.updated_at DESC`,
+    [projectId, projectId, membership.id],
+  ).map((row) => {
+    const overridden = Boolean(row.override_id);
+    return {
+      id: String(row.id),
+      seriesId: String(row.series_id),
+      title: overridden
+        ? String(row.override_title)
+        : String(row.snapshot_title),
+      payload: domainPayload(
+        overridden ? row.override_payload_json : row.snapshot_payload_json,
+      ),
+      version: Number(overridden ? row.override_version : row.snapshot_version),
+      overridden,
+      sourceVersion: Number(row.snapshot_source_version),
+      createdAt: String(
+        overridden ? row.override_created_at : row.snapshot_created_at,
+      ),
+      updatedAt: String(
+        overridden ? row.override_updated_at : row.snapshot_updated_at,
+      ),
+    };
+  });
+  return {
+    projectId,
+    series: seriesRecord(membership),
+    storyBible,
+    assets: rows(
+      "SELECT * FROM series_asset_links WHERE target_project_id = ? ORDER BY created_at DESC",
+      [projectId],
+    ).map(seriesAssetLink),
+  };
+}
+
+async function createSeries(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (!title)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "series title is required",
+      requestId,
+    );
+  const now = timestamp();
+  const id = randomUUID();
+  db!
+    .prepare("INSERT INTO series VALUES (?, ?, ?, 0, ?, ?)")
+    .run(id, title, textValue(input.description, ""), now, now);
+  const created = seriesRecord(one("SELECT * FROM series WHERE id = ?", [id])!);
+  emit("series.created", created);
+  json(res, 201, created);
+}
+
+function getProjectSeriesLibrary(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(res, 200, projectSeriesLibrary(projectId));
+}
+
+async function setProjectSeries(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const projectRow = one(
+    "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL",
+    [projectId],
+  );
+  if (!projectRow)
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  const seriesId = text(input.seriesId);
+  if (seriesId && !one("SELECT id FROM series WHERE id = ?", [seriesId]))
+    return respondError(res, 404, "NOT_FOUND", "Series not found", requestId);
+  const foreignLinks = seriesId
+    ? one(
+        "SELECT id FROM series_asset_links WHERE target_project_id = ? AND series_id <> ? LIMIT 1",
+        [projectId, seriesId],
+      )
+    : undefined;
+  if (foreignLinks)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "项目仍保留另一系列的资产版本投影；请先显式迁移这些资产。",
+      requestId,
+    );
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    if (seriesId)
+      db!
+        .prepare(
+          `INSERT INTO project_series(project_id, series_id, joined_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(project_id) DO UPDATE SET series_id = excluded.series_id, joined_at = excluded.joined_at`,
+        )
+        .run(projectId, seriesId, timestamp());
+    else
+      db!
+        .prepare("DELETE FROM project_series WHERE project_id = ?")
+        .run(projectId);
+    if (seriesId) {
+      const now = timestamp();
+      const insertSnapshot = db!.prepare(
+        `INSERT INTO project_series_story_bible_versions(
+          id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT(project_id, source_id) DO NOTHING`,
+      );
+      rows("SELECT * FROM series_story_bible WHERE series_id = ?", [
+        seriesId,
+      ]).forEach((setting) =>
+        insertSnapshot.run(
+          randomUUID(),
+          projectId,
+          setting.id,
+          setting.title,
+          setting.payload_json,
+          setting.version,
+          now,
+          now,
+        ),
+      );
+    }
+    db!
+      .prepare(
+        "UPDATE projects SET version = version + 1, updated_at = ? WHERE id = ?",
+      )
+      .run(timestamp(), projectId);
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  const updated = one("SELECT * FROM projects WHERE id = ?", [projectId])!;
+  emit("project.series_updated", { projectId, seriesId: seriesId ?? null });
+  json(res, 200, project(updated));
+}
+
+async function createSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  seriesId: string,
+  requestId: string,
+): Promise<void> {
+  if (!one("SELECT id FROM series WHERE id = ?", [seriesId]))
+    return respondError(res, 404, "NOT_FOUND", "Series not found", requestId);
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (
+    !title ||
+    !input.payload ||
+    typeof input.payload !== "object" ||
+    Array.isArray(input.payload)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "title and object payload are required",
+      requestId,
+    );
+  const now = timestamp();
+  const id = randomUUID();
+  db!
+    .prepare("INSERT INTO series_story_bible VALUES (?, ?, ?, ?, 0, ?, ?)")
+    .run(id, seriesId, title, JSON.stringify(input.payload), now, now);
+  const created = one("SELECT * FROM series_story_bible WHERE id = ?", [id])!;
+  const output = {
+    id,
+    seriesId,
+    title: String(created.title),
+    payload: domainPayload(created.payload_json),
+    version: Number(created.version),
+    overridden: false,
+    sourceVersion: Number(created.version),
+    createdAt: String(created.created_at),
+    updatedAt: String(created.updated_at),
+  };
+  emit("series.story_bible_created", output);
+  json(res, 201, output);
+}
+
+async function overrideSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  sourceId: string,
+  requestId: string,
+): Promise<void> {
+  const source = one("SELECT * FROM series_story_bible WHERE id = ?", [
+    sourceId,
+  ]);
+  const membership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [projectId],
+  );
+  if (
+    !source ||
+    !membership ||
+    String(source.series_id) !== String(membership.series_id)
+  )
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series story bible setting not found",
+      requestId,
+    );
+  if (
+    !one(
+      "SELECT id FROM project_series_story_bible_versions WHERE project_id = ? AND source_id = ?",
+      [projectId, sourceId],
+    )
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "请先显式采用此系列设定版本。",
+      requestId,
+    );
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (
+    !title ||
+    !input.payload ||
+    typeof input.payload !== "object" ||
+    Array.isArray(input.payload)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "title and object payload are required",
+      requestId,
+    );
+  if (
+    !Number.isInteger(input.sourceVersion) ||
+    input.sourceVersion !== source.version
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "系列设定已更新；请先阅读新版本，再明确决定是否覆写。",
+      requestId,
+    );
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO series_story_bible_overrides(
+        id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
+        title = excluded.title, payload_json = excluded.payload_json,
+        source_version = excluded.source_version, version = series_story_bible_overrides.version + 1,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      randomUUID(),
+      projectId,
+      sourceId,
+      title,
+      JSON.stringify(input.payload),
+      input.sourceVersion,
+      now,
+      now,
+    );
+  const library = projectSeriesLibrary(projectId);
+  const output = library.storyBible.find((item) => item.id === sourceId)!;
+  emit("series.story_bible_overridden", { projectId, sourceId });
+  json(res, 200, output);
+}
+
+async function upgradeSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  sourceId: string,
+  requestId: string,
+): Promise<void> {
+  const source = one("SELECT * FROM series_story_bible WHERE id = ?", [
+    sourceId,
+  ]);
+  const membership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [projectId],
+  );
+  if (
+    !source ||
+    !membership ||
+    String(source.series_id) !== String(membership.series_id)
+  )
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series story bible setting not found",
+      requestId,
+    );
+  const input = await body(req);
+  if (
+    !Number.isInteger(input.sourceVersion) ||
+    input.sourceVersion !== source.version
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "系列设定已更新；请刷新后选择版本。",
+      requestId,
+    );
+  if (
+    one(
+      "SELECT id FROM series_story_bible_overrides WHERE project_id = ? AND source_id = ?",
+      [projectId, sourceId],
+    )
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "该设定已有项目覆写；请先保留或手动更新覆写。",
+      requestId,
+    );
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO project_series_story_bible_versions(
+        id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
+        title = excluded.title, payload_json = excluded.payload_json,
+        source_version = excluded.source_version,
+        version = project_series_story_bible_versions.version + 1,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      randomUUID(),
+      projectId,
+      sourceId,
+      source.title,
+      source.payload_json,
+      source.version,
+      now,
+      now,
+    );
+  const output = projectSeriesLibrary(projectId).storyBible.find(
+    (item) => item.id === sourceId,
+  )!;
+  emit("series.story_bible_upgraded", {
+    projectId,
+    sourceId,
+    sourceVersion: source.version,
+  });
+  json(res, 200, output);
+}
+
+async function transferSeriesAsset(
+  req: IncomingMessage,
+  res: ServerResponse,
+  targetProjectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const sourceAssetId = text(input.sourceAssetId);
+  const mode = text(input.mode) ?? "";
+  if (
+    !sourceAssetId ||
+    !Number.isInteger(input.sourceVersion) ||
+    !["copy", "fork", "link"].includes(mode)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "sourceAssetId, sourceVersion and mode are required",
+      requestId,
+    );
+  const targetMembership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [targetProjectId],
+  );
+  const source = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [sourceAssetId, "visual-assets"],
+  );
+  if (!targetMembership || !source)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series membership or source asset not found",
+      requestId,
+    );
+  const sourceMembership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [source.project_id],
+  );
+  if (
+    !sourceMembership ||
+    String(sourceMembership.series_id) !== String(targetMembership.series_id)
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "源资产与目标项目必须属于同一系列。",
+      requestId,
+    );
+  if (input.sourceVersion !== source.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "源资产已经更新；请确认所选版本后重试。",
+      requestId,
+    );
+  const sourcePayload = domainPayload(source.payload_json);
+  if (
+    sourcePayload["采用状态"] !== "已采用" ||
+    sourcePayload["锁定状态"] !== "已锁定"
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "只能共享已采用且锁定的资产版本。",
+      requestId,
+    );
+  const rights = String(sourcePayload["权利状态"] ?? "");
+  if (!rights.includes("已授权") && !rights.includes("已核验"))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "请先完成源资产的权利核验。",
+      requestId,
+    );
+  const targetPayload = JSON.parse(JSON.stringify(sourcePayload)) as Record<
+    string,
+    unknown
+  >;
+  targetPayload["系列资产来源"] = {
+    seriesId: String(targetMembership.series_id),
+    sourceAssetId,
+    sourceVersion: input.sourceVersion,
+    mode,
+  };
+  targetPayload["版本来源"] =
+    mode === "link"
+      ? "不可变系列链接"
+      : mode === "fork"
+        ? "系列 Fork 衍生"
+        : "系列独立副本";
+  targetPayload["采用状态"] = "未采用";
+  targetPayload["锁定状态"] = "未锁定";
+  delete targetPayload["锁定时间"];
+  const now = timestamp();
+  const targetAssetId = randomUUID();
+  const linkId = randomUUID();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    db!
+      .prepare(
+        "INSERT INTO domain_entities VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)",
+      )
+      .run(
+        targetAssetId,
+        "visual-assets",
+        targetProjectId,
+        String(source.title),
+        JSON.stringify(targetPayload),
+        now,
+        now,
+      );
+    db!
+      .prepare(
+        "INSERT INTO series_asset_links VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        linkId,
+        targetMembership.series_id,
+        sourceAssetId,
+        input.sourceVersion,
+        targetProjectId,
+        targetAssetId,
+        mode,
+        now,
+        now,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  const created = seriesAssetLink(
+    one("SELECT * FROM series_asset_links WHERE id = ?", [linkId])!,
+  );
+  emit("series.asset_transferred", created);
+  json(res, 201, created);
 }
 
 function assetCenterForProject(projectId: string): AssetCenter {
@@ -5727,6 +6364,7 @@ type ProjectPackageSnapshot = {
   chapters: Array<Record<string, unknown>>;
   resources: Array<Record<string, unknown>>;
   importExtractions: Array<Record<string, unknown>>;
+  seriesLibrary?: Record<string, unknown>;
   warnings: string[];
 };
 
@@ -5799,6 +6437,11 @@ function parseProjectPackage(
     importExtractions.length !== root.importExtractions.length
   )
     warnings.push("部分导入候选变更集格式无效，未随项目包导入。");
+  const seriesLibrary = domainPayload(root.seriesLibrary);
+  if (Object.keys(seriesLibrary).length)
+    warnings.push(
+      "系列资料作为只读快照导入；不会自动加入原系列或跟随其后续更新。",
+    );
   return {
     project: {
       title,
@@ -5827,6 +6470,7 @@ function parseProjectPackage(
     chapters,
     resources,
     importExtractions,
+    ...(Object.keys(seriesLibrary).length ? { seriesLibrary } : {}),
     warnings,
   };
 }
@@ -6048,6 +6692,20 @@ async function commitProjectPackage(
         now,
       );
     });
+    if (snapshot.seriesLibrary) {
+      insertResource.run(
+        randomUUID(),
+        "series-library-snapshots",
+        projectId,
+        "系列资料快照（项目包导入）",
+        JSON.stringify({
+          ...snapshot.seriesLibrary,
+          说明: "来自项目包的不可变说明快照；未自动连接到原始系列。",
+        }),
+        now,
+        now,
+      );
+    }
     const updateParent = db!.prepare(
       "UPDATE domain_entities SET parent_id = ? WHERE id = ? AND project_id = ?",
     );
@@ -6124,7 +6782,8 @@ async function commitProjectPackage(
   json(res, 201, {
     project: imported,
     chaptersCreated: snapshot.chapters.length,
-    resourcesCreated: snapshot.resources.length,
+    resourcesCreated:
+      snapshot.resources.length + (snapshot.seriesLibrary ? 1 : 0),
   });
 }
 
@@ -11333,6 +11992,20 @@ async function resource(
     );
   if (method === "GET") return json(res, 200, domainEntity(current));
   if (method === "PATCH") {
+    if (
+      domain === "visual-assets" &&
+      one(
+        "SELECT id FROM series_asset_links WHERE target_asset_id = ? AND mode = 'link'",
+        [id],
+      )
+    )
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "这是不可变的系列版本链接；请创建 Fork 后再修改。",
+        requestId,
+      );
     const input = await body(req);
     if (input.version !== current.version)
       return respondError(
@@ -11382,6 +12055,20 @@ async function resource(
   }
   if (method === "DELETE") {
     if (domain === "visual-assets") {
+      const protectedLink = one(
+        `SELECT id FROM series_asset_links
+         WHERE mode = 'link' AND (source_asset_id = ? OR target_asset_id = ?)
+         LIMIT 1`,
+        [id, id],
+      );
+      if (protectedLink)
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "该资产版本被系列链接引用；请先执行显式迁移或移除链接。",
+          requestId,
+        );
       const usages = assetCenterUsages(
         current.project_id ? String(current.project_id) : undefined,
         id,
@@ -21113,6 +21800,14 @@ function animaticDraft(row: Record<string, any>) {
   };
 }
 function project(row: Record<string, any>) {
+  const seriesMembership = row.id
+    ? one(
+        `SELECT s.id, s.title FROM project_series ps
+         JOIN series s ON s.id = ps.series_id
+         WHERE ps.project_id = ?`,
+        [row.id],
+      )
+    : undefined;
   return {
     id: row.id,
     title: row.title,
@@ -21135,6 +21830,12 @@ function project(row: Record<string, any>) {
     visualStyleDirection: row.visual_style_direction ?? undefined,
     genreOpportunity: row.genre_opportunity ?? undefined,
     productionBrief: row.production_brief ?? undefined,
+    ...(seriesMembership
+      ? {
+          seriesId: String(seriesMembership.id),
+          seriesTitle: String(seriesMembership.title),
+        }
+      : {}),
     currentAdaptationId: row.current_adaptation_id ?? undefined,
     deletedAt: row.deleted_at ?? undefined,
     version: Number(row.version),

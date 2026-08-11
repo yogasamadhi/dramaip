@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "assetModes": ["copy", "fork", "link"],
+  "guarantees": [
+    "project-series-membership-is-optional",
+    "story-bible-adoption-is-versioned",
+    "link-is-immutable",
+    "fork-is-project-local",
+    "project-package-is-self-explanatory-offline"
+  ]
+}

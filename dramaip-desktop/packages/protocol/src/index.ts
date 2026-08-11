@@ -33,6 +33,16 @@ import {
   Project,
   ProjectInput,
   ProjectPatch,
+  Series,
+  SeriesInput,
+  ProjectSeriesInput,
+  SeriesLibrary,
+  SeriesStoryBible,
+  SeriesStoryBibleInput,
+  SeriesStoryBibleOverrideInput,
+  SeriesStoryBibleUpgradeInput,
+  SeriesAssetLink,
+  SeriesAssetTransferInput,
   RevisionInput,
   RevisionPreview,
   Task,
@@ -209,6 +219,92 @@ const ProjectGroup = HttpApiGroup.make("projects")
       success: Empty,
       error: ApiError,
     }),
+  );
+
+const SeriesGroup = HttpApiGroup.make("series")
+  .add(
+    HttpApiEndpoint.get("list", `${API_PREFIX}/series`, {
+      success: Schema.Array(Series),
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("create", `${API_PREFIX}/series`, {
+      payload: SeriesInput,
+      success: Series,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "library",
+      `${API_PREFIX}/projects/:id/series-library`,
+      {
+        params: { id: Schema.String },
+        success: SeriesLibrary,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "setProjectSeries",
+      `${API_PREFIX}/projects/:id/series`,
+      {
+        params: { id: Schema.String },
+        payload: ProjectSeriesInput,
+        success: Project,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "createStoryBible",
+      `${API_PREFIX}/series/:id/story-bible`,
+      {
+        params: { id: Schema.String },
+        payload: SeriesStoryBibleInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "overrideStoryBible",
+      `${API_PREFIX}/projects/:projectId/series-story-bible/:id/override`,
+      {
+        params: { projectId: Schema.String, id: Schema.String },
+        payload: SeriesStoryBibleOverrideInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "upgradeStoryBible",
+      `${API_PREFIX}/projects/:projectId/series-story-bible/:id/upgrade`,
+      {
+        params: { projectId: Schema.String, id: Schema.String },
+        payload: SeriesStoryBibleUpgradeInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "transferAsset",
+      `${API_PREFIX}/projects/:id/series-assets`,
+      {
+        params: { id: Schema.String },
+        payload: SeriesAssetTransferInput,
+        success: SeriesAssetLink,
+        error: ApiError,
+      },
+    ),
   );
 
 const ChapterGroup = HttpApiGroup.make("chapters")
@@ -1952,6 +2048,7 @@ const ResourceGroup = HttpApiGroup.make("resources")
 
 export const StudioApi = HttpApi.make("dramaip")
   .add(ProjectGroup)
+  .add(SeriesGroup)
   .add(ChapterGroup)
   .add(TaskGroup)
   .add(RevisionGroup)
