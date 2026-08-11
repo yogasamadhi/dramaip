@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-01`。
+> - 当前状态：LM6-00 已完成并已推送；LM6-01 的 Attempt 1 已完成验证，正在等待合并与推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，活动游标为 `LM6-01`。
 
 ## 1. 总体目标与范围
 
@@ -335,7 +335,7 @@ make platform-down
 | Loop ID | Priority | Owner               | Status | Attempts | Last progress                                    | 目标                                  | 依赖          |
 | ------- | -------- | ------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------- | ------------- |
 | LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
-| LM6-01  | P0       | Desktop UX          | todo   | 0        | —                                                | 三种创建入口与生产简报落地            | LM6-00        |
+| LM6-01  | P0       | Desktop UX          | doing  | 1        | 三入口、生产简报与完整回归已通过，待合并推送     | 三种创建入口与生产简报落地            | LM6-00        |
 | LM6-02  | P0       | Desktop UX          | todo   | 0        | —                                                | 项目生产驾驶舱与唯一下一步            | LM6-01        |
 | LM6-03  | P0       | AI Workflow         | todo   | 0        | —                                                | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
@@ -385,7 +385,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Desktop UX
-- **Status**：todo
+- **Status**：doing
 - **Depends on**：LM6-00
 - **Goal**：让用户从首页明确选择“从灵感开始”“导入原著”“直接导入 / 粘贴剧本”，每条路径都以正确上下文进入同一生产驾驶舱。
 - **Scope**：项目创建 UI、production brief、创建来源、内容导入或粘贴、schema / protocol / client、项目包兼容、入口 E2E。

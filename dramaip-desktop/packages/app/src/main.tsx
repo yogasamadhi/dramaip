@@ -19,10 +19,17 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
 import { createStudioClient, type StudioClient } from "@sdns/client";
+import {
+  defaultProductionBrief,
+  projectInputFromBrief,
+  type ProductionBriefDraft,
+  type ProjectCreationSource,
+} from "./project-intake";
 import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_RELEASE,
@@ -38,7 +45,6 @@ import type {
   Chapter,
   DomainEntity,
   Project,
-  ProjectInput,
   SourceImportPreview,
   SourceImportStrategy,
   EpisodeWorkflowKind,
@@ -571,9 +577,13 @@ function ProjectPackageImportPanel(props: {
 
 function ProjectHome() {
   const client = useStudio();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState("都市情感");
+  const [creationSource, setCreationSource] = useState<ProjectCreationSource>();
+  const [brief, setBrief] = useState<ProductionBriefDraft>(() =>
+    defaultProductionBrief("inspiration"),
+  );
+  const [scriptContent, setScriptContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [error, setError] = useState<string>();
@@ -590,18 +600,55 @@ function ProjectHome() {
       .listTrash()
       .then(setTrashedProjects)
       .catch((cause) => setError(message(cause)));
-  const create = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
+  const selectCreationSource = (source: ProjectCreationSource) => {
+    setCreationSource(source);
+    setBrief(defaultProductionBrief(source));
+    setScriptContent("");
+    setError(undefined);
+  };
+  const updateBrief = <Key extends keyof ProductionBriefDraft>(
+    key: Key,
+    value: ProductionBriefDraft[Key],
+  ) => setBrief((current) => ({ ...current, [key]: value }));
+  const cleanupUnfinishedProject = async (project: Project) => {
     try {
-      const input: ProjectInput = {
-        title: title.trim(),
-        shortDramaType: type,
-        synopsis: "",
-      };
-      const project = await client.projects.create(input);
+      await client.projects.trash(project.id);
+      await client.projects.purge(project.id, project.title);
+    } catch {
+      // The source write itself is transactional. A failed local cleanup never
+      // hides the error or makes an unverified draft look like an imported one.
+    }
+  };
+  const createFromBrief = async (
+    mode: "inspiration" | "source-file" | "script-draft" | "script-file",
+  ) => {
+    if (!creationSource || !brief.title.trim() || !brief.shortDramaType.trim())
+      return;
+    if (mode === "script-draft" && !scriptContent.trim()) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      const project = await client.projects.create(
+        projectInputFromBrief(brief),
+      );
+      if (mode === "script-draft") {
+        try {
+          await client.chapters.create({
+            projectId: project.id,
+            title: "第 1 集剧本草稿",
+            summary: "从首页直接粘贴的剧本草稿，待后续拆分为场景与分镜。",
+            content: scriptContent.trim(),
+          });
+        } catch (cause) {
+          await cleanupUnfinishedProject(project);
+          throw cause;
+        }
+      }
       setProjects((items) => [project, ...items]);
-      setTitle("");
+      const sourceImport = mode === "source-file" || mode === "script-file";
+      navigate(
+        `/projects/${project.id}${sourceImport ? "?intake=source" : ""}`,
+      );
     } catch (cause) {
       setError(message(cause));
     } finally {
@@ -665,8 +712,13 @@ function ProjectHome() {
         </p>
       </section>
       <section className="rounded-2xl border border-line bg-surface p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">新建项目</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">选择开始方式</h2>
+            <p className="mt-1 text-sm text-muted">
+              先选择你手里的内容，再补齐可编辑的生产简报。不会要求选择模型、智能任务或服务商。
+            </p>
+          </div>
           <button
             className="rounded-lg border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
             disabled={saving || creatingDemo}
@@ -675,30 +727,198 @@ function ProjectHome() {
             {creatingDemo ? "正在创建示例…" : "创建示例项目"}
           </button>
         </div>
-        <div className="mt-4 flex gap-3">
-          <input
-            className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2"
-            placeholder="项目名称"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <input
-            className="w-36 rounded-lg border border-line px-3 py-2"
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-          />
-          <button
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={saving}
-            onClick={() => void create()}
-          >
-            {saving ? "创建中…" : "创建项目"}
-          </button>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              source: "inspiration" as const,
+              title: "从灵感开始",
+              description: "先保存故事构思和试制方向，再逐步补全人物与章节。",
+              outcome: "首个产出：可继续完善的生产简报",
+            },
+            {
+              source: "source-import" as const,
+              title: "导入原著",
+              description:
+                "导入你拥有权利的小说或 IP；文件会先预览，确认授权后才写入。",
+              outcome: "首个产出：可审查的原著导入预览",
+            },
+            {
+              source: "script" as const,
+              title: "直接导入 / 粘贴剧本",
+              description:
+                "已有剧本可直接粘贴为首集草稿，也可选择文件进入同一预览流程。",
+              outcome: "首个产出：可编辑的首集剧本草稿",
+            },
+          ].map((path) => (
+            <button
+              key={path.source}
+              className={`rounded-xl border p-4 text-left transition ${creationSource === path.source ? "border-brand bg-brand-soft" : "border-line hover:border-brand"}`}
+              aria-pressed={creationSource === path.source}
+              onClick={() => selectCreationSource(path.source)}
+            >
+              <p className="font-medium">{path.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {path.description}
+              </p>
+              <p className="mt-3 text-xs text-brand">{path.outcome}</p>
+            </button>
+          ))}
         </div>
+        {creationSource && (
+          <div className="mt-5 border-t border-line pt-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                项目名称
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.title}
+                  onChange={(event) => updateBrief("title", event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                短剧题材
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.shortDramaType}
+                  onChange={(event) =>
+                    updateBrief("shortDramaType", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                目标受众
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.targetAudience}
+                  onChange={(event) =>
+                    updateBrief("targetAudience", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                目标平台
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.targetPlatform}
+                  onChange={(event) =>
+                    updateBrief("targetPlatform", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                单集时长
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.episodeDuration}
+                  onChange={(event) =>
+                    updateBrief("episodeDuration", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                计划集数
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  inputMode="numeric"
+                  value={brief.targetEpisodeCount}
+                  onChange={(event) =>
+                    updateBrief("targetEpisodeCount", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                画幅
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.aspectRatio}
+                  onChange={(event) =>
+                    updateBrief("aspectRatio", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                视觉方向
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.visualStyleDirection}
+                  onChange={(event) =>
+                    updateBrief("visualStyleDirection", event.target.value)
+                  }
+                />
+              </label>
+            </div>
+            {creationSource === "script" && (
+              <label className="mt-3 grid gap-1 text-sm">
+                首集剧本
+                <textarea
+                  className="min-h-40 rounded-lg border border-line p-3 font-editor"
+                  placeholder="粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目。"
+                  value={scriptContent}
+                  onChange={(event) => setScriptContent(event.target.value)}
+                />
+              </label>
+            )}
+            {creationSource === "source-import" && (
+              <p className="mt-4 rounded-lg bg-brand-soft/40 p-3 text-sm text-muted">
+                下一步会先选择本地文件并生成导入预览。只有确认内容权利后，章节、剧本和场景才会写入项目。
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                className="rounded-lg border border-line px-3 py-2 text-sm text-muted"
+                disabled={saving}
+                onClick={() => setCreationSource(undefined)}
+              >
+                取消
+              </button>
+              {creationSource === "inspiration" && (
+                <button
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={saving || !brief.title.trim()}
+                  onClick={() => void createFromBrief("inspiration")}
+                >
+                  {saving ? "正在创建…" : "创建项目并开始构思"}
+                </button>
+              )}
+              {creationSource === "source-import" && (
+                <button
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={saving || !brief.title.trim()}
+                  onClick={() => void createFromBrief("source-file")}
+                >
+                  {saving ? "正在创建…" : "创建项目并预览原著"}
+                </button>
+              )}
+              {creationSource === "script" && (
+                <>
+                  <button
+                    className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand disabled:opacity-50"
+                    disabled={saving || !brief.title.trim()}
+                    onClick={() => void createFromBrief("script-file")}
+                  >
+                    选择剧本文件并预览
+                  </button>
+                  <button
+                    className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    disabled={
+                      saving || !brief.title.trim() || !scriptContent.trim()
+                    }
+                    onClick={() => void createFromBrief("script-draft")}
+                  >
+                    {saving ? "正在保存…" : "保存剧本草稿并进入项目"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </section>
       <ProjectPackageImportPanel
-        onImported={(project) => setProjects((items) => [project, ...items])}
+        onImported={(project) => {
+          setProjects((items) => [project, ...items]);
+          navigate(`/projects/${project.id}`);
+        }}
       />
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -793,6 +1013,7 @@ function ProjectHome() {
 function ProjectWorkspace() {
   const client = useStudio();
   const { projectId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project>();
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -983,7 +1204,13 @@ function ProjectWorkspace() {
       {showProjectSettings && (
         <ProjectSettingsEditor project={project} onSave={updateProject} />
       )}
-      <SourceImportPanel projectId={project.id} onImported={load} />
+      <SourceImportPanel
+        projectId={project.id}
+        initialOpen={
+          new URLSearchParams(location.search).get("intake") === "source"
+        }
+        onImported={load}
+      />
       <ContentVersionPanel projectId={project.id} onRestored={load} />
       <ProjectActivityPanel projectId={project.id} />
       <div className="grid min-h-[650px] grid-cols-[220px_1fr] overflow-hidden rounded-2xl border border-line bg-surface">
@@ -1196,9 +1423,13 @@ function ProjectSettingsEditor(props: {
   );
 }
 
-function SourceImportPanel(props: { projectId: string; onImported(): void }) {
+function SourceImportPanel(props: {
+  projectId: string;
+  initialOpen?: boolean;
+  onImported(): void;
+}) {
   const client = useStudio();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.initialOpen ?? false);
   const [importId, setImportId] = useState<string>();
   const [preview, setPreview] = useState<SourceImportPreview>();
   const [duplicates, setDuplicates] = useState<{
@@ -1214,6 +1445,10 @@ function SourceImportPanel(props: { projectId: string; onImported(): void }) {
   const [destructiveConfirmed, setDestructiveConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
+
+  useEffect(() => {
+    if (props.initialOpen) setOpen(true);
+  }, [props.initialOpen]);
 
   const totalEntries =
     (preview?.chapters.length ?? 0) + (preview?.episodes.length ?? 0);
