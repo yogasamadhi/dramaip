@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00 的 Attempt 1 已完成基线验证，正在等待合并与推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；初始游标为 `LM6-00`，当前 sweep 为 `0`。
+> - 当前状态：LM6-00 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-01`。
 
 ## 1. 总体目标与范围
 
@@ -332,27 +332,27 @@ make platform-down
 
 ## 7. Loop 总表
 
-| Loop ID | Priority | Owner               | Status | Attempts | Last progress | 目标                                  | 依赖          |
-| ------- | -------- | ------------------- | ------ | -------- | ------------- | ------------------------------------- | ------------- |
-| LM6-00  | P0 Gate  | Release             | doing  | 1        | 基线契约、往返测试与完整回归已通过，待合并推送 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
-| LM6-01  | P0       | Desktop UX          | todo   | 0        | —             | 三种创建入口与生产简报落地            | LM6-00        |
-| LM6-02  | P0       | Desktop UX          | todo   | 0        | —             | 项目生产驾驶舱与唯一下一步            | LM6-01        |
-| LM6-03  | P0       | AI Workflow         | todo   | 0        | —             | 上下文助手与简单 / 高级双层体验       | LM6-02        |
-| LM6-04  | P0       | AI Workflow         | todo   | 0        | —             | 导入后的五类提取变更包                | LM6-03        |
-| LM6-05  | P0       | Production Workflow | todo   | 0        | —             | 1–3 集可恢复试制向导                  | LM6-04        |
-| LM6-06  | P0 Gate  | Release             | todo   | 0        | —             | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
-| LM6-10  | P1       | Media Assets        | todo   | 0        | —             | 统一资产中心、版本比较、锁与用途      | LM6-06        |
-| LM6-11  | P1       | Storyboard UX       | todo   | 0        | —             | 卡片式导演分镜看板                    | LM6-10        |
-| LM6-12  | P1       | Media Pipeline      | todo   | 0        | —             | 静帧先行与视频成本 Gate               | LM6-11        |
-| LM6-13  | P1       | Story Intelligence  | todo   | 0        | —             | 集级节奏曲线与定位修订                | LM6-12        |
-| LM6-14  | P1       | Story Intelligence  | todo   | 0        | —             | 章节编辑器常驻 Story Bible            | LM6-13        |
-| LM6-15  | P1 Gate  | Release             | todo   | 0        | —             | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
-| LM6-20  | P2       | Timeline Editor     | todo   | 0        | —             | 可播放、可编辑的多轨时间线            | LM6-15        |
-| LM6-21  | P2       | Media Pipeline      | todo   | 0        | —             | 音频与字幕自动编排                    | LM6-20        |
-| LM6-22  | P2       | Delivery            | todo   | 0        | —             | 真实可验证的后期交付路径              | LM6-21        |
-| LM6-23  | P2       | Core Data           | todo   | 0        | —             | 系列 Story Bible 与跨项目资产库       | LM6-22        |
-| LM6-24  | P2       | Review Integration  | todo   | 0        | —             | 桌面到云审片再到本地反馈闭环          | LM6-23        |
-| LM6-25  | P2 Gate  | Release             | todo   | 0        | —             | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
+| Loop ID | Priority | Owner               | Status | Attempts | Last progress                                    | 目标                                  | 依赖          |
+| ------- | -------- | ------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------- | ------------- |
+| LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
+| LM6-01  | P0       | Desktop UX          | todo   | 0        | —                                                | 三种创建入口与生产简报落地            | LM6-00        |
+| LM6-02  | P0       | Desktop UX          | todo   | 0        | —                                                | 项目生产驾驶舱与唯一下一步            | LM6-01        |
+| LM6-03  | P0       | AI Workflow         | todo   | 0        | —                                                | 上下文助手与简单 / 高级双层体验       | LM6-02        |
+| LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
+| LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
+| LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
+| LM6-10  | P1       | Media Assets        | todo   | 0        | —                                                | 统一资产中心、版本比较、锁与用途      | LM6-06        |
+| LM6-11  | P1       | Storyboard UX       | todo   | 0        | —                                                | 卡片式导演分镜看板                    | LM6-10        |
+| LM6-12  | P1       | Media Pipeline      | todo   | 0        | —                                                | 静帧先行与视频成本 Gate               | LM6-11        |
+| LM6-13  | P1       | Story Intelligence  | todo   | 0        | —                                                | 集级节奏曲线与定位修订                | LM6-12        |
+| LM6-14  | P1       | Story Intelligence  | todo   | 0        | —                                                | 章节编辑器常驻 Story Bible            | LM6-13        |
+| LM6-15  | P1 Gate  | Release             | todo   | 0        | —                                                | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
+| LM6-20  | P2       | Timeline Editor     | todo   | 0        | —                                                | 可播放、可编辑的多轨时间线            | LM6-15        |
+| LM6-21  | P2       | Media Pipeline      | todo   | 0        | —                                                | 音频与字幕自动编排                    | LM6-20        |
+| LM6-22  | P2       | Delivery            | todo   | 0        | —                                                | 真实可验证的后期交付路径              | LM6-21        |
+| LM6-23  | P2       | Core Data           | todo   | 0        | —                                                | 系列 Story Bible 与跨项目资产库       | LM6-22        |
+| LM6-24  | P2       | Review Integration  | todo   | 0        | —                                                | 桌面到云审片再到本地反馈闭环          | LM6-23        |
+| LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
 ## 8. Loop 详细定义
 
@@ -360,7 +360,7 @@ make platform-down
 
 - **Priority**：P0 Gate
 - **Owner**：Release
-- **Status**：doing
+- **Status**：done
 - **Depends on**：无
 - **Goal**：在改造导航和数据模型前，建立能复现当前事实、保护旧项目并衡量 P0 / P1 / P2 结果的基线。
 - **Scope**：桌面端当前三类项目 fixture、旧版本项目包、主要页面 smoke、任务 / Provider 能力快照、阶段状态词典、产品真值文档。
@@ -931,3 +931,31 @@ LM6-00
 ```
 
 每次记录后同步更新第 7 节总表中的 `Status`、`Attempts` 和 `Last progress`。更新表格是调度元数据，不得删除 append-only 记录；`partial` 后续解决时保留旧记录并追加新的 Attempt。
+
+### LM6-00 / Attempt 1 — 2026-08-12 00:06 CST
+
+- Loop: LM6-00
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-00-baseline-contract
+- Commit(s): `60c420a6 loop(lm6-00): establish trusted baseline contract`
+- Merge commit: `31ac4d98 merge: LM6-00 trusted baseline contract`
+- Verification:
+  - `bun run typecheck`: PASS — 12 个 Turbo typecheck 任务通过。
+  - `bun run lint`: PASS — `oxlint --deny-warnings packages apps` 通过。
+  - `bun run test:unit`: PASS — 包级 unit、SQLite conformance、LM6-00 fixture 和服务端 HTTP contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — client / legacy 生成物、OpenCode `1.18.15`、Codex `0.147.0` 与 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，3 个 Electron smoke 场景通过。
+  - 项目包 round-trip: PASS — 导出 JSON 经 capability preview 后显式创建新项目，3 章与资源数一致。
+- Diff review: PASS — 仅包含 Loop 规则/地图、合成 fixture、基线契约、服务端测试、一个 source-import 写入修复和真值文档；未纳入凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 基线 `origin/main` 为 `2e713443`，合并前再次 fast-forward 检查通过。
+- Push: PASS — 功能 merge `31ac4d98` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-00-baseline-contract` 与 `/Volumes/A/code/project/dramaIp-lm6-00`。
+- Current branch/worktree: `integrate/lm6-00-baseline-contract`; `/Volumes/A/code/project/dramaIp-integrate-lm6-00`; 仅有本执行记录的显式改动。
+- Completed: 四类合成 fixture、结果状态词典、真实能力基线、source-import preview 写入修复、显式 rights commit、视觉资产锁定、项目包 round-trip 与完整桌面回归。
+- Unfinished: 无；真实 Provider、真实 NLE 与远程 MP4 仍在基线文档中如实标为外部或未知证据，不作为本 Loop 的完成声明。
+- Evidence: `dramaip-desktop/docs/product/LM6-00-BASELINE.md`、`tests/lm6/lm6-00.test.ts`、`packages/server/src/sidecar.node.test.ts`、合并与推送提交。
+- Next attempt: 开始 LM6-01，先运行 `git fetch origin` 并创建 `loop/lm6-01-three-entry`；fallback: 若 UI 接线受阻，先实现 production brief 与三路径 route harness / fixture 契约。
+- Sweep cursor: LM6-01
+- Notes: 首次 typecheck 缺少已安装依赖；`bun install --frozen-lockfile` 后重跑全部通过。外部 Provider / NLE 未被 mock 成真实成功。
