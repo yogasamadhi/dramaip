@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-06`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-10`。
 
 ## 1. 总体目标与范围
 
@@ -340,7 +340,7 @@ make platform-down
 | LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
-| LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
+| LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过           | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | todo   | 0        | —                                                | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | todo   | 0        | —                                                | 卡片式导演分镜看板                    | LM6-10        |
 | LM6-12  | P1       | Media Pipeline      | todo   | 0        | —                                                | 静帧先行与视频成本 Gate               | LM6-11        |
@@ -513,7 +513,7 @@ make platform-down
 
 - **Priority**：P0 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-01、LM6-02、LM6-03、LM6-04、LM6-05
 - **Goal**：用真实集成旅程证明 P0 已降低首次使用门槛，且没有破坏旧项目、高级能力或本地优先边界。
 - **Scope**：三入口矩阵、驾驶舱、简单 / 高级助手、五类变更包、1–3 集试制、迁移与文档真值。
@@ -528,8 +528,8 @@ make platform-down
 - **Verification**：完整桌面端命令集合；迁移 / 项目包 round-trip；三入口 E2E；自动键盘焦点、可访问性和 1280×720 viewport 断言。人工 walkthrough 仅作附加证据。
 - **Risk**：只验证 happy path 导致“首次价值”是假象；Gate 必须包含空态、失败、离线和旧数据。
 - **Rollback boundary**：P0 以单个 `--no-ff` 合并历史可整体定位；若回滚 UI，数据兼容读取仍须保留。
-- **未完成收束**：按 5.3 保留 `loop/lm6-06-p0-gate`；记录三入口矩阵中首个失败场景、依赖状态和完整回归日志索引，不在 Gate 分支临时实现功能。
-- **下一次动作**：先重跑首个失败的自动化场景；依赖未 `done` 时记录 skip 并推进可独立的迁移、离线和旧项目回归，下一 sweep 自动回访 Gate。
+- **未完成收束**：无；三入口、恢复、坏文件、旧数据 / 项目包、离线 / 无 Provider、未知成本和中断状态均由本地自动化证据覆盖。
+- **下一次动作**：开始 LM6-10，先运行 `git fetch origin` 并创建 `loop/lm6-10-asset-center`；fallback: 若主界面接线受阻，先以四类资产和锁 / usage fixture 实现兼容 read model、媒体错误态与删除保护。
 
 ### LM6-10：统一资产中心、版本比较、锁与用途
 
@@ -1084,3 +1084,27 @@ LM6-00
 - Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-05.test.ts`、`tests/electron/lm6-05.spec.ts`、用户指南及 merge/push 提交。
 - Next attempt: 开始 LM6-06 P0 Gate，先重跑完整自动化矩阵；发现缺陷回到所属 Loop 修复，不在 Gate 临时扩功能。
 - Sweep cursor: LM6-06
+
+### LM6-06 / Attempt 1 — 2026-08-12 02:10 CST
+
+- Loop: LM6-06
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-06-p0-gate
+- Commit(s): `ddbf5f9e test(gate): add LM6-06 P0 evidence matrix`
+- Merge commit: `c2d3f309 merge: LM6-06 P0 first-value gate`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、196 条 unit 断言、Node HTTP / 项目包 contract 和 12 个 Electron 场景全部通过。
+  - `bunx playwright test tests/electron/lm6-p0-gate.spec.ts`: PASS — 三条创建入口各自在 fresh profile 以键盘进入、在 1280×720 建立并确认 1 集试制、关闭重开后恢复；坏文件在 capability / 预览边界被拒绝且未产生导入内容。
+  - 旧数据与负向状态：PASS — SQLite 旧项目助手偏好迁移、项目包 round-trip、无 Provider、未知成本和中断任务状态均在现有受控 unit / Node contract 中通过；未调用真实 Provider。
+- Diff review: PASS — 仅包含 P0 Gate E2E、合成坏文件 fixture 和可审计证据矩阵；无产品功能扩张、凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 合并前 `origin/main` 为 `559d3783`，完成 `git fetch origin` 后无冲突合并。
+- Push: PASS — 功能 merge `c2d3f309` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-06-p0-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-06`。
+- Current branch/worktree: `integrate/lm6-06-p0-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-06`; 仅有本执行记录的显式改动。
+- Completed: P0 首次价值 Gate 已以真实 Electron 旅程验证：灵感、原著、剧本三入口均可在隔离 profile 中到达已确认的试制计划并于重开后恢复；默认助手与高级模式、五类候选采用、旧项目 / 项目包、离线能力和诚实状态均有机器证据。
+- Unfinished: 无；P1 资产、看板、静帧 Gate、节奏和 Story Bible 仍由 LM6-10 至 LM6-15 单独实现与放行。
+- Evidence: `dramaip-desktop/tests/electron/lm6-p0-gate.spec.ts`、`dramaip-desktop/tests/lm6/lm6-06.test.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-06/`、完整桌面回归、merge / push 提交。
+- Next attempt: 开始 LM6-10，先运行 `git fetch origin` 并创建 `loop/lm6-10-asset-center`；fallback: 若主界面接线受阻，先用四类资产、锁 / usage 和媒体错误 fixture 建立兼容 read model 与删除保护。
+- Sweep cursor: LM6-10
