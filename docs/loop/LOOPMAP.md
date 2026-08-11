@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-04`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-05`。
 
 ## 1. 总体目标与范围
 
@@ -338,7 +338,7 @@ make platform-down
 | LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
 | LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
 | LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
-| LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
+| LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | todo   | 0        | —                                                | 统一资产中心、版本比较、锁与用途      | LM6-06        |
@@ -461,7 +461,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：AI Workflow
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-03
 - **Goal**：导入小说后一次获得角色、场景、道具、章节摘要和改编建议，并在写入权威数据前逐项审查。
 - **Scope**：导入完成事件、分段 / 章节引用、提取 orchestration、统一 change set、差异审查、选择性采用、撤销、stale 与失败恢复。
@@ -480,8 +480,8 @@ make platform-down
 - **Verification**：五类 schema / parser tests；事务、幂等、stale、undo 和冲突 tests；导入 → review → selective adopt Electron E2E；项目包 round-trip；`check:generated`。
 - **Risk**：大文本成本和超时、同名实体误合并；使用有界分段、稳定 source fingerprint 和显式 merge 决策。
 - **Rollback boundary**：变更包批次可整体撤销；原始导入版本与人工既有实体永不随回滚删除。
-- **未完成收束**：按 5.3 保留 `loop/lm6-04-import-change-set`；保存输入 fingerprint、五类候选完成度、事务 / 幂等失败用例和未采用数据快照。
-- **下一次动作**：从首个失败的事务、幂等或 stale 测试继续；模型不可用时使用版本化 extraction fixture 验证完整领域闭环，Provider 实连仅作附加证据。
+- **未完成收束**：无；输入 fingerprint、候选状态、采用记录和未采用候选均已持久化，分支证据见本表追加记录。
+- **下一次动作**：开始 LM6-05 的 1–3 集可恢复试制向导；继续使用版本化 fixture，真实 Provider 仅作附加证据。
 
 ### LM6-05：1–3 集可恢复试制向导
 
@@ -1037,3 +1037,28 @@ LM6-00
 - Next attempt: 开始 LM6-04，先运行 `git fetch origin` 并创建 `loop/lm6-04-import-change-set`；fallback: 若完整模型编排受阻，先使用版本化 extraction fixture 验证五类候选、事务、幂等、stale 与 selective adopt 的领域闭环。
 - Sweep cursor: LM6-04
 - Notes: 首次全量 Electron 回归发现助手章节下拉与工作区章节标题同名；已明确标注“助手上下文”并在同一 Attempt 的完整回归中重跑通过。媒体调用的规划仍可生成 preview，但没有可靠报价时最终远程任务保持禁用。
+
+### LM6-04 / Attempt 1 — 2026-08-12 01:20 CST
+
+- Loop: LM6-04
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-04-import-change-set
+- Commit(s): `ec171e20 feat(import): add LM6-04 reviewable extraction change sets`
+- Merge commit: `c4dadf00 merge: LM6-04 import extraction change sets`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务及 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 159 个断言通过；覆盖五类候选契约、SQLite schema、Node HTTP 的选择性原子采用、同名人工冲突、重复采用防重、stale、人工编辑保护撤销和项目包 round-trip。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — OpenAPI/client 生成物、OpenCode `1.18.15`、Codex `0.147.0` 和 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，7 个 Electron 场景通过；新增小说导入 → 五类候选全量预览 → 取消其余选择 → 单项采用路径。
+- Diff review: PASS — 仅包含导入候选 schema/protocol/generated client、SQLite 持久化、原子采用/撤销、项目页审阅 UI、项目包回环、合成 fixture、测试、用户指南及受控 E2E 文件选择；未纳入凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 合并前 `origin/main` 为 `15733b50`；无快进 merge `c4dadf00` 已推送至 `origin/main`。
+- Push: PASS — 功能 merge `c4dadf00` 已推送。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-04-import-change-set` 与 `/Volumes/A/code/project/dramaIp-lm6-04`。
+- Current branch/worktree: `integrate/lm6-04-import-change-set`; `/Volumes/A/code/project/dramaIp-integrate-lm6-04`; 仅有本执行记录的显式改动。
+- Completed: 已确认导入以稳定 source fingerprint、章节文本范围、版本和置信度生成角色、场景、道具、章节摘要与改编建议；所有候选先进入统一变更集，可编辑、拒绝和选择性采用。采用事务写入人物/场景、素材道具、章节摘要及改编资料；来源变化会 stale，同名人工内容不覆盖，重复采用不创建重复实体，撤销保留采用后的人工编辑。导入候选在本机确定性整理，Provider 不可用不会影响原稿正文继续编辑，并在任务中心记录 `source_import.extract`。
+- Unfinished: 无；实时模型提取不是本 Loop 的前置条件，后续 Loop 如接入 Provider 只能补充候选，不能绕过本变更集、来源版本与人工确认边界。
+- Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-04.test.ts`、`tests/electron/lm6-04.spec.ts`、`tests/fixtures/lm6/lm6-04/extraction-contract.json`、用户指南与 merge/push 提交。
+- Next attempt: 开始 LM6-05，先运行 `git fetch origin` 并创建 `loop/lm6-05-pilot-wizard`；fallback: 先以 1 / 2 / 3 集 fixture 固定可恢复状态机、人工 Gate 和 retry / resume，再接制作页。
+- Sweep cursor: LM6-05
