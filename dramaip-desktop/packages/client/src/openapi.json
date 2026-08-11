@@ -16491,6 +16491,379 @@
         }
       }
     },
+    "/api/v1/projects/{id}/asset-center": {
+      "get": {
+        "tags": ["asset-center"],
+        "operationId": "asset-center.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "category": {
+                            "type": "string",
+                            "enum": ["character", "scene", "prop", "voice"]
+                          },
+                          "subject": { "type": "string" },
+                          "assetVersion": { "type": "string" },
+                          "adopted": { "type": "boolean" },
+                          "lockStatus": {
+                            "type": "string",
+                            "enum": ["locked", "unlocked"]
+                          },
+                          "stale": { "type": "boolean" },
+                          "preview": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["image", "audio", "none"]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": ["available", "missing", "unattached"]
+                              },
+                              "label": { "type": "string" }
+                            },
+                            "required": ["kind", "status"],
+                            "additionalProperties": false
+                          },
+                          "rightsStatus": {
+                            "type": "string",
+                            "enum": ["verified", "restricted", "unknown"]
+                          },
+                          "costStatus": {
+                            "type": "string",
+                            "enum": ["known", "unknown"]
+                          },
+                          "providerStatus": {
+                            "type": "string",
+                            "enum": ["available", "unavailable", "not-required"]
+                          },
+                          "usages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "shotId": { "type": "string" },
+                                "shotTitle": { "type": "string" },
+                                "sceneTitle": { "type": "string" }
+                              },
+                              "required": ["shotId", "shotTitle"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "version": { "type": "integer" }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "category",
+                          "subject",
+                          "assetVersion",
+                          "adopted",
+                          "lockStatus",
+                          "stale",
+                          "preview",
+                          "rightsStatus",
+                          "costStatus",
+                          "providerStatus",
+                          "usages",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["projectId", "assets"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-center/{id}/preview": {
+      "get": {
+        "tags": ["asset-center"],
+        "operationId": "asset-center.preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "kind": { "type": "string", "enum": ["image", "audio"] },
+                    "dataUrl": { "type": "string" }
+                  },
+                  "required": ["id", "kind", "dataUrl"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/asset-center/{id}/action": {
+      "post": {
+        "tags": ["asset-center"],
+        "operationId": "asset-center.action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": "string" },
+                          "category": {
+                            "type": "string",
+                            "enum": ["character", "scene", "prop", "voice"]
+                          },
+                          "subject": { "type": "string" },
+                          "assetVersion": { "type": "string" },
+                          "adopted": { "type": "boolean" },
+                          "lockStatus": {
+                            "type": "string",
+                            "enum": ["locked", "unlocked"]
+                          },
+                          "stale": { "type": "boolean" },
+                          "preview": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": ["image", "audio", "none"]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": ["available", "missing", "unattached"]
+                              },
+                              "label": { "type": "string" }
+                            },
+                            "required": ["kind", "status"],
+                            "additionalProperties": false
+                          },
+                          "rightsStatus": {
+                            "type": "string",
+                            "enum": ["verified", "restricted", "unknown"]
+                          },
+                          "costStatus": {
+                            "type": "string",
+                            "enum": ["known", "unknown"]
+                          },
+                          "providerStatus": {
+                            "type": "string",
+                            "enum": ["available", "unavailable", "not-required"]
+                          },
+                          "usages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "shotId": { "type": "string" },
+                                "shotTitle": { "type": "string" },
+                                "sceneTitle": { "type": "string" }
+                              },
+                              "required": ["shotId", "shotTitle"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "version": { "type": "integer" }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "category",
+                          "subject",
+                          "assetVersion",
+                          "adopted",
+                          "lockStatus",
+                          "stale",
+                          "preview",
+                          "rightsStatus",
+                          "costStatus",
+                          "providerStatus",
+                          "usages",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["projectId", "assets"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "adopt",
+                      "lock",
+                      "unlock",
+                      "assign-shot",
+                      "remove-shot"
+                    ]
+                  },
+                  "version": { "type": "integer" },
+                  "shotId": { "type": "string" }
+                },
+                "required": ["action", "version"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/projects/{id}/production-graph": {
       "get": {
         "tags": ["production"],
@@ -20808,6 +21181,7 @@
     { "name": "feedback" },
     { "name": "desktop-support" },
     { "name": "visuals" },
+    { "name": "asset-center" },
     { "name": "production" },
     { "name": "generation" },
     { "name": "content-versions" },

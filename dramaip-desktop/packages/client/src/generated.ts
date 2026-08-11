@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "0b4def8830090f34e5ec20053dfa0204fd8bd809c3d1c1616e92a5acfa3f9061";
+  "3c36c05bd0fc483c8fdfa203c3d9443e62a0695c72e6f0167d2c8bd049c341a3";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -29,6 +29,9 @@ import type {
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
+  AssetCenter,
+  AssetCenterActionInput,
+  AssetCenterPreviewMedia,
   EventEnvelope,
   ExportDocument,
   GlobalSearchResponse,
@@ -440,6 +443,11 @@ export interface StudioClient {
     adoptVisualAsset(id: string): Promise<DomainEntity>;
     lockVisualAsset(id: string): Promise<DomainEntity>;
     adoptVideo(id: string): Promise<DomainEntity>;
+  };
+  assetCenter: {
+    get(projectId: string): Promise<AssetCenter>;
+    preview(id: string): Promise<AssetCenterPreviewMedia>;
+    action(id: string, input: AssetCenterActionInput): Promise<AssetCenter>;
   };
   production: {
     graph(projectId: string): Promise<ProductionGraph>;
@@ -1221,6 +1229,19 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       adoptVideo: (id) =>
         request(`/api/v1/videos/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
+        }),
+    },
+    assetCenter: {
+      get: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/asset-center`,
+        ),
+      preview: (id) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/preview`),
+      action: (id, input) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
         }),
     },
     production: {

@@ -688,6 +688,101 @@ export interface DomainEntityPatch {
   version: number;
 }
 
+/** P1 资产中心只读取既有 domain_entities，不复制本地媒体二进制或路径。 */
+export const AssetCenterCategory = Schema.Literals([
+  "character",
+  "scene",
+  "prop",
+  "voice",
+]);
+export type AssetCenterCategory = "character" | "scene" | "prop" | "voice";
+export const AssetCenterPreview = Schema.Struct({
+  kind: Schema.Literals(["image", "audio", "none"]),
+  status: Schema.Literals(["available", "missing", "unattached"]),
+  label: Schema.optionalKey(Schema.String),
+});
+export interface AssetCenterPreview {
+  kind: "image" | "audio" | "none";
+  status: "available" | "missing" | "unattached";
+  label?: string;
+}
+export const AssetCenterPreviewMedia = Schema.Struct({
+  id: Id,
+  kind: Schema.Literals(["image", "audio"]),
+  dataUrl: Schema.String,
+});
+export interface AssetCenterPreviewMedia {
+  id: Id;
+  kind: "image" | "audio";
+  dataUrl: string;
+}
+export const AssetCenterUsage = Schema.Struct({
+  shotId: Id,
+  shotTitle: Schema.String,
+  sceneTitle: Schema.optionalKey(Schema.String),
+});
+export interface AssetCenterUsage {
+  shotId: Id;
+  shotTitle: string;
+  sceneTitle?: string;
+}
+export const AssetCenterAsset = Schema.Struct({
+  id: Id,
+  title: Schema.String,
+  category: AssetCenterCategory,
+  subject: Schema.String,
+  assetVersion: Schema.String,
+  adopted: Schema.Boolean,
+  lockStatus: Schema.Literals(["locked", "unlocked"]),
+  stale: Schema.Boolean,
+  preview: AssetCenterPreview,
+  rightsStatus: Schema.Literals(["verified", "restricted", "unknown"]),
+  costStatus: Schema.Literals(["known", "unknown"]),
+  providerStatus: Schema.Literals(["available", "unavailable", "not-required"]),
+  usages: Schema.Array(AssetCenterUsage),
+  version: Schema.Int,
+});
+export interface AssetCenterAsset {
+  id: Id;
+  title: string;
+  category: AssetCenterCategory;
+  subject: string;
+  assetVersion: string;
+  adopted: boolean;
+  lockStatus: "locked" | "unlocked";
+  stale: boolean;
+  preview: AssetCenterPreview;
+  rightsStatus: "verified" | "restricted" | "unknown";
+  costStatus: "known" | "unknown";
+  providerStatus: "available" | "unavailable" | "not-required";
+  usages: AssetCenterUsage[];
+  version: number;
+}
+export const AssetCenter = Schema.Struct({
+  projectId: Id,
+  assets: Schema.Array(AssetCenterAsset),
+});
+export interface AssetCenter {
+  projectId: Id;
+  assets: AssetCenterAsset[];
+}
+export const AssetCenterActionInput = Schema.Struct({
+  action: Schema.Literals([
+    "adopt",
+    "lock",
+    "unlock",
+    "assign-shot",
+    "remove-shot",
+  ]),
+  version: Schema.Int,
+  shotId: Schema.optionalKey(Id),
+});
+export interface AssetCenterActionInput {
+  action: "adopt" | "lock" | "unlock" | "assign-shot" | "remove-shot";
+  version: number;
+  shotId?: Id;
+}
+
 /**
  * 对有序制作条目执行原子重排。每一项携带当前版本，避免陈旧界面覆盖
  * 其他协作者刚刚调整过的顺序。

@@ -72,6 +72,8 @@ import type {
   ChangePreview,
   ProviderActionPreview,
   RevisionPreview,
+  AssetCenterAsset,
+  AssetCenterPreviewMedia,
 } from "@sdns/schema";
 import "./styles.css";
 
@@ -115,6 +117,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   shots: "分镜",
   "shot-stills": "分镜静帧候选",
   "visual-assets": "视觉资产",
+  "asset-center": "资产中心",
   assets: "素材",
   rights: "版权声明",
   "content-versions": "内容检查点",
@@ -4755,9 +4758,14 @@ const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     fields: [
       shortText("资产类型", "资产类型", "角色、场景、道具或风格"),
       shortText("关联对象", "关联对象"),
+      shortText("资产版本", "资产版本", "例如：v1 或雨夜版"),
       longText("视觉说明", "视觉说明"),
       shortText("采用状态", "采用状态", "未采用或已采用"),
       shortText("锁定状态", "锁定状态", "未锁定或已锁定"),
+      shortText("权利状态", "权利状态", "已授权、待核验或受限"),
+      shortText("费用状态", "费用状态", "已核对或未知"),
+      shortText("服务状态", "服务状态", "可用、不可用或离线"),
+      shortText("设定状态", "设定状态", "当前或已过期"),
     ],
   },
   assets: {
@@ -6420,6 +6428,7 @@ function ProductionWorkspace() {
   const [shotId, setShotId] = useState("");
   const [stage, setStage] = useState<
     | "assets"
+    | "asset-center"
     | "rights"
     | "visual-assets"
     | "shot-stills"
@@ -6468,6 +6477,7 @@ function ProductionWorkspace() {
       requested &&
       [
         "assets",
+        "asset-center",
         "rights",
         "visual-assets",
         "shot-stills",
@@ -6678,6 +6688,7 @@ function ProductionWorkspace() {
         {(
           [
             "assets",
+            "asset-center",
             "rights",
             "visual-assets",
             "shot-stills",
@@ -6701,6 +6712,11 @@ function ProductionWorkspace() {
         <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
           请先选择项目，再登记或制作素材。
         </p>
+      ) : stage === "asset-center" ? (
+        <AssetCenterPanel
+          projectId={projectId}
+          onOpenCatalog={() => setStage("visual-assets")}
+        />
       ) : stage === "audio" && episodeId ? (
         <AudioProductionPanel
           projectId={projectId}
@@ -6728,6 +6744,385 @@ function ProductionWorkspace() {
           parentRequired={parentRequired}
         />
       )}
+    </section>
+  );
+}
+
+const ASSET_CATEGORY_LABELS: Record<AssetCenterAsset["category"], string> = {
+  character: "角色",
+  scene: "场景",
+  prop: "道具",
+  voice: "音色",
+};
+
+function assetStatusLabel(asset: AssetCenterAsset): string {
+  if (asset.stale) return "设定已过期";
+  if (asset.preview.status === "missing") return "本地文件缺失";
+  if (asset.rightsStatus === "restricted") return "权利受限";
+  if (asset.costStatus === "unknown") return "费用未知";
+  if (asset.providerStatus === "unavailable") return "服务不可用";
+  if (asset.preview.status === "unattached") return "尚未附加媒体";
+  return asset.adopted ? "已采用" : "候选版本";
+}
+
+function AssetCenterPanel(props: { projectId: string; onOpenCatalog(): void }) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: center, error } = useQuery({
+    queryKey: ["asset-center", props.projectId],
+    queryFn: () => client.assetCenter.get(props.projectId),
+  });
+  const { data: shots = [] } = useQuery({
+    queryKey: ["resource", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const [category, setCategory] = useState<
+    "all" | AssetCenterAsset["category"]
+  >("all");
+  const [query, setQuery] = useState("");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [shotId, setShotId] = useState("");
+  const [notice, setNotice] = useState<string>();
+  const [workingId, setWorkingId] = useState<string>();
+  const [previews, setPreviews] = useState<
+    Record<string, AssetCenterPreviewMedia>
+  >({});
+  const assets = center?.assets ?? [];
+  const filtered = assets.filter(
+    (asset) =>
+      (category === "all" || asset.category === category) &&
+      `${asset.title} ${asset.subject}`
+        .toLocaleLowerCase()
+        .includes(query.trim().toLocaleLowerCase()),
+  );
+  const compared = assets.filter((asset) => compareIds.includes(asset.id));
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["asset-center", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "visual-assets", props.projectId],
+      }),
+    ]);
+  };
+  const action = async (
+    asset: AssetCenterAsset,
+    actionName: "adopt" | "lock" | "unlock" | "assign-shot" | "remove-shot",
+  ) => {
+    if (
+      (actionName === "assign-shot" || actionName === "remove-shot") &&
+      !shotId
+    ) {
+      setNotice("请先选择要查看或迁移用途的镜头。");
+      return;
+    }
+    setWorkingId(asset.id);
+    setNotice(undefined);
+    try {
+      await client.assetCenter.action(asset.id, {
+        action: actionName,
+        version: asset.version,
+        ...(actionName === "assign-shot" || actionName === "remove-shot"
+          ? { shotId }
+          : {}),
+      });
+      setNotice(
+        actionName === "assign-shot"
+          ? "已将锁定版本分配给镜头。"
+          : actionName === "remove-shot"
+            ? "已移除该镜头的资产用途。"
+            : "资产版本状态已更新。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const toggleCompare = (id: string) => {
+    setCompareIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 4) {
+        setNotice("最多并排比较 4 个候选版本。");
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+  const openPreview = async (asset: AssetCenterAsset) => {
+    setWorkingId(asset.id);
+    setNotice(undefined);
+    try {
+      const preview = await client.assetCenter.preview(asset.id);
+      setPreviews((current) => ({ ...current, [asset.id]: preview }));
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  return (
+    <section className="space-y-5" aria-label="资产中心">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">导演资产工作台</p>
+          <h2 className="mt-1 text-2xl font-semibold">统一资产中心</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            角色、场景、道具和音色的候选版本共用同一份本地实体记录；媒体只保留受控归档引用，不在此复制二进制或暴露路径。
+          </p>
+        </div>
+        <button
+          className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white"
+          onClick={props.onOpenCatalog}
+        >
+          新建资产候选
+        </button>
+      </div>
+      <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
+        <label className="grid gap-1 text-sm">
+          搜索资产或关联对象
+          <input
+            className="rounded-lg border border-line px-3 py-2"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="例如：林晚、雨夜门口"
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          镜头用途
+          <select
+            className="min-w-56 rounded-lg border border-line px-3 py-2"
+            value={shotId}
+            onChange={(event) => setShotId(event.target.value)}
+          >
+            <option value="">选择镜头以分配或迁移</option>
+            {shots.map((shot) => (
+              <option key={shot.id} value={shot.id}>
+                {shot.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="资产类型筛选"
+      >
+        {(["all", "character", "scene", "prop", "voice"] as const).map(
+          (item) => (
+            <button
+              key={item}
+              className={`rounded-full px-3 py-1.5 text-sm ${category === item ? "bg-brand text-white" : "bg-surface text-muted ring-1 ring-line"}`}
+              onClick={() => setCategory(item)}
+            >
+              {item === "all" ? "全部资产" : ASSET_CATEGORY_LABELS[item]}
+            </button>
+          ),
+        )}
+      </div>
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {message(error)}
+        </p>
+      )}
+      {compared.length > 0 && (
+        <section
+          className="rounded-2xl border border-brand bg-brand-soft/30 p-4"
+          aria-label="资产版本比较"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">候选版本比较</h3>
+              <p className="mt-1 text-sm text-muted">
+                比较不会改变采用、锁定或镜头引用。
+              </p>
+            </div>
+            <button
+              className="text-sm text-brand"
+              onClick={() => setCompareIds([])}
+            >
+              清空比较
+            </button>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {compared.map((asset) => (
+              <article
+                key={asset.id}
+                className="rounded-xl border border-line bg-white p-3 text-sm"
+              >
+                <p className="font-medium">{asset.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {asset.assetVersion} · {assetStatusLabel(asset)}
+                </p>
+                <p className="mt-3 line-clamp-3 text-muted">
+                  {asset.preview.label ?? "没有可展示的本地预览说明。"}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((asset) => (
+          <article
+            key={asset.id}
+            className="rounded-2xl border border-line bg-surface p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-brand">
+                  {ASSET_CATEGORY_LABELS[asset.category]} · {asset.subject}
+                </p>
+                <h3 className="mt-1 truncate font-semibold">{asset.title}</h3>
+                <p className="mt-1 text-xs text-muted">
+                  版本 {asset.assetVersion}
+                </p>
+              </div>
+              <button
+                className={`rounded-md px-2 py-1 text-xs ${compareIds.includes(asset.id) ? "bg-brand text-white" : "border border-line text-muted"}`}
+                onClick={() => toggleCompare(asset.id)}
+              >
+                {compareIds.includes(asset.id) ? "已加入比较" : "加入比较"}
+              </button>
+            </div>
+            <div className="mt-3 rounded-xl bg-canvas p-3 text-sm">
+              <p className="font-medium">
+                {asset.preview.kind === "audio" ? "音频预览" : "视觉预览"}
+              </p>
+              {previews[asset.id]?.kind === "image" ? (
+                <img
+                  className="mt-2 max-h-48 w-full rounded-lg object-cover"
+                  src={previews[asset.id].dataUrl}
+                  alt={`${asset.title} 本地预览`}
+                />
+              ) : previews[asset.id]?.kind === "audio" ? (
+                <audio
+                  className="mt-2 w-full"
+                  controls
+                  src={previews[asset.id].dataUrl}
+                  aria-label={`${asset.title} 音频预览`}
+                />
+              ) : (
+                <p className="mt-1 text-muted">
+                  {asset.preview.status === "available"
+                    ? `本地归档可用：${asset.preview.label ?? "已附加媒体"}`
+                    : asset.preview.status === "missing"
+                      ? "本地归档文件缺失；不会伪造预览。"
+                      : (asset.preview.label ??
+                        "尚未附加本地媒体；可先保留为文字候选。")}
+                </p>
+              )}
+              {asset.preview.status === "available" && !previews[asset.id] && (
+                <button
+                  className="mt-2 rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void openPreview(asset)}
+                >
+                  打开本地预览
+                </button>
+              )}
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <dt className="text-muted">采用</dt>
+                <dd>{asset.adopted ? "已采用" : "候选"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">锁定</dt>
+                <dd>{asset.lockStatus === "locked" ? "已锁定" : "未锁定"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">权利</dt>
+                <dd>
+                  {asset.rightsStatus === "verified"
+                    ? "已核验"
+                    : asset.rightsStatus === "restricted"
+                      ? "受限"
+                      : "待核验"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">费用 / 服务</dt>
+                <dd>
+                  {asset.costStatus === "unknown" ? "费用未知" : "费用已知"} ·{" "}
+                  {asset.providerStatus === "unavailable"
+                    ? "不可用"
+                    : "可用或无需服务"}
+                </dd>
+              </div>
+            </dl>
+            {asset.usages.length > 0 && (
+              <p className="mt-3 rounded-lg bg-brand-soft/50 p-2 text-xs text-brand">
+                正在用于：
+                {asset.usages.map((usage) => usage.shotTitle).join("、")}
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {!asset.adopted && (
+                <button
+                  className="rounded-md border border-brand px-2 py-1 text-xs text-brand disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "adopt")}
+                >
+                  采用此版本
+                </button>
+              )}
+              {asset.adopted && asset.lockStatus === "unlocked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "lock")}
+                >
+                  锁定版本
+                </button>
+              )}
+              {asset.lockStatus === "locked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "unlock")}
+                >
+                  解除锁定
+                </button>
+              )}
+              {asset.adopted && asset.lockStatus === "locked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "assign-shot")}
+                >
+                  分配到镜头
+                </button>
+              )}
+              {asset.usages.some((usage) => usage.shotId === shotId) && (
+                <button
+                  className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "remove-shot")}
+                >
+                  移除镜头用途
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+        {!filtered.length && (
+          <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+            当前筛选下没有资产候选。可先新建角色、场景、道具或音色版本。
+          </p>
+        )}
+      </div>
     </section>
   );
 }
