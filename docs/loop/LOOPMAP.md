@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-11`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-12`。
 
 ## 1. 总体目标与范围
 
@@ -342,7 +342,7 @@ make platform-down
 | LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过           | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
-| LM6-11  | P1       | Storyboard UX       | todo   | 0        | —                                                | 卡片式导演分镜看板                    | LM6-10        |
+| LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
 | LM6-12  | P1       | Media Pipeline      | todo   | 0        | —                                                | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | todo   | 0        | —                                                | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | todo   | 0        | —                                                | 章节编辑器常驻 Story Bible            | LM6-13        |
@@ -561,7 +561,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Storyboard UX
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-10
 - **Goal**：用按集 / 场组织的可扫视分镜卡片替代主要生产流程中的通用表单和级联选择器。
 - **Scope**：分镜卡片、缩略图、对白、景别、机位 / 运镜、时长、资产覆盖、成本风险、选择与重排、上下文助手。
@@ -579,8 +579,8 @@ make platform-down
 - **Verification**：排序 / undo / context tests；100+ shot 性能 fixture；键盘和拖拽 E2E；卡片视觉回归；全量 app tests。
 - **Risk**：拖拽并发保存导致顺序重复或丢失；使用事务性稳定 rank 和冲突提示。
 - **Rollback boundary**：旧分镜列表 / API 保持可访问；看板重排只改变明确的排序字段。
-- **未完成收束**：按 5.3 保留 `loop/lm6-11-storyboard-board`；保存失败的 stable-rank 序列、100+ shot 性能数据和 keyboard / drag E2E 步骤。
-- **下一次动作**：从排序 / undo 纯函数测试开始；资产中心未集成时以类型化资产 fixture 完成卡片、过滤和性能工作并 checkpoint。
+- **未完成收束**：无；看板复用既有镜头、静帧、资产与同级重排记录，不维护第二套顺序或资产引用数据。
+- **下一次动作**：开始 LM6-12，先运行服务端“未批准不得提交视频”的负向测试；fallback: 使用调用记录型 fake adapter 固定静帧、资产锁、成本与权利 readiness truth table。
 
 ### LM6-12：静帧先行与视频成本 Gate
 
@@ -1134,3 +1134,29 @@ LM6-00
 - Next attempt: 开始 LM6-11，先运行 `git fetch origin` 并创建 `loop/lm6-11-storyboard-board`；fallback: 先以排序 / undo、100+ shot 与类型化资产 fixture 实现看板 read model 和键盘操作，再接拖拽界面。
 - Sweep cursor: LM6-11
 - Notes: 回退资产中心 UI 不删除既有资产版本、锁、权利或镜头引用；旧视觉资产 CRUD 仍作为兼容入口。媒体预览没有暴露本地路径，也没有伪造远程生成成功。
+
+### LM6-11 / Attempt 1 — 2026-08-12 02:05 CST
+
+- Loop: LM6-11
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-11-storyboard-board`
+- Commit(s): `6ac215a0 feat(storyboard): add LM6-11 director board`
+- Merge commit: `8f950442 merge: LM6-11 director storyboard board`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、221 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 14 个 Electron 场景均通过。
+  - `packages/app/src/storyboard-board.test.ts`: PASS — 从权威 episode → script → scene → shot 层级派生卡片、资产引用 / 锁 / 静帧状态，以及 120 镜头稳定排序与局部重排。
+  - `tests/electron/lm6-11.spec.ts`: PASS — 看板展示镜头和诚实静帧状态；Alt+↑ 重排、原生拖拽、撤销、资产用途跳转与智能助手镜头上下文均在桌面端通过。
+  - 同级重排契约：PASS — 复用完整 sibling 集合、版本乐观锁和 SQLite 事务；并发旧版本返回冲突，不会产生重复顺序。
+- Diff review: PASS — 仅包含导演看板 read model / UI、现有重排接口接线、受控资产与助手上下文、双镜头示例、fixture、单元 / Electron 测试及用户指南；没有凭据、缓存、构建产物、并行排序存储或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `f1577b4b`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `8f950442` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-11-storyboard-board` 与 `/Volumes/A/code/project/dramaIp-lm6-11`。
+- Current branch/worktree: `integrate/lm6-11-storyboard-board`; `/Volumes/A/code/project/dramaIp-integrate-lm6-11`; 仅有本执行记录的显式改动。
+- Completed: 制作区新增集级卡片式导演看板，按场景展示镜头画面、对白、景别、运镜、时长、镜头任务、四类资产覆盖、锁定、权利 / 成本风险和真实静帧状态。支持搜索、风险筛选、批量选择、同场景键盘 / 拖拽重排、一次撤销、50 张分段加载，并将选中镜头带入资产中心和后续助手任务上下文。
+- Unfinished: 无；多轨播放、静帧批准和高成本视频 Gate 属于 LM6-12 及后续 Loop。
+- Evidence: `dramaip-desktop/packages/app/src/storyboard-board.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/app/src/storyboard-board.test.ts`、`dramaip-desktop/tests/lm6/lm6-11.test.ts`、`dramaip-desktop/tests/electron/lm6-11.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-11/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-12，先运行 `git fetch origin` 并创建 `loop/lm6-12-still-first-gate`；fallback: 先以调用记录型 fake adapter 建立静帧采用 / stale、资产锁、权利、费用、幂等与“零视频提交”契约，再接预检界面。
+- Sweep cursor: LM6-12
+- Notes: 缺失受控静帧时看板明确显示状态，不伪造缩略图；长场景只渲染首段 50 张卡片。镜头上下文会计入助手任务与盲测的输入估算，不会静默改变项目、资产或任务权威状态。
