@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-13`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-14`。
 
 ## 1. 总体目标与范围
 
@@ -344,7 +344,7 @@ make platform-down
 | LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
 | LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过         | 静帧先行与视频成本 Gate               | LM6-11        |
-| LM6-13  | P1       | Story Intelligence  | todo   | 0        | —                                                | 集级节奏曲线与定位修订                | LM6-12        |
+| LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | todo   | 0        | —                                                | 章节编辑器常驻 Story Bible            | LM6-13        |
 | LM6-15  | P1 Gate  | Release             | todo   | 0        | —                                                | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
 | LM6-20  | P2       | Timeline Editor     | todo   | 0        | —                                                | 可播放、可编辑的多轨时间线            | LM6-15        |
@@ -1186,3 +1186,28 @@ LM6-00
 - Next attempt: 开始 LM6-13，先运行 `git fetch origin` 并创建 `loop/lm6-13-episode-pacing`; fallback: 先基于现有剧本 / 场景 / 分镜只读数据建立节奏 read model、阈值 fixture 与定位修订任务，再接可视化和编辑器跳转。
 - Sweep cursor: LM6-13
 - Notes: 服务端是付费视频 Gate 的唯一权威；UI 禁用、Agent 厂商预览和旧直接调用路径都不能绕过静帧、权利、费用或快照验证。费用未知的确认只允许提交，不伪造已知成本；实际费用仍须在生成账本补录。
+
+### LM6-13 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-13
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-13-episode-pacing`
+- Commit(s): `7c020713 feat(story): add LM6-13 episode pacing board`
+- Merge commit: `7a4a73bf merge: LM6-13 episode pacing board`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、259 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 16 个 Electron 场景全部通过。
+  - `packages/app/src/episode-pacing.test.ts`: PASS — 空分集不伪造曲线；分集 / 剧本 / beat / 场景 / 镜头依稳定实体层级与顺序映射；120 镜头长分集保持稳定；来源版本变化会 stale，人工标记可保留为已否决审查历史。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 上下文 AI 任务只产出 `change-preview`；采用脚本文本前保存节奏修订检查点，恢复检查点可回到采用前文本且会再保存当前版本。
+  - `tests/electron/lm6-13.spec.ts`: PASS — 示例项目的改编区在选择分集、剧本和场景后同时暴露四条具名、可访问轨道。
+- Diff review: PASS — 仅包含节奏 read model、全分集来源聚合、人工标记资源、版本 stale、受控 AI 修订任务 / 内容检查点、UI、合成 fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `52837100`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `7a4a73bf` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-13-episode-pacing` 与 `/Volumes/A/code/project/dramaIp-lm6-13`。
+- Current branch/worktree: `integrate/lm6-13-episode-pacing`; `/Volumes/A/code/project/dramaIp-integrate-lm6-13`; 仅有本执行记录的显式改动。
+- Completed: 集级看板从当前分集、剧本、beat、场景与镜头建立单一可追溯时间轴，并把节拍密度、爽点、反转和结尾悬念同时呈现。每点标出规则或人工置信、稳定来源 ID / 版本与 stale 状态；人工标记支持新增、调整、否决且持久保存。规则诊断可携带上下文进入既有 Agent change preview，任务中心仍要求人工采用或放弃；采用脚本文本自动保留修订前检查点，用户可安全恢复，任何路径都不直接覆盖权威剧本。
+- Unfinished: 无；市场预测、自动采用剧本与跨用户推荐均仍明确不在本 Loop 范围内。
+- Evidence: `dramaip-desktop/packages/app/src/episode-pacing.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-13.test.ts`、`dramaip-desktop/tests/electron/lm6-13.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-13/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-14，先运行 `git fetch origin` 并创建 `loop/lm6-14-story-bible-sidecar`；fallback: 先建立章节 / 剧本作用域的 Story Bible read model、固定 / 搜索、stale 和 change-set parity 测试，再接侧栏与窄窗口键盘体验。
+- Sweep cursor: LM6-14
