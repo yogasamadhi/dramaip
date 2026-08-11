@@ -6933,6 +6933,26 @@
                         "type": "array",
                         "items": { "type": "string" }
                       },
+                      "preview": {
+                        "type": "object",
+                        "properties": {
+                          "title": { "type": "string" },
+                          "fields": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "key": { "type": "string" },
+                                "value": { "type": "string" }
+                              },
+                              "required": ["key", "value"],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": ["title", "fields"],
+                        "additionalProperties": false
+                      },
                       "appliedAt": { "type": "string" },
                       "undoneAt": { "type": "string" },
                       "createdAt": { "type": "string" },
@@ -6946,6 +6966,7 @@
                       "status",
                       "summary",
                       "conflictNotes",
+                      "preview",
                       "createdAt",
                       "updatedAt"
                     ],
@@ -7100,6 +7121,26 @@
                       "type": "array",
                       "items": { "type": "string" }
                     },
+                    "preview": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string" },
+                              "value": { "type": "string" }
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["title", "fields"],
+                      "additionalProperties": false
+                    },
                     "appliedAt": { "type": "string" },
                     "undoneAt": { "type": "string" },
                     "createdAt": { "type": "string" },
@@ -7113,6 +7154,7 @@
                     "status",
                     "summary",
                     "conflictNotes",
+                    "preview",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -7213,6 +7255,26 @@
                       "type": "array",
                       "items": { "type": "string" }
                     },
+                    "preview": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string" },
+                              "value": { "type": "string" }
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["title", "fields"],
+                      "additionalProperties": false
+                    },
                     "appliedAt": { "type": "string" },
                     "undoneAt": { "type": "string" },
                     "createdAt": { "type": "string" },
@@ -7226,6 +7288,7 @@
                     "status",
                     "summary",
                     "conflictNotes",
+                    "preview",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -7263,6 +7326,20 @@
               }
             }
           }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fields": { "type": "array", "items": { "type": "string" } }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
         }
       }
     },
@@ -7310,6 +7387,26 @@
                       "type": "array",
                       "items": { "type": "string" }
                     },
+                    "preview": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string" },
+                              "value": { "type": "string" }
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["title", "fields"],
+                      "additionalProperties": false
+                    },
                     "appliedAt": { "type": "string" },
                     "undoneAt": { "type": "string" },
                     "createdAt": { "type": "string" },
@@ -7323,6 +7420,7 @@
                     "status",
                     "summary",
                     "conflictNotes",
+                    "preview",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -7407,6 +7505,26 @@
                       "type": "array",
                       "items": { "type": "string" }
                     },
+                    "preview": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": { "type": "string" },
+                              "value": { "type": "string" }
+                            },
+                            "required": ["key", "value"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["title", "fields"],
+                      "additionalProperties": false
+                    },
                     "appliedAt": { "type": "string" },
                     "undoneAt": { "type": "string" },
                     "createdAt": { "type": "string" },
@@ -7420,6 +7538,7 @@
                     "status",
                     "summary",
                     "conflictNotes",
+                    "preview",
                     "createdAt",
                     "updatedAt"
                   ],

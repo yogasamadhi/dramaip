@@ -75,6 +75,7 @@ import type {
   ProviderConnectionResult,
   AgentProviderActivationResult,
   StoryBibleChangeSet,
+  StoryBibleChangeSetApplyInput,
   StoryBibleChangeSetInput,
   StoryBibleChangeSetStatus,
   StoryBibleSettings,
@@ -259,7 +260,10 @@ export interface StudioClient {
     list(projectId: string): Promise<StoryBibleChangeSet[]>;
     stale(projectId: string): Promise<StoryBibleStaleMark[]>;
     queue(input: StoryBibleChangeSetInput): Promise<StoryBibleChangeSet>;
-    apply(id: string): Promise<StoryBibleChangeSet>;
+    apply(
+      id: string,
+      input: StoryBibleChangeSetApplyInput,
+    ): Promise<StoryBibleChangeSet>;
     undo(id: string): Promise<StoryBibleChangeSet>;
     setStatus(
       id: string,
@@ -854,11 +858,12 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "POST",
           body: JSON.stringify(input),
         }),
-      apply: (id) =>
+      apply: (id, input) =>
         request(
           `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/apply`,
           {
             method: "POST",
+            body: JSON.stringify(input),
           },
         ),
       undo: (id) =>

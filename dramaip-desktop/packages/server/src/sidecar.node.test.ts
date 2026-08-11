@@ -506,6 +506,75 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(project.body.targetEpisodeCount, 12);
     assert.equal(project.body.visualStyleDirection, "雨夜霓虹与人物近景");
     assert.match(project.body.productionBrief ?? "", /创建路径：从灵感开始/);
+    const storyBibleProject = await request<{ id: string }>(
+      "/api/v1/projects",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Story Bible 选择性采用项目",
+          shortDramaType: "悬疑",
+          synopsis: "",
+        }),
+      },
+    );
+    assert.equal(storyBibleProject.status, 201);
+    const storyBibleChapter = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/chapters", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: storyBibleProject.body.id,
+        title: "Story Bible 选择性采用",
+        summary: "林晚发现旧照片。",
+        content: "雨夜里，林晚发现旧照片背面藏有另一个日期。",
+        mainConflict: "照片日期与死亡记录冲突",
+      }),
+    });
+    assert.equal(storyBibleChapter.status, 201);
+    const storyBibleDraft = await request<{
+      id: string;
+      status: string;
+      preview: { fields: Array<{ key: string; value: string }> };
+    }>("/api/v1/story-bible/change-sets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: storyBibleProject.body.id,
+        chapterId: storyBibleChapter.body.id,
+      }),
+    });
+    assert.equal(storyBibleDraft.status, 201);
+    assert.equal(storyBibleDraft.body.status, "draft");
+    assert.ok(
+      storyBibleDraft.body.preview.fields.some(
+        (field) => field.key === "重要事件",
+      ),
+      "变更草案必须暴露可审查字段预览",
+    );
+    const invalidStoryBibleSelection = await request(
+      `/api/v1/story-bible/change-sets/${storyBibleDraft.body.id}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ fields: ["不存在的字段"] }),
+      },
+    );
+    assert.equal(invalidStoryBibleSelection.status, 400);
+    const appliedStoryBibleSelection = await request<{
+      status: string;
+    }>(`/api/v1/story-bible/change-sets/${storyBibleDraft.body.id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ fields: ["重要事件"] }),
+    });
+    assert.equal(appliedStoryBibleSelection.status, 200);
+    const selectedMemories = await request<
+      Array<{ payload: Record<string, unknown> }>
+    >(`/api/v1/chapter-memories?projectId=${storyBibleProject.body.id}`);
+    assert.equal(selectedMemories.status, 200);
+    assert.deepEqual(
+      Object.keys(selectedMemories.body[0]?.payload ?? {}).sort(),
+      ["关联章节", "来源变更集", "来源章节版本", "重要事件"].sort(),
+      "选择性采用不能写入未勾选的 Story Bible 字段",
+    );
     const firstEvent = await readSseEvent(0);
     assert.ok(Number.isInteger(firstEvent.id));
     assert.match(firstEvent.frame, /event: project\.created/);

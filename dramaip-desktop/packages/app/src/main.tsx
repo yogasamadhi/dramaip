@@ -43,6 +43,10 @@ import {
   type PacingPoint,
 } from "./episode-pacing";
 import {
+  buildStoryBibleSidecar,
+  type StoryBibleContext,
+} from "./story-bible-sidecar";
+import {
   contextAssistantPage,
   contextAssistantPreflight,
   contextAssistantProjectId,
@@ -1295,6 +1299,7 @@ function ProjectWorkspace() {
         </aside>
         {active ? (
           <ChapterEditor
+            projectId={project.id}
             chapter={active}
             onSave={updateChapter}
             onReload={load}
@@ -2772,6 +2777,248 @@ function sourceTypeLabel(type: SourceImportPreview["sourceType"]): string {
   return labels[type];
 }
 
+const STORY_BIBLE_SIDECAR_DOMAINS = [
+  "characters",
+  "character-states",
+  "story-bible",
+  "outlines",
+  "story-events",
+  "foreshadowings",
+  "visual-assets",
+  "visual-settings",
+  "assets",
+  "chapter-memories",
+] as const;
+
+function StoryBibleSidecar(props: {
+  projectId: string;
+  context: StoryBibleContext;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  const [wide, setWide] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const [selectedFields, setSelectedFields] = useState<Record<string, string[]>>({});
+  const { data: records = [], error: recordsError } = useQuery({
+    queryKey: ["story-bible-sidecar-records", props.projectId],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          STORY_BIBLE_SIDECAR_DOMAINS.map((domain) =>
+            client.resources.list(domain, props.projectId),
+          ),
+        )
+      ).flat(),
+  });
+  const { data: changeSets = [] } = useQuery({
+    queryKey: ["story-bible-change-sets", props.projectId],
+    queryFn: () => client.storyBible.list(props.projectId),
+  });
+  const { data: staleMarks = [] } = useQuery({
+    queryKey: ["story-bible-stale", props.projectId],
+    queryFn: () => client.storyBible.stale(props.projectId),
+  });
+  const { data: preferences = [] } = useQuery({
+    queryKey: ["story-bible-sidecar-preferences", props.projectId],
+    queryFn: () =>
+      client.resources.list("story-bible-sidecar-preferences", props.projectId),
+  });
+  const preference = preferences[0];
+  const preferencePayload = preference ? recordPayload(preference.payload) : {};
+  const pinned = Array.isArray(preferencePayload["固定标识"])
+    ? preferencePayload["固定标识"].filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  useEffect(() => {
+    if (!preference) return;
+    setCollapsed(preferencePayload["已折叠"] === true);
+    setWide(preferencePayload["宽度"] === "宽");
+  }, [preference?.id, preference?.version]);
+  const model = buildStoryBibleSidecar({
+    context: props.context,
+    records,
+    changeSets,
+    staleMarks,
+  });
+  const storyBiblePath = `/create?projectId=${encodeURIComponent(props.projectId)}${
+    props.context.kind === "chapter"
+      ? `&chapterId=${encodeURIComponent(props.context.id)}`
+      : ""
+  }`;
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-sidecar-records", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-change-sets", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-stale", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-sidecar-preferences", props.projectId],
+      }),
+    ]);
+  };
+  const savePreference = async (patch: Record<string, unknown>) => {
+    const payload = { ...preferencePayload, ...patch };
+    if (preference)
+      await client.resources.update("story-bible-sidecar-preferences", preference.id, {
+        title: preference.title,
+        payload,
+        version: preference.version,
+      });
+    else
+      await client.resources.create("story-bible-sidecar-preferences", {
+        projectId: props.projectId,
+        title: "Story Bible 侧栏偏好",
+        payload,
+      });
+    await refresh();
+  };
+  const updateCollapsed = async (next: boolean) => {
+    setCollapsed(next);
+    try {
+      await savePreference({ 已折叠: next, 宽度: wide ? "宽" : "常规" });
+    } catch (cause) {
+      setCollapsed(!next);
+      setNotice(message(cause));
+    }
+  };
+  const updateWide = async (next: boolean) => {
+    setWide(next);
+    try {
+      await savePreference({ 已折叠: collapsed, 宽度: next ? "宽" : "常规" });
+    } catch (cause) {
+      setWide(!next);
+      setNotice(message(cause));
+    }
+  };
+  const togglePin = async (id: string) => {
+    const next = pinned.includes(id)
+      ? pinned.filter((item) => item !== id)
+      : [...pinned, id];
+    try {
+      await savePreference({
+        固定标识: next,
+        已折叠: collapsed,
+        宽度: wide ? "宽" : "常规",
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const queue = async () => {
+    if (props.context.kind !== "chapter") return;
+    try {
+      await client.storyBible.queue({
+        projectId: props.projectId,
+        chapterId: props.context.id,
+      });
+      setNotice("已生成待确认变更草案，请先核对字段差异。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const apply = async (item: StoryBibleChangeSet) => {
+    const fields = selectedFields[item.id] ?? item.preview.fields.map((field) => field.key);
+    if (!fields.length) {
+      setNotice("请至少选择一个待采用字段。");
+      return;
+    }
+    if (!window.confirm("采用后只会写入所选的章节记忆字段，不会修改正文。确定采用吗？")) return;
+    try {
+      await client.storyBible.apply(item.id, { fields });
+      setNotice("已采用所选字段，并保留可撤销记录。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    }
+  };
+  const undo = async (item: StoryBibleChangeSet) => {
+    if (!window.confirm("撤销会删除此变更集创建的章节记忆，不会修改正文。确定撤销吗？")) return;
+    try {
+      await client.storyBible.undo(item.id);
+      setNotice("已撤销此变更集创建的资料。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const setStatus = async (item: StoryBibleChangeSet, status: "discarded") => {
+    try {
+      await client.storyBible.setStatus(item.id, status);
+      setNotice("已丢弃该变更草案。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const toggleField = (item: StoryBibleChangeSet, key: string) => {
+    const current = selectedFields[item.id] ?? item.preview.fields.map((field) => field.key);
+    setSelectedFields((previous) => ({
+      ...previous,
+      [item.id]: current.includes(key)
+        ? current.filter((field) => field !== key)
+        : [...current, key],
+    }));
+  };
+  const visible = model.items
+    .filter((item) =>
+      `${item.group} ${item.title} ${item.text}`
+        .toLocaleLowerCase("zh-CN")
+        .includes(query.trim().toLocaleLowerCase("zh-CN")),
+    )
+    .sort((left, right) => Number(pinned.includes(right.id)) - Number(pinned.includes(left.id)));
+  return (
+    <aside
+      className={`border-t border-line bg-canvas/40 p-3 xl:border-l xl:border-t-0 ${collapsed ? "xl:w-14 xl:p-2" : wide ? "xl:w-[26rem]" : "xl:w-80"}`}
+      aria-label="Story Bible 侧栏"
+    >
+      <div className="flex items-start justify-between gap-2">
+        {!collapsed && <div>
+          <p className="text-xs text-muted">当前{props.context.kind === "chapter" ? "章节" : "剧本"}上下文</p>
+          <h2 className="text-sm font-semibold">Story Bible</h2>
+        </div>}
+        <div className="flex gap-1">
+          {!collapsed && <button className="rounded px-2 py-1 text-xs text-brand hover:bg-brand-soft" onClick={() => void updateWide(!wide)}>{wide ? "窄" : "宽"}</button>}
+          <button className="rounded px-2 py-1 text-xs text-brand hover:bg-brand-soft" aria-expanded={!collapsed} onClick={() => void updateCollapsed(!collapsed)}>{collapsed ? "展开" : "折叠"}</button>
+        </div>
+      </div>
+      {!collapsed && (
+        <>
+          <input className="mt-3 w-full rounded border border-line bg-white px-2 py-1.5 text-xs" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索人物、伏笔、设定…" aria-label="搜索 Story Bible" />
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link className="text-brand underline" to={storyBiblePath}>打开完整 Story Bible</Link>
+            {props.context.kind === "chapter" && <button className="text-brand underline" onClick={() => void queue()}>生成变更草案</button>}
+          </div>
+          {notice && <p className="mt-3 rounded bg-brand-soft p-2 text-xs text-brand" role="status">{notice}</p>}
+          {recordsError && <p className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900" role="alert">本地 Story Bible 暂不可读取；正文编辑与保存不受影响。</p>}
+          {model.staleMarks.length > 0 && <p className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900">待复核：{model.staleMarks.map((mark) => mark.reason).join("；")}</p>}
+          <div className="mt-3 max-h-[calc(100vh-15rem)] space-y-2 overflow-y-auto pr-1" aria-live="polite">
+            {visible.map((item) => <article key={item.id} className="rounded border border-line bg-white p-2 text-xs">
+              <div className="flex items-start justify-between gap-2"><div><p className="text-muted">{item.group} · {sidecarStateLabel(item.state)}</p><p className="mt-1 font-medium">{item.title}</p></div><button className="text-brand underline" onClick={() => void togglePin(item.id)}>{pinned.includes(item.id) ? "取消固定" : "固定"}</button></div>
+              <p className="mt-1 whitespace-pre-wrap text-muted">{item.text}</p><p className="mt-1 text-[0.6875rem] text-muted">来源 {item.sourceId.slice(0, 8)}{item.sourceVersion !== undefined ? ` · v${item.sourceVersion}` : ""} · <Link className="text-brand underline" to={storyBiblePath}>查看来源</Link></p>
+            </article>)}
+            {!visible.length && <p className="rounded border border-dashed border-line p-3 text-xs text-muted">当前范围没有可关联的 Story Bible 条目。</p>}
+          </div>
+          {model.relevantChangeSets.length > 0 && <div className="mt-3 space-y-2"><p className="text-xs font-medium">当前章节变更集</p>{model.relevantChangeSets.map((item) => <div key={item.id} className="rounded border border-line bg-white p-2 text-xs"><p>{item.summary}</p><p className="mt-1 text-muted">章节版本 {item.sourceVersion} · {sidecarStateLabel(item.status === "draft" ? "suggested" : item.status === "applied" ? "confirmed" : item.status === "stale" ? "stale" : "authoritative")}</p>{item.conflictNotes.length > 0 && <p className="mt-1 text-amber-800">冲突：{item.conflictNotes.join("；")}</p>}{item.status === "draft" && <details className="mt-2"><summary className="cursor-pointer text-brand">查看字段差异并选择采用</summary><div className="mt-2 space-y-2">{item.preview.fields.map((field) => { const fields = selectedFields[item.id] ?? item.preview.fields.map((entry) => entry.key); return <label key={field.key} className="flex gap-2"><input type="checkbox" checked={fields.includes(field.key)} onChange={() => toggleField(item, field.key)} /><span><b>{field.key}</b>：{field.value}</span></label>; })}</div></details>}{item.status === "draft" && <div className="mt-2 flex gap-2"><button className="text-brand underline" onClick={() => void apply(item)}>采用所选字段</button><button className="text-muted underline" onClick={() => void setStatus(item, "discarded")}>丢弃</button></div>}{["applied", "stale"].includes(item.status) && <button className="mt-2 text-brand underline" onClick={() => void undo(item)}>撤销采用</button>}</div>)}</div>}
+        </>
+      )}
+    </aside>
+  );
+}
+
+function sidecarStateLabel(state: ReturnType<typeof buildStoryBibleSidecar>["items"][number]["state"]) {
+  return { authoritative: "权威事实", confirmed: "人工确认", suggested: "AI 建议", stale: "来源已变化" }[state];
+}
+
 function importWarning(value: string): string {
   return /[A-Za-z]{3,}/.test(value)
     ? "导入内容存在需要人工复核的格式或结构问题。"
@@ -2779,6 +3026,7 @@ function importWarning(value: string): string {
 }
 
 function ChapterEditor(props: {
+  projectId: string;
   chapter: Chapter;
   onSave(patch: Partial<EditableChapter>): Promise<void>;
   onReload(): void;
@@ -2854,6 +3102,7 @@ function ChapterEditor(props: {
     }
   };
   return (
+    <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_auto]">
     <article className="flex min-w-0 flex-col">
       <header className="flex items-center justify-between border-b border-line p-4">
         <input
@@ -2990,6 +3239,17 @@ function ChapterEditor(props: {
         />
       </div>
     </article>
+    <StoryBibleSidecar
+      projectId={props.projectId}
+      context={{
+        kind: "chapter",
+        id: props.chapter.id,
+        title: props.chapter.title,
+        content,
+        version: props.chapter.version,
+      }}
+    />
+    </div>
   );
 }
 
@@ -3007,6 +3267,7 @@ const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
 function StoryBibleChangeSetPanel() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -3038,9 +3299,19 @@ function StoryBibleChangeSetPanel() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
     if (chapterId && !chapters.some((chapter) => chapter.id === chapterId))
       setChapterId("");
   }, [chapterId, chapters]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("chapterId");
+    if (requested && chapters.some((chapter) => chapter.id === requested))
+      setChapterId(requested);
+  }, [chapters, location.search]);
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -3097,7 +3368,7 @@ function StoryBibleChangeSetPanel() {
     )
       return;
     try {
-      await client.storyBible.apply(item.id);
+      await client.storyBible.apply(item.id, {});
       setNotice("已采用变更集，并保留可撤销记录。");
       await refresh();
     } catch (cause) {
@@ -5719,6 +5990,7 @@ function AdaptationWorkspace() {
             ? sceneId
             : undefined;
   const parentRequired = stage !== "adaptations";
+  const selectedScript = scripts.find((item) => item.id === scriptId);
   return (
     <section className="space-y-5">
       <div>
@@ -5912,7 +6184,23 @@ function AdaptationWorkspace() {
             }
           />
           {stage === "scripts" && scriptId && (
-            <ScriptReviewPanel scriptId={scriptId} />
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+              <ScriptReviewPanel scriptId={scriptId} />
+              {selectedScript && (
+                <StoryBibleSidecar
+                  projectId={projectId}
+                  context={{
+                    kind: "script",
+                    id: scriptId,
+                    title: selectedScript.title,
+                    content: String(
+                      recordPayload(selectedScript.payload)["剧本内容"] ?? "",
+                    ),
+                    version: selectedScript.version,
+                  }}
+                />
+              )}
+            </div>
           )}
           {stage === "shots" && shotId && <ShotReviewPanel shotId={shotId} />}
           <DomainWorkspace
