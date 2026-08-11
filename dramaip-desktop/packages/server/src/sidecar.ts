@@ -47,6 +47,7 @@ import type {
   TimelineCommandInput,
   TimelineManifest,
   TimelineTrackKind,
+  TimelineDeliveryExportFormat,
   AudioAssemblyApplyInput,
   AudioTrackKind,
   AudioTrackInput,
@@ -1141,6 +1142,27 @@ async function route(
   );
   if (timelineMediaPreviewId && method === "GET")
     return timelineMediaPreview(res, timelineMediaPreviewId, requestId);
+  const timelineDeliveryManifestEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline-delivery\/manifest$/,
+  );
+  if (timelineDeliveryManifestEpisodeId && method === "GET")
+    return getTimelineDeliveryManifest(
+      res,
+      timelineDeliveryManifestEpisodeId,
+      requestId,
+    );
+  const timelineDeliveryExport =
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline-delivery\/export\/(manifest|fcpxml|otio|edl|srt|vtt|relink)$/.exec(
+      path,
+    );
+  if (timelineDeliveryExport && method === "GET")
+    return exportTimelineDelivery(
+      res,
+      decodeURIComponent(timelineDeliveryExport[1]),
+      timelineDeliveryExport[2] as TimelineDeliveryExportFormat,
+      requestId,
+    );
   const editorTimelineId = match(
     path,
     /^\/api\/v1\/episodes\/([^/]+)\/editor-timeline$/,
@@ -14704,6 +14726,393 @@ function timelineMediaPreview(
         : "image",
     dataUrl: `data:${mime};base64,${readFileSync(path).toString("base64")}`,
   });
+}
+
+type TimelineDelivery = {
+  format: "dramaip-timeline-delivery";
+  schemaVersion: 1;
+  timeline: StoredTimeline;
+  media: Array<{
+    assetId: string;
+    title: string;
+    sourceVersion: number;
+    relativePath: string;
+    checksum?: string;
+    mediaStatus: "linked" | "missing" | "unsupported" | "proxy" | "unattached";
+    rightsStatus: "cleared" | "unknown" | "restricted";
+    lineage: string[];
+  }>;
+  unsupportedFeatures: string[];
+  warnings: string[];
+};
+
+function timelineDeliveryRelativePath(
+  assetId: string,
+  storedName: string,
+): string {
+  return `media/${safeFileName(`${assetId}-${basename(storedName)}`)}`;
+}
+
+function timelineDeliveryMedia(
+  assetId: string,
+  timeline: StoredTimeline,
+): TimelineDelivery["media"][number] {
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset)
+    return {
+      assetId,
+      title: "缺失素材",
+      sourceVersion: 0,
+      relativePath: `media/${safeFileName(assetId)}`,
+      mediaStatus: "missing" as const,
+      rightsStatus: "restricted" as const,
+      lineage: [
+        `timeline:${timeline.id}:v${timeline.version}`,
+        `asset:${assetId}:missing`,
+      ],
+    };
+  const payload = domainPayload(asset.payload_json);
+  const file = payload.file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  const mediaStatus = timelineMediaStatus(assetId);
+  const lineage = [
+    `timeline:${timeline.id}:v${timeline.version}`,
+    `asset:${String(asset.id)}:v${Number(asset.version)}`,
+  ];
+  const base = {
+    assetId: String(asset.id),
+    title: String(asset.title),
+    sourceVersion: Number(asset.version),
+    relativePath: storedName
+      ? timelineDeliveryRelativePath(String(asset.id), storedName)
+      : `media/${safeFileName(String(asset.id))}`,
+    mediaStatus,
+    rightsStatus: audioAssemblyLineage(assetId).rightsStatus,
+    lineage,
+  };
+  if (!storedName || !hasArchivedFile(asset)) return base;
+  return {
+    ...base,
+    checksum: createHash("sha256")
+      .update(readFileSync(join(command!.assetDirectory, storedName)))
+      .digest("hex"),
+  };
+}
+
+function buildTimelineDelivery(
+  episodeId: string,
+): TimelineDelivery | undefined {
+  const storedTimeline = getOrCreateTimeline(episodeId);
+  if (!storedTimeline) return undefined;
+  const timeline = timelineForResponse(storedTimeline);
+  const clips = timeline.tracks.flatMap((track) =>
+    track.clips.map((clip) => ({ track, clip })),
+  );
+  const assetIds = [
+    ...new Set(clips.flatMap(({ clip }) => clip.assetId ?? [])),
+  ].sort((left, right) => left.localeCompare(right));
+  const media = assetIds.map((assetId) =>
+    timelineDeliveryMedia(assetId, timeline),
+  );
+  const unsupportedFeatures = [
+    ...clips
+      .filter(({ track, clip }) => !clip.assetId && track.kind !== "subtitle")
+      .map(({ track, clip }) => `unbound-media:${track.kind}:${clip.id}`),
+    ...media
+      .filter((item) => item.mediaStatus !== "linked")
+      .map((item) => `media:${item.assetId}:${item.mediaStatus}`),
+    ...(timeline.tracks.some(
+      (track) => track.kind !== "video" && track.clips.length > 0,
+    )
+      ? ["cmx3600:non-video-tracks"]
+      : []),
+  ].sort((left, right) => left.localeCompare(right));
+  const warnings = [
+    ...media
+      .filter((item) => !item.checksum)
+      .map(
+        (item) =>
+          `媒体 ${item.title} 缺少可验证 checksum，重链接前需人工核验。`,
+      ),
+    ...media
+      .filter((item) => item.rightsStatus === "restricted")
+      .map((item) => `媒体 ${item.title} 的权利状态受限，禁止未经授权交付。`),
+    "当前 Provider 目录未声明 timeline_render；不会生成或伪造 MP4 成片。",
+  ].sort((left, right) => left.localeCompare(right));
+  return {
+    format: "dramaip-timeline-delivery",
+    schemaVersion: 1,
+    timeline,
+    media,
+    unsupportedFeatures,
+    warnings,
+  };
+}
+
+function timelineDeliveryOrderedClips(
+  timeline: StoredTimeline,
+  kind: TimelineTrackKind,
+) {
+  return timeline.tracks
+    .filter((track) => track.kind === kind)
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .sort(
+      (left, right) =>
+        left.clip.startSeconds - right.clip.startSeconds ||
+        left.clip.id.localeCompare(right.clip.id),
+    );
+}
+
+function timelineDeliverySubtitles(timeline: StoredTimeline) {
+  return timelineDeliveryOrderedClips(timeline, "subtitle").filter(({ clip }) =>
+    Boolean(clip.text?.trim()),
+  );
+}
+
+function timelineDeliveryFcpxml(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const assets = delivery.media
+    .filter((item) => item.mediaStatus === "linked")
+    .map(
+      (item) =>
+        `    <asset id="asset-${escapeXml(item.assetId)}" name="${escapeXml(item.title)}" src="${escapeXml(item.relativePath)}" format="r1" hasVideo="1" hasAudio="1" />`,
+    )
+    .join("\n");
+  const clips = delivery.timeline.tracks
+    .filter((track) => track.clips.length > 0)
+    .map((track, index) => {
+      const lane = track.kind === "video" ? "" : ` lane="${index}"`;
+      return [...track.clips]
+        .sort(
+          (left, right) =>
+            left.startSeconds - right.startSeconds ||
+            left.id.localeCompare(right.id),
+        )
+        .map((clip) => {
+          const offset = `${Math.round(clip.startSeconds * 25)}/25s`;
+          const duration = `${Math.max(1, Math.round(clip.durationSeconds * 25))}/25s`;
+          const start = `${Math.round(clip.sourceOffsetSeconds * 25)}/25s`;
+          const linked = clip.assetId ? media.get(clip.assetId) : undefined;
+          if (track.kind === "subtitle")
+            return `        <title name="${escapeXml(clip.text ?? clip.name)}" offset="${offset}" duration="${duration}"${lane} />`;
+          if (linked?.mediaStatus === "linked")
+            return `        <asset-clip ref="asset-${escapeXml(linked.assetId)}" name="${escapeXml(clip.name)}" offset="${offset}" start="${start}" duration="${duration}"${lane} />`;
+          return `        <gap name="${escapeXml(clip.name)}" offset="${offset}" duration="${duration}"${lane} />`;
+        })
+        .join("\n");
+    })
+    .join("\n");
+  const duration = `${Math.max(1, Math.round(delivery.timeline.durationSeconds * 25))}/25s`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<fcpxml version="1.10">\n  <resources>\n    <format id="r1" name="DramaIP 25 fps" frameDuration="1/25s" width="1080" height="1920" />${assets ? `\n${assets}` : ""}\n  </resources>\n  <library>\n    <event name="DramaIP">\n      <project name="${escapeXml(`Timeline ${delivery.timeline.episodeId}`)}">\n        <sequence format="r1" duration="${duration}" tcStart="0s" tcFormat="NDF">\n          <spine>\n${clips}\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>\n`;
+}
+
+function timelineDeliveryOtio(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const timeline = delivery.timeline;
+  const document = {
+    OTIO_SCHEMA: "Timeline.1",
+    name: `DramaIP ${timeline.episodeId}`,
+    global_start_time: {
+      OTIO_SCHEMA: "RationalTime.1",
+      value: 0,
+      rate: timeline.frameRate,
+    },
+    tracks: {
+      OTIO_SCHEMA: "Stack.1",
+      name: "DramaIP timeline",
+      children: timeline.tracks.map((track) => ({
+        OTIO_SCHEMA: "Track.1",
+        name: track.label,
+        kind:
+          track.kind === "video" || track.kind === "subtitle"
+            ? "Video"
+            : "Audio",
+        children: [...track.clips]
+          .sort(
+            (left, right) =>
+              left.startSeconds - right.startSeconds ||
+              left.id.localeCompare(right.id),
+          )
+          .map((clip) => {
+            const linked = clip.assetId ? media.get(clip.assetId) : undefined;
+            return {
+              OTIO_SCHEMA: "Clip.2",
+              name: clip.name,
+              source_range: {
+                OTIO_SCHEMA: "TimeRange.1",
+                start_time: {
+                  OTIO_SCHEMA: "RationalTime.1",
+                  value: Math.round(
+                    clip.sourceOffsetSeconds * timeline.frameRate,
+                  ),
+                  rate: timeline.frameRate,
+                },
+                duration: {
+                  OTIO_SCHEMA: "RationalTime.1",
+                  value: Math.max(
+                    1,
+                    Math.round(clip.durationSeconds * timeline.frameRate),
+                  ),
+                  rate: timeline.frameRate,
+                },
+              },
+              media_reference:
+                linked?.mediaStatus === "linked"
+                  ? {
+                      OTIO_SCHEMA: "ExternalReference.1",
+                      target_url: linked.relativePath,
+                    }
+                  : { OTIO_SCHEMA: "MissingReference.1" },
+              metadata: {
+                dramaip: {
+                  clipId: clip.id,
+                  timelineStartFrames: Math.round(
+                    clip.startSeconds * timeline.frameRate,
+                  ),
+                  ...(clip.text ? { subtitle: clip.text } : {}),
+                },
+              },
+            };
+          }),
+      })),
+    },
+    metadata: {
+      dramaip: {
+        timelineId: timeline.id,
+        timelineVersion: timeline.version,
+        unsupportedFeatures: delivery.unsupportedFeatures,
+      },
+    },
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+function timelineDeliveryEdl(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const entries = timelineDeliveryOrderedClips(delivery.timeline, "video").map(
+    ({ clip }, index) => {
+      const inTime = timelineTimecode(clip.sourceOffsetSeconds, 25);
+      const outTime = timelineTimecode(
+        clip.sourceOffsetSeconds + clip.durationSeconds,
+        25,
+      );
+      const recordIn = timelineTimecode(clip.startSeconds, 25);
+      const recordOut = timelineTimecode(
+        clip.startSeconds + clip.durationSeconds,
+        25,
+      );
+      const item = clip.assetId ? media.get(clip.assetId) : undefined;
+      return [
+        `${String(index + 1).padStart(3, "0")}  AX       V     C        ${inTime} ${outTime} ${recordIn} ${recordOut}`,
+        `* FROM CLIP NAME: ${item?.relativePath ?? clip.name}`,
+      ].join("\n");
+    },
+  );
+  const unsupported = delivery.unsupportedFeatures
+    .filter((item) => item === "cmx3600:non-video-tracks")
+    .map((item) => `* UNSUPPORTED FEATURE: ${item}`);
+  return [
+    `TITLE: DramaIP ${delivery.timeline.episodeId}`,
+    "FCM: NON-DROP FRAME",
+    "",
+    ...entries,
+    ...unsupported,
+    "",
+  ].join("\n");
+}
+
+function timelineDeliverySubtitleDocument(
+  delivery: TimelineDelivery,
+  format: "srt" | "vtt",
+): string {
+  const entries = timelineDeliverySubtitles(delivery.timeline)
+    .map(({ clip }, index) => {
+      const start = timelineSubtitleTime(clip.startSeconds);
+      const end = timelineSubtitleTime(
+        clip.startSeconds + clip.durationSeconds,
+      );
+      return `${index + 1}\n${format === "vtt" ? start.replace(",", ".") : start} --> ${format === "vtt" ? end.replace(",", ".") : end}\n${clip.text!.trim()}`;
+    })
+    .join("\n\n");
+  if (format === "vtt") return entries ? `WEBVTT\n\n${entries}\n` : "WEBVTT\n";
+  return entries ? `${entries}\n` : "";
+}
+
+function getTimelineDeliveryManifest(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const delivery = buildTimelineDelivery(episodeId);
+  if (!delivery)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  json(res, 200, delivery);
+}
+
+function exportTimelineDelivery(
+  res: ServerResponse,
+  episodeId: string,
+  format: TimelineDeliveryExportFormat,
+  requestId: string,
+): void {
+  const delivery = buildTimelineDelivery(episodeId);
+  if (!delivery)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  const base = safeFileName(
+    `timeline-${delivery.timeline.episodeId}-v${delivery.timeline.version}`,
+  );
+  const document =
+    format === "manifest"
+      ? {
+          fileName: `${base}-delivery-manifest.json`,
+          mimeType: "application/json",
+          content: `${JSON.stringify(delivery, null, 2)}\n`,
+        }
+      : format === "fcpxml"
+        ? {
+            fileName: `${base}.fcpxml`,
+            mimeType: "application/xml",
+            content: timelineDeliveryFcpxml(delivery),
+          }
+        : format === "otio"
+          ? {
+              fileName: `${base}.otio`,
+              mimeType: "application/json",
+              content: timelineDeliveryOtio(delivery),
+            }
+          : format === "edl"
+            ? {
+                fileName: `${base}.edl`,
+                mimeType: "text/plain",
+                content: timelineDeliveryEdl(delivery),
+              }
+            : format === "srt" || format === "vtt"
+              ? {
+                  fileName: `${base}.${format}`,
+                  mimeType:
+                    format === "srt" ? "application/x-subrip" : "text/vtt",
+                  content: timelineDeliverySubtitleDocument(delivery, format),
+                }
+              : {
+                  fileName: `${base}-media-relink.json`,
+                  mimeType: "application/json",
+                  content: `${JSON.stringify(
+                    {
+                      format: "dramaip-media-relink",
+                      schemaVersion: 1,
+                      timelineId: delivery.timeline.id,
+                      timelineVersion: delivery.timeline.version,
+                      media: delivery.media,
+                      unsupportedFeatures: delivery.unsupportedFeatures,
+                    },
+                    null,
+                    2,
+                  )}\n`,
+                };
+  json(res, 200, document);
 }
 
 function getEditorTimeline(

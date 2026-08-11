@@ -53,7 +53,8 @@
     "format:check": "bunx prettier --check README.md package.json playwright.config.ts tests/electron tsconfig.base.json apps/desktop/electron-builder.yml apps/desktop/electron.vite.config.ts apps/desktop/electron apps/desktop/scripts apps/desktop/tsconfig*.json packages/{ai,ai-legacy,app,client,db,mcp,protocol,schema,server,tasks,ui}",
     "check:generated": "bun run --filter @sdns/client check:generated && bun run --filter @sdns/ai-legacy check:generated",
     "check:engine-locks": "node scripts/check-engine-locks.mjs",
-    "check:provider-catalog": "node scripts/check-provider-catalog.mjs"
+    "check:provider-catalog": "node scripts/check-provider-catalog.mjs",
+    "check:timeline-exports": "node scripts/check-timeline-exports.mjs"
   },
   "trustedDependencies": [
     "electron",

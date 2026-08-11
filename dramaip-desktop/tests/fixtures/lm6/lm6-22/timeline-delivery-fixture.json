@@ -1,0 +1,67 @@
+{
+  "frameRate": 25,
+  "expected": {
+    "clip": {
+      "id": "clip-rain-letter",
+      "startFrames": 25,
+      "durationFrames": 50,
+      "sourceFrames": 0,
+      "mediaPath": "media/rain-letter.wav"
+    },
+    "edl": {
+      "sourceInFrames": 0,
+      "sourceOutFrames": 50,
+      "recordInFrames": 25,
+      "recordOutFrames": 75
+    },
+    "subtitle": {
+      "startMilliseconds": 1000,
+      "endMilliseconds": 3000,
+      "text": "雨声里，信终于被打开。"
+    }
+  },
+  "fcpxml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<fcpxml version=\"1.10\">\n  <resources>\n    <format id=\"r1\" name=\"DramaIP 25 fps\" frameDuration=\"1/25s\" width=\"1080\" height=\"1920\" />\n    <asset id=\"asset-rain-letter\" name=\"雨夜来信\" src=\"media/rain-letter.wav\" format=\"r1\" hasVideo=\"1\" hasAudio=\"1\" />\n  </resources>\n  <library><event name=\"DramaIP\"><project name=\"第 1 集\"><sequence format=\"r1\" duration=\"75/25s\" tcStart=\"0s\" tcFormat=\"NDF\"><spine>\n    <asset-clip ref=\"asset-rain-letter\" name=\"雨夜来信\" offset=\"25/25s\" start=\"0/25s\" duration=\"50/25s\" />\n  </spine></sequence></project></event></library>\n</fcpxml>\n",
+  "otio": {
+    "OTIO_SCHEMA": "Timeline.1",
+    "tracks": {
+      "OTIO_SCHEMA": "Stack.1",
+      "children": [
+        {
+          "OTIO_SCHEMA": "Track.1",
+          "children": [
+            {
+              "OTIO_SCHEMA": "Clip.2",
+              "name": "雨夜来信",
+              "source_range": {
+                "OTIO_SCHEMA": "TimeRange.1",
+                "start_time": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "value": 0,
+                  "rate": 25
+                },
+                "duration": {
+                  "OTIO_SCHEMA": "RationalTime.1",
+                  "value": 50,
+                  "rate": 25
+                }
+              },
+              "media_reference": {
+                "OTIO_SCHEMA": "ExternalReference.1",
+                "target_url": "media/rain-letter.wav"
+              },
+              "metadata": {
+                "dramaip": {
+                  "clipId": "clip-rain-letter",
+                  "timelineStartFrames": 25
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "edl": "TITLE: 第 1 集\nFCM: NON-DROP FRAME\n\n001  AX       V     C        00:00:00:00 00:00:02:00 00:00:01:00 00:00:03:00\n* FROM CLIP NAME: media/rain-letter.wav\n",
+  "srt": "1\n00:00:01,000 --> 00:00:03,000\n雨声里，信终于被打开。\n",
+  "vtt": "WEBVTT\n\n1\n00:00:01.000 --> 00:00:03.000\n雨声里，信终于被打开。\n"
+}

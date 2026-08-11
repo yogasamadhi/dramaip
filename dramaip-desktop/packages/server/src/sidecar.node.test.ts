@@ -3038,6 +3038,83 @@ test("production-structure HTTP contract persists active adaptation and atomical
         .find((track) => track.kind === "bgm")!
         .clips.some((clip) => clip.audioTrackId === bgmTrack.body.id),
     );
+    const deliveryManifest = await request<{
+      format: string;
+      timeline: { id: string; version: number; frameRate: number };
+      media: Array<{
+        assetId: string;
+        relativePath: string;
+        checksum?: string;
+        lineage: string[];
+      }>;
+      unsupportedFeatures: string[];
+      warnings: string[];
+    }>(`/api/v1/episodes/${first.body.id}/timeline-delivery/manifest`);
+    assert.equal(deliveryManifest.status, 200);
+    assert.equal(deliveryManifest.body.format, "dramaip-timeline-delivery");
+    assert.equal(deliveryManifest.body.timeline.id, canonicalTimeline.body.id);
+    assert.equal(deliveryManifest.body.timeline.frameRate, 25);
+    const deliveryAudio = deliveryManifest.body.media.find(
+      (item) => item.assetId === playableTimelineAudio.body.id,
+    );
+    assert.ok(deliveryAudio);
+    assert.match(deliveryAudio.relativePath, /^media\//);
+    assert.match(deliveryAudio.checksum ?? "", /^[a-f0-9]{64}$/);
+    assert.ok(
+      deliveryAudio.lineage.some((item) =>
+        item.includes(`timeline:${canonicalTimeline.body.id}:v`),
+      ),
+    );
+    assert.ok(
+      deliveryManifest.body.unsupportedFeatures.includes(
+        "cmx3600:non-video-tracks",
+      ),
+    );
+    assert.ok(
+      deliveryManifest.body.warnings.some((item) => item.includes("MP4")),
+    );
+    const exportedTimelineDocuments = await Promise.all(
+      ["manifest", "fcpxml", "otio", "edl", "srt", "vtt", "relink"].map(
+        async (format) => ({
+          format,
+          response: await request<{ fileName: string; content: string }>(
+            `/api/v1/episodes/${first.body.id}/timeline-delivery/export/${format}`,
+          ),
+        }),
+      ),
+    );
+    exportedTimelineDocuments.forEach(({ response }) => {
+      assert.equal(response.status, 200);
+      assert.ok(response.body.fileName);
+      assert.ok(response.body.content.length > 0);
+      assert.equal(
+        response.body.content.includes(directory),
+        false,
+        "交付文件不得包含本机绝对路径",
+      );
+    });
+    const timelineDocument = (format: string) =>
+      exportedTimelineDocuments.find((item) => item.format === format)!.response
+        .body.content;
+    const fcpxml = timelineDocument("fcpxml");
+    assert.match(fcpxml, /<fcpxml version="1\.10">/);
+    assert.match(fcpxml, /src="media\//);
+    const otio = JSON.parse(timelineDocument("otio")) as {
+      OTIO_SCHEMA: string;
+      metadata: { dramaip: { timelineId: string } };
+    };
+    assert.equal(otio.OTIO_SCHEMA, "Timeline.1");
+    assert.equal(otio.metadata.dramaip.timelineId, canonicalTimeline.body.id);
+    assert.match(timelineDocument("edl"), /FCM: NON-DROP FRAME/);
+    assert.match(timelineDocument("edl"), /UNSUPPORTED FEATURE/);
+    assert.match(timelineDocument("srt"), /不能让任何人/);
+    assert.match(timelineDocument("vtt"), /^WEBVTT/);
+    assert.match(timelineDocument("relink"), /dramaip-media-relink/);
+    const repeatedFcpxml = await request<{ content: string }>(
+      `/api/v1/episodes/${first.body.id}/timeline-delivery/export/fcpxml`,
+    );
+    assert.equal(repeatedFcpxml.status, 200);
+    assert.equal(repeatedFcpxml.body.content, fcpxml);
     const currentShot = await request<{
       title: string;
       version: number;

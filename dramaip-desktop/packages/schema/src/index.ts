@@ -1397,6 +1397,64 @@ export interface TimelineMediaPreview {
 }
 
 /**
+ * 可交付时间线只序列化 canonical timeline 的受控引用；相对媒体路径和 checksum
+ * 用于 NLE 重链接，绝不携带本地绝对路径、凭据或源数据库。
+ */
+export const TimelineDeliveryMedia = Schema.Struct({
+  assetId: Id,
+  title: Schema.String,
+  sourceVersion: Schema.Int,
+  relativePath: Schema.String,
+  checksum: Schema.optionalKey(Schema.String),
+  mediaStatus: TimelineMediaStatus,
+  rightsStatus: Schema.Union([
+    Schema.Literal("cleared"),
+    Schema.Literal("unknown"),
+    Schema.Literal("restricted"),
+  ]),
+  lineage: Schema.Array(Schema.String),
+});
+export interface TimelineDeliveryMedia {
+  assetId: Id;
+  title: string;
+  sourceVersion: number;
+  relativePath: string;
+  checksum?: string;
+  mediaStatus: TimelineMediaStatus;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+  lineage: string[];
+}
+
+export const TimelineDeliveryManifest = Schema.Struct({
+  format: Schema.Literal("dramaip-timeline-delivery"),
+  schemaVersion: Schema.Literal(1),
+  timeline: TimelineManifest,
+  media: Schema.Array(TimelineDeliveryMedia),
+  unsupportedFeatures: Schema.Array(Schema.String),
+  warnings: Schema.Array(Schema.String),
+});
+export interface TimelineDeliveryManifest {
+  format: "dramaip-timeline-delivery";
+  schemaVersion: 1;
+  timeline: TimelineManifest;
+  media: TimelineDeliveryMedia[];
+  unsupportedFeatures: string[];
+  warnings: string[];
+}
+
+export const TimelineDeliveryExportFormat = Schema.Literals([
+  "manifest",
+  "fcpxml",
+  "otio",
+  "edl",
+  "srt",
+  "vtt",
+  "relink",
+]);
+export type TimelineDeliveryExportFormat =
+  "manifest" | "fcpxml" | "otio" | "edl" | "srt" | "vtt" | "relink";
+
+/**
  * 自动音频编排只引用已采用的版本化音轨。预览中的每一项都带回到文本、音色、
  * 素材、服务商、成本和权利状态的最小可审查谱系，不暴露凭据或本地绝对路径。
  */
