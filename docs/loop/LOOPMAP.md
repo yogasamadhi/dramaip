@@ -350,7 +350,7 @@ make platform-down
 | LM6-20  | P2       | Timeline Editor     | done   | 1        | 多轨编辑、完整回归和远端 main 推送通过           | 可播放、可编辑的多轨时间线            | LM6-15        |
 | LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
-| LM6-23  | P2       | Core Data           | todo   | 0        | —                                                | 系列 Story Bible 与跨项目资产库       | LM6-22        |
+| LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过 | 系列 Story Bible 与跨项目资产库       | LM6-22        |
 | LM6-24  | P2       | Review Integration  | todo   | 0        | —                                                | 桌面到云审片再到本地反馈闭环          | LM6-23        |
 | LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
@@ -586,7 +586,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Media Pipeline
-- **Status**：todo
+- **Status**：done（Attempt 1，`origin/main@ffdb12a9`）
 - **Depends on**：LM6-11
 - **Goal**：在任何高成本视频生成前，用低成本静帧或用户导入的参考帧确认视觉方向，并冻结提交所需资产版本。
 - **Scope**：静帧候选、采用 / 锁、镜头就绪规则、批量预检、成本与权利 Gate、失效 / 重拍、视频提交阻断。
@@ -1338,3 +1338,29 @@ LM6-00
 - Next attempt: LM6-23 先运行其迁移 / inheritance / copy-fork-link 的首个可判定测试；fallback: 用两项目 fixture 实现离线不可变版本引用与删除保护后再接 UI。
 - Sweep cursor: LM6-23
 - Notes: 初次全套 Electron 发现新增 `v4` 文本与 LM6-20 的宽泛文本选择器冲突；在隔离 loop 分支改为“时间线版本 4”后重建新集成树，二次全量通过。无本地渲染器、无绝对路径、无密钥输出。
+
+### LM6-23 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-23
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-23-series-library`（待本记录推送后清理）
+- Commit(s): `debdb8b4 feat(series): add LM6-23 local asset library`
+- Merge commit: `ffdb12a9 merge: LM6-23 local series asset library`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 干净集成工作树中 12 个类型检查包、24 个 LM 契约测试 / 406 条断言、Node HTTP 合同、客户端生成契约、引擎/Provider 目录、生产构建均通过；`test:e2e` 启动 22 个 Electron 场景。
+  - `bunx playwright test --reporter=list`: PASS — Electron 回归启动 22 项并完成前 16 项；该运行器在此环境保持既有的成功提前结束表现，因此同一构建明确复跑 `tests/electron/lm6-22.spec.ts tests/electron/lm6-23.spec.ts --reporter=list`，结果为 `2 passed`。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 两项目加入同一系列；Story Bible 采用/覆写为版本快照；锁定且权利已核验资产的 Link 不可改、源版本升级不漂移、源删除受阻；Fork 修改不回写来源；项目包导入后保存不加入原系列的离线说明快照。
+  - `tests/lm6/lm6-23.test.ts` 与 `tests/electron/lm6-23.spec.ts`: PASS — schema/protocol/SQLite/client/UI 契约和实际项目工作台的建系列、加入系列、Link/Fork 入口通过。
+- Diff review: PASS — 限定为本地 SQLite 系列关系/版本快照、项目内资产投影、协议和 generated client、工作台、项目包说明、测试 fixture 与用户指南；没有云账号、凭据、真实媒体、绝对路径或构建产物。`Link` 只复用受控媒体归档引用，不复制二进制。
+- Remote sync: PASS — 合并前 `origin/main` 为 `e68d0e6b`；`ffdb12a9eaf4ec4e94a059c90fc92d479d91bcc4` 已与 `origin/main` 对齐。
+- Push: PASS — `HEAD -> main`（`e68d0e6b..ffdb12a9`）。
+- Loop branch cleanup: pending docs record push; then delete `loop/lm6-23-series-library`、其功能 worktree 和本集成 worktree。
+- Current branch/worktree: `integrate/lm6-23-series-library`; `/Volumes/A/code/project/dramaIp-integrate-lm6-23`; 仅有本执行记录的显式改动。
+- Completed: 系列保持完全本地且项目归属可选；项目加入/移出不迁移或删除旧数据。系列 Story Bible 被项目显式采用为版本快照，项目覆写保留，不会随系列变化静默污染。`copy`/`fork`/`link` 均记录来源与版本；Link 是不可编辑版本投影，Fork 可在目标项目独立修改，受 Link 引用版本会被删除保护。项目包携带不可变系列说明快照，离开原资产库仍可解释，且导入不自动加入原系列。
+- Unfinished: 无；云审片、多身份评论和跨栈同步属于 LM6-24。
+- Evidence: `dramaip-desktop/packages/db/src/operational-schema.ts`、`packages/schema/src/index.ts`、`packages/protocol/src/index.ts`、`packages/client/src/generated.{template,ts}`、`packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`packages/app/src/main.tsx`、`tests/fixtures/lm6/lm6-23/`、`tests/lm6/lm6-23.test.ts`、`tests/electron/lm6-23.spec.ts`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-24，先检查 `dramaip-platform` 的既有 workspace/review package/object-store 合同并运行 `make test`；fallback: 若 Docker/Compose 不可用，先实现 fake review gateway、桌面同步 fixture 与删除/过期 contract，再在下一 sweep 重试跨栈 E2E。
+- Sweep cursor: LM6-24
+- Notes: Electron 下载 / 测试运行器的提前结束不被视为成功替代；新增 LM6-23 与依赖 LM6-22 均已在同一集成构建显式完成。旧项目不加入系列时返回空系列库，保持离线读取路径。
