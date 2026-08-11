@@ -688,8 +688,8 @@ test("production-structure HTTP contract persists active adaptation and atomical
       method: "POST",
       body: JSON.stringify({
         projectId: pilotProject.body.id,
-        chapterIds: pilotChapters.slice(0, 2).map((chapter) => chapter.body.id),
-        episodeCount: 2,
+        chapterIds: pilotChapters.map((chapter) => chapter.body.id),
+        episodeCount: 3,
       }),
     });
     assert.equal(pilot.status, 201);
@@ -706,7 +706,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(confirmedPilot.status, 200);
     assert.equal(confirmedPilot.body.status, "active");
     assert.equal(confirmedPilot.body.stage, "script");
-    assert.equal(confirmedPilot.body.coverage.episodes, 2);
+    assert.equal(confirmedPilot.body.coverage.episodes, 3);
     const duplicatePilotConfirmation = await request<{
       episodeIds: string[];
     }>(`/api/v1/pilot-plans/${pilot.body.id}/action`, {
