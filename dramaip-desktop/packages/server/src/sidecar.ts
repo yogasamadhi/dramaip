@@ -4716,7 +4716,7 @@ async function previewSourceImport(
   copyFileSync(capability.path, join(importsDirectory, stagedFileName));
   const expiresAt = new Date(Date.now() + SOURCE_IMPORT_TTL_MS).toISOString();
   db!
-    .prepare("INSERT INTO source_imports VALUES (?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO source_imports VALUES (?, ?, ?, ?, ?, ?)")
     .run(
       id,
       projectId,

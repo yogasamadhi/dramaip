@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { fork, type ChildProcess } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 type HostMessage = { type?: string; error?: string };
@@ -65,6 +66,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
   let codexShouldFailForNoFallbackTest = true;
   let lastSidecarDiagnostic = "";
   let port: number;
+  const fileCapabilities = new Map<string, string>();
   try {
     port = await availablePort();
   } catch (error) {
@@ -251,6 +253,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       operation?: string;
       payload?: Record<string, unknown>;
       message?: string;
+      token?: string;
     }) => {
       if (message.type === "diagnostic" && message.message)
         lastSidecarDiagnostic = message.message;
@@ -259,6 +262,19 @@ test("production-structure HTTP contract persists active adaptation and atomical
           type: "credential:resolved",
           requestId: message.requestId,
           secret: "test-image-provider-secret",
+        });
+      if (message.type === "capability:resolve" && message.requestId)
+        child.send({
+          type: "capability:resolved",
+          requestId: message.requestId,
+          ...(message.token && fileCapabilities.has(message.token)
+            ? {
+                capability: {
+                  path: fileCapabilities.get(message.token)!,
+                  permissions: ["read"],
+                },
+              }
+            : {}),
         });
       if (message.type === "opencode:configure" && message.requestId)
         child.send({
@@ -413,6 +429,118 @@ test("production-structure HTTP contract persists active adaptation and atomical
     const replayedEvent = await readSseEvent(firstEvent.id - 1);
     assert.equal(replayedEvent.id, firstEvent.id);
     assert.equal(replayedEvent.frame, firstEvent.frame);
+    const sourceImportPath = fileURLToPath(
+      new URL(
+        "../../../tests/fixtures/lm6/lm6-00/source-import.md",
+        import.meta.url,
+      ),
+    );
+    fileCapabilities.set("lm6-source-import", sourceImportPath);
+    const sourcePreview = await request<{
+      importId: string;
+      preview: {
+        sourceType: string;
+        contentKind: string;
+        chapters: Array<{ title: string; content: string }>;
+      };
+    }>("/api/v1/source-imports/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        capabilityToken: "lm6-source-import",
+      }),
+    });
+    assert.equal(
+      sourcePreview.status,
+      201,
+      `${JSON.stringify(sourcePreview.body)}\n${lastSidecarDiagnostic}`,
+    );
+    assert.equal(sourcePreview.body.preview.sourceType, "markdown");
+    assert.equal(sourcePreview.body.preview.contentKind, "novel");
+    assert.deepEqual(
+      sourcePreview.body.preview.chapters.map((chapter) => chapter.title),
+      ["前言", "第一章 雨夜来信", "第二章 失联电话"],
+    );
+    const sourceCommit = await request<{
+      createdChapters: number;
+      checkpointCount: number;
+    }>(`/api/v1/source-imports/${sourcePreview.body.importId}/commit`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        strategy: "append",
+        rightsConfirmed: true,
+        destructiveConfirmed: false,
+        preview: sourcePreview.body.preview,
+      }),
+    });
+    assert.equal(sourceCommit.status, 201);
+    assert.equal(sourceCommit.body.createdChapters, 3);
+    assert.equal(sourceCommit.body.checkpointCount, 0);
+    const visualAsset = await request<{
+      id: string;
+      payload: Record<string, unknown>;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "林晚·雨夜服装设定",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(visualAsset.status, 201);
+    assert.equal(visualAsset.body.payload["锁定状态"], "未锁定");
+    const lockedVisualAsset = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${visualAsset.body.id}/lock`, {
+      method: "POST",
+    });
+    assert.equal(lockedVisualAsset.status, 200);
+    assert.equal(lockedVisualAsset.body.payload["锁定状态"], "已锁定");
+    assert.equal(typeof lockedVisualAsset.body.payload["锁定时间"], "string");
+    const exportedProjectPackage = await request<{
+      fileName: string;
+      content: string;
+    }>(`/api/v1/exports/projects/${project.body.id}/json`);
+    assert.equal(exportedProjectPackage.status, 200);
+    assert.match(exportedProjectPackage.body.fileName, /\.json$/);
+    const projectPackagePath = join(directory, "lm6-00-round-trip.json");
+    writeFileSync(projectPackagePath, exportedProjectPackage.body.content);
+    fileCapabilities.set("lm6-project-package", projectPackagePath);
+    const packagePreview = await request<{
+      id: string;
+      projectTitle: string;
+      chapterCount: number;
+      resourceCount: number;
+    }>("/api/v1/project-packages/preview", {
+      method: "POST",
+      body: JSON.stringify({ capabilityToken: "lm6-project-package" }),
+    });
+    assert.equal(packagePreview.status, 201);
+    assert.equal(packagePreview.body.projectTitle, "排序契约项目");
+    assert.equal(packagePreview.body.chapterCount, 3);
+    const packageCommit = await request<{
+      project: { id: string; title: string };
+      chaptersCreated: number;
+      resourcesCreated: number;
+    }>(`/api/v1/project-packages/${packagePreview.body.id}/commit`, {
+      method: "POST",
+      body: JSON.stringify({ title: "排序契约项目（项目包往返）" }),
+    });
+    assert.equal(packageCommit.status, 201);
+    assert.equal(
+      packageCommit.body.project.title,
+      "排序契约项目（项目包往返）",
+    );
+    assert.equal(packageCommit.body.chaptersCreated, 3);
+    assert.equal(
+      packageCommit.body.resourcesCreated,
+      packagePreview.body.resourceCount,
+    );
     const engines = await request<
       Array<{ kind: string; status: string; isBeta: boolean }>
     >("/api/v1/agent-engines");
