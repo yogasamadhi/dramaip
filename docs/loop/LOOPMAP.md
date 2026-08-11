@@ -349,7 +349,7 @@ make platform-down
 | LM6-15  | P1 Gate  | Release             | done   | 1        | P1 矩阵、三集 Gate、完整回归和远端 main 推送通过 | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
 | LM6-20  | P2       | Timeline Editor     | done   | 1        | 多轨编辑、完整回归和远端 main 推送通过           | 可播放、可编辑的多轨时间线            | LM6-15        |
 | LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
-| LM6-22  | P2       | Delivery            | todo   | 0        | —                                                | 真实可验证的后期交付路径              | LM6-21        |
+| LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
 | LM6-23  | P2       | Core Data           | todo   | 0        | —                                                | 系列 Story Bible 与跨项目资产库       | LM6-22        |
 | LM6-24  | P2       | Review Integration  | todo   | 0        | —                                                | 桌面到云审片再到本地反馈闭环          | LM6-23        |
 | LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
@@ -736,7 +736,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Delivery
-- **Status**：todo
+- **Status**：done（Attempt 1，`origin/main@9fcec7ce`）
 - **Depends on**：LM6-21
 - **Goal**：结束“只有预检或片段，没有最终交付”的状态；以稳定 NLE 交换作为必达路径，在 Provider 明确支持服务端合成时可增加真实 MP4 交付。
 - **Scope**：canonical export manifest、FCPXML、OpenTimelineIO、CMX 3600 EDL、SRT / WebVTT、媒体清单 / checksum / relink、reference parser / round-trip 证据；可选真实 NLE 与 remote render 附加证据。
@@ -1311,3 +1311,30 @@ LM6-00
 - Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/client/src/generated.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-21.test.ts`、`dramaip-desktop/tests/electron/lm6-21.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-21/`、用户指南、功能 merge 与远端推送。
 - Next attempt: 开始 LM6-22，先运行 `git fetch origin`，并从 `bun run check:timeline-exports` 的首个失败项建立固定 FCPXML / OTIO / EDL / SRT / WebVTT export fixture；fallback: 目标 NLE 或 remote render 不可用时，以 FCPXML 结构校验、OTIO reference parser、EDL round-trip 和媒体 checksum / relink 验证完成必达路径。
 - Sweep cursor: LM6-22
+
+### LM6-22 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-22
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-22-production-delivery`（已清理）
+- Commit(s): `dbce8450 feat(delivery): add LM6-22 NLE exports`; `33938a60 fix(timeline): avoid delivery version selector collision`
+- Merge commit: `9fcec7ce merge: LM6-22 verified timeline delivery`
+- Verification:
+  - `bun run check:timeline-exports`: PASS — FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference round-trip fixture 通过。
+  - `bun run typecheck && bun run lint && bun run test:unit`: PASS — 12 个类型检查包、23 个 LM6 契约测试和 node HTTP 契约通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS。
+  - `bun run test:e2e` 后 `bunx playwright test --reporter=list`: PASS — 21 项 Electron 测试；P0 参数化的 4 项另行复跑为 `4 passed`。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — manifest、FCPXML、OTIO、EDL、SRT、WebVTT、relink 导出不含临时绝对路径，FCPXML 重复导出字节一致。
+- Diff review: PASS — canonical timeline 是唯一输入；导出物只含相对 `media/` 路径、SHA-256、版本、权利与最小谱系；旧 editor-timeline 接口保持兼容。
+- Remote sync: PASS — `origin/main` 已对齐 `9fcec7ce1c919371c2e2192acb243b33dff082df`。
+- Push: PASS — `HEAD -> main`（`0d5f2691..9fcec7ce`）。
+- Loop branch cleanup: PASS — 已删除 `/Volumes/A/code/project/dramaIp-lm6-22` 与本地 loop 分支。
+- Current branch/worktree: `integrate/lm6-22-production-delivery`; `/Volumes/A/code/project/dramaIp-integrate-lm6-22`; docs-only change pending commit。
+- Completed: canonical manifest、FCPXML、OTIO、CMX 3600 EDL、SRT / WebVTT、relink manifest、checksum / rights / lineage、确定性与 reference parser gate、桌面导出入口均已交付。
+- Unfinished: 无必达项。实际目标 NLE 导入与 MP4 是附加证据；当前 Provider 目录未声明 `timeline_render`，因此没有生成或伪造 MP4。
+- Evidence: 功能提交 `dbce8450`、兼容修复 `33938a60`、合并/推送 `9fcec7ce`；`tests/fixtures/lm6/lm6-22/timeline-delivery-fixture.json`；`scripts/check-timeline-exports.mjs`。
+- Next attempt: LM6-23 先运行其迁移 / inheritance / copy-fork-link 的首个可判定测试；fallback: 用两项目 fixture 实现离线不可变版本引用与删除保护后再接 UI。
+- Sweep cursor: LM6-23
+- Notes: 初次全套 Electron 发现新增 `v4` 文本与 LM6-20 的宽泛文本选择器冲突；在隔离 loop 分支改为“时间线版本 4”后重建新集成树，二次全量通过。无本地渲染器、无绝对路径、无密钥输出。
