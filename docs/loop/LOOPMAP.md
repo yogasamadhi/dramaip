@@ -612,7 +612,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Story Intelligence
-- **Status**：partial（Attempt 1；`loop/lm6-24-cloud-review` 已推送 checkpoint）
+- **Status**：done
 - **Depends on**：LM6-12
 - **Goal**：在集级看板上可视化节拍、爽点、反转和结尾悬念，并把每个诊断点直接连接到对应剧本 / 镜头修订。
 - **Scope**：统一节奏 read model、四类曲线 / 标记、来源定位、置信与 freshness、人工修订、上下文 AI 建议。
@@ -788,7 +788,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Review Integration
-- **Status**：todo
+- **Status**：partial（Attempt 1；`loop/lm6-24-cloud-review` 已推送 checkpoint）
 - **Depends on**：LM6-23
 - **Goal**：复用现有平台能力，让用户显式发布选定成片 / 片段，邀请多人带时间码评论，并把评论和决策幂等同步回本地修订流程。
 - **Scope**：账号 / workspace 选择、review manifest、选定媒体上传、PIN / 到期 / 撤销 / 删除、Web 播放与评论、成员角色、游标同步、本地反馈映射与任务创建。
