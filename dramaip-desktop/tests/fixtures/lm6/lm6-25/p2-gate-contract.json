@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "entry": "script-draft",
+  "productionFixture": "示例短剧：雨夜归来",
+  "requiredTimelineTracks": ["视频", "对白", "旁白", "配乐", "音效", "字幕"],
+  "requiredDeliveryFormats": ["FCPXML", "OTIO", "EDL", "重链接清单"],
+  "machineEvidence": [
+    "full-electron-journey",
+    "timeline-reference-parser",
+    "local-project-package-and-migration",
+    "series-link-and-fork",
+    "two-identity-cloud-review-fake-gateway"
+  ],
+  "truthfulLimits": [
+    "no-real-nle-import-claim",
+    "no-mp4-without-timeline-render-provider",
+    "cloud-review-is-optional-and-local-first",
+    "docker-compose-e2e-is-enhanced-evidence"
+  ]
+}

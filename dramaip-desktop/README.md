@@ -15,6 +15,18 @@ Electron Main
 
 三个智能引擎共享同一任务目录、不可变上下文快照、只读 MCP 权限、Session/Run/Item 事件和预览确认机制。任何引擎都不能直接修改正式内容或直接发起付费媒体任务，也不会在失败后静默切换引擎。
 
+## P2 机器验收边界
+
+`LM6-25` 的 Gate 使用 `full-electron-journey`、`timeline-reference-parser`、`local-project-package-and-migration`、`series-link-and-fork` 与 `two-identity-cloud-review-fake-gateway` 组合验证本地制作、NLE 交换、项目复用和可选审片闭环。它不扩大为外部兼容性声明：`no-real-nle-import-claim`、`no-mp4-without-timeline-render-provider`、`cloud-review-is-optional-and-local-first` 与 `docker-compose-e2e-is-enhanced-evidence` 均仍是发布边界。
+
+可复跑的最小 Gate 命令为：
+
+```bash
+bun run check:timeline-exports
+bunx playwright test tests/electron/lm6-full-journey.spec.ts --reporter=list
+node --import tsx --test packages/server/src/sidecar.node.test.ts
+```
+
 ## 开发
 
 ```bash
