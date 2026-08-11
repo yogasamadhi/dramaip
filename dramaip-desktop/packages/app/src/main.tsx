@@ -98,6 +98,7 @@ import type {
   TimelineDeliveryExportFormat,
   VideoGenerationInput,
   VideoGenerationPreflight,
+  CloudReviewPublishPreview,
 } from "@sdns/schema";
 import "./styles.css";
 
@@ -12049,6 +12050,13 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     }>
   >([]);
   const [cloudShareUrl, setCloudShareUrl] = useState<string>();
+  const [cloudPublishPreview, setCloudPublishPreview] =
+    useState<CloudReviewPublishPreview>();
+  const [cloudPublishPreviewKey, setCloudPublishPreviewKey] = useState("");
+  const [reviewRevisionScriptId, setReviewRevisionScriptId] = useState("");
+  const [reviewRevisionContent, setReviewRevisionContent] = useState("");
+  const [reviewRevisionPreview, setReviewRevisionPreview] =
+    useState<ChangePreview>();
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState<string>();
   const { data: timeline, error: timelineError } = useQuery({
@@ -12063,9 +12071,31 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     queryKey: ["review-editor", "packages", props.episodeId],
     queryFn: () => client.reviewEditor.listPackages(props.episodeId),
   });
+  const selectedReviewPackage = packages.find((item) => item.id === packageId);
+  const { data: reviewScripts = [] } = useQuery({
+    queryKey: [
+      "review-editor",
+      "revision-scripts",
+      selectedReviewPackage?.projectId,
+      props.episodeId,
+    ],
+    queryFn: () =>
+      client.resources.list(
+        "scripts",
+        selectedReviewPackage!.projectId,
+        props.episodeId,
+      ),
+    enabled: Boolean(selectedReviewPackage),
+  });
   const { data: cloudConnection } = useQuery({
     queryKey: ["cloud-review", "connection"],
     queryFn: () => client.cloudReview.connection(),
+  });
+  const { data: cloudBinding } = useQuery({
+    queryKey: ["cloud-review", "binding", packageId],
+    queryFn: () => client.cloudReview.binding(packageId),
+    enabled: Boolean(packageId),
+    retry: false,
   });
   const { data: credentialStorage } = useQuery({
     queryKey: ["credential-storage-status"],
@@ -12080,6 +12110,18 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     if (!packages.some((item) => item.id === packageId))
       setPackageId(packages[0]?.id ?? "");
   }, [packageId, packages]);
+  useEffect(() => {
+    if (
+      reviewRevisionScriptId &&
+      !reviewScripts.some((item) => item.id === reviewRevisionScriptId)
+    )
+      setReviewRevisionScriptId("");
+    if (!reviewRevisionScriptId && reviewScripts[0])
+      setReviewRevisionScriptId(reviewScripts[0].id);
+  }, [reviewRevisionScriptId, reviewScripts]);
+  useEffect(() => {
+    setReviewRevisionPreview(undefined);
+  }, [packageId]);
   const { data: comments = [] } = useQuery({
     queryKey: ["review-editor", "comments", packageId],
     queryFn: () => client.reviewEditor.listComments(packageId),
@@ -12090,6 +12132,20 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     queryFn: () => client.reviewEditor.listDecisions(packageId),
     enabled: Boolean(packageId),
   });
+  const cloudSelectionKey = JSON.stringify({
+    packageId,
+    media: cloudMedia.map((item) => ({
+      id: item.id,
+      shotId: item.shotId,
+      relativePath: item.relativePath,
+      mimeType: item.mimeType,
+      capabilityToken: item.capabilityToken,
+    })),
+  });
+  const currentCloudPublishPreview =
+    cloudPublishPreviewKey === cloudSelectionKey
+      ? cloudPublishPreview
+      : undefined;
   const refresh = async () => {
     await queryClient.invalidateQueries({
       queryKey: ["review-editor", "packages", props.episodeId],
@@ -12255,6 +12311,10 @@ function ReviewEditorPanel(props: { episodeId: string }) {
       setNotice("每个上传媒体都必须显式关联一个分镜。");
       return;
     }
+    if (!currentCloudPublishPreview) {
+      setNotice("请先计算 SHA-256 发布预览并确认当前上传清单。");
+      return;
+    }
     setWorking("发布云审片");
     setNotice(undefined);
     try {
@@ -12267,6 +12327,33 @@ function ReviewEditorPanel(props: { episodeId: string }) {
       setNotice(
         `云审片包已发布，保留至 ${published.expiresAt}；请只分享下方链接。`,
       );
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "binding", packageId],
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const previewCloudReview = async () => {
+    if (!packageId || !cloudConnection?.configured || !cloudMedia.length) {
+      setNotice("请先选择本地审片包、保存连接并选择至少一个媒体文件。");
+      return;
+    }
+    if (cloudMedia.some((item) => !item.shotId)) {
+      setNotice("每个上传媒体都必须显式关联一个分镜。");
+      return;
+    }
+    setWorking("计算云审片发布预览");
+    setNotice(undefined);
+    try {
+      const preview = await client.cloudReview.preview(packageId, {
+        media: cloudMedia.map(({ name: _name, ...item }) => item),
+      });
+      setCloudPublishPreview(preview);
+      setCloudPublishPreviewKey(cloudSelectionKey);
+      setNotice("已在本机计算 SHA-256；尚未创建云端审片包或上传媒体。");
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -12283,6 +12370,55 @@ function ReviewEditorPanel(props: { episodeId: string }) {
         `已按游标同步 ${synced.commentCount} 条意见和 ${synced.decisionCount} 条决定。`,
       );
       await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const deleteCloudReview = async () => {
+    if (!packageId || !cloudBinding) return;
+    setWorking("删除云审片");
+    setNotice(undefined);
+    try {
+      const deleted = await client.cloudReview.delete(packageId);
+      setCloudShareUrl(undefined);
+      setCloudMedia([]);
+      setNotice(
+        deleted.localFeedbackPreserved
+          ? "云审片包已删除；本地已同步的意见和决定已保留。"
+          : "云审片包已删除。",
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "binding", packageId],
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const createReviewRevisionPreview = async () => {
+    if (
+      !packageId ||
+      !reviewRevisionScriptId ||
+      !reviewRevisionContent.trim()
+    ) {
+      setNotice("请选择目标剧本并填写修订草案。");
+      return;
+    }
+    setWorking("创建审片修订预览");
+    setNotice(undefined);
+    try {
+      const preview = await client.reviewEditor.createRevisionPreview(
+        packageId,
+        {
+          scriptId: reviewRevisionScriptId,
+          proposedContent: reviewRevisionContent.trim(),
+        },
+      );
+      setReviewRevisionPreview(preview);
+      setNotice("已创建待确认修订预览；正式剧本尚未改写。");
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -12516,7 +12652,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
               className="rounded-lg border border-line px-3 py-2"
               value={cloudBaseUrl}
               onChange={(event) => setCloudBaseUrl(event.target.value)}
-              placeholder="https://platform.example.com"
+              placeholder="例如：https://审片平台.example.com"
             />
           </label>
           <label className="grid gap-1 text-sm">
@@ -12566,12 +12702,27 @@ function ReviewEditorPanel(props: { episodeId: string }) {
             选择要上传的媒体
           </button>
           <button
-            className="rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+            className="rounded border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
             disabled={
               Boolean(working) ||
               !packageId ||
               !cloudConnection?.configured ||
               !cloudMedia.length
+            }
+            onClick={() => void previewCloudReview()}
+          >
+            {working === "计算云审片发布预览"
+              ? "正在计算…"
+              : "计算 SHA-256 发布预览"}
+          </button>
+          <button
+            className="rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+            disabled={
+              Boolean(working) ||
+              !packageId ||
+              !cloudConnection?.configured ||
+              !cloudMedia.length ||
+              !currentCloudPublishPreview
             }
             onClick={() => void publishCloudReview()}
           >
@@ -12585,6 +12736,13 @@ function ReviewEditorPanel(props: { episodeId: string }) {
             onClick={() => void syncCloudReview()}
           >
             {working === "同步云端意见" ? "正在同步…" : "按游标同步意见"}
+          </button>
+          <button
+            className="rounded border border-red-300 px-3 py-2 text-sm text-red-700 disabled:opacity-50"
+            disabled={Boolean(working) || !cloudBinding}
+            onClick={() => void deleteCloudReview()}
+          >
+            {working === "删除云审片" ? "正在删除…" : "撤销并删除云审片"}
           </button>
         </div>
         {credentialStorage?.available === false && (
@@ -12627,12 +12785,111 @@ function ReviewEditorPanel(props: { episodeId: string }) {
             ))}
           </div>
         )}
-        {cloudShareUrl && (
+        {currentCloudPublishPreview && (
+          <div className="mt-3 space-y-2 rounded-lg border border-brand/30 bg-brand-soft/30 p-3 text-sm">
+            <p className="font-medium">已计算的发布预览（尚未上传）</p>
+            <p>
+              Workspace：{currentCloudPublishPreview.workspaceId} · 存储：
+              {currentCloudPublishPreview.storageBytes} /{" "}
+              {currentCloudPublishPreview.maxStorageBytes} 字节
+            </p>
+            <p className="text-muted">
+              保留期：{currentCloudPublishPreview.retention}
+              <br />
+              费用：{currentCloudPublishPreview.costEstimate}
+            </p>
+            {currentCloudPublishPreview.media.map((item) => (
+              <p
+                key={item.id}
+                className="break-all rounded bg-surface p-2 text-xs"
+              >
+                {item.relativePath} · {item.sizeBytes} 字节 · SHA-256{" "}
+                {item.sha256}
+              </p>
+            ))}
+            <details className="rounded bg-surface p-2 text-xs">
+              <summary className="cursor-pointer text-brand">
+                查看 review manifest
+              </summary>
+              <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap">
+                {currentCloudPublishPreview.manifestJson}
+              </pre>
+            </details>
+          </div>
+        )}
+        {cloudPublishPreview && !currentCloudPublishPreview && (
+          <p className="mt-3 text-xs text-amber-800">
+            上传清单已变化，请重新计算发布预览后再确认发布。
+          </p>
+        )}
+        {(cloudShareUrl || cloudBinding?.shareUrl) && (
           <p className="mt-3 break-all rounded-lg bg-brand-soft p-3 text-sm text-brand">
-            已创建受控分享链接：{cloudShareUrl}
+            已创建受控分享链接：{cloudShareUrl ?? cloudBinding?.shareUrl}
+            {cloudBinding &&
+              ` · 状态：${cloudBinding.status} · 到期：${cloudBinding.expiresAt}`}
           </p>
         )}
       </section>
+      {packageId &&
+        (comments.some((item) => !item.resolved) ||
+          decisions.some(
+            (item) =>
+              item.decision === "return" || item.decision === "request_changes",
+          )) && (
+          <section className="rounded-xl border border-brand/30 bg-brand-soft/30 p-3">
+            <h3 className="font-medium">从审片反馈创建修订预览</h3>
+            <p className="mt-1 text-sm text-muted">
+              未解决意见以及“退回 /
+              需要修改”决定会作为上下文写入预览；确认应用前不会改写正式剧本。
+            </p>
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1 text-sm">
+                目标剧本
+                <select
+                  className="rounded-lg border border-line bg-surface px-3 py-2"
+                  value={reviewRevisionScriptId}
+                  onChange={(event) =>
+                    setReviewRevisionScriptId(event.target.value)
+                  }
+                >
+                  <option value="">选择本集剧本</option>
+                  {reviewScripts.map((script) => (
+                    <option key={script.id} value={script.id}>
+                      {script.title} · 版本 {script.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                修订草案
+                <textarea
+                  className="min-h-36 rounded-lg border border-line bg-surface px-3 py-2"
+                  value={reviewRevisionContent}
+                  onChange={(event) =>
+                    setReviewRevisionContent(event.target.value)
+                  }
+                  placeholder="基于审片反馈填写拟采用的剧本内容"
+                />
+              </label>
+              <button
+                className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+                disabled={
+                  Boolean(working) ||
+                  !reviewRevisionScriptId ||
+                  !reviewRevisionContent.trim()
+                }
+                onClick={() => void createReviewRevisionPreview()}
+              >
+                {working === "创建审片修订预览"
+                  ? "正在创建…"
+                  : "创建待确认修订预览"}
+              </button>
+            </div>
+            {reviewRevisionPreview && (
+              <AgentChangePreviewCard preview={reviewRevisionPreview} />
+            )}
+          </section>
+        )}
       {packageId && (
         <section className="grid gap-4 xl:grid-cols-2">
           <section className="rounded-xl border border-line p-3">

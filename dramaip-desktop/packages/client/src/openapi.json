@@ -13777,6 +13777,221 @@
         }
       }
     },
+    "/api/v1/review-packages/{id}/revision-preview": {
+      "post": {
+        "tags": ["review-editor"],
+        "operationId": "review-editor.createRevisionPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "sessionId": { "type": "string" },
+                    "runId": { "type": "string" },
+                    "taskId": { "type": "string" },
+                    "engineKind": {
+                      "type": "string",
+                      "enum": ["opencode", "codex", "langgraph"]
+                    },
+                    "taskType": {
+                      "type": "string",
+                      "enum": [
+                        "chapter_diagnostic",
+                        "chapter_revision",
+                        "generate_project",
+                        "generate_characters",
+                        "generate_book_outline",
+                        "generate_chapter_outline",
+                        "generate_story_arc_outline",
+                        "generate_chapter",
+                        "continue_chapter",
+                        "rewrite_chapter",
+                        "polish_chapter",
+                        "expand_chapter",
+                        "enhance_conflict",
+                        "enhance_highlight",
+                        "enhance_ai_drama_feel",
+                        "enhance_author_style",
+                        "evaluate_ai_drama_fit",
+                        "summarize_chapter",
+                        "propose_story_bible_changes",
+                        "update_character_state",
+                        "extract_story_events",
+                        "extract_foreshadowing",
+                        "generate_character_visual_profile",
+                        "generate_visual_setting",
+                        "check_consistency",
+                        "build_long_context",
+                        "analyze_beats",
+                        "analyze_highlights",
+                        "analyze_ai_video_feasibility",
+                        "analyze_project_ai_drama_trend",
+                        "enhance_hook",
+                        "enhance_reversal",
+                        "enhance_cliffhanger",
+                        "rewrite_as_ai_drama_novel",
+                        "chat_project",
+                        "create_adaptation_strategy",
+                        "convert_novel_to_episodes",
+                        "rewrite_episode_outline",
+                        "enhance_episode_hook",
+                        "enhance_episode_visuals",
+                        "analyze_first_10_episodes",
+                        "generate_ai_drama_script",
+                        "split_script_to_scenes",
+                        "review_ai_drama_script",
+                        "rewrite_ai_drama_script",
+                        "enhance_dialogue_conflict",
+                        "enhance_script_dialogue_voice",
+                        "enhance_episode_cliffhanger",
+                        "enhance_script_visuality",
+                        "split_scene_to_shots",
+                        "generate_shot_prompt",
+                        "generate_negative_prompt",
+                        "review_shot_prompt",
+                        "rewrite_shot_prompt",
+                        "optimize_prompt_for_video_platform",
+                        "generate_video_asset_drafts",
+                        "plan_image_generation",
+                        "plan_audio_generation",
+                        "plan_video_generation",
+                        "plan_remote_render",
+                        "analyze_trope_freshness",
+                        "generate_anti_trope_variants",
+                        "analyze_narrative_curve",
+                        "generate_revision_tasks",
+                        "run_quality_gate",
+                        "simulate_audience_reaction",
+                        "analyze_video_cost_risk",
+                        "analyze_text_quality",
+                        "extract_case_structure",
+                        "generate_inspiration_schemes",
+                        "writing_room_review",
+                        "writing_room_consolidate",
+                        "template_run"
+                      ]
+                    },
+                    "targets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "project",
+                              "chapter",
+                              "character",
+                              "outline",
+                              "story_bible",
+                              "episode",
+                              "script",
+                              "scene",
+                              "shot"
+                            ]
+                          },
+                          "id": { "type": "string" },
+                          "baseVersion": { "type": "integer" },
+                          "patch": {},
+                          "displayDiff": {}
+                        },
+                        "required": ["kind", "id", "baseVersion", "patch"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rationale": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "committed",
+                        "discarded",
+                        "conflicted"
+                      ]
+                    },
+                    "contentHash": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "committedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "targets",
+                    "rationale",
+                    "status",
+                    "contentHash",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "scriptId": { "type": "string" },
+                  "proposedContent": {
+                    "type": "string",
+                    "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                  }
+                },
+                "required": ["scriptId", "proposedContent"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/review-packages/{id}/import-offline": {
       "post": {
         "tags": ["review-editor"],
@@ -13992,6 +14207,141 @@
         }
       }
     },
+    "/api/v1/review-packages/{id}/cloud-preview": {
+      "post": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.preview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "packageId": { "type": "string" },
+                    "workspaceId": { "type": "string" },
+                    "manifestJson": { "type": "string" },
+                    "media": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "shotId": { "type": "string" },
+                          "relativePath": { "type": "string" },
+                          "mimeType": { "type": "string" },
+                          "sizeBytes": { "type": "integer" },
+                          "sha256": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "shotId",
+                          "relativePath",
+                          "mimeType",
+                          "sizeBytes",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "storageBytes": { "type": "integer" },
+                    "maxStorageBytes": { "type": "integer" },
+                    "retention": { "type": "string" },
+                    "costEstimate": { "type": "string" }
+                  },
+                  "required": [
+                    "packageId",
+                    "workspaceId",
+                    "manifestJson",
+                    "media",
+                    "storageBytes",
+                    "maxStorageBytes",
+                    "retention",
+                    "costEstimate"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pin": { "type": "string" },
+                  "media": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "shotId": { "type": "string" },
+                        "relativePath": { "type": "string" },
+                        "mimeType": { "type": "string" },
+                        "capabilityToken": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "shotId",
+                        "relativePath",
+                        "mimeType",
+                        "capabilityToken"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["media"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/review-packages/{id}/cloud-publish": {
       "post": {
         "tags": ["cloud-review"],
@@ -14131,6 +14481,142 @@
                     "commentCount",
                     "decisionCount"
                   ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review-packages/{id}/cloud-review": {
+      "get": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.binding",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "packageId": { "type": "string" },
+                    "remotePackageId": { "type": "string" },
+                    "shareUrl": { "type": "string" },
+                    "status": { "type": "string" },
+                    "expiresAt": { "type": "string" },
+                    "syncCursor": { "type": "integer" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "packageId",
+                    "remotePackageId",
+                    "shareUrl",
+                    "status",
+                    "expiresAt",
+                    "syncCursor",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "packageId": { "type": "string" },
+                    "status": { "type": "string", "enum": ["deleted"] },
+                    "localFeedbackPreserved": { "type": "boolean" }
+                  },
+                  "required": ["packageId", "status", "localFeedbackPreserved"],
                   "additionalProperties": false
                 }
               }

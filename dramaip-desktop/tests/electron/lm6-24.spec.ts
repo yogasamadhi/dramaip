@@ -29,14 +29,14 @@ test("审核交付页明确展示可选云审片的最小上传与安全连接�
   await page.getByRole("link", { name: "审核交付" }).click();
   await page
     .getByLabel("项目选择项目", { exact: true })
-    .selectOption({ label: "雨夜归来" });
+    .selectOption({ label: "示例短剧：雨夜归来" });
   await page
     .getByRole("combobox", { name: "改编项目" })
     .selectOption({ label: "雨夜归来·第一季改编方案" });
   await page
     .getByRole("combobox", { name: "分集" })
     .selectOption({ label: "第 1 集：雨夜敲门" });
-  await page.getByRole("button", { name: "审片" }).click();
+  await page.getByRole("button", { name: "审片", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "可选云审片" })).toBeVisible();
   await expect(page.getByText(/仅上传下方明确选择的媒体/)).toBeVisible();
@@ -47,6 +47,12 @@ test("审核交付页明确展示可选云审片的最小上传与安全连接�
     page.getByRole("button", { name: "选择要上传的媒体" }),
   ).toBeVisible();
   await expect(
+    page.getByRole("button", { name: "计算 SHA-256 发布预览" }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("button", { name: "按游标同步意见" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "撤销并删除云审片" }),
   ).toBeVisible();
 });

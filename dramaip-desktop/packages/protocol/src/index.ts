@@ -126,13 +126,17 @@ import {
   ReviewCommentInput,
   ReviewDecision,
   ReviewDecisionInput,
+  ReviewRevisionPreviewInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
   CloudReviewConnection,
   CloudReviewConnectionInput,
   CloudReviewPublishInput,
+  CloudReviewPublishPreview,
   CloudReviewPublishResult,
   CloudReviewSyncResult,
+  CloudReviewBinding,
+  CloudReviewDeleteResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -1173,6 +1177,18 @@ const ReviewEditorGroup = HttpApiGroup.make("review-editor")
   )
   .add(
     HttpApiEndpoint.post(
+      "createRevisionPreview",
+      `${API_PREFIX}/review-packages/:id/revision-preview`,
+      {
+        params: { id: Schema.String },
+        payload: ReviewRevisionPreviewInput,
+        success: ChangePreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
       "importOffline",
       `${API_PREFIX}/review-packages/:id/import-offline`,
       {
@@ -1204,6 +1220,18 @@ const CloudReviewGroup = HttpApiGroup.make("cloud-review")
   )
   .add(
     HttpApiEndpoint.post(
+      "preview",
+      `${API_PREFIX}/review-packages/:id/cloud-preview`,
+      {
+        params: { id: Schema.String },
+        payload: CloudReviewPublishInput,
+        success: CloudReviewPublishPreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
       "publish",
       `${API_PREFIX}/review-packages/:id/cloud-publish`,
       {
@@ -1221,6 +1249,28 @@ const CloudReviewGroup = HttpApiGroup.make("cloud-review")
       {
         params: { id: Schema.String },
         success: CloudReviewSyncResult,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "binding",
+      `${API_PREFIX}/review-packages/:id/cloud-review`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewBinding,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete(
+      "delete",
+      `${API_PREFIX}/review-packages/:id/cloud-review`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewDeleteResult,
         error: ApiError,
       },
     ),

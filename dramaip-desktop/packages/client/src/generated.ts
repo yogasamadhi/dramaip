@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "534346f45725d94485c185b7f2db72a0cf789b2dfc60cd7e01069e6d5920ca66";
+  "b77ba44954a907053160edb7ccd3ecc03f7164d17ce7b983d677d7e0d673472e";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -125,13 +125,17 @@ import type {
   ReviewCommentInput,
   ReviewDecision,
   ReviewDecisionInput,
+  ReviewRevisionPreviewInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
   CloudReviewConnection,
   CloudReviewConnectionInput,
   CloudReviewPublishInput,
+  CloudReviewPublishPreview,
   CloudReviewPublishResult,
   CloudReviewSyncResult,
+  CloudReviewBinding,
+  CloudReviewDeleteResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -413,6 +417,10 @@ export interface StudioClient {
       packageId: string,
       input: ReviewDecisionInput,
     ): Promise<ReviewDecision>;
+    createRevisionPreview(
+      packageId: string,
+      input: ReviewRevisionPreviewInput,
+    ): Promise<ChangePreview>;
     importOffline(
       packageId: string,
       input: OfflineReviewImportInput,
@@ -423,11 +431,17 @@ export interface StudioClient {
     saveConnection(
       input: CloudReviewConnectionInput,
     ): Promise<CloudReviewConnection>;
+    preview(
+      packageId: string,
+      input: CloudReviewPublishInput,
+    ): Promise<CloudReviewPublishPreview>;
     publish(
       packageId: string,
       input: CloudReviewPublishInput,
     ): Promise<CloudReviewPublishResult>;
     sync(packageId: string): Promise<CloudReviewSyncResult>;
+    binding(packageId: string): Promise<CloudReviewBinding>;
+    delete(packageId: string): Promise<CloudReviewDeleteResult>;
   };
   compliance: {
     listProfiles(): Promise<ComplianceRuleProfile[]>;
@@ -1192,6 +1206,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/decisions`,
           { method: "POST", body: JSON.stringify(input) },
         ),
+      createRevisionPreview: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/revision-preview`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
       importOffline: (packageId, input) =>
         request(
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/import-offline`,
@@ -1205,6 +1224,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "PUT",
           body: JSON.stringify(input),
         }),
+      preview: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-preview`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
       publish: (packageId, input) =>
         request(
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-publish`,
@@ -1214,6 +1238,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-sync`,
           { method: "POST" },
+        ),
+      binding: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+        ),
+      delete: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+          { method: "DELETE" },
         ),
     },
     compliance: {

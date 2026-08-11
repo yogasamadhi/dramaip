@@ -1278,6 +1278,17 @@ async function route(
     return listReviewDecisions(res, reviewPackageDecisionsId, requestId);
   if (reviewPackageDecisionsId && method === "POST")
     return createReviewDecision(req, res, reviewPackageDecisionsId, requestId);
+  const reviewPackageRevisionPreviewId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/revision-preview$/,
+  );
+  if (reviewPackageRevisionPreviewId && method === "POST")
+    return createReviewRevisionPreview(
+      req,
+      res,
+      reviewPackageRevisionPreviewId,
+      requestId,
+    );
   const reviewPackageImportId = match(
     path,
     /^\/api\/v1\/review-packages\/([^/]+)\/import-offline$/,
@@ -1293,6 +1304,17 @@ async function route(
     return getCloudReviewConnection(res);
   if (path === "/api/v1/cloud-review/connection" && method === "PUT")
     return saveCloudReviewConnection(req, res, requestId);
+  const cloudPreviewPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-preview$/,
+  );
+  if (cloudPreviewPackageId && method === "POST")
+    return previewCloudReviewPackage(
+      req,
+      res,
+      cloudPreviewPackageId,
+      requestId,
+    );
   const cloudPublishPackageId = match(
     path,
     /^\/api\/v1\/review-packages\/([^/]+)\/cloud-publish$/,
@@ -1310,6 +1332,18 @@ async function route(
   );
   if (cloudSyncPackageId && method === "POST")
     return syncCloudReviewPackage(res, cloudSyncPackageId, requestId);
+  const cloudReviewBindingPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-review$/,
+  );
+  if (cloudReviewBindingPackageId && method === "GET")
+    return getCloudReviewBinding(res, cloudReviewBindingPackageId, requestId);
+  if (cloudReviewBindingPackageId && method === "DELETE")
+    return deleteCloudReviewPackage(
+      res,
+      cloudReviewBindingPackageId,
+      requestId,
+    );
   const voiceProfilesProjectId = match(
     path,
     /^\/api\/v1\/projects\/([^/]+)\/voice-profiles$/,
@@ -16121,6 +16155,186 @@ async function createReviewDecision(
   json(res, 201, created);
 }
 
+/**
+ * Review feedback never changes the script by itself.  The editor supplies a
+ * proposed script body, while this route binds that proposal to the concrete
+ * review comments and return/request-change decisions in a pending preview.
+ */
+async function createReviewRevisionPreview(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  const input = await body(req);
+  const scriptId = text(input.scriptId);
+  const proposedContent = text(input.proposedContent);
+  if (!scriptId || !proposedContent)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "scriptId and proposedContent are required",
+      requestId,
+    );
+  const script = one(
+    `SELECT * FROM domain_entities
+     WHERE id = ? AND domain = 'scripts' AND project_id = ? AND parent_id = ?`,
+    [scriptId, packageRecord.project_id, packageRecord.episode_id],
+  );
+  if (!script)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Target script does not belong to this review package episode",
+      requestId,
+    );
+  const comments = rows(
+    `SELECT * FROM review_comments
+     WHERE package_id = ? AND resolved = 0 ORDER BY created_at LIMIT 200`,
+    [packageId],
+  );
+  const decisions = rows(
+    `SELECT * FROM review_decisions
+     WHERE package_id = ? AND decision IN ('return', 'request_changes')
+     ORDER BY created_at LIMIT 200`,
+    [packageId],
+  );
+  if (!comments.length && !decisions.length)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "No unresolved review feedback requires a revision preview",
+      requestId,
+    );
+  const references: Array<{
+    kind: "comment" | "decision";
+    id: string;
+    decision?: string;
+    shotId?: string;
+    timecodeSeconds?: number;
+    authorAlias?: string;
+    text: string;
+  }> = [
+    ...comments.map((comment) => ({
+      kind: "comment" as const,
+      id: String(comment.id),
+      shotId: comment.shot_id ? String(comment.shot_id) : undefined,
+      timecodeSeconds:
+        comment.timecode_seconds === null ||
+        comment.timecode_seconds === undefined
+          ? undefined
+          : Number(comment.timecode_seconds),
+      authorAlias: comment.author_alias
+        ? String(comment.author_alias)
+        : undefined,
+      text: String(comment.body),
+    })),
+    ...decisions.map((decision) => ({
+      kind: "decision" as const,
+      id: String(decision.id),
+      decision: String(decision.decision),
+      shotId: decision.shot_id ? String(decision.shot_id) : undefined,
+      authorAlias: decision.author_alias
+        ? String(decision.author_alias)
+        : undefined,
+      text: decision.note ? String(decision.note) : "未填写说明",
+    })),
+  ];
+  const sourcePayload = domainPayload(script.payload_json);
+  const targets = [
+    {
+      kind: "script",
+      id: scriptId,
+      baseVersion: Number(script.version),
+      patch: { payload: { ...sourcePayload, 剧本内容: proposedContent } },
+      displayDiff: {
+        proposedContent,
+        reviewPackageId: packageId,
+        reviewReferences: references,
+      },
+    },
+  ];
+  const rationale = [
+    `根据审片包「${String(packageRecord.title)}」创建的修订预览。`,
+    "以下反馈仅提供上下文；确认应用前不会改写正式剧本。",
+    ...references.map((reference) => {
+      const location = [
+        reference.shotId ? `分镜 ${reference.shotId}` : undefined,
+        reference.timecodeSeconds !== undefined
+          ? `${reference.timecodeSeconds} 秒`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const type =
+        reference.kind === "decision"
+          ? reference.decision === "return"
+            ? "退回"
+            : "需要修改"
+          : "意见";
+      return `- ${type}${location ? `（${location}）` : ""}：${reference.text}`;
+    }),
+  ].join("\n");
+  const contentHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        packageId,
+        scriptId,
+        baseVersion: Number(script.version),
+        proposedContent,
+        references,
+      }),
+    )
+    .digest("hex");
+  const existing = one(
+    "SELECT * FROM change_previews WHERE content_hash = ? AND status = 'pending'",
+    [contentHash],
+  );
+  if (existing) return json(res, 200, changePreviewRecord(existing));
+  const id = randomUUID();
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO change_previews(
+        id, project_id, session_id, run_id, task_id, engine_kind, task_type,
+        targets_json, rationale, status, content_hash, created_at, committed_at
+      ) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, 'pending', ?, ?, NULL)`,
+    )
+    .run(
+      id,
+      packageRecord.project_id,
+      JSON.stringify(targets),
+      rationale,
+      contentHash,
+      now,
+    );
+  const created = changePreviewRecord(
+    one("SELECT * FROM change_previews WHERE id = ?", [id])!,
+  );
+  emit("change_preview.created", created);
+  emit("review.revision_preview_created", {
+    packageId,
+    previewId: id,
+    scriptId,
+    referenceCount: references.length,
+  });
+  json(res, 201, created);
+}
+
 async function importOfflineReviewComments(
   req: IncomingMessage,
   res: ServerResponse,
@@ -16289,6 +16503,59 @@ async function saveCloudReviewConnection(
       requestId,
     );
   }
+}
+
+async function previewCloudReviewPackage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const input = await body(req);
+  const media = await cloudReviewSelectedMedia(packageRecord, input.media);
+  if (!media.length)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select at least one readable media file for cloud review",
+      requestId,
+    );
+  const localPackage = reviewPackage(packageRecord);
+  const workspaceId = String(connection.workspace_id);
+  const manifestJson = cloudReviewManifest(localPackage, workspaceId, media);
+  json(res, 200, {
+    packageId,
+    workspaceId,
+    manifestJson,
+    media: media.map(({ bytes: _bytes, ...item }) => item),
+    storageBytes: media.reduce((total, item) => total + item.sizeBytes, 0),
+    maxStorageBytes: 512 * 1024 * 1024,
+    retention: "平台会在创建后按 workspace 保留策略返回到期时间（当前未知）。",
+    costEstimate: "平台未提供费用预估（未知，不按 0 处理）。",
+  });
 }
 
 async function publishCloudReviewPackage(
@@ -16527,6 +16794,97 @@ async function syncCloudReviewPackage(
       502,
       "TASK_REJECTED",
       "Cloud review sync failed; existing local feedback was preserved",
+      requestId,
+    );
+  }
+}
+
+function getCloudReviewBinding(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): void {
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  if (!binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  json(res, 200, cloudReviewBinding(binding));
+}
+
+async function deleteCloudReviewPackage(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  try {
+    const deleted = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).delete(String(binding.remote_package_id));
+    if (deleted.status !== "deleted")
+      throw new Error("cloud package was not deleted");
+    db!
+      .prepare("DELETE FROM cloud_review_events WHERE local_package_id = ?")
+      .run(packageId);
+    db!
+      .prepare("DELETE FROM cloud_review_bindings WHERE local_package_id = ?")
+      .run(packageId);
+    emit("review.cloud_deleted", {
+      packageId,
+      remotePackageId: String(binding.remote_package_id),
+      localFeedbackPreserved: true,
+    });
+    json(res, 200, {
+      packageId,
+      status: "deleted",
+      localFeedbackPreserved: true,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review deletion failed; local feedback and cloud binding were preserved",
       requestId,
     );
   }
@@ -22228,6 +22586,17 @@ function cloudReviewConnection(row: Record<string, any>) {
     baseUrl: String(row.base_url),
     workspaceId: String(row.workspace_id),
     configured: Boolean(row.credential_ref),
+    updatedAt: String(row.updated_at),
+  };
+}
+function cloudReviewBinding(row: Record<string, any>) {
+  return {
+    packageId: String(row.local_package_id),
+    remotePackageId: String(row.remote_package_id),
+    shareUrl: String(row.share_url),
+    status: String(row.status),
+    expiresAt: String(row.expires_at),
+    syncCursor: Number(row.sync_cursor),
     updatedAt: String(row.updated_at),
   };
 }

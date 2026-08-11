@@ -422,6 +422,10 @@ test("production-structure HTTP contract persists active adaptation and atomical
       request.url === "/api/v1/review-packages/remote-review-package-1" &&
       request.method === "DELETE"
     ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify({
@@ -3603,6 +3607,37 @@ test("production-structure HTTP contract persists active adaptation and atomical
     writeFileSync(cloudMediaPath, Buffer.from([1, 2, 3]));
     fileCapabilities.set("cloud-review-media", cloudMediaPath);
     cloudReviewShotId = shot.body.id;
+    const cloudPreview = await request<{
+      workspaceId: string;
+      storageBytes: number;
+      maxStorageBytes: number;
+      retention: string;
+      costEstimate: string;
+      manifestJson: string;
+      media: Array<{ sizeBytes: number; sha256: string }>;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-preview`, {
+      method: "POST",
+      body: JSON.stringify({
+        media: [
+          {
+            id: "cloud-media-1",
+            shotId: shot.body.id,
+            relativePath: "episode-1/selected.mp4",
+            mimeType: "video/mp4",
+            capabilityToken: "cloud-review-media",
+          },
+        ],
+      }),
+    });
+    assert.equal(cloudPreview.status, 200);
+    assert.equal(cloudPreview.body.workspaceId, "workspace-contract");
+    assert.equal(cloudPreview.body.storageBytes, 3);
+    assert.equal(cloudPreview.body.maxStorageBytes, 512 * 1024 * 1024);
+    assert.match(cloudPreview.body.retention, /未知/);
+    assert.match(cloudPreview.body.costEstimate, /未知/);
+    assert.equal(cloudPreview.body.media[0]?.sizeBytes, 3);
+    assert.match(cloudPreview.body.media[0]?.sha256 ?? "", /^[a-f0-9]{64}$/);
+    assert.doesNotMatch(cloudPreview.body.manifestJson, /capabilityToken/);
     const cloudPublished = await request<{
       remotePackageId: string;
       shareUrl: string;
@@ -3673,6 +3708,146 @@ test("production-structure HTTP contract persists active adaptation and atomical
       ).length,
       1,
       "remote client ID must update the same local decision",
+    );
+    const reviewRevisionScript = await request<{ version: number }>(
+      `/api/v1/scripts/${script.body.id}`,
+    );
+    assert.equal(reviewRevisionScript.status, 200);
+    const cloudRevisionPreview = await request<{
+      id: string;
+      status: string;
+      rationale: string;
+      targets: Array<{
+        kind: string;
+        id: string;
+        baseVersion: number;
+        patch: { payload: Record<string, unknown> };
+        displayDiff: Record<string, unknown>;
+      }>;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/revision-preview`, {
+      method: "POST",
+      body: JSON.stringify({
+        scriptId: script.body.id,
+        proposedContent: "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+      }),
+    });
+    assert.equal(cloudRevisionPreview.status, 201);
+    assert.equal(cloudRevisionPreview.body.status, "pending");
+    assert.equal(cloudRevisionPreview.body.targets.length, 1);
+    const revisionTarget = cloudRevisionPreview.body.targets[0]!;
+    assert.equal(revisionTarget.kind, "script");
+    assert.equal(revisionTarget.id, script.body.id);
+    assert.equal(revisionTarget.baseVersion, reviewRevisionScript.body.version);
+    assert.equal(
+      revisionTarget.patch.payload["剧本内容"],
+      "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+    );
+    assert.equal(
+      revisionTarget.displayDiff.proposedContent,
+      "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+    );
+    assert.equal(
+      revisionTarget.displayDiff.reviewPackageId,
+      reviewPackage.body.id,
+    );
+    const revisionReferences = revisionTarget.displayDiff.reviewReferences as
+      Array<Record<string, unknown>> | undefined;
+    assert.ok(revisionReferences);
+    assert.deepEqual(
+      revisionReferences.find((item) => item.id === "remote-comment-1"),
+      {
+        kind: "comment",
+        id: "remote-comment-1",
+        shotId: cloudReviewShotId,
+        timecodeSeconds: 1.5,
+        authorAlias: "成员甲",
+        text: "补一秒停留。",
+      },
+    );
+    assert.deepEqual(
+      revisionReferences.find((item) => item.id === "remote-decision-1"),
+      {
+        kind: "decision",
+        id: "remote-decision-1",
+        decision: "request_changes",
+        shotId: cloudReviewShotId,
+        authorAlias: "访客乙",
+        text: "补反应镜头。",
+      },
+    );
+    assert.match(cloudRevisionPreview.body.rationale, /补一秒停留/);
+    assert.match(cloudRevisionPreview.body.rationale, /需要修改/);
+    const cloudRevisionPreviewRepeated = await request<{ id: string }>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/revision-preview`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          scriptId: script.body.id,
+          proposedContent: "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+        }),
+      },
+    );
+    assert.equal(cloudRevisionPreviewRepeated.status, 200);
+    assert.equal(
+      cloudRevisionPreviewRepeated.body.id,
+      cloudRevisionPreview.body.id,
+    );
+    const cloudBinding = await request<{
+      packageId: string;
+      remotePackageId: string;
+      shareUrl: string;
+      status: string;
+      expiresAt: string;
+      syncCursor: number;
+      updatedAt: string;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`);
+    assert.equal(cloudBinding.status, 200);
+    assert.equal(cloudBinding.body.packageId, reviewPackage.body.id);
+    assert.equal(cloudBinding.body.remotePackageId, "remote-review-package-1");
+    assert.equal(
+      cloudBinding.body.shareUrl,
+      `${cloudReviewBaseUrl}/review/contract-share-token`,
+    );
+    assert.equal(cloudBinding.body.status, "published");
+    assert.equal(cloudBinding.body.expiresAt, "2026-09-01T00:00:00.000Z");
+    assert.equal(cloudBinding.body.syncCursor, 2);
+    assert.ok(cloudBinding.body.updatedAt);
+    const cloudDeleted = await request<{
+      packageId: string;
+      status: string;
+      localFeedbackPreserved: boolean;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`, {
+      method: "DELETE",
+    });
+    assert.equal(cloudDeleted.status, 200);
+    assert.deepEqual(cloudDeleted.body, {
+      packageId: reviewPackage.body.id,
+      status: "deleted",
+      localFeedbackPreserved: true,
+    });
+    const deletedCloudBinding = await request(
+      `/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`,
+    );
+    assert.equal(deletedCloudBinding.status, 404);
+    const commentsAfterCloudDelete = await request<Array<{ id: string }>>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/comments`,
+    );
+    assert.equal(
+      commentsAfterCloudDelete.body.filter(
+        (item) => item.id === "remote-comment-1",
+      ).length,
+      1,
+      "deleting the cloud package must keep synchronized local comments",
+    );
+    const decisionsAfterCloudDelete = await request<Array<{ id: string }>>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/decisions`,
+    );
+    assert.equal(
+      decisionsAfterCloudDelete.body.filter(
+        (item) => item.id === "remote-decision-1",
+      ).length,
+      1,
+      "deleting the cloud package must keep synchronized local decisions",
     );
     const asset = await request<{ id: string }>("/api/v1/assets", {
       method: "POST",
