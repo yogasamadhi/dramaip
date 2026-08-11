@@ -39,3 +39,32 @@ test("bun:sqlite 适配器通过共享 Repository 合约", () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("旧项目智能设置会补齐默认的简单助手偏好", () => {
+  const directory = mkdtempSync(join(tmpdir(), "dramaip-bun-agent-mode-"));
+  const { sqlite } = openBunSqliteDatabase(join(directory, "dramaip.db"));
+  try {
+    initializeOperationalSchema(sqlite);
+    sqlite.exec(`
+      CREATE TABLE project_agent_settings (
+        project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        default_engine_kind TEXT NOT NULL DEFAULT 'opencode',
+        default_model_json TEXT,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    initializeV3AgentSchema(sqlite);
+    expect(
+      sqlite.query("SELECT assistant_mode FROM project_agent_settings").all(),
+    ).toEqual([]);
+    const columns = sqlite
+      .query("PRAGMA table_info(project_agent_settings)")
+      .all() as Array<{ name: string }>;
+    expect(columns.some((column) => column.name === "assistant_mode")).toBe(
+      true,
+    );
+  } finally {
+    sqlite.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

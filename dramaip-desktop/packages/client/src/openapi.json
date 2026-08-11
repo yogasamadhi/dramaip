@@ -4139,9 +4139,18 @@
                       },
                       "additionalProperties": false
                     },
+                    "assistantMode": {
+                      "type": "string",
+                      "enum": ["simple", "advanced"]
+                    },
                     "updatedAt": { "type": "string" }
                   },
-                  "required": ["projectId", "defaultEngineKind", "updatedAt"],
+                  "required": [
+                    "projectId",
+                    "defaultEngineKind",
+                    "assistantMode",
+                    "updatedAt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4212,9 +4221,18 @@
                       },
                       "additionalProperties": false
                     },
+                    "assistantMode": {
+                      "type": "string",
+                      "enum": ["simple", "advanced"]
+                    },
                     "updatedAt": { "type": "string" }
                   },
-                  "required": ["projectId", "defaultEngineKind", "updatedAt"],
+                  "required": [
+                    "projectId",
+                    "defaultEngineKind",
+                    "assistantMode",
+                    "updatedAt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4268,6 +4286,10 @@
                       "profileId": { "type": "string" }
                     },
                     "additionalProperties": false
+                  },
+                  "assistantMode": {
+                    "type": "string",
+                    "enum": ["simple", "advanced"]
                   }
                 },
                 "required": ["defaultEngineKind"],

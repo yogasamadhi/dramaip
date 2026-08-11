@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "defaultMode": "simple",
+  "defaultHiddenControls": ["engine", "model", "task", "benchmark"],
+  "contextPages": [
+    "home",
+    "project",
+    "create",
+    "adapt",
+    "produce",
+    "review",
+    "tasks",
+    "settings"
+  ],
+  "advancedGuarantees": [
+    "full-task-catalog",
+    "explicit-engine-model",
+    "blind-experiment"
+  ],
+  "preflight": [
+    "project-input",
+    "chapter-input",
+    "engine-availability",
+    "model-preference",
+    "remote-cost-quote"
+  ]
+}

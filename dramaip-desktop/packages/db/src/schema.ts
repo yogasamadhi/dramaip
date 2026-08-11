@@ -115,6 +115,7 @@ export const projectAgentSettings = sqliteTable("project_agent_settings", {
     .references(() => projects.id, { onDelete: "cascade" }),
   defaultEngineKind: text("default_engine_kind").notNull().default("opencode"),
   defaultModelJson: text("default_model_json"),
+  assistantMode: text("assistant_mode").notNull().default("simple"),
   updatedAt: text("updated_at").notNull(),
 });
 
@@ -375,6 +376,7 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
       project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
       default_engine_kind TEXT NOT NULL DEFAULT 'opencode',
       default_model_json TEXT,
+      assistant_mode TEXT NOT NULL DEFAULT 'simple',
       updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS agent_sessions (
@@ -518,4 +520,14 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
       created_at TEXT NOT NULL
     );
   `);
+  // v3 databases predate the presentation preference. SQLite lacks an
+  // idempotent ADD COLUMN form, so an existing column is the only expected
+  // failure on repeated startup.
+  try {
+    sqlite.exec(
+      "ALTER TABLE project_agent_settings ADD COLUMN assistant_mode TEXT NOT NULL DEFAULT 'simple'",
+    );
+  } catch (error) {
+    if (!/duplicate column name/i.test(String(error))) throw error;
+  }
 }
