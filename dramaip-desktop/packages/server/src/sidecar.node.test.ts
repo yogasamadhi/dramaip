@@ -414,15 +414,30 @@ test("production-structure HTTP contract persists active adaptation and atomical
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
-    const project = await request<{ id: string }>("/api/v1/projects", {
+    const project = await request<{
+      id: string;
+      targetAudience?: string;
+      targetEpisodeCount?: number;
+      visualStyleDirection?: string;
+      productionBrief?: string;
+    }>("/api/v1/projects", {
       method: "POST",
       body: JSON.stringify({
         title: "排序契约项目",
         shortDramaType: "悬疑",
         synopsis: "",
+        targetAudience: "18—35 岁短剧观众",
+        targetEpisodeCount: 12,
+        visualStyleDirection: "雨夜霓虹与人物近景",
+        productionBrief:
+          "DramaIP 生产简报 v1\n创建路径：从灵感开始\n画幅：9:16 竖屏",
       }),
     });
     assert.equal(project.status, 201);
+    assert.equal(project.body.targetAudience, "18—35 岁短剧观众");
+    assert.equal(project.body.targetEpisodeCount, 12);
+    assert.equal(project.body.visualStyleDirection, "雨夜霓虹与人物近景");
+    assert.match(project.body.productionBrief ?? "", /创建路径：从灵感开始/);
     const firstEvent = await readSseEvent(0);
     assert.ok(Number.isInteger(firstEvent.id));
     assert.match(firstEvent.frame, /event: project\.created/);
@@ -524,7 +539,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(packagePreview.body.projectTitle, "排序契约项目");
     assert.equal(packagePreview.body.chapterCount, 3);
     const packageCommit = await request<{
-      project: { id: string; title: string };
+      project: { id: string; title: string; productionBrief?: string };
       chaptersCreated: number;
       resourcesCreated: number;
     }>(`/api/v1/project-packages/${packagePreview.body.id}/commit`, {
@@ -535,6 +550,10 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(
       packageCommit.body.project.title,
       "排序契约项目（项目包往返）",
+    );
+    assert.match(
+      packageCommit.body.project.productionBrief ?? "",
+      /创建路径：从灵感开始/,
     );
     assert.equal(packageCommit.body.chaptersCreated, 3);
     assert.equal(
