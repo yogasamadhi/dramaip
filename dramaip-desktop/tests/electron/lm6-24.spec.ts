@@ -28,7 +28,7 @@ test("审核交付页明确展示可选云审片的最小上传与安全连接�
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await page.getByRole("link", { name: "审核交付" }).click();
   await page
-    .getByLabel("项目选择项目", { exact: true })
+    .getByRole("combobox", { name: "项目", exact: true })
     .selectOption({ label: "示例短剧：雨夜归来" });
   await page
     .getByRole("combobox", { name: "改编项目" })
