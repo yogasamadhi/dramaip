@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-21`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-22`。
 
 ## 1. 总体目标与范围
 
@@ -347,8 +347,8 @@ make platform-down
 | LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | done   | 1        | 侧栏、选择性采用、完整回归和远端 main 推送通过   | 章节编辑器常驻 Story Bible            | LM6-13        |
 | LM6-15  | P1 Gate  | Release             | done   | 1        | P1 矩阵、三集 Gate、完整回归和远端 main 推送通过 | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
-| LM6-20  | P2       | Timeline Editor     | todo   | 0        | —                                                | 可播放、可编辑的多轨时间线            | LM6-15        |
-| LM6-21  | P2       | Media Pipeline      | todo   | 0        | —                                                | 音频与字幕自动编排                    | LM6-20        |
+| LM6-20  | P2       | Timeline Editor     | done   | 1        | 多轨编辑、完整回归和远端 main 推送通过           | 可播放、可编辑的多轨时间线            | LM6-15        |
+| LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | todo   | 0        | —                                                | 真实可验证的后期交付路径              | LM6-21        |
 | LM6-23  | P2       | Core Data           | todo   | 0        | —                                                | 系列 Story Bible 与跨项目资产库       | LM6-22        |
 | LM6-24  | P2       | Review Integration  | todo   | 0        | —                                                | 桌面到云审片再到本地反馈闭环          | LM6-23        |
@@ -710,7 +710,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Media Pipeline
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-20
 - **Goal**：基于采用剧本、角色音色和镜头时长生成或导入音频 / 字幕候选，并以可审查方式自动放入时间线。
 - **Scope**：对白 / 旁白分段、音色版本、TTS 或导入、BGM / SFX 选择、字幕切分、自动放置、音量 / ducking、局部重生成、成本 / 权利 / 谱系。
@@ -1286,3 +1286,28 @@ LM6-00
 - Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/db/src/operational-schema.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-20.test.ts`、`dramaip-desktop/tests/electron/lm6-20.spec.ts`、用户指南、功能 merge 与远端推送。
 - Next attempt: 开始 LM6-21，先运行 `git fetch origin` 并创建 `loop/lm6-21-auto-assembly`；fallback: 使用确定性短音频 fixture 实现 alignment / cue、部分 stale、受保护手工 clip 合并与试听，再接可用 Provider 的局部 TTS / 音乐任务。
 - Sweep cursor: LM6-21
+
+### LM6-21 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-21
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-21-auto-assembly`
+- Commit(s): `adc089fe feat(audio): add LM6-21 automatic assembly`
+- Merge commit: `09126a9a merge: LM6-21 automatic audio assembly`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、22 个 LM 契约测试 / 368 条断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建均通过；新工作树完成 Electron 下载后，以 `bunx playwright test --reporter=list` 完整重跑为 20/20。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 确定性短 WAV 可被实际预览；对白、旁白、BGM 和 SFX 已采用版本生成对齐候选与 Unicode cue；BGM 默认音量 0.24、ducking 0.55；SRT / WebVTT 可审查；apply 是可撤销的 change set；重链接、移动、裁切、音量或锁定的人工片段保持不变；修改关联分镜只令相关对白过期，未关联 BGM 保持 fresh。
+  - `tests/electron/lm6-21.spec.ts`: PASS — 桌面端创建并采用四类音轨，审查四段音频与两条字幕候选，选择性采用到时间线后锁定对白，再次预览显示保护人工片段。
+  - `tests/lm6/lm6-21.test.ts`: PASS — schema、HTTP 契约、局部 stale 谱系、权利状态、自动混音默认值、字幕预览、UI 与用户指南保持跨层一致。
+- Diff review: PASS — 仅包含音频 / 字幕编排 schema、HTTP / generated client、片段级 stale 谱系、预览与可撤销应用、受控播放 ducking、桌面审查 UI、Node / Electron / fixture 测试和用户指南；没有凭据、缓存、构建产物、本地绝对路径、未授权媒体下载或源媒体写入。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `ea0c60d3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `09126a9a` 已推送至 `origin/main`。
+- Loop branch cleanup: pending docs record push; afterwards delete `loop/lm6-21-auto-assembly` and its worktree.
+- Current branch/worktree: `integrate/lm6-21-auto-assembly`; `/Volumes/A/code/project/dramaIp-integrate-lm6-21`; 仅有本执行记录的显式改动。
+- Completed: 已采用的对白、旁白、BGM 与 SFX 音轨会形成版本化自动编排预览，并按 stable speaker / shot / time range 放入 canonical timeline。每段展示文本、音色 / 素材版本、服务商、成本和权利状态；对话和旁白生成可编辑 Unicode subtitle cues 及 SRT / WebVTT 语义。BGM / SFX 有保守默认音量、淡入淡出和播放时 ducking。应用只影响所选音轨与字幕范围，并将整次应用写成可撤销 change set；用户的移动、trim、音量和显式锁定永不被自动覆盖。片段级 fingerprint 确保只相关音频 / 字幕 stale；既有 TTS 仍走 Provider 能力、幂等、任务与生成账本边界。
+- Unfinished: 无；专业母带、未授权音乐采购、服务端最终合成和正式交换格式仍明确保留给 LM6-22。
+- Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/client/src/generated.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-21.test.ts`、`dramaip-desktop/tests/electron/lm6-21.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-21/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-22，先运行 `git fetch origin`，并从 `bun run check:timeline-exports` 的首个失败项建立固定 FCPXML / OTIO / EDL / SRT / WebVTT export fixture；fallback: 目标 NLE 或 remote render 不可用时，以 FCPXML 结构校验、OTIO reference parser、EDL round-trip 和媒体 checksum / relink 验证完成必达路径。
+- Sweep cursor: LM6-22
