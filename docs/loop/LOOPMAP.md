@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-10`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-11`。
 
 ## 1. 总体目标与范围
 
@@ -341,7 +341,7 @@ make platform-down
 | LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过           | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
-| LM6-10  | P1       | Media Assets        | todo   | 0        | —                                                | 统一资产中心、版本比较、锁与用途      | LM6-06        |
+| LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | todo   | 0        | —                                                | 卡片式导演分镜看板                    | LM6-10        |
 | LM6-12  | P1       | Media Pipeline      | todo   | 0        | —                                                | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | todo   | 0        | —                                                | 集级节奏曲线与定位修订                | LM6-12        |
@@ -535,7 +535,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Media Assets
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-06
 - **Goal**：让角色、场景、道具和音色成为可看、可听、可比较、可锁定并可追踪镜头用途的生产资产，而不是散落的表单字段。
 - **Scope**：统一资产索引、媒体卡片、版本 / 候选、并排比较、采用 / 锁、镜头用途、谱系 / 成本 / 权利状态、导入与生成入口。
@@ -554,8 +554,8 @@ make platform-down
 - **Verification**：asset repository conformance；锁 / stale / usage / deletion safety tests；图片与音频 preview component tests；资产中心 Electron E2E；项目包 round-trip；`check:generated`。
 - **Risk**：媒体列表耗尽内存或本地路径泄露；使用缩略图 / 懒加载 / object URL 生命周期管理，对外只暴露受控引用。
 - **Rollback boundary**：统一中心是现有资产表的兼容视图；回退 UI 不删除资产版本、锁或权利记录。
-- **未完成收束**：按 5.3 保留 `loop/lm6-10-asset-center`；记录四类资产覆盖、锁 / usage truth table、媒体错误 fixture 和项目包差异。
-- **下一次动作**：先运行失败的 repository / lock / usage 测试；P0 Gate 未通过时仍可用隔离 fixture 推进 read model、媒体卡片和删除保护。
+- **未完成收束**：无；统一中心是既有 `visual-assets` 的兼容 read model，媒体二进制仍只保留受控本地归档引用。
+- **下一次动作**：开始 LM6-11，先运行排序 / undo 纯函数测试；fallback: 使用 LM6-10 的类型化资产 fixture 完成卡片、过滤和性能工作，再接入导演看板。
 
 ### LM6-11：卡片式导演分镜看板
 
@@ -1108,3 +1108,29 @@ LM6-00
 - Evidence: `dramaip-desktop/tests/electron/lm6-p0-gate.spec.ts`、`dramaip-desktop/tests/lm6/lm6-06.test.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-06/`、完整桌面回归、merge / push 提交。
 - Next attempt: 开始 LM6-10，先运行 `git fetch origin` 并创建 `loop/lm6-10-asset-center`；fallback: 若主界面接线受阻，先用四类资产、锁 / usage 和媒体错误 fixture 建立兼容 read model 与删除保护。
 - Sweep cursor: LM6-10
+
+### LM6-10 / Attempt 1 — 2026-08-12 01:50 CST
+
+- Loop: LM6-10
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-10-asset-center`
+- Commit(s): `5acb2132 feat(assets): add LM6-10 unified asset center`
+- Merge commit: `f974e2bf merge: LM6-10 unified asset center`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、210 条 unit 断言、Node HTTP / 既有项目包 contract、生成契约、引擎与 Provider catalog、生产构建和 13 个 Electron 场景均通过。
+  - `tests/lm6/lm6-10.test.ts`: PASS — 锁定四类资产、状态、用途、受控预览与删除保护的跨层契约。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 受控 SVG 预览、锁定候选阻止替换、采用 / 锁 / 解锁、镜头分配 / 移除、被使用版本的删除阻断及旧版本安全删除全部通过；资产状态继续存储于通用实体 payload，因此项目包兼容导出不复制媒体二进制。
+  - `tests/electron/lm6-10.spec.ts`: PASS — 制作区可进入统一资产中心，四类筛选和候选比较入口在桌面端可用。
+- Diff review: PASS — 仅包含资产中心 schema / protocol / generated client、既有视觉资产兼容 read model、受控本地预览、锁与镜头用途保护、UI、fixture、测试和用户指南；没有凭据、缓存、构建产物、媒体二进制复制或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `43bedba3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `f974e2bf` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-10-asset-center` 与 `/Volumes/A/code/project/dramaIp-lm6-10`。
+- Current branch/worktree: `integrate/lm6-10-asset-center`; `/Volumes/A/code/project/dramaIp-integrate-lm6-10`; 仅有本执行记录的显式改动。
+- Completed: 角色、场景、道具、音色资产可在统一中心搜索、筛选、比较、采用、锁定和解锁；锁定版本能列出镜头用途，使用中删除被服务端阻断。预览只对受控、本地、允许类型且不超过 5 MB 的媒体返回 data URL；文件缺失、未附加、权利受限、费用未知与服务不可用保持不同且诚实的状态。
+- Unfinished: 无；跨项目资产复用由 LM6-23 单独实现，批量视频生成不属于本 Loop。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-10.test.ts`、`dramaip-desktop/tests/electron/lm6-10.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-10/`、`dramaip-desktop/docs/product/USER_GUIDE.md`、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-11，先运行 `git fetch origin` 并创建 `loop/lm6-11-storyboard-board`；fallback: 先以排序 / undo、100+ shot 与类型化资产 fixture 实现看板 read model 和键盘操作，再接拖拽界面。
+- Sweep cursor: LM6-11
+- Notes: 回退资产中心 UI 不删除既有资产版本、锁、权利或镜头引用；旧视觉资产 CRUD 仍作为兼容入口。媒体预览没有暴露本地路径，也没有伪造远程生成成功。
