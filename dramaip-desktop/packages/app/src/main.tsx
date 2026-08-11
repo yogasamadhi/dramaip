@@ -32,6 +32,12 @@ import {
 } from "./project-intake";
 import { deriveProjectCockpit } from "./project-cockpit";
 import {
+  buildStoryboard,
+  reorderStoryboardShots,
+  type StoryboardScene,
+  type StoryboardShot,
+} from "./storyboard-board";
+import {
   contextAssistantPage,
   contextAssistantPreflight,
   contextAssistantProjectId,
@@ -118,6 +124,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   "shot-stills": "分镜静帧候选",
   "visual-assets": "视觉资产",
   "asset-center": "资产中心",
+  storyboard: "导演看板",
   assets: "素材",
   rights: "版权声明",
   "content-versions": "内容检查点",
@@ -6416,6 +6423,7 @@ function ReviewFindings(props: { issues: string[]; suggestions: string[] }) {
 function ProductionWorkspace() {
   const client = useStudio();
   const location = useLocation();
+  const navigate = useNavigate();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -6429,6 +6437,7 @@ function ProductionWorkspace() {
   const [stage, setStage] = useState<
     | "assets"
     | "asset-center"
+    | "storyboard"
     | "rights"
     | "visual-assets"
     | "shot-stills"
@@ -6478,6 +6487,7 @@ function ProductionWorkspace() {
       [
         "assets",
         "asset-center",
+        "storyboard",
         "rights",
         "visual-assets",
         "shot-stills",
@@ -6527,10 +6537,27 @@ function ProductionWorkspace() {
       setScriptId("");
   }, [scriptId, scripts]);
   useEffect(() => {
+    if (!scriptId && scripts[0]) setScriptId(scripts[0].id);
+  }, [scriptId, scripts]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("scriptId");
+    if (requested && scripts.some((item) => item.id === requested))
+      setScriptId(requested);
+  }, [location.search, scripts]);
+  useEffect(() => {
     if (sceneId && !scenes.some((item) => item.id === sceneId)) setSceneId("");
   }, [sceneId, scenes]);
   useEffect(() => {
-    if (shotId && !shots.some((item) => item.id === shotId)) setShotId("");
+    if (!sceneId && scenes[0]) setSceneId(scenes[0].id);
+  }, [sceneId, scenes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("sceneId");
+    if (requested && scenes.some((item) => item.id === requested))
+      setSceneId(requested);
+  }, [location.search, scenes]);
+  useEffect(() => {
+    if (shotId && shots.length && !shots.some((item) => item.id === shotId))
+      setShotId("");
   }, [shotId, shots]);
   useEffect(() => {
     const requested = new URLSearchParams(location.search).get("shotId");
@@ -6555,6 +6582,27 @@ function ProductionWorkspace() {
     setScriptId("");
     setSceneId("");
     setShotId("");
+  };
+  const selectStoryboardShot = (
+    nextShotId: string,
+    nextSceneId: string,
+    nextScriptId: string,
+    nextStage: "storyboard" | "asset-center" = "storyboard",
+  ) => {
+    setScriptId(nextScriptId);
+    setSceneId(nextSceneId);
+    setShotId(nextShotId);
+    setStage(nextStage);
+    const search = new URLSearchParams({
+      projectId,
+      adaptationId,
+      episodeId,
+      scriptId: nextScriptId,
+      sceneId: nextSceneId,
+      shotId: nextShotId,
+      stage: nextStage,
+    });
+    navigate(`/produce?${search}`);
   };
   return (
     <section className="space-y-5">
@@ -6689,6 +6737,7 @@ function ProductionWorkspace() {
           [
             "assets",
             "asset-center",
+            "storyboard",
             "rights",
             "visual-assets",
             "shot-stills",
@@ -6715,7 +6764,20 @@ function ProductionWorkspace() {
       ) : stage === "asset-center" ? (
         <AssetCenterPanel
           projectId={projectId}
+          selectedShotId={shotId}
           onOpenCatalog={() => setStage("visual-assets")}
+        />
+      ) : stage === "storyboard" ? (
+        <StoryboardBoard
+          projectId={projectId}
+          episodeId={episodeId}
+          selectedShotId={shotId}
+          onSelectShot={(shotId, sceneId, scriptId) =>
+            selectStoryboardShot(shotId, sceneId, scriptId)
+          }
+          onOpenAssetCenter={(shotId, sceneId, scriptId) =>
+            selectStoryboardShot(shotId, sceneId, scriptId, "asset-center")
+          }
         />
       ) : stage === "audio" && episodeId ? (
         <AudioProductionPanel
@@ -6748,6 +6810,397 @@ function ProductionWorkspace() {
   );
 }
 
+type StoryboardUndo = {
+  sceneId: string;
+  previousIds: string[];
+  currentRecords: DomainEntity[];
+};
+
+function stillStateLabel(state: StoryboardShot["stillState"]): string {
+  if (state === "adopted") return "静帧已采用";
+  if (state === "candidate") return "存在待确认静帧";
+  return "暂无静帧预览";
+}
+
+function StoryboardBoard(props: {
+  projectId: string;
+  episodeId: string;
+  selectedShotId?: string;
+  onSelectShot(shotId: string, sceneId: string, scriptId: string): void;
+  onOpenAssetCenter(shotId: string, sceneId: string, scriptId: string): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "attention" | "missing-assets">(
+    "all",
+  );
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [visiblePerScene, setVisiblePerScene] = useState(50);
+  const [draggingId, setDraggingId] = useState<string>();
+  const [savingSceneId, setSavingSceneId] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [undo, setUndo] = useState<StoryboardUndo>();
+  const { data: scripts = [] } = useQuery({
+    queryKey: ["storyboard", "scripts", props.projectId],
+    queryFn: () => client.resources.list("scripts", props.projectId),
+  });
+  const { data: scenes = [] } = useQuery({
+    queryKey: ["storyboard", "scenes", props.projectId],
+    queryFn: () => client.resources.list("scenes", props.projectId),
+  });
+  const { data: shots = [] } = useQuery({
+    queryKey: ["storyboard", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const { data: stills = [] } = useQuery({
+    queryKey: ["storyboard", "stills", props.projectId],
+    queryFn: () => client.resources.list("shot-stills", props.projectId),
+  });
+  const { data: assetCenter } = useQuery({
+    queryKey: ["asset-center", props.projectId],
+    queryFn: () => client.assetCenter.get(props.projectId),
+  });
+  const storyboard = buildStoryboard({
+    episodeId: props.episodeId || undefined,
+    scripts,
+    scenes,
+    shots,
+    stills,
+    assets: assetCenter?.assets ?? [],
+  });
+  const matchesFilter = (shot: StoryboardShot) => {
+    const haystack = [
+      shot.title,
+      shot.visualDescription,
+      shot.dialogue,
+      ...shot.referencedAssets.map((asset) => asset.title),
+    ]
+      .join(" ")
+      .toLocaleLowerCase();
+    if (query.trim() && !haystack.includes(query.trim().toLocaleLowerCase()))
+      return false;
+    if (filter === "attention")
+      return shot.rightsBlocked || shot.costRisk || shot.stillState !== "adopted";
+    return filter !== "missing-assets" || shot.missingAssetReference;
+  };
+  const visibleScenes = storyboard
+    .map((scene) => ({
+      ...scene,
+      shots: scene.shots.filter(matchesFilter),
+    }))
+    .filter((scene) => scene.shots.length);
+  const toggleSelected = (shotId: string) =>
+    setSelectedIds((current) =>
+      current.includes(shotId)
+        ? current.filter((id) => id !== shotId)
+        : [...current, shotId],
+    );
+  const refreshShots = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["storyboard", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["asset-center", props.projectId] }),
+    ]);
+  };
+  const reorder = async (
+    scene: StoryboardScene,
+    movingId: string,
+    targetId: string,
+  ) => {
+    const next = reorderStoryboardShots(scene.shots, movingId, targetId);
+    if (next.every((shot, index) => shot.id === scene.shots[index]?.id)) return;
+    setSavingSceneId(scene.id);
+    setNotice(undefined);
+    try {
+      const result = await client.productionStructure.reorderShots(scene.id, {
+        items: next.map((shot) => ({ id: shot.id, version: shot.version })),
+      });
+      setUndo({
+        sceneId: scene.id,
+        previousIds: scene.shots.map((shot) => shot.id),
+        currentRecords: result.records,
+      });
+      setNotice("已保存分镜顺序；可在下一次调整前撤销这次重排。");
+      await refreshShots();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setSavingSceneId(undefined);
+      setDraggingId(undefined);
+    }
+  };
+  const move = (scene: StoryboardScene, shotId: string, direction: -1 | 1) => {
+    const index = scene.shots.findIndex((shot) => shot.id === shotId);
+    const target = scene.shots[index + direction];
+    if (target) void reorder(scene, shotId, target.id);
+  };
+  const undoReorder = async () => {
+    if (!undo) return;
+    const recordsById = new Map(undo.currentRecords.map((record) => [record.id, record]));
+    const items = undo.previousIds
+      .map((id) => recordsById.get(id))
+      .filter((record): record is DomainEntity => Boolean(record))
+      .map((record) => ({ id: record.id, version: record.version }));
+    if (items.length !== undo.previousIds.length) {
+      setNotice("无法恢复：镜头集合已变化，请刷新后检查当前顺序。");
+      setUndo(undefined);
+      return;
+    }
+    setSavingSceneId(undo.sceneId);
+    try {
+      await client.productionStructure.reorderShots(undo.sceneId, { items });
+      setNotice("已恢复上一次分镜顺序。");
+      setUndo(undefined);
+      await refreshShots();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setSavingSceneId(undefined);
+    }
+  };
+  const selectedShot = storyboard
+    .flatMap((scene) => scene.shots.map((shot) => ({ scene, shot })))
+    .find(({ shot }) => selectedIds.length === 1 && shot.id === selectedIds[0]);
+  return (
+    <section className="space-y-5" aria-label="导演分镜看板">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">集级导演工作台</p>
+          <h2 className="mt-1 text-2xl font-semibold">卡片式导演分镜看板</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            按场景扫视镜头、静帧和锁定资产。重排只提交同一场景的完整镜头集合，并以版本号防止并发覆盖。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm text-brand">
+          {storyboard.reduce((total, scene) => total + scene.shots.length, 0)} 个镜头
+        </span>
+      </div>
+      <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
+        <label className="grid gap-1 text-sm">
+          搜索镜头、对白或资产
+          <input
+            className="rounded-lg border border-line px-3 py-2"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="例如：雨夜、门缝、林晚"
+          />
+        </label>
+        <div className="grid gap-1 text-sm">
+          风险筛选
+          <div className="flex flex-wrap gap-2" role="group" aria-label="分镜筛选">
+            {(
+              [
+                ["all", "全部镜头"],
+                ["attention", "需处理"],
+                ["missing-assets", "缺资产引用"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className={`rounded-full px-3 py-1.5 text-sm ${filter === value ? "bg-brand text-white" : "bg-canvas text-muted ring-1 ring-line"}`}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">{notice}</p>
+      )}
+      {(selectedIds.length > 0 || undo) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-3 text-sm">
+          {selectedIds.length > 0 && <span>已选 {selectedIds.length} 个镜头</span>}
+          {selectedShot && (
+            <button
+              className="rounded-lg border border-brand px-3 py-1.5 text-brand"
+              onClick={() =>
+                props.onOpenAssetCenter(
+                  selectedShot.shot.id,
+                  selectedShot.scene.id,
+                  selectedShot.scene.scriptId,
+                )
+              }
+            >
+              查看选定镜头的资产用途
+            </button>
+          )}
+          {selectedIds.length > 0 && (
+            <button
+              className="rounded-lg border border-line px-3 py-1.5 text-muted"
+              onClick={() => setSelectedIds([])}
+            >
+              清除选择
+            </button>
+          )}
+          {undo && (
+            <button
+              className="rounded-lg border border-brand px-3 py-1.5 text-brand disabled:opacity-50"
+              disabled={Boolean(savingSceneId)}
+              onClick={() => void undoReorder()}
+            >
+              撤销上次重排
+            </button>
+          )}
+        </div>
+      )}
+      {visibleScenes.map((scene) => {
+        const shownShots = scene.shots.slice(0, visiblePerScene);
+        return (
+          <section
+            key={scene.id}
+            className="rounded-2xl border border-line bg-surface p-4"
+            aria-label={`场景：${scene.title}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="font-semibold">{scene.title}</h3>
+                <p className="mt-1 text-sm text-muted">
+                  {scene.location || "未填写地点与时间"} · {scene.shots.length} 个镜头
+                </p>
+              </div>
+              <span className="text-xs text-muted">
+                {savingSceneId === scene.id ? "正在保存顺序…" : "可拖拽或用 Alt + ↑/↓ 重排"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+              {shownShots.map((shot) => {
+                const fullIndex = scene.shots.findIndex(
+                  (candidate) => candidate.id === shot.id,
+                );
+                return (
+                  <article
+                  key={shot.id}
+                  data-shot-id={shot.id}
+                  draggable={!savingSceneId}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    setDraggingId(shot.id);
+                  }}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggingId) void reorder(scene, draggingId, shot.id);
+                  }}
+                  className={`rounded-xl border p-4 ${props.selectedShotId === shot.id ? "border-brand bg-brand-soft" : "border-line bg-canvas"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <button
+                        className="text-left text-sm font-semibold hover:text-brand"
+                        aria-label={`选择分镜：${shot.title}`}
+                        aria-pressed={props.selectedShotId === shot.id}
+                        onClick={() =>
+                          props.onSelectShot(shot.id, scene.id, scene.scriptId)
+                        }
+                        onKeyDown={(event) => {
+                          if (!event.altKey) return;
+                          if (event.key === "ArrowUp") {
+                            event.preventDefault();
+                            move(scene, shot.id, -1);
+                          }
+                          if (event.key === "ArrowDown") {
+                            event.preventDefault();
+                            move(scene, shot.id, 1);
+                          }
+                        }}
+                      >
+                        {fullIndex + 1}. {shot.title}
+                      </button>
+                      <p className="mt-1 text-xs text-muted">{shot.visualDescription}</p>
+                    </div>
+                    <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(shot.id)}
+                        aria-label={`批量选择：${shot.title}`}
+                        onChange={() => toggleSelected(shot.id)}
+                      />
+                      选择
+                    </label>
+                  </div>
+                  <div
+                    className="mt-3 rounded-lg border border-dashed border-line bg-white p-3 text-xs text-muted"
+                    aria-label={`静帧预览：${stillStateLabel(shot.stillState)}`}
+                  >
+                    {stillStateLabel(shot.stillState)}；本卡片只显示真实静帧状态，未附带受控媒体时不伪造缩略图。
+                  </div>
+                  <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                    <div><dt className="text-muted">对白</dt><dd>{shot.dialogue || "无对白"}</dd></div>
+                    <div><dt className="text-muted">景别 / 机位</dt><dd>{shot.camera || "未填写"}</dd></div>
+                    <div><dt className="text-muted">运镜 / 时长</dt><dd>{[shot.movement, shot.duration].filter(Boolean).join(" · ") || "未填写"}</dd></div>
+                    <div><dt className="text-muted">任务状态</dt><dd>{shot.taskStatus}</dd></div>
+                  </dl>
+                  <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${shot.title} 资产覆盖`}>
+                    {(["character", "scene", "prop", "voice"] as const).map((category) => (
+                      <span key={category} className="rounded-full bg-white px-2 py-1 text-xs text-muted ring-1 ring-line">
+                        {ASSET_CATEGORY_LABELS[category]} {shot.categoryCounts[category]}
+                      </span>
+                    ))}
+                    <span className={`rounded-full px-2 py-1 text-xs ${shot.lockedAssetCount ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+                      {shot.lockedAssetCount ? `已锁 ${shot.lockedAssetCount}` : "暂无锁定资产"}
+                    </span>
+                    {shot.missingAssetReference && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">缺资产引用</span>}
+                    {shot.rightsBlocked && <span className="rounded-full bg-red-50 px-2 py-1 text-xs text-red-700">权利 / stale 阻断</span>}
+                    {shot.costRisk && <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">费用或服务风险</span>}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40"
+                      disabled={Boolean(savingSceneId) || fullIndex === 0}
+                      onClick={() => move(scene, shot.id, -1)}
+                    >
+                      上移
+                    </button>
+                    <button
+                      className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40"
+                      disabled={
+                        Boolean(savingSceneId) ||
+                        fullIndex === scene.shots.length - 1
+                      }
+                      onClick={() => move(scene, shot.id, 1)}
+                    >
+                      下移
+                    </button>
+                    <button
+                      className="rounded border border-brand px-2 py-1 text-xs text-brand"
+                      onClick={() =>
+                        props.onOpenAssetCenter(shot.id, scene.id, scene.scriptId)
+                      }
+                    >
+                      查看资产用途
+                    </button>
+                  </div>
+                  </article>
+                );
+              })}
+            </div>
+            {scene.shots.length > shownShots.length && (
+              <button
+                className="mt-3 rounded-lg border border-line px-3 py-2 text-sm text-muted"
+                onClick={() => setVisiblePerScene((current) => current + 50)}
+              >
+                继续加载该场景的 {Math.min(50, scene.shots.length - shownShots.length)} 个镜头
+              </button>
+            )}
+          </section>
+        );
+      })}
+      {!visibleScenes.length && (
+        <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+          当前分集尚无可展示的分镜；可先在改编区建立场景和镜头，或调整筛选条件。
+        </p>
+      )}
+    </section>
+  );
+}
+
 const ASSET_CATEGORY_LABELS: Record<AssetCenterAsset["category"], string> = {
   character: "角色",
   scene: "场景",
@@ -6765,7 +7218,11 @@ function assetStatusLabel(asset: AssetCenterAsset): string {
   return asset.adopted ? "已采用" : "候选版本";
 }
 
-function AssetCenterPanel(props: { projectId: string; onOpenCatalog(): void }) {
+function AssetCenterPanel(props: {
+  projectId: string;
+  selectedShotId?: string;
+  onOpenCatalog(): void;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const { data: center, error } = useQuery({
@@ -6787,6 +7244,9 @@ function AssetCenterPanel(props: { projectId: string; onOpenCatalog(): void }) {
   const [previews, setPreviews] = useState<
     Record<string, AssetCenterPreviewMedia>
   >({});
+  useEffect(() => {
+    if (props.selectedShotId) setShotId(props.selectedShotId);
+  }, [props.selectedShotId]);
   const assets = center?.assets ?? [];
   const filtered = assets.filter(
     (asset) =>
@@ -11210,7 +11670,13 @@ function AgentSidePanel() {
     queryFn: () => client.chapters.list(projectId),
     enabled: Boolean(projectId),
   });
+  const { data: contextShots = [] } = useQuery({
+    queryKey: ["agent-shots", projectId],
+    queryFn: () => client.resources.list("shots", projectId),
+    enabled: Boolean(projectId),
+  });
   const requestedProjectId = contextAssistantProjectId(location);
+  const requestedShotId = new URLSearchParams(location.search).get("shotId");
   useEffect(() => {
     if (requestedProjectId && projectId !== requestedProjectId) {
       setProjectId(requestedProjectId);
@@ -11231,6 +11697,24 @@ function AgentSidePanel() {
     selectedTask?.category === "章节写作" ||
     selectedTask?.category === "记忆与连续性";
   const contextPage = contextAssistantPage(location.pathname);
+  const selectedShot = contextShots.find((shot) => shot.id === requestedShotId);
+  const selectedShotPayload = selectedShot ? recordPayload(selectedShot.payload) : {};
+  const shotContext = selectedShot
+    ? [
+        `当前导演看板分镜：${selectedShot.title}`,
+        selectedShotPayload["镜头描述"]
+          ? `镜头画面：${String(selectedShotPayload["镜头描述"])}`
+          : "",
+        selectedShotPayload["生成提示"]
+          ? `已有提示：${String(selectedShotPayload["生成提示"])}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+  const contextualPrompt = [shotContext, prompt.trim()]
+    .filter(Boolean)
+    .join("\n\n");
   const { actions: contextActions, missingTaskTypes } =
     resolveContextAssistantActions({
       page: contextPage,
@@ -11295,7 +11779,7 @@ function AgentSidePanel() {
       return client.agentSessions.run(session.id, {
         taskType: requestedTaskType,
         ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
-        ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+        ...(contextualPrompt ? { prompt: contextualPrompt } : {}),
       });
     },
     onSuccess: (result, requested) => {
@@ -11350,7 +11834,8 @@ function AgentSidePanel() {
       const estimatedInputPerEngine = Math.max(
         800,
         Math.ceil(
-          ((selectedChapter?.content.length ?? 0) + prompt.trim().length) / 1.6,
+          ((selectedChapter?.content.length ?? 0) + contextualPrompt.length) /
+            1.6,
         ) + 600,
       );
       const estimatedOutputPerEngine =
@@ -11377,7 +11862,7 @@ function AgentSidePanel() {
           ...(experimentMode === "same_model"
             ? { model: { modelId: modelId.trim() } }
             : {}),
-          ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+          ...(contextualPrompt ? { prompt: contextualPrompt } : {}),
           confirmedEstimatedCost: true,
         },
         crypto.randomUUID(),
@@ -11457,6 +11942,14 @@ function AgentSidePanel() {
           </option>
         ))}
       </select>
+      {selectedShot && (
+        <p
+          className="mt-3 rounded-lg bg-brand-soft p-3 text-xs leading-5 text-brand"
+          aria-label="当前分镜上下文"
+        >
+          当前分镜：{selectedShot.title}。已从导演看板带入；新建任务会附带这段镜头上下文，不需要重复选择父级资料。
+        </p>
+      )}
       <select
         className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
         value={chapterId}

@@ -1837,6 +1837,16 @@ function createDemoProject(res: ServerResponse): void {
       审查备注: "人物身份揭示前避免完整正面曝光。",
     },
   );
+  insertDomainEntity("shots", id, sceneId, "镜头 2：雨中的来客", {
+    关联场景: "场景 1：雨夜门口",
+    镜头序号: 2,
+    镜头描述: "切到雨中的陆沉，他压低声音叫出林晚的小名。",
+    对白: "陆沉：你还记得我吗？",
+    景别: "近景",
+    运镜: "固定",
+    时长: "3 秒",
+    审查备注: "保持门内外视线关系，暂不揭示完整身份。",
+  });
   insertDomainEntity("assets", id, undefined, "雨夜霓虹参考素材", {
     素材类型: "视觉参考",
     来源: "DramaIP 内置示例素材说明",
