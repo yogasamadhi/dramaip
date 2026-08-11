@@ -11231,7 +11231,130 @@
                     "updatedScripts": { "type": "integer" },
                     "createdScenes": { "type": "integer" },
                     "adaptationProjectId": { "type": "string" },
-                    "checkpointCount": { "type": "integer" }
+                    "checkpointCount": { "type": "integer" },
+                    "extractionChangeSet": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "projectId": { "type": "string" },
+                        "sourceFingerprint": { "type": "string" },
+                        "sourceTitle": { "type": "string" },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "applied",
+                            "stale",
+                            "discarded",
+                            "failed"
+                          ]
+                        },
+                        "summary": { "type": "string" },
+                        "candidates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "character",
+                                  "scene",
+                                  "prop",
+                                  "chapter-summary",
+                                  "adaptation"
+                                ]
+                              },
+                              "title": { "type": "string" },
+                              "summary": { "type": "string" },
+                              "confidence": {
+                                "anyOf": [
+                                  {
+                                    "anyOf": [
+                                      { "type": "number" },
+                                      { "type": "string", "enum": ["NaN"] },
+                                      {
+                                        "type": "string",
+                                        "enum": ["Infinity"]
+                                      },
+                                      {
+                                        "type": "string",
+                                        "enum": ["-Infinity"]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "string",
+                                    "enum": ["Infinity", "-Infinity", "NaN"]
+                                  }
+                                ]
+                              },
+                              "sourceRefs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "sourceKey": { "type": "string" },
+                                    "chapterTitle": { "type": "string" },
+                                    "start": { "type": "integer" },
+                                    "end": { "type": "integer" },
+                                    "excerpt": { "type": "string" },
+                                    "sourceVersion": { "type": "integer" }
+                                  },
+                                  "required": [
+                                    "sourceKey",
+                                    "chapterTitle",
+                                    "start",
+                                    "end",
+                                    "excerpt",
+                                    "sourceVersion"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "draft",
+                                  "rejected",
+                                  "adopted",
+                                  "conflict"
+                                ]
+                              },
+                              "conflictNote": { "type": "string" }
+                            },
+                            "required": [
+                              "id",
+                              "type",
+                              "title",
+                              "summary",
+                              "confidence",
+                              "sourceRefs",
+                              "status"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "appliedAt": { "type": "string" },
+                        "undoneAt": { "type": "string" },
+                        "errorMessage": { "type": "string" },
+                        "createdAt": { "type": "string" },
+                        "updatedAt": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "sourceFingerprint",
+                        "sourceTitle",
+                        "status",
+                        "summary",
+                        "candidates",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    }
                   },
                   "required": [
                     "createdChapters",
@@ -11436,6 +11559,713 @@
         "security": [],
         "responses": {
           "200": { "description": "<No Content>" },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/import-extractions/change-sets": {
+      "get": {
+        "tags": ["import-extractions"],
+        "operationId": "import-extractions.list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "projectId": { "type": "string" },
+                      "sourceFingerprint": { "type": "string" },
+                      "sourceTitle": { "type": "string" },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "draft",
+                          "applied",
+                          "stale",
+                          "discarded",
+                          "failed"
+                        ]
+                      },
+                      "summary": { "type": "string" },
+                      "candidates": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string" },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "character",
+                                "scene",
+                                "prop",
+                                "chapter-summary",
+                                "adaptation"
+                              ]
+                            },
+                            "title": { "type": "string" },
+                            "summary": { "type": "string" },
+                            "confidence": {
+                              "anyOf": [
+                                {
+                                  "anyOf": [
+                                    { "type": "number" },
+                                    { "type": "string", "enum": ["NaN"] },
+                                    { "type": "string", "enum": ["Infinity"] },
+                                    { "type": "string", "enum": ["-Infinity"] }
+                                  ]
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": ["Infinity", "-Infinity", "NaN"]
+                                }
+                              ]
+                            },
+                            "sourceRefs": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "sourceKey": { "type": "string" },
+                                  "chapterTitle": { "type": "string" },
+                                  "start": { "type": "integer" },
+                                  "end": { "type": "integer" },
+                                  "excerpt": { "type": "string" },
+                                  "sourceVersion": { "type": "integer" }
+                                },
+                                "required": [
+                                  "sourceKey",
+                                  "chapterTitle",
+                                  "start",
+                                  "end",
+                                  "excerpt",
+                                  "sourceVersion"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "draft",
+                                "rejected",
+                                "adopted",
+                                "conflict"
+                              ]
+                            },
+                            "conflictNote": { "type": "string" }
+                          },
+                          "required": [
+                            "id",
+                            "type",
+                            "title",
+                            "summary",
+                            "confidence",
+                            "sourceRefs",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "appliedAt": { "type": "string" },
+                      "undoneAt": { "type": "string" },
+                      "errorMessage": { "type": "string" },
+                      "createdAt": { "type": "string" },
+                      "updatedAt": { "type": "string" }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "sourceFingerprint",
+                      "sourceTitle",
+                      "status",
+                      "summary",
+                      "candidates",
+                      "createdAt",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import-extractions/change-sets/{id}/candidates/{candidateId}": {
+      "patch": {
+        "tags": ["import-extractions"],
+        "operationId": "import-extractions.updateCandidate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "name": "candidateId",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "sourceTitle": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "applied",
+                        "stale",
+                        "discarded",
+                        "failed"
+                      ]
+                    },
+                    "summary": { "type": "string" },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "character",
+                              "scene",
+                              "prop",
+                              "chapter-summary",
+                              "adaptation"
+                            ]
+                          },
+                          "title": { "type": "string" },
+                          "summary": { "type": "string" },
+                          "confidence": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "sourceRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "sourceKey": { "type": "string" },
+                                "chapterTitle": { "type": "string" },
+                                "start": { "type": "integer" },
+                                "end": { "type": "integer" },
+                                "excerpt": { "type": "string" },
+                                "sourceVersion": { "type": "integer" }
+                              },
+                              "required": [
+                                "sourceKey",
+                                "chapterTitle",
+                                "start",
+                                "end",
+                                "excerpt",
+                                "sourceVersion"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "rejected", "adopted", "conflict"]
+                          },
+                          "conflictNote": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "title",
+                          "summary",
+                          "confidence",
+                          "sourceRefs",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "appliedAt": { "type": "string" },
+                    "undoneAt": { "type": "string" },
+                    "errorMessage": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "sourceFingerprint",
+                    "sourceTitle",
+                    "status",
+                    "summary",
+                    "candidates",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "summary": { "type": "string" },
+                  "status": { "type": "string", "enum": ["draft", "rejected"] }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/import-extractions/change-sets/{id}/adopt": {
+      "post": {
+        "tags": ["import-extractions"],
+        "operationId": "import-extractions.adopt",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "sourceTitle": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "applied",
+                        "stale",
+                        "discarded",
+                        "failed"
+                      ]
+                    },
+                    "summary": { "type": "string" },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "character",
+                              "scene",
+                              "prop",
+                              "chapter-summary",
+                              "adaptation"
+                            ]
+                          },
+                          "title": { "type": "string" },
+                          "summary": { "type": "string" },
+                          "confidence": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "sourceRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "sourceKey": { "type": "string" },
+                                "chapterTitle": { "type": "string" },
+                                "start": { "type": "integer" },
+                                "end": { "type": "integer" },
+                                "excerpt": { "type": "string" },
+                                "sourceVersion": { "type": "integer" }
+                              },
+                              "required": [
+                                "sourceKey",
+                                "chapterTitle",
+                                "start",
+                                "end",
+                                "excerpt",
+                                "sourceVersion"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "rejected", "adopted", "conflict"]
+                          },
+                          "conflictNote": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "title",
+                          "summary",
+                          "confidence",
+                          "sourceRefs",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "appliedAt": { "type": "string" },
+                    "undoneAt": { "type": "string" },
+                    "errorMessage": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "sourceFingerprint",
+                    "sourceTitle",
+                    "status",
+                    "summary",
+                    "candidates",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "candidateIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/import-extractions/change-sets/{id}/undo": {
+      "post": {
+        "tags": ["import-extractions"],
+        "operationId": "import-extractions.undo",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "sourceFingerprint": { "type": "string" },
+                    "sourceTitle": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "applied",
+                        "stale",
+                        "discarded",
+                        "failed"
+                      ]
+                    },
+                    "summary": { "type": "string" },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "character",
+                              "scene",
+                              "prop",
+                              "chapter-summary",
+                              "adaptation"
+                            ]
+                          },
+                          "title": { "type": "string" },
+                          "summary": { "type": "string" },
+                          "confidence": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "sourceRefs": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "sourceKey": { "type": "string" },
+                                "chapterTitle": { "type": "string" },
+                                "start": { "type": "integer" },
+                                "end": { "type": "integer" },
+                                "excerpt": { "type": "string" },
+                                "sourceVersion": { "type": "integer" }
+                              },
+                              "required": [
+                                "sourceKey",
+                                "chapterTitle",
+                                "start",
+                                "end",
+                                "excerpt",
+                                "sourceVersion"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["draft", "rejected", "adopted", "conflict"]
+                          },
+                          "conflictNote": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "title",
+                          "summary",
+                          "confidence",
+                          "sourceRefs",
+                          "status"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "appliedAt": { "type": "string" },
+                    "undoneAt": { "type": "string" },
+                    "errorMessage": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "sourceFingerprint",
+                    "sourceTitle",
+                    "status",
+                    "summary",
+                    "candidates",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "500": {
             "description": "Error",
             "content": {
@@ -19548,6 +20378,7 @@
     { "name": "backups" },
     { "name": "exports" },
     { "name": "source-imports" },
+    { "name": "import-extractions" },
     { "name": "workflows" },
     { "name": "episode-media" },
     { "name": "image-generation" },

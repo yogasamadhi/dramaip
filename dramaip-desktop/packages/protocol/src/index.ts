@@ -48,6 +48,9 @@ import {
   SourceImportPreviewResponse,
   SourceImportCommitInput,
   SourceImportCommitResult,
+  ImportExtractionChangeSet,
+  ImportExtractionCandidatePatch,
+  ImportExtractionAdoptInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackPreviewInput,
@@ -1063,6 +1066,54 @@ const SourceImportGroup = HttpApiGroup.make("source-imports")
     }),
   );
 
+const ImportExtractionGroup = HttpApiGroup.make("import-extractions")
+  .add(
+    HttpApiEndpoint.get(
+      "list",
+      `${API_PREFIX}/projects/:id/import-extractions/change-sets`,
+      {
+        params: { id: Schema.String },
+        success: Schema.Array(ImportExtractionChangeSet),
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.patch(
+      "updateCandidate",
+      `${API_PREFIX}/import-extractions/change-sets/:id/candidates/:candidateId`,
+      {
+        params: { id: Schema.String, candidateId: Schema.String },
+        payload: ImportExtractionCandidatePatch,
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "adopt",
+      `${API_PREFIX}/import-extractions/change-sets/:id/adopt`,
+      {
+        params: { id: Schema.String },
+        payload: ImportExtractionAdoptInput,
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "undo",
+      `${API_PREFIX}/import-extractions/change-sets/:id/undo`,
+      {
+        params: { id: Schema.String },
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  );
+
 const WorkflowGroup = HttpApiGroup.make("workflows").add(
   HttpApiEndpoint.post("runEpisode", `${API_PREFIX}/workflows/episodes/run`, {
     payload: EpisodeWorkflowInput,
@@ -1742,6 +1793,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(BackupGroup)
   .add(ExportGroup)
   .add(SourceImportGroup)
+  .add(ImportExtractionGroup)
   .add(WorkflowGroup)
   .add(EpisodeMediaGroup)
   .add(ImageGenerationGroup)

@@ -491,6 +491,17 @@ test("production-structure HTTP contract persists active adaptation and atomical
     const sourceCommit = await request<{
       createdChapters: number;
       checkpointCount: number;
+      extractionChangeSet?: {
+        id: string;
+        status: string;
+        candidates: Array<{
+          id: string;
+          type: string;
+          title: string;
+          status: string;
+          sourceRefs: Array<{ chapterTitle: string; excerpt: string }>;
+        }>;
+      };
     }>(`/api/v1/source-imports/${sourcePreview.body.importId}/commit`, {
       method: "POST",
       body: JSON.stringify({
@@ -504,6 +515,221 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(sourceCommit.status, 201);
     assert.equal(sourceCommit.body.createdChapters, 3);
     assert.equal(sourceCommit.body.checkpointCount, 0);
+    const extraction = sourceCommit.body.extractionChangeSet;
+    assert.ok(extraction, "导入完成后必须创建可审查候选变更集");
+    assert.equal(extraction.status, "draft");
+    assert.deepEqual(
+      new Set(extraction.candidates.map((candidate) => candidate.type)),
+      new Set(["character", "scene", "prop", "chapter-summary", "adaptation"]),
+    );
+    assert.ok(
+      extraction.candidates.every(
+        (candidate) =>
+          candidate.sourceRefs.length > 0 &&
+          candidate.sourceRefs[0].chapterTitle &&
+          candidate.sourceRefs[0].excerpt,
+      ),
+      "每条候选都必须能够回溯到原稿章节和文本范围",
+    );
+    const listedExtractions = await request<
+      {
+        id: string;
+        candidates: typeof extraction.candidates;
+        status: string;
+      }[]
+    >(`/api/v1/projects/${project.body.id}/import-extractions/change-sets`);
+    assert.equal(listedExtractions.status, 200);
+    assert.equal(listedExtractions.body[0]?.id, extraction.id);
+    const exportedPackage = await request<{ content: string }>(
+      `/api/v1/exports/projects/${project.body.id}/json`,
+    );
+    assert.equal(exportedPackage.status, 200);
+    assert.equal(
+      JSON.parse(exportedPackage.body.content).importExtractions[0]?.id,
+      extraction.id,
+      "项目包必须携带导入候选变更集",
+    );
+    const roundTripPath = join(directory, "lm6-04-roundtrip.json");
+    writeFileSync(roundTripPath, exportedPackage.body.content, "utf8");
+    fileCapabilities.set("lm6-extraction-roundtrip", roundTripPath);
+    const extractionPackagePreview = await request<{ id: string }>(
+      "/api/v1/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: "lm6-extraction-roundtrip" }),
+      },
+    );
+    assert.equal(extractionPackagePreview.status, 201);
+    const roundTrip = await request<{ project: { id: string } }>(
+      `/api/v1/project-packages/${extractionPackagePreview.body.id}/commit`,
+      { method: "POST", body: JSON.stringify({ title: "候选变更集回环项目" }) },
+    );
+    assert.equal(roundTrip.status, 201);
+    const roundTripExtractions = await request<
+      Array<{ status: string; candidates: Array<{ type: string }> }>
+    >(
+      `/api/v1/projects/${roundTrip.body.project.id}/import-extractions/change-sets`,
+    );
+    assert.equal(roundTripExtractions.status, 200);
+    assert.equal(roundTripExtractions.body[0]?.status, "draft");
+    assert.deepEqual(
+      new Set(
+        roundTripExtractions.body[0]?.candidates.map((item) => item.type),
+      ),
+      new Set(["character", "scene", "prop", "chapter-summary", "adaptation"]),
+    );
+    const characterCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "character",
+    );
+    const propCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "prop",
+    );
+    const summaryCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "chapter-summary",
+    );
+    assert.ok(characterCandidate);
+    assert.ok(propCandidate);
+    assert.ok(summaryCandidate);
+    const manualSameName = await request<{ id: string }>("/api/v1/assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: propCandidate.title,
+        payload: { 来源: "人工创建，必须被保护" },
+      }),
+    });
+    assert.equal(manualSameName.status, 201);
+    const conflictingAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [propCandidate.id] }),
+      },
+    );
+    assert.equal(conflictingAdopt.status, 409);
+    const conflictList = await request<
+      {
+        candidates: Array<{
+          id: string;
+          status: string;
+          conflictNote?: string;
+        }>;
+      }[]
+    >(`/api/v1/projects/${project.body.id}/import-extractions/change-sets`);
+    const conflictedProp = conflictList.body[0]?.candidates.find(
+      (candidate) => candidate.id === propCandidate.id,
+    );
+    assert.equal(conflictedProp?.status, "conflict");
+    assert.match(conflictedProp?.conflictNote ?? "", /不会覆盖/);
+    const adoptedCharacter = await request<{
+      status: string;
+      candidates: Array<{ id: string; status: string }>;
+    }>(`/api/v1/import-extractions/change-sets/${extraction.id}/adopt`, {
+      method: "POST",
+      body: JSON.stringify({ candidateIds: [characterCandidate.id] }),
+    });
+    assert.equal(adoptedCharacter.status, 200);
+    assert.equal(
+      adoptedCharacter.body.candidates.find(
+        (candidate) => candidate.id === characterCandidate.id,
+      )?.status,
+      "adopted",
+    );
+    const extractedCharacters = await request<
+      Array<{
+        id: string;
+        title: string;
+        version: number;
+        payload: Record<string, unknown>;
+      }>
+    >(`/api/v1/characters?projectId=${project.body.id}`);
+    const extractedCharacter = extractedCharacters.body.find(
+      (item) => item.title === characterCandidate.title,
+    );
+    assert.ok(extractedCharacter);
+    assert.equal(extractedCharacter.payload["来源变更集"], extraction.id);
+    const duplicateAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [characterCandidate.id] }),
+      },
+    );
+    assert.equal(duplicateAdopt.status, 400);
+    const charactersAfterDuplicate = await request<Array<{ title: string }>>(
+      `/api/v1/characters?projectId=${project.body.id}`,
+    );
+    assert.equal(
+      charactersAfterDuplicate.body.filter(
+        (item) => item.title === characterCandidate.title,
+      ).length,
+      1,
+      "重复回调不得创建重复实体",
+    );
+    const importedChapters = await request<
+      Array<{ id: string; title: string; content: string; version: number }>
+    >(`/api/v1/projects/${project.body.id}/chapters`);
+    const sourceChapter = importedChapters.body.find(
+      (chapter) =>
+        chapter.title === summaryCandidate.sourceRefs[0]?.chapterTitle,
+    );
+    assert.ok(sourceChapter);
+    const updatedSource = await request(
+      `/api/v1/chapters/${sourceChapter.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: sourceChapter.title,
+          content: `${sourceChapter.content}\n人工补充：来源版本已变化。`,
+          summary: "人工摘要",
+          version: sourceChapter.version,
+        }),
+      },
+    );
+    assert.equal(updatedSource.status, 200);
+    const staleAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [summaryCandidate.id] }),
+      },
+    );
+    assert.equal(staleAdopt.status, 409);
+    const manuallyChangedCharacter = await request<{
+      id: string;
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/characters/${extractedCharacter.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: extractedCharacter.title,
+        payload: {
+          ...extractedCharacter.payload,
+          备注: "人工补充，撤销时必须保留",
+        },
+        version: extractedCharacter.version,
+      }),
+    });
+    assert.equal(manuallyChangedCharacter.status, 200);
+    const protectedUndo = await request<{
+      status: string;
+      errorMessage?: string;
+    }>(`/api/v1/import-extractions/change-sets/${extraction.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(protectedUndo.status, 200);
+    assert.equal(protectedUndo.body.status, "stale");
+    assert.match(protectedUndo.body.errorMessage ?? "", /人工修改/);
+    const charactersAfterUndo = await request<Array<{ id: string }>>(
+      `/api/v1/characters?projectId=${project.body.id}`,
+    );
+    assert.ok(
+      charactersAfterUndo.body.some(
+        (item) => item.id === extractedCharacter.id,
+      ),
+      "撤销必须保护采用后的人工作品",
+    );
     const visualAsset = await request<{
       id: string;
       payload: Record<string, unknown>;

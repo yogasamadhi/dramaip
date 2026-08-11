@@ -54,6 +54,7 @@ import type {
   Project,
   SourceImportPreview,
   SourceImportStrategy,
+  ImportExtractionChangeSet,
   EpisodeWorkflowKind,
   FeedbackKind,
   FeedbackPreview,
@@ -1019,6 +1020,7 @@ function ProjectHome() {
 
 function ProjectWorkspace() {
   const client = useStudio();
+  const queryClient = useQueryClient();
   const { projectId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -1217,8 +1219,14 @@ function ProjectWorkspace() {
         initialOpen={
           new URLSearchParams(location.search).get("intake") === "source"
         }
-        onImported={load}
+        onImported={() => {
+          load();
+          void queryClient.invalidateQueries({
+            queryKey: ["import-extractions", project.id],
+          });
+        }}
       />
+      <ImportExtractionReviewPanel projectId={project.id} onChanged={load} />
       <ContentVersionPanel projectId={project.id} onRestored={load} />
       <ProjectActivityPanel projectId={project.id} />
       <div className="grid min-h-[650px] grid-cols-[220px_1fr] overflow-hidden rounded-2xl border border-line bg-surface">
@@ -1942,6 +1950,399 @@ function SourceImportPanel(props: {
           )}
         </div>
       )}
+    </section>
+  );
+}
+
+const IMPORT_EXTRACTION_STATUS_LABELS: Record<string, string> = {
+  draft: "待审查",
+  applied: "已部分/全部采用",
+  stale: "来源已更新",
+  discarded: "已撤销",
+  failed: "整理失败",
+  rejected: "未采用",
+  adopted: "已采用",
+  conflict: "需人工处理",
+};
+const IMPORT_EXTRACTION_TYPE_LABELS: Record<string, string> = {
+  character: "人物",
+  scene: "场景",
+  prop: "道具",
+  "chapter-summary": "章节摘要",
+  adaptation: "改编建议",
+};
+
+function ImportExtractionReviewPanel(props: {
+  projectId: string;
+  onChanged(): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: changeSets = [] } = useQuery({
+    queryKey: ["import-extractions", props.projectId],
+    queryFn: () => client.importExtractions.list(props.projectId),
+  });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string>();
+  const [draft, setDraft] = useState({ title: "", summary: "" });
+  const [notice, setNotice] = useState<string>();
+  const [workingId, setWorkingId] = useState<string>();
+  useEffect(() => {
+    const draftIds = changeSets.flatMap((set) =>
+      set.candidates
+        .filter((candidate) => candidate.status === "draft")
+        .map((candidate) => candidate.id),
+    );
+    setSelectedIds((current) =>
+      draftIds.some((id) => current.has(id)) ? current : new Set(draftIds),
+    );
+  }, [changeSets]);
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["import-extractions", props.projectId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "characters", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "scenes", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "assets", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "adaptations", props.projectId],
+      }),
+    ]);
+    props.onChanged();
+  };
+  const toggle = (candidateId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(candidateId)) next.delete(candidateId);
+      else next.add(candidateId);
+      return next;
+    });
+  };
+  const startEdit = (
+    candidate: ImportExtractionChangeSet["candidates"][number],
+  ) => {
+    setEditingId(candidate.id);
+    setDraft({ title: candidate.title, summary: candidate.summary });
+  };
+  const saveEdit = async (changeSetId: string, candidateId: string) => {
+    setWorkingId(candidateId);
+    setNotice(undefined);
+    try {
+      await client.importExtractions.updateCandidate(
+        changeSetId,
+        candidateId,
+        draft,
+      );
+      setEditingId(undefined);
+      setNotice("候选已更新；采用前仍可继续调整。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const setCandidateStatus = async (
+    changeSetId: string,
+    candidateId: string,
+    status: "draft" | "rejected",
+  ) => {
+    setWorkingId(candidateId);
+    try {
+      await client.importExtractions.updateCandidate(changeSetId, candidateId, {
+        status,
+      });
+      setNotice(
+        status === "rejected"
+          ? "候选已保留为未采用，不会写入项目。"
+          : "候选已重新加入待审查列表。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const adopt = async (changeSet: ImportExtractionChangeSet) => {
+    const ids = changeSet.candidates
+      .filter(
+        (candidate) =>
+          candidate.status === "draft" && selectedIds.has(candidate.id),
+      )
+      .map((candidate) => candidate.id);
+    if (!ids.length) {
+      setNotice("请至少选择一条待审查候选。未选择的候选不会被采用。");
+      return;
+    }
+    if (
+      !window.confirm(
+        `将采用 ${ids.length} 条已选候选。系统会在一个事务中写入；如检测到人工内容冲突，不会部分采用。确定继续吗？`,
+      )
+    )
+      return;
+    setWorkingId(changeSet.id);
+    try {
+      await client.importExtractions.adopt(changeSet.id, { candidateIds: ids });
+      setNotice("已采用所选候选，并保留可撤销记录。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const undo = async (changeSet: ImportExtractionChangeSet) => {
+    if (
+      !window.confirm(
+        "撤销只会回退本次采用且未被人工编辑的内容；人工后续修改会被保留。确定继续吗？",
+      )
+    )
+      return;
+    setWorkingId(changeSet.id);
+    try {
+      const result = await client.importExtractions.undo(changeSet.id);
+      setNotice(
+        result.status === "stale"
+          ? "已撤销未修改的项目；人工改动已保护并标记为待处理。"
+          : "已撤销本变更集采用的内容。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  if (!changeSets.length) return null;
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">导入候选审阅</p>
+          <h2 className="mt-1 text-xl font-semibold">
+            先查看差异，再采用到项目资料
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            每个候选都保留原稿章节、文本范围与置信度。采用前不会改写权威资料；可逐项编辑、拒绝或选择性采用。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
+          全部候选预览
+        </span>
+      </div>
+      {notice && (
+        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      <div className="mt-4 space-y-4">
+        {changeSets.map((changeSet) => {
+          const draftCount = changeSet.candidates.filter(
+            (candidate) => candidate.status === "draft",
+          ).length;
+          return (
+            <article
+              key={changeSet.id}
+              className="rounded-xl border border-line p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{changeSet.sourceTitle}</p>
+                  <p className="mt-1 text-xs text-muted">{changeSet.summary}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {IMPORT_EXTRACTION_STATUS_LABELS[changeSet.status] ??
+                      changeSet.status}{" "}
+                    · {draftCount} 条可选
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {draftCount > 0 &&
+                    ["draft", "applied"].includes(changeSet.status) && (
+                      <button
+                        className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                        disabled={workingId === changeSet.id}
+                        onClick={() => void adopt(changeSet)}
+                      >
+                        采用已选项目
+                      </button>
+                    )}
+                  {["applied", "stale"].includes(changeSet.status) && (
+                    <button
+                      className="rounded-md border border-line px-3 py-1.5 text-xs text-brand disabled:opacity-50"
+                      disabled={workingId === changeSet.id}
+                      onClick={() => void undo(changeSet)}
+                    >
+                      撤销采用
+                    </button>
+                  )}
+                </div>
+              </div>
+              {changeSet.errorMessage && (
+                <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                  {changeSet.errorMessage}
+                </p>
+              )}
+              <div className="mt-3 space-y-2">
+                {changeSet.candidates.map((candidate) => {
+                  const editing = editingId === candidate.id;
+                  const selectable = candidate.status === "draft";
+                  return (
+                    <div
+                      key={candidate.id}
+                      className="rounded-lg border border-line bg-canvas p-3"
+                    >
+                      <div className="flex flex-wrap items-start gap-3">
+                        {selectable && (
+                          <input
+                            className="mt-1"
+                            aria-label={`选择候选 ${candidate.title}`}
+                            type="checkbox"
+                            checked={selectedIds.has(candidate.id)}
+                            onChange={() => toggle(candidate.id)}
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-brand">
+                              {IMPORT_EXTRACTION_TYPE_LABELS[candidate.type]}
+                            </span>
+                            <span className="text-xs text-muted">
+                              {IMPORT_EXTRACTION_STATUS_LABELS[
+                                candidate.status
+                              ] ?? candidate.status}{" "}
+                              · 置信度 {Math.round(candidate.confidence * 100)}%
+                            </span>
+                          </div>
+                          {editing ? (
+                            <div className="mt-2 space-y-2">
+                              <input
+                                className="w-full rounded-md border border-line bg-white px-2 py-1 text-sm"
+                                aria-label="候选标题"
+                                value={draft.title}
+                                onChange={(event) =>
+                                  setDraft((value) => ({
+                                    ...value,
+                                    title: event.target.value,
+                                  }))
+                                }
+                              />
+                              <textarea
+                                className="min-h-20 w-full rounded-md border border-line bg-white p-2 text-sm"
+                                aria-label="候选说明"
+                                value={draft.summary}
+                                onChange={(event) =>
+                                  setDraft((value) => ({
+                                    ...value,
+                                    summary: event.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="mt-2 font-medium">
+                                {candidate.title}
+                              </p>
+                              <p className="mt-1 text-sm text-muted">
+                                {candidate.summary}
+                              </p>
+                            </>
+                          )}
+                          {candidate.sourceRefs.map((ref) => (
+                            <blockquote
+                              key={`${ref.sourceKey}-${ref.start}`}
+                              className="mt-2 border-l-2 border-brand/30 pl-2 text-xs text-muted"
+                            >
+                              《{ref.chapterTitle}》 {ref.start}–{ref.end}：
+                              {ref.excerpt || "（原文为空）"}
+                            </blockquote>
+                          ))}
+                          {candidate.conflictNote && (
+                            <p className="mt-2 text-xs text-amber-800">
+                              {candidate.conflictNote}
+                            </p>
+                          )}
+                        </div>
+                        {candidate.status !== "adopted" && (
+                          <div className="flex gap-2">
+                            {editing ? (
+                              <>
+                                <button
+                                  className="rounded-md bg-brand px-2 py-1 text-xs text-white disabled:opacity-50"
+                                  disabled={workingId === candidate.id}
+                                  onClick={() =>
+                                    void saveEdit(changeSet.id, candidate.id)
+                                  }
+                                >
+                                  保存
+                                </button>
+                                <button
+                                  className="rounded-md border border-line px-2 py-1 text-xs text-muted"
+                                  onClick={() => setEditingId(undefined)}
+                                >
+                                  取消
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                                onClick={() => startEdit(candidate)}
+                              >
+                                编辑
+                              </button>
+                            )}
+                            {candidate.status === "draft" && (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                                disabled={workingId === candidate.id}
+                                onClick={() =>
+                                  void setCandidateStatus(
+                                    changeSet.id,
+                                    candidate.id,
+                                    "rejected",
+                                  )
+                                }
+                              >
+                                不采用
+                              </button>
+                            )}
+                            {(candidate.status === "rejected" ||
+                              candidate.status === "conflict") && (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                                disabled={workingId === candidate.id}
+                                onClick={() =>
+                                  void setCandidateStatus(
+                                    changeSet.id,
+                                    candidate.id,
+                                    "draft",
+                                  )
+                                }
+                              >
+                                重新审查
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

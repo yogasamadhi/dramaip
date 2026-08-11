@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "73cbd708f012ad85d8e8f1c085812458f8463b8551e0515421b7d5036e68f11d";
+  "f1db7553156f035147115c5fc4dbcbf55b38e932979b87ac55b2332b9c39373d";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -46,6 +46,9 @@ import type {
   SourceImportCommitResult,
   SourceImportPreviewInput,
   SourceImportPreviewResponse,
+  ImportExtractionAdoptInput,
+  ImportExtractionCandidatePatch,
+  ImportExtractionChangeSet,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackBatch,
@@ -257,6 +260,19 @@ export interface StudioClient {
         "queued" | "paused" | "skipped" | "discarded"
       >,
     ): Promise<StoryBibleChangeSet>;
+  };
+  importExtractions: {
+    list(projectId: string): Promise<ImportExtractionChangeSet[]>;
+    updateCandidate(
+      id: string,
+      candidateId: string,
+      input: ImportExtractionCandidatePatch,
+    ): Promise<ImportExtractionChangeSet>;
+    adopt(
+      id: string,
+      input?: ImportExtractionAdoptInput,
+    ): Promise<ImportExtractionChangeSet>;
+    undo(id: string): Promise<ImportExtractionChangeSet>;
   };
   projectPackages: {
     preview(input: ProjectPackagePreviewInput): Promise<ProjectPackagePreview>;
@@ -833,6 +849,33 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
             method: "PATCH",
             body: JSON.stringify({ status }),
           },
+        ),
+    },
+    importExtractions: {
+      list: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/import-extractions/change-sets`,
+        ),
+      updateCandidate: (id, candidateId, input) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(input),
+          },
+        ),
+      adopt: (id, input = {}) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/adopt`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      undo: (id) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
+          { method: "POST" },
         ),
     },
     projectPackages: {

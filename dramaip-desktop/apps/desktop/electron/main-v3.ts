@@ -666,15 +666,20 @@ function registerNativeIpc(): void {
       event,
       options: { multiple?: boolean; extensions?: string[] } = {},
     ) => {
-      const result = await dialog.showOpenDialog({
-        properties: [
-          "openFile",
-          ...(options.multiple ? ["multiSelections" as const] : []),
-        ],
-        filters: options.extensions?.length
-          ? [{ name: "Files", extensions: options.extensions }]
-          : undefined,
-      });
+      const e2eSourceImport =
+        isolatedTestUserData && process.env.DRAMAIP_E2E_SOURCE_IMPORT_FILE;
+      const result =
+        e2eSourceImport && existsSync(e2eSourceImport)
+          ? { canceled: false, filePaths: [e2eSourceImport] }
+          : await dialog.showOpenDialog({
+              properties: [
+                "openFile",
+                ...(options.multiple ? ["multiSelections" as const] : []),
+              ],
+              filters: options.extensions?.length
+                ? [{ name: "Files", extensions: options.extensions }]
+                : undefined,
+            });
       return result.canceled
         ? null
         : result.filePaths.map((path) => {

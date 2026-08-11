@@ -39,6 +39,8 @@ import type {
   SourceImportPreview,
   SourceImportScene,
   SourceImportStrategy,
+  ImportExtractionCandidate,
+  ImportExtractionChangeSet,
   EpisodeWorkflowKind,
   AudioTrackKind,
   AudioTrackInput,
@@ -661,6 +663,43 @@ async function route(
   const sourceImportId = match(path, /^\/api\/v1\/source-imports\/([^/]+)$/);
   if (sourceImportId && method === "DELETE")
     return discardSourceImport(res, sourceImportId, requestId);
+  const importExtractionList = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/import-extractions\/change-sets$/,
+  );
+  if (importExtractionList && method === "GET")
+    return listImportExtractionChangeSets(res, importExtractionList, requestId);
+  const importExtractionCandidate =
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/candidates\/([^/]+)$/.exec(
+      path,
+    );
+  if (importExtractionCandidate && method === "PATCH")
+    return updateImportExtractionCandidate(
+      req,
+      res,
+      [
+        decodeURIComponent(importExtractionCandidate[1]),
+        decodeURIComponent(importExtractionCandidate[2]),
+      ],
+      requestId,
+    );
+  const importExtractionAdopt = match(
+    path,
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/adopt$/,
+  );
+  if (importExtractionAdopt && method === "POST")
+    return adoptImportExtractionChangeSet(
+      req,
+      res,
+      importExtractionAdopt,
+      requestId,
+    );
+  const importExtractionUndo = match(
+    path,
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/undo$/,
+  );
+  if (importExtractionUndo && method === "POST")
+    return undoImportExtractionChangeSet(res, importExtractionUndo, requestId);
   if (method === "POST" && path === "/api/v1/workflows/episodes/run")
     return runEpisodeWorkflow(req, res, requestId);
   if (method === "POST" && path === "/api/v1/image-generation/runs")
@@ -1476,6 +1515,10 @@ function exportProject(
       "SELECT * FROM domain_entities WHERE project_id = ? ORDER BY domain, updated_at DESC",
       [projectId],
     ).map(domainEntity),
+    importExtractions: rows(
+      "SELECT * FROM import_extraction_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(importExtractionChangeSet),
   };
   const safeTitle =
     String(source.title)
@@ -4854,6 +4897,11 @@ async function commitSourceImport(
         备注: "该声明由用户导入时确认；仍应在交付前完成版权核验。",
       },
     );
+    result.extractionChangeSet = createImportExtractionChangeSet(
+      projectId,
+      id,
+      preview,
+    );
     db!.prepare("DELETE FROM source_imports WHERE id = ?").run(id);
     db!.exec("COMMIT");
   } catch (error) {
@@ -4893,6 +4941,7 @@ type ProjectPackageSnapshot = {
   project: Record<string, unknown>;
   chapters: Array<Record<string, unknown>>;
   resources: Array<Record<string, unknown>>;
+  importExtractions: Array<Record<string, unknown>>;
   warnings: string[];
 };
 
@@ -4949,6 +4998,22 @@ function parseProjectPackage(
     warnings.push(
       "项目包不会复制本地媒体文件；相关资料会保留，但需重新附加源文件。",
     );
+  const importExtractions = Array.isArray(root.importExtractions)
+    ? root.importExtractions
+        .map((item) => domainPayload(item))
+        .filter(
+          (item) =>
+            packageString(item.sourceFingerprint) &&
+            packageString(item.sourceTitle) &&
+            Array.isArray(item.candidates),
+        )
+        .slice(0, 2_000)
+    : [];
+  if (
+    Array.isArray(root.importExtractions) &&
+    importExtractions.length !== root.importExtractions.length
+  )
+    warnings.push("部分导入候选变更集格式无效，未随项目包导入。");
   return {
     project: {
       title,
@@ -4976,6 +5041,7 @@ function parseProjectPackage(
     },
     chapters,
     resources,
+    importExtractions,
     warnings,
   };
 }
@@ -5114,6 +5180,7 @@ async function commitProjectPackage(
   const now = timestamp();
   const projectId = randomUUID();
   const resourceIds = new Map<string, string>();
+  const chapterIds = new Map<string, string>();
   const pendingParents: Array<{ id: string; parentId?: string }> = [];
   try {
     db!.exec("BEGIN IMMEDIATE");
@@ -5153,6 +5220,8 @@ async function commitProjectPackage(
     );
     snapshot.chapters.forEach((source, index) => {
       const nextId = randomUUID();
+      if (!chapterIds.has(packageString(source.title)))
+        chapterIds.set(packageString(source.title), nextId);
       insertChapter.run(
         nextId,
         projectId,
@@ -5202,6 +5271,58 @@ async function commitProjectPackage(
       if (resolvedParentId)
         updateParent.run(resolvedParentId, resourceId, projectId);
     });
+    const insertExtraction = db!.prepare(
+      `INSERT INTO import_extraction_change_sets(
+        id, project_id, source_import_id, source_fingerprint, source_title, source_versions_json,
+        status, summary, candidates_json, created_entity_ids_json, adoption_json, error_message,
+        applied_at, undone_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', ?, NULL, NULL, ?, ?)`,
+    );
+    for (const importedExtraction of snapshot.importExtractions) {
+      const candidates = importExtractionCandidates(
+        JSON.stringify({ items: importedExtraction.candidates }),
+      );
+      if (!candidates.length) continue;
+      const versions = new Map<string, ImportExtractionSourceVersion>();
+      for (const candidate of candidates) {
+        for (const ref of candidate.sourceRefs) {
+          if (versions.has(ref.sourceKey)) continue;
+          const chapterId = chapterIds.get(ref.chapterTitle);
+          const importedChapter = chapterId
+            ? one("SELECT version, content FROM chapters WHERE id = ?", [
+                chapterId,
+              ])
+            : undefined;
+          versions.set(ref.sourceKey, {
+            sourceKey: ref.sourceKey,
+            ...(chapterId ? { chapterId } : {}),
+            version: Number(importedChapter?.version ?? ref.sourceVersion),
+            contentHash: storyBibleSourceHash(
+              String(importedChapter?.content ?? ref.excerpt),
+            ),
+          });
+        }
+      }
+      const requestedStatus = packageString(importedExtraction.status);
+      const status = requestedStatus === "draft" ? "draft" : "discarded";
+      insertExtraction.run(
+        randomUUID(),
+        projectId,
+        `project-package:${id}`,
+        packageString(importedExtraction.sourceFingerprint),
+        packageString(importedExtraction.sourceTitle),
+        JSON.stringify({ items: [...versions.values()] }),
+        status,
+        packageString(importedExtraction.summary) ||
+          `从项目包恢复的 ${candidates.length} 条导入候选。`,
+        JSON.stringify({ items: candidates }),
+        status === "draft"
+          ? null
+          : "项目包只恢复未采用候选；历史采用记录不支持跨项目撤销。",
+        now,
+        now,
+      );
+    }
     db!.prepare("DELETE FROM project_package_imports WHERE id = ?").run(id);
     db!.exec("COMMIT");
   } catch (error) {
@@ -5598,6 +5719,993 @@ function domainPayload(value: unknown): Record<string, unknown> {
 
 function stringPayload(payload: Record<string, unknown>, key: string): string {
   return typeof payload[key] === "string" ? payload[key] : "";
+}
+
+type ImportExtractionSourceVersion = {
+  sourceKey: string;
+  chapterId?: string;
+  version: number;
+  contentHash: string;
+};
+type ImportExtractionAdoption =
+  | {
+      kind: "entity";
+      candidateId: string;
+      entityId: string;
+      expectedVersion: number;
+    }
+  | {
+      kind: "chapter-summary";
+      candidateId: string;
+      chapterId: string;
+      previousSummary: string;
+      appliedSummary: string;
+      appliedVersion: number;
+    };
+
+function importExtractionChangeSet(
+  row: Record<string, unknown>,
+): ImportExtractionChangeSet {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    sourceFingerprint: String(row.source_fingerprint),
+    sourceTitle: String(row.source_title),
+    status: String(row.status) as ImportExtractionChangeSet["status"],
+    summary: String(row.summary),
+    candidates: importExtractionCandidates(row.candidates_json),
+    ...(row.applied_at ? { appliedAt: String(row.applied_at) } : {}),
+    ...(row.undone_at ? { undoneAt: String(row.undone_at) } : {}),
+    ...(row.error_message ? { errorMessage: String(row.error_message) } : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function importExtractionCandidates(
+  value: unknown,
+): ImportExtractionCandidate[] {
+  const parsed = domainPayload(value);
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const types = new Set([
+    "character",
+    "scene",
+    "prop",
+    "chapter-summary",
+    "adaptation",
+  ]);
+  const statuses = new Set(["draft", "rejected", "adopted", "conflict"]);
+  return items.flatMap((item): ImportExtractionCandidate[] => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.id !== "string" ||
+      typeof candidate.title !== "string" ||
+      typeof candidate.summary !== "string" ||
+      !types.has(String(candidate.type)) ||
+      !statuses.has(String(candidate.status))
+    )
+      return [];
+    const sourceRefs = Array.isArray(candidate.sourceRefs)
+      ? candidate.sourceRefs.flatMap(
+          (source): ImportExtractionCandidate["sourceRefs"] => {
+            if (!source || typeof source !== "object") return [];
+            const ref = source as Record<string, unknown>;
+            if (
+              typeof ref.sourceKey !== "string" ||
+              typeof ref.chapterTitle !== "string" ||
+              typeof ref.excerpt !== "string" ||
+              !Number.isInteger(ref.start) ||
+              !Number.isInteger(ref.end) ||
+              !Number.isInteger(ref.sourceVersion)
+            )
+              return [];
+            return [
+              {
+                sourceKey: ref.sourceKey,
+                chapterTitle: ref.chapterTitle,
+                excerpt: ref.excerpt,
+                start: Number(ref.start),
+                end: Number(ref.end),
+                sourceVersion: Number(ref.sourceVersion),
+              },
+            ];
+          },
+        )
+      : [];
+    return [
+      {
+        id: candidate.id,
+        type: candidate.type as ImportExtractionCandidate["type"],
+        title: candidate.title,
+        summary: candidate.summary,
+        confidence: Math.max(0, Math.min(1, Number(candidate.confidence) || 0)),
+        sourceRefs,
+        status: candidate.status as ImportExtractionCandidate["status"],
+        ...(typeof candidate.conflictNote === "string"
+          ? { conflictNote: candidate.conflictNote }
+          : {}),
+      },
+    ];
+  });
+}
+
+function importExtractionSourceVersions(
+  projectId: string,
+  preview: SourceImportPreview,
+): ImportExtractionSourceVersion[] {
+  const segments = importExtractionSegments(preview);
+  return segments.map((segment) => {
+    const chapter = preview.chapters.some((item) => item.key === segment.key)
+      ? one(
+          "SELECT id, version, content FROM chapters WHERE project_id = ? AND title = ? ORDER BY updated_at DESC LIMIT 1",
+          [projectId, segment.title],
+        )
+      : undefined;
+    return {
+      sourceKey: segment.key,
+      ...(chapter ? { chapterId: String(chapter.id) } : {}),
+      version: Number(chapter?.version ?? 0),
+      contentHash: storyBibleSourceHash(
+        String(chapter?.content ?? segment.content),
+      ),
+    };
+  });
+}
+
+function importExtractionSegments(preview: SourceImportPreview) {
+  const chapters = preview.chapters.map((chapter) => ({
+    key: chapter.key,
+    title: chapter.title,
+    content: chapter.content,
+  }));
+  if (chapters.length) return chapters;
+  return preview.episodes.map((episode) => ({
+    key: episode.key,
+    title: `第${episode.episodeNumber}集·${episode.title}`,
+    content: episode.content,
+  }));
+}
+
+function importExtractionExcerpt(content: string, start = 0): string {
+  return content
+    .slice(Math.max(0, start), Math.max(0, start) + 180)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function createImportExtractionCandidate(
+  type: ImportExtractionCandidate["type"],
+  title: string,
+  summary: string,
+  segment: { key: string; title: string; content: string },
+  sourceVersions: ImportExtractionSourceVersion[],
+  confidence: number,
+  start = 0,
+): ImportExtractionCandidate {
+  const source = sourceVersions.find((item) => item.sourceKey === segment.key);
+  const excerpt = importExtractionExcerpt(segment.content, start);
+  return {
+    id: randomUUID(),
+    type,
+    title: title.trim().slice(0, 120),
+    summary: summary.trim().slice(0, 600),
+    confidence,
+    sourceRefs: [
+      {
+        sourceKey: segment.key,
+        chapterTitle: segment.title,
+        start,
+        end: start + excerpt.length,
+        excerpt,
+        sourceVersion: source?.version ?? 0,
+      },
+    ],
+    status: "draft",
+  };
+}
+
+function importExtractionCharacterCandidates(
+  segments: Array<{ key: string; title: string; content: string }>,
+  sourceVersions: ImportExtractionSourceVersion[],
+): ImportExtractionCandidate[] {
+  const names = new Map<
+    string,
+    { segment: (typeof segments)[number]; start: number }
+  >();
+  const stopWords = new Set([
+    "雨夜",
+    "门口",
+    "天亮",
+    "电话",
+    "脚步声",
+    "没有",
+    "一个",
+    "已经",
+    "自己",
+  ]);
+  for (const segment of segments) {
+    for (const expression of [
+      /([\p{Script=Han}]{2,4})[：:]/gu,
+      /([\p{Script=Han}]{2,3})(?:在|说|道|问|答|握|走|看|发现|决定|来到|进入|拿起|放下|听见)/gu,
+      /\b([A-Z][a-z]{2,})\b(?=\s+(?:said|asked|walked|looked|found|decided))/g,
+    ]) {
+      for (const match of segment.content.matchAll(expression)) {
+        const name = String(match[1]).trim();
+        if (!stopWords.has(name) && !names.has(name))
+          names.set(name, { segment, start: match.index ?? 0 });
+      }
+    }
+  }
+  const found = [...names.entries()]
+    .slice(0, 8)
+    .map(([name, reference]) =>
+      createImportExtractionCandidate(
+        "character",
+        name,
+        `${name}出现在《${reference.segment.title}》的原稿叙事中；采用后会创建可继续完善的人物资料草案。`,
+        reference.segment,
+        sourceVersions,
+        0.72,
+        reference.start,
+      ),
+    );
+  if (found.length) return found;
+  const first = segments[0];
+  return first
+    ? [
+        createImportExtractionCandidate(
+          "character",
+          `《${first.title}》人物线索待确认`,
+          "原稿未出现可稳定识别的人名；保留此来源线索供人工命名，采用前可编辑。",
+          first,
+          sourceVersions,
+          0.25,
+        ),
+      ]
+    : [];
+}
+
+function importExtractionPropCandidates(
+  segments: Array<{ key: string; title: string; content: string }>,
+  sourceVersions: ImportExtractionSourceVersion[],
+): ImportExtractionCandidate[] {
+  const propNames = [
+    "信封",
+    "钥匙",
+    "玉佩",
+    "戒指",
+    "照片",
+    "手机",
+    "电话",
+    "盒子",
+    "令牌",
+    "药瓶",
+    "书信",
+    "项链",
+    "剑",
+    "刀",
+  ];
+  const found: ImportExtractionCandidate[] = [];
+  const seen = new Set<string>();
+  for (const segment of segments) {
+    for (const prop of propNames) {
+      const start = segment.content.indexOf(prop);
+      if (start >= 0 && !seen.has(prop)) {
+        seen.add(prop);
+        found.push(
+          createImportExtractionCandidate(
+            "prop",
+            prop,
+            `${prop}在《${segment.title}》中被提及；采用后会作为制作素材/道具草案写入，便于补充视觉与权利信息。`,
+            segment,
+            sourceVersions,
+            0.7,
+            start,
+          ),
+        );
+      }
+    }
+  }
+  if (found.length) return found.slice(0, 8);
+  const first = segments[0];
+  return first
+    ? [
+        createImportExtractionCandidate(
+          "prop",
+          `《${first.title}》关键物件待确认`,
+          "未从原稿中识别到稳定的具体道具名称；保留对应原文范围供人工补充，不会虚构道具。",
+          first,
+          sourceVersions,
+          0.2,
+        ),
+      ]
+    : [];
+}
+
+function createImportExtractionChangeSet(
+  projectId: string,
+  sourceImportId: string,
+  preview: SourceImportPreview,
+): ImportExtractionChangeSet {
+  const sourceFingerprint = storyBibleSourceHash(
+    JSON.stringify({
+      title: preview.title,
+      sourceType: preview.sourceType,
+      chapters: preview.chapters.map((chapter) => [
+        chapter.key,
+        chapter.title,
+        chapter.content,
+      ]),
+      episodes: preview.episodes.map((episode) => [
+        episode.key,
+        episode.title,
+        episode.content,
+      ]),
+    }),
+  );
+  const duplicate = one(
+    `SELECT * FROM import_extraction_change_sets
+     WHERE project_id = ? AND source_fingerprint = ? AND status IN ('draft', 'applied', 'stale')`,
+    [projectId, sourceFingerprint],
+  );
+  if (duplicate) return importExtractionChangeSet(duplicate);
+  const segments = importExtractionSegments(preview);
+  const sourceVersions = importExtractionSourceVersions(projectId, preview);
+  const candidates: ImportExtractionCandidate[] = [
+    ...importExtractionCharacterCandidates(segments, sourceVersions),
+    ...segments.map((segment) =>
+      createImportExtractionCandidate(
+        "scene",
+        `${segment.title}·场景草案`,
+        `根据《${segment.title}》的原稿段落整理的场景候选；采用后只创建可编辑的制作场景草案。`,
+        segment,
+        sourceVersions,
+        0.66,
+      ),
+    ),
+    ...importExtractionPropCandidates(segments, sourceVersions),
+    ...segments.map((segment) =>
+      createImportExtractionCandidate(
+        "chapter-summary",
+        segment.title,
+        importExtractionExcerpt(segment.content) ||
+          "原稿段落为空，待人工补充摘要。",
+        segment,
+        sourceVersions,
+        0.8,
+      ),
+    ),
+  ];
+  if (segments[0]) {
+    candidates.push(
+      createImportExtractionCandidate(
+        "adaptation",
+        `《${preview.title}》短剧改编建议`,
+        `基于 ${segments.length} 个${preview.contentKind === "script" ? "分集" : "原稿章节"}、${preview.charCount.toLocaleString("zh-CN")} 字符：先以每章一个剧情单元建立节奏，再由人工确认集数、冲突升级与悬念位置。`,
+        segments[0],
+        sourceVersions,
+        0.62,
+      ),
+    );
+  }
+  const now = timestamp();
+  const id = randomUUID();
+  const summary = `已从《${preview.title}》整理 ${candidates.length} 条待审查候选：人物、场景、道具、章节摘要与改编建议均可逐项编辑后采用。`;
+  db!
+    .prepare(
+      `INSERT INTO import_extraction_change_sets(
+        id, project_id, source_import_id, source_fingerprint, source_title, source_versions_json,
+        status, summary, candidates_json, created_entity_ids_json, adoption_json, error_message,
+        applied_at, undone_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, '[]', '[]', NULL, NULL, NULL, ?, ?)`,
+    )
+    .run(
+      id,
+      projectId,
+      sourceImportId,
+      sourceFingerprint,
+      preview.title,
+      JSON.stringify({ items: sourceVersions }),
+      summary,
+      JSON.stringify({ items: candidates }),
+      now,
+      now,
+    );
+  const taskId = randomUUID();
+  db!
+    .prepare("INSERT INTO tasks VALUES (?, ?, ?, ?, 1, ?, NULL, ?, NULL, ?, ?)")
+    .run(
+      taskId,
+      "source_import.extract",
+      "succeeded",
+      `导入候选已整理：${preview.title}`,
+      projectId,
+      JSON.stringify({ changeSetId: id, candidateCount: candidates.length }),
+      now,
+      now,
+    );
+  return importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+}
+
+function importExtractionSourceVersionsFromRow(
+  row: Record<string, unknown>,
+): ImportExtractionSourceVersion[] {
+  const payload = domainPayload(row.source_versions_json);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): ImportExtractionSourceVersion[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      typeof item.sourceKey !== "string" ||
+      typeof item.contentHash !== "string" ||
+      !Number.isInteger(item.version)
+    )
+      return [];
+    return [
+      {
+        sourceKey: item.sourceKey,
+        ...(typeof item.chapterId === "string"
+          ? { chapterId: item.chapterId }
+          : {}),
+        version: Number(item.version),
+        contentHash: item.contentHash,
+      },
+    ];
+  });
+}
+
+function importExtractionStaleReason(
+  row: Record<string, unknown>,
+): string | undefined {
+  for (const source of importExtractionSourceVersionsFromRow(row)) {
+    if (!source.chapterId) continue;
+    const chapter = one("SELECT version, content FROM chapters WHERE id = ?", [
+      source.chapterId,
+    ]);
+    if (!chapter) return "导入来源章节已被删除，需要重新核对候选。";
+    if (
+      Number(chapter.version) !== source.version ||
+      storyBibleSourceHash(String(chapter.content ?? "")) !== source.contentHash
+    )
+      return "导入来源章节已更新，需要重新核对候选。";
+  }
+  return undefined;
+}
+
+function markImportExtractionStaleForChapter(
+  projectId: string,
+  chapterId: string,
+): void {
+  const now = timestamp();
+  for (const row of rows(
+    "SELECT * FROM import_extraction_change_sets WHERE project_id = ? AND status IN ('draft', 'applied')",
+    [projectId],
+  )) {
+    if (
+      !importExtractionSourceVersionsFromRow(row).some(
+        (source) => source.chapterId === chapterId,
+      )
+    )
+      continue;
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET status = 'stale', error_message = ?, updated_at = ? WHERE id = ?",
+      )
+      .run("导入来源章节已更新，需要重新核对候选。", now, row.id);
+  }
+}
+
+function listImportExtractionChangeSets(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (!one("SELECT id FROM projects WHERE id = ?", [projectId]))
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(
+    res,
+    200,
+    rows(
+      "SELECT * FROM import_extraction_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(importExtractionChangeSet),
+  );
+}
+
+async function updateImportExtractionCandidate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ids: [string, string],
+  requestId: string,
+): Promise<void> {
+  const [id, candidateId] = ids;
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["draft", "applied"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Only active change sets can be edited",
+      requestId,
+    );
+  const input = await body(req);
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const candidate = candidates.find((item) => item.id === candidateId);
+  if (!candidate)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction candidate not found",
+      requestId,
+    );
+  if (candidate.status === "adopted")
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Adopted candidates cannot be edited",
+      requestId,
+    );
+  if (typeof input.title === "string") {
+    candidate.title = input.title.trim().slice(0, 120);
+    if (!candidate.title)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "title cannot be empty",
+        requestId,
+      );
+  }
+  if (typeof input.summary === "string") {
+    candidate.summary = input.summary.trim().slice(0, 600);
+    if (!candidate.summary)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "summary cannot be empty",
+        requestId,
+      );
+  }
+  if (input.status === "draft" || input.status === "rejected") {
+    candidate.status = input.status;
+    if (input.status === "draft") delete candidate.conflictNote;
+  }
+  const now = timestamp();
+  db!
+    .prepare(
+      "UPDATE import_extraction_change_sets SET candidates_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+    )
+    .run(JSON.stringify({ items: candidates }), now, id);
+  json(
+    res,
+    200,
+    importExtractionChangeSet(
+      one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+    ),
+  );
+}
+
+function importExtractionConflict(
+  changeSetId: string,
+  projectId: string,
+  candidate: ImportExtractionCandidate,
+  sourceVersions: ImportExtractionSourceVersion[],
+): string | undefined {
+  if (candidate.type === "chapter-summary") {
+    const source = sourceVersions.find(
+      (item) => item.sourceKey === candidate.sourceRefs[0]?.sourceKey,
+    );
+    if (!source?.chapterId)
+      return "该摘要没有可写入的项目章节；请保留为人工草案。";
+    const chapter = one("SELECT version FROM chapters WHERE id = ?", [
+      source.chapterId,
+    ]);
+    return !chapter || Number(chapter.version) !== source.version
+      ? "来源章节已被人工修改，不会覆盖其摘要。"
+      : undefined;
+  }
+  const domain =
+    candidate.type === "character"
+      ? "characters"
+      : candidate.type === "scene"
+        ? "scenes"
+        : candidate.type === "prop"
+          ? "assets"
+          : "adaptations";
+  const current = one(
+    "SELECT id FROM domain_entities WHERE project_id = ? AND domain = ? AND title = ? AND payload_json NOT LIKE ? LIMIT 1",
+    [projectId, domain, candidate.title, `%${changeSetId}%`],
+  );
+  return current
+    ? `项目已有同名人工${candidate.type === "character" ? "人物" : candidate.type === "prop" ? "素材/道具" : "资料"}，不会覆盖。`
+    : undefined;
+}
+
+async function adoptImportExtractionChangeSet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["draft", "applied"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "This change set is no longer adoptable",
+      requestId,
+    );
+  const staleReason = importExtractionStaleReason(current);
+  if (staleReason) {
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET status = 'stale', error_message = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(staleReason, timestamp(), id);
+    return respondError(res, 409, "CONFLICT", staleReason, requestId);
+  }
+  const input = await body(req);
+  const requested = Array.isArray(input.candidateIds)
+    ? input.candidateIds.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : undefined;
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const selectable = candidates.filter(
+    (candidate) => candidate.status === "draft",
+  );
+  const selected = requested
+    ? selectable.filter((candidate) => requested.includes(candidate.id))
+    : selectable;
+  if (!selected.length || (requested && selected.length !== requested.length))
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select one or more draft candidates",
+      requestId,
+    );
+  const sourceVersions = importExtractionSourceVersionsFromRow(current);
+  const conflicts = selected
+    .map((candidate) => ({
+      candidate,
+      note: importExtractionConflict(
+        id,
+        String(current.project_id),
+        candidate,
+        sourceVersions,
+      ),
+    }))
+    .filter(
+      (item): item is { candidate: ImportExtractionCandidate; note: string } =>
+        Boolean(item.note),
+    );
+  if (conflicts.length) {
+    for (const { candidate, note } of conflicts) {
+      candidate.status = "conflict";
+      candidate.conflictNote = note;
+    }
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET candidates_json = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify({ items: candidates }), timestamp(), id);
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "One or more selected candidates conflict with existing human content",
+      requestId,
+    );
+  }
+  const createdIds = jsonStringArray(current.created_entity_ids_json);
+  const adoptions = importExtractionAdoptions(current.adoption_json);
+  const now = timestamp();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    for (const candidate of selected) {
+      if (candidate.type === "chapter-summary") {
+        const source = sourceVersions.find(
+          (item) => item.sourceKey === candidate.sourceRefs[0]?.sourceKey,
+        );
+        const chapter = source?.chapterId
+          ? one("SELECT * FROM chapters WHERE id = ?", [source.chapterId])
+          : undefined;
+        if (!source?.chapterId || !chapter)
+          throw new Error("来源章节不存在，无法写入摘要");
+        const result = db!
+          .prepare(
+            "UPDATE chapters SET summary = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+          )
+          .run(candidate.summary, now, source.chapterId, source.version);
+        if (Number(result.changes) !== 1)
+          throw new Error("来源章节已更新，无法安全写入摘要");
+        adoptions.push({
+          kind: "chapter-summary",
+          candidateId: candidate.id,
+          chapterId: source.chapterId,
+          previousSummary: String(chapter.summary ?? ""),
+          appliedSummary: candidate.summary,
+          appliedVersion: source.version + 1,
+        });
+      } else {
+        const domain =
+          candidate.type === "character"
+            ? "characters"
+            : candidate.type === "scene"
+              ? "scenes"
+              : candidate.type === "prop"
+                ? "assets"
+                : "adaptations";
+        const entityId = insertDomainEntity(
+          domain,
+          String(current.project_id),
+          undefined,
+          candidate.title,
+          {
+            来源变更集: id,
+            候选类型: candidate.type,
+            候选摘要: candidate.summary,
+            来源片段: candidate.sourceRefs.map((ref) => ({
+              章节: ref.chapterTitle,
+              范围: `${ref.start}-${ref.end}`,
+              摘录: ref.excerpt,
+            })),
+            置信度: candidate.confidence,
+            ...(candidate.type === "prop" ? { 素材类型: "原稿道具草案" } : {}),
+            ...(candidate.type === "adaptation"
+              ? { 改编方向: candidate.summary }
+              : {}),
+          },
+        );
+        createdIds.push(entityId);
+        adoptions.push({
+          kind: "entity",
+          candidateId: candidate.id,
+          entityId,
+          expectedVersion: 0,
+        });
+      }
+      candidate.status = "adopted";
+      delete candidate.conflictNote;
+    }
+    db!
+      .prepare(
+        `UPDATE import_extraction_change_sets SET
+          status = 'applied', candidates_json = ?, created_entity_ids_json = ?, adoption_json = ?,
+          error_message = NULL, applied_at = COALESCE(applied_at, ?), updated_at = ? WHERE id = ?`,
+      )
+      .run(
+        JSON.stringify({ items: candidates }),
+        JSON.stringify(createdIds),
+        JSON.stringify({ items: adoptions }),
+        now,
+        now,
+        id,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      error instanceof Error
+        ? error.message
+        : "Unable to adopt import candidates",
+      requestId,
+    );
+  }
+  const updated = importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+  emit("import_extraction.adopted", updated);
+  json(res, 200, updated);
+}
+
+function importExtractionAdoptions(value: unknown): ImportExtractionAdoption[] {
+  const payload = domainPayload(value);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): ImportExtractionAdoption[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      item.kind === "entity" &&
+      typeof item.candidateId === "string" &&
+      typeof item.entityId === "string" &&
+      Number.isInteger(item.expectedVersion)
+    )
+      return [
+        {
+          kind: "entity",
+          candidateId: item.candidateId,
+          entityId: item.entityId,
+          expectedVersion: Number(item.expectedVersion),
+        },
+      ];
+    if (
+      item.kind === "chapter-summary" &&
+      typeof item.candidateId === "string" &&
+      typeof item.chapterId === "string" &&
+      typeof item.previousSummary === "string" &&
+      typeof item.appliedSummary === "string" &&
+      Number.isInteger(item.appliedVersion)
+    )
+      return [
+        {
+          kind: "chapter-summary",
+          candidateId: item.candidateId,
+          chapterId: item.chapterId,
+          previousSummary: item.previousSummary,
+          appliedSummary: item.appliedSummary,
+          appliedVersion: Number(item.appliedVersion),
+        },
+      ];
+    return [];
+  });
+}
+
+function undoImportExtractionChangeSet(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["applied", "stale"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Only adopted change sets can be undone",
+      requestId,
+    );
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const adoptions = importExtractionAdoptions(current.adoption_json);
+  const remaining: ImportExtractionAdoption[] = [];
+  const protectedCandidateIds = new Set<string>();
+  const now = timestamp();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    for (const adoption of adoptions) {
+      if (adoption.kind === "entity") {
+        const entity = one("SELECT * FROM domain_entities WHERE id = ?", [
+          adoption.entityId,
+        ]);
+        const payload = entity ? domainPayload(entity.payload_json) : {};
+        if (
+          !entity ||
+          Number(entity.version) !== adoption.expectedVersion ||
+          payload["来源变更集"] !== id
+        ) {
+          remaining.push(adoption);
+          protectedCandidateIds.add(adoption.candidateId);
+          continue;
+        }
+        db!
+          .prepare("DELETE FROM domain_entities WHERE id = ?")
+          .run(adoption.entityId);
+      } else {
+        const chapter = one("SELECT * FROM chapters WHERE id = ?", [
+          adoption.chapterId,
+        ]);
+        if (
+          !chapter ||
+          Number(chapter.version) !== adoption.appliedVersion ||
+          String(chapter.summary ?? "") !== adoption.appliedSummary
+        ) {
+          remaining.push(adoption);
+          protectedCandidateIds.add(adoption.candidateId);
+          continue;
+        }
+        db!
+          .prepare(
+            "UPDATE chapters SET summary = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+          )
+          .run(
+            adoption.previousSummary,
+            now,
+            adoption.chapterId,
+            adoption.appliedVersion,
+          );
+      }
+    }
+    for (const candidate of candidates) {
+      if (protectedCandidateIds.has(candidate.id)) {
+        candidate.status = "conflict";
+        candidate.conflictNote =
+          "该采用结果已被人工修改；撤销不会覆盖人工内容。";
+      }
+    }
+    const completed = remaining.length === 0;
+    db!
+      .prepare(
+        `UPDATE import_extraction_change_sets SET
+          status = ?, candidates_json = ?, created_entity_ids_json = ?, adoption_json = ?,
+          error_message = ?, undone_at = ?, updated_at = ? WHERE id = ?`,
+      )
+      .run(
+        completed ? "discarded" : "stale",
+        JSON.stringify({ items: candidates }),
+        JSON.stringify(
+          remaining
+            .filter(
+              (
+                item,
+              ): item is Extract<
+                ImportExtractionAdoption,
+                { kind: "entity" }
+              > => item.kind === "entity",
+            )
+            .map((item) => item.entityId),
+        ),
+        JSON.stringify({ items: remaining }),
+        completed ? null : "部分采用结果已被人工修改，已保留且可继续处理。",
+        completed ? now : null,
+        now,
+        id,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    return respondError(
+      res,
+      500,
+      "INTERNAL_ERROR",
+      error instanceof Error
+        ? error.message
+        : "Unable to undo import candidates",
+      requestId,
+    );
+  }
+  const updated = importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+  emit("import_extraction.undone", updated);
+  json(res, 200, updated);
 }
 
 function safeFileName(value: string): string {
@@ -12367,6 +13475,7 @@ async function updateChapter(
       current.version,
     );
   const updated = one("SELECT * FROM chapters WHERE id = ?", [id])!;
+  markImportExtractionStaleForChapter(String(current.project_id), id);
   if (content !== String(current.content)) {
     markStoryBibleStaleForChapter(String(current.project_id), id);
     maybeAutoSuggestStoryBibleChangeSet(updated);

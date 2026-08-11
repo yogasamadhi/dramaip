@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "sourceFixture": "lm6-00/source-import.md",
+  "candidateTypes": [
+    "character",
+    "scene",
+    "prop",
+    "chapter-summary",
+    "adaptation"
+  ],
+  "safetyGuarantees": [
+    "source-range-and-confidence",
+    "selective-atomic-adoption",
+    "stale-on-source-change",
+    "duplicate-safe",
+    "manual-edit-protected-undo",
+    "provider-independent-import"
+  ]
+}
