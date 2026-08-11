@@ -38,6 +38,11 @@ import {
   type StoryboardShot,
 } from "./storyboard-board";
 import {
+  buildEpisodePacingBoard,
+  type PacingKind,
+  type PacingPoint,
+} from "./episode-pacing";
+import {
   contextAssistantPage,
   contextAssistantPreflight,
   contextAssistantProjectId,
@@ -5882,6 +5887,17 @@ function AdaptationWorkspace() {
       ) : (
         <>
           {adaptationId && <EpisodeAnalysisPanel adaptationId={adaptationId} />}
+          {episodeId && (
+            <EpisodePacingPanel
+              projectId={projectId}
+              episodeId={episodeId}
+              episode={episodes.find((item) => item.id === episodeId)}
+              onOpenScript={(nextScriptId) => {
+                setScriptId(nextScriptId);
+                setStage("scripts");
+              }}
+            />
+          )}
           <ProductionOrderPanel
             stage={stage}
             parentId={parentId}
@@ -5910,6 +5926,242 @@ function AdaptationWorkspace() {
       )}
     </section>
   );
+}
+
+function EpisodePacingPanel(props: {
+  projectId: string;
+  episodeId: string;
+  episode?: DomainEntity;
+  onOpenScript: (scriptId: string) => void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [notice, setNotice] = useState<string>();
+  const { data: allScripts = [] } = useQuery({
+    queryKey: ["episode-pacing", "scripts", props.projectId],
+    queryFn: () => client.resources.list("scripts", props.projectId),
+  });
+  const { data: allBeats = [] } = useQuery({
+    queryKey: ["episode-pacing", "beats", props.projectId],
+    queryFn: () => client.resources.list("beats", props.projectId),
+  });
+  const { data: allScenes = [] } = useQuery({
+    queryKey: ["episode-pacing", "scenes", props.projectId],
+    queryFn: () => client.resources.list("scenes", props.projectId),
+  });
+  const { data: allShots = [] } = useQuery({
+    queryKey: ["episode-pacing", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const { data: manualMarks = [] } = useQuery({
+    queryKey: ["episode-pacing-marks", props.projectId, props.episodeId],
+    queryFn: () =>
+      client.resources.list(
+        "episode-pacing-marks",
+        props.projectId,
+        props.episodeId,
+      ),
+  });
+  const { data: checkpoints = [] } = useQuery({
+    queryKey: ["content-versions", props.projectId],
+    queryFn: () => client.contentVersions.list(props.projectId),
+  });
+  const scripts = allScripts.filter((item) => item.parentId === props.episodeId);
+  const scriptIds = new Set(scripts.map((item) => item.id));
+  const scenes = allScenes.filter((item) => item.parentId && scriptIds.has(item.parentId));
+  const sceneIds = new Set(scenes.map((item) => item.id));
+  const shots = allShots.filter((item) => item.parentId && sceneIds.has(item.parentId));
+  const beats = allBeats.filter(
+    (item) => item.parentId === props.episodeId || Boolean(item.parentId && scriptIds.has(item.parentId)),
+  );
+  const board = buildEpisodePacingBoard({
+    episodeId: props.episodeId,
+    episode: props.episode,
+    scripts,
+    beats,
+    scenes,
+    shots,
+    manualMarks,
+  });
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["episode-pacing-marks", props.projectId, props.episodeId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["episode-pacing"] }),
+      queryClient.invalidateQueries({ queryKey: ["content-versions", props.projectId] }),
+    ]);
+  };
+  const addManual = async (kind: PacingKind) => {
+    const evidence = window.prompt("记录该节奏点的依据：", "");
+    if (evidence === null) return;
+    const source =
+      board.points.find(
+        (point) =>
+          point.sourceId &&
+          point.scriptId &&
+          point.disposition === "active",
+      ) ??
+      board.points.find(
+        (point) => point.sourceId && point.disposition === "active",
+      );
+    if (!source?.sourceId || source.sourceVersion === undefined) {
+      setNotice("请先保存分集、剧本、场景或镜头，再添加可追溯的人工标记。");
+      return;
+    }
+    try {
+      await client.resources.create("episode-pacing-marks", {
+        projectId: props.projectId,
+        parentId: props.episodeId,
+        title: `人工${pacingKindLabel(kind)}标记`,
+        payload: {
+          类型: kind,
+          位置: source.position,
+          依据: evidence,
+          来源标识: source.sourceId,
+          来源版本: source.sourceVersion,
+          状态: "已确认",
+        },
+      });
+      setNotice("已保存人工节奏标记；它会保留并在来源版本变化时标为过期。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const editManual = async (point: PacingPoint) => {
+    const record = manualMarks.find((item) => item.id === point.id);
+    if (!record) return;
+    const evidence = window.prompt("调整人工标记依据：", point.evidence);
+    if (evidence === null) return;
+    const requestedPosition = window.prompt("调整时间轴位置：", String(point.position));
+    if (requestedPosition === null) return;
+    const position = Number(requestedPosition);
+    if (!Number.isFinite(position) || position < 1) {
+      setNotice("时间轴位置必须是大于等于 1 的数字。");
+      return;
+    }
+    try {
+      await client.resources.update("episode-pacing-marks", record.id, {
+        title: record.title,
+        payload: {
+          ...recordPayload(record.payload),
+          位置: Math.round(position),
+          依据: evidence,
+          状态: "已确认",
+        },
+        version: record.version,
+      });
+      setNotice("人工标记已调整并保留了来源版本。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const rejectManual = async (point: PacingPoint) => {
+    const record = manualMarks.find((item) => item.id === point.id);
+    if (!record || !window.confirm("否决此人工标记吗？记录会保留在轨道中作为审查历史。")) return;
+    try {
+      await client.resources.update("episode-pacing-marks", record.id, {
+        title: record.title,
+        payload: { ...recordPayload(record.payload), 状态: "已否决" },
+        version: record.version,
+      });
+      setNotice("已否决人工标记；它不会被当作有效诊断点。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const createAiRecommendation = async (point: PacingPoint) => {
+    const script = scripts.find((item) => item.id === point.scriptId);
+    if (!script || !point.sourceId || point.sourceVersion === undefined) {
+      setNotice("该诊断点尚未关联到可修订的剧本来源。");
+      return;
+    }
+    const scriptPayload = recordPayload(script.payload);
+    const prompt = [
+      "请仅针对以下节奏诊断生成一份可审阅的剧本修订建议，不能直接修改内容。",
+      `诊断类型：${pacingKindLabel(point.kind)}；时间轴位置：${point.position}；依据：${point.evidence.slice(0, 800)}`,
+      `目标剧本 ID：${script.id}；基础版本：${script.version}；来源 ID：${point.sourceId}；来源版本：${point.sourceVersion}。`,
+      "严格输出 JSON：{summary,content,data:{targets:[{kind:'script',id,baseVersion,patch:{payload:{...原payload,剧本内容:完整候选稿}},displayDiff:{proposedContent:'完整候选稿',pacingSourceId:'来源 ID',pacingSourceVersion:来源版本}}]}}。",
+      "完整原 payload 已作为 target.scriptPayload 附在上下文中；必须保留未修改字段。",
+    ].join("\n");
+    try {
+      const session = await client.agentSessions.create({
+        projectId: props.projectId,
+        taskType: "rewrite_ai_drama_script",
+        title: `节奏修订建议：${script.title}`,
+      });
+      const run = await client.agentSessions.run(session.id, {
+        taskType: "rewrite_ai_drama_script",
+        prompt,
+        target: {
+          scriptId: script.id,
+          scriptVersion: script.version,
+          scriptPayload,
+          pacingSourceId: point.sourceId,
+          pacingSourceVersion: point.sourceVersion,
+          evidence: point.evidence,
+        },
+      });
+      setNotice(`已创建智能修订建议任务 ${run.taskId.slice(0, 8)}；请在任务中心确认预览、采用或放弃。`);
+      navigate("/tasks");
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const restoreCheckpoint = async (checkpoint: DomainEntity) => {
+    if (!window.confirm("恢复此修订前检查点吗？当前剧本会先自动保存为新的检查点。")) return;
+    try {
+      await client.contentVersions.restore(checkpoint.id);
+      setNotice("已恢复修订前版本；当前版本也已保存为新的检查点。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const pacingCheckpoints = checkpoints.filter((checkpoint) => {
+    const checkpointPayload = recordPayload(checkpoint.payload);
+    return checkpointPayload["来源"] === "节奏修订预览采用前检查点" && scriptIds.has(checkpoint.parentId ?? "");
+  });
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-4" aria-label="集级节奏看板">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">集级节奏看板</h2>
+          <p className="mt-1 text-sm text-muted">四条轨道只呈现带来源的节奏点；这是编辑辅助，不预测市场成功。</p>
+        </div>
+        <span className="text-xs text-muted">{board.staleCount ? `${board.staleCount} 个标记待复核` : "来源均为当前版本"}{board.rejectedCount ? `；${board.rejectedCount} 个已否决` : ""}</span>
+      </div>
+      {!board.hasSources ? <p className="mt-3 text-sm text-muted">尚无已采用分集、剧本、节拍、场景或镜头来源，无法生成可信的节奏曲线。</p> : (
+        <div className="mt-3 grid gap-2 md:grid-cols-4">
+          {(["density", "highlight", "reversal", "cliffhanger"] as const).map((kind) => (
+            <section key={kind} className="rounded-lg border border-line p-3" aria-label={`${pacingKindLabel(kind)}轨道`}>
+              <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium">{pacingKindLabel(kind)}</h3><button className="text-xs text-brand" onClick={() => void addManual(kind)}>人工标记</button></div>
+              <ol className="mt-2 space-y-2 text-xs">
+                {board.points.filter((point) => point.kind === kind).map((point) => <li key={point.id} className={point.stale ? "rounded bg-amber-50 p-2 text-amber-800" : "rounded bg-canvas p-2"}>
+                  <button className="text-left underline" onClick={() => point.scriptId && props.onOpenScript(point.scriptId)}>{point.position}. {point.title}</button>
+                  <p className="mt-1">{point.evidence}</p><p className="mt-1 text-muted">{point.confidence === "manual" ? "人工确认" : "规则派生"}{point.disposition === "rejected" ? " · 已否决" : ""}{point.stale ? " · 来源已变化" : ""}</p>
+                  {point.confidence === "manual" && point.disposition === "active" && <div className="mt-2 flex flex-wrap gap-2"><button className="text-xs text-brand underline" onClick={() => void editManual(point)}>调整</button><button className="text-xs text-muted underline" onClick={() => void rejectManual(point)}>否决</button></div>}
+                  {point.confidence === "derived" && point.disposition === "active" && point.scriptId && <button className="mt-2 text-xs text-brand underline" onClick={() => void createAiRecommendation(point)}>创建上下文 AI 修订预览</button>}
+                </li>)}
+                {!board.points.some((point) => point.kind === kind) && <li className="text-muted">暂无可追溯标记</li>}
+              </ol>
+            </section>
+          ))}
+        </div>
+      )}
+      {scripts[0] && <button className="mt-3 rounded border border-brand px-3 py-2 text-sm text-brand" onClick={() => props.onOpenScript(scripts[0].id)}>定位到剧本</button>}
+      {pacingCheckpoints.length > 0 && <section className="mt-3 rounded-lg border border-line p-3" aria-label="节奏修订检查点"><h3 className="text-sm font-medium">节奏修订检查点</h3><p className="mt-1 text-xs text-muted">已采用的建议保留修订前内容，可随时恢复；恢复也会先保存当前版本。</p><ul className="mt-2 space-y-1 text-xs">{pacingCheckpoints.slice(0, 3).map((checkpoint) => <li key={checkpoint.id} className="flex flex-wrap items-center justify-between gap-2"><span>{checkpoint.title}</span><button className="text-brand underline" onClick={() => void restoreCheckpoint(checkpoint)}>恢复此版本</button></li>)}</ul></section>}
+      {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
+    </section>
+  );
+}
+
+function pacingKindLabel(kind: PacingKind): string {
+  return { density: "节拍密度", highlight: "爽点", reversal: "反转", cliffhanger: "结尾悬念" }[kind];
 }
 
 function EpisodeAnalysisPanel(props: { adaptationId: string }) {

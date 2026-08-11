@@ -166,6 +166,7 @@ const RESOURCE_DOMAINS = new Set([
   "foreshadowings",
   "analysis",
   "beats",
+  "episode-pacing-marks",
   "highlights",
   "feasibility",
   "trends",
@@ -6328,18 +6329,21 @@ function createContentCheckpoint(
   title: string,
   content: string,
   baseVersion?: number,
+  source = "原稿导入前自动保存",
+  metadata?: Record<string, unknown>,
 ): void {
   insertDomainEntity(
     "content-versions",
     projectId,
     targetId,
-    `导入前检查点：${title}`,
+    `${source === "原稿导入前自动保存" ? "导入前检查点" : source}：${title}`,
     {
       目标类型: targetKind === "chapter" ? "章节" : "剧本",
       目标标识: targetId,
       ...(baseVersion === undefined ? {} : { 基础版本: baseVersion }),
       内容: content,
-      来源: "原稿导入前自动保存",
+      来源: source,
+      ...metadata,
     },
   );
 }
@@ -16966,6 +16970,34 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     return;
   }
   const current = one("SELECT * FROM domain_entities WHERE id = ?", [id])!;
+  const currentPayload = domainPayload(current.payload_json);
+  const nextPayload =
+    patch.payload === undefined ? currentPayload : patch.payload;
+  const displayDiff =
+    target.displayDiff && typeof target.displayDiff === "object"
+      ? (target.displayDiff as Record<string, unknown>)
+      : {};
+  if (
+    kind === "script" &&
+    typeof nextPayload === "object" &&
+    nextPayload !== null &&
+    stringPayload(currentPayload, "剧本内容") !==
+      stringPayload(nextPayload as Record<string, unknown>, "剧本内容")
+  )
+    createContentCheckpoint(
+      String(current.project_id),
+      "script",
+      id,
+      String(current.title),
+      stringPayload(currentPayload, "剧本内容"),
+      Number(current.version),
+      displayDiff.pacingSourceId
+        ? "节奏修订预览采用前检查点"
+        : "变更预览采用前检查点",
+      displayDiff.pacingSourceId
+        ? { 节奏来源: String(displayDiff.pacingSourceId) }
+        : undefined,
+    );
   const result = db!
     .prepare(
       `UPDATE domain_entities SET title = ?, payload_json = ?,
@@ -16973,9 +17005,7 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     )
     .run(
       typeof patch.title === "string" ? patch.title : current.title,
-      patch.payload === undefined
-        ? current.payload_json
-        : JSON.stringify(patch.payload),
+      JSON.stringify(nextPayload),
       now,
       id,
       baseVersion,

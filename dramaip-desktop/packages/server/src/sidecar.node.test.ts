@@ -136,36 +136,90 @@ test("production-structure HTTP contract persists active adaptation and atomical
       request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
       request.on("end", () => {
         const source = Buffer.concat(chunks).toString("utf8");
-        const text = source.includes("通用变更预览测试")
-          ? JSON.stringify({
-              summary: "已生成受控章节润色预览",
-              content: "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
-              data: {},
-            })
-          : source.includes("厂商预览测试")
-            ? JSON.stringify({
-                summary: "已生成远程视频厂商调用预览",
-                content: "等待用户确认费用后发起远程视频任务。",
+        const prompt = (() => {
+          try {
+            const payload = JSON.parse(source) as {
+              parts?: Array<{ text?: unknown }>;
+            };
+            return typeof payload.parts?.[0]?.text === "string"
+              ? payload.parts[0].text
+              : source;
+          } catch {
+            return source;
+          }
+        })();
+        const text = prompt.includes("节奏修订预览测试")
+          ? (() => {
+              const scriptId = /目标剧本 ID：([^；\n]+)/.exec(prompt)?.[1];
+              const baseVersion = Number(
+                /基础版本：(\d+)/.exec(prompt)?.[1] ?? 0,
+              );
+              const contextMatch = /上下文：(\{.*\})$/.exec(prompt);
+              const originalPayload = contextMatch
+                ? ((
+                    JSON.parse(contextMatch[1]) as {
+                      target?: { scriptPayload?: Record<string, unknown> };
+                    }
+                  ).target?.scriptPayload ?? {})
+                : {};
+              const proposedContent =
+                "雨夜，主角没有立刻打开秘密来信，而是听见门外有人叫出他的名字。";
+              return JSON.stringify({
+                summary: "已生成节奏修订预览",
+                content: proposedContent,
                 data: {
-                  providerAction: {
-                    kind: "video",
-                    providerId: agentProviderActionId,
-                    parameters: {
-                      shotId: agentProviderActionShotId,
-                      prompt: "雨夜信封缓慢推进，竖屏电影光影",
-                      seconds: 5,
+                  targets: [
+                    {
+                      kind: "script",
+                      id: scriptId,
+                      baseVersion,
+                      patch: {
+                        payload: {
+                          ...originalPayload,
+                          剧本内容: proposedContent,
+                        },
+                      },
+                      displayDiff: {
+                        proposedContent,
+                        pacingSourceId: "pacing-shot",
+                        pacingSourceVersion: 1,
+                      },
                     },
-                    estimatedCost: 0.12,
-                    currency: "USD",
-                  },
+                  ],
                 },
+              });
+            })()
+          : prompt.includes("通用变更预览测试")
+            ? JSON.stringify({
+                summary: "已生成受控章节润色预览",
+                content:
+                  "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
+                data: {},
               })
-            : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
+            : prompt.includes("厂商预览测试")
+              ? JSON.stringify({
+                  summary: "已生成远程视频厂商调用预览",
+                  content: "等待用户确认费用后发起远程视频任务。",
+                  data: {
+                    providerAction: {
+                      kind: "video",
+                      providerId: agentProviderActionId,
+                      parameters: {
+                        shotId: agentProviderActionShotId,
+                        prompt: "雨夜信封缓慢推进，竖屏电影光影",
+                        seconds: 5,
+                      },
+                      estimatedCost: 0.12,
+                      currency: "USD",
+                    },
+                  },
+                })
+              : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
         const send = () => {
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ parts: [{ type: "text", text }] }));
         };
-        if (source.includes("工具权限测试")) setTimeout(send, 300);
+        if (prompt.includes("工具权限测试")) setTimeout(send, 300);
         else send();
       });
       return;
@@ -1929,6 +1983,106 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(conflictedChange.status, 409);
     assert.equal(conflictedChange.body.code, "CONFLICT");
+
+    const pacingScript = await request<{
+      id: string;
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.equal(pacingScript.status, 200);
+    const pacingSession = await request<{ id: string }>(
+      "/api/v1/agent-sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          engineKind: "opencode",
+          taskType: "rewrite_ai_drama_script",
+        }),
+      },
+    );
+    assert.equal(pacingSession.status, 201);
+    const pacingRun = await request<{ taskId: string }>(
+      `/api/v1/agent-sessions/${pacingSession.body.id}/runs`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "pacing-change-preview-contract" },
+        body: JSON.stringify({
+          taskType: "rewrite_ai_drama_script",
+          prompt: [
+            "节奏修订预览测试",
+            `目标剧本 ID：${pacingScript.body.id}；基础版本：${pacingScript.body.version}；来源 ID：pacing-shot；来源版本：1。`,
+            "完整原 payload 已作为 target.scriptPayload 附在上下文中；必须保留未修改字段。",
+          ].join("\n"),
+          target: {
+            scriptPayload: pacingScript.body.payload,
+          },
+        }),
+      },
+    );
+    assert.equal(pacingRun.status, 202);
+    let pacingPreview:
+      { id: string; status: string; targets: unknown[] } | undefined;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const tasks = await request<
+        Array<{
+          id: string;
+          status: string;
+          result?: {
+            changePreview?: {
+              id: string;
+              status: string;
+              targets: unknown[];
+            };
+          };
+        }>
+      >("/api/v1/tasks");
+      const item = tasks.body.find((task) => task.id === pacingRun.body.taskId);
+      pacingPreview = item?.result?.changePreview;
+      if (!item || !["queued", "running"].includes(item.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.ok(pacingPreview);
+    assert.equal(pacingPreview.status, "pending");
+    const adoptedPacingPreview = await request<{ status: string }>(
+      `/api/v1/change-previews/${pacingPreview.id}/commit`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "pacing-change-preview-adopt" },
+      },
+    );
+    assert.equal(adoptedPacingPreview.status, 200);
+    assert.equal(adoptedPacingPreview.body.status, "committed");
+    const pacingCheckpoints = await request<
+      Array<{ id: string; parentId?: string; payload: Record<string, unknown> }>
+    >(`/api/v1/projects/${project.body.id}/content-versions`);
+    const pacingCheckpoint = pacingCheckpoints.body.find(
+      (item) =>
+        item.parentId === script.body.id &&
+        item.payload["来源"] === "节奏修订预览采用前检查点",
+    );
+    assert.ok(pacingCheckpoint);
+    const restoredPacingScript = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.match(
+      String(restoredPacingScript.body.payload["剧本内容"]),
+      /没有立刻打开/,
+    );
+    const restoredPacingCheckpoint = await request<{ targetId: string }>(
+      `/api/v1/content-versions/${pacingCheckpoint.id}/restore`,
+      { method: "POST" },
+    );
+    assert.equal(restoredPacingCheckpoint.status, 200);
+    assert.equal(restoredPacingCheckpoint.body.targetId, script.body.id);
+    const revertedPacingScript = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.equal(
+      revertedPacingScript.body.payload["剧本内容"],
+      pacingScript.body.payload["剧本内容"],
+    );
 
     const providerPreviewSession = await request<{ id: string }>(
       "/api/v1/agent-sessions",
