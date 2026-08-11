@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-20`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-21`。
 
 ## 1. 总体目标与范围
 
@@ -684,7 +684,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Timeline Editor
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-15
 - **Goal**：把已采用镜头和媒体装配成可播放、可定位、可撤销编辑的时间线，为自动音频、字幕和后期导出提供唯一权威结构。
 - **Scope**：timeline / track / clip schema、视频与音频播放、playhead、缩放 / 滚动、trim / move / split、mute / solo、autosave / undo、媒体重链。
@@ -1261,3 +1261,28 @@ LM6-00
 - Evidence: `dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-15.test.ts`、`dramaip-desktop/tests/electron/lm6-15.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-15/`、LM6-10…LM6-14 既有测试、功能 merge 与远端推送。
 - Next attempt: 开始 LM6-20，先运行 `git fetch origin` 并创建 `loop/lm6-20-multitrack-timeline`; fallback: 先以稳定 canonical timeline schema、短 / 长 fixture、缺媒体和 undo 命令测试建立独立编辑器模型，再接桌面播放与编辑交互。
 - Sweep cursor: LM6-20
+
+### LM6-20 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-20
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-20-multitrack-timeline`
+- Commit(s): `2bb220cf feat(timeline): add LM6-20 multitrack editor`
+- Merge commit: `b94769c9 merge: LM6-20 multitrack timeline`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、340 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建均通过；集成工作树首次 Electron 下载后的完整重跑为 19/19。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — canonical 时间线稳定重开；video / dialogue / narration / BGM / SFX / subtitle 六轨初始化；25 fps 取整、move / split、undo / redo、重链与受控短 WAV 预览均通过。
+  - `tests/electron/lm6-20.spec.ts`: PASS — 桌面端可播放 / 暂停、scrub、移动片段、撤销 / 重做、静音，并在重新进入工作区后保留版本化编辑。
+  - `tests/lm6/lm6-20.test.ts`: PASS — schema、HTTP 契约、SQLite 历史、受控媒体预览、25 fps timebase 与用户文档的跨层边界可重复核验。
+- Diff review: PASS — 仅包含时间线 schema / protocol / generated client、SQLite 时间线与历史、受控媒体预览、桌面多轨编辑器、测试 fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物、本地绝对路径或对源媒体的写入。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `84dbe295`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `b94769c9` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-20-multitrack-timeline` 与 `/Volumes/A/code/project/dramaIp-lm6-20`。
+- Current branch/worktree: `integrate/lm6-20-multitrack-timeline`; `/Volumes/A/code/project/dramaIp-integrate-lm6-20`; 仅有本执行记录的显式改动。
+- Completed: 为每集建立一次性、版本化 canonical timeline；初始轨道总是包括视频、对白、旁白、配乐、音效与字幕，已有人工编辑绝不被重装配覆盖。桌面端以统一播放头同步可见视频和可听音轨，支持播放 / scrub / 缩放、静音 / 独听、move / trim / split、即时保存、undo / redo 与项目内重链接。媒体缺失、未附加和不支持编码保持可打开且有明确状态；时间线仅存实体引用和 25 fps 秒级时间，不修改源文件。
+- Unfinished: 无；自动音频 / 字幕编排、权利与成本谱系、保护人工锁定 clip 和后期交换格式由 LM6-21、LM6-22 单独实现。
+- Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/db/src/operational-schema.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-20.test.ts`、`dramaip-desktop/tests/electron/lm6-20.spec.ts`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-21，先运行 `git fetch origin` 并创建 `loop/lm6-21-auto-assembly`；fallback: 使用确定性短音频 fixture 实现 alignment / cue、部分 stale、受保护手工 clip 合并与试听，再接可用 Provider 的局部 TTS / 音乐任务。
+- Sweep cursor: LM6-21
