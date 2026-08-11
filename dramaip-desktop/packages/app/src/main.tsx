@@ -52,6 +52,7 @@ import type {
   Chapter,
   DomainEntity,
   Project,
+  PilotPlan,
   SourceImportPreview,
   SourceImportStrategy,
   ImportExtractionChangeSet,
@@ -1211,6 +1212,7 @@ function ProjectWorkspace() {
         </p>
       )}
       <ProjectCockpitPanel project={project} chapters={chapters} />
+      <ProjectPilotPanel project={project} chapters={chapters} />
       {showProjectSettings && (
         <ProjectSettingsEditor project={project} onSave={updateProject} />
       )}
@@ -1418,6 +1420,292 @@ function ProjectCockpitPanel(props: { project: Project; chapters: Chapter[] }) {
           </Link>
         ))}
       </nav>
+    </section>
+  );
+}
+
+const PILOT_STAGE_LABELS: Record<PilotPlan["stage"], string> = {
+  "confirm-source": "确认试制来源",
+  script: "采用试制剧本",
+  scenes: "拆分制作场景",
+  shots: "建立试制分镜",
+  assets: "整理试制资产",
+  review: "进入人工审核",
+};
+
+function ProjectPilotPanel(props: { project: Project; chapters: Chapter[] }) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: plans = [] } = useQuery({
+    queryKey: ["pilot-plans", props.project.id],
+    queryFn: () => client.pilotPlans.list(props.project.id),
+  });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [episodeCount, setEpisodeCount] = useState(1);
+  const [notice, setNotice] = useState<string>();
+  const [working, setWorking] = useState(false);
+  useEffect(() => {
+    setSelectedIds((current) =>
+      current.filter((id) =>
+        props.chapters.some((chapter) => chapter.id === id),
+      ).length
+        ? current.filter((id) =>
+            props.chapters.some((chapter) => chapter.id === id),
+          )
+        : props.chapters.slice(0, 1).map((chapter) => chapter.id),
+    );
+  }, [props.chapters]);
+  const active = plans.find((plan) => plan.status !== "canceled") ?? plans[0];
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["pilot-plans", props.project.id],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["production-graph", props.project.id],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+    ]);
+  };
+  const toggle = (id: string) => {
+    setSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 3) {
+        setNotice("试制最多选择 3 个来源章节。");
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+  const create = async () => {
+    if (!selectedIds.length || episodeCount > selectedIds.length) {
+      setNotice("请选择 1–3 个章节，且试制集数不能超过来源章节数。");
+      return;
+    }
+    setWorking(true);
+    try {
+      await client.pilotPlans.create({
+        projectId: props.project.id,
+        chapterIds: selectedIds,
+        episodeCount,
+      });
+      setNotice("已保存试制范围；确认来源后才会创建试制分集。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const act = async (
+    plan: PilotPlan,
+    action: "confirm-source" | "return-source" | "cancel" | "resume",
+  ) => {
+    setWorking(true);
+    try {
+      await client.pilotPlans.action(plan.id, { action });
+      setNotice(
+        action === "confirm-source"
+          ? "来源已人工确认，已建立可继续编辑的试制分集。"
+          : action === "cancel"
+            ? "试制运行已取消；已采用内容会保留在现有工作区。"
+            : action === "resume"
+              ? "已用当前章节版本恢复试制，等待重新确认来源。"
+              : "已退回来源确认；不会删除已采用内容。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    } finally {
+      setWorking(false);
+    }
+  };
+  const nextTo = (plan: PilotPlan) => {
+    const context = new URLSearchParams({
+      projectId: plan.projectId,
+      ...(plan.adaptationId ? { adaptationId: plan.adaptationId } : {}),
+      ...(plan.episodeIds[0] ? { episodeId: plan.episodeIds[0] } : {}),
+    }).toString();
+    if (plan.stage === "script") return `/adapt?${context}&stage=scripts`;
+    if (plan.stage === "scenes") return `/adapt?${context}&stage=scenes`;
+    if (plan.stage === "shots") return `/adapt?${context}&stage=shots`;
+    if (plan.stage === "assets")
+      return `/produce?${context}&stage=visual-assets`;
+    if (plan.stage === "review") return `/review?${context}&stage=quality`;
+    return undefined;
+  };
+  return (
+    <section
+      aria-label="试制向导"
+      className="rounded-2xl border border-line bg-surface p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">1–3 集可恢复试制</p>
+          <h2 className="mt-1 text-xl font-semibold">
+            先完成一小段可信制作链路
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            向导只保存试制范围与人工确认。剧本、场景、分镜、资产和完成度都来自已有的权威资料，关闭后可随时恢复。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
+          最多 3 集
+        </span>
+      </div>
+      {notice && (
+        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {!active && (
+        <div className="mt-4 rounded-xl border border-line bg-canvas p-4">
+          <p className="font-medium">选择试制来源</p>
+          <p className="mt-1 text-sm text-muted">
+            建议从最能代表项目钩子的连续章节开始。
+          </p>
+          <div className="mt-3 space-y-2">
+            {props.chapters.slice(0, 12).map((chapter) => (
+              <label
+                key={chapter.id}
+                className="flex items-center gap-2 rounded-lg bg-white p-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(chapter.id)}
+                  onChange={() => toggle(chapter.id)}
+                />
+                <span>来源章节：{chapter.title}</span>
+              </label>
+            ))}
+            {!props.chapters.length && (
+              <p className="text-sm text-amber-800">
+                请先导入或写入至少一个章节。
+              </p>
+            )}
+          </div>
+          <label className="mt-3 grid max-w-xs gap-1 text-sm">
+            试制集数
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2"
+              value={episodeCount}
+              onChange={(event) => setEpisodeCount(Number(event.target.value))}
+            >
+              {[1, 2, 3].map((count) => (
+                <option
+                  key={count}
+                  value={count}
+                  disabled={count > selectedIds.length}
+                >
+                  {count} 集
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            disabled={working || !props.chapters.length}
+            onClick={() => void create()}
+          >
+            建立试制计划
+          </button>
+        </div>
+      )}
+      {active && (
+        <div className="mt-4 rounded-xl border border-line p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">
+                当前阶段：{PILOT_STAGE_LABELS[active.stage]}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {active.episodeCount} 集试制 ·{" "}
+                {active.sourceConfirmed ? "来源已确认" : "尚未确认来源"}
+              </p>
+              {active.blocker && (
+                <p className="mt-2 text-sm text-amber-800">{active.blocker}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {active.stage === "confirm-source" &&
+                active.status !== "canceled" && (
+                  <button
+                    className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    disabled={working}
+                    onClick={() => void act(active, "confirm-source")}
+                  >
+                    确认来源并创建试制分集
+                  </button>
+                )}
+              {active.status === "canceled" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  disabled={working}
+                  onClick={() => void act(active, "resume")}
+                >
+                  恢复试制
+                </button>
+              )}
+              {active.status === "stale" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  disabled={working}
+                  onClick={() => void act(active, "resume")}
+                >
+                  按当前来源重新开始
+                </button>
+              )}
+              {nextTo(active) && (
+                <Link
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  to={nextTo(active)!}
+                >
+                  前往唯一待办
+                </Link>
+              )}
+              {active.status !== "canceled" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-muted"
+                  disabled={working}
+                  onClick={() => void act(active, "return-source")}
+                >
+                  退回来源
+                </button>
+              )}
+              {active.status !== "canceled" && (
+                <button
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-600"
+                  disabled={working}
+                  onClick={() => void act(active, "cancel")}
+                >
+                  取消试制
+                </button>
+              )}
+            </div>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {Object.entries(active.coverage).map(([label, count]) => (
+              <div key={label} className="rounded-lg bg-canvas p-2 text-sm">
+                <dt className="text-xs text-muted">
+                  {
+                    (
+                      {
+                        episodes: "分集",
+                        scripts: "剧本",
+                        scenes: "场景",
+                        shots: "分镜",
+                        assets: "资产",
+                      } as Record<string, string>
+                    )[label]
+                  }
+                </dt>
+                <dd className="mt-1 font-semibold">{count}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
     </section>
   );
 }

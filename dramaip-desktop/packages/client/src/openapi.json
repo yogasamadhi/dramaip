@@ -12298,6 +12298,426 @@
         }
       }
     },
+    "/api/v1/projects/{id}/pilot-plans": {
+      "get": {
+        "tags": ["pilot-plans"],
+        "operationId": "pilot-plans.list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "projectId": { "type": "string" },
+                      "chapterIds": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "episodeCount": { "type": "integer" },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "draft",
+                          "active",
+                          "stale",
+                          "ready-for-review",
+                          "canceled"
+                        ]
+                      },
+                      "stage": {
+                        "type": "string",
+                        "enum": [
+                          "confirm-source",
+                          "script",
+                          "scenes",
+                          "shots",
+                          "assets",
+                          "review"
+                        ]
+                      },
+                      "sourceConfirmed": { "type": "boolean" },
+                      "adaptationId": { "type": "string" },
+                      "episodeIds": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "coverage": {
+                        "type": "object",
+                        "properties": {
+                          "episodes": { "type": "integer" },
+                          "scripts": { "type": "integer" },
+                          "scenes": { "type": "integer" },
+                          "shots": { "type": "integer" },
+                          "assets": { "type": "integer" }
+                        },
+                        "required": [
+                          "episodes",
+                          "scripts",
+                          "scenes",
+                          "shots",
+                          "assets"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "blocker": { "type": "string" },
+                      "createdAt": { "type": "string" },
+                      "updatedAt": { "type": "string" }
+                    },
+                    "required": [
+                      "id",
+                      "projectId",
+                      "chapterIds",
+                      "episodeCount",
+                      "status",
+                      "stage",
+                      "sourceConfirmed",
+                      "episodeIds",
+                      "coverage",
+                      "createdAt",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pilot-plans": {
+      "post": {
+        "tags": ["pilot-plans"],
+        "operationId": "pilot-plans.create",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "chapterIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "episodeCount": { "type": "integer" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "stale",
+                        "ready-for-review",
+                        "canceled"
+                      ]
+                    },
+                    "stage": {
+                      "type": "string",
+                      "enum": [
+                        "confirm-source",
+                        "script",
+                        "scenes",
+                        "shots",
+                        "assets",
+                        "review"
+                      ]
+                    },
+                    "sourceConfirmed": { "type": "boolean" },
+                    "adaptationId": { "type": "string" },
+                    "episodeIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "coverage": {
+                      "type": "object",
+                      "properties": {
+                        "episodes": { "type": "integer" },
+                        "scripts": { "type": "integer" },
+                        "scenes": { "type": "integer" },
+                        "shots": { "type": "integer" },
+                        "assets": { "type": "integer" }
+                      },
+                      "required": [
+                        "episodes",
+                        "scripts",
+                        "scenes",
+                        "shots",
+                        "assets"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "blocker": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "chapterIds",
+                    "episodeCount",
+                    "status",
+                    "stage",
+                    "sourceConfirmed",
+                    "episodeIds",
+                    "coverage",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "chapterIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "episodeCount": { "type": "integer" }
+                },
+                "required": ["projectId", "chapterIds", "episodeCount"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/pilot-plans/{id}/action": {
+      "post": {
+        "tags": ["pilot-plans"],
+        "operationId": "pilot-plans.action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "chapterIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "episodeCount": { "type": "integer" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "stale",
+                        "ready-for-review",
+                        "canceled"
+                      ]
+                    },
+                    "stage": {
+                      "type": "string",
+                      "enum": [
+                        "confirm-source",
+                        "script",
+                        "scenes",
+                        "shots",
+                        "assets",
+                        "review"
+                      ]
+                    },
+                    "sourceConfirmed": { "type": "boolean" },
+                    "adaptationId": { "type": "string" },
+                    "episodeIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "coverage": {
+                      "type": "object",
+                      "properties": {
+                        "episodes": { "type": "integer" },
+                        "scripts": { "type": "integer" },
+                        "scenes": { "type": "integer" },
+                        "shots": { "type": "integer" },
+                        "assets": { "type": "integer" }
+                      },
+                      "required": [
+                        "episodes",
+                        "scripts",
+                        "scenes",
+                        "shots",
+                        "assets"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "blocker": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "chapterIds",
+                    "episodeCount",
+                    "status",
+                    "stage",
+                    "sourceConfirmed",
+                    "episodeIds",
+                    "coverage",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "confirm-source",
+                      "return-source",
+                      "cancel",
+                      "resume"
+                    ]
+                  }
+                },
+                "required": ["action"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/workflows/episodes/run": {
       "post": {
         "tags": ["workflows"],
@@ -20379,6 +20799,7 @@
     { "name": "exports" },
     { "name": "source-imports" },
     { "name": "import-extractions" },
+    { "name": "pilot-plans" },
     { "name": "workflows" },
     { "name": "episode-media" },
     { "name": "image-generation" },

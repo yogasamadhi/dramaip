@@ -206,6 +206,16 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
     );
     CREATE INDEX IF NOT EXISTS import_extraction_change_sets_project
       ON import_extraction_change_sets(project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS pilot_plans (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      chapter_ids_json TEXT NOT NULL, chapter_versions_json TEXT NOT NULL,
+      episode_count INTEGER NOT NULL CHECK(episode_count BETWEEN 1 AND 3),
+      status TEXT NOT NULL, source_confirmed INTEGER NOT NULL DEFAULT 0,
+      adaptation_id TEXT REFERENCES domain_entities(id) ON DELETE SET NULL,
+      episode_ids_json TEXT NOT NULL DEFAULT '[]', error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS pilot_plans_project ON pilot_plans(project_id, updated_at DESC);
     CREATE TABLE IF NOT EXISTS feedback_previews (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       kind TEXT NOT NULL, source_name TEXT NOT NULL, rows_json TEXT NOT NULL,
