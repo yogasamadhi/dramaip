@@ -51,6 +51,9 @@ import {
   ImportExtractionChangeSet,
   ImportExtractionCandidatePatch,
   ImportExtractionAdoptInput,
+  PilotPlan,
+  PilotPlanCreateInput,
+  PilotPlanActionInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackPreviewInput,
@@ -1114,6 +1117,30 @@ const ImportExtractionGroup = HttpApiGroup.make("import-extractions")
     ),
   );
 
+const PilotPlanGroup = HttpApiGroup.make("pilot-plans")
+  .add(
+    HttpApiEndpoint.get("list", `${API_PREFIX}/projects/:id/pilot-plans`, {
+      params: { id: Schema.String },
+      success: Schema.Array(PilotPlan),
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("create", `${API_PREFIX}/pilot-plans`, {
+      payload: PilotPlanCreateInput,
+      success: PilotPlan,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("action", `${API_PREFIX}/pilot-plans/:id/action`, {
+      params: { id: Schema.String },
+      payload: PilotPlanActionInput,
+      success: PilotPlan,
+      error: ApiError,
+    }),
+  );
+
 const WorkflowGroup = HttpApiGroup.make("workflows").add(
   HttpApiEndpoint.post("runEpisode", `${API_PREFIX}/workflows/episodes/run`, {
     payload: EpisodeWorkflowInput,
@@ -1794,6 +1821,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(ExportGroup)
   .add(SourceImportGroup)
   .add(ImportExtractionGroup)
+  .add(PilotPlanGroup)
   .add(WorkflowGroup)
   .add(EpisodeMediaGroup)
   .add(ImageGenerationGroup)

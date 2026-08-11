@@ -515,6 +515,113 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(sourceCommit.status, 201);
     assert.equal(sourceCommit.body.createdChapters, 3);
     assert.equal(sourceCommit.body.checkpointCount, 0);
+    const pilotProject = await request<{ id: string }>("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "试制状态机项目",
+        shortDramaType: "悬疑",
+        synopsis: "用于隔离验证 1–3 集试制。",
+      }),
+    });
+    assert.equal(pilotProject.status, 201);
+    const pilotChapters = await Promise.all(
+      ["试制来源一", "试制来源二", "试制来源三"].map((title, index) =>
+        request<{
+          id: string;
+          title: string;
+          content: string;
+          summary: string;
+          version: number;
+        }>("/api/v1/chapters", {
+          method: "POST",
+          body: JSON.stringify({
+            projectId: pilotProject.body.id,
+            title,
+            content: `第 ${index + 1} 段试制来源正文。`,
+            summary: `试制摘要 ${index + 1}`,
+          }),
+        }),
+      ),
+    );
+    pilotChapters.forEach((chapter) => assert.equal(chapter.status, 201));
+    const invalidPilot = await request("/api/v1/pilot-plans", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: pilotProject.body.id,
+        chapterIds: pilotChapters.map((chapter) => chapter.body.id),
+        episodeCount: 4,
+      }),
+    });
+    assert.equal(invalidPilot.status, 400);
+    const pilot = await request<{
+      id: string;
+      status: string;
+      stage: string;
+      episodeCount: number;
+      episodeIds: string[];
+    }>("/api/v1/pilot-plans", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: pilotProject.body.id,
+        chapterIds: pilotChapters.slice(0, 2).map((chapter) => chapter.body.id),
+        episodeCount: 2,
+      }),
+    });
+    assert.equal(pilot.status, 201);
+    assert.equal(pilot.body.stage, "confirm-source");
+    const confirmedPilot = await request<{
+      status: string;
+      stage: string;
+      episodeIds: string[];
+      coverage: { episodes: number; scripts: number };
+    }>(`/api/v1/pilot-plans/${pilot.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "confirm-source" }),
+    });
+    assert.equal(confirmedPilot.status, 200);
+    assert.equal(confirmedPilot.body.status, "active");
+    assert.equal(confirmedPilot.body.stage, "script");
+    assert.equal(confirmedPilot.body.coverage.episodes, 2);
+    const duplicatePilotConfirmation = await request<{
+      episodeIds: string[];
+    }>(`/api/v1/pilot-plans/${pilot.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "confirm-source" }),
+    });
+    assert.equal(duplicatePilotConfirmation.status, 200);
+    assert.deepEqual(
+      duplicatePilotConfirmation.body.episodeIds,
+      confirmedPilot.body.episodeIds,
+      "重复确认不得新增试制分集",
+    );
+    const changedPilotSource = pilotChapters[0].body;
+    const pilotSourceUpdate = await request(
+      `/api/v1/chapters/${changedPilotSource.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: changedPilotSource.title,
+          summary: changedPilotSource.summary,
+          content: `${changedPilotSource.content}\n试制来源人工修订。`,
+          version: changedPilotSource.version,
+        }),
+      },
+    );
+    assert.equal(pilotSourceUpdate.status, 200);
+    const stalePilots = await request<Array<{ id: string; status: string }>>(
+      `/api/v1/projects/${pilotProject.body.id}/pilot-plans`,
+    );
+    assert.equal(
+      stalePilots.body.find((item) => item.id === pilot.body.id)?.status,
+      "stale",
+    );
+    const resumedPilot = await request<{ status: string; stage: string }>(
+      `/api/v1/pilot-plans/${pilot.body.id}/action`,
+      { method: "POST", body: JSON.stringify({ action: "resume" }) },
+    );
+    assert.equal(resumedPilot.status, 200);
+    assert.equal(resumedPilot.body.status, "draft");
+    assert.equal(resumedPilot.body.stage, "confirm-source");
     const extraction = sourceCommit.body.extractionChangeSet;
     assert.ok(extraction, "导入完成后必须创建可审查候选变更集");
     assert.equal(extraction.status, "draft");

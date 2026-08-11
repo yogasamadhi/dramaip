@@ -41,6 +41,7 @@ import type {
   SourceImportStrategy,
   ImportExtractionCandidate,
   ImportExtractionChangeSet,
+  PilotPlan,
   EpisodeWorkflowKind,
   AudioTrackKind,
   AudioTrackInput,
@@ -700,6 +701,20 @@ async function route(
   );
   if (importExtractionUndo && method === "POST")
     return undoImportExtractionChangeSet(res, importExtractionUndo, requestId);
+  const pilotPlanList = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/pilot-plans$/,
+  );
+  if (pilotPlanList && method === "GET")
+    return listPilotPlans(res, pilotPlanList, requestId);
+  if (method === "POST" && path === "/api/v1/pilot-plans")
+    return createPilotPlan(req, res, requestId);
+  const pilotPlanAction = match(
+    path,
+    /^\/api\/v1\/pilot-plans\/([^/]+)\/action$/,
+  );
+  if (pilotPlanAction && method === "POST")
+    return updatePilotPlanAction(req, res, pilotPlanAction, requestId);
   if (method === "POST" && path === "/api/v1/workflows/episodes/run")
     return runEpisodeWorkflow(req, res, requestId);
   if (method === "POST" && path === "/api/v1/image-generation/runs")
@@ -6705,6 +6720,381 @@ function undoImportExtractionChangeSet(
     one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
   );
   emit("import_extraction.undone", updated);
+  json(res, 200, updated);
+}
+
+type PilotChapterVersion = { id: string; version: number; contentHash: string };
+
+function pilotChapterVersions(
+  row: Record<string, unknown>,
+): PilotChapterVersion[] {
+  const payload = domainPayload(row.chapter_versions_json);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): PilotChapterVersion[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      typeof item.id !== "string" ||
+      !Number.isInteger(item.version) ||
+      typeof item.contentHash !== "string"
+    )
+      return [];
+    return [
+      {
+        id: item.id,
+        version: Number(item.version),
+        contentHash: item.contentHash,
+      },
+    ];
+  });
+}
+
+function pilotPlanStaleReason(
+  row: Record<string, unknown>,
+): string | undefined {
+  const versions = pilotChapterVersions(row);
+  if (!versions.length) return "试制来源记录不完整，请重新确认来源。";
+  for (const source of versions) {
+    const chapter = one("SELECT version, content FROM chapters WHERE id = ?", [
+      source.id,
+    ]);
+    if (
+      !chapter ||
+      Number(chapter.version) !== source.version ||
+      storyBibleSourceHash(String(chapter.content ?? "")) !== source.contentHash
+    )
+      return "试制来源章节已更新，请重新确认后继续。";
+  }
+  return undefined;
+}
+
+function pilotPlan(row: Record<string, unknown>): PilotPlan {
+  const chapterIds = jsonStringArray(row.chapter_ids_json);
+  const episodeIds = jsonStringArray(row.episode_ids_json);
+  const episodeRows = episodeIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'episodes' AND project_id = ? AND id IN (${episodeIds.map(() => "?").join(",")})`,
+        [row.project_id, ...episodeIds],
+      )
+    : [];
+  const actualEpisodeIds = episodeRows.map((item) => String(item.id));
+  const scriptRows = actualEpisodeIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'scripts' AND project_id = ? AND parent_id IN (${actualEpisodeIds.map(() => "?").join(",")})`,
+        [row.project_id, ...actualEpisodeIds],
+      )
+    : [];
+  const scriptIds = scriptRows.map((item) => String(item.id));
+  const sceneRows = scriptIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'scenes' AND project_id = ? AND parent_id IN (${scriptIds.map(() => "?").join(",")})`,
+        [row.project_id, ...scriptIds],
+      )
+    : [];
+  const sceneIds = sceneRows.map((item) => String(item.id));
+  const shotCount = sceneIds.length
+    ? Number(
+        one(
+          `SELECT count(*) AS count FROM domain_entities WHERE domain = 'shots' AND project_id = ? AND parent_id IN (${sceneIds.map(() => "?").join(",")})`,
+          [row.project_id, ...sceneIds],
+        )?.count ?? 0,
+      )
+    : 0;
+  const coverage = {
+    episodes: actualEpisodeIds.length,
+    scripts: scriptRows.length,
+    scenes: sceneRows.length,
+    shots: shotCount,
+    assets: Number(
+      one(
+        "SELECT count(*) AS count FROM domain_entities WHERE domain IN ('assets', 'visual-assets') AND project_id = ?",
+        [row.project_id],
+      )?.count ?? 0,
+    ),
+  };
+  const staleReason =
+    Number(row.source_confirmed) === 1 ? pilotPlanStaleReason(row) : undefined;
+  const canceled = String(row.status) === "canceled";
+  const sourceConfirmed = Number(row.source_confirmed) === 1;
+  const target = Number(row.episode_count);
+  const stage: PilotPlan["stage"] =
+    !sourceConfirmed || staleReason || canceled
+      ? "confirm-source"
+      : coverage.scripts < target
+        ? "script"
+        : !coverage.scenes
+          ? "scenes"
+          : !coverage.shots
+            ? "shots"
+            : !coverage.assets
+              ? "assets"
+              : "review";
+  const status: PilotPlan["status"] = canceled
+    ? "canceled"
+    : staleReason
+      ? "stale"
+      : stage === "review"
+        ? "ready-for-review"
+        : sourceConfirmed
+          ? "active"
+          : "draft";
+  const blockers: Partial<Record<PilotPlan["stage"], string>> = {
+    "confirm-source":
+      staleReason ??
+      (canceled
+        ? "试制已取消，可恢复后重新确认来源。"
+        : "等待人工确认试制来源。"),
+    script: "每个试制分集都需要先采用剧本。",
+    scenes: "已采用剧本需要拆分为可制作场景。",
+    shots: "已采用场景需要建立分镜。",
+    assets: "制作前需至少归档一项视觉或道具资产。",
+  };
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    chapterIds,
+    episodeCount: target,
+    status,
+    stage,
+    sourceConfirmed,
+    ...(row.adaptation_id ? { adaptationId: String(row.adaptation_id) } : {}),
+    episodeIds: actualEpisodeIds,
+    coverage,
+    ...(blockers[stage] ? { blocker: blockers[stage] } : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function listPilotPlans(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(
+    res,
+    200,
+    rows(
+      "SELECT * FROM pilot_plans WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(pilotPlan),
+  );
+}
+
+async function createPilotPlan(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const projectId = text(input.projectId);
+  const chapterIds = Array.isArray(input.chapterIds)
+    ? [
+        ...new Set(
+          input.chapterIds.filter(
+            (item): item is string => typeof item === "string",
+          ),
+        ),
+      ]
+    : [];
+  const episodeCount = Number(input.episodeCount);
+  if (
+    !projectId ||
+    !chapterIds.length ||
+    chapterIds.length > 3 ||
+    !Number.isInteger(episodeCount) ||
+    episodeCount < 1 ||
+    episodeCount > 3 ||
+    episodeCount > chapterIds.length
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Choose one to three source chapters and pilot episodes",
+      requestId,
+    );
+  const chapterRows = rows(
+    `SELECT * FROM chapters WHERE project_id = ? AND id IN (${chapterIds.map(() => "?").join(",")})`,
+    [projectId, ...chapterIds],
+  );
+  if (chapterRows.length !== chapterIds.length)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "One or more source chapters were not found",
+      requestId,
+    );
+  const duplicate = one(
+    "SELECT * FROM pilot_plans WHERE project_id = ? AND chapter_ids_json = ? AND episode_count = ? AND status != 'canceled' ORDER BY updated_at DESC LIMIT 1",
+    [projectId, JSON.stringify(chapterIds), episodeCount],
+  );
+  if (duplicate) return json(res, 200, pilotPlan(duplicate));
+  const now = timestamp();
+  const id = randomUUID();
+  const versions = chapterRows.map((chapter) => ({
+    id: String(chapter.id),
+    version: Number(chapter.version),
+    contentHash: storyBibleSourceHash(String(chapter.content ?? "")),
+  }));
+  db!
+    .prepare(
+      `INSERT INTO pilot_plans(id, project_id, chapter_ids_json, chapter_versions_json, episode_count, status, source_confirmed, adaptation_id, episode_ids_json, error_message, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', 0, NULL, '[]', NULL, ?, ?)`,
+    )
+    .run(
+      id,
+      projectId,
+      JSON.stringify(chapterIds),
+      JSON.stringify({ items: versions }),
+      episodeCount,
+      now,
+      now,
+    );
+  const created = pilotPlan(
+    one("SELECT * FROM pilot_plans WHERE id = ?", [id])!,
+  );
+  emit("pilot_plan.created", created);
+  json(res, 201, created);
+}
+
+async function updatePilotPlanAction(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one("SELECT * FROM pilot_plans WHERE id = ?", [id]);
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Pilot plan not found",
+      requestId,
+    );
+  const input = await body(req);
+  const action = text(input.action);
+  if (
+    !action ||
+    !["confirm-source", "return-source", "cancel", "resume"].includes(action)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Invalid pilot plan action",
+      requestId,
+    );
+  const now = timestamp();
+  if (action === "cancel") {
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET status = 'canceled', updated_at = ? WHERE id = ?",
+      )
+      .run(now, id);
+  } else if (action === "return-source") {
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET source_confirmed = 0, status = 'draft', updated_at = ? WHERE id = ?",
+      )
+      .run(now, id);
+  } else if (action === "resume") {
+    const chapterIds = jsonStringArray(current.chapter_ids_json);
+    const chapters = rows(
+      `SELECT * FROM chapters WHERE project_id = ? AND id IN (${chapterIds.map(() => "?").join(",")})`,
+      [current.project_id, ...chapterIds],
+    );
+    if (chapters.length !== chapterIds.length)
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "Pilot source is no longer available",
+        requestId,
+      );
+    const versions = chapters.map((chapter) => ({
+      id: String(chapter.id),
+      version: Number(chapter.version),
+      contentHash: storyBibleSourceHash(String(chapter.content ?? "")),
+    }));
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET status = 'draft', source_confirmed = 0, chapter_versions_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify({ items: versions }), now, id);
+  } else {
+    const stale = pilotPlanStaleReason(current);
+    if (stale) return respondError(res, 409, "CONFLICT", stale, requestId);
+    const existing = pilotPlan(current);
+    if (!existing.sourceConfirmed) {
+      const chapters = rows(
+        `SELECT * FROM chapters WHERE id IN (${existing.chapterIds.map(() => "?").join(",")}) ORDER BY order_index`,
+        existing.chapterIds,
+      );
+      try {
+        db!.exec("BEGIN IMMEDIATE");
+        let adaptationId = current.adaptation_id
+          ? String(current.adaptation_id)
+          : undefined;
+        if (!adaptationId)
+          adaptationId = insertDomainEntity(
+            "adaptations",
+            String(current.project_id),
+            undefined,
+            "试制改编方案",
+            {
+              改编方向: "1–3 集试制",
+              目标集数: Number(current.episode_count),
+              来源: "试制向导人工确认",
+            },
+          );
+        const episodeIds = jsonStringArray(current.episode_ids_json);
+        while (episodeIds.length < Number(current.episode_count)) {
+          const source = chapters[episodeIds.length % chapters.length];
+          episodeIds.push(
+            insertDomainEntity(
+              "episodes",
+              String(current.project_id),
+              adaptationId,
+              `试制第 ${episodeIds.length + 1} 集·${String(source.title)}`,
+              {
+                集数: episodeIds.length + 1,
+                分集简介: String(source.summary || source.content).slice(
+                  0,
+                  240,
+                ),
+                试制来源章节: String(source.title),
+                审阅状态: "待采用剧本",
+              },
+            ),
+          );
+        }
+        db!
+          .prepare(
+            "UPDATE pilot_plans SET status = 'active', source_confirmed = 1, adaptation_id = ?, episode_ids_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+          )
+          .run(adaptationId, JSON.stringify(episodeIds), now, id);
+        db!.exec("COMMIT");
+      } catch (error) {
+        try {
+          db!.exec("ROLLBACK");
+        } catch {}
+        throw error;
+      }
+    }
+  }
+  const updated = pilotPlan(
+    one("SELECT * FROM pilot_plans WHERE id = ?", [id])!,
+  );
+  emit("pilot_plan.updated", updated);
   json(res, 200, updated);
 }
 

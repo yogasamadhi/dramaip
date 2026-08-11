@@ -1808,6 +1808,93 @@ export interface SourceImportCommitResult {
   extractionChangeSet?: ImportExtractionChangeSet;
 }
 
+export const PilotPlanStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("active"),
+  Schema.Literal("stale"),
+  Schema.Literal("ready-for-review"),
+  Schema.Literal("canceled"),
+]);
+export type PilotPlanStatus =
+  "draft" | "active" | "stale" | "ready-for-review" | "canceled";
+
+export const PilotPlanStage = Schema.Union([
+  Schema.Literal("confirm-source"),
+  Schema.Literal("script"),
+  Schema.Literal("scenes"),
+  Schema.Literal("shots"),
+  Schema.Literal("assets"),
+  Schema.Literal("review"),
+]);
+export type PilotPlanStage =
+  "confirm-source" | "script" | "scenes" | "shots" | "assets" | "review";
+
+export const PilotPlan = Schema.Struct({
+  id: Id,
+  projectId: Id,
+  chapterIds: Schema.Array(Id),
+  episodeCount: Schema.Int,
+  status: PilotPlanStatus,
+  stage: PilotPlanStage,
+  sourceConfirmed: Schema.Boolean,
+  adaptationId: Schema.optionalKey(Id),
+  episodeIds: Schema.Array(Id),
+  coverage: Schema.Struct({
+    episodes: Schema.Int,
+    scripts: Schema.Int,
+    scenes: Schema.Int,
+    shots: Schema.Int,
+    assets: Schema.Int,
+  }),
+  blocker: Schema.optionalKey(Schema.String),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface PilotPlan {
+  id: Id;
+  projectId: Id;
+  chapterIds: Id[];
+  episodeCount: number;
+  status: PilotPlanStatus;
+  stage: PilotPlanStage;
+  sourceConfirmed: boolean;
+  adaptationId?: Id;
+  episodeIds: Id[];
+  coverage: {
+    episodes: number;
+    scripts: number;
+    scenes: number;
+    shots: number;
+    assets: number;
+  };
+  blocker?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const PilotPlanCreateInput = Schema.Struct({
+  projectId: Id,
+  chapterIds: Schema.Array(Id),
+  episodeCount: Schema.Int,
+});
+export interface PilotPlanCreateInput {
+  projectId: Id;
+  chapterIds: Id[];
+  episodeCount: number;
+}
+
+export const PilotPlanActionInput = Schema.Struct({
+  action: Schema.Union([
+    Schema.Literal("confirm-source"),
+    Schema.Literal("return-source"),
+    Schema.Literal("cancel"),
+    Schema.Literal("resume"),
+  ]),
+});
+export interface PilotPlanActionInput {
+  action: "confirm-source" | "return-source" | "cancel" | "resume";
+}
+
 export const EpisodeWorkflowKind = Schema.Union([
   Schema.Literal("quality-check"),
   Schema.Literal("compliance-check"),

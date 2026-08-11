@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "f1db7553156f035147115c5fc4dbcbf55b38e932979b87ac55b2332b9c39373d";
+  "0b4def8830090f34e5ec20053dfa0204fd8bd809c3d1c1616e92a5acfa3f9061";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -49,6 +49,9 @@ import type {
   ImportExtractionAdoptInput,
   ImportExtractionCandidatePatch,
   ImportExtractionChangeSet,
+  PilotPlan,
+  PilotPlanCreateInput,
+  PilotPlanActionInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackBatch,
@@ -273,6 +276,11 @@ export interface StudioClient {
       input?: ImportExtractionAdoptInput,
     ): Promise<ImportExtractionChangeSet>;
     undo(id: string): Promise<ImportExtractionChangeSet>;
+  };
+  pilotPlans: {
+    list(projectId: string): Promise<PilotPlan[]>;
+    create(input: PilotPlanCreateInput): Promise<PilotPlan>;
+    action(id: string, input: PilotPlanActionInput): Promise<PilotPlan>;
   };
   projectPackages: {
     preview(input: ProjectPackagePreviewInput): Promise<ProjectPackagePreview>;
@@ -877,6 +885,22 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
           { method: "POST" },
         ),
+    },
+    pilotPlans: {
+      list: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/pilot-plans`,
+        ),
+      create: (input) =>
+        request("/api/v1/pilot-plans", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      action: (id, input) =>
+        request(`/api/v1/pilot-plans/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
     },
     projectPackages: {
       preview: (input) =>

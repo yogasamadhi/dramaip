@@ -48,6 +48,9 @@ import type {
   ImportExtractionAdoptInput,
   ImportExtractionCandidatePatch,
   ImportExtractionChangeSet,
+  PilotPlan,
+  PilotPlanCreateInput,
+  PilotPlanActionInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackBatch,
@@ -272,6 +275,11 @@ export interface StudioClient {
       input?: ImportExtractionAdoptInput,
     ): Promise<ImportExtractionChangeSet>;
     undo(id: string): Promise<ImportExtractionChangeSet>;
+  };
+  pilotPlans: {
+    list(projectId: string): Promise<PilotPlan[]>;
+    create(input: PilotPlanCreateInput): Promise<PilotPlan>;
+    action(id: string, input: PilotPlanActionInput): Promise<PilotPlan>;
   };
   projectPackages: {
     preview(input: ProjectPackagePreviewInput): Promise<ProjectPackagePreview>;
@@ -876,6 +884,22 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
           { method: "POST" },
         ),
+    },
+    pilotPlans: {
+      list: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/pilot-plans`,
+        ),
+      create: (input) =>
+        request("/api/v1/pilot-plans", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      action: (id, input) =>
+        request(`/api/v1/pilot-plans/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
     },
     projectPackages: {
       preview: (input) =>
