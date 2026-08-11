@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00 已完成并已推送；LM6-01 的 Attempt 1 已完成验证，正在等待合并与推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，活动游标为 `LM6-01`。
+> - 当前状态：LM6-00、LM6-01 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-02`。
 
 ## 1. 总体目标与范围
 
@@ -335,7 +335,7 @@ make platform-down
 | Loop ID | Priority | Owner               | Status | Attempts | Last progress                                    | 目标                                  | 依赖          |
 | ------- | -------- | ------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------- | ------------- |
 | LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
-| LM6-01  | P0       | Desktop UX          | doing  | 1        | 三入口、生产简报与完整回归已通过，待合并推送     | 三种创建入口与生产简报落地            | LM6-00        |
+| LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
 | LM6-02  | P0       | Desktop UX          | todo   | 0        | —                                                | 项目生产驾驶舱与唯一下一步            | LM6-01        |
 | LM6-03  | P0       | AI Workflow         | todo   | 0        | —                                                | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
@@ -385,7 +385,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Desktop UX
-- **Status**：doing
+- **Status**：done
 - **Depends on**：LM6-00
 - **Goal**：让用户从首页明确选择“从灵感开始”“导入原著”“直接导入 / 粘贴剧本”，每条路径都以正确上下文进入同一生产驾驶舱。
 - **Scope**：项目创建 UI、production brief、创建来源、内容导入或粘贴、schema / protocol / client、项目包兼容、入口 E2E。
@@ -959,3 +959,29 @@ LM6-00
 - Next attempt: 开始 LM6-01，先运行 `git fetch origin` 并创建 `loop/lm6-01-three-entry`；fallback: 若 UI 接线受阻，先实现 production brief 与三路径 route harness / fixture 契约。
 - Sweep cursor: LM6-01
 - Notes: 首次 typecheck 缺少已安装依赖；`bun install --frozen-lockfile` 后重跑全部通过。外部 Provider / NLE 未被 mock 成真实成功。
+
+### LM6-01 / Attempt 1 — 2026-08-12 00:17 CST
+
+- Loop: LM6-01
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-01-three-entry
+- Commit(s): `2d4e68c9 loop(lm6-01): add three project entry paths`
+- Merge commit: `2781fa12 merge: LM6-01 three project entry paths`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 现有包级测试、LM6-00/LM6-01 fixture、生产简报和 HTTP round-trip contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — 生成物、引擎锁和 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，4 个 Electron 场景通过；新增场景覆盖灵感、原著预览和剧本粘贴三路径。
+- Diff review: PASS — 仅包含三入口首页、可读且可回滚的 production brief、既有 source-import preview 深链、剧本草稿创建、测试、fixture、用户文档和调度元数据；无凭据、缓存或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `29242bbd`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `2781fa12` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-01-three-entry` 与 `/Volumes/A/code/project/dramaIp-lm6-01`。
+- Current branch/worktree: `integrate/lm6-01-three-entry`; `/Volumes/A/code/project/dramaIp-integrate-lm6-01`; 仅有本执行记录的显式改动。
+- Completed: 首页三张创建卡、来源/内容形态/受众/平台/时长/集数/画幅/视觉方向生产简报、原著/文件的 capability preview 与权益确认入口、粘贴剧本首集草稿、项目包 round-trip 和深链回归。
+- Unfinished: 无；LM6-02 才引入以真实项目状态派生的生产驾驶舱和唯一下一步，LM6-01 仍进入现有项目工作区。
+- Evidence: `packages/app/src/project-intake.ts`、`tests/lm6/lm6-01.test.ts`、`tests/electron/lm6-01.spec.ts`、`packages/server/src/sidecar.node.test.ts`、用户指南与合并/推送提交。
+- Next attempt: 开始 LM6-02，先运行 `git fetch origin` 并创建 `loop/lm6-02-production-cockpit`；fallback: 若全页集成受阻，先以 LM6 fixture 构建项目状态 read model、推荐动作和 route harness。
+- Sweep cursor: LM6-02
+- Notes: 原著项目是有意保存的待导入 production brief；取消文件预览不会写入章节、剧本或场景。粘贴剧本的章节创建若失败会自动尝试删除新项目，避免孤儿记录。
