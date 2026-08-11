@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-14`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-15`。
 
 ## 1. 总体目标与范围
 
@@ -345,7 +345,7 @@ make platform-down
 | LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
 | LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过         | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
-| LM6-14  | P1       | Story Intelligence  | todo   | 0        | —                                                | 章节编辑器常驻 Story Bible            | LM6-13        |
+| LM6-14  | P1       | Story Intelligence  | done   | 1        | 侧栏、选择性采用、完整回归和远端 main 推送通过   | 章节编辑器常驻 Story Bible            | LM6-13        |
 | LM6-15  | P1 Gate  | Release             | todo   | 0        | —                                                | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
 | LM6-20  | P2       | Timeline Editor     | todo   | 0        | —                                                | 可播放、可编辑的多轨时间线            | LM6-15        |
 | LM6-21  | P2       | Media Pipeline      | todo   | 0        | —                                                | 音频与字幕自动编排                    | LM6-20        |
@@ -1211,3 +1211,28 @@ LM6-00
 - Evidence: `dramaip-desktop/packages/app/src/episode-pacing.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-13.test.ts`、`dramaip-desktop/tests/electron/lm6-13.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-13/`、用户指南、功能 merge 与远端推送。
 - Next attempt: 开始 LM6-14，先运行 `git fetch origin` 并创建 `loop/lm6-14-story-bible-sidecar`；fallback: 先建立章节 / 剧本作用域的 Story Bible read model、固定 / 搜索、stale 和 change-set parity 测试，再接侧栏与窄窗口键盘体验。
 - Sweep cursor: LM6-14
+
+### LM6-14 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-14
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-14-story-bible-sidecar`
+- Commit(s): `de65e036 feat(story): add LM6-14 story bible sidecar`
+- Merge commit: `813fc5e6 merge: LM6-14 story bible sidecar`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、286 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 17 个 Electron 场景全部通过。
+  - `packages/app/src/story-bible-sidecar.test.ts` 与 `tests/lm6/lm6-14.test.ts`: PASS — chapter / script 范围、相关人物 / 时间线 / 伏笔 / 已锁定视觉资产、草案和 stale 状态、无数据边界、偏好持久化与离线提示契约均可重复验证。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 草案暴露字段预览；不合法选择被服务端拒绝；只采用“重要事件”时只写入该字段、来源章节及审计字段，不会写入未勾选内容。
+  - `tests/electron/lm6-14.spec.ts`: PASS — 1280×720 下保存和修订预览仍可达；侧栏可用键盘折叠 / 展开，并完成“生成草案 → 取消字段 → 采用 → 撤销”。
+- Diff review: PASS — 仅包含 Story Bible 侧栏 read model、章节 / 剧本接线、项目偏好资源、变更包预览与选择性采用契约、客户端生成物、Node / Electron / fixture 测试和用户指南；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `142da4ec`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `813fc5e6` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-14-story-bible-sidecar` 与 `/Volumes/A/code/project/dramaIp-lm6-14`。
+- Current branch/worktree: `integrate/lm6-14-story-bible-sidecar`; `/Volumes/A/code/project/dramaIp-integrate-lm6-14`; 仅有本执行记录的显式改动。
+- Completed: 在章节编辑器与已选剧本审阅区常驻 Story Bible 侧栏，按当前内容聚合人物、关系与设定、时间线、伏笔、章节记忆和已锁定视觉资产。侧栏支持搜索、固定、来源跳转、折叠 / 宽度项目偏好、长列表滚动、空态和离线提示；草案展示可勾选字段，经同一 change set 事务选择性采用、版本 stale 拦截和撤销，不会改写正文。
+- Unfinished: 无；大型知识图谱编辑、跨项目连续性和资产复用仍严格保留给后续 Loop。
+- Evidence: `dramaip-desktop/packages/app/src/story-bible-sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-14.test.ts`、`dramaip-desktop/tests/electron/lm6-14.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-14/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-15，先运行 `git fetch origin` 并创建 `loop/lm6-15-p1-pilot-gate`; fallback: 先复核 LM6-10 至 LM6-14 的权威资产、静帧 Gate、节奏与 Story Bible 证据矩阵，再实现 P1 视觉试制 Gate 的负向阻断与 Electron 放行旅程。
+- Sweep cursor: LM6-15
