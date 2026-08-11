@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "4ea0466a78fa306ac27e097d97948f35d07f7bbae5a112595bfeefdd873a8d04";
+  "534346f45725d94485c185b7f2db72a0cf789b2dfc60cd7e01069e6d5920ca66";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -127,6 +127,11 @@ import type {
   ReviewDecisionInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
+  CloudReviewConnection,
+  CloudReviewConnectionInput,
+  CloudReviewPublishInput,
+  CloudReviewPublishResult,
+  CloudReviewSyncResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -412,6 +417,17 @@ export interface StudioClient {
       packageId: string,
       input: OfflineReviewImportInput,
     ): Promise<OfflineReviewImportResult>;
+  };
+  cloudReview: {
+    connection(): Promise<CloudReviewConnection>;
+    saveConnection(
+      input: CloudReviewConnectionInput,
+    ): Promise<CloudReviewConnection>;
+    publish(
+      packageId: string,
+      input: CloudReviewPublishInput,
+    ): Promise<CloudReviewPublishResult>;
+    sync(packageId: string): Promise<CloudReviewSyncResult>;
   };
   compliance: {
     listProfiles(): Promise<ComplianceRuleProfile[]>;
@@ -1180,6 +1196,24 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/import-offline`,
           { method: "POST", body: JSON.stringify(input) },
+        ),
+    },
+    cloudReview: {
+      connection: () => request("/api/v1/cloud-review/connection"),
+      saveConnection: (input) =>
+        request("/api/v1/cloud-review/connection", {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      publish: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-publish`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+      sync: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-sync`,
+          { method: "POST" },
         ),
     },
     compliance: {

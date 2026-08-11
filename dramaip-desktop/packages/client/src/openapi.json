@@ -13853,6 +13853,321 @@
         }
       }
     },
+    "/api/v1/cloud-review/connection": {
+      "get": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.connection",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "baseUrl": { "type": "string" },
+                    "workspaceId": { "type": "string" },
+                    "configured": { "type": "boolean" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "baseUrl",
+                    "workspaceId",
+                    "configured",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.saveConnection",
+        "parameters": [],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "baseUrl": { "type": "string" },
+                    "workspaceId": { "type": "string" },
+                    "configured": { "type": "boolean" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "baseUrl",
+                    "workspaceId",
+                    "configured",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "baseUrl": { "type": "string" },
+                  "workspaceId": { "type": "string" },
+                  "credentialRef": { "type": "string" }
+                },
+                "required": ["baseUrl", "workspaceId", "credentialRef"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/review-packages/{id}/cloud-publish": {
+      "post": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.publish",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "packageId": { "type": "string" },
+                    "remotePackageId": { "type": "string" },
+                    "shareUrl": { "type": "string" },
+                    "status": { "type": "string" },
+                    "expiresAt": { "type": "string" }
+                  },
+                  "required": [
+                    "packageId",
+                    "remotePackageId",
+                    "shareUrl",
+                    "status",
+                    "expiresAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pin": { "type": "string" },
+                  "media": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "shotId": { "type": "string" },
+                        "relativePath": { "type": "string" },
+                        "mimeType": { "type": "string" },
+                        "capabilityToken": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "shotId",
+                        "relativePath",
+                        "mimeType",
+                        "capabilityToken"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["media"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/review-packages/{id}/cloud-sync": {
+      "post": {
+        "tags": ["cloud-review"],
+        "operationId": "cloud-review.sync",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "packageId": { "type": "string" },
+                    "nextCursor": { "type": "integer" },
+                    "commentCount": { "type": "integer" },
+                    "decisionCount": { "type": "integer" }
+                  },
+                  "required": [
+                    "packageId",
+                    "nextCursor",
+                    "commentCount",
+                    "decisionCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/compliance/profiles": {
       "get": {
         "tags": ["compliance"],
@@ -25210,6 +25525,7 @@
     { "name": "platform-delivery" },
     { "name": "timeline" },
     { "name": "review-editor" },
+    { "name": "cloud-review" },
     { "name": "compliance" },
     { "name": "analysis" },
     { "name": "search" },

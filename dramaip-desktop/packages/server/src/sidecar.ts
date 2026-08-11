@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { createCloudReviewGateway } from "./cloud-review";
 import {
   initializeOperationalSchema,
   initializeV3AgentSchema,
@@ -1288,6 +1289,27 @@ async function route(
       reviewPackageImportId,
       requestId,
     );
+  if (path === "/api/v1/cloud-review/connection" && method === "GET")
+    return getCloudReviewConnection(res);
+  if (path === "/api/v1/cloud-review/connection" && method === "PUT")
+    return saveCloudReviewConnection(req, res, requestId);
+  const cloudPublishPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-publish$/,
+  );
+  if (cloudPublishPackageId && method === "POST")
+    return publishCloudReviewPackage(
+      req,
+      res,
+      cloudPublishPackageId,
+      requestId,
+    );
+  const cloudSyncPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-sync$/,
+  );
+  if (cloudSyncPackageId && method === "POST")
+    return syncCloudReviewPackage(res, cloudSyncPackageId, requestId);
   const voiceProfilesProjectId = match(
     path,
     /^\/api\/v1\/projects\/([^/]+)\/voice-profiles$/,
@@ -16193,6 +16215,494 @@ async function importOfflineReviewComments(
   }
 }
 
+function getCloudReviewConnection(res: ServerResponse): void {
+  const current = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  json(
+    res,
+    200,
+    current
+      ? cloudReviewConnection(current)
+      : {
+          baseUrl: "",
+          workspaceId: "",
+          configured: false,
+          updatedAt: timestamp(),
+        },
+  );
+}
+
+async function saveCloudReviewConnection(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const baseUrl = text(input.baseUrl);
+  const workspaceId = text(input.workspaceId);
+  const credentialRef = text(input.credentialRef);
+  if (!baseUrl || !workspaceId || !credentialRef)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Cloud review connection requires a platform URL, workspace, and credential reference",
+      requestId,
+    );
+  try {
+    const parsed = new URL(baseUrl);
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+      parsed.username ||
+      parsed.password
+    )
+      throw new Error("invalid URL");
+    const now = timestamp();
+    db!
+      .prepare(
+        `INSERT INTO cloud_review_connections(singleton, base_url, workspace_id, credential_ref, updated_at)
+         VALUES (1, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           base_url = excluded.base_url, workspace_id = excluded.workspace_id,
+           credential_ref = excluded.credential_ref, updated_at = excluded.updated_at`,
+      )
+      .run(
+        parsed.toString().replace(/\/$/, ""),
+        workspaceId,
+        credentialRef,
+        now,
+      );
+    json(
+      res,
+      200,
+      cloudReviewConnection(
+        one("SELECT * FROM cloud_review_connections WHERE singleton = 1")!,
+      ),
+    );
+  } catch {
+    respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Cloud review platform URL is invalid",
+      requestId,
+    );
+  }
+}
+
+async function publishCloudReviewPackage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  if (
+    one("SELECT 1 FROM cloud_review_bindings WHERE local_package_id = ?", [
+      packageId,
+    ])
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Review package is already published to cloud review",
+      requestId,
+    );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const input = await body(req);
+  const media = await cloudReviewSelectedMedia(packageRecord, input.media);
+  if (!media.length)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select at least one readable media file for cloud review",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  const localPackage = reviewPackage(packageRecord);
+  const manifest = cloudReviewManifest(
+    localPackage,
+    String(connection.workspace_id),
+    media,
+  );
+  try {
+    const published = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).publish({
+      desktopPackageId: localPackage.id,
+      title: localPackage.title,
+      manifestJson: manifest,
+      ...(text(input.pin) ? { pin: text(input.pin) } : {}),
+      media: media.map(({ bytes, ...item }) => ({ ...item, bytes })),
+    });
+    const now = timestamp();
+    const shareUrl = `${String(connection.base_url).replace(/\/$/, "")}/review/${encodeURIComponent(published.shareToken)}`;
+    db!
+      .prepare(
+        `INSERT INTO cloud_review_bindings(
+          local_package_id, remote_package_id, share_url, sync_cursor, status, expires_at, created_at, updated_at
+        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+      )
+      .run(
+        packageId,
+        published.packageId,
+        shareUrl,
+        published.status,
+        published.expiresAt,
+        now,
+        now,
+      );
+    emit("review.cloud_published", {
+      packageId,
+      remotePackageId: published.packageId,
+      shareUrl,
+    });
+    json(res, 201, {
+      packageId,
+      remotePackageId: published.packageId,
+      shareUrl,
+      status: published.status,
+      expiresAt: published.expiresAt,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review publish failed; the local review package remains unchanged",
+      requestId,
+    );
+  }
+}
+
+async function syncCloudReviewPackage(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!packageRecord || !binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  try {
+    const synced = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).sync(String(binding.remote_package_id), Number(binding.sync_cursor));
+    const localPackage = reviewPackage(packageRecord);
+    let commentCount = 0;
+    let decisionCount = 0;
+    for (const comment of synced.comments) {
+      const event = one(
+        `SELECT local_record_id FROM cloud_review_events
+         WHERE local_package_id = ? AND event_kind = 'comment' AND client_id = ?`,
+        [packageId, comment.clientId],
+      );
+      const local = insertReviewComment(packageRecord, {
+        id: event?.local_record_id ?? comment.id,
+        ...(comment.shotId ? { shotId: comment.shotId } : {}),
+        timecodeSeconds: comment.timecodeSeconds,
+        authorAlias: comment.authorAlias,
+        body: comment.body,
+        resolved: comment.resolved,
+      });
+      if (!local) continue;
+      upsertCloudReviewEvent(
+        packageId,
+        "comment",
+        comment.clientId,
+        comment.id,
+        local.id,
+        comment.cursor,
+      );
+      commentCount += 1;
+    }
+    for (const decision of synced.decisions) {
+      const event = one(
+        `SELECT local_record_id FROM cloud_review_events
+         WHERE local_package_id = ? AND event_kind = 'decision' AND client_id = ?`,
+        [packageId, decision.clientId],
+      );
+      const local = insertReviewDecision(packageRecord, {
+        id: event?.local_record_id ?? decision.id,
+        ...(decision.shotId ? { shotId: decision.shotId } : {}),
+        decision: decision.decision,
+        authorAlias: decision.authorAlias,
+        note: decision.note,
+      });
+      if (!local) continue;
+      upsertCloudReviewEvent(
+        packageId,
+        "decision",
+        decision.clientId,
+        decision.id,
+        local.id,
+        decision.cursor,
+      );
+      decisionCount += 1;
+    }
+    db!
+      .prepare(
+        "UPDATE cloud_review_bindings SET sync_cursor = ?, updated_at = ? WHERE local_package_id = ?",
+      )
+      .run(synced.nextCursor, timestamp(), packageId);
+    emit("review.cloud_synced", {
+      packageId: localPackage.id,
+      commentCount,
+      decisionCount,
+      nextCursor: synced.nextCursor,
+    });
+    json(res, 200, {
+      packageId,
+      nextCursor: synced.nextCursor,
+      commentCount,
+      decisionCount,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review sync failed; existing local feedback was preserved",
+      requestId,
+    );
+  }
+}
+
+async function cloudReviewSelectedMedia(
+  packageRecord: Record<string, any>,
+  value: unknown,
+): Promise<
+  Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    bytes: Uint8Array;
+  }>
+> {
+  if (!Array.isArray(value) || value.length > 500) return [];
+  const manifest = domainPayload(packageRecord.manifest_json);
+  const clips = Array.isArray(manifest.clips) ? manifest.clips : [];
+  const selected = [] as Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    bytes: Uint8Array;
+  }>;
+  let totalBytes = 0;
+  const ids = new Set<string>();
+  const paths = new Set<string>();
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+      return [];
+    const item = candidate as Record<string, unknown>;
+    const id = text(item.id);
+    const shotId = text(item.shotId);
+    const relativePath = text(item.relativePath);
+    const mimeType = text(item.mimeType)?.toLowerCase();
+    const capabilityToken = text(item.capabilityToken);
+    if (
+      !id ||
+      !shotId ||
+      !relativePath ||
+      !mimeType ||
+      !capabilityToken ||
+      ids.has(id) ||
+      paths.has(relativePath) ||
+      !safeCloudReviewRelativePath(relativePath) ||
+      !cloudReviewMimeType(mimeType) ||
+      !clips.some(
+        (clip) => clip && typeof clip === "object" && clip.shotId === shotId,
+      )
+    )
+      return [];
+    const capability = await resolveCapability(capabilityToken);
+    if (!capability?.permissions.includes("read")) return [];
+    const info = statSync(capability.path);
+    if (!info.isFile() || info.size <= 0 || info.size > 512 * 1024 * 1024)
+      return [];
+    totalBytes += info.size;
+    if (totalBytes > 512 * 1024 * 1024) return [];
+    const bytes = readFileSync(capability.path);
+    ids.add(id);
+    paths.add(relativePath);
+    selected.push({
+      id,
+      shotId,
+      relativePath,
+      mimeType,
+      sizeBytes: info.size,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes,
+    });
+  }
+  return selected;
+}
+
+function cloudReviewManifest(
+  packageRecord: ReturnType<typeof reviewPackage>,
+  workspaceId: string,
+  media: Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }>,
+): string {
+  const clips = packageRecord.manifest.clips as Array<{
+    shotId: string;
+    orderIndex: number;
+    name: string;
+  }>;
+  return JSON.stringify({
+    format: "dramaip-review",
+    version: 1,
+    workspaceId,
+    packageId: packageRecord.id,
+    title: packageRecord.title,
+    projectId: packageRecord.projectId,
+    adaptationProjectId: packageRecord.adaptationId,
+    episodeId: packageRecord.episodeId,
+    media: media.map((item) => {
+      const clip = clips.find((entry) => entry.shotId === item.shotId);
+      return {
+        id: item.id,
+        relativePath: item.relativePath,
+        mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes,
+        sha256: item.sha256,
+        shotId: item.shotId,
+        orderIndex: clip?.orderIndex ?? 0,
+        label: clip?.name ?? item.relativePath,
+      };
+    }),
+  });
+}
+
+function upsertCloudReviewEvent(
+  packageId: string,
+  eventKind: "comment" | "decision",
+  clientId: string,
+  remoteEventId: string,
+  localRecordId: string,
+  cursor: number,
+): void {
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO cloud_review_events(
+        local_package_id, event_kind, client_id, remote_event_id, local_record_id, cursor, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(local_package_id, event_kind, client_id) DO UPDATE SET
+        remote_event_id = excluded.remote_event_id, local_record_id = excluded.local_record_id,
+        cursor = excluded.cursor, updated_at = excluded.updated_at`,
+    )
+    .run(
+      packageId,
+      eventKind,
+      clientId,
+      remoteEventId,
+      localRecordId,
+      cursor,
+      now,
+      now,
+    );
+}
+
+function safeCloudReviewRelativePath(value: string): boolean {
+  return (
+    value.length <= 240 &&
+    !value.startsWith("/") &&
+    !value.includes("\\") &&
+    !value.includes("\0") &&
+    !value.startsWith("../") &&
+    !value.includes("/../")
+  );
+}
+
+function cloudReviewMimeType(value: string): boolean {
+  return [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "video/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "text/vtt",
+  ].includes(value);
+}
+
 function buildEditorTimeline(context: {
   episode: Record<string, any>;
   adaptationId: string;
@@ -16430,18 +16940,39 @@ function insertReviewDecision(
     )
   )
     return undefined;
-  const id = randomUUID();
-  db!
-    .prepare("INSERT INTO review_decisions VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(
-      id,
+  const id =
+    typeof input.id === "string" &&
+    !one("SELECT id FROM review_decisions WHERE id = ? AND package_id != ?", [
+      input.id,
       packageRecord.id,
-      shotId ?? null,
-      decision,
-      optionalText(input.authorAlias),
-      optionalText(input.note),
-      timestamp(),
-    );
+    ])
+      ? input.id
+      : randomUUID();
+  const existing = one("SELECT id FROM review_decisions WHERE id = ?", [id]);
+  if (existing)
+    db!
+      .prepare(
+        "UPDATE review_decisions SET shot_id = ?, decision = ?, author_alias = ?, note = ? WHERE id = ?",
+      )
+      .run(
+        shotId ?? null,
+        decision,
+        optionalText(input.authorAlias),
+        optionalText(input.note),
+        id,
+      );
+  else
+    db!
+      .prepare("INSERT INTO review_decisions VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(
+        id,
+        packageRecord.id,
+        shotId ?? null,
+        decision,
+        optionalText(input.authorAlias),
+        optionalText(input.note),
+        timestamp(),
+      );
   return reviewDecision(
     one("SELECT * FROM review_decisions WHERE id = ?", [id])!,
   );
@@ -21689,6 +22220,14 @@ function reviewPackage(row: Record<string, any>) {
     title: String(row.title),
     manifest: JSON.parse(String(row.manifest_json)),
     createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+function cloudReviewConnection(row: Record<string, any>) {
+  return {
+    baseUrl: String(row.base_url),
+    workspaceId: String(row.workspace_id),
+    configured: Boolean(row.credential_ref),
     updatedAt: String(row.updated_at),
   };
 }

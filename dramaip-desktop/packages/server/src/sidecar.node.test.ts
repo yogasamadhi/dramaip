@@ -66,6 +66,10 @@ test("production-structure HTTP contract persists active adaptation and atomical
   let videoProviderCalls = 0;
   let codexShouldFailForNoFallbackTest = true;
   let lastSidecarDiagnostic = "";
+  let cloudReviewBaseUrl = "";
+  let cloudReviewShotId = "";
+  let cloudReviewObjectAuthorization: string | undefined;
+  let cloudReviewUploadedBytes = 0;
   let port: number;
   const fileCapabilities = new Map<string, string>();
   try {
@@ -287,6 +291,147 @@ test("production-structure HTTP contract persists active adaptation and atomical
       response.end(JSON.stringify({ sd_model_checkpoint: "sdxl-test" }));
       return;
     }
+    if (
+      request.url === "/api/v1/review-packages" &&
+      request.method === "POST"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(201, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            package: {
+              id: "remote-review-package-1",
+              workspaceId: "workspace-contract",
+              desktopPackageId: "desktop-package",
+              title: "第 1 集 · 离线审片包",
+              status: "uploading",
+              manifestJson: "{}",
+              storageBytes: 3,
+              syncCursor: 0,
+              expiresAt: "2026-09-01T00:00:00.000Z",
+              createdAt: "2026-08-12T00:00:00.000Z",
+              media: [],
+            },
+            shareToken: "contract-share-token",
+            uploadTargets: [
+              {
+                mediaId: "cloud-media-1",
+                method: "PUT",
+                url: `${cloudReviewBaseUrl}/review-object/contract`,
+                requiredHeaders: [{ name: "x-contract", value: "review" }],
+                expiresAt: "2026-08-12T00:05:00.000Z",
+              },
+            ],
+          },
+        }),
+      );
+      return;
+    }
+    if (request.url === "/review-object/contract" && request.method === "PUT") {
+      cloudReviewObjectAuthorization = request.headers.authorization;
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        cloudReviewUploadedBytes = Buffer.concat(chunks).byteLength;
+        response.writeHead(200);
+        response.end();
+      });
+      return;
+    }
+    if (
+      request.url ===
+        "/api/v1/review-packages/remote-review-package-1/complete" &&
+      request.method === "POST"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            id: "remote-review-package-1",
+            status: "published",
+            syncCursor: 0,
+            expiresAt: "2026-09-01T00:00:00.000Z",
+          },
+        }),
+      );
+      return;
+    }
+    if (
+      request.url?.startsWith(
+        "/api/v1/review-packages/remote-review-package-1/sync?afterCursor=",
+      ) &&
+      request.method === "GET"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            nextCursor: 2,
+            comments: [
+              {
+                id: "remote-comment-1",
+                packageId: "remote-review-package-1",
+                clientId: "member-comment-1",
+                shotId: cloudReviewShotId,
+                timecodeSeconds: 1.5,
+                authorAlias: "成员甲",
+                body: "补一秒停留。",
+                resolved: false,
+                cursor: 1,
+                createdAt: "2026-08-12T00:00:00.000Z",
+                updatedAt: "2026-08-12T00:00:00.000Z",
+              },
+            ],
+            decisions: [
+              {
+                id: "remote-decision-1",
+                packageId: "remote-review-package-1",
+                clientId: "guest-decision-1",
+                shotId: cloudReviewShotId,
+                decision: "request_changes",
+                authorAlias: "访客乙",
+                note: "补反应镜头。",
+                cursor: 2,
+                createdAt: "2026-08-12T00:00:01.000Z",
+              },
+            ],
+          },
+        }),
+      );
+      return;
+    }
+    if (
+      request.url === "/api/v1/review-packages/remote-review-package-1" &&
+      request.method === "DELETE"
+    ) {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: { packageId: "remote-review-package-1", status: "deleted" },
+        }),
+      );
+      return;
+    }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ data: [{ b64_json: "iVBORw0KGgo=" }] }));
   });
@@ -296,6 +441,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
   const imageAddress = imageProvider.address();
   if (!imageAddress || typeof imageAddress === "string")
     throw new Error("Unable to start image provider mock");
+  cloudReviewBaseUrl = `http://127.0.0.1:${imageAddress.port}`;
   const child = fork(new URL("./sidecar-test-host.ts", import.meta.url), {
     execArgv: ["--import", "tsx"],
     stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -3430,6 +3576,104 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(decision.status, 201);
     assert.equal(decision.body.decision, "request_changes");
+    const initialCloudConnection = await request<{
+      configured: boolean;
+      baseUrl: string;
+    }>("/api/v1/cloud-review/connection");
+    assert.equal(initialCloudConnection.status, 200);
+    assert.equal(initialCloudConnection.body.configured, false);
+    const cloudConnection = await request<{
+      configured: boolean;
+      baseUrl: string;
+      workspaceId: string;
+      credentialRef?: string;
+    }>("/api/v1/cloud-review/connection", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: cloudReviewBaseUrl,
+        workspaceId: "workspace-contract",
+        credentialRef: "cloud-review-contract-credential",
+      }),
+    });
+    assert.equal(cloudConnection.status, 200);
+    assert.equal(cloudConnection.body.configured, true);
+    assert.equal(cloudConnection.body.workspaceId, "workspace-contract");
+    assert.equal(cloudConnection.body.credentialRef, undefined);
+    const cloudMediaPath = join(directory, "cloud-review-selected.mp4");
+    writeFileSync(cloudMediaPath, Buffer.from([1, 2, 3]));
+    fileCapabilities.set("cloud-review-media", cloudMediaPath);
+    cloudReviewShotId = shot.body.id;
+    const cloudPublished = await request<{
+      remotePackageId: string;
+      shareUrl: string;
+      status: string;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-publish`, {
+      method: "POST",
+      body: JSON.stringify({
+        media: [
+          {
+            id: "cloud-media-1",
+            shotId: shot.body.id,
+            relativePath: "episode-1/selected.mp4",
+            mimeType: "video/mp4",
+            capabilityToken: "cloud-review-media",
+          },
+        ],
+      }),
+    });
+    assert.equal(cloudPublished.status, 201);
+    assert.equal(
+      cloudPublished.body.remotePackageId,
+      "remote-review-package-1",
+    );
+    assert.match(cloudPublished.body.shareUrl, /contract-share-token$/);
+    assert.equal(cloudPublished.body.status, "published");
+    assert.equal(cloudReviewUploadedBytes, 3);
+    assert.equal(
+      cloudReviewObjectAuthorization,
+      undefined,
+      "Bearer token must never reach object storage",
+    );
+    const cloudSync = await request<{
+      nextCursor: number;
+      commentCount: number;
+      decisionCount: number;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-sync`, {
+      method: "POST",
+    });
+    assert.equal(cloudSync.status, 200);
+    assert.deepEqual(cloudSync.body, {
+      packageId: reviewPackage.body.id,
+      nextCursor: 2,
+      commentCount: 1,
+      decisionCount: 1,
+    });
+    const cloudSyncRepeated = await request<{
+      nextCursor: number;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-sync`, {
+      method: "POST",
+    });
+    assert.equal(cloudSyncRepeated.status, 200);
+    assert.equal(cloudSyncRepeated.body.nextCursor, 2);
+    const synchronizedComments = await request<
+      Array<{ id: string; body: string }>
+    >(`/api/v1/review-packages/${reviewPackage.body.id}/comments`);
+    assert.equal(
+      synchronizedComments.body.filter((item) => item.id === "remote-comment-1")
+        .length,
+      1,
+      "remote client ID must update the same local comment",
+    );
+    const synchronizedDecisions = await request<
+      Array<{ id: string; decision: string }>
+    >(`/api/v1/review-packages/${reviewPackage.body.id}/decisions`);
+    assert.equal(
+      synchronizedDecisions.body.filter(
+        (item) => item.id === "remote-decision-1",
+      ).length,
+      1,
+      "remote client ID must update the same local decision",
+    );
     const asset = await request<{ id: string }>("/api/v1/assets", {
       method: "POST",
       body: JSON.stringify({

@@ -12034,6 +12034,21 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     "approve" | "return" | "request_changes" | "note"
   >("note");
   const [decisionNote, setDecisionNote] = useState("");
+  const [cloudBaseUrl, setCloudBaseUrl] = useState("");
+  const [cloudWorkspaceId, setCloudWorkspaceId] = useState("");
+  const [cloudAccessToken, setCloudAccessToken] = useState("");
+  const [cloudPin, setCloudPin] = useState("");
+  const [cloudMedia, setCloudMedia] = useState<
+    Array<{
+      id: string;
+      shotId: string;
+      relativePath: string;
+      mimeType: string;
+      capabilityToken: string;
+      name: string;
+    }>
+  >([]);
+  const [cloudShareUrl, setCloudShareUrl] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState<string>();
   const { data: timeline, error: timelineError } = useQuery({
@@ -12048,6 +12063,19 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     queryKey: ["review-editor", "packages", props.episodeId],
     queryFn: () => client.reviewEditor.listPackages(props.episodeId),
   });
+  const { data: cloudConnection } = useQuery({
+    queryKey: ["cloud-review", "connection"],
+    queryFn: () => client.cloudReview.connection(),
+  });
+  const { data: credentialStorage } = useQuery({
+    queryKey: ["credential-storage-status"],
+    queryFn: () => window.desktop.getCredentialStorageStatus(),
+  });
+  useEffect(() => {
+    if (!cloudConnection?.configured) return;
+    setCloudBaseUrl((current) => current || cloudConnection.baseUrl);
+    setCloudWorkspaceId((current) => current || cloudConnection.workspaceId);
+  }, [cloudConnection]);
   useEffect(() => {
     if (!packages.some((item) => item.id === packageId))
       setPackageId(packages[0]?.id ?? "");
@@ -12139,6 +12167,120 @@ function ReviewEditorPanel(props: { episodeId: string }) {
       });
       setNotice(
         `已导入 ${result.commentCount} 条审阅意见和 ${result.decisionCount} 条决定。`,
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const cloudMimeType = (name: string) => {
+    const extension = name.split(".").pop()?.toLowerCase();
+    return extension === "mp4"
+      ? "video/mp4"
+      : extension === "webp"
+        ? "image/webp"
+        : extension === "png"
+          ? "image/png"
+          : extension === "jpg" || extension === "jpeg"
+            ? "image/jpeg"
+            : extension === "mp3"
+              ? "audio/mpeg"
+              : extension === "wav"
+                ? "audio/wav"
+                : "text/vtt";
+  };
+  const chooseCloudMedia = async () => {
+    const files = await window.desktop.pickFiles({
+      multiple: true,
+      extensions: ["mp4", "jpg", "jpeg", "png", "webp", "mp3", "wav", "vtt"],
+    });
+    if (!files?.length) return;
+    setCloudMedia(
+      files.map((file, index) => ({
+        id: `cloud-${Date.now()}-${index}`,
+        shotId: timeline?.clips[index]?.shotId ?? "",
+        relativePath: `review/${file.name.replace(/[\\/]/g, "-")}`,
+        mimeType: cloudMimeType(file.name),
+        capabilityToken: file.token,
+        name: file.name,
+      })),
+    );
+  };
+  const saveCloudConnection = async () => {
+    if (
+      !cloudBaseUrl.trim() ||
+      !cloudWorkspaceId.trim() ||
+      !cloudAccessToken.trim()
+    ) {
+      setNotice("请填写平台地址、workspace 和短期访问令牌。");
+      return;
+    }
+    if (credentialStorage?.available !== true) {
+      setNotice("本机加密凭据库不可用，不能保存云审片令牌。");
+      return;
+    }
+    setWorking("保存云审片连接");
+    setNotice(undefined);
+    let credentialRef: string | undefined;
+    try {
+      credentialRef = (
+        await window.desktop.storeCredential(cloudAccessToken.trim())
+      ).credentialRef;
+      await client.cloudReview.saveConnection({
+        baseUrl: cloudBaseUrl.trim(),
+        workspaceId: cloudWorkspaceId.trim(),
+        credentialRef,
+      });
+      setCloudAccessToken("");
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "connection"],
+      });
+      setNotice("云审片连接已保存；令牌只保存在本机加密凭据库。");
+    } catch (cause) {
+      if (credentialRef)
+        await window.desktop.removeCredential(credentialRef).catch(() => {});
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const publishCloudReview = async () => {
+    if (!packageId || !cloudConnection?.configured || !cloudMedia.length) {
+      setNotice("请先选择本地审片包、保存连接并选择至少一个媒体文件。");
+      return;
+    }
+    if (cloudMedia.some((item) => !item.shotId)) {
+      setNotice("每个上传媒体都必须显式关联一个分镜。");
+      return;
+    }
+    setWorking("发布云审片");
+    setNotice(undefined);
+    try {
+      const published = await client.cloudReview.publish(packageId, {
+        ...(cloudPin.trim() ? { pin: cloudPin.trim() } : {}),
+        media: cloudMedia.map(({ name: _name, ...item }) => item),
+      });
+      setCloudPin("");
+      setCloudShareUrl(published.shareUrl);
+      setNotice(
+        `云审片包已发布，保留至 ${published.expiresAt}；请只分享下方链接。`,
+      );
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const syncCloudReview = async () => {
+    if (!packageId) return;
+    setWorking("同步云端意见");
+    setNotice(undefined);
+    try {
+      const synced = await client.cloudReview.sync(packageId);
+      setNotice(
+        `已按游标同步 ${synced.commentCount} 条意见和 ${synced.decisionCount} 条决定。`,
       );
       await refresh();
     } catch (cause) {
@@ -12353,6 +12495,143 @@ function ReviewEditorPanel(props: { episodeId: string }) {
             ))}
           </select>
         </label>
+      </section>
+      <section className="rounded-xl border border-line p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-medium">可选云审片</h3>
+            <p className="mt-1 text-sm text-muted">
+              仅上传下方明确选择的媒体。令牌只进入本机加密凭据库；不上传项目数据库、Provider
+              密钥或未选文件。
+            </p>
+          </div>
+          <span className="rounded bg-page px-2 py-1 text-xs text-muted">
+            {cloudConnection?.configured ? "连接已保存" : "尚未配置"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-4">
+          <label className="grid gap-1 text-sm">
+            平台地址
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              value={cloudBaseUrl}
+              onChange={(event) => setCloudBaseUrl(event.target.value)}
+              placeholder="https://platform.example.com"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            Workspace ID
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              value={cloudWorkspaceId}
+              onChange={(event) => setCloudWorkspaceId(event.target.value)}
+              placeholder="已授权的 workspace"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            短期访问令牌
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              type="password"
+              value={cloudAccessToken}
+              onChange={(event) => setCloudAccessToken(event.target.value)}
+              placeholder="只在保存时写入凭据库"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            分享 PIN（可选）
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              type="password"
+              inputMode="numeric"
+              value={cloudPin}
+              onChange={(event) => setCloudPin(event.target.value)}
+              placeholder="4–12 位数字，仅本次发布使用"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={Boolean(working) || credentialStorage?.available !== true}
+            onClick={() => void saveCloudConnection()}
+          >
+            {working === "保存云审片连接" ? "正在保存…" : "保存安全连接"}
+          </button>
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={Boolean(working)}
+            onClick={() => void chooseCloudMedia()}
+          >
+            选择要上传的媒体
+          </button>
+          <button
+            className="rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+            disabled={
+              Boolean(working) ||
+              !packageId ||
+              !cloudConnection?.configured ||
+              !cloudMedia.length
+            }
+            onClick={() => void publishCloudReview()}
+          >
+            {working === "发布云审片" ? "正在发布…" : "确认发布选定媒体"}
+          </button>
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={
+              Boolean(working) || !packageId || !cloudConnection?.configured
+            }
+            onClick={() => void syncCloudReview()}
+          >
+            {working === "同步云端意见" ? "正在同步…" : "按游标同步意见"}
+          </button>
+        </div>
+        {credentialStorage?.available === false && (
+          <p className="mt-2 text-xs text-red-700">
+            {credentialStorage.message ?? "本机加密凭据库不可用。"}
+          </p>
+        )}
+        {cloudMedia.length > 0 && (
+          <div className="mt-3 space-y-2 rounded-lg bg-page p-3 text-sm">
+            <p className="font-medium">发布清单（确认后才会上传）</p>
+            {cloudMedia.map((item) => (
+              <label
+                key={item.id}
+                className="grid gap-1 md:grid-cols-[1fr_220px] md:items-center"
+              >
+                <span className="truncate" title={item.relativePath}>
+                  {item.name} · {item.mimeType} · {item.relativePath}
+                </span>
+                <select
+                  className="rounded border border-line bg-surface px-2 py-1"
+                  value={item.shotId}
+                  onChange={(event) =>
+                    setCloudMedia((current) =>
+                      current.map((candidate) =>
+                        candidate.id === item.id
+                          ? { ...candidate, shotId: event.target.value }
+                          : candidate,
+                      ),
+                    )
+                  }
+                >
+                  <option value="">关联分镜（必填）</option>
+                  {timeline?.clips.map((clip) => (
+                    <option key={clip.shotId} value={clip.shotId}>
+                      {clip.orderIndex + 1}. {clip.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        )}
+        {cloudShareUrl && (
+          <p className="mt-3 break-all rounded-lg bg-brand-soft p-3 text-sm text-brand">
+            已创建受控分享链接：{cloudShareUrl}
+          </p>
+        )}
       </section>
       {packageId && (
         <section className="grid gap-4 xl:grid-cols-2">

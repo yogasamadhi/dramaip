@@ -1816,6 +1816,77 @@ export interface OfflineReviewImportResult {
   commentCount: number;
   decisionCount: number;
 }
+/** A platform endpoint and workspace; the access token itself stays in the credential vault. */
+export const CloudReviewConnection = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  configured: Schema.Boolean,
+  updatedAt: IsoDateTime,
+});
+export interface CloudReviewConnection {
+  baseUrl: string;
+  workspaceId: string;
+  configured: boolean;
+  updatedAt: IsoDateTime;
+}
+export const CloudReviewConnectionInput = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  credentialRef: Schema.String,
+});
+export interface CloudReviewConnectionInput {
+  baseUrl: string;
+  workspaceId: string;
+  credentialRef: string;
+}
+export const CloudReviewMediaInput = Schema.Struct({
+  id: Schema.String,
+  shotId: Id,
+  relativePath: Schema.String,
+  mimeType: Schema.String,
+  capabilityToken: Schema.String,
+});
+export interface CloudReviewMediaInput {
+  id: string;
+  shotId: Id;
+  relativePath: string;
+  mimeType: string;
+  capabilityToken: string;
+}
+export const CloudReviewPublishInput = Schema.Struct({
+  pin: Schema.optionalKey(Schema.String),
+  media: Schema.Array(CloudReviewMediaInput),
+});
+export interface CloudReviewPublishInput {
+  pin?: string;
+  media: CloudReviewMediaInput[];
+}
+export const CloudReviewPublishResult = Schema.Struct({
+  packageId: Id,
+  remotePackageId: Schema.String,
+  shareUrl: Schema.String,
+  status: Schema.String,
+  expiresAt: IsoDateTime,
+});
+export interface CloudReviewPublishResult {
+  packageId: Id;
+  remotePackageId: string;
+  shareUrl: string;
+  status: string;
+  expiresAt: IsoDateTime;
+}
+export const CloudReviewSyncResult = Schema.Struct({
+  packageId: Id,
+  nextCursor: Schema.Int,
+  commentCount: Schema.Int,
+  decisionCount: Schema.Int,
+});
+export interface CloudReviewSyncResult {
+  packageId: Id;
+  nextCursor: number;
+  commentCount: number;
+  decisionCount: number;
+}
 
 /** 版本化离线合规规则是本地证据，不构成法律意见或平台审核结果。 */
 export const ComplianceRuleProfile = Schema.Struct({

@@ -128,6 +128,11 @@ import {
   ReviewDecisionInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
+  CloudReviewConnection,
+  CloudReviewConnectionInput,
+  CloudReviewPublishInput,
+  CloudReviewPublishResult,
+  CloudReviewSyncResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -1179,6 +1184,48 @@ const ReviewEditorGroup = HttpApiGroup.make("review-editor")
     ),
   );
 
+const CloudReviewGroup = HttpApiGroup.make("cloud-review")
+  .add(
+    HttpApiEndpoint.get("connection", `${API_PREFIX}/cloud-review/connection`, {
+      success: CloudReviewConnection,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "saveConnection",
+      `${API_PREFIX}/cloud-review/connection`,
+      {
+        payload: CloudReviewConnectionInput,
+        success: CloudReviewConnection,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "publish",
+      `${API_PREFIX}/review-packages/:id/cloud-publish`,
+      {
+        params: { id: Schema.String },
+        payload: CloudReviewPublishInput,
+        success: CloudReviewPublishResult,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "sync",
+      `${API_PREFIX}/review-packages/:id/cloud-sync`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewSyncResult,
+        error: ApiError,
+      },
+    ),
+  );
+
 const ComplianceGroup = HttpApiGroup.make("compliance")
   .add(
     HttpApiEndpoint.get("listProfiles", `${API_PREFIX}/compliance/profiles`, {
@@ -2066,6 +2113,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(PlatformDeliveryGroup)
   .add(TimelineGroup)
   .add(ReviewEditorGroup)
+  .add(CloudReviewGroup)
   .add(ComplianceGroup)
   .add(AnalysisGroup)
   .add(SearchGroup)

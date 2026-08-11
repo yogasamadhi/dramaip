@@ -182,6 +182,28 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       author_alias TEXT, note TEXT, created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS review_decisions_package ON review_decisions(package_id, created_at);
+    CREATE TABLE IF NOT EXISTS cloud_review_connections (
+      singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+      base_url TEXT NOT NULL, workspace_id TEXT NOT NULL, credential_ref TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cloud_review_bindings (
+      local_package_id TEXT PRIMARY KEY REFERENCES review_packages(id) ON DELETE CASCADE,
+      remote_package_id TEXT NOT NULL UNIQUE, share_url TEXT NOT NULL,
+      sync_cursor INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+      expires_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cloud_review_events (
+      local_package_id TEXT NOT NULL REFERENCES review_packages(id) ON DELETE CASCADE,
+      event_kind TEXT NOT NULL CHECK(event_kind IN ('comment', 'decision')),
+      client_id TEXT NOT NULL, remote_event_id TEXT NOT NULL,
+      local_record_id TEXT NOT NULL, cursor INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY(local_package_id, event_kind, client_id),
+      UNIQUE(remote_event_id)
+    );
+    CREATE INDEX IF NOT EXISTS cloud_review_events_cursor
+      ON cloud_review_events(local_package_id, cursor);
     CREATE TABLE IF NOT EXISTS voice_profiles (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL, character_id TEXT, sample_asset_id TEXT,
