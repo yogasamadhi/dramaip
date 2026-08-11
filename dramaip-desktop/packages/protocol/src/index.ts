@@ -78,6 +78,7 @@ import {
   ProviderConnectionResult,
   AgentProviderActivationResult,
   StoryBibleChangeSet,
+  StoryBibleChangeSetApplyInput,
   StoryBibleChangeSetInput,
   StoryBibleSettings,
   StoryBibleStaleMark,
@@ -646,6 +647,7 @@ const StoryBibleGroup = HttpApiGroup.make("story-bible")
       `${API_PREFIX}/story-bible/change-sets/:id/apply`,
       {
         params: { id: Schema.String },
+        payload: StoryBibleChangeSetApplyInput,
         success: StoryBibleChangeSet,
         error: ApiError,
       },

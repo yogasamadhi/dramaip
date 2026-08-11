@@ -1470,6 +1470,19 @@ export interface StoryBibleSettings {
   autoSuggest: boolean;
   updatedAt: IsoDateTime;
 }
+export const StoryBibleChangePreview = Schema.Struct({
+  title: Schema.String,
+  fields: Schema.Array(
+    Schema.Struct({
+      key: Schema.String,
+      value: Schema.String,
+    }),
+  ),
+});
+export interface StoryBibleChangePreview {
+  title: string;
+  fields: Array<{ key: string; value: string }>;
+}
 export const StoryBibleChangeSet = Schema.Struct({
   id: Id,
   projectId: Id,
@@ -1479,6 +1492,7 @@ export const StoryBibleChangeSet = Schema.Struct({
   summary: Schema.String,
   taskId: Schema.optionalKey(Id),
   conflictNotes: Schema.Array(Schema.String),
+  preview: StoryBibleChangePreview,
   appliedAt: Schema.optionalKey(IsoDateTime),
   undoneAt: Schema.optionalKey(IsoDateTime),
   createdAt: IsoDateTime,
@@ -1493,6 +1507,7 @@ export interface StoryBibleChangeSet {
   summary: string;
   taskId?: Id;
   conflictNotes: string[];
+  preview: StoryBibleChangePreview;
   appliedAt?: IsoDateTime;
   undoneAt?: IsoDateTime;
   createdAt: IsoDateTime;
@@ -1521,6 +1536,12 @@ export const StoryBibleChangeSetInput = Schema.Struct({
 export interface StoryBibleChangeSetInput {
   projectId: Id;
   chapterId: Id;
+}
+export const StoryBibleChangeSetApplyInput = Schema.Struct({
+  fields: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+export interface StoryBibleChangeSetApplyInput {
+  fields?: string[];
 }
 
 export const ProjectPackagePreview = Schema.Struct({

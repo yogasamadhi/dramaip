@@ -157,6 +157,7 @@ const RESOURCE_DOMAINS = new Set([
   "story-bible",
   "story-bible-settings",
   "story-bible-stale",
+  "story-bible-sidecar-preferences",
   "memory",
   "chapter-memories",
   "character-states",
@@ -1442,7 +1443,7 @@ async function route(
     /^\/api\/v1\/story-bible\/change-sets\/([^/]+)\/apply$/,
   );
   if (storyBibleApply && method === "POST")
-    return applyStoryBibleChangeSet(res, storyBibleApply, requestId);
+    return applyStoryBibleChangeSet(req, res, storyBibleApply, requestId);
   const storyBibleUndo = match(
     path,
     /^\/api\/v1\/story-bible\/change-sets\/([^/]+)\/undo$/,
@@ -11867,6 +11868,18 @@ function storyBibleSettings(row: Record<string, unknown>) {
 }
 
 function storyBibleChangeSet(row: Record<string, unknown>) {
+  const draft = domainPayload(row.payload_json);
+  const memory = domainPayload(draft.memory);
+  const memoryPayload = domainPayload(memory.payload);
+  const previewFields = [
+    "章节摘要",
+    "重要事件",
+    "人物变化与秘密",
+    "新增或回收伏笔",
+  ].flatMap((key) => {
+    const value = text(memoryPayload[key]);
+    return value ? [{ key, value }] : [];
+  });
   return {
     id: String(row.id),
     projectId: String(row.project_id),
@@ -11876,6 +11889,10 @@ function storyBibleChangeSet(row: Record<string, unknown>) {
     summary: String(row.summary),
     ...(row.task_id ? { taskId: String(row.task_id) } : {}),
     conflictNotes: jsonStringArray(row.conflict_notes_json),
+    preview: {
+      title: text(memory.title) ?? String(row.summary),
+      fields: previewFields,
+    },
     ...(row.applied_at ? { appliedAt: String(row.applied_at) } : {}),
     ...(row.undone_at ? { undoneAt: String(row.undone_at) } : {}),
     createdAt: String(row.created_at),
@@ -12169,11 +12186,12 @@ function maybeAutoSuggestStoryBibleChangeSet(
   }
 }
 
-function applyStoryBibleChangeSet(
+async function applyStoryBibleChangeSet(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   requestId: string,
-): void {
+): Promise<void> {
   const current = one("SELECT * FROM story_bible_change_sets WHERE id = ?", [
     id,
   ]);
@@ -12191,6 +12209,28 @@ function applyStoryBibleChangeSet(
       409,
       "CONFLICT",
       "Only a draft story bible change set can be applied",
+      requestId,
+    );
+  const input = await body(req);
+  const requestedFields = Array.isArray(input.fields)
+    ? input.fields.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const selectableFields = [
+    "章节摘要",
+    "重要事件",
+    "人物变化与秘密",
+    "新增或回收伏笔",
+  ];
+  if (
+    requestedFields &&
+    (!requestedFields.length ||
+      requestedFields.some((field) => !selectableFields.includes(field)))
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Selected story bible fields are invalid",
       requestId,
     );
   const chapterRow = one("SELECT * FROM chapters WHERE id = ?", [
@@ -12215,6 +12255,21 @@ function applyStoryBibleChangeSet(
   }
   const payload = domainPayload(current.payload_json);
   const memory = domainPayload(payload.memory);
+  const memoryPayload = domainPayload(memory.payload);
+  const selectedMemoryPayload = requestedFields
+    ? {
+        ...(memoryPayload["关联章节"] === undefined
+          ? {}
+          : { 关联章节: memoryPayload["关联章节"] }),
+        ...Object.fromEntries(
+          requestedFields.flatMap((field) =>
+            memoryPayload[field] === undefined
+              ? []
+              : [[field, memoryPayload[field]]],
+          ),
+        ),
+      }
+    : memoryPayload;
   const now = timestamp();
   const memoryId = randomUUID();
   db!.exec("BEGIN IMMEDIATE");
@@ -12229,7 +12284,7 @@ function applyStoryBibleChangeSet(
         current.project_id,
         String(memory.title ?? `《${chapterRow.title}》章节记忆`),
         JSON.stringify({
-          ...domainPayload(memory.payload),
+          ...selectedMemoryPayload,
           来源变更集: current.id,
           来源章节版本: Number(current.source_version),
         }),

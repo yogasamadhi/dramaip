@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "331b8c393b41c452bf7d4479a39d4959b68c966d2d2c82f7b114e045a1d3db9f";
+  "e07be5542935df01ddc6121ceb620395e97c02c47df6f814c3243679d35ee79f";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -76,6 +76,7 @@ import type {
   ProviderConnectionResult,
   AgentProviderActivationResult,
   StoryBibleChangeSet,
+  StoryBibleChangeSetApplyInput,
   StoryBibleChangeSetInput,
   StoryBibleChangeSetStatus,
   StoryBibleSettings,
@@ -260,7 +261,10 @@ export interface StudioClient {
     list(projectId: string): Promise<StoryBibleChangeSet[]>;
     stale(projectId: string): Promise<StoryBibleStaleMark[]>;
     queue(input: StoryBibleChangeSetInput): Promise<StoryBibleChangeSet>;
-    apply(id: string): Promise<StoryBibleChangeSet>;
+    apply(
+      id: string,
+      input: StoryBibleChangeSetApplyInput,
+    ): Promise<StoryBibleChangeSet>;
     undo(id: string): Promise<StoryBibleChangeSet>;
     setStatus(
       id: string,
@@ -855,11 +859,12 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "POST",
           body: JSON.stringify(input),
         }),
-      apply: (id) =>
+      apply: (id, input) =>
         request(
           `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/apply`,
           {
             method: "POST",
+            body: JSON.stringify(input),
           },
         ),
       undo: (id) =>
