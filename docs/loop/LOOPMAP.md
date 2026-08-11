@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23、LM6-24 已完成并已推送；LM6-25 为 `todo`。
-> - 执行模式：无人值守 sweep；LM6-24 / Attempt 4 已完成并合入 `main`；下一游标为 `LM6-25`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23、LM6-24、LM6-25 均已完成并推送。
+> - 执行模式：无人值守 sweep 已结束；LM6-25 / Attempt 1 已完成并合入 `main`；已满足 4.4 的整批完成条件。
 
 ## 1. 总体目标与范围
 
@@ -73,22 +73,22 @@
 
 ### 2.2 需要本轮解决的体验与交付缺口
 
-| 现状                                                     | 缺口                                                       | 影响                               | 对应 Loop      |
-| -------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------- | -------------- |
-| 首页主要是标题与类型的新建表单                           | 三种创建路径没有成为真实首页主体验                         | 首次价值慢，用户不知道从哪里开始   | LM6-01         |
-| 文档描述四区工作台，实际仍以多个全局导航和通用工作区为主 | 项目状态、阻塞与下一步不聚焦                               | 用户在页面与级联选择器间寻找流程   | LM6-02         |
-| 默认助手暴露引擎、任务、模型、盲测等实现参数             | 新用户必须先理解内部架构                                   | 认知负担高且容易误配               | LM6-03         |
-| 导入主稿已存在，但内容提取能力分散                       | 没有一次性、可审查的人物 / 场景 / 道具 / 摘要 / 改编建议包 | 导入后仍需大量手工搬运             | LM6-04         |
-| 已有试制覆盖率与计划概念                                 | 缺少串联内容、剧本、分镜与人工 Gate 的向导                 | 试制不是一条可恢复的用户旅程       | LM6-05         |
-| 视觉资产已有结构与锁                                     | 界面仍偏表单，媒体预览、版本比较和镜头用途不够直观         | 难以保持角色与场景一致性           | LM6-10         |
-| 分镜、镜头和生产任务已存在                               | 缺少导演可扫视和重排的卡片看板                             | 生产过程不够视觉化                 | LM6-11         |
+| 现状                                                     | 缺口                                                        | 影响                               | 对应 Loop      |
+| -------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------- | -------------- |
+| 首页主要是标题与类型的新建表单                           | 三种创建路径没有成为真实首页主体验                          | 首次价值慢，用户不知道从哪里开始   | LM6-01         |
+| 文档描述四区工作台，实际仍以多个全局导航和通用工作区为主 | 项目状态、阻塞与下一步不聚焦                                | 用户在页面与级联选择器间寻找流程   | LM6-02         |
+| 默认助手暴露引擎、任务、模型、盲测等实现参数             | 新用户必须先理解内部架构                                    | 认知负担高且容易误配               | LM6-03         |
+| 导入主稿已存在，但内容提取能力分散                       | 没有一次性、可审查的人物 / 场景 / 道具 / 摘要 / 改编建议包  | 导入后仍需大量手工搬运             | LM6-04         |
+| 已有试制覆盖率与计划概念                                 | 缺少串联内容、剧本、分镜与人工 Gate 的向导                  | 试制不是一条可恢复的用户旅程       | LM6-05         |
+| 视觉资产已有结构与锁                                     | 界面仍偏表单，媒体预览、版本比较和镜头用途不够直观          | 难以保持角色与场景一致性           | LM6-10         |
+| 分镜、镜头和生产任务已存在                               | 缺少导演可扫视和重排的卡片看板                              | 生产过程不够视觉化                 | LM6-11         |
 | 已有渲染预检和远程视频任务                               | 静帧采用、资产锁、权利、费用与提交快照现已由服务端统一 Gate | 避免在错误视觉方向上浪费高成本生成 | LM6-12         |
-| 爽点、节拍、反转等分析有数据基础                         | 没有在集级工作区形成可定位的节奏曲线                       | 诊断与修改脱节                     | LM6-13         |
-| Story Bible 页面和变更包已存在                           | 写作时不能常驻查看当前人物、时间线、伏笔和视觉锁           | 连续性记忆与正文编辑割裂           | LM6-14         |
-| 有镜头、视频、配音、字幕等实体 / 任务                    | 没有可播放的多轨编辑语义和自动装配结果                     | 无法形成“看得见”的成片结构         | LM6-20、LM6-21 |
-| 有预检和片段级远程生成                                   | 最终 MP4 尚无可信本地路径，NLE 交换也需真实导入证据        | “最终交付”不能标记完成             | LM6-22         |
-| Story Bible 与资产主要属于单项目                         | 系列级连续性和跨项目资产复用不足                           | IP 长期经营成本高                  | LM6-23         |
-| 平台已有云审片后端基础                                   | 桌面发布、Web 审片、多人评论回流尚未形成经验证闭环         | 外部审片反馈无法进入本地修订       | LM6-24         |
+| 爽点、节拍、反转等分析有数据基础                         | 没有在集级工作区形成可定位的节奏曲线                        | 诊断与修改脱节                     | LM6-13         |
+| Story Bible 页面和变更包已存在                           | 写作时不能常驻查看当前人物、时间线、伏笔和视觉锁            | 连续性记忆与正文编辑割裂           | LM6-14         |
+| 有镜头、视频、配音、字幕等实体 / 任务                    | 没有可播放的多轨编辑语义和自动装配结果                      | 无法形成“看得见”的成片结构         | LM6-20、LM6-21 |
+| 有预检和片段级远程生成                                   | 最终 MP4 尚无可信本地路径，NLE 交换也需真实导入证据         | “最终交付”不能标记完成             | LM6-22         |
+| Story Bible 与资产主要属于单项目                         | 系列级连续性和跨项目资产复用不足                            | IP 长期经营成本高                  | LM6-23         |
+| 平台已有云审片后端基础                                   | 桌面发布、Web 审片、多人评论回流尚未形成经验证闭环          | 外部审片反馈无法进入本地修订       | LM6-24         |
 
 ### 2.3 当前验证可信度
 
@@ -340,19 +340,19 @@ make platform-down
 | LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
-| LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过           | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
+| LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过            | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
-| LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过         | 静帧先行与视频成本 Gate               | LM6-11        |
+| LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过          | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | done   | 1        | 侧栏、选择性采用、完整回归和远端 main 推送通过   | 章节编辑器常驻 Story Bible            | LM6-13        |
 | LM6-15  | P1 Gate  | Release             | done   | 1        | P1 矩阵、三集 Gate、完整回归和远端 main 推送通过 | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
 | LM6-20  | P2       | Timeline Editor     | done   | 1        | 多轨编辑、完整回归和远端 main 推送通过           | 可播放、可编辑的多轨时间线            | LM6-15        |
 | LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
-| LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过 | 系列 Story Bible 与跨项目资产库       | LM6-22        |
-| LM6-24  | P2       | Review Integration  | partial| 3        | 桌面发布/同步 checkpoint 已推送；删除和修订待完成 | 桌面到云审片再到本地反馈闭环          | LM6-23        |
-| LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
+| LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过  | 系列 Story Bible 与跨项目资产库       | LM6-22        |
+| LM6-24  | P2       | Review Integration  | done   | 4        | 云审片回流、修订、删除与完整回归/远端 main 通过  | 桌面到云审片再到本地反馈闭环          | LM6-23        |
+| LM6-25  | P2 Gate  | Release             | done   | 1        | P2 全链、完整回归和远端 main 推送通过            | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
 ## 8. Loop 详细定义
 
@@ -637,7 +637,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Story Intelligence
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-13
 - **Goal**：写章节或剧本时，无需离开编辑上下文即可查看相关人物状态、关系、时间线、伏笔和视觉锁，并以变更包方式更新。
 - **Scope**：可折叠 / 可调整侧栏、当前范围关联、搜索与固定条目、冲突 / stale、变更包预览、深链和键盘体验。
@@ -662,7 +662,7 @@ make platform-down
 
 - **Priority**：P1 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-10、LM6-11、LM6-12、LM6-13、LM6-14
 - **Goal**：证明导演可从已采用剧本走到资产锁定、卡片分镜和静帧批准，同时节奏与 Story Bible 始终可审查。
 - **Scope**：资产中心、分镜看板、静帧 Gate、曲线、Story Bible、权利 / 成本 / 谱系、旧项目兼容。
@@ -814,7 +814,7 @@ make platform-down
 
 - **Priority**：P2 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-20、LM6-21、LM6-22、LM6-23、LM6-24
 - **Goal**：证明产品从三种入口之一到可播放时间线、真实后期交付和可选多人审片形成闭环，同时保持旧项目、本地优先、权利、成本和回滚边界。
 - **Scope**：桌面完整旅程、平台本地审片旅程、旧数据 / 项目包、自动 NLE 交换验证、可选真实 NLE / MP4 附加证据、文档与发布真值。
@@ -835,7 +835,7 @@ make platform-down
 - **Risk**：把 reference parser 通过扩大表述为所有 NLE 版本兼容；文档只能声明已自动验证的格式版本，真实外部证据另行注明环境与限制。
 - **Rollback boundary**：按 Loop 合并提交逐项回滚；云审片可独立关闭，canonical timeline、NLE 导出和本地项目仍可用。
 - **未完成收束**：按 5.3 保留 `loop/lm6-25-p2-gate`；记录全链矩阵首个失败阶段、自动格式验证、跨栈结果、依赖状态及 checkpoint 清单。
-- **下一次动作**：重跑首个失败的机器可判定场景；依赖未完成时推进其余离线、迁移、项目包和 reference parser 回归，更新游标后在下一 sweep 回访。
+- **下一次动作**：无；后续产品增量须建立新的 Loop，不能重开已完成 Gate 来承载未定义范围。
 
 ## 9. 推荐尝试顺序、依赖降级与自动重试
 
@@ -1489,3 +1489,33 @@ LM6-00
 - Next attempt: 开始 LM6-25，先在 `/Volumes/A/code/project/dramaIp` 或从最新 `origin/main` 创建的隔离 worktree 运行 `cd dramaip-desktop && bunx playwright test tests/electron/lm6-full-journey.spec.ts`；fallback: 若任何云端步骤仍因 Docker 不可用，按 LM6-25 fixture 运行离线、项目包、series 和 NLE reference parser 回归，不能把未完成 Gate 标为 done。
 - Sweep cursor: LM6-25
 - Notes: 本轮修复了 Electron 测试使用的种子项目名称和严格 locator；该 E2E 最终有明确 PASS。未使用真实用户 token、账号或私有媒体。
+
+### LM6-25 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-25-p2-gate`
+- Commit(s): `1e16d06f test(gate): add LM6-25 P2 journey evidence`、`dc93d285 test(e2e): stabilize project selector`
+- Merge commit: `2fabe3a4 merge: complete LM6-25 P2 Gate`
+- Verification:
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run test:unit && bun run build`: PASS — 合并结果的类型、静态、生成物、引擎/服务商、27 个 LM6 契约及 Node HTTP 合约和 Electron 三阶段构建全部通过。
+  - `cd dramaip-desktop && bunx playwright test --reporter=list`: PASS — 24/24 Electron 场景通过；包括新的 `lm6-full-journey.spec.ts`（剧本草稿、制作区时间线播放/交付、离线反馈与 revision preview）和已稳定的 LM6-24 云审片入口。
+  - `cd dramaip-desktop && bun test tests/lm6/lm6-25.test.ts && bun run check:timeline-exports`: PASS — P2 矩阵及固定 FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference parser、round-trip 与 relink 语义通过；未把该证据扩大成真实 NLE 或 MP4 兼容声明。
+  - `cd dramaip-platform && make test`: PASS — Java review service、SDK review package contract、客户端 typecheck/test、client-contracts 和 web-route smoke 通过。
+  - `cd dramaip-desktop && bun run format:check`: PARTIAL — 仅报告既有且不属于 LM6-25 的 `tests/electron/lm6-11.spec.ts`、`packages/app/src/storyboard-board.test.ts`、`packages/app/src/storyboard-board.ts` 格式差异；本 Loop 的 6 个变更文件和本记录均已单独 `prettier --check` 通过，未改写这些基线文件。
+  - Docker / Compose: 按 LM6-24 已记录的环境事实，daemon socket 不可用，未重复等待或把 `platform-e2e` 误报为 PASS；桌面 `sidecar.node.test.ts` 内的 fake review gateway + object-store adapter 已作为预定义等价路径覆盖两身份、cursor、修订、撤销/删除与离线保持。
+- Diff review: PASS — 相对 `9ac800ff` 的 6 个文件仅为 P2 Gate 的合成契约、Electron 全旅程、LM6 静态矩阵、README/release truth 和 LM6-24 稳定 locator；无凭据、私有媒体、绝对用户路径、构建产物或范围外产品改动，`git diff --check` 通过。
+- Remote sync: PASS — 合并前 `origin/main` 为 `9ac800ff`；集成分支已对其重新同步，功能和稳定性修复由 `9ac800ff..dc93d285` 推送到 `main`。
+- Push: PASS — `origin/main` 包含 `2fabe3a4` 和 `dc93d285`；本执行记录提交后再次同步到同一远端主线。
+- Loop branch cleanup: PASS — 已删除本地 `loop/lm6-25-p2-gate`、`integrate/lm6-25-p2-gate` 及 `/Volumes/A/code/project/dramaIp-lm6-25`、`/Volumes/A/code/project/dramaIp-integrate-lm6-25`；两个远端同名分支均不存在。LM6-24 的遗留 Loop 分支/worktree 亦已在该 Attempt 4 的记录推送后清理；最终扫描未发现 `loop/lm6-*` worktree。
+- Current branch/worktree: `integrate/loopmap-final-audit`; `/Volumes/A/code/project/dramaIp-final-audit`；干净基线上的本执行记录为唯一显式改动，推送后移除该临时审计 worktree。
+- Completed: 以确定性 1 集 fixture 收束剧本入口、生产/分镜/静帧、六轨可播放时间线、音频/字幕、NLE 交换、第二项目的 series Story Bible override 与资产 link/fork、项目包/旧数据/权限/成本/缺失媒体/Provider 离线恢复，以及两身份云审片的反馈回流、revision preview、重新交付、撤销/删除和完全离线主链。
+- Unfinished: 无。真实外部 NLE 导入、真实 Provider 成片/MP4 和 Docker Compose 跨栈环境均未安装或不可用，只作为可追加兼容证据，不是本 Gate 已通过的声明。
+- Evidence: `dramaip-desktop/tests/electron/lm6-full-journey.spec.ts`、`dramaip-desktop/tests/lm6/lm6-25.test.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-25/p2-gate-contract.json`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/scripts/check-timeline-exports.mjs`、`dramaip-platform` 的 `make test`、提交 `1e16d06f` / `2fabe3a4` / `dc93d285`。
+- Final success attempts: LM6-00/01/02/03/04/05/06、LM6-10/11/12/13/14/15、LM6-20/21/22/23 均为 Attempt 1；LM6-24 为 Attempt 4；LM6-25 为 Attempt 1。历史 `partial` 仅保留为 LM6-24 的 Attempt 1–3 checkpoint（`a45d2233`、`5698877c`、`45b5da7d`），已由 Attempt 4 的桌面接线、fake gateway/object-store 等价契约和删除/修订验证解决。
+- Four Gate evidence: LM6-00 基线、LM6-06 P0、LM6-15 P1 和本记录的 LM6-25 P2 均有已推送的成功记录；本次跨 Loop 回归通过完整桌面命令、24 个 Electron 场景、NLE parser/round-trip 和平台 `make test`。
+- Next attempt: 无；整批完成。后续需求须建立新的 Loop；fallback: 如新增外部 NLE、MP4 或 Compose 证据，作为独立兼容 Loop，不回写或削弱本 Gate 的既有结论。
+- Sweep cursor: none（4.4 final acceptance complete）
+- Notes: 最终 `origin/main` 与本执行记录提交对齐；根 worktree 的用户既有未提交改动未读取、未修改或纳入任何提交。
