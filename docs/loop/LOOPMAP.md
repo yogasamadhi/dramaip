@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02 已完成并已推送；LM6-03 的 Attempt 1 已完成验证，正在等待合并与推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，活动游标为 `LM6-03`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-04`。
 
 ## 1. 总体目标与范围
 
@@ -337,7 +337,7 @@ make platform-down
 | LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
 | LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
 | LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
-| LM6-03  | P0       | AI Workflow         | doing  | 1        | 助手、偏好、回归通过，待合并推送                 | 上下文助手与简单 / 高级双层体验       | LM6-02        |
+| LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
@@ -435,7 +435,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：AI Workflow
-- **Status**：doing
+- **Status**：done
 - **Depends on**：LM6-02
 - **Goal**：默认助手只展示当前页面最有价值的动作，同时保留高级用户对现有 task catalog、引擎、模型、参数和盲测的完整控制。
 - **Scope**：上下文动作注册表、推荐路由、简单 / 高级模式、能力与成本预检、预览 / 采用、偏好保存、自动化兼容。
@@ -1011,3 +1011,29 @@ LM6-00
 - Next attempt: 开始 LM6-03，先运行 `git fetch origin` 并创建 `loop/lm6-03-context-assistant`；fallback: 若 UI 分层受阻，先以 task catalog 构建简单/高级模式的纯路由注册表和 fake-provider preflight fixture。
 - Sweep cursor: LM6-03
 - Notes: 驾驶舱状态是只读派生；任务运行、失败、未采用静帧和真实 delivery 均不会被渲染为完成。
+
+### LM6-03 / Attempt 1 — 2026-08-12 00:49 CST
+
+- Loop: LM6-03
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-03-context-assistant
+- Commit(s): `5fb94e7c loop(lm6-03): add contextual assistant modes`
+- Merge commit: `1397e801 merge: LM6-03 contextual assistant modes`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 包级测试、SQLite 旧库偏好迁移、LM6-00 至 LM6-03 fixture、任务注册表穷尽/路由 parity 和 Node HTTP contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — OpenAPI/client 生成物、引擎锁和 Provider catalog 已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，6 个 Electron 场景通过；新增场景确认默认不出现引擎/模型/task/盲测选择器，高级模式可恢复完整控制且偏好能保存。
+- Diff review: PASS — 仅包含基于权威 task catalog 的上下文注册表、简单/高级侧栏、项目偏好与旧库兼容迁移、PUT CORS 预检、费用未知的远程执行门禁、生成客户端、fixture、测试、指南和调度元数据；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `7c259d58`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `1397e801` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-03-context-assistant` 与 `/Volumes/A/code/project/dramaIp-lm6-03`。
+- Current branch/worktree: `integrate/lm6-03-context-assistant`; `/Volumes/A/code/project/dramaIp-integrate-lm6-03`; 仅有本执行记录的显式改动。
+- Completed: 8 个页面上下文的 1–3 个受控推荐动作、简单/高级双层 UI、项目级模式偏好、任务快照共享路由、输入/能力/费用状态、未知报价时禁用最终远程媒体执行、旧 task type 保持不变、CORS PUT 浏览器预检及任务中心既有 preview/adopt 语义。
+- Unfinished: 无；LM6-04 将单独实现原著导入后的五类提取 change set，不会由 LM6-03 的推荐路由直接写入权威数据。
+- Evidence: `packages/app/src/context-assistant.ts`、`tests/lm6/lm6-03.test.ts`、`tests/electron/lm6-03.spec.ts`、`packages/server/src/sidecar.node.test.ts`、用户指南与完整回归/合并推送提交。
+- Next attempt: 开始 LM6-04，先运行 `git fetch origin` 并创建 `loop/lm6-04-import-change-set`；fallback: 若完整模型编排受阻，先使用版本化 extraction fixture 验证五类候选、事务、幂等、stale 与 selective adopt 的领域闭环。
+- Sweep cursor: LM6-04
+- Notes: 首次全量 Electron 回归发现助手章节下拉与工作区章节标题同名；已明确标注“助手上下文”并在同一 Attempt 的完整回归中重跑通过。媒体调用的规划仍可生成 preview，但没有可靠报价时最终远程任务保持禁用。
