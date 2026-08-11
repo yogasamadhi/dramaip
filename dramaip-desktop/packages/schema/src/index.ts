@@ -1800,6 +1800,14 @@ export interface ReviewDecisionInput {
   authorAlias?: string;
   note?: string;
 }
+export const ReviewRevisionPreviewInput = Schema.Struct({
+  scriptId: Id,
+  proposedContent: RequiredText,
+});
+export interface ReviewRevisionPreviewInput {
+  scriptId: Id;
+  proposedContent: string;
+}
 export const OfflineReviewImportInput = Schema.Struct({
   capabilityToken: Schema.String,
 });
@@ -1815,6 +1823,142 @@ export interface OfflineReviewImportResult {
   packageId: Id;
   commentCount: number;
   decisionCount: number;
+}
+/** A platform endpoint and workspace; the access token itself stays in the credential vault. */
+export const CloudReviewConnection = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  configured: Schema.Boolean,
+  updatedAt: IsoDateTime,
+});
+export interface CloudReviewConnection {
+  baseUrl: string;
+  workspaceId: string;
+  configured: boolean;
+  updatedAt: IsoDateTime;
+}
+export const CloudReviewConnectionInput = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  credentialRef: Schema.String,
+});
+export interface CloudReviewConnectionInput {
+  baseUrl: string;
+  workspaceId: string;
+  credentialRef: string;
+}
+export const CloudReviewMediaInput = Schema.Struct({
+  id: Schema.String,
+  shotId: Id,
+  relativePath: Schema.String,
+  mimeType: Schema.String,
+  capabilityToken: Schema.String,
+});
+export interface CloudReviewMediaInput {
+  id: string;
+  shotId: Id;
+  relativePath: string;
+  mimeType: string;
+  capabilityToken: string;
+}
+export const CloudReviewPublishInput = Schema.Struct({
+  pin: Schema.optionalKey(Schema.String),
+  media: Schema.Array(CloudReviewMediaInput),
+});
+export interface CloudReviewPublishInput {
+  pin?: string;
+  media: CloudReviewMediaInput[];
+}
+/** Local-only publish review: storage is known, platform retention and cost are intentionally explicit when unknown. */
+export const CloudReviewPublishPreview = Schema.Struct({
+  packageId: Id,
+  workspaceId: Schema.String,
+  manifestJson: Schema.String,
+  media: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      shotId: Id,
+      relativePath: Schema.String,
+      mimeType: Schema.String,
+      sizeBytes: Schema.Int,
+      sha256: Schema.String,
+    }),
+  ),
+  storageBytes: Schema.Int,
+  maxStorageBytes: Schema.Int,
+  retention: Schema.String,
+  costEstimate: Schema.String,
+});
+export interface CloudReviewPublishPreview {
+  packageId: Id;
+  workspaceId: string;
+  manifestJson: string;
+  media: Array<{
+    id: string;
+    shotId: Id;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }>;
+  storageBytes: number;
+  maxStorageBytes: number;
+  retention: string;
+  costEstimate: string;
+}
+export const CloudReviewPublishResult = Schema.Struct({
+  packageId: Id,
+  remotePackageId: Schema.String,
+  shareUrl: Schema.String,
+  status: Schema.String,
+  expiresAt: IsoDateTime,
+});
+export interface CloudReviewPublishResult {
+  packageId: Id;
+  remotePackageId: string;
+  shareUrl: string;
+  status: string;
+  expiresAt: IsoDateTime;
+}
+export const CloudReviewSyncResult = Schema.Struct({
+  packageId: Id,
+  nextCursor: Schema.Int,
+  commentCount: Schema.Int,
+  decisionCount: Schema.Int,
+});
+export interface CloudReviewSyncResult {
+  packageId: Id;
+  nextCursor: number;
+  commentCount: number;
+  decisionCount: number;
+}
+export const CloudReviewBinding = Schema.Struct({
+  packageId: Id,
+  remotePackageId: Schema.String,
+  shareUrl: Schema.String,
+  status: Schema.String,
+  expiresAt: IsoDateTime,
+  syncCursor: Schema.Int,
+  updatedAt: IsoDateTime,
+});
+export interface CloudReviewBinding {
+  packageId: Id;
+  remotePackageId: string;
+  shareUrl: string;
+  status: string;
+  expiresAt: IsoDateTime;
+  syncCursor: number;
+  updatedAt: IsoDateTime;
+}
+export const CloudReviewDeleteResult = Schema.Struct({
+  packageId: Id,
+  status: Schema.Literal("deleted"),
+  localFeedbackPreserved: Schema.Boolean,
+});
+export interface CloudReviewDeleteResult {
+  packageId: Id;
+  status: "deleted";
+  localFeedbackPreserved: boolean;
 }
 
 /** 版本化离线合规规则是本地证据，不构成法律意见或平台审核结果。 */
