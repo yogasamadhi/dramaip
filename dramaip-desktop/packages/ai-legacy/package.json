@@ -1,0 +1,25 @@
+{
+  "name": "@sdns/ai-legacy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate:prompts": "node scripts/generate-prompt-catalog.mjs",
+    "check:generated": "node scripts/generate-prompt-catalog.mjs --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "3.0.82",
+    "@ai-sdk/google": "3.0.73",
+    "@ai-sdk/openai": "3.0.84",
+    "@langchain/langgraph": "0.2.43",
+    "@sdns/schema": "workspace:*",
+    "ai": "6.0.168"
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4"
+  }
+}

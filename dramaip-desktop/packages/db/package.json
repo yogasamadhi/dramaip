@@ -3,24 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./src/v3.ts",
+  "types": "./src/v3.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/schema.ts"
+    ".": "./src/v3.ts",
+    "./v3": "./src/v3.ts",
+    "./schema": "./src/schema.ts",
+    "./bun": "./src/bun-adapter.ts"
   },
+  "description": "DramaIP v3 node:sqlite and Drizzle storage layer.",
   "scripts": {
-    "generate": "drizzle-kit generate",
-    "push": "drizzle-kit push",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sdns/core": "workspace:*",
-    "better-sqlite3": "^12.11.1",
-    "drizzle-orm": "^0.45.2"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-orm": "catalog:"
   }
 }

@@ -1,56 +1,11 @@
-# Desktop 发布与回滚 Runbook
+# 发布检查清单
 
-本 Runbook 只描述可复现的桌面端发布流程；平台审核、版权判断和外部 Provider 的商业表现不由本软件保证。
-
-## 发布前 Gate
-
-在干净的 release 分支和已注入签名凭据的环境中执行：
-
-```bash
-bun run format:check
-bun run typecheck
-bun run test:unit
-bun run test:db
-bun run --filter @sdns/desktop rebuild:electron
-bun run build
-bun run test:e2e:skip-build
-bun run test:ui:skip-build
-bun run package:smoke
-bun run release:metadata
-DRAMAIP_RELEASE_STAGE=ga bun run release:gate
-```
-
-`test:unit` 会先为当前 Node ABI 重建 `better-sqlite3`，并且无论成功或失败都会恢复
-Electron ABI；`test:db` 结束时也会恢复原生模块。因此发布 Gate 仍按上面的顺序执行，
-不能把 ABI 错误忽略或误报为通过。
-
-发布 Gate 还要求：旧数据库迁移、项目包换机导入、素材/权利缺失 fail-closed、AIGC 合规封装、至少两个平台
-交付包及 checksum 均有自动化证据。真实图片、TTS 和视频 Provider 只有在账号所有者显式授权计费、由秘密注入环境
-提供凭据并留下脱敏 sandbox 证据后才能开启；无此证据的 Provider 必须保持关闭。
-
-## 打包、安装与升级
-
-`bun run package:smoke` 会产出本平台安装包（macOS 为 DMG/ZIP），并从未签名的解包应用启动 smoke，验证：主进程、
-preload、SQLite 迁移、FFmpeg、asar 解包的原生模块、文件关联与首启。它不替代 macOS 公证、Windows 签名或 Linux
-发行包的人工安装。
-
-正式 release 需在受控 CI/签名机完成：
-
-1. 固定版本号与变更日志，创建候选 tag；不得把 API Key、证书或更新签名材料提交进仓库。
-2. 产出 DMG/ZIP、NSIS/ZIP、AppImage/deb；在每个目标系统用新用户目录首次安装、升级安装和启动后回滚验证。
-3. macOS 使用 hardened runtime、Developer ID 签名和公证；Windows 使用受信任代码签名；Linux 附带第三方许可与校验和。
-4. `electron-builder.yml` 不再含默认更新域名；打包环境必须注入 `DRAMAIP_UPDATE_URL`。发布更新清单前由 `release:gate` 验证它是真实、非占位的 HTTPS 源。
-5. `release:metadata` 为产物生成 `SHA256SUMS`、CycloneDX SBOM 与第三方许可索引；三者和完整许可文本随发布物一起交付。
-
-## 回滚与数据兼容
-
-- 立即停止 rollout、撤下更新清单，并关闭新增 Provider/Profile 的生产开关；不删除用户项目、媒体、任务或权限记录。
-- 数据库迁移只前进。旧应用无法识别的新 schema 时，恢复升级前启动备份或使用同版本应用导出 `.sdnspkg`，而非手工删表。
-- 项目包导入总是创建新项目；本机路径不会跨设备复用。恢复后必须重新定位素材并复核 rights/AIGC/compliance。
-- 已导出的交付包、采用版本、费用与审计记录不可被回滚操作静默删除；回滚仅限制新执行。
-
-## 支持平台、开关与已知限制
-
-- 支持目标：macOS、Windows、Linux 的 Electron 打包目标；实际签名与安装验证以 release candidate 记录为准。
-- `Mock` 保持可用，用于离线全链路验证。Hailuo、Wan、Sora、OpenAI Image、OpenAI TTS 均需独立开关、凭据、成本确认和官方 sandbox 证据。
-- 平台交付包是人工上传辅助，不登录、代投或自动发布；实时规则、资质、审核和商业表现仍需人工确认。
+1. 运行 `bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run test:e2e`、`bun run check:generated`、`bun run check:engine-locks`、`bun run check:provider-catalog` 和 `bun run build`。
+2. 设置真实 `DRAMAIP_UPDATE_URL`，分别在 macOS、Windows、Linux 运行 `bun run package`。
+3. 启动每个平台的安装包，验证 DramaIP Server、OpenCode、Codex 和 LangGraph.js Sidecar 均按预期启动，`dramaip.db` 可写，退出后没有残留进程。
+4. 校验 OpenCode 1.18.15、Codex 0.147.0 的打包资源、六平台 SHA-256、协议快照和第三方许可证。
+5. 验证 Renderer 不含业务 `fetch`，Electron 不含业务 IPC，产物不含旧数据库代码、本地媒体生成器或本地视频渲染器。
+6. 发布前完成三平台代码签名；macOS 还必须完成公证。
+7. GitLab 的 `desktop_macos_release` 与 `desktop_windows_release` 只在标签流水线上运行；发布前必须确认项目已配置带 `macos`、`windows` 和 `private` 标签的对应 Runner。
+8. 对每个平台产出的安装应用再运行 Electron 端到端测试；可通过 `DRAMAIP_E2E_EXECUTABLE` 指定已打包应用的可执行文件。
+9. 每次修改应用版本号时，都必须按目录中记录的官方来源核对常用服务商、模型标识和下线公告，并同步更新 `MODEL_PROVIDER_CATALOG_RELEASE` 与 `MODEL_PROVIDER_CATALOG_UPDATED_AT`；否则发布检查会失败。

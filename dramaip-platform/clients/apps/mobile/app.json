@@ -2,14 +2,32 @@
   "expo": {
     "name": "DramaIP",
     "slug": "dramaip-mobile",
-    "scheme": "dramaip",
     "version": "0.1.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "scheme": "dramaip",
     "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dramaip.mobile"
+    },
+    "android": {
+      "package": "com.dramaip.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
     "plugins": [
-      "expo-router",
-      "expo-secure-store"
-    ]
+      [
+        "expo-router",
+        {
+          "root": "./app"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

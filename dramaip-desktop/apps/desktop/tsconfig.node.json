@@ -4,11 +4,20 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@sdns/core": ["../../packages/core/src/index.ts"],
-      "@sdns/db": ["../../packages/db/src/index.ts"],
+      "@sdns/db": ["../../packages/db/src/v3.ts"],
       "@sdns/ai": ["../../packages/ai/src/index.ts"],
-      "@sdns/export": ["../../packages/export/src/index.ts"]
+      "@sdns/schema": ["../../packages/schema/src/index.ts"],
+      "@sdns/protocol": ["../../packages/protocol/src/index.ts"],
+      "@sdns/client": ["../../packages/client/src/index.ts"],
+      "@sdns/server": ["../../packages/server/src/index.ts"],
+      "@sdns/tasks": ["../../packages/tasks/src/index.ts"],
+      "@sdns/mcp": ["../../packages/mcp/src/index.ts"]
     }
   },
-  "include": ["electron/**/*.ts"]
+  "include": [
+    "electron/main-v3.ts",
+    "electron/preload-v3.ts",
+    "electron/sidecars/**/*.ts",
+    "../../packages/{schema,protocol,client,server,tasks,ai,mcp,ai-legacy}/src/**/*.ts"
+  ]
 }

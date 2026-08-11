@@ -1,8 +1,18 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
     "strict": true,
+    "baseUrl": ".",
     "paths": {
+      "@/*": [
+        "./*"
+      ],
       "@dramaip/sdk": [
         "../../packages/sdk/src/index.ts"
       ],
@@ -13,6 +23,14 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "react-native-css-env.d.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests"
   ]
 }

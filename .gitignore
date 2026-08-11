@@ -15,7 +15,7 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
-# ---- Editor / IDE ----
+# ---- Editor / IDE / merge artifacts ----
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
@@ -26,6 +26,8 @@ Desktop.ini
 *.swp
 *.swo
 *~
+*.orig
+*.rej
 
 # ---- Secrets / environment ----
 .env
@@ -56,7 +58,7 @@ env/
 
 # ---- Node.js / Bun (monorepo-wide) ----
 node_modules/
-# Preserve pre-migration local stores as untracked developer cache data.
+# Local package-manager stores (developer cache only).
 .pnpm-store/
 .npm/
 .pnp
@@ -65,11 +67,6 @@ node_modules/
 .nx/
 .eslintcache
 .stylelintcache
-bun-debug.log*
-bun-error.log*
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # ---- TypeScript / JS build output ----
 *.tsbuildinfo

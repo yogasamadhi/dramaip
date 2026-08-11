@@ -1,0 +1,9 @@
+{
+  "name": "opencode",
+  "version": "1.18.15",
+  "license": "MIT",
+  "packageManifestSha256": "81671721c23aad01dd7e52f8d5a79a6cdfa74021b6b41cfa7c09094b080f0519",
+  "runtimeEntry": "packages/opencode/dist/node/node.js",
+  "sourceDirectory": "vendor/opencode",
+  "policy": "vendor 源码只读；DramaIP 适配代码必须位于 packages/ai"
+}

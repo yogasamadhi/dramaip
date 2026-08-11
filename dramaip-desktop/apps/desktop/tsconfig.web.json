@@ -7,9 +7,18 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./renderer/src/*"],
-      "@sdns/core": ["../../packages/core/src/index.ts"]
+      "@/*": ["../../packages/app/src/*"],
+      "@sdns/client": ["../../packages/client/src/index.ts"],
+      "@sdns/schema": ["../../packages/schema/src/index.ts"],
+      "@sdns/ui": ["../../packages/ui/src/index.ts"]
     }
   },
-  "include": ["renderer/src/**/*.ts", "renderer/src/**/*.tsx", "renderer/src/**/*.d.ts"]
+  "include": [
+    "../../packages/app/src/**/*.ts",
+    "../../packages/app/src/**/*.tsx",
+    "../../packages/app/src/**/*.d.ts",
+    "../../packages/ui/src/**/*.ts",
+    "../../packages/ui/src/**/*.tsx"
+  ],
+  "exclude": ["../../packages/app/src/**/*.test.ts"]
 }

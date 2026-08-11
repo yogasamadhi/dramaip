@@ -1,0 +1,22 @@
+{
+  "name": "@sdns/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "generate": "bun run src/generate.ts",
+    "check:generated": "bun run src/generate.ts --check",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sdns/protocol": "workspace:*",
+    "@sdns/schema": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@sdns/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/main.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sdns/client": "workspace:*",
+    "@sdns/ui": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "tailwindcss": "catalog:",
+    "vite": "^7.3.3"
+  }
+}

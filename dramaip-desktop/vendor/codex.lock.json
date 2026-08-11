@@ -1,0 +1,39 @@
+{
+  "$schema": "../schemas/codex-lock.schema.json",
+  "package": "@openai/codex",
+  "version": "0.147.0",
+  "license": "Apache-2.0",
+  "protocol": "app-server-jsonrpc-stdio",
+  "platforms": {
+    "aarch64-apple-darwin": {
+      "package": "@openai/codex-darwin-arm64",
+      "integrity": "sha512-BEUVkiOW7kLcRyrMLfAr/h9wF8sRVJyZDy6OHtVn6QGDXiv3BvAZVTY1Pu9xF7KdIdkYXbp4uayN0aDQQaAUJw==",
+      "binarySha256": "19c4f144c5226a9f17c58e6f0fa854843b0f77a6eb420f40e2745a12f10f5d37"
+    },
+    "x86_64-apple-darwin": {
+      "package": "@openai/codex-darwin-x64",
+      "integrity": "sha512-Tb8McE5SvJIH0Vs5R6sq7u+quiC931yan2KOOl6km1OdZ82+Wi7eF5XrSFPs5CF7xCgoIK4Vs+byMbT5hN+ZUw==",
+      "binarySha256": "8080a42da4cef9c4216dace512f29acfe2e526aeeec2a0ce450e5a2b18b84d8a"
+    },
+    "aarch64-unknown-linux-musl": {
+      "package": "@openai/codex-linux-arm64",
+      "integrity": "sha512-SLC1JXw2TYfr/c3HhrJubyyLelq7vTOLWVmiThFA+z0+WgzCPmaseJ/kzDD3Gge/TO7fCnnj7UcPmC0d2c8XAg==",
+      "binarySha256": "e23d0be344d2496986c985cd3db61e6f649b1ddd900e6afc1b5aaabbffcbb4e2"
+    },
+    "x86_64-unknown-linux-musl": {
+      "package": "@openai/codex-linux-x64",
+      "integrity": "sha512-0W9MBxPpWW0cSkNqrTDN2jR7rzzT7oNMhQY5446lT2Lw5cz5yhDTck4Va9rjkQEm+HlFzP/dmEMSZbXfJsINmw==",
+      "binarySha256": "cb0a15567e9a60a5820d54b0f6ae86d504dc3805c1eab21a47f70e3eb7b73a40"
+    },
+    "aarch64-pc-windows-msvc": {
+      "package": "@openai/codex-win32-arm64",
+      "integrity": "sha512-e2ZstJ8zT8Rm1nvR7CUVO+Gr3cTChE41+VfOzGhynzDXEoW0wfbjUQbc2bWbh1arG94LMm4y3dqBtUIbSrfeGA==",
+      "binarySha256": "1f0e8c2dd3c6b471e985fac76908366c1cf31155094fde606fb2d3052cf00584"
+    },
+    "x86_64-pc-windows-msvc": {
+      "package": "@openai/codex-win32-x64",
+      "integrity": "sha512-oT7Ss5fAPf2fiWE9QNURqZcQGAAawSVxmIUdgPzckq4KFZAM+pRz9JbM4Rr498CjtbNgTOjWvDJ+DXvIBSfOPA==",
+      "binarySha256": "935a1911ed2556e4ffcec995f4886ac2ac425863ba26fed264df62e30272ad9d"
+    }
+  }
+}

@@ -479,6 +479,12 @@ def lan_ip() -> str | None:
 
 def qrcode_terminal_root() -> Path | None:
     """Resolve the qrcode-terminal package bun vendors as a transitive Expo dep."""
+    # Hoisted linker (see bunfig.toml): transitive deps like qrcode-terminal are
+    # linked at the workspace root, with no node_modules/.bun store on disk.
+    hoisted = CLIENTS_DIR / "node_modules" / "qrcode-terminal"
+    if hoisted.is_dir():
+        return hoisted
+    # Isolated linker: transitive deps live under the .bun store.
     store = CLIENTS_DIR / "node_modules" / ".bun"
     matches = sorted(store.glob("qrcode-terminal@*/node_modules/qrcode-terminal"))
     return matches[0] if matches else None

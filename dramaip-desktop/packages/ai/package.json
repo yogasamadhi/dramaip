@@ -12,10 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sdns/core": "workspace:*",
-    "@sdns/db": "workspace:*",
-    "@langchain/langgraph": "^0.2.43",
-    "@langchain/core": "^0.3.0",
-    "zod": "^3.25.32"
+    "@sdns/mcp": "workspace:*",
+    "@sdns/schema": "workspace:*",
+    "effect": "catalog:"
   }
 }

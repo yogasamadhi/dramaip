@@ -20,10 +20,8 @@ if (!schema.required?.includes('result') || !schema.properties?.result?.required
 const sdk = readFileSync(resolve(platformRoot, 'clients/packages/sdk/src/contracts.ts'), 'utf8')
 const admin = readFileSync(resolve(platformRoot, 'clients/apps/admin/src/api.ts'), 'utf8')
 const mobileSession = readFileSync(resolve(platformRoot, 'clients/apps/mobile/src/mobile-session.ts'), 'utf8')
-const desktopAI = readFileSync(resolve(platformRoot, '../dramaip-desktop/apps/desktop/electron/cloud-ai.ts'), 'utf8')
-const desktopHandoff = readFileSync(resolve(platformRoot, '../dramaip-desktop/apps/desktop/electron/cloud-handoff.ts'), 'utf8')
 
-for (const [name, source] of Object.entries({ sdk, admin, mobileSession, desktopAI, desktopHandoff })) {
+for (const [name, source] of Object.entries({ sdk, admin, mobileSession })) {
   if (!source.includes('Contract-Version') && !source.includes('API_CONTRACT_HEADER') && !source.includes('DESKTOP_CONTRACT_HEADER')) {
     throw new Error(`${name} does not declare the public contract version`)
   }

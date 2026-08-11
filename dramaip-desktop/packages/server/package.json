@@ -1,0 +1,22 @@
+{
+  "name": "@sdns/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./sidecar": "./src/sidecar.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sdns/ai": "workspace:*",
+    "@sdns/db": "workspace:*",
+    "@sdns/protocol": "workspace:*",
+    "@sdns/schema": "workspace:*",
+    "@sdns/tasks": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "effect": "catalog:"
+  }
+}

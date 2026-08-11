@@ -128,7 +128,7 @@ desktop_linux:
     - |
       set -eu
       apt-get update
-      apt-get install -y --no-install-recommends ca-certificates curl xz-utils python3 build-essential
+      apt-get install -y --no-install-recommends ca-certificates curl git xz-utils python3 build-essential xvfb libgtk-3-0 libnss3 libasound2 libgbm1
       case "$(dpkg --print-architecture)" in
         amd64)
           node_arch=x64
@@ -154,14 +154,81 @@ desktop_linux:
       node --version
       cd dramaip-desktop
       bun ci
+      export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG:-${CI_COMMIT_SHA}}"
   script:
     - bun run lint
-    - bun run test:unit
-    - bun run test:db
+    - bun run format:check
+    - bun run typecheck
+    - bun run test
+    - bun run check:generated
+    - bun run check:engine-locks
+    - bun run check:provider-catalog
     - bun run build
+    - xvfb-run -a bunx playwright test
+    - bun run package
+    - bun run release:metadata
+  artifacts:
+    when: always
+    paths:
+      - dramaip-desktop/apps/desktop/dist/
+    expire_in: 7 days
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+desktop_macos_release:
+  stage: validate
+  tags:
+    - macos
+    - private
+  before_script:
+    - cd dramaip-desktop
+    - bun ci
+    - export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG}"
+  script:
+    - bun run lint
+    - bun run format:check
+    - bun run test
+    - bun run check:generated
+    - bun run check:engine-locks
+    - bun run check:provider-catalog
+    - bun run test:e2e
+    - bun run package
+    - bun run release:metadata
+  artifacts:
+    when: always
+    paths:
+      - dramaip-desktop/apps/desktop/dist/
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+desktop_windows_release:
+  stage: validate
+  tags:
+    - windows
+    - private
+  before_script:
+    - Set-Location dramaip-desktop
+    - bun ci
+    - $env:DRAMAIP_UPDATE_URL = "$env:CI_SERVER_URL/api/v4/projects/$env:CI_PROJECT_ID/packages/generic/dramaip-desktop/$env:CI_COMMIT_TAG"
+  script:
+    - bun run lint
+    - bun run format:check
+    - bun run test
+    - bun run check:generated
+    - bun run check:engine-locks
+    - bun run check:provider-catalog
+    - bun run test:e2e
+    - bun run package
+    - bun run release:metadata
+  artifacts:
+    when: always
+    paths:
+      - dramaip-desktop/apps/desktop/dist/
+    expire_in: 30 days
+  rules:
+    - if: '$CI_COMMIT_TAG'
 
 sonarqube_platform:
   stage: quality

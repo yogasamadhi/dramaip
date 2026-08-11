@@ -75,9 +75,13 @@ async function refreshWebSession() {
     await apiClient.refresh()
   }
   const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks
-  refreshInFlight = lockManager
-    ? lockManager.request('dramaip-web-refresh', rotateIfNeeded)
-    : rotateIfNeeded()
+  refreshInFlight = (async () => {
+    if (lockManager) {
+      await lockManager.request('dramaip-web-refresh', rotateIfNeeded)
+      return
+    }
+    await rotateIfNeeded()
+  })()
   try {
     await refreshInFlight
   } finally {

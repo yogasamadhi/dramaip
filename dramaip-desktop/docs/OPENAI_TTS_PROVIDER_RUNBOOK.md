@@ -20,4 +20,4 @@ It never uploads a local voice sample, creates a custom voice, or exposes voice 
 
 ## Current truth
 
-The repository now includes the local Keychain settings boundary, persisted/cancelable TTS task runtime, candidate-audio archiver, credential-free lineage and unknown-cost ledger, plus contract, migration, E2E and UI coverage. It still has no account-owner-authorized API key, billing/region confirmation, authorized sandbox dialogue/voice material, or external sandbox evidence. Therefore OpenAI TTS remains disabled by default and LM5-14 remains `partial`; LM5-13 manual audio tracks remain the supported fallback.
+The repository now includes a local encrypted credential-vault settings boundary, persisted/cancelable TTS task runtime, candidate-audio archiver, credential-free lineage and unknown-cost ledger, plus contract, migration, E2E and UI coverage. It still has no account-owner-authorized API key, billing/region confirmation, authorized sandbox dialogue/voice material, or external sandbox evidence. Therefore OpenAI TTS remains disabled by default and LM5-14 remains `partial`; LM5-13 manual audio tracks remain the supported fallback.

@@ -27,6 +27,8 @@ node_modules/.cache/
 coverage/
 **/coverage/
 .nyc_output/
+playwright-report/
+test-results/
 
 # Database and generated local data
 *.db
@@ -77,3 +79,7 @@ Thumbs.db
 *.AppImage
 *.deb
 *.rpm
+
+# 固定版本引擎的本机构建产物（源码锁定文件与许可证继续提交）
+apps/desktop/build/codex/
+apps/desktop/build/codex-schemas/

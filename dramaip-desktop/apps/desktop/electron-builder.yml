@@ -8,21 +8,38 @@ directories:
   buildResources: build
 # 原生模块必须从 asar 中解包；只解包二进制，避免把依赖源码目录散落进 unpacked 产物
 asarUnpack:
-  - '**/*.node'
-  # FFmpeg must be a real executable, not a virtual file inside app.asar.
-  - '**/node_modules/ffmpeg-static/**'
+  - "**/*.node"
 # 应用文件
 files:
-  - 'out/**/*'
-  - 'package.json'
-  - '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}'
-  - '!**/node_modules/**/*.d.ts'
-  - '!**/node_modules/**/*.md'
-  - '!**/node_modules/**/LICENSE*'
-  - '!**/node_modules/**/*.{map,test.js,spec.js}'
+  - "out/**/*"
+  - "package.json"
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!**/node_modules/**/*.d.ts"
+  - "!**/node_modules/**/*.md"
+  - "!**/node_modules/**/LICENSE*"
+  - "!**/node_modules/**/*.{map,test.js,spec.js}"
 extraResources:
   - from: build/third-party-notices
     to: third-party-notices
+  - from: build/codex
+    to: codex
+    filter:
+      - "**/*"
+  - from: ../../vendor/opencode/packages/opencode/dist/node
+    to: opencode
+    filter:
+      - "**/*"
+      - "!node_modules/**/*"
+  # node.js resolves OpenCode's intentionally-externalized modules beside node.js.
+  # Declare each one explicitly: electron-builder otherwise strips nested node_modules
+  # while copying an extra resource tree.
+  - from: ../../vendor/opencode/packages/opencode/dist/node/node_modules/jsonc-parser
+    to: opencode/node_modules/jsonc-parser
+  - from: ../../vendor/opencode/packages/opencode/dist/node/node_modules/@lydell
+    to: opencode/node_modules/@lydell
+    filter:
+      - "node-pty/**/*"
+      - "node-pty-*/**/*"
 # .sdnspkg 项目包文件关联（双击可在应用内打开导入）
 fileAssociations:
   - ext: sdnspkg

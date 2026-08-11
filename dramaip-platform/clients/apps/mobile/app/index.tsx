@@ -1,203 +1,146 @@
-import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'expo-router'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { getBrief, restoreSession, signOut, type MobileBrief } from '../src/mobile-session'
-import {
-  expandMobileDraft,
-  exportLocalDrafts,
-  listLocalDrafts,
-  markLocalDraftForDeletion,
-  queueDraft,
-  syncQueuedDrafts,
-  updateLocalDraft,
-  type MobileCaptureMode,
-  type MobileDraftKind,
-} from '../src/mobile-drafts'
+import { ScrollView, Text, View } from 'react-native'
+import { StatusBar } from 'expo-status-bar'
+import { FontAwesome } from '@expo/vector-icons'
+import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated'
 
-type ScreenState = 'loading' | 'signed_out' | 'expired' | 'offline' | 'ready'
+import { useMobileSession } from '@/src/mobile-session'
+import { Button, ButtonText } from '@/src/components/ui/button'
 
-const kinds: { value: MobileDraftKind; label: string }[] = [
-  { value: 'inspiration', label: '灵感' }, { value: 'character', label: '人物' }, { value: 'project', label: '项目' },
+const STACK = [
+  { icon: 'rocket', label: 'Expo SDK 54' },
+  { icon: 'random', label: 'Expo Router' },
+  { icon: 'paint-brush', label: 'NativeWind v5' },
+  { icon: 'cube', label: 'gluestack v5' },
+  { icon: 'bolt', label: 'Reanimated 4' },
+  { icon: 'shield', label: 'Contract v2' },
+]
+
+const FEATURES = [
+  { icon: 'magic', label: 'AI 短剧创作', hint: '云端模型 · 流式生成' },
+  { icon: 'cloud-upload', label: '多端同步', hint: 'Web · Admin · Mobile' },
+  { icon: 'bolt', label: '60fps 动效', hint: 'Reanimated 工作线程' },
+  { icon: 'lock', label: '安全网关', hint: '无客户端密钥' },
 ]
 
 export default function HomeScreen() {
-  const [brief, setBrief] = useState<MobileBrief>()
-  const [state, setState] = useState<ScreenState>('loading')
-  const [error, setError] = useState<string>()
-  const [kind, setKind] = useState<MobileDraftKind>('inspiration')
-  const [captureMode, setCaptureMode] = useState<MobileCaptureMode>('text')
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [expansion, setExpansion] = useState('')
-  const [localCount, setLocalCount] = useState(0)
-  const [drafts, setDrafts] = useState<Awaited<ReturnType<typeof listLocalDrafts>>>([])
-  const [editingClientID, setEditingClientID] = useState<string>()
-  const [busy, setBusy] = useState<'save' | 'expand' | 'sync' | 'export'>()
-  const [notice, setNotice] = useState<string>()
-
-  const refreshLocalCount = useCallback(async () => { const items = await listLocalDrafts(); setDrafts(items.filter((item) => !item.pendingDelete)); setLocalCount(items.length) }, [])
-
-  const load = useCallback(async () => {
-    setState('loading')
-    setError(undefined)
-    await refreshLocalCount()
-    const restored = await restoreSession()
-    if (restored.state !== 'signed_in') {
-      setState(restored.state)
-      return
-    }
-    try {
-      setBrief(await getBrief())
-      const replay = await syncQueuedDrafts()
-      await refreshLocalCount()
-      if (replay.synced) setNotice(`已同步 ${replay.synced} 条离线草稿`)
-      setState('ready')
-    } catch (reason) {
-      setState('offline')
-      setError(reason instanceof Error ? reason.message : '无法获取账户摘要')
-    }
-  }, [refreshLocalCount])
-
-  useEffect(() => { void load() }, [load])
-
-  const logout = async () => {
-    await signOut()
-    setBrief(undefined)
-    setState('signed_out')
-  }
-
-  const saveDraft = async () => {
-    setBusy('save')
-    setNotice(undefined)
-    try {
-      if (editingClientID) await updateLocalDraft(editingClientID, { kind, captureMode, title, content, aiExpansion: expansion })
-      else await queueDraft({ kind, captureMode, title, content, aiExpansion: expansion })
-      const result = await syncQueuedDrafts()
-      await refreshLocalCount()
-      setTitle('')
-      setContent('')
-      setExpansion('')
-      setEditingClientID(undefined)
-      setNotice(result.pending ? `草稿已安全保存在本机，待网络恢复后同步（${result.pending} 条待发）` : '草稿已同步，可在桌面端灵感台显式采用')
-    } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : '保存草稿失败')
-    } finally {
-      setBusy(undefined)
-    }
-  }
-
-  const editDraft = (draft: typeof drafts[number]) => {
-    setEditingClientID(draft.clientId); setKind(draft.kind); setCaptureMode(draft.captureMode); setTitle(draft.title); setContent(draft.content); setExpansion(draft.aiExpansion)
-    setNotice('正在编辑草稿；保存后会重新同步。')
-  }
-
-  const removeDraft = async (clientId: string) => {
-    await markLocalDraftForDeletion(clientId); const result = await syncQueuedDrafts(); await refreshLocalCount()
-    setNotice(result.pending ? '删除已标记，网络恢复后会清理云端记录。' : '草稿已删除。')
-  }
-
-  const expand = async () => {
-    setBusy('expand')
-    setNotice(undefined)
-    try {
-      setExpansion(await expandMobileDraft(kind, content))
-      setNotice('扩写已生成；保存草稿后才会同步到桌面端。')
-    } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : '扩写暂不可用')
-    } finally {
-      setBusy(undefined)
-    }
-  }
-
-  const replay = async () => {
-    setBusy('sync')
-    try {
-      const result = await syncQueuedDrafts()
-      await refreshLocalCount()
-      setNotice(result.pending ? `仍有 ${result.pending} 条草稿待网络恢复后同步` : `离线队列已同步 ${result.synced} 条`)
-    } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : '同步暂不可用')
-    } finally {
-      setBusy(undefined)
-    }
-  }
-
-  const exportDrafts = async () => {
-    setBusy('export')
-    try {
-      const result = await exportLocalDrafts()
-      setNotice(result.shared ? '已打开系统分享，可发送到桌面端“导入移动灵感”。' : `已生成交接文件：${result.uri}`)
-    } catch (reason) {
-      setNotice(reason instanceof Error ? reason.message : '导出失败')
-    } finally {
-      setBusy(undefined)
-    }
-  }
-
-  const composerVisible = state === 'ready' || state === 'offline'
+  const session = useMobileSession()
+  const authenticated = session.status === 'authenticated'
 
   return (
-    <ScrollView className="flex-1 bg-white" contentContainerClassName="gap-4 px-6 py-10">
-      <Text className="text-3xl font-semibold text-slate-950">DramaIP Mobile</Text>
-      {state === 'loading' ? <ActivityIndicator /> : null}
-      {state === 'ready' && brief ? (
-        <View className="rounded-lg border border-slate-200 p-4">
-          <Text className="text-lg font-medium text-slate-950">{brief.displayName}</Text>
-          <Text className="mt-1 text-slate-600">套餐：{brief.plan} · 剩余额度：{brief.remainingTokens.toLocaleString()} tokens</Text>
-        </View>
-      ) : null}
-      {state === 'offline' ? <Text className="text-sm leading-5 text-amber-700">网络暂不可用，草稿仍会保存在本机队列中，不会丢失。{error ? ` ${error}` : ''}</Text> : null}
-      {state === 'signed_out' || state === 'expired' ? (
-        <>
-          <Text className="text-base leading-6 text-slate-600">{state === 'expired' ? '登录已过期，请重新登录。' : '请登录以同步灵感、查看套餐和余额。'}</Text>
-          <Link href="/(auth)/login" className="text-base font-medium text-blue-600">前往登录</Link>
-        </>
-      ) : null}
+    <ScrollView className="flex-1 bg-ink" contentContainerStyle={{ flexGrow: 1 }}>
+      <StatusBar style="light" />
 
-      {composerVisible ? (
-        <View className="gap-3 rounded-xl border border-slate-200 p-4">
-          <View>
-            <Text className="text-lg font-semibold text-slate-950">随手草稿</Text>
-            <Text className="mt-1 text-sm leading-5 text-slate-600">只记录轻量灵感、人物或项目方向；桌面端必须由你显式采用，绝不自动覆盖正文。</Text>
-          </View>
-          <View className="flex-row gap-2">
-            {kinds.map((option) => <ModeButton key={option.value} label={option.label} active={kind === option.value} onPress={() => setKind(option.value)} />)}
-          </View>
-          <View className="flex-row gap-2">
-            <ModeButton label="文字" active={captureMode === 'text'} onPress={() => setCaptureMode('text')} />
-            <ModeButton label="语音听写" active={captureMode === 'voice'} onPress={() => setCaptureMode('voice')} />
-          </View>
-          {captureMode === 'voice' ? <Text className="text-xs leading-4 text-slate-500">使用系统键盘的语音听写转成文字；应用不会录制或上传原始音频。</Text> : null}
-          <TextInput className="h-11 rounded-md border border-slate-300 px-3" placeholder="给这条草稿一个标题" maxLength={120} value={title} onChangeText={setTitle} />
-          <TextInput className="min-h-28 rounded-md border border-slate-300 px-3 py-2 align-top" placeholder="记录触发点、人物关系或项目方向…" multiline maxLength={3000} value={content} onChangeText={setContent} />
-          <Text className="text-xs leading-4 text-slate-500">AI 快速扩写只发送上面的文字（最多 1,500 字符），不会上传桌面项目、文件路径或音频。</Text>
-          <Pressable className="h-11 items-center justify-center rounded-md border border-blue-300" onPress={() => void expand()} disabled={busy !== undefined || !content.trim()}>
-            {busy === 'expand' ? <ActivityIndicator /> : <Text className="font-medium text-blue-700">AI 快速扩写</Text>}
-          </Pressable>
-          {expansion ? <TextInput className="min-h-24 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 align-top text-slate-800" multiline value={expansion} onChangeText={setExpansion} /> : null}
-          <Pressable className="h-12 items-center justify-center rounded-md bg-slate-900" onPress={() => void saveDraft()} disabled={busy !== undefined || !title.trim() || !content.trim()}>
-            {busy === 'save' ? <ActivityIndicator color="#ffffff" /> : <Text className="font-medium text-white">{editingClientID ? '保存修改并同步' : '保存并尝试同步'}</Text>}
-          </Pressable>
-          <View className="flex-row gap-2">
-            <Pressable className="h-10 flex-1 items-center justify-center rounded-md border border-slate-300" onPress={() => void replay()} disabled={busy !== undefined}><Text className="font-medium text-slate-800">重放队列（{localCount}）</Text></Pressable>
-            <Pressable className="h-10 flex-1 items-center justify-center rounded-md border border-slate-300" onPress={() => void exportDrafts()} disabled={busy !== undefined}><Text className="font-medium text-slate-800">导出交接包</Text></Pressable>
-          </View>
-          {notice ? <Text className="text-sm leading-5 text-slate-600">{notice}</Text> : null}
-          {drafts.length ? <View className="gap-2 border-t border-slate-200 pt-3"><Text className="font-medium text-slate-900">我的草稿（{drafts.length}）</Text>{drafts.map((draft) => <View key={draft.clientId} className="rounded-md border border-slate-200 p-2"><Text className="font-medium text-slate-900">{draft.title}</Text><Text className="text-xs text-slate-500">{draft.syncedAt ? '已同步' : draft.syncError ? `同步失败：${draft.syncError}` : '待同步'}</Text><View className="mt-1 flex-row gap-3"><Pressable onPress={() => editDraft(draft)}><Text className="text-blue-700">编辑</Text></Pressable><Pressable onPress={() => void removeDraft(draft.clientId)}><Text className="text-red-700">删除</Text></Pressable></View></View>)}</View> : null}
-        </View>
-      ) : null}
+      <View className="absolute inset-0 overflow-hidden">
+        <View className="absolute -top-40 -right-32 h-80 w-80 rounded-full bg-brand-500 opacity-25" />
+        <View className="absolute top-44 -left-28 h-72 w-72 rounded-full bg-rust opacity-20" />
+        <View className="absolute bottom-10 right-10 h-40 w-40 rounded-full bg-sand opacity-10" />
+      </View>
 
-      {state === 'ready' ? (
-        <>
-          <Pressable className="h-11 items-center justify-center rounded-md border border-slate-300" onPress={() => void load()}><Text className="font-medium text-slate-800">刷新账户与队列</Text></Pressable>
-          <Pressable className="h-11 items-center justify-center rounded-md bg-slate-900" onPress={() => void logout()}><Text className="font-medium text-white">退出登录</Text></Pressable>
-        </>
-      ) : null}
-      {state === 'offline' ? <Pressable className="h-11 items-center justify-center rounded-md border border-slate-300" onPress={() => void load()}><Text className="font-medium text-slate-800">恢复网络后重试</Text></Pressable> : null}
+      <View className="relative flex-1 items-center justify-center px-6 py-16">
+        <Animated.View
+          entering={ZoomIn.delay(80).springify().damping(14)}
+          className="mb-7 h-24 w-24 items-center justify-center rounded-[28px] bg-brand-500"
+          style={{ shadowColor: '#c85532', shadowOpacity: 0.5, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 12 }}
+        >
+          <FontAwesome name="film" size={44} color="#fff8f2" />
+        </Animated.View>
+
+        <Animated.Text
+          entering={FadeInDown.delay(180).springify()}
+          className="text-center text-5xl font-bold tracking-tight text-white"
+        >
+          DramaIP
+        </Animated.Text>
+        <Animated.Text
+          entering={FadeInDown.delay(260).springify()}
+          className="mt-3 text-center text-base text-sand"
+        >
+          短剧 IP 创作平台 · 移动端
+        </Animated.Text>
+
+        <Animated.View entering={FadeIn.delay(420)} className="mt-9 flex-row flex-wrap justify-center gap-2 px-2">
+          {STACK.map((item) => (
+            <View
+              key={item.label}
+              className="flex-row items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5"
+            >
+              <FontAwesome name={item.icon as never} size={11} color="#eadbc8" />
+              <Text className="ml-1.5 text-xs text-sand">{item.label}</Text>
+            </View>
+          ))}
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(560)} className="mt-10 w-full flex-row flex-wrap justify-center gap-3">
+          {FEATURES.map((feature) => (
+            <View
+              key={feature.label}
+              className="w-[44%] rounded-2xl border border-white/10 bg-white/5 p-4"
+            >
+              <View className="mb-3 h-9 w-9 items-center justify-center rounded-xl bg-brand-500/20">
+                <FontAwesome name={feature.icon as never} size={16} color="#c85532" />
+              </View>
+              <Text className="text-sm font-semibold text-white">{feature.label}</Text>
+              <Text className="mt-0.5 text-xs text-sand/60">{feature.hint}</Text>
+            </View>
+          ))}
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(700)}
+          className="mt-8 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-5"
+        >
+          <View className="flex-row items-center">
+            <FontAwesome name={authenticated ? 'user-circle' : 'signal'} size={15} color="#c85532" />
+            <Text className="ml-2 text-sm font-semibold text-white">运行环境</Text>
+          </View>
+          <View className="mt-4 gap-2.5">
+            <StatusRow label="后端 API" value={session.apiOrigin || '未配置'} ok={session.configured} />
+            <StatusRow
+              label="登录状态"
+              value={authenticated ? session.email : '匿名'}
+              ok={authenticated}
+            />
+            <StatusRow label="运行时" value="New Arch · RN 0.81" ok />
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(820)} className="mt-8 w-full">
+          <Button
+            size="lg"
+            className="w-full flex-row items-center justify-center bg-brand-500 active:bg-brand-700"
+            onPress={() => {}}
+          >
+            <ButtonText className="font-semibold text-white">连接后端</ButtonText>
+            <FontAwesome name="arrow-right" size={14} color="#ffffff" style={{ marginLeft: 8 }} />
+          </Button>
+          <View className="mt-4 flex-row items-center justify-center gap-3">
+            <Button variant="outline" size="sm" className="border-white/15 bg-white/5">
+              <ButtonText className="text-sand">gluestack</ButtonText>
+            </Button>
+            <Button variant="link" size="sm" className="px-2">
+              <ButtonText className="text-sand/70">v5 组件</ButtonText>
+            </Button>
+          </View>
+          <Link href="/+not-found" className="mt-4 text-center text-xs text-sand/60">
+            验证 Expo Router 路由 →
+          </Link>
+        </Animated.View>
+      </View>
     </ScrollView>
   )
 }
 
-function ModeButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return <Pressable className={`h-9 flex-1 items-center justify-center rounded-md border ${active ? 'border-blue-600 bg-blue-50' : 'border-slate-300'}`} onPress={onPress}><Text className={active ? 'font-medium text-blue-700' : 'text-slate-700'}>{label}</Text></Pressable>
+function StatusRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className="text-xs text-sand/60">{label}</Text>
+      <View className="max-w-[62%] flex-row items-center">
+        <View className={`mr-2 h-1.5 w-1.5 rounded-full ${ok ? 'bg-green-400' : 'bg-sand/40'}`} />
+        <Text className="text-right text-xs text-sand" numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
+    </View>
+  )
 }

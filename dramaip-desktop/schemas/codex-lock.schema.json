@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dramaip.local/schemas/codex-lock.schema.json",
+  "title": "DramaIP Codex 固定版本清单",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["package", "version", "license", "protocol", "platforms"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "package": { "const": "@openai/codex" },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "license": { "const": "Apache-2.0" },
+    "protocol": { "const": "app-server-jsonrpc-stdio" },
+    "platforms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "aarch64-unknown-linux-musl",
+        "x86_64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc"
+      ],
+      "patternProperties": {
+        "^(aarch64|x86_64)-(apple-darwin|unknown-linux-musl|pc-windows-msvc)$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["package", "integrity", "binarySha256"],
+          "properties": {
+            "package": { "type": "string", "pattern": "^@openai/codex-" },
+            "integrity": { "type": "string", "pattern": "^sha512-" },
+            "binarySha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}
