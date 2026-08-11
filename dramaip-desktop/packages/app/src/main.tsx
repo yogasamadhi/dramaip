@@ -9783,7 +9783,7 @@ function TimelineEditorPanel(props: {
         {deliveryManifest && (
           <div className="mt-3 grid gap-3 text-xs text-muted lg:grid-cols-2">
             <p>
-              timeline v{deliveryManifest.timeline.version} · 媒体 {deliveryManifest.media.length} 个 · 已校验 {deliveryManifest.media.filter((item) => Boolean(item.checksum)).length} 个
+              时间线版本 {deliveryManifest.timeline.version} · 媒体 {deliveryManifest.media.length} 个 · 已校验 {deliveryManifest.media.filter((item) => Boolean(item.checksum)).length} 个
             </p>
             <p>
               MP4 仅在 Provider 显式声明 timeline_render 时提供；当前目录未声明该能力，因此未生成或伪造成片。
