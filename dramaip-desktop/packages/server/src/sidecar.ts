@@ -13278,6 +13278,8 @@ function projectAgentSettingsRecord(projectId: string) {
     defaultModel: record?.default_model_json
       ? JSON.parse(String(record.default_model_json))
       : globalSettings.defaultModel,
+    assistantMode:
+      record?.assistant_mode === "advanced" ? "advanced" : "simple",
     updatedAt: record?.updated_at ?? timestamp(),
   };
 }
@@ -13309,14 +13311,29 @@ async function updateProjectAgentSettings(
       "请选择有效的智能引擎",
       requestId,
     );
+  if (
+    input.assistantMode !== undefined &&
+    input.assistantMode !== "simple" &&
+    input.assistantMode !== "advanced"
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "请选择有效的智能助手界面模式",
+      requestId,
+    );
+  const previous = projectAgentSettingsRecord(projectId);
   const now = timestamp();
   db!
     .prepare(
-      `INSERT INTO project_agent_settings(project_id, default_engine_kind, default_model_json, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO project_agent_settings(
+         project_id, default_engine_kind, default_model_json, assistant_mode, updated_at
+       ) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(project_id) DO UPDATE SET
          default_engine_kind = excluded.default_engine_kind,
          default_model_json = excluded.default_model_json,
+         assistant_mode = excluded.assistant_mode,
          updated_at = excluded.updated_at`,
     )
     .run(
@@ -13325,6 +13342,7 @@ async function updateProjectAgentSettings(
       input.defaultModel === undefined
         ? null
         : JSON.stringify(input.defaultModel),
+      input.assistantMode ?? previous.assistantMode,
       now,
     );
   const result = projectAgentSettingsRecord(projectId);
@@ -17173,7 +17191,7 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
     );
     res.setHeader(
       "Access-Control-Allow-Methods",
-      "GET, POST, PATCH, DELETE, OPTIONS",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     );
   }
 }

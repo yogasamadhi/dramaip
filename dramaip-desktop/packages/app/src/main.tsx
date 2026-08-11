@@ -32,6 +32,12 @@ import {
 } from "./project-intake";
 import { deriveProjectCockpit } from "./project-cockpit";
 import {
+  contextAssistantPage,
+  contextAssistantPreflight,
+  contextAssistantProjectId,
+  resolveContextAssistantActions,
+} from "./context-assistant";
+import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_RELEASE,
   MODEL_PROVIDER_CATALOG_UPDATED_AT,
@@ -3592,6 +3598,7 @@ function AgentProviderActionPreviewCard(props: {
       video: "视频生成",
       remote_render: "远程渲染",
     }[props.preview.kind] ?? "远程厂商调用";
+  const costUnknown = props.preview.estimatedCost === undefined;
   return (
     <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3643,7 +3650,7 @@ function AgentProviderActionPreviewCard(props: {
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={execute.isPending || discard.isPending}
+            disabled={costUnknown || execute.isPending || discard.isPending}
             onClick={() => {
               const cost =
                 props.preview.estimatedCost === undefined
@@ -3663,6 +3670,11 @@ function AgentProviderActionPreviewCard(props: {
             {discard.isPending ? "正在放弃…" : "放弃此次调用"}
           </button>
         </div>
+      )}
+      {status === "pending" && costUnknown && (
+        <p className="mt-3 text-xs leading-5 text-amber-800">
+          厂商尚未返回可靠报价，远程任务已禁用。请更新服务商报价后重新生成调用预览；在此之前不会产生媒体生成费用。
+        </p>
       )}
       {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
     </section>
@@ -10075,8 +10087,9 @@ function AgentEngineSettingsPanel() {
 function AgentSidePanel() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
-    queryKey: ["agent-projects"],
+    queryKey: ["agent-projects", location.pathname],
     queryFn: client.projects.list,
   });
   const [projectId, setProjectId] = useState("");
@@ -10087,6 +10100,9 @@ function AgentSidePanel() {
   const [experimentMode, setExperimentMode] = useState<
     "recommended" | "same_model"
   >("recommended");
+  const [assistantMode, setAssistantMode] = useState<"simple" | "advanced">(
+    "simple",
+  );
   const [prompt, setPrompt] = useState("");
   const [notice, setNotice] = useState<string>();
   const [activeRunId, setActiveRunId] = useState<string>();
@@ -10110,43 +10126,101 @@ function AgentSidePanel() {
     queryFn: () => client.chapters.list(projectId),
     enabled: Boolean(projectId),
   });
+  const requestedProjectId = contextAssistantProjectId(location);
   useEffect(() => {
+    if (requestedProjectId && projectId !== requestedProjectId) {
+      setProjectId(requestedProjectId);
+      return;
+    }
     if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+  }, [projectId, projects, requestedProjectId]);
   useEffect(() => setChapterId(""), [projectId]);
   useEffect(() => {
     if (projectSettings) {
       setEngineKind(projectSettings.defaultEngineKind);
       setModelId(projectSettings.defaultModel?.modelId ?? "");
+      setAssistantMode(projectSettings.assistantMode);
     }
   }, [projectSettings]);
   const selectedTask = taskDefinitions.find((item) => item.id === taskType);
   const requiresChapter =
     selectedTask?.category === "章节写作" ||
     selectedTask?.category === "记忆与连续性";
+  const contextPage = contextAssistantPage(location.pathname);
+  const { actions: contextActions, missingTaskTypes } =
+    resolveContextAssistantActions({
+      page: contextPage,
+      catalog: taskDefinitions,
+    });
+  const selectedEngine = engines.find((engine) => engine.kind === engineKind);
+  const preflightFor = (action: (typeof contextActions)[number]) =>
+    contextAssistantPreflight({
+      action,
+      projectId,
+      chapterId,
+      engine: selectedEngine,
+      modelId,
+    });
+  const updateAssistantMode = useMutation({
+    mutationFn: (nextMode: "simple" | "advanced") => {
+      if (!projectId) throw new Error("请先选择项目以保存助手偏好");
+      return client.agentEngines.updateProjectSettings(projectId, {
+        defaultEngineKind: projectSettings?.defaultEngineKind ?? engineKind,
+        ...(projectSettings?.defaultModel
+          ? { defaultModel: projectSettings.defaultModel }
+          : {}),
+        assistantMode: nextMode,
+      });
+    },
+    onSuccess: async (settings) => {
+      setAssistantMode(settings.assistantMode);
+      setNotice(
+        settings.assistantMode === "advanced"
+          ? "已恢复完整任务目录和高级参数。"
+          : "已切换为当前页面的简洁助手。",
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["project-agent-settings", projectId],
+      });
+    },
+    onError: (cause) => {
+      setAssistantMode(projectSettings?.assistantMode ?? "simple");
+      setNotice(message(cause));
+    },
+  });
   const runAgent = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (requested?: { taskType?: AgentTaskType }) => {
       if (!projectId) throw new Error("请先创建或选择一个项目");
-      if (requiresChapter && !chapterId)
+      const requestedTaskType = requested?.taskType ?? taskType;
+      const definition = taskDefinitions.find(
+        (item) => item.id === requestedTaskType,
+      );
+      const taskRequiresChapter =
+        definition?.category === "章节写作" ||
+        definition?.category === "记忆与连续性";
+      if (taskRequiresChapter && !chapterId)
         throw new Error("此智能任务需要先选择一个章节");
       const session = await client.agentSessions.create({
         projectId,
         ...(chapterId ? { chapterId } : {}),
         engineKind,
-        taskType,
-        title: selectedTask?.label,
+        taskType: requestedTaskType,
+        title: definition?.label,
         ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
       });
       return client.agentSessions.run(session.id, {
-        taskType,
+        taskType: requestedTaskType,
         ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
         ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, requested) => {
+      const definition = taskDefinitions.find(
+        (item) => item.id === (requested?.taskType ?? taskType),
+      );
       setActiveRunId(result.runId);
       setNotice(
-        `${selectedTask?.label ?? "智能"}任务已创建：${result.taskId.slice(0, 8)}`,
+        `${definition?.label ?? "智能"}任务已创建：${result.taskId.slice(0, 8)}`,
       );
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -10261,6 +10335,32 @@ function AgentSidePanel() {
         智能助手经由 DramaIP
         本地服务代理，只使用受控的只读工具；所有内容改动和付费厂商调用都必须由你确认。
       </p>
+      <div
+        className="mt-3 flex rounded-lg border border-line bg-white p-1 text-xs"
+        role="group"
+        aria-label="智能助手模式"
+      >
+        <button
+          className={`flex-1 rounded-md px-2 py-1.5 ${assistantMode === "simple" ? "bg-brand-soft font-medium text-brand" : "text-muted"}`}
+          disabled={!projectId || updateAssistantMode.isPending}
+          onClick={() => {
+            setAssistantMode("simple");
+            updateAssistantMode.mutate("simple");
+          }}
+        >
+          简洁模式
+        </button>
+        <button
+          className={`flex-1 rounded-md px-2 py-1.5 ${assistantMode === "advanced" ? "bg-brand-soft font-medium text-brand" : "text-muted"}`}
+          disabled={!projectId || updateAssistantMode.isPending}
+          onClick={() => {
+            setAssistantMode("advanced");
+            updateAssistantMode.mutate("advanced");
+          }}
+        >
+          高级模式
+        </button>
+      </div>
       <select
         className="mt-4 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
         value={projectId}
@@ -10282,122 +10382,202 @@ function AgentSidePanel() {
         <option value="">项目级诊断（可选）</option>
         {chapters.map((chapter) => (
           <option key={chapter.id} value={chapter.id}>
-            {chapter.title}
+            {chapter.title}（助手上下文）
           </option>
         ))}
       </select>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        智能引擎
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={engineKind}
-          onChange={(event) =>
-            setEngineKind(event.target.value as AgentEngineKind)
-          }
-        >
-          {engines.map((engine) => (
-            <option
-              key={engine.kind}
-              value={engine.kind}
-              disabled={engine.status !== "available"}
-            >
-              {engine.name}
-              {engine.isBeta ? "（测试版）" : ""} ·{" "}
-              {engine.status === "available" ? "可用" : "不可用"}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        智能任务
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={taskType}
-          onChange={(event) => setTaskType(event.target.value as AgentTaskType)}
-        >
-          {Array.from(
-            new Set(taskDefinitions.map((item) => item.category)),
-          ).map((category) => (
-            <optgroup key={category} label={category}>
-              {taskDefinitions
-                .filter((item) => item.category === category)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        本次模型（可选）
-        <input
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          placeholder="留空时使用项目或引擎默认模型"
-          value={modelId}
-          onChange={(event) => setModelId(event.target.value)}
-        />
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        盲测比较方式
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={experimentMode}
-          onChange={(event) =>
-            setExperimentMode(
-              event.target.value as "recommended" | "same_model",
-            )
-          }
-        >
-          <option value="recommended">各引擎推荐配置</option>
-          <option value="same_model">三个引擎使用同一模型</option>
-        </select>
-      </label>
-      {requiresChapter && !chapterId && (
-        <p className="mt-2 text-xs leading-5 text-amber-700">
-          此任务需要先选择章节。生成结果只会创建待确认预览，不会直接改写正式内容。
-        </p>
+      {assistantMode === "simple" && (
+        <section className="mt-4 space-y-3" aria-label="当前页面推荐动作">
+          <div>
+            <p className="text-sm font-medium">当前页面推荐</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              已根据当前页面和项目输入筛选；每次任务都会保留可追溯快照，结果仅进入预览或变更包。
+            </p>
+          </div>
+          {contextActions.map((action) => {
+            const preflight = preflightFor(action);
+            const costLabel =
+              preflight.cost === "unknown"
+                ? "费用：待厂商调用预览确认"
+                : "费用：模型调用按服务商账单结算";
+            return (
+              <article
+                key={action.actionId}
+                className="rounded-xl border border-line bg-white p-3"
+              >
+                <p className="text-sm font-medium">{action.label}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {action.summary}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  输入：
+                  {preflight.input === "ready"
+                    ? "已就绪"
+                    : preflight.input === "chapter-required"
+                      ? "需要选择章节"
+                      : "需要选择项目"}
+                  <br />
+                  能力：
+                  {preflight.capability === "ready"
+                    ? `${selectedEngine?.name ?? "智能引擎"} 可用`
+                    : preflight.capability === "unavailable"
+                      ? "所选引擎当前不可用"
+                      : "需要配置引擎或默认模型"}
+                  <br />
+                  {costLabel}
+                </p>
+                {!preflight.ready && (
+                  <div className="mt-2 text-xs leading-5 text-amber-700">
+                    {preflight.fixes.map((fix) => (
+                      <p key={fix}>{fix}</p>
+                    ))}
+                    <Link className="text-brand hover:underline" to="/settings">
+                      前往设置修复
+                    </Link>
+                  </div>
+                )}
+                <button
+                  className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
+                  disabled={runAgent.isPending || !preflight.ready}
+                  onClick={() => runAgent.mutate({ taskType: action.id })}
+                >
+                  {runAgent.isPending
+                    ? "正在创建任务…"
+                    : `生成${action.label}预览`}
+                </button>
+              </article>
+            );
+          })}
+          {!contextActions.length && !missingTaskTypes.length && (
+            <p className="rounded-lg border border-line bg-white p-3 text-xs text-muted">
+              正在读取受控任务目录…
+            </p>
+          )}
+          {!!missingTaskTypes.length && (
+            <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+              当前安装的任务目录缺少推荐动作，请更新本地服务后重试。
+            </p>
+          )}
+        </section>
       )}
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        任务要求（可选）
-        <textarea
-          className="min-h-24 rounded-lg border border-line bg-white p-3 text-sm text-ink"
-          placeholder={
-            selectedTask?.writePolicy === "change-preview"
-              ? "例如：保持原有悬疑节奏，强化主角动机，并保留结尾钩子。"
-              : "例如：检查人物动机是否连贯，并给出可执行建议。"
-          }
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-        />
-      </label>
-      <button
-        className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
-        disabled={
-          runAgent.isPending ||
-          !projectId ||
-          (requiresChapter && !chapterId) ||
-          engines.find((engine) => engine.kind === engineKind)?.status !==
-            "available"
-        }
-        onClick={() => runAgent.mutate()}
-      >
-        {runAgent.isPending
-          ? "正在创建任务…"
-          : `执行${selectedTask?.label ?? "智能任务"}`}
-      </button>
-      <button
-        className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
-        disabled={
-          createExperiment.isPending ||
-          !projectId ||
-          (requiresChapter && !chapterId)
-        }
-        onClick={() => createExperiment.mutate()}
-      >
-        {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
-      </button>
+      {assistantMode === "advanced" && (
+        <>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            智能引擎
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={engineKind}
+              onChange={(event) =>
+                setEngineKind(event.target.value as AgentEngineKind)
+              }
+            >
+              {engines.map((engine) => (
+                <option
+                  key={engine.kind}
+                  value={engine.kind}
+                  disabled={engine.status !== "available"}
+                >
+                  {engine.name}
+                  {engine.isBeta ? "（测试版）" : ""} ·{" "}
+                  {engine.status === "available" ? "可用" : "不可用"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            智能任务
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={taskType}
+              onChange={(event) =>
+                setTaskType(event.target.value as AgentTaskType)
+              }
+            >
+              {Array.from(
+                new Set(taskDefinitions.map((item) => item.category)),
+              ).map((category) => (
+                <optgroup key={category} label={category}>
+                  {taskDefinitions
+                    .filter((item) => item.category === category)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            本次模型（可选）
+            <input
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              placeholder="留空时使用项目或引擎默认模型"
+              value={modelId}
+              onChange={(event) => setModelId(event.target.value)}
+            />
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            盲测比较方式
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={experimentMode}
+              onChange={(event) =>
+                setExperimentMode(
+                  event.target.value as "recommended" | "same_model",
+                )
+              }
+            >
+              <option value="recommended">各引擎推荐配置</option>
+              <option value="same_model">三个引擎使用同一模型</option>
+            </select>
+          </label>
+          {requiresChapter && !chapterId && (
+            <p className="mt-2 text-xs leading-5 text-amber-700">
+              此任务需要先选择章节。生成结果只会创建待确认预览，不会直接改写正式内容。
+            </p>
+          )}
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            任务要求（可选）
+            <textarea
+              className="min-h-24 rounded-lg border border-line bg-white p-3 text-sm text-ink"
+              placeholder={
+                selectedTask?.writePolicy === "change-preview"
+                  ? "例如：保持原有悬疑节奏，强化主角动机，并保留结尾钩子。"
+                  : "例如：检查人物动机是否连贯，并给出可执行建议。"
+              }
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+          </label>
+          <button
+            className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
+            disabled={
+              runAgent.isPending ||
+              !projectId ||
+              (requiresChapter && !chapterId) ||
+              engines.find((engine) => engine.kind === engineKind)?.status !==
+                "available"
+            }
+            onClick={() => runAgent.mutate({})}
+          >
+            {runAgent.isPending
+              ? "正在创建任务…"
+              : `执行${selectedTask?.label ?? "智能任务"}`}
+          </button>
+          <button
+            className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={
+              createExperiment.isPending ||
+              !projectId ||
+              (requiresChapter && !chapterId)
+            }
+            onClick={() => createExperiment.mutate()}
+          >
+            {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
+          </button>
+        </>
+      )}
       {activeRun && (
         <section className="mt-4 rounded-xl border border-line bg-white p-3">
           <div className="flex items-center justify-between gap-2">

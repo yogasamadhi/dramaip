@@ -414,6 +414,18 @@ test("production-structure HTTP contract persists active adaptation and atomical
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
+    const corsPreflight = await fetch(`${url}/api/v1/agent-settings`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "dramaip://renderer",
+        "Access-Control-Request-Method": "PUT",
+      },
+    });
+    assert.equal(corsPreflight.status, 204);
+    assert.match(
+      corsPreflight.headers.get("access-control-allow-methods") ?? "",
+      /\bPUT\b/,
+    );
     const project = await request<{
       id: string;
       targetAudience?: string;
@@ -628,14 +640,23 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     const initialAgentSettings = await request<{
       defaultEngineKind: string;
+      assistantMode: string;
     }>(`/api/v1/projects/${project.body.id}/agent-settings`);
     assert.equal(initialAgentSettings.status, 200);
     assert.equal(initialAgentSettings.body.defaultEngineKind, "opencode");
-    const codexSettings = await request<{ defaultEngineKind: string }>(
-      `/api/v1/projects/${project.body.id}/agent-settings`,
-      { method: "PUT", body: JSON.stringify({ defaultEngineKind: "codex" }) },
-    );
+    assert.equal(initialAgentSettings.body.assistantMode, "simple");
+    const codexSettings = await request<{
+      defaultEngineKind: string;
+      assistantMode: string;
+    }>(`/api/v1/projects/${project.body.id}/agent-settings`, {
+      method: "PUT",
+      body: JSON.stringify({
+        defaultEngineKind: "codex",
+        assistantMode: "advanced",
+      }),
+    });
     assert.equal(codexSettings.status, 200);
+    assert.equal(codexSettings.body.assistantMode, "advanced");
     const noFallbackSession = await request<{ code: string; message: string }>(
       "/api/v1/agent-sessions",
       {
@@ -647,14 +668,15 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(noFallbackSession.body.code, "ENGINE_UNAVAILABLE");
     assert.match(noFallbackSession.body.message, /Codex/);
     codexShouldFailForNoFallbackTest = false;
-    const restoredAgentSettings = await request<{ defaultEngineKind: string }>(
-      `/api/v1/projects/${project.body.id}/agent-settings`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ defaultEngineKind: "opencode" }),
-      },
-    );
+    const restoredAgentSettings = await request<{
+      defaultEngineKind: string;
+      assistantMode: string;
+    }>(`/api/v1/projects/${project.body.id}/agent-settings`, {
+      method: "PUT",
+      body: JSON.stringify({ defaultEngineKind: "opencode" }),
+    });
     assert.equal(restoredAgentSettings.body.defaultEngineKind, "opencode");
+    assert.equal(restoredAgentSettings.body.assistantMode, "advanced");
     const agentChapter = await request<{
       id: string;
       version: number;

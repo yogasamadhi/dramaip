@@ -620,21 +620,25 @@ export const ProjectAgentSettings = Schema.Struct({
   projectId: Id,
   defaultEngineKind: AgentEngineKind,
   defaultModel: Schema.optionalKey(AgentModelSelection),
+  assistantMode: Schema.Literals(["simple", "advanced"]),
   updatedAt: IsoDateTime,
 });
 export interface ProjectAgentSettings {
   projectId: Id;
   defaultEngineKind: AgentEngineKind;
   defaultModel?: AgentModelSelection;
+  assistantMode: "simple" | "advanced";
   updatedAt: IsoDateTime;
 }
 export const ProjectAgentSettingsInput = Schema.Struct({
   defaultEngineKind: AgentEngineKind,
   defaultModel: Schema.optionalKey(AgentModelSelection),
+  assistantMode: Schema.optionalKey(Schema.Literals(["simple", "advanced"])),
 });
 export interface ProjectAgentSettingsInput {
   defaultEngineKind: AgentEngineKind;
   defaultModel?: AgentModelSelection;
+  assistantMode?: "simple" | "advanced";
 }
 
 export const DomainEntity = Schema.Struct({

@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-03`。
+> - 当前状态：LM6-00、LM6-01、LM6-02 已完成并已推送；LM6-03 的 Attempt 1 已完成验证，正在等待合并与推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，活动游标为 `LM6-03`。
 
 ## 1. 总体目标与范围
 
@@ -337,7 +337,7 @@ make platform-down
 | LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
 | LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
 | LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
-| LM6-03  | P0       | AI Workflow         | todo   | 0        | —                                                | 上下文助手与简单 / 高级双层体验       | LM6-02        |
+| LM6-03  | P0       | AI Workflow         | doing  | 1        | 助手、偏好、回归通过，待合并推送                 | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
@@ -435,7 +435,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：AI Workflow
-- **Status**：todo
+- **Status**：doing
 - **Depends on**：LM6-02
 - **Goal**：默认助手只展示当前页面最有价值的动作，同时保留高级用户对现有 task catalog、引擎、模型、参数和盲测的完整控制。
 - **Scope**：上下文动作注册表、推荐路由、简单 / 高级模式、能力与成本预检、预览 / 采用、偏好保存、自动化兼容。
