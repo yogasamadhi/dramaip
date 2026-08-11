@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "cardFields": ["静帧", "对白", "景别", "运镜", "时长", "资产覆盖", "任务状态"],
+  "controls": ["keyboard-reorder", "drag-reorder", "undo", "load-more"],
+  "maxInitialCardsPerScene": 50,
+  "performanceFixtureShots": 120
+}
