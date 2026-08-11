@@ -4,7 +4,7 @@
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
 > - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23 已完成并已推送；LM6-24 为可恢复的 `partial`；LM6-25 为 `todo`。
-> - 执行模式：无人值守 sweep；LM6-24 / Attempt 1 已收束，LM6-25 因依赖未完成被本轮跳过；下一游标回到 `LM6-24`。
+> - 执行模式：无人值守 sweep；LM6-24 / Attempt 2 已收束，LM6-25 因依赖未完成被本轮跳过；下一游标回到 `LM6-24`。
 
 ## 1. 总体目标与范围
 
@@ -351,7 +351,7 @@ make platform-down
 | LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
 | LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
 | LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过 | 系列 Story Bible 与跨项目资产库       | LM6-22        |
-| LM6-24  | P2       | Review Integration  | partial| 1        | 平台审片 SDK checkpoint 已推送；桌面接线待完成   | 桌面到云审片再到本地反馈闭环          | LM6-23        |
+| LM6-24  | P2       | Review Integration  | partial| 2        | 桌面云审片 gateway checkpoint 已推送；接线待完成 | 桌面到云审片再到本地反馈闭环          | LM6-23        |
 | LM6-25  | P2 Gate  | Release             | todo   | 0        | —                                                | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
 ## 8. Loop 详细定义
@@ -788,7 +788,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Review Integration
-- **Status**：partial（Attempt 1；`loop/lm6-24-cloud-review` 已推送 checkpoint）
+- **Status**：partial（Attempt 2；`loop/lm6-24-cloud-review` 已推送 checkpoint）
 - **Depends on**：LM6-23
 - **Goal**：复用现有平台能力，让用户显式发布选定成片 / 片段，邀请多人带时间码评论，并把评论和决策幂等同步回本地修订流程。
 - **Scope**：账号 / workspace 选择、review manifest、选定媒体上传、PIN / 到期 / 撤销 / 删除、Web 播放与评论、成员角色、游标同步、本地反馈映射与任务创建。
@@ -1395,4 +1395,36 @@ LM6-00
 - Reason: 依赖 LM6-24 仍为 `partial`，且 LM6-25 的两身份云审片、评论回流、撤销/删除验收无法在不混入 LM6-24 未完成接线的前提下形成独立可验收结果。
 - Completed: 已审计该 Gate 的离线/NLE/series 前置依赖均为 `done`；未修改代码或目标分支。
 - Next attempt: 完成或推进 LM6-24 的桌面 fake gateway 与同步契约后，先从 `bunx playwright test tests/electron/lm6-full-journey.spec.ts` 的首个可判定 fixture 继续；若仍缺云审片闭环，仅运行并记录不依赖云端的旧项目、项目包、NLE reference parser 与 series 回归，不能将 Gate 标记为完成。
+- Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 2 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 2
+- Outcome: partial
+- Target branch: main（未合并）
+- Loop branch: `loop/lm6-24-cloud-review`
+- Checkpoint: `5698877c loop(lm6-24): checkpoint desktop review gateway`（建立于 Attempt 1 的 `a45d2233` 之上）
+- Merge commit: 无；checkpoint 已推送至 `origin/loop/lm6-24-cloud-review`，不得作为完成或 main 合入证据。
+- Completed: 新增 renderer-free `cloud-review` gateway。它只在调用时接收凭据库解出的短期 token；平台 API 使用 Bearer token，而回传的对象存储 presigned URL 只接收对象存储要求的 headers。gateway 会拒绝含 secret-bearing 字段的 manifest、拒绝未声明/大小不一致的媒体；上传或完成失败后尝试撤销云 package。fake gateway 同时覆盖 member comment 与 guest decision 的 client ID/cursor 形状。
+- Unfinished: gateway 尚未由 sidecar 的 credential resolver、选文件 capability、SQLite remote package/cursor 状态和审片 UI 调用；因此没有用户可操作的 manifest 预览、真实文件 hash/上传、回流幂等落地、修订动作或删除按钮。Compose 仍因 Docker daemon 不可用而没有跨栈 E2E。
+- Verification:
+  - `cd dramaip-desktop && bun run --filter @sdns/server typecheck`: PASS。
+  - `cd dramaip-desktop && bun test packages/server/src/cloud-review.test.ts`: PASS — 2 tests / 8 assertions；验证显式媒体、无对象存储 Bearer、member/guest cursor 回流与秘密字段联网前阻断。
+  - `bunx prettier --check` 初次因在仓库顶层使用相对 `packages/...` 路径未匹配文件；随后在 `dramaip-desktop` 对两份新文件 `prettier --write`，再次类型/测试通过。无代码或 lockfile 被该误调用写入 Git 状态。
+- Diff review: PASS — 仅新增 `dramaip-desktop/packages/server/src/cloud-review.{ts,test.ts}`；没有真实 token、媒体、外部 URL 凭据或构建产物。
+- Evidence: `dramaip-desktop/packages/server/src/cloud-review.ts`、`dramaip-desktop/packages/server/src/cloud-review.test.ts`、已推送 checkpoint `5698877c`。
+- Next attempt: 在 `/Volumes/A/code/project/dramaIp-lm6-24` 将 gateway 接入 `sidecar.ts`：首条动作是添加 `cloud_review_connections` / `cloud_review_bindings` SQLite 表和只保存 `credentialRef` 的配置接口，然后以 file capability 读取所选媒体、计算 SHA-256、生成 `dramaip-review` manifest，调用 gateway 并按 remote `clientId` / cursor 幂等写入既有 review comments/decisions；若跨层 protocol 生成受阻，先为 sidecar 添加私有 contract-test HTTP 路由与 fake gateway，再生成客户端。
+- Current branch/worktree: `loop/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-lm6-24`；`5698877c` 后工作树干净，保留以供自动重试。
+- Sweep cursor: LM6-25
+- Notes: 文件选择、上传及撤销尚未暴露给用户，不能把 gateway 模块表述为发布能力；Fake gateway 是 Docker/Compose 不可用时的必达替代契约，不替代真实权限/保留期的增强证据。
+
+### Sweep 2 / LM6-25 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 0（本 sweep 未创建开发分支）
+- Outcome: skipped / todo
+- Reason: LM6-24 仍为 `partial`，且 Gate 的云审片回流、撤销/删除阶段尚未形成独立的用户结果；不将其与 gateway 接线混入同一 Gate diff。
+- Completed: 无代码或目标分支改动；保留上一轮已审计的离线/NLE/series `done` 证据。
+- Next attempt: LM6-24 完成至少可操作的本地 fake gateway 发布/同步契约后，运行 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若云端仍未闭环，只记录不依赖云端的 Gate 回归，不能标记 done。
 - Sweep cursor: LM6-24
