@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23 已完成并已推送；LM6-24 为可恢复的 `partial`；LM6-25 为 `todo`。
-> - 执行模式：无人值守 sweep；LM6-24 / Attempt 3 已收束，LM6-25 因依赖未完成被本轮跳过；下一游标回到 `LM6-24`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23、LM6-24 已完成并已推送；LM6-25 为 `todo`。
+> - 执行模式：无人值守 sweep；LM6-24 / Attempt 4 已完成并合入 `main`；下一游标为 `LM6-25`。
 
 ## 1. 总体目标与范围
 
@@ -788,7 +788,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Review Integration
-- **Status**：partial（Attempt 3；`loop/lm6-24-cloud-review` 已推送 checkpoint）
+- **Status**：done（Attempt 4；已合入并推送 `main`）
 - **Depends on**：LM6-23
 - **Goal**：复用现有平台能力，让用户显式发布选定成片 / 片段，邀请多人带时间码评论，并把评论和决策幂等同步回本地修订流程。
 - **Scope**：账号 / workspace 选择、review manifest、选定媒体上传、PIN / 到期 / 撤销 / 删除、Web 播放与评论、成员角色、游标同步、本地反馈映射与任务创建。
@@ -1462,3 +1462,30 @@ LM6-00
 - Completed: 无代码或目标分支改动；保留既有 P2 本地/NLE/series `done` 证据。
 - Next attempt: 完成 LM6-24 的删除和 revision preview 后，先重跑 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若 runner仍无终态，使用其对应的 deterministic local harness 记录覆盖范围，不得标记 Gate done。
 - Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 4 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 4
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-24-cloud-review`
+- Commit(s): `a45d2233`、`5698877c`、`45b5da7d`、`cf36aba1 feat(lm6-24): complete cloud review feedback flow`
+- Merge commit: `47f16288 merge: complete LM6-24 cloud review`
+- Verification:
+  - `cd dramaip-platform && make test`: PASS — Java review service、SDK contract、client contracts 与 web route smoke 通过。
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run check:generated && bun run test:unit && bun run build`: PASS — 12 个 TypeScript 包、全量桌面单元/LM6/Node 合约、生成物和三阶段 Electron 构建通过。
+  - `cd dramaip-desktop && bunx playwright test tests/electron/lm6-24.spec.ts --reporter=list`: PASS — 审核交付页展示安全连接、选择媒体、SHA-256 预览、同步与删除入口。
+  - `cd dramaip-desktop && node --import tsx --test packages/server/src/sidecar.node.test.ts`: PASS — 合成 file capability、fake platform / object store 验证本机 SHA-256 预览、无 Bearer 的 presigned 上传、member comment 与 guest decision 的游标幂等回流、修订预览、远端删除及本地反馈保留。
+  - `docker info --format '{{.ServerVersion}}'`: PARTIAL — Docker daemon socket `unix:///Users/h/.docker/run/docker.sock` 不可用，未启动 Compose；按 5.2 / 5.4 使用 fake review gateway + object-store adapter 的确定性契约作为等价必达路径，未把 Compose E2E 误报为通过。
+- Diff review: PASS — 累计 diff 限定为既有平台 review package SDK、桌面 credentialRef / SQLite binding / event 映射、schema/protocol/generated client、云审片 UI、修订预览、合成 fixture、测试与用户指南；未包含真实凭据、私有媒体、绝对用户路径或构建产物。发布 preview 的 manifest 不含 capability token；费用与保留期未知值明确显示，不按 0 处理。
+- Remote sync: PASS — 合并前 `origin/main` 为 `184cb162`；合并结果 `47f16288` 基于该远端最新状态。
+- Push: PASS — `origin/main` 已由 `184cb162` 快进至 `47f16288`。
+- Loop branch cleanup: pending 本执行记录提交/推送后删除 `loop/lm6-24-cloud-review`、其功能 worktree 和本集成 worktree。
+- Current branch/worktree: `integrate/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-integrate-lm6-24`；仅有本执行记录的显式改动。
+- Completed: 用户可在本机安全凭据库配置平台地址/workspace/token，选择显式 file capability 后计算只含选定媒体的 SHA-256、存储量和无秘密 manifest；保留期与费用未知会如实标注。确认后执行 create → presigned upload → complete，令牌不会进入对象存储；绑定持久化分享 URL、状态、到期与 cursor。member comment 与 guest request_changes/decision 以 client ID 幂等回流到正确 shot/timecode；用户可由未解决反馈建立待确认的剧本变更预览，确认前不改写正式内容。云审片可撤销删除，远端对象/metadata 由平台删除，本地已同步反馈继续保留；离线、本地项目与 NLE 交付不依赖云端。
+- Unfinished: 无；真实 Compose 跨栈环境属于增强证据，Docker 不可用时已由本文件指定的 fake gateway / object-store adapter 完成等价机器验收。
+- Evidence: `dramaip-platform/clients/packages/sdk/`、`dramaip-desktop/packages/server/{cloud-review.ts,sidecar.ts,sidecar.node.test.ts}`、`packages/{schema,protocol,client,db}`、`packages/app/src/main.tsx`、`tests/{lm6,electron,fixtures}/lm6-24/`、用户指南、`47f16288` 和上述命令。
+- Next attempt: 开始 LM6-25，先在 `/Volumes/A/code/project/dramaIp` 或从最新 `origin/main` 创建的隔离 worktree 运行 `cd dramaip-desktop && bunx playwright test tests/electron/lm6-full-journey.spec.ts`；fallback: 若任何云端步骤仍因 Docker 不可用，按 LM6-25 fixture 运行离线、项目包、series 和 NLE reference parser 回归，不能把未完成 Gate 标为 done。
+- Sweep cursor: LM6-25
+- Notes: 本轮修复了 Electron 测试使用的种子项目名称和严格 locator；该 E2E 最终有明确 PASS。未使用真实用户 token、账号或私有媒体。
