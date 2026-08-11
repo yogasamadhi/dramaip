@@ -60,6 +60,9 @@ import type {
   AgentEngineKind,
   AgentModelSelection,
   AgentTaskType,
+  AssetCenter,
+  AssetCenterCategory,
+  AssetCenterUsage,
 } from "@sdns/schema";
 
 export interface ServerReadyData {
@@ -1460,6 +1463,24 @@ async function route(
   const deliveryExport = match(path, /^\/api\/v1\/delivery\/([^/]+)\/export$/);
   if (deliveryExport && method === "GET")
     return exportDeliveryManifest(res, deliveryExport, requestId);
+  const assetCenterProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/asset-center$/,
+  );
+  if (assetCenterProjectId && method === "GET")
+    return getAssetCenter(res, assetCenterProjectId, requestId);
+  const assetCenterPreviewId = match(
+    path,
+    /^\/api\/v1\/asset-center\/([^/]+)\/preview$/,
+  );
+  if (assetCenterPreviewId && method === "GET")
+    return assetCenterPreview(res, assetCenterPreviewId, requestId);
+  const assetCenterActionId = match(
+    path,
+    /^\/api\/v1\/asset-center\/([^/]+)\/action$/,
+  );
+  if (assetCenterActionId && method === "POST")
+    return assetCenterAction(req, res, assetCenterActionId, requestId);
   const chapterAnalysis = match(
     path,
     /^\/api\/v1\/chapters\/([^/]+)\/analysis$/,
@@ -2446,7 +2467,8 @@ function adoptShotStill(
     );
     for (const sibling of siblings) {
       const payload = domainPayload(sibling.payload_json);
-      payload["采用状态"] = sibling.id === id ? "已采用" : "未采用";
+      payload["采用状态"] =
+        String(sibling.id) === String(current.id) ? "已采用" : "未采用";
       updateDomainEntityPayload(
         String(sibling.id),
         String(sibling.title),
@@ -2491,15 +2513,72 @@ function adoptVisualAsset(
       "Visual asset not found",
       requestId,
     );
-  const siblings = rows(
+  const lockedTitle = applyVisualAssetAdoption(current);
+  if (lockedTitle)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      `「${lockedTitle}」已锁定；请先明确解除锁定或迁移镜头用途。`,
+      requestId,
+    );
+  const adopted = domainEntity(
+    one("SELECT * FROM domain_entities WHERE id = ?", [id])!,
+  );
+  emit("visual-asset.adopted", adopted);
+  json(res, 200, adopted);
+}
+
+function visualAssetCategory(
+  payload: Record<string, unknown>,
+): AssetCenterCategory {
+  const value = String(payload["资产类型"] ?? "").trim();
+  if (value.includes("角色") || value.includes("人物")) return "character";
+  if (value.includes("场景") || value.includes("环境")) return "scene";
+  if (value.includes("音") || value.includes("声")) return "voice";
+  return "prop";
+}
+
+function visualAssetSubject(
+  payload: Record<string, unknown>,
+  fallback: string,
+): string {
+  return String(payload["关联对象"] ?? payload["资产族"] ?? fallback).trim();
+}
+
+function visualAssetSiblings(current: Record<string, any>) {
+  const payload = domainPayload(current.payload_json);
+  const category = visualAssetCategory(payload);
+  const subject = visualAssetSubject(payload, String(current.title));
+  return rows(
     "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ?",
     ["visual-assets", current.project_id],
-  ).filter((item) => (item.parent_id ?? null) === (current.parent_id ?? null));
+  ).filter((item) => {
+    const candidate = domainPayload(item.payload_json);
+    return (
+      visualAssetCategory(candidate) === category &&
+      visualAssetSubject(candidate, String(item.title)) === subject
+    );
+  });
+}
+
+/** Returns the blocking locked version title, otherwise adopts atomically. */
+function applyVisualAssetAdoption(
+  current: Record<string, any>,
+): string | undefined {
+  const siblings = visualAssetSiblings(current);
+  const locked = siblings.find(
+    (item) =>
+      String(item.id) !== String(current.id) &&
+      domainPayload(item.payload_json)["锁定状态"] === "已锁定",
+  );
+  if (locked) return String(locked.title);
   db!.exec("BEGIN IMMEDIATE");
   try {
     for (const sibling of siblings) {
       const payload = domainPayload(sibling.payload_json);
-      payload["采用状态"] = sibling.id === id ? "已采用" : "未采用";
+      payload["采用状态"] =
+        String(sibling.id) === String(current.id) ? "已采用" : "未采用";
       updateDomainEntityPayload(
         String(sibling.id),
         String(sibling.title),
@@ -2513,11 +2592,6 @@ function adoptVisualAsset(
     } catch {}
     throw error;
   }
-  const adopted = domainEntity(
-    one("SELECT * FROM domain_entities WHERE id = ?", [id])!,
-  );
-  emit("visual-asset.adopted", adopted);
-  json(res, 200, adopted);
 }
 
 function adoptVideo(res: ServerResponse, id: string, requestId: string): void {
@@ -2595,6 +2669,14 @@ function lockVisualAsset(
       requestId,
     );
   const payload = domainPayload(current.payload_json);
+  if (payload["采用状态"] !== "已采用")
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "只能锁定已采用的资产版本。",
+      requestId,
+    );
   payload["锁定状态"] = "已锁定";
   payload["锁定时间"] = timestamp();
   updateDomainEntityPayload(id, String(current.title), payload);
@@ -2603,6 +2685,309 @@ function lockVisualAsset(
   );
   emit("visual-asset.locked", locked);
   json(res, 200, locked);
+}
+
+function assetReferenceIds(payload: Record<string, unknown>): string[] {
+  const value = payload["资产版本引用"];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function assetCenterUsages(
+  projectId: string | undefined,
+  assetId: string,
+): AssetCenterUsage[] {
+  if (!projectId) return [];
+  return rows(
+    "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ? ORDER BY updated_at DESC",
+    ["shots", projectId],
+  ).flatMap((shot) => {
+    if (!assetReferenceIds(domainPayload(shot.payload_json)).includes(assetId))
+      return [];
+    const scene = shot.parent_id
+      ? one("SELECT title FROM domain_entities WHERE id = ?", [shot.parent_id])
+      : undefined;
+    return [
+      {
+        shotId: String(shot.id),
+        shotTitle: String(shot.title),
+        ...(scene ? { sceneTitle: String(scene.title) } : {}),
+      },
+    ];
+  });
+}
+
+function assetCenterForProject(projectId: string): AssetCenter {
+  const candidates = rows(
+    "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ? ORDER BY updated_at DESC",
+    ["visual-assets", projectId],
+  );
+  return {
+    projectId,
+    assets: candidates.map((candidate) => {
+      const payload = domainPayload(candidate.payload_json);
+      const category = visualAssetCategory(payload);
+      const file = payload.file as Record<string, unknown> | undefined;
+      const fileName =
+        file && typeof file.name === "string" ? file.name : undefined;
+      const hasFile = Boolean(file && typeof file === "object");
+      const mediaKind = category === "voice" ? "audio" : "image";
+      const preview = hasFile
+        ? {
+            kind: mediaKind as "image" | "audio",
+            status: (hasArchivedFile(candidate) ? "available" : "missing") as
+              "available" | "missing",
+            ...(fileName ? { label: fileName } : {}),
+          }
+        : {
+            kind: "none" as const,
+            status: "unattached" as const,
+            ...(typeof payload["视觉说明"] === "string"
+              ? { label: String(payload["视觉说明"]) }
+              : {}),
+          };
+      const rights = String(payload["权利状态"] ?? "");
+      const provider = String(payload["服务状态"] ?? "");
+      return {
+        id: String(candidate.id),
+        title: String(candidate.title),
+        category,
+        subject: visualAssetSubject(payload, String(candidate.title)),
+        assetVersion: String(payload["资产版本"] ?? `v${candidate.version}`),
+        adopted: payload["采用状态"] === "已采用",
+        lockStatus:
+          payload["锁定状态"] === "已锁定"
+            ? ("locked" as const)
+            : ("unlocked" as const),
+        stale:
+          payload["设定状态"] === "已过期" || payload["版本状态"] === "已过期",
+        preview,
+        rightsStatus:
+          rights.includes("已授权") || rights.includes("已核验")
+            ? ("verified" as const)
+            : rights.includes("受限") ||
+                rights.includes("不足") ||
+                rights.includes("未授权")
+              ? ("restricted" as const)
+              : ("unknown" as const),
+        costStatus: String(payload["费用状态"] ?? "").includes("未知")
+          ? ("unknown" as const)
+          : ("known" as const),
+        providerStatus:
+          provider.includes("不可用") || provider.includes("离线")
+            ? ("unavailable" as const)
+            : provider
+              ? ("available" as const)
+              : ("not-required" as const),
+        usages: assetCenterUsages(projectId, String(candidate.id)),
+        version: Number(candidate.version),
+      };
+    }),
+  };
+}
+
+function getAssetCenter(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(res, 200, assetCenterForProject(projectId));
+}
+
+function assetCenterPreview(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const current = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [id, "visual-assets"],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset version not found",
+      requestId,
+    );
+  const file = domainPayload(current.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset has no local preview file",
+      requestId,
+    );
+  const path = join(command!.assetDirectory, storedName);
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch {
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset preview file is missing",
+      requestId,
+    );
+  }
+  if (size > 5 * 1024 * 1024)
+    return respondError(
+      res,
+      413,
+      "VALIDATION_ERROR",
+      "Preview file exceeds the local 5 MB safety limit",
+      requestId,
+    );
+  const extension = extname(storedName).toLowerCase();
+  const mime = (
+    {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+      ".gif": "image/gif",
+      ".svg": "image/svg+xml",
+      ".mp3": "audio/mpeg",
+      ".wav": "audio/wav",
+      ".ogg": "audio/ogg",
+      ".m4a": "audio/mp4",
+    } as Record<string, string>
+  )[extension];
+  if (!mime)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Only image and audio assets can be previewed",
+      requestId,
+    );
+  const kind = mime.startsWith("audio/") ? "audio" : "image";
+  const dataUrl = `data:${mime};base64,${readFileSync(path).toString("base64")}`;
+  json(res, 200, { id, kind, dataUrl });
+}
+
+async function assetCenterAction(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [id, "visual-assets"],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset version not found",
+      requestId,
+    );
+  const input = await body(req);
+  if (input.version !== current.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "资产版本已被其他操作更新，请刷新后重试。",
+      requestId,
+      { current: domainEntity(current) },
+    );
+  const action = text(input.action);
+  const projectId = String(current.project_id);
+  const payload = domainPayload(current.payload_json);
+  if (action === "adopt") {
+    const lockedTitle = applyVisualAssetAdoption(current);
+    if (lockedTitle)
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        `「${lockedTitle}」已锁定；请先解除锁定或迁移镜头用途。`,
+        requestId,
+      );
+  } else if (action === "lock") {
+    if (payload["采用状态"] !== "已采用")
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "只能锁定已采用的资产版本。",
+        requestId,
+      );
+    payload["锁定状态"] = "已锁定";
+    payload["锁定时间"] = timestamp();
+    updateDomainEntityPayload(id, String(current.title), payload);
+  } else if (action === "unlock") {
+    payload["锁定状态"] = "未锁定";
+    delete payload["锁定时间"];
+    updateDomainEntityPayload(id, String(current.title), payload);
+  } else if (action === "assign-shot" || action === "remove-shot") {
+    const shotId = text(input.shotId);
+    const shot = shotId
+      ? one(
+          "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+          [shotId, "shots", projectId],
+        )
+      : undefined;
+    if (!shot)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "请选择当前项目的镜头。",
+        requestId,
+      );
+    if (action === "assign-shot") {
+      if (payload["采用状态"] !== "已采用" || payload["锁定状态"] !== "已锁定")
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "请先采用并锁定资产版本，再分配给镜头。",
+          requestId,
+        );
+      if (payload["设定状态"] === "已过期" || payload["版本状态"] === "已过期")
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "过期资产不能分配给镜头。",
+          requestId,
+        );
+    }
+    const shotPayload = domainPayload(shot.payload_json);
+    const references = new Set(assetReferenceIds(shotPayload));
+    if (action === "assign-shot") references.add(id);
+    else references.delete(id);
+    shotPayload["资产版本引用"] = [...references];
+    updateDomainEntityPayload(String(shot.id), String(shot.title), shotPayload);
+  } else {
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Unsupported asset center action",
+      requestId,
+    );
+  }
+  emit("asset-center.updated", { assetId: id, action });
+  json(res, 200, assetCenterForProject(projectId));
 }
 
 type EpisodeMediaContext = {
@@ -10435,6 +10820,20 @@ async function resource(
     return json(res, 200, updated);
   }
   if (method === "DELETE") {
+    if (domain === "visual-assets") {
+      const usages = assetCenterUsages(
+        current.project_id ? String(current.project_id) : undefined,
+        id,
+      );
+      if (usages.length)
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          `资产正在被 ${usages.length} 个镜头使用；请先在资产中心迁移或移除用途。`,
+          requestId,
+        );
+    }
     const deleted = removeDomainEntityCascade(current);
     emit(`${domain}.deleted`, { id, domain, deleted });
     res.writeHead(204).end();

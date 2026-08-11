@@ -28,6 +28,9 @@ import type {
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
+  AssetCenter,
+  AssetCenterActionInput,
+  AssetCenterPreviewMedia,
   EventEnvelope,
   ExportDocument,
   GlobalSearchResponse,
@@ -439,6 +442,11 @@ export interface StudioClient {
     adoptVisualAsset(id: string): Promise<DomainEntity>;
     lockVisualAsset(id: string): Promise<DomainEntity>;
     adoptVideo(id: string): Promise<DomainEntity>;
+  };
+  assetCenter: {
+    get(projectId: string): Promise<AssetCenter>;
+    preview(id: string): Promise<AssetCenterPreviewMedia>;
+    action(id: string, input: AssetCenterActionInput): Promise<AssetCenter>;
   };
   production: {
     graph(projectId: string): Promise<ProductionGraph>;
@@ -1220,6 +1228,19 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       adoptVideo: (id) =>
         request(`/api/v1/videos/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
+        }),
+    },
+    assetCenter: {
+      get: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/asset-center`,
+        ),
+      preview: (id) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/preview`),
+      action: (id, input) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
         }),
     },
     production: {

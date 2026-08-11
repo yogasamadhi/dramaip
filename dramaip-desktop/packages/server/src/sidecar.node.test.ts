@@ -854,7 +854,16 @@ test("production-structure HTTP contract persists active adaptation and atomical
     });
     assert.equal(visualAsset.status, 201);
     assert.equal(visualAsset.body.payload["锁定状态"], "未锁定");
+    const adoptedVisualAsset = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${visualAsset.body.id}/adopt`, {
+      method: "POST",
+    });
+    assert.equal(adoptedVisualAsset.status, 200);
+    assert.equal(adoptedVisualAsset.body.payload["采用状态"], "已采用");
     const lockedVisualAsset = await request<{
+      id: string;
+      version: number;
       payload: Record<string, unknown>;
     }>(`/api/v1/visual-assets/${visualAsset.body.id}/lock`, {
       method: "POST",
@@ -1142,6 +1151,173 @@ test("production-structure HTTP contract persists active adaptation and atomical
         },
       }),
     });
+    const secondVisualAsset = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "林晚·雨夜服装设定 v2",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚",
+          资产版本: "v2",
+          权利状态: "已授权",
+          费用状态: "未知",
+          服务状态: "不可用",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(secondVisualAsset.status, 201);
+    const previewFilePath = fileURLToPath(
+      new URL(
+        "../../../tests/fixtures/lm6/lm6-10/asset-preview.svg",
+        import.meta.url,
+      ),
+    );
+    fileCapabilities.set("lm6-10-preview", previewFilePath);
+    const previewVisualAsset = await request<{ id: string }>(
+      "/api/v1/visual-assets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          title: "旧相机道具参考",
+          capabilityToken: "lm6-10-preview",
+          payload: { 资产类型: "道具", 关联对象: "旧相机" },
+        }),
+      },
+    );
+    assert.equal(previewVisualAsset.status, 201);
+    const previewMedia = await request<{ kind: string; dataUrl: string }>(
+      `/api/v1/asset-center/${previewVisualAsset.body.id}/preview`,
+    );
+    assert.equal(previewMedia.status, 200);
+    assert.equal(previewMedia.body.kind, "image");
+    assert.match(previewMedia.body.dataUrl, /^data:image\/svg\+xml;base64,/);
+    const assetCenterBeforeMigration = await request<{
+      assets: Array<{
+        id: string;
+        category: string;
+        rightsStatus: string;
+        costStatus: string;
+        providerStatus: string;
+        lockStatus: string;
+        version: number;
+        usages: Array<{ shotId: string }>;
+      }>;
+    }>(`/api/v1/projects/${project.body.id}/asset-center`);
+    assert.equal(assetCenterBeforeMigration.status, 200);
+    const lockedVersion = assetCenterBeforeMigration.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const v2 = assetCenterBeforeMigration.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(lockedVersion?.category, "character");
+    assert.equal(v2?.rightsStatus, "verified");
+    assert.equal(v2?.costStatus, "unknown");
+    assert.equal(v2?.providerStatus, "unavailable");
+    const blockedAdoption = await request<{ code: string }>(
+      `/api/v1/asset-center/${secondVisualAsset.body.id}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action: "adopt", version: v2?.version }),
+      },
+    );
+    assert.equal(blockedAdoption.status, 409);
+    const assignedLockedVersion = await request<{
+      assets: Array<{
+        id: string;
+        usages: Array<{ shotId: string }>;
+        version: number;
+      }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign-shot",
+        version: lockedVersion?.version,
+        shotId: shot.body.id,
+      }),
+    });
+    assert.equal(assignedLockedVersion.status, 200);
+    assert.ok(
+      assignedLockedVersion.body.assets
+        .find((asset) => asset.id === lockedVisualAsset.body.id)
+        ?.usages.some((usage) => usage.shotId === shot.body.id),
+    );
+    const protectedDelete = await request<never>(
+      `/api/v1/visual-assets/${lockedVisualAsset.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(protectedDelete.status, 409);
+    const currentLocked = assignedLockedVersion.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const unlocked = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "unlock",
+        version: currentLocked?.version,
+      }),
+    });
+    assert.equal(unlocked.status, 200);
+    const currentV2 = unlocked.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    const adoptedV2 = await request<{
+      assets: Array<{
+        id: string;
+        version: number;
+        adopted: boolean;
+        lockStatus: string;
+      }>;
+    }>(`/api/v1/asset-center/${secondVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "adopt", version: currentV2?.version }),
+    });
+    assert.equal(adoptedV2.status, 200);
+    const adoptedV2Entry = adoptedV2.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(adoptedV2Entry?.adopted, true);
+    const lockedV2 = await request<{
+      assets: Array<{ id: string; version: number; lockStatus: string }>;
+    }>(`/api/v1/asset-center/${secondVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "lock",
+        version: adoptedV2Entry?.version,
+      }),
+    });
+    assert.equal(lockedV2.status, 200);
+    const lockedV2Entry = lockedV2.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(lockedV2Entry?.lockStatus, "locked");
+    const oldVersion = lockedV2.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const removedUsage = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "remove-shot",
+        version: oldVersion?.version,
+        shotId: shot.body.id,
+      }),
+    });
+    assert.equal(removedUsage.status, 200);
+    const removableOldVersion = await request<never>(
+      `/api/v1/visual-assets/${lockedVisualAsset.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(removableOldVersion.status, 204);
     const caseStudy = await request<{ id: string; version: number }>(
       "/api/v1/creative/case-studies",
       {

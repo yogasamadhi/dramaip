@@ -41,6 +41,9 @@ import {
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
+  AssetCenter,
+  AssetCenterActionInput,
+  AssetCenterPreviewMedia,
   GlobalSearchResponse,
   BackupRecord,
   ExportDocument,
@@ -1436,6 +1439,30 @@ const VisualGroup = HttpApiGroup.make("visuals")
     }),
   );
 
+const AssetCenterGroup = HttpApiGroup.make("asset-center")
+  .add(
+    HttpApiEndpoint.get("get", `${API_PREFIX}/projects/:id/asset-center`, {
+      params: { id: Schema.String },
+      success: AssetCenter,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("preview", `${API_PREFIX}/asset-center/:id/preview`, {
+      params: { id: Schema.String },
+      success: AssetCenterPreviewMedia,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("action", `${API_PREFIX}/asset-center/:id/action`, {
+      params: { id: Schema.String },
+      payload: AssetCenterActionInput,
+      success: AssetCenter,
+      error: ApiError,
+    }),
+  );
+
 const ProductionGroup = HttpApiGroup.make("production")
   .add(
     HttpApiEndpoint.get(
@@ -1830,6 +1857,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(FeedbackGroup)
   .add(DesktopSupportGroup)
   .add(VisualGroup)
+  .add(AssetCenterGroup)
   .add(ProductionGroup)
   .add(GenerationGroup)
   .add(ContentVersionGroup)
