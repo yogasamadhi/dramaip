@@ -586,7 +586,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Media Pipeline
-- **Status**：done（Attempt 1，`origin/main@ffdb12a9`）
+- **Status**：done（Attempt 1）
 - **Depends on**：LM6-11
 - **Goal**：在任何高成本视频生成前，用低成本静帧或用户导入的参考帧确认视觉方向，并冻结提交所需资产版本。
 - **Scope**：静帧候选、采用 / 锁、镜头就绪规则、批量预检、成本与权利 Gate、失效 / 重拍、视频提交阻断。
@@ -762,7 +762,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Core Data
-- **Status**：todo
+- **Status**：done（Attempt 1，`origin/main@ffdb12a9`）
 - **Depends on**：LM6-22
 - **Goal**：让同一 IP 的多个项目共享经过审查的世界观和资产，同时避免共享修改静默污染已交付项目。
 - **Scope**：series、项目归属、系列 Story Bible、项目 override、资产库、copy / fork / link、版本锁、跨项目用途、权利与项目包快照。
