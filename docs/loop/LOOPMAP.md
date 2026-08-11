@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01 已完成并已推送；LM6-02 的 Attempt 1 已完成验证，正在等待合并与推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，活动游标为 `LM6-02`。
+> - 当前状态：LM6-00、LM6-01、LM6-02 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-03`。
 
 ## 1. 总体目标与范围
 
@@ -336,7 +336,7 @@ make platform-down
 | ------- | -------- | ------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------- | ------------- |
 | LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
 | LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
-| LM6-02  | P0       | Desktop UX          | doing  | 1        | 驾驶舱、四区上下文与完整回归已通过，待合并推送   | 项目生产驾驶舱与唯一下一步            | LM6-01        |
+| LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
 | LM6-03  | P0       | AI Workflow         | todo   | 0        | —                                                | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | todo   | 0        | —                                                | 导入后的五类提取变更包                | LM6-03        |
 | LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
@@ -410,7 +410,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Desktop UX
-- **Status**：doing
+- **Status**：done
 - **Depends on**：LM6-01
 - **Goal**：项目打开后先回答“现在有什么、卡在哪里、下一步做什么”，并让用户从项目上下文进入创作、改编、生产和审查，而不是重新走全局级联选择。
 - **Scope**：只读派生的项目阶段状态、阻塞原因、单一推荐动作、最近结果、四区导航、上下文深链、任务中心过滤。
@@ -985,3 +985,29 @@ LM6-00
 - Next attempt: 开始 LM6-02，先运行 `git fetch origin` 并创建 `loop/lm6-02-production-cockpit`；fallback: 若全页集成受阻，先以 LM6 fixture 构建项目状态 read model、推荐动作和 route harness。
 - Sweep cursor: LM6-02
 - Notes: 原著项目是有意保存的待导入 production brief；取消文件预览不会写入章节、剧本或场景。粘贴剧本的章节创建若失败会自动尝试删除新项目，避免孤儿记录。
+
+### LM6-02 / Attempt 1 — 2026-08-12 00:25 CST
+
+- Loop: LM6-02
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-02-production-cockpit
+- Commit(s): `0c86a612 loop(lm6-02): add project production cockpit`
+- Merge commit: `397aa65e merge: LM6-02 project production cockpit`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 包级测试、LM6-00/LM6-01/LM6-02 fixture、驾驶舱纯函数和服务器 contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — 生成物、引擎锁与 Provider catalog 已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，5 个 Electron 场景通过；新增场景确认唯一下一步和审核区项目上下文。
+- Diff review: PASS — 仅包含只读状态派生、项目驾驶舱、四区/任务上下文 query、fixture、测试、用户指南和调度元数据；没有反写阶段数据、凭据、缓存或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `924d8f81`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `397aa65e` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-02-production-cockpit` 与 `/Volumes/A/code/project/dramaIp-lm6-02`。
+- Current branch/worktree: `integrate/lm6-02-production-cockpit`; `/Volumes/A/code/project/dramaIp-integrate-lm6-02`; 仅有本执行记录的显式改动。
+- Completed: 基于真实章节、生产图和任务的纯状态派生、一个主要动作、阻断与覆盖展示、四区项目上下文深链、项目任务过滤以及空/失败/运行/人工确认/交付 fixture。
+- Unfinished: 无；LM6-03 将单独改造默认智能助手，不以驾驶舱的状态显示冒充助手能力。
+- Evidence: `packages/app/src/project-cockpit.ts`、`tests/lm6/lm6-02.test.ts`、`tests/electron/lm6-02.spec.ts`、完整回归与合并/推送提交。
+- Next attempt: 开始 LM6-03，先运行 `git fetch origin` 并创建 `loop/lm6-03-context-assistant`；fallback: 若 UI 分层受阻，先以 task catalog 构建简单/高级模式的纯路由注册表和 fake-provider preflight fixture。
+- Sweep cursor: LM6-03
+- Notes: 驾驶舱状态是只读派生；任务运行、失败、未采用静帧和真实 delivery 均不会被渲染为完成。
