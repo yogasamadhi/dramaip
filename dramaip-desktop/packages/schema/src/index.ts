@@ -28,6 +28,8 @@ export const Project = Schema.Struct({
   visualStyleDirection: Schema.optionalKey(Schema.String),
   genreOpportunity: Schema.optionalKey(Schema.String),
   productionBrief: Schema.optionalKey(Schema.String),
+  seriesId: Schema.optionalKey(Id),
+  seriesTitle: Schema.optionalKey(Schema.String),
   currentAdaptationId: Schema.optionalKey(Id),
   deletedAt: Schema.optionalKey(IsoDateTime),
   version: Schema.Int,
@@ -49,6 +51,9 @@ export interface Project {
   visualStyleDirection?: string;
   genreOpportunity?: string;
   productionBrief?: string;
+  /** 可选系列归属；解除关联不会迁移或删除项目内资料。 */
+  seriesId?: Id;
+  seriesTitle?: string;
   /** 当前在改编工作台中采用的改编方案；只由专用选择接口更新。 */
   currentAdaptationId?: Id;
   deletedAt?: IsoDateTime;
@@ -781,6 +786,130 @@ export interface AssetCenterActionInput {
   action: "adopt" | "lock" | "unlock" | "assign-shot" | "remove-shot";
   version: number;
   shotId?: Id;
+}
+
+/** 系列是本地、可选的跨项目边界；不承载账号、凭据或云端共享状态。 */
+export const Series = Schema.Struct({
+  id: Id,
+  title: Schema.String,
+  description: Schema.String,
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface Series {
+  id: Id;
+  title: string;
+  description: string;
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesInput = Schema.Struct({
+  title: Schema.String,
+  description: Schema.optionalKey(Schema.String),
+});
+export interface SeriesInput {
+  title: string;
+  description?: string;
+}
+export const ProjectSeriesInput = Schema.Struct({
+  seriesId: Schema.optionalKey(Id),
+});
+export interface ProjectSeriesInput {
+  seriesId?: Id;
+}
+export const SeriesStoryBible = Schema.Struct({
+  id: Id,
+  seriesId: Id,
+  title: Schema.String,
+  payload: Schema.Unknown,
+  version: Schema.Int,
+  overridden: Schema.Boolean,
+  sourceVersion: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface SeriesStoryBible {
+  id: Id;
+  seriesId: Id;
+  title: string;
+  payload: unknown;
+  version: number;
+  overridden: boolean;
+  sourceVersion: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesStoryBibleInput = Schema.Struct({
+  title: Schema.String,
+  payload: Schema.Unknown,
+});
+export interface SeriesStoryBibleInput {
+  title: string;
+  payload: unknown;
+}
+export const SeriesStoryBibleOverrideInput = Schema.Struct({
+  title: Schema.String,
+  payload: Schema.Unknown,
+  sourceVersion: Schema.Int,
+});
+export interface SeriesStoryBibleOverrideInput {
+  title: string;
+  payload: unknown;
+  sourceVersion: number;
+}
+export const SeriesStoryBibleUpgradeInput = Schema.Struct({
+  sourceVersion: Schema.Int,
+});
+export interface SeriesStoryBibleUpgradeInput {
+  sourceVersion: number;
+}
+export const SeriesAssetMode = Schema.Literals(["copy", "fork", "link"]);
+export type SeriesAssetMode = "copy" | "fork" | "link";
+export const SeriesAssetTransferInput = Schema.Struct({
+  sourceAssetId: Id,
+  sourceVersion: Schema.Int,
+  mode: SeriesAssetMode,
+});
+export interface SeriesAssetTransferInput {
+  sourceAssetId: Id;
+  sourceVersion: number;
+  mode: SeriesAssetMode;
+}
+export const SeriesAssetLink = Schema.Struct({
+  id: Id,
+  seriesId: Id,
+  sourceAssetId: Id,
+  sourceVersion: Schema.Int,
+  targetProjectId: Id,
+  targetAssetId: Id,
+  mode: SeriesAssetMode,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface SeriesAssetLink {
+  id: Id;
+  seriesId: Id;
+  sourceAssetId: Id;
+  sourceVersion: number;
+  targetProjectId: Id;
+  targetAssetId: Id;
+  mode: SeriesAssetMode;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesLibrary = Schema.Struct({
+  projectId: Id,
+  series: Schema.optionalKey(Series),
+  storyBible: Schema.Array(SeriesStoryBible),
+  assets: Schema.Array(SeriesAssetLink),
+});
+export interface SeriesLibrary {
+  projectId: Id;
+  series?: Series;
+  storyBible: SeriesStoryBible[];
+  assets: SeriesAssetLink[];
 }
 
 /**

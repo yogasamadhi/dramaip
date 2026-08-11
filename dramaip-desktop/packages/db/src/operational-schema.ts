@@ -55,6 +55,48 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS domain_entities_domain_project ON domain_entities(domain, project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS series (
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS project_series (
+      project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      series_id TEXT NOT NULL REFERENCES series(id) ON DELETE RESTRICT,
+      joined_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS project_series_series ON project_series(series_id, project_id);
+    CREATE TABLE IF NOT EXISTS series_story_bible (
+      id TEXT PRIMARY KEY, series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', version INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS series_story_bible_series ON series_story_bible(series_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS project_series_story_bible_versions (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL REFERENCES series_story_bible(id) ON DELETE RESTRICT,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', source_version INTEGER NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(project_id, source_id)
+    );
+    CREATE INDEX IF NOT EXISTS project_series_story_bible_versions_project ON project_series_story_bible_versions(project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS series_story_bible_overrides (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL REFERENCES series_story_bible(id) ON DELETE RESTRICT,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', source_version INTEGER NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(project_id, source_id)
+    );
+    CREATE TABLE IF NOT EXISTS series_asset_links (
+      id TEXT PRIMARY KEY, series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+      source_asset_id TEXT NOT NULL REFERENCES domain_entities(id) ON DELETE CASCADE,
+      source_version INTEGER NOT NULL, target_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      target_asset_id TEXT NOT NULL REFERENCES domain_entities(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL CHECK(mode IN ('copy', 'fork', 'link')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(target_asset_id)
+    );
+    CREATE INDEX IF NOT EXISTS series_asset_links_target ON series_asset_links(target_project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS series_asset_links_source ON series_asset_links(source_asset_id, source_version);
     CREATE TABLE IF NOT EXISTS script_reviews (
       id TEXT PRIMARY KEY, script_id TEXT NOT NULL UNIQUE,
       hook_strength_score REAL NOT NULL, dialogue_score REAL NOT NULL,

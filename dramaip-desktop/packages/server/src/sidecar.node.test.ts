@@ -1426,6 +1426,227 @@ test("production-structure HTTP contract persists active adaptation and atomical
       (asset) => asset.id === secondVisualAsset.body.id,
     );
     assert.equal(lockedV2Entry?.lockStatus, "locked");
+    const series = await request<{ id: string; title: string }>(
+      "/api/v1/series",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "雨夜系列",
+          description: "跨项目版本合同",
+        }),
+      },
+    );
+    assert.equal(series.status, 201);
+    const sourceSeriesProject = await request<{ seriesId?: string }>(
+      `/api/v1/projects/${project.body.id}/series`,
+      { method: "PUT", body: JSON.stringify({ seriesId: series.body.id }) },
+    );
+    assert.equal(sourceSeriesProject.status, 200);
+    assert.equal(sourceSeriesProject.body.seriesId, series.body.id);
+    const seriesProject = await request<{ id: string; seriesId?: string }>(
+      "/api/v1/projects",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "雨夜系列·衍生项目",
+          shortDramaType: "都市悬疑",
+        }),
+      },
+    );
+    assert.equal(seriesProject.status, 201);
+    const joinedSeriesProject = await request<{ seriesId?: string }>(
+      `/api/v1/projects/${seriesProject.body.id}/series`,
+      { method: "PUT", body: JSON.stringify({ seriesId: series.body.id }) },
+    );
+    assert.equal(joinedSeriesProject.body.seriesId, series.body.id);
+    const seriesSetting = await request<{ id: string; version: number }>(
+      `/api/v1/series/${series.body.id}/story-bible`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "世界观基调",
+          payload: { 色调: "冷蓝", 禁忌: "不改变角色姓名" },
+        }),
+      },
+    );
+    assert.equal(seriesSetting.status, 201);
+    const adoptedSeriesSetting = await request<{ sourceVersion: number }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-story-bible/${seriesSetting.body.id}/upgrade`,
+      {
+        method: "POST",
+        body: JSON.stringify({ sourceVersion: seriesSetting.body.version }),
+      },
+    );
+    assert.equal(adoptedSeriesSetting.status, 200);
+    assert.equal(
+      adoptedSeriesSetting.body.sourceVersion,
+      seriesSetting.body.version,
+    );
+    const inheritedLibrary = await request<{
+      series?: { id: string };
+      storyBible: Array<{
+        id: string;
+        overridden: boolean;
+        sourceVersion: number;
+      }>;
+    }>(`/api/v1/projects/${seriesProject.body.id}/series-library`);
+    assert.equal(inheritedLibrary.body.series?.id, series.body.id);
+    assert.equal(inheritedLibrary.body.storyBible[0]?.overridden, false);
+    const overriddenSetting = await request<{
+      overridden: boolean;
+      payload: { 色调?: string };
+    }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-story-bible/${seriesSetting.body.id}/override`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          title: "世界观基调（衍生项目）",
+          payload: { 色调: "琥珀", 禁忌: "不改变角色姓名" },
+          sourceVersion: seriesSetting.body.version,
+        }),
+      },
+    );
+    assert.equal(overriddenSetting.status, 200);
+    assert.equal(overriddenSetting.body.overridden, true);
+    assert.equal(overriddenSetting.body.payload.色调, "琥珀");
+    const lockedSource = await request<{
+      id: string;
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${secondVisualAsset.body.id}`);
+    const linked = await request<{
+      targetAssetId: string;
+      sourceVersion: number;
+      mode: string;
+    }>(`/api/v1/projects/${seriesProject.body.id}/series-assets`, {
+      method: "POST",
+      body: JSON.stringify({
+        sourceAssetId: lockedSource.body.id,
+        sourceVersion: lockedSource.body.version,
+        mode: "link",
+      }),
+    });
+    assert.equal(linked.status, 201);
+    assert.equal(linked.body.mode, "link");
+    const frozenProjection = await request<{
+      id: string;
+      version: number;
+      payload: { 系列资产来源?: { sourceVersion?: number } };
+    }>(`/api/v1/visual-assets/${linked.body.targetAssetId}`);
+    assert.equal(
+      frozenProjection.body.payload.系列资产来源?.sourceVersion,
+      lockedSource.body.version,
+    );
+    const projectionPatch = await request<{ code: string }>(
+      `/api/v1/visual-assets/${linked.body.targetAssetId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: frozenProjection.body.version,
+          payload: { 资产类型: "角色" },
+        }),
+      },
+    );
+    assert.equal(projectionPatch.status, 409);
+    const upgradedSource = await request<{
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${lockedSource.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        version: lockedSource.body.version,
+        payload: {
+          ...lockedSource.body.payload,
+          视觉说明: "系列新版本，仅显式升级后采用",
+        },
+      }),
+    });
+    assert.equal(upgradedSource.status, 200);
+    const unchangedProjection = await request<{
+      payload: { 系列资产来源?: { sourceVersion?: number } };
+    }>(`/api/v1/visual-assets/${linked.body.targetAssetId}`);
+    assert.equal(
+      unchangedProjection.body.payload.系列资产来源?.sourceVersion,
+      lockedSource.body.version,
+    );
+    const protectedSeriesSource = await request<{ code: string }>(
+      `/api/v1/visual-assets/${lockedSource.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(protectedSeriesSource.status, 409);
+    const forked = await request<{ targetAssetId: string }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-assets`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          sourceAssetId: lockedSource.body.id,
+          sourceVersion: upgradedSource.body.version,
+          mode: "fork",
+        }),
+      },
+    );
+    assert.equal(forked.status, 201);
+    const forkBeforeChange = await request<{
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${forked.body.targetAssetId}`);
+    const changedFork = await request<{ title: string }>(
+      `/api/v1/visual-assets/${forked.body.targetAssetId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: forkBeforeChange.body.version,
+          title: "林晚·雨夜服装设定 Fork",
+          payload: {
+            ...forkBeforeChange.body.payload,
+            视觉说明: "只在衍生项目中生效",
+          },
+        }),
+      },
+    );
+    assert.equal(changedFork.status, 200);
+    const sourceAfterFork = await request<{ title: string }>(
+      `/api/v1/visual-assets/${lockedSource.body.id}`,
+    );
+    assert.equal(sourceAfterFork.body.title, lockedSource.body.title);
+    const exportedSeriesProject = await request<{ content: string }>(
+      `/api/v1/exports/projects/${seriesProject.body.id}/json`,
+    );
+    assert.equal(exportedSeriesProject.status, 200);
+    assert.match(exportedSeriesProject.body.content, /seriesLibrary/);
+    assert.match(exportedSeriesProject.body.content, /雨夜系列/);
+    const seriesPackagePath = join(directory, "lm6-23-series-package.json");
+    writeFileSync(seriesPackagePath, exportedSeriesProject.body.content);
+    fileCapabilities.set("lm6-23-series-package", seriesPackagePath);
+    const seriesPackagePreview = await request<{ id: string }>(
+      "/api/v1/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: "lm6-23-series-package" }),
+      },
+    );
+    assert.equal(seriesPackagePreview.status, 201);
+    const importedSeriesPackage = await request<{
+      project: { id: string; seriesId?: string };
+    }>(`/api/v1/project-packages/${seriesPackagePreview.body.id}/commit`, {
+      method: "POST",
+      body: JSON.stringify({ title: "雨夜系列·离线项目包" }),
+    });
+    assert.equal(importedSeriesPackage.status, 201);
+    assert.equal(importedSeriesPackage.body.project.seriesId, undefined);
+    const importedSeriesSnapshots = await request<
+      Array<{ title: string; payload: { 说明?: string } }>
+    >(
+      `/api/v1/series-library-snapshots?projectId=${importedSeriesPackage.body.project.id}`,
+    );
+    assert.equal(importedSeriesSnapshots.status, 200);
+    assert.equal(importedSeriesSnapshots.body.length, 1);
+    assert.match(
+      importedSeriesSnapshots.body[0]?.payload.说明 ?? "",
+      /不可变说明快照/,
+    );
     const oldVersion = lockedV2.body.assets.find(
       (asset) => asset.id === lockedVisualAsset.body.id,
     );
