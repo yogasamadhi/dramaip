@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "7e8e780e9c6e6e4bba27915ee1a1dca108b058ae5e9276365817614c122e0ed4";
+  "3175eb96eff25e32b0c7b7833bd56d67a12eb05873c1366b3c395c58fb67b7c4";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -105,6 +105,8 @@ import type {
   TimelineCommandInput,
   TimelineHistoryAvailability,
   TimelineMediaPreview,
+  AudioAssemblyPreview,
+  AudioAssemblyApplyInput,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -335,6 +337,11 @@ export interface StudioClient {
     redo(id: string): Promise<TimelineManifest>;
     history(id: string): Promise<TimelineHistoryAvailability>;
     preview(id: string): Promise<TimelineMediaPreview>;
+    audioAssemblyPreview(episodeId: string): Promise<AudioAssemblyPreview>;
+    applyAudioAssembly(
+      episodeId: string,
+      input: AudioAssemblyApplyInput,
+    ): Promise<TimelineManifest>;
   };
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
@@ -1020,6 +1027,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
       preview: (id) =>
         request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
+      audioAssemblyPreview: (episodeId) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,
+        ),
+      applyAudioAssembly: (episodeId, input) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/apply`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
     },
     reviewEditor: {
       timeline: (episodeId) =>

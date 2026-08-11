@@ -47,6 +47,7 @@ import type {
   TimelineCommandInput,
   TimelineManifest,
   TimelineTrackKind,
+  AudioAssemblyApplyInput,
   AudioTrackKind,
   AudioTrackInput,
   VoiceProfileInput,
@@ -1118,6 +1119,22 @@ async function route(
   );
   if (timelineHistoryId && method === "GET")
     return timelineHistory(res, timelineHistoryId, requestId);
+  const audioAssemblyPreviewEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/audio-assembly\/preview$/,
+  );
+  if (audioAssemblyPreviewEpisodeId && method === "GET")
+    return getAudioAssemblyPreview(
+      res,
+      audioAssemblyPreviewEpisodeId,
+      requestId,
+    );
+  const audioAssemblyApplyEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/audio-assembly\/apply$/,
+  );
+  if (audioAssemblyApplyEpisodeId && method === "POST")
+    return applyAudioAssembly(req, res, audioAssemblyApplyEpisodeId, requestId);
   const timelineMediaPreviewId = match(
     path,
     /^\/api\/v1\/timeline-media\/([^/]+)\/preview$/,
@@ -3341,6 +3358,40 @@ function episodeMediaContext(
   };
 }
 
+function audioClipSourceFingerprint(
+  context: EpisodeMediaContext,
+  clip: { shotId?: string; text?: string; voiceProfileId?: string },
+): string {
+  const shot = clip.shotId
+    ? context.shots.find((item) => String(item.id) === clip.shotId)
+    : undefined;
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        episode: [context.episode.id, context.episode.version],
+        shot: shot
+          ? [shot.id, shot.version, shot.updated_at, shot.payload_json]
+          : undefined,
+        text: clip.text ?? "",
+        voiceProfileId: clip.voiceProfileId,
+      }),
+    )
+    .digest("hex");
+}
+
+function audioTrackIsStale(
+  row: Record<string, any>,
+  context: EpisodeMediaContext,
+): boolean {
+  const clips = parseAudioTrackClips(row.clips_json);
+  if (!clips.length) return true;
+  return clips.some((clip) =>
+    clip.sourceFingerprint
+      ? clip.sourceFingerprint !== audioClipSourceFingerprint(context, clip)
+      : String(row.source_fingerprint) !== context.sourceFingerprint,
+  );
+}
+
 function listVoiceProfiles(
   res: ServerResponse,
   projectId: string,
@@ -3489,7 +3540,7 @@ function listAudioTracks(
   const tracks = rows(
     "SELECT * FROM audio_tracks WHERE episode_id = ? ORDER BY created_at DESC",
     [episodeId],
-  ).map((row) => audioTrack(row, context.sourceFingerprint));
+  ).map((row) => audioTrack(row, context));
   json(res, 200, tracks);
 }
 
@@ -3574,6 +3625,10 @@ async function createAudioTrack(
         requestId,
       );
   }
+  const storedClips = clips.map((clip) => ({
+    ...clip,
+    sourceFingerprint: audioClipSourceFingerprint(context, clip),
+  }));
   const id = randomUUID();
   const now = timestamp();
   db!
@@ -3587,14 +3642,14 @@ async function createAudioTrack(
       kind,
       label,
       context.sourceFingerprint,
-      JSON.stringify(clips),
+      JSON.stringify(storedClips),
       "draft",
       now,
       now,
     );
   const created = audioTrack(
     one("SELECT * FROM audio_tracks WHERE id = ?", [id])!,
-    context.sourceFingerprint,
+    context,
   );
   emit("audio-track.created", created);
   json(res, 201, created);
@@ -3609,7 +3664,7 @@ function adoptAudioTrack(
   if (!current)
     return respondError(res, 404, "NOT_FOUND", "未找到音轨", requestId);
   const context = episodeMediaContext(String(current.episode_id));
-  if (!context || context.sourceFingerprint !== current.source_fingerprint)
+  if (!context || audioTrackIsStale(current, context))
     return respondError(
       res,
       409,
@@ -3638,7 +3693,7 @@ function adoptAudioTrack(
   }
   const adopted = audioTrack(
     one("SELECT * FROM audio_tracks WHERE id = ?", [id])!,
-    context.sourceFingerprint,
+    context,
   );
   emit("audio-track.adopted", adopted);
   json(res, 200, adopted);
@@ -3859,7 +3914,7 @@ function getEpisodeRenderPreflight(
     [episodeId, "adopted"],
   );
   const freshAudioRows = audioRows.filter(
-    (row) => row.source_fingerprint === context.sourceFingerprint,
+    (row) => !audioTrackIsStale(row, context),
   );
   if (!freshAudioRows.length)
     blockers.push("至少需要一条与当前镜头版本一致的已采用音轨。");
@@ -3973,6 +4028,7 @@ function parseAudioTrackClips(value: unknown): Array<{
   startSeconds: number;
   durationSeconds: number;
   text?: string;
+  sourceFingerprint?: string;
 }> {
   if (!Array.isArray(value)) {
     try {
@@ -4006,6 +4062,9 @@ function parseAudioTrackClips(value: unknown): Array<{
         startSeconds,
         durationSeconds,
         ...(text(record.text) ? { text: text(record.text) } : {}),
+        ...(text(record.sourceFingerprint)
+          ? { sourceFingerprint: text(record.sourceFingerprint) }
+          : {}),
       },
     ];
   });
@@ -13617,6 +13676,498 @@ function timelineForResponse(timeline: StoredTimeline): StoredTimeline {
   return next;
 }
 
+function audioAssemblyDefaults(kind: AudioTrackKind): {
+  volume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  duckingGain?: number;
+} {
+  if (kind === "bgm")
+    return {
+      volume: 0.24,
+      fadeInSeconds: 0.4,
+      fadeOutSeconds: 0.6,
+      duckingGain: 0.55,
+    };
+  if (kind === "sfx")
+    return { volume: 0.62, fadeInSeconds: 0.04, fadeOutSeconds: 0.12 };
+  return { volume: 1, fadeInSeconds: 0.04, fadeOutSeconds: 0.08 };
+}
+
+function audioAssemblyLineage(assetId: string | undefined): {
+  provider: string;
+  cost?: number;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+} {
+  if (!assetId) return { provider: "未绑定素材", rightsStatus: "unknown" };
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset) return { provider: "缺失素材", rightsStatus: "restricted" };
+  const payload = domainPayload(asset.payload_json);
+  const provider =
+    firstTextPayload(payload, ["来源", "服务商", "Provider", "生成服务商"]) ||
+    "本地导入";
+  const rawRights = firstTextPayload(payload, [
+    "权利状态",
+    "授权状态",
+    "版权状态",
+    "许可",
+  ]).toLowerCase();
+  const rightsStatus = /受限|禁止|未授权|restricted|denied|blocked/.test(
+    rawRights,
+  )
+    ? "restricted"
+    : /已授权|许可|可用|cleared|licensed|approved/.test(rawRights)
+      ? "cleared"
+      : "unknown";
+  const rawCost =
+    payload["成本（元）"] ?? payload["成本"] ?? payload["实际成本"];
+  const cost = typeof rawCost === "number" ? rawCost : Number(rawCost);
+  return {
+    provider,
+    ...(Number.isFinite(cost) && cost >= 0 ? { cost } : {}),
+    rightsStatus,
+  };
+}
+
+function subtitleParts(value: string): string[] {
+  const source = value.trim();
+  if (!source) return [];
+  const parts: string[] = [];
+  let current = "";
+  for (const character of Array.from(source)) {
+    current += character;
+    if (
+      current.length >= 18 ||
+      (/[。！？!?；;，,]/u.test(character) && current.length >= 6)
+    ) {
+      parts.push(current.trim());
+      current = "";
+    }
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts.filter(Boolean);
+}
+
+function subtitleCuesForAssemblyClip(clip: {
+  id: string;
+  audioTrackId: string;
+  sourceClipId: string;
+  shotId?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  text?: string;
+}): Array<{
+  id: string;
+  audioTrackId: string;
+  sourceClipId: string;
+  shotId?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  text: string;
+}> {
+  const parts = subtitleParts(clip.text ?? "");
+  if (!parts.length) return [];
+  const slice = clip.durationSeconds / parts.length;
+  return parts.map((textValue, index) => {
+    const startSeconds = timelineTime(clip.startSeconds + slice * index);
+    const endSeconds = timelineTime(
+      index === parts.length - 1
+        ? clip.startSeconds + clip.durationSeconds
+        : clip.startSeconds + slice * (index + 1),
+    );
+    return {
+      id: `timeline-subtitle-${clip.audioTrackId}-${clip.sourceClipId}-${index}`,
+      audioTrackId: clip.audioTrackId,
+      sourceClipId: clip.sourceClipId,
+      ...(clip.shotId ? { shotId: clip.shotId } : {}),
+      startSeconds,
+      durationSeconds: Math.max(0.04, timelineTime(endSeconds - startSeconds)),
+      text: textValue,
+    };
+  });
+}
+
+function audioAssemblySubtitleExports(
+  cues: Array<{ startSeconds: number; durationSeconds: number; text: string }>,
+): { srt: string; webVtt: string } {
+  const entries = cues
+    .map(
+      (cue, index) =>
+        `${index + 1}\n${timelineSubtitleTime(cue.startSeconds)} --> ${timelineSubtitleTime(cue.startSeconds + cue.durationSeconds)}\n${cue.text}`,
+    )
+    .join("\n\n");
+  return {
+    srt: entries ? `${entries}\n` : "",
+    webVtt: entries
+      ? `WEBVTT\n\n${entries.replaceAll(/(\d{2}:\d{2}:\d{2}),/g, "$1.")}\n`
+      : "WEBVTT\n",
+  };
+}
+
+function buildAudioAssemblyPreview(episodeId: string):
+  | {
+      timeline: StoredTimeline;
+      sourceFingerprint: string;
+      clips: Array<{
+        id: string;
+        audioTrackId: string;
+        sourceClipId: string;
+        kind: AudioTrackKind;
+        name: string;
+        shotId?: string;
+        assetId?: string;
+        voiceProfileId?: string;
+        text?: string;
+        startSeconds: number;
+        durationSeconds: number;
+        volume: number;
+        fadeInSeconds: number;
+        fadeOutSeconds: number;
+        duckingGain?: number;
+        overflowSeconds: number;
+        provider: string;
+        cost?: number;
+        rightsStatus: "cleared" | "unknown" | "restricted";
+      }>;
+      subtitleCues: Array<{
+        id: string;
+        audioTrackId: string;
+        sourceClipId: string;
+        shotId?: string;
+        startSeconds: number;
+        durationSeconds: number;
+        text: string;
+      }>;
+      warnings: string[];
+      protectedClipIds: string[];
+      staleTrackIds: string[];
+    }
+  | undefined {
+  const context = episodeMediaContext(episodeId);
+  const timeline = getOrCreateTimeline(episodeId);
+  if (!context || !timeline) return undefined;
+  const audioRows = rows(
+    "SELECT * FROM audio_tracks WHERE episode_id = ? AND status = ? ORDER BY updated_at DESC, rowid DESC",
+    [episodeId, "adopted"],
+  );
+  const freshRows = audioRows.filter((row) => !audioTrackIsStale(row, context));
+  const staleTrackIds = audioRows
+    .filter((row) => audioTrackIsStale(row, context))
+    .map((row) => String(row.id));
+  const videoRanges = new Map(
+    (timeline.tracks.find((track) => track.kind === "video")?.clips ?? [])
+      .filter((clip) => Boolean(clip.shotId))
+      .map((clip) => [
+        clip.shotId!,
+        {
+          startSeconds: clip.startSeconds,
+          durationSeconds: clip.durationSeconds,
+        },
+      ]),
+  );
+  const warnings: string[] = [];
+  if (staleTrackIds.length)
+    warnings.push(
+      "已排除与当前剧本或分镜不一致的已采用音轨；仅相关音频和字幕需要局部重生成。",
+    );
+  const clips = freshRows.flatMap((row) => {
+    const kind = String(row.kind) as AudioTrackKind;
+    const defaults = audioAssemblyDefaults(kind);
+    return parseAudioTrackClips(row.clips_json).map((source) => {
+      const range = source.shotId ? videoRanges.get(source.shotId) : undefined;
+      const startSeconds = timelineTime(
+        (range?.startSeconds ?? 0) + source.startSeconds,
+      );
+      const overflowSeconds = range
+        ? timelineTime(
+            Math.max(
+              0,
+              startSeconds +
+                source.durationSeconds -
+                (range.startSeconds + range.durationSeconds),
+            ),
+          )
+        : 0;
+      const lineage = audioAssemblyLineage(source.assetId);
+      if (overflowSeconds > 0)
+        warnings.push(
+          `「${String(row.label)}」有 ${overflowSeconds.toFixed(2)} 秒超出镜头范围；请审查 time-stretch 或改词建议，系统不会静默裁断。`,
+        );
+      if (lineage.rightsStatus === "restricted")
+        warnings.push(`「${String(row.label)}」的素材权利受限，不能自动采用。`);
+      if (!source.assetId)
+        warnings.push(
+          `「${String(row.label)}」未绑定音频素材，可审查定位但不能试听。`,
+        );
+      return {
+        id: `timeline-audio-${String(row.id)}-${source.id}`,
+        audioTrackId: String(row.id),
+        sourceClipId: source.id,
+        kind,
+        name: String(row.label),
+        ...(source.shotId ? { shotId: source.shotId } : {}),
+        ...(source.assetId ? { assetId: source.assetId } : {}),
+        ...(source.voiceProfileId
+          ? { voiceProfileId: source.voiceProfileId }
+          : {}),
+        ...(source.text ? { text: source.text } : {}),
+        startSeconds,
+        durationSeconds: timelineTime(source.durationSeconds),
+        ...defaults,
+        overflowSeconds,
+        ...lineage,
+      };
+    });
+  });
+  const subtitleCues = clips.flatMap((clip) =>
+    ["dialogue", "narration"].includes(clip.kind)
+      ? subtitleCuesForAssemblyClip(clip)
+      : [],
+  );
+  const protectedClipIds = timeline.tracks.flatMap((track) =>
+    track.clips
+      .filter((clip) => clip.manuallyEdited || clip.locked)
+      .map((clip) => clip.id),
+  );
+  return {
+    timeline,
+    sourceFingerprint: context.sourceFingerprint,
+    clips: clips.sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    ),
+    subtitleCues: subtitleCues.sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    ),
+    warnings: [...new Set(warnings)],
+    protectedClipIds,
+    staleTrackIds,
+  };
+}
+
+function getAudioAssemblyPreview(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const preview = buildAudioAssemblyPreview(episodeId);
+  if (!preview)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  const exports = audioAssemblySubtitleExports(preview.subtitleCues);
+  json(res, 200, {
+    timelineId: preview.timeline.id,
+    timelineVersion: preview.timeline.version,
+    sourceFingerprint: preview.sourceFingerprint,
+    clips: preview.clips,
+    subtitleCues: preview.subtitleCues,
+    ...exports,
+    warnings: preview.warnings,
+    protectedClipIds: preview.protectedClipIds,
+    staleTrackIds: preview.staleTrackIds,
+  });
+}
+
+async function applyAudioAssembly(
+  req: IncomingMessage,
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(req)) as Partial<AudioAssemblyApplyInput>;
+  if (
+    !Number.isInteger(input.timelineVersion) ||
+    !Array.isArray(input.audioTrackIds) ||
+    !input.audioTrackIds.every((id) => typeof id === "string") ||
+    typeof input.includeSubtitles !== "boolean"
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "自动编排需要当前时间线版本、音轨选择和字幕采用选择。",
+      requestId,
+    );
+  const preview = buildAudioAssemblyPreview(episodeId);
+  if (!preview)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  if (input.timelineVersion !== preview.timeline.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "时间线已更新，请重新审查自动编排预览。",
+      requestId,
+      { current: timelineForResponse(preview.timeline) },
+    );
+  const selectedTrackIds = [...new Set(input.audioTrackIds)];
+  const availableTrackIds = new Set(
+    preview.clips.map((clip) => clip.audioTrackId),
+  );
+  if (selectedTrackIds.some((id) => !availableTrackIds.has(id)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "所选音轨不存在、已过期或尚未采用；请刷新预览。",
+      requestId,
+    );
+  const selected = new Set(selectedTrackIds);
+  const selectedClips = preview.clips.filter((clip) =>
+    selected.has(clip.audioTrackId),
+  );
+  const restricted = selectedClips.find(
+    (clip) => clip.rightsStatus === "restricted",
+  );
+  if (restricted)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      `素材「${restricted.name}」权利受限，不能自动采用。`,
+      requestId,
+    );
+  const before = cloneTimeline(preview.timeline);
+  const next = cloneTimeline(preview.timeline);
+  const protectedIds = new Set(preview.protectedClipIds);
+  for (const track of next.tracks) {
+    if (!["dialogue", "narration", "bgm", "sfx"].includes(track.kind)) continue;
+    const desired = selectedClips.filter((clip) => clip.kind === track.kind);
+    if (!desired.length) continue;
+    const retained = track.clips.filter(
+      (clip) =>
+        !selected.has(clip.audioTrackId ?? "") || protectedIds.has(clip.id),
+    );
+    const retainedIds = new Set(retained.map((clip) => clip.id));
+    track.clips = [
+      ...retained,
+      ...desired
+        .filter((clip) => !retainedIds.has(clip.id))
+        .map((clip) => ({
+          id: clip.id,
+          shotId: clip.shotId,
+          assetId: clip.assetId,
+          audioTrackId: clip.audioTrackId,
+          name: clip.name,
+          startSeconds: clip.startSeconds,
+          durationSeconds: clip.durationSeconds,
+          sourceOffsetSeconds: 0,
+          mediaStatus: timelineMediaStatus(clip.assetId),
+          ...(clip.text ? { text: clip.text } : {}),
+          volume: clip.volume,
+          fadeInSeconds: clip.fadeInSeconds,
+          fadeOutSeconds: clip.fadeOutSeconds,
+          ...(clip.duckingGain ? { duckingGain: clip.duckingGain } : {}),
+          locked: false,
+          manuallyEdited: false,
+        })),
+    ].sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    );
+  }
+  if (input.includeSubtitles) {
+    const subtitleTrack = next.tracks.find(
+      (track) => track.kind === "subtitle",
+    );
+    if (subtitleTrack) {
+      const desired = preview.subtitleCues.filter((cue) =>
+        selected.has(cue.audioTrackId),
+      );
+      const selectedShotIds = new Set(
+        desired.flatMap((cue) => (cue.shotId ? [cue.shotId] : [])),
+      );
+      const retained = subtitleTrack.clips.filter(
+        (clip) =>
+          protectedIds.has(clip.id) ||
+          (!selected.has(clip.audioTrackId ?? "") &&
+            !(
+              !clip.audioTrackId &&
+              clip.shotId &&
+              selectedShotIds.has(clip.shotId)
+            )),
+      );
+      const retainedIds = new Set(retained.map((clip) => clip.id));
+      subtitleTrack.clips = [
+        ...retained,
+        ...desired
+          .filter((cue) => !retainedIds.has(cue.id))
+          .map((cue) => ({
+            id: cue.id,
+            sourceClipId: cue.sourceClipId,
+            ...(cue.shotId ? { shotId: cue.shotId } : {}),
+            audioTrackId: cue.audioTrackId,
+            name: "自动字幕",
+            startSeconds: cue.startSeconds,
+            durationSeconds: cue.durationSeconds,
+            sourceOffsetSeconds: 0,
+            mediaStatus: "linked" as const,
+            text: cue.text,
+            locked: false,
+            manuallyEdited: false,
+          })),
+      ].sort(
+        (left, right) =>
+          left.startSeconds - right.startSeconds ||
+          left.id.localeCompare(right.id),
+      );
+    }
+  }
+  next.sourceFingerprint = preview.sourceFingerprint;
+  const saved = timelineWithVersion(next, preview.timeline.version + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "DELETE FROM timeline_history WHERE timeline_id = ? AND undone = 1",
+      )
+      .run(saved.id);
+    db!
+      .prepare(
+        "UPDATE timelines SET source_fingerprint = ?, manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        saved.sourceFingerprint,
+        JSON.stringify(saved),
+        saved.version,
+        saved.updatedAt,
+        saved.id,
+      );
+    db!
+      .prepare(
+        "INSERT INTO timeline_history (id, timeline_id, command_json, before_json, after_json, undone, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+      )
+      .run(
+        randomUUID(),
+        saved.id,
+        JSON.stringify({
+          type: "apply-audio-assembly",
+          audioTrackIds: selectedTrackIds,
+          includeSubtitles: input.includeSubtitles,
+        }),
+        JSON.stringify(before),
+        JSON.stringify(saved),
+        saved.updatedAt,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit("timeline.audio-assembly-applied", {
+    id: saved.id,
+    audioTrackIds: selectedTrackIds,
+    includeSubtitles: input.includeSubtitles,
+    version: saved.version,
+  });
+  json(res, 200, timelineForResponse(saved));
+}
+
 function buildInitialTimeline(context: {
   episode: Record<string, any>;
   adaptationId: string;
@@ -13647,7 +14198,7 @@ function buildInitialTimeline(context: {
   const audioRows = rows(
     "SELECT * FROM audio_tracks WHERE episode_id = ? AND status = ? ORDER BY updated_at DESC",
     [context.episode.id, "adopted"],
-  );
+  ).filter((row) => !mediaContext || !audioTrackIsStale(row, mediaContext));
   const audioClipsByKind = new Map<
     TimelineTrackKind,
     StoredTimeline["tracks"][number]["clips"]
@@ -13668,6 +14219,8 @@ function buildInitialTimeline(context: {
             sourceOffsetSeconds: 0,
             mediaStatus: timelineMediaStatus(clip.assetId),
             ...(clip.text ? { text: clip.text } : {}),
+            ...audioAssemblyDefaults(kind),
+            locked: false,
             manuallyEdited: false,
           }))
         : [],
@@ -13692,6 +14245,7 @@ function buildInitialTimeline(context: {
         sourceOffsetSeconds: 0,
         mediaStatus: "linked" as const,
         text: textValue,
+        locked: false,
         manuallyEdited: false,
       },
     ];
@@ -13882,6 +14436,21 @@ function applyTimelineEdit(
     if (!asset) return "重链接媒体不属于当前项目或不受支持";
     clip.assetId = command.assetId;
     clip.mediaStatus = timelineMediaStatus(command.assetId);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "set-clip-audio") {
+    if (command.volume === undefined && command.locked === undefined)
+      return "请指定音量或锁定状态";
+    if (
+      command.volume !== undefined &&
+      (!Number.isFinite(command.volume) ||
+        command.volume < 0 ||
+        command.volume > 2)
+    )
+      return "音量必须在 0 到 2 之间";
+    if (command.volume !== undefined) clip.volume = command.volume;
+    if (command.locked !== undefined) clip.locked = command.locked;
     clip.manuallyEdited = true;
     return undefined;
   }
@@ -20096,8 +20665,8 @@ function voiceProfile(row: Record<string, any>) {
     updatedAt: String(row.updated_at),
   };
 }
-function audioTrack(row: Record<string, any>, currentFingerprint: string) {
-  const stale = String(row.source_fingerprint) !== currentFingerprint;
+function audioTrack(row: Record<string, any>, context: EpisodeMediaContext) {
+  const stale = audioTrackIsStale(row, context);
   return {
     id: String(row.id),
     projectId: String(row.project_id),
