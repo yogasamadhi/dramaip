@@ -80,6 +80,8 @@ import type {
   RevisionPreview,
   AssetCenterAsset,
   AssetCenterPreviewMedia,
+  VideoGenerationInput,
+  VideoGenerationPreflight,
 } from "@sdns/schema";
 import "./styles.css";
 
@@ -7780,11 +7782,18 @@ function VideoGenerationPanel(props: {
   const [providerId, setProviderId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [seconds, setSeconds] = useState("5");
+  const [confirmUnknownCost, setConfirmUnknownCost] = useState(false);
+  const [preflight, setPreflight] = useState<VideoGenerationPreflight>();
   const [notice, setNotice] = useState<string>();
   const [creating, setCreating] = useState(false);
+  const [checkingReadiness, setCheckingReadiness] = useState(false);
   const { data: providers = [] } = useQuery({
     queryKey: ["resource", "providers"],
     queryFn: () => client.resources.list("providers"),
+  });
+  const { data: shot } = useQuery({
+    queryKey: ["video-generation-shot", props.shotId],
+    queryFn: () => client.resources.get("shots", props.shotId),
   });
   const { data: jobs = [] } = useQuery({
     queryKey: ["video-generation", props.shotId],
@@ -7800,27 +7809,77 @@ function VideoGenerationPanel(props: {
     queryClient.invalidateQueries({
       queryKey: ["video-generation", props.shotId],
     });
-  const create = async () => {
+  useEffect(() => {
+    setPreflight(undefined);
+  }, [providerId, prompt, seconds, props.shotId]);
+  useEffect(() => {
+    const payload = recordPayload(shot?.payload);
+    const savedPrompt =
+      typeof payload["生成提示"] === "string" ? payload["生成提示"] : "";
+    const durationValue = payload["时长"] ?? payload["时长秒数"];
+    const duration =
+      typeof durationValue === "number"
+        ? durationValue
+        : typeof durationValue === "string"
+          ? Number(durationValue.match(/\d+/)?.[0])
+          : undefined;
+    if (savedPrompt) setPrompt(savedPrompt);
+    if (Number.isInteger(duration) && duration! > 0)
+      setSeconds(String(duration));
+  }, [shot?.id, shot?.version]);
+  const input = (): VideoGenerationInput | undefined => {
     if (!providerId || !prompt.trim()) {
       setNotice("请选择视频服务商并填写生成提示。");
-      return;
+      return undefined;
     }
     const length = Number(seconds);
     if (!Number.isInteger(length) || length < 1 || length > 60) {
       setNotice("视频时长须为 1 至 60 秒的整数。");
+      return undefined;
+    }
+    return {
+      providerId,
+      projectId: props.projectId,
+      episodeId: props.episodeId,
+      shotId: props.shotId,
+      prompt: prompt.trim(),
+      seconds: length,
+      confirmUnknownCost,
+    };
+  };
+  const checkReadiness = async () => {
+    const request = input();
+    if (!request) return;
+    setCheckingReadiness(true);
+    setNotice(undefined);
+    try {
+      const result = await client.videoGeneration.preflight(
+        props.shotId,
+        request,
+      );
+      setPreflight(result);
+      setNotice(
+        result.ready
+          ? "预检通过：本次提交将固定使用当前静帧、资产版本、参数与费用快照。"
+          : "预检发现阻断项；不会向视频服务商发起调用。",
+      );
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setCheckingReadiness(false);
+    }
+  };
+  const create = async () => {
+    const request = input();
+    if (!request) return;
+    if (!preflight?.ready) {
+      setNotice("请先完成静帧、资产、权利和费用预检。");
       return;
     }
     setCreating(true);
     try {
       const job = await client.videoGeneration.create(
-        {
-          providerId,
-          projectId: props.projectId,
-          episodeId: props.episodeId,
-          shotId: props.shotId,
-          prompt: prompt.trim(),
-          seconds: length,
-        },
+        { ...request, readinessHash: preflight.snapshotHash },
         crypto.randomUUID(),
       );
       setNotice(videoJobNotice(job.status));
@@ -7880,8 +7939,8 @@ function VideoGenerationPanel(props: {
       <div>
         <h2 className="font-semibold">视频生成与候选采用</h2>
         <p className="mt-1 text-sm text-muted">
-          提交到兼容 OpenAI
-          视频接口后，系统持久化远端任务标识；完成时自动归档视频为分镜候选。
+          先确认低成本静帧和锁定资产，再以服务端签发的快照提交兼容 OpenAI
+          视频接口； 任何预检阻断都会在厂商调用前停止。
         </p>
       </div>
       <section className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
@@ -7906,9 +7965,23 @@ function VideoGenerationPanel(props: {
           onChange={(event) => setSeconds(event.target.value)}
         />
         <button
+          className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+          disabled={
+            creating || checkingReadiness || !providerId || !prompt.trim()
+          }
+          onClick={() => void checkReadiness()}
+        >
+          {checkingReadiness ? "正在检查…" : "检查静帧与视频预检"}
+        </button>
+        <button
           className="w-fit rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
-          disabled={creating}
+          disabled={creating || !preflight?.ready}
           onClick={() => void create()}
+          title={
+            preflight?.ready
+              ? "提交与预检快照完全一致的视频任务"
+              : "请先通过静帧与视频预检"
+          }
         >
           {creating ? "正在提交…" : "提交视频生成"}
         </button>
@@ -7918,6 +7991,55 @@ function VideoGenerationPanel(props: {
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
         />
+      </section>
+      <section className="rounded-xl border border-line p-3 text-sm">
+        <h3 className="font-medium">静帧优先预检</h3>
+        <p className="mt-1 text-xs text-muted">
+          必须已采用未过期静帧，且当前镜头引用的资产均已采用、锁定并完成权利核验；提示、时长或资产版本变化后需重新检查。
+        </p>
+        {preflight?.costStatus === "unknown" && (
+          <label className="mt-3 flex items-start gap-2 text-xs text-amber-700">
+            <input
+              type="checkbox"
+              checked={confirmUnknownCost}
+              onChange={(event) => setConfirmUnknownCost(event.target.checked)}
+            />
+            我理解当前视频费用未知，并会在生成账本中复核实际费用。
+          </label>
+        )}
+        {preflight && (
+          <div className="mt-3 space-y-2 text-xs">
+            <p>
+              快照 {preflight.snapshotHash.slice(0, 18)}… · 静帧{" "}
+              {preflight.adoptedStillId ? "已采用" : "未采用"} · 已锁定资产{" "}
+              {preflight.lockedAssetIds.length} 个
+              {preflight.costStatus === "known"
+                ? ` · 预估费用 ${preflight.estimatedCost ?? 0} ${preflight.currency ?? "USD"}`
+                : " · 费用未知"}
+            </p>
+            {preflight.blockers.map((blocker) => (
+              <p
+                key={blocker}
+                className="rounded bg-red-50 px-2 py-1 text-red-700"
+              >
+                阻断：{blocker}
+              </p>
+            ))}
+            {preflight.warnings.map((warning) => (
+              <p
+                key={warning}
+                className="rounded bg-amber-50 px-2 py-1 text-amber-700"
+              >
+                注意：{warning}
+              </p>
+            ))}
+            {preflight.ready && (
+              <p className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">
+                已通过：提交按钮会携带此快照；服务端会再次校验，避免静默继承变化。
+              </p>
+            )}
+          </div>
+        )}
       </section>
       <section className="rounded-xl border border-line p-3">
         <h3 className="font-medium">本分镜生成任务</h3>

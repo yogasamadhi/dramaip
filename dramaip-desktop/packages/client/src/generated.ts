@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "3c36c05bd0fc483c8fdfa203c3d9443e62a0695c72e6f0167d2c8bd049c341a3";
+  "331b8c393b41c452bf7d4479a39d4959b68c966d2d2c82f7b114e045a1d3db9f";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -125,6 +125,9 @@ import type {
   TtsGenerationInput,
   TtsGenerationRun,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflightInput,
+  VideoGenerationBatchPreflight,
   VideoGenerationJob,
   VideoGenerationRetryInput,
   CreativeCaseStudy,
@@ -380,6 +383,14 @@ export interface StudioClient {
     ): Promise<TtsGenerationRun>;
   };
   videoGeneration: {
+    batchPreflight(
+      projectId: string,
+      input: VideoGenerationBatchPreflightInput,
+    ): Promise<VideoGenerationBatchPreflight>;
+    preflight(
+      shotId: string,
+      input: VideoGenerationInput,
+    ): Promise<VideoGenerationPreflight>;
     create(
       input: VideoGenerationInput,
       idempotencyKey: string,
@@ -1105,6 +1116,22 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
     },
     videoGeneration: {
+      batchPreflight: (projectId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/video-generation/batch-preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      preflight: (shotId, input) =>
+        request(
+          `/api/v1/shots/${encodeURIComponent(shotId)}/video-generation/preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
       create: (input, idempotencyKey) =>
         request("/api/v1/video-generation/runs", {
           method: "POST",

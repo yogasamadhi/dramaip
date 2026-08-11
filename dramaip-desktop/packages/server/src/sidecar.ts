@@ -51,6 +51,9 @@ import type {
   ImageGenerationInput,
   TtsGenerationInput,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflight,
+  VideoGenerationBatchPreflightInput,
   CreativeCaseStudyInput,
   CreativeCaseStudyPatch,
   CreativeDiagnosticInput,
@@ -726,6 +729,23 @@ async function route(
     return runTtsGeneration(req, res, requestId);
   if (method === "POST" && path === "/api/v1/video-generation/runs")
     return createVideoGeneration(req, res, requestId);
+  const videoPreflightShotId = match(
+    path,
+    /^\/api\/v1\/shots\/([^/]+)\/video-generation\/preflight$/,
+  );
+  if (videoPreflightShotId && method === "POST")
+    return videoGenerationPreflight(req, res, videoPreflightShotId, requestId);
+  const videoBatchPreflightProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/video-generation\/batch-preflight$/,
+  );
+  if (videoBatchPreflightProjectId && method === "POST")
+    return videoGenerationBatchPreflight(
+      req,
+      res,
+      videoBatchPreflightProjectId,
+      requestId,
+    );
   const videoShotRuns = match(
     path,
     /^\/api\/v1\/shots\/([^/]+)\/video-generation\/runs$/,
@@ -2488,6 +2508,23 @@ function adoptShotStill(
     const shotPayload = domainPayload(shot.payload_json);
     shotPayload["采用静帧候选"] = id;
     shotPayload["静帧采用说明"] = `已采用「${String(current.title)}」。`;
+    const adoptedStill = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+      [id, "shot-stills"],
+    );
+    if (!adoptedStill) throw new Error("采用静帧确认失败");
+    const assets = assetReferenceIds(shotPayload).map((assetId) =>
+      one(
+        "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+        [assetId, "visual-assets", shot.project_id],
+      ),
+    );
+    shotPayload["静帧确认指纹"] = stillConfirmationFingerprint(
+      shotPayload,
+      adoptedStill,
+      assets,
+    );
+    shotPayload["静帧确认时间"] = timestamp();
     updateDomainEntityPayload(String(shot.id), String(shot.title), shotPayload);
     db!.exec("COMMIT");
   } catch (error) {
@@ -2702,6 +2739,227 @@ function assetReferenceIds(payload: Record<string, unknown>): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function videoAssetIsStale(payload: Record<string, unknown>): boolean {
+  return [payload["设定状态"], payload["版本状态"]].some((value) =>
+    ["已过期", "过期"].includes(String(value)),
+  );
+}
+
+function videoAssetHasVerifiedRights(
+  payload: Record<string, unknown>,
+): boolean {
+  const rights = String(
+    payload["权利状态"] ?? payload["授权状态"] ?? payload["素材权利"] ?? "",
+  );
+  return (
+    rights.includes("已授权") ||
+    rights.includes("已核验") ||
+    rights.includes("已确认")
+  );
+}
+
+function shotVideoDurationSeconds(
+  payload: Record<string, unknown>,
+): number | undefined {
+  const value = payload["时长"] ?? payload["时长秒数"];
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  const matched = typeof value === "string" ? value.match(/\d+/) : undefined;
+  const parsed = matched?.[0] ? Number(matched[0]) : undefined;
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function videoAssetSnapshot(asset: Record<string, any> | undefined) {
+  if (!asset) return undefined;
+  const payload = domainPayload(asset.payload_json);
+  return {
+    id: String(asset.id),
+    version: Number(asset.version),
+    adopted: payload["采用状态"] === "已采用",
+    locked: payload["锁定状态"] === "已锁定",
+    stale: videoAssetIsStale(payload),
+    rights: String(payload["权利状态"] ?? payload["授权状态"] ?? ""),
+    cost: String(payload["费用状态"] ?? ""),
+    provider: String(payload["服务状态"] ?? ""),
+  };
+}
+
+function stillConfirmationFingerprint(
+  shotPayload: Record<string, unknown>,
+  still: Record<string, any>,
+  assets: Array<Record<string, any> | undefined>,
+): string {
+  const stillPayload = domainPayload(still.payload_json);
+  const content = {
+    shotPrompt: String(shotPayload["生成提示"] ?? ""),
+    shotDuration: shotPayload["时长"] ?? shotPayload["时长秒数"] ?? null,
+    adoptedStill: {
+      id: String(still.id),
+      version: Number(still.version),
+      prompt: String(stillPayload["生成提示"] ?? ""),
+      status: String(stillPayload["采用状态"] ?? ""),
+      state: String(stillPayload["设定状态"] ?? stillPayload["版本状态"] ?? ""),
+    },
+    assets: assets
+      .map(videoAssetSnapshot)
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  };
+  return `sha256:${createHash("sha256").update(JSON.stringify(content)).digest("hex")}`;
+}
+
+function videoGenerationReadiness(
+  input: Partial<VideoGenerationInput>,
+  shot: Record<string, any>,
+  provider: Record<string, any>,
+): VideoGenerationPreflight {
+  const shotPayload = domainPayload(shot.payload_json);
+  const providerPayload = domainPayload(provider.payload_json);
+  const providerId = String(provider.id);
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const assetIds = [...new Set(assetReferenceIds(shotPayload))];
+  const assets = assetIds.map((id) =>
+    one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+      [id, "visual-assets", shot.project_id],
+    ),
+  );
+  const stillId = text(shotPayload["采用静帧候选"]);
+  const still = stillId
+    ? one("SELECT * FROM domain_entities WHERE id = ? AND domain = ?", [
+        stillId,
+        "shot-stills",
+      ])
+    : undefined;
+  if (!still) blockers.push("请先采用一个静帧候选，再进入视频生成。");
+  else {
+    const stillPayload = domainPayload(still.payload_json);
+    if (String(still.parent_id) !== String(shot.id))
+      blockers.push("已采用静帧不属于当前分镜，请重新采用。");
+    if (stillPayload["采用状态"] !== "已采用")
+      blockers.push("已采用静帧候选已失效，请重新采用。");
+    if (videoAssetIsStale(stillPayload))
+      blockers.push("已采用静帧已过期，请重新生成并采用。");
+  }
+  if (!assetIds.length)
+    blockers.push("请先在资产中心为分镜分配并锁定至少一个资产版本。");
+  const lockedAssetIds: string[] = [];
+  for (const [index, asset] of assets.entries()) {
+    const id = assetIds[index]!;
+    if (!asset) {
+      blockers.push(`资产版本 ${id} 已不存在或不属于当前项目。`);
+      continue;
+    }
+    const payload = domainPayload(asset.payload_json);
+    if (payload["采用状态"] !== "已采用")
+      blockers.push(`资产「${String(asset.title)}」尚未采用。`);
+    if (payload["锁定状态"] !== "已锁定")
+      blockers.push(`资产「${String(asset.title)}」尚未锁定。`);
+    if (videoAssetIsStale(payload))
+      blockers.push(`资产「${String(asset.title)}」已过期。`);
+    if (!videoAssetHasVerifiedRights(payload))
+      blockers.push(`资产「${String(asset.title)}」缺少已核验的权利状态。`);
+    if (String(payload["费用状态"] ?? "").includes("未知"))
+      blockers.push(`资产「${String(asset.title)}」的费用仍未知。`);
+    if (
+      String(payload["服务状态"] ?? "").includes("不可用") ||
+      String(payload["服务状态"] ?? "").includes("离线")
+    )
+      blockers.push(`资产「${String(asset.title)}」的服务当前不可用。`);
+    if (
+      payload["采用状态"] === "已采用" &&
+      payload["锁定状态"] === "已锁定" &&
+      !videoAssetIsStale(payload) &&
+      videoAssetHasVerifiedRights(payload)
+    )
+      lockedAssetIds.push(id);
+  }
+  const confirmationFingerprint = still
+    ? stillConfirmationFingerprint(shotPayload, still, assets)
+    : undefined;
+  if (
+    !confirmationFingerprint ||
+    text(shotPayload["静帧确认指纹"]) !== confirmationFingerprint
+  )
+    blockers.push(
+      "镜头提示、时长、采用静帧或资产锁已变化，请重新采用静帧确认视觉方向。",
+    );
+
+  const baseUrl = text(providerPayload["服务地址"]);
+  const credentialRef = text(providerPayload["凭据引用"]);
+  const model = text(providerPayload["模型名称"]);
+  if (!baseUrl || !credentialRef || !model)
+    blockers.push("视频服务商需要服务地址、模型和凭据引用。");
+  const seconds = input.seconds ?? 5;
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 60)
+    blockers.push("视频时长须为 1 至 60 秒的整数。");
+  const confirmedPrompt = text(shotPayload["生成提示"]);
+  const confirmedSeconds = shotVideoDurationSeconds(shotPayload);
+  if (!confirmedPrompt || !confirmedSeconds)
+    blockers.push("请先在分镜中保存视频提示和时长，再采用静帧确认视觉方向。");
+  else if (
+    text(input.prompt) !== confirmedPrompt ||
+    seconds !== confirmedSeconds
+  )
+    blockers.push(
+      "视频提示或时长已偏离静帧确认基线，请更新分镜后重新采用静帧。",
+    );
+  const configuredCost = Number(providerPayload["预估费用"]);
+  const costKnown = Number.isFinite(configuredCost) && configuredCost >= 0;
+  if (!costKnown && input.confirmUnknownCost !== true)
+    blockers.push("视频费用未知；请明确确认后才可提交。");
+  if (!costKnown && input.confirmUnknownCost === true)
+    warnings.push("费用未知已由用户确认；请在生成账本中复核实际费用。");
+  const capacity = Number(providerPayload["并发上限"]);
+  if (Number.isInteger(capacity) && capacity > 0) {
+    const active = Number(
+      one(
+        "SELECT count(*) AS count FROM video_generation_jobs WHERE provider_id = ? AND status IN ('queued', 'running')",
+        [provider.id],
+      )?.count ?? 0,
+    );
+    if (active >= capacity)
+      blockers.push(
+        `视频服务商并发上限为 ${capacity}，当前已有 ${active} 个待处理任务。`,
+      );
+  }
+  const snapshotHash = `sha256:${createHash("sha256")
+    .update(
+      JSON.stringify({
+        confirmationFingerprint: confirmationFingerprint ?? null,
+        provider: {
+          id: providerId,
+          version: Number(provider.version),
+          model: model ?? null,
+          baseUrl: baseUrl ?? null,
+          cost: costKnown ? configuredCost : null,
+        },
+        request: {
+          prompt: text(input.prompt) ?? "",
+          negativePrompt: text(input.negativePrompt) ?? "",
+          seconds,
+          size: text(input.size) ?? "",
+        },
+      }),
+    )
+    .digest("hex")}`;
+  return {
+    shotId: String(shot.id),
+    providerId,
+    snapshotHash,
+    ready: blockers.length === 0,
+    ...(stillId ? { adoptedStillId: stillId } : {}),
+    lockedAssetIds,
+    blockers,
+    warnings,
+    costStatus: costKnown ? "known" : "unknown",
+    ...(costKnown ? { estimatedCost: configuredCost } : {}),
+    ...(costKnown
+      ? { currency: text(providerPayload["计费货币"]) ?? "USD" }
+      : {}),
+  };
 }
 
 function assetCenterUsages(
@@ -9048,6 +9306,146 @@ function openAiTtsEndpoint(baseUrl: string): string {
   return source.toString();
 }
 
+async function videoGenerationPreflight(
+  req: IncomingMessage,
+  res: ServerResponse,
+  shotId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(req)) as Partial<VideoGenerationInput>;
+  const providerId = text(input.providerId);
+  const projectId = text(input.projectId);
+  if (!providerId || !projectId)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "视频预检需要服务商和项目。",
+      requestId,
+    );
+  const shot = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+    [shotId, "shots", projectId],
+  );
+  if (!shot)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "目标分镜不属于当前项目。",
+      requestId,
+    );
+  const provider = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [providerId, "providers"],
+  );
+  if (!provider)
+    return respondError(res, 404, "NOT_FOUND", "未找到视频服务商", requestId);
+  json(
+    res,
+    200,
+    videoGenerationReadiness({ ...input, shotId }, shot, provider),
+  );
+}
+
+async function videoGenerationBatchPreflight(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(
+    req,
+  )) as Partial<VideoGenerationBatchPreflightInput>;
+  if (text(input.projectId) !== projectId || !Array.isArray(input.submissions))
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "批量视频预检需要当前项目和提交列表。",
+      requestId,
+    );
+  const items: VideoGenerationPreflight[] = [];
+  const providerCounts = new Map<
+    string,
+    { provider: Record<string, any>; requested: number }
+  >();
+  for (const submission of input.submissions) {
+    const shotId = text(submission.shotId);
+    const providerId = text(submission.providerId);
+    if (!shotId || !providerId)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "每个批量视频提交都需要分镜和服务商。",
+        requestId,
+      );
+    const shot = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+      [shotId, "shots", projectId],
+    );
+    const provider = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+      [providerId, "providers"],
+    );
+    if (!shot || !provider)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "批量视频提交包含无效的分镜或服务商。",
+        requestId,
+      );
+    items.push(videoGenerationReadiness(submission, shot, provider));
+    const current = providerCounts.get(providerId);
+    if (current) current.requested += 1;
+    else providerCounts.set(providerId, { provider, requested: 1 });
+  }
+  for (const [providerId, item] of providerCounts) {
+    const capacity = Number(
+      domainPayload(item.provider.payload_json)["并发上限"],
+    );
+    if (!Number.isInteger(capacity) || capacity <= 0) continue;
+    const active = Number(
+      one(
+        "SELECT count(*) AS count FROM video_generation_jobs WHERE provider_id = ? AND status IN ('queued', 'running')",
+        [providerId],
+      )?.count ?? 0,
+    );
+    if (active + item.requested <= capacity) continue;
+    const message = `服务商「${String(item.provider.title)}」批量并发上限为 ${capacity}，当前 ${active} 个任务与本批 ${item.requested} 个提交会超限。`;
+    for (let index = 0; index < items.length; index += 1) {
+      if (items[index]?.providerId !== providerId) continue;
+      const current = items[index]!;
+      items[index] = {
+        ...current,
+        ready: false,
+        blockers: [...current.blockers, message],
+      };
+    }
+  }
+  const knownEstimatedCost = items.reduce(
+    (sum, item) => sum + (item.estimatedCost ?? 0),
+    0,
+  );
+  const unknownCostCount = items.filter(
+    (item) => item.costStatus === "unknown",
+  ).length;
+  const blockers = items.flatMap((item) =>
+    item.blockers.map((blocker) => `分镜 ${item.shotId}：${blocker}`),
+  );
+  const result: VideoGenerationBatchPreflight = {
+    projectId,
+    ready: items.every((item) => item.ready),
+    items,
+    blockers,
+    knownEstimatedCost,
+    unknownCostCount,
+  };
+  json(res, 200, result);
+}
+
 async function createVideoGeneration(
   req: IncomingMessage,
   res: ServerResponse,
@@ -9106,6 +9504,25 @@ async function createVideoGeneration(
   );
   if (!provider)
     return respondError(res, 404, "NOT_FOUND", "未找到视频服务商", requestId);
+  const readiness = videoGenerationReadiness(input, shot, provider);
+  if (!readiness.ready)
+    return respondError(
+      res,
+      409,
+      "VIDEO_NOT_READY",
+      "视频提交前置条件未满足。",
+      requestId,
+      { preflight: readiness },
+    );
+  if (input.readinessHash !== readiness.snapshotHash)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "视频预检快照已变化，请重新检查后再提交。",
+      requestId,
+      { preflight: readiness },
+    );
   const payload = domainPayload(provider.payload_json),
     baseUrl = text(payload["服务地址"]),
     credentialRef = text(payload["凭据引用"]),
@@ -9149,7 +9566,7 @@ async function createVideoGeneration(
         0.1,
         projectId,
         parentTaskId ?? null,
-        JSON.stringify({ providerId, shotId, episodeId, prompt }),
+        JSON.stringify({ providerId, shotId, episodeId, prompt, readiness }),
         now,
         taskId,
       );
@@ -9168,7 +9585,7 @@ async function createVideoGeneration(
         0.1,
         projectId,
         parentTaskId ?? null,
-        JSON.stringify({ providerId, shotId, episodeId, prompt }),
+        JSON.stringify({ providerId, shotId, episodeId, prompt, readiness }),
         now,
         now,
       );
@@ -9218,7 +9635,7 @@ async function createVideoGeneration(
         providerId,
         remoteJobId,
         prompt,
-        JSON.stringify({ ...input, baseUrl }),
+        JSON.stringify({ ...input, baseUrl, readiness }),
         status,
         now,
         now,
@@ -9241,6 +9658,20 @@ async function createVideoGeneration(
     db!
       .prepare("INSERT INTO request_deduplication VALUES (?, 201, ?, ?)")
       .run(idempotencyKey, JSON.stringify(result), timestamp());
+    recordGeneration({
+      projectId,
+      taskId,
+      kind: "视频生成",
+      title: `视频生成 · ${String(shot.title)}`,
+      status: "已提交",
+      summary: [
+        `已固定静帧 ${readiness.adoptedStillId ?? "无"} 与 ${readiness.lockedAssetIds.length} 个锁定资产。`,
+        `预检快照 ${readiness.snapshotHash.slice(0, 18)}…。`,
+        readiness.costStatus === "known"
+          ? `预估费用 ${readiness.estimatedCost ?? 0} ${readiness.currency ?? "USD"}；实际费用请在生成账本补录。`
+          : "费用未知已由用户确认；实际费用请在生成账本补录。",
+      ].join(" "),
+    });
     emit(
       "task.created",
       task(one("SELECT * FROM tasks WHERE id = ?", [taskId])!),

@@ -1,0 +1,10 @@
+{
+  "requiredBlockers": ["静帧", "锁定", "权利", "费用未知", "并发上限"],
+  "requiredSnapshotFields": [
+    "adoptedStillId",
+    "lockedAssetIds",
+    "snapshotHash",
+    "costStatus"
+  ],
+  "requiredActions": ["preflight", "batchPreflight"]
+}

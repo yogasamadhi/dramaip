@@ -124,6 +124,9 @@ import type {
   TtsGenerationInput,
   TtsGenerationRun,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflightInput,
+  VideoGenerationBatchPreflight,
   VideoGenerationJob,
   VideoGenerationRetryInput,
   CreativeCaseStudy,
@@ -379,6 +382,14 @@ export interface StudioClient {
     ): Promise<TtsGenerationRun>;
   };
   videoGeneration: {
+    batchPreflight(
+      projectId: string,
+      input: VideoGenerationBatchPreflightInput,
+    ): Promise<VideoGenerationBatchPreflight>;
+    preflight(
+      shotId: string,
+      input: VideoGenerationInput,
+    ): Promise<VideoGenerationPreflight>;
     create(
       input: VideoGenerationInput,
       idempotencyKey: string,
@@ -1104,6 +1115,22 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
     },
     videoGeneration: {
+      batchPreflight: (projectId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/video-generation/batch-preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      preflight: (shotId, input) =>
+        request(
+          `/api/v1/shots/${encodeURIComponent(shotId)}/video-generation/preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
       create: (input, idempotencyKey) =>
         request("/api/v1/video-generation/runs", {
           method: "POST",

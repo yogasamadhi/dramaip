@@ -14730,6 +14730,319 @@
         }
       }
     },
+    "/api/v1/projects/{id}/video-generation/batch-preflight": {
+      "post": {
+        "tags": ["video-generation"],
+        "operationId": "video-generation.batchPreflight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "ready": { "type": "boolean" },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "shotId": { "type": "string" },
+                          "providerId": { "type": "string" },
+                          "snapshotHash": { "type": "string" },
+                          "ready": { "type": "boolean" },
+                          "adoptedStillId": { "type": "string" },
+                          "lockedAssetIds": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "blockers": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                          },
+                          "costStatus": {
+                            "type": "string",
+                            "enum": ["known", "unknown"]
+                          },
+                          "estimatedCost": {
+                            "anyOf": [
+                              {
+                                "anyOf": [
+                                  { "type": "number" },
+                                  { "type": "string", "enum": ["NaN"] },
+                                  { "type": "string", "enum": ["Infinity"] },
+                                  { "type": "string", "enum": ["-Infinity"] }
+                                ]
+                              },
+                              {
+                                "type": "string",
+                                "enum": ["Infinity", "-Infinity", "NaN"]
+                              }
+                            ]
+                          },
+                          "currency": { "type": "string" }
+                        },
+                        "required": [
+                          "shotId",
+                          "providerId",
+                          "snapshotHash",
+                          "ready",
+                          "lockedAssetIds",
+                          "blockers",
+                          "warnings",
+                          "costStatus"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "blockers": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "knownEstimatedCost": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "unknownCostCount": { "type": "integer" }
+                  },
+                  "required": [
+                    "projectId",
+                    "ready",
+                    "items",
+                    "blockers",
+                    "knownEstimatedCost",
+                    "unknownCostCount"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "submissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "providerId": { "type": "string" },
+                        "projectId": { "type": "string" },
+                        "episodeId": { "type": "string" },
+                        "shotId": { "type": "string" },
+                        "prompt": { "type": "string" },
+                        "negativePrompt": { "type": "string" },
+                        "seconds": { "type": "integer" },
+                        "size": { "type": "string" },
+                        "readinessHash": { "type": "string" },
+                        "confirmUnknownCost": { "type": "boolean" }
+                      },
+                      "required": ["providerId", "projectId", "prompt"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["projectId", "submissions"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/shots/{id}/video-generation/preflight": {
+      "post": {
+        "tags": ["video-generation"],
+        "operationId": "video-generation.preflight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shotId": { "type": "string" },
+                    "providerId": { "type": "string" },
+                    "snapshotHash": { "type": "string" },
+                    "ready": { "type": "boolean" },
+                    "adoptedStillId": { "type": "string" },
+                    "lockedAssetIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "blockers": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "costStatus": {
+                      "type": "string",
+                      "enum": ["known", "unknown"]
+                    },
+                    "estimatedCost": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            { "type": "number" },
+                            { "type": "string", "enum": ["NaN"] },
+                            { "type": "string", "enum": ["Infinity"] },
+                            { "type": "string", "enum": ["-Infinity"] }
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": ["Infinity", "-Infinity", "NaN"]
+                        }
+                      ]
+                    },
+                    "currency": { "type": "string" }
+                  },
+                  "required": [
+                    "shotId",
+                    "providerId",
+                    "snapshotHash",
+                    "ready",
+                    "lockedAssetIds",
+                    "blockers",
+                    "warnings",
+                    "costStatus"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": { "type": "string" },
+                  "projectId": { "type": "string" },
+                  "episodeId": { "type": "string" },
+                  "shotId": { "type": "string" },
+                  "prompt": { "type": "string" },
+                  "negativePrompt": { "type": "string" },
+                  "seconds": { "type": "integer" },
+                  "size": { "type": "string" },
+                  "readinessHash": { "type": "string" },
+                  "confirmUnknownCost": { "type": "boolean" }
+                },
+                "required": ["providerId", "projectId", "prompt"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/video-generation/runs": {
       "post": {
         "tags": ["video-generation"],
@@ -14853,7 +15166,9 @@
                   "prompt": { "type": "string" },
                   "negativePrompt": { "type": "string" },
                   "seconds": { "type": "integer" },
-                  "size": { "type": "string" }
+                  "size": { "type": "string" },
+                  "readinessHash": { "type": "string" },
+                  "confirmUnknownCost": { "type": "boolean" }
                 },
                 "required": ["providerId", "projectId", "prompt"],
                 "additionalProperties": false

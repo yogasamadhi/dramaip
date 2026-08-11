@@ -126,6 +126,9 @@ import {
   TtsGenerationInput,
   TtsGenerationRun,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflightInput,
+  VideoGenerationBatchPreflight,
   VideoGenerationJob,
   VideoGenerationRetryInput,
   CreativeCaseStudy,
@@ -1285,6 +1288,30 @@ const TtsGenerationGroup = HttpApiGroup.make("tts-generation").add(
 );
 
 const VideoGenerationGroup = HttpApiGroup.make("video-generation")
+  .add(
+    HttpApiEndpoint.post(
+      "batchPreflight",
+      `${API_PREFIX}/projects/:id/video-generation/batch-preflight`,
+      {
+        params: { id: Schema.String },
+        payload: VideoGenerationBatchPreflightInput,
+        success: VideoGenerationBatchPreflight,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "preflight",
+      `${API_PREFIX}/shots/:id/video-generation/preflight`,
+      {
+        params: { id: Schema.String },
+        payload: VideoGenerationInput,
+        success: VideoGenerationPreflight,
+        error: ApiError,
+      },
+    ),
+  )
   .add(
     HttpApiEndpoint.post("create", `${API_PREFIX}/video-generation/runs`, {
       payload: VideoGenerationInput,
