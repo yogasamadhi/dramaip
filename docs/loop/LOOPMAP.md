@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-05`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-06`。
 
 ## 1. 总体目标与范围
 
@@ -339,7 +339,7 @@ make platform-down
 | LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
 | LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
 | LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
-| LM6-05  | P0       | Production Workflow | todo   | 0        | —                                                | 1–3 集可恢复试制向导                  | LM6-04        |
+| LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
 | LM6-06  | P0 Gate  | Release             | todo   | 0        | —                                                | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | todo   | 0        | —                                                | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | todo   | 0        | —                                                | 卡片式导演分镜看板                    | LM6-10        |
@@ -487,7 +487,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Production Workflow
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-04
 - **Goal**：把三种创建路径收敛到一条可暂停、可恢复、有人审的 1–3 集试制流程，而不是让新用户从整季复杂生产开始。
 - **Scope**：试制范围、源内容选择、剧本 / 分镜计划、依赖任务、人工通过 / 退回、覆盖率、成本与能力摘要、驾驶舱恢复入口。
@@ -506,8 +506,8 @@ make platform-down
 - **Verification**：orchestration state-machine tests；1 / 2 / 3 集参数化测试；resume / retry / cancel / idempotency tests；三入口 Electron E2E；任务覆盖率 truth tests。
 - **Risk**：将向导状态与真实领域状态重复存储；只保存用户决策和运行游标，完成度由权威实体派生。
 - **Rollback boundary**：可删除未采用的试制运行记录；已采用内容保留并可从高级工作区访问。
-- **未完成收束**：按 5.3 保留 `loop/lm6-05-pilot-wizard`；记录 state-machine 游标、1 / 2 / 3 集中已通过参数组和 resume / retry 失败状态。
-- **下一次动作**：重跑首个失败状态转换；若上游内容 Loop 未完成，使用冻结 pilot fixture 推进编排、恢复和 truth-state 测试。
+- **未完成收束**：无；运行游标只保存来源确认和范围，阶段/覆盖率均由权威实体派生。
+- **下一次动作**：开始 LM6-06 P0 Gate，按三入口、旧数据、离线和恢复矩阵执行集成验证。
 
 ### LM6-06：P0 首次价值与兼容性 Gate
 
@@ -1062,3 +1062,25 @@ LM6-00
 - Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-04.test.ts`、`tests/electron/lm6-04.spec.ts`、`tests/fixtures/lm6/lm6-04/extraction-contract.json`、用户指南与 merge/push 提交。
 - Next attempt: 开始 LM6-05，先运行 `git fetch origin` 并创建 `loop/lm6-05-pilot-wizard`；fallback: 先以 1 / 2 / 3 集 fixture 固定可恢复状态机、人工 Gate 和 retry / resume，再接制作页。
 - Sweep cursor: LM6-05
+
+### LM6-05 / Attempt 1 — 2026-08-12 01:45 CST
+
+- Loop: LM6-05
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-05-pilot-wizard
+- Commit(s): `f3cb6d15 feat(pilot): add LM6-05 recoverable pilot wizard`
+- Merge commit: `f5af2b67 merge: LM6-05 recoverable pilot wizard`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit`: PASS — 12 个 typecheck、174 条 unit 断言与 Node HTTP contract 通过；覆盖 1/2/3 集上限、确认幂等、stale/resume 与取消边界。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS。
+  - `bun run build && bun run test:e2e`: PASS — 8 个 Electron 场景通过，新增原著导入 → 一集试制 → 来源确认 → 唯一待办路径。
+- Diff review: PASS — 只增加 pilot plan schema/protocol/client、持久化运行游标、由权威实体派生的阶段/覆盖率、项目页向导、测试/fixture/用户指南；无凭据、缓存或构建产物。
+- Remote sync: PASS — 合并前 `origin/main` 为 `232922a1`；无快进 merge `f5af2b67` 已推送。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-05-pilot-wizard` 与 `/Volumes/A/code/project/dramaIp-lm6-05`。
+- Completed: 用户可从已有章节建立 1–3 集试制；人工确认来源后幂等创建试制改编方案与分集，之后剧本/场景/分镜/资产阶段和唯一下一步完全由真实实体覆盖率决定。来源变化标为 stale，可重置当前来源版本后继续；取消不删除已采用内容。
+- Unfinished: 无；不在此 Loop 生成图片或视频，真实媒体能力仍由后续生产链与 Gate 约束。
+- Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-05.test.ts`、`tests/electron/lm6-05.spec.ts`、用户指南及 merge/push 提交。
+- Next attempt: 开始 LM6-06 P0 Gate，先重跑完整自动化矩阵；发现缺陷回到所属 Loop 修复，不在 Gate 临时扩功能。
+- Sweep cursor: LM6-06
