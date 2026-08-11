@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11 已完成并已推送；其余 Loop 为 `todo`。
-> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-12`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12 已完成并已推送；其余 Loop 为 `todo`。
+> - 执行模式：无人值守 sweep；当前 sweep 为 `0`，下一个游标为 `LM6-13`。
 
 ## 1. 总体目标与范围
 
@@ -82,7 +82,7 @@
 | 已有试制覆盖率与计划概念                                 | 缺少串联内容、剧本、分镜与人工 Gate 的向导                 | 试制不是一条可恢复的用户旅程       | LM6-05         |
 | 视觉资产已有结构与锁                                     | 界面仍偏表单，媒体预览、版本比较和镜头用途不够直观         | 难以保持角色与场景一致性           | LM6-10         |
 | 分镜、镜头和生产任务已存在                               | 缺少导演可扫视和重排的卡片看板                             | 生产过程不够视觉化                 | LM6-11         |
-| 已有渲染预检和远程视频任务                               | 静帧采用没有成为不可绕过的视频前置条件                     | 可能在错误视觉方向上浪费高成本生成 | LM6-12         |
+| 已有渲染预检和远程视频任务                               | 静帧采用、资产锁、权利、费用与提交快照现已由服务端统一 Gate | 避免在错误视觉方向上浪费高成本生成 | LM6-12         |
 | 爽点、节拍、反转等分析有数据基础                         | 没有在集级工作区形成可定位的节奏曲线                       | 诊断与修改脱节                     | LM6-13         |
 | Story Bible 页面和变更包已存在                           | 写作时不能常驻查看当前人物、时间线、伏笔和视觉锁           | 连续性记忆与正文编辑割裂           | LM6-14         |
 | 有镜头、视频、配音、字幕等实体 / 任务                    | 没有可播放的多轨编辑语义和自动装配结果                     | 无法形成“看得见”的成片结构         | LM6-20、LM6-21 |
@@ -343,7 +343,7 @@ make platform-down
 | LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过           | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
 | LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
 | LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
-| LM6-12  | P1       | Media Pipeline      | todo   | 0        | —                                                | 静帧先行与视频成本 Gate               | LM6-11        |
+| LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过         | 静帧先行与视频成本 Gate               | LM6-11        |
 | LM6-13  | P1       | Story Intelligence  | todo   | 0        | —                                                | 集级节奏曲线与定位修订                | LM6-12        |
 | LM6-14  | P1       | Story Intelligence  | todo   | 0        | —                                                | 章节编辑器常驻 Story Bible            | LM6-13        |
 | LM6-15  | P1 Gate  | Release             | todo   | 0        | —                                                | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
@@ -1160,3 +1160,29 @@ LM6-00
 - Next attempt: 开始 LM6-12，先运行 `git fetch origin` 并创建 `loop/lm6-12-still-first-gate`；fallback: 先以调用记录型 fake adapter 建立静帧采用 / stale、资产锁、权利、费用、幂等与“零视频提交”契约，再接预检界面。
 - Sweep cursor: LM6-12
 - Notes: 缺失受控静帧时看板明确显示状态，不伪造缩略图；长场景只渲染首段 50 张卡片。镜头上下文会计入助手任务与盲测的输入估算，不会静默改变项目、资产或任务权威状态。
+
+### LM6-12 / Attempt 1 — 2026-08-12 02:34 CST
+
+- Loop: LM6-12
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-12-still-first-gate`
+- Commit(s): `d764e1d7 feat(video): add LM6-12 still-first readiness gate`
+- Merge commit: `412b0e28 merge: LM6-12 still-first video gate`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、244 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 15 个 Electron 场景全部通过。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — fake Provider 记录零次阻断调用；静帧 / 已锁定授权资产 / 成本确认 / 快照一致时才发出一次视频调用；幂等重放不增加调用或任务，批量预检会逐项保留阻断并发现并发上限。
+  - `tests/electron/lm6-12.spec.ts`: PASS — 未通过 Gate 时提交按钮禁用，桌面端没有发出 `/api/v1/video-generation/runs` 请求。
+  - readiness truth table: PASS — 缺少采用静帧、过期或未锁定资产、权利未核验、费用未知未确认、服务商配置不完整、输入提示 / 时长偏离镜头确认基线、并发上限和快照改变均由服务端在厂商 HTTP 调用前阻断。
+- Diff review: PASS — 仅包含静帧确认指纹、视频预检 / 批量预检协议与生成客户端、服务端 Gate / 幂等 / 账本记录、视频表单、fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物或未关联格式化改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `8aa7e53e`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `412b0e28` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-12-still-first-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-12`。
+- Current branch/worktree: `integrate/lm6-12-still-first-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-12`; 仅有本执行记录的显式改动。
+- Completed: 采用静帧会冻结镜头提示、时长、静帧版本和资产版本指纹；视频提交仅接受服务器预检快照。服务端校验采用 / stale、资产采用锁定、权利、资产服务状态、费用确认、Provider 配置、镜头输入基线、单项 / 批量并发上限和幂等键，并将静帧、资产、快照与费用状态写入任务和生成账本。前端会预填镜头基线、显示逐项阻断与费用确认，并在提交前再次校验。
+- Unfinished: 无；真正的批量提交队列、多轨时间线与最终成片仍属于后续 Loop，不将预检结果伪装为最终渲染。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-12.test.ts`、`dramaip-desktop/tests/electron/lm6-12.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-12/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-13，先运行 `git fetch origin` 并创建 `loop/lm6-13-episode-pacing`; fallback: 先基于现有剧本 / 场景 / 分镜只读数据建立节奏 read model、阈值 fixture 与定位修订任务，再接可视化和编辑器跳转。
+- Sweep cursor: LM6-13
+- Notes: 服务端是付费视频 Gate 的唯一权威；UI 禁用、Agent 厂商预览和旧直接调用路径都不能绕过静帧、权利、费用或快照验证。费用未知的确认只允许提交，不伪造已知成本；实际费用仍须在生成账本补录。
