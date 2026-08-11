@@ -8940,6 +8940,7 @@ function AudioProductionPanel(props: {
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           <select
+            aria-label="音频服务商"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={ttsProviderId}
             onChange={(event) => setTtsProviderId(event.target.value)}
@@ -8985,6 +8986,7 @@ function AudioProductionPanel(props: {
             onChange={(event) => setTrackLabel(event.target.value)}
           />
           <select
+            aria-label="音轨类别"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={trackKind}
             onChange={(event) =>
@@ -8997,6 +8999,7 @@ function AudioProductionPanel(props: {
             <option value="sfx">音效</option>
           </select>
           <select
+            aria-label="音轨素材"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={assetId}
             onChange={(event) => setAssetId(event.target.value)}
@@ -9009,6 +9012,7 @@ function AudioProductionPanel(props: {
             ))}
           </select>
           <select
+            aria-label="音轨音色"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={voiceProfileId}
             onChange={(event) => setVoiceProfileId(event.target.value)}
@@ -9301,6 +9305,12 @@ function TimelineEditorPanel(props: {
   const [trimStart, setTrimStart] = useState("");
   const [trimDuration, setTrimDuration] = useState("");
   const [relinkAssetId, setRelinkAssetId] = useState("");
+  const [clipVolume, setClipVolume] = useState("1");
+  const [includeAssemblySubtitles, setIncludeAssemblySubtitles] =
+    useState(true);
+  const [selectedAssemblyTrackIds, setSelectedAssemblyTrackIds] = useState<
+    string[]
+  >([]);
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState(false);
   const mediaRef = useRef<HTMLMediaElement | null>(null);
@@ -9313,6 +9323,15 @@ function TimelineEditorPanel(props: {
     queryKey: ["timeline", "history", timeline?.id],
     queryFn: () => client.timeline.history(timeline!.id),
     enabled: Boolean(timeline?.id),
+  });
+  const {
+    data: audioAssembly,
+    isFetching: isLoadingAudioAssembly,
+    refetch: refetchAudioAssembly,
+  } = useQuery({
+    queryKey: ["timeline", "audio-assembly", props.episodeId],
+    queryFn: () => client.timeline.audioAssemblyPreview(props.episodeId),
+    enabled: false,
   });
   const { data: mediaAssets = [] } = useQuery({
     queryKey: ["timeline", "media-assets", props.projectId],
@@ -9400,6 +9419,9 @@ function TimelineEditorPanel(props: {
     preview?.dataUrl,
   ]);
   useEffect(() => {
+    const hasVoice = activeAudio.some((item) =>
+      ["dialogue", "narration"].includes(item.track.kind),
+    );
     activeAudio.forEach((item, index) => {
       const media = audioMediaRefs.current[item.clip.id];
       const preview = audioPreviews[index]?.data;
@@ -9410,6 +9432,17 @@ function TimelineEditorPanel(props: {
       );
       if (Math.abs(media.currentTime - offset) > 0.15)
         media.currentTime = offset;
+      const volume = Math.max(
+        0,
+        Math.min(
+          1,
+          (item.clip.volume ?? 1) *
+            (item.track.kind === "bgm" && hasVoice
+              ? (item.clip.duckingGain ?? 0.55)
+              : 1),
+        ),
+      );
+      if (Math.abs(media.volume - volume) > 0.01) media.volume = volume;
       if (playing) void media.play().catch(() => undefined);
       else media.pause();
     });
@@ -9430,6 +9463,7 @@ function TimelineEditorPanel(props: {
     setTrimStart(String(selected.clip.startSeconds));
     setTrimDuration(String(selected.clip.durationSeconds));
     setRelinkAssetId(selected.clip.assetId ?? "");
+    setClipVolume(String(selected.clip.volume ?? 1));
   }, [selectedClipId]);
 
   const refreshHistory = async () => {
@@ -9477,6 +9511,42 @@ function TimelineEditorPanel(props: {
       .flatMap((track) => track.clips)
       .find((clip) => clip.id === id);
     if (found) setPlayhead(found.startSeconds);
+  };
+  const reviewAudioAssembly = async () => {
+    try {
+      const result = await refetchAudioAssembly();
+      if (result.data) {
+        setSelectedAssemblyTrackIds(
+          [...new Set(result.data.clips.map((clip) => clip.audioTrackId))],
+        );
+        setNotice("已生成自动编排预览；请试听、核对字幕和保护项后再采用。");
+      }
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const applyAudioAssembly = async () => {
+    if (!timeline || !audioAssembly) return;
+    setWorking(true);
+    try {
+      const saved = await client.timeline.applyAudioAssembly(props.episodeId, {
+        timelineVersion: timeline.version,
+        audioTrackIds: selectedAssemblyTrackIds,
+        includeSubtitles: includeAssemblySubtitles,
+      });
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice("已采用选中的自动编排；人工移动、裁切、音量和锁定片段保持不变。");
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "audio-assembly", props.episodeId],
+        }),
+      ]);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
   };
   const onKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
@@ -9532,6 +9602,107 @@ function TimelineEditorPanel(props: {
           v{timeline.version} · 总长 {timeline.durationSeconds.toFixed(2)} 秒
         </p>
       </div>
+      <section
+        className="rounded-xl border border-line bg-page p-3"
+        aria-label="自动音频字幕编排"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-medium">自动音频与字幕编排</h3>
+            <p className="mt-1 text-xs text-muted">
+              基于已采用音轨生成可审查 change set；不会覆盖人工移动、裁切、音量调整或锁定片段。
+            </p>
+          </div>
+          <button
+            className="rounded border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={isLoadingAudioAssembly || working}
+            onClick={() => void reviewAudioAssembly()}
+          >
+            {isLoadingAudioAssembly ? "正在生成预览…" : "审查自动编排"}
+          </button>
+        </div>
+        {audioAssembly && (
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2 text-sm">
+              <p>
+                候选 {audioAssembly.clips.length} 段 · 字幕 {audioAssembly.subtitleCues.length} 条 · 受保护人工片段 {audioAssembly.protectedClipIds.length} 个
+              </p>
+              {[...new Set(audioAssembly.clips.map((clip) => clip.audioTrackId))].map(
+                (trackId) => {
+                  const clips = audioAssembly.clips.filter(
+                    (clip) => clip.audioTrackId === trackId,
+                  );
+                  const first = clips[0]!;
+                  const checked = selectedAssemblyTrackIds.includes(trackId);
+                  return (
+                    <label
+                      key={trackId}
+                      className="flex items-center gap-2 rounded border border-line bg-surface p-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setSelectedAssemblyTrackIds((current) =>
+                            checked
+                              ? current.filter((id) => id !== trackId)
+                              : [...current, trackId],
+                          )
+                        }
+                      />
+                      <span>
+                        {timelineTrackLabel(first.kind)} · {first.name} · {clips.length} 段 · {first.rightsStatus === "cleared" ? "权利已核验" : first.rightsStatus === "restricted" ? "权利受限" : "权利待核验"}
+                      </span>
+                    </label>
+                  );
+                },
+              )}
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={includeAssemblySubtitles}
+                  onChange={(event) =>
+                    setIncludeAssemblySubtitles(event.target.checked)
+                  }
+                />
+                同时采用由对白/旁白切分的可编辑字幕（SRT / WebVTT 已预览）
+              </label>
+              <button
+                className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+                disabled={
+                  working ||
+                  !selectedAssemblyTrackIds.length ||
+                  selectedAssemblyTrackIds.some((trackId) =>
+                    audioAssembly.clips.some(
+                      (clip) =>
+                        clip.audioTrackId === trackId &&
+                        clip.rightsStatus === "restricted",
+                    ),
+                  )
+                }
+                onClick={() => void applyAudioAssembly()}
+              >
+                采用选中的自动编排
+              </button>
+            </div>
+            <div className="space-y-2 text-xs text-muted">
+              {audioAssembly.warnings.map((warning) => (
+                <p key={warning} className="rounded bg-amber-50 p-2 text-amber-900">
+                  {warning}
+                </p>
+              ))}
+              {audioAssembly.srt && (
+                <details>
+                  <summary className="cursor-pointer text-brand">查看 SRT / WebVTT 字幕预览</summary>
+                  <pre className="mt-2 max-h-36 overflow-auto rounded bg-surface p-2 whitespace-pre-wrap">
+                    {audioAssembly.srt}
+                  </pre>
+                </details>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
       <section className="grid gap-3 rounded-xl border border-line bg-page p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -9730,7 +9901,11 @@ function TimelineEditorPanel(props: {
             <p className="mt-1 text-xs text-muted">
               {timelineTrackLabel(selected.track.kind)} ·{" "}
               {timelineMediaStatusLabel(selected.clip.mediaStatus)} ·{" "}
-              {selected.clip.manuallyEdited ? "有人工编辑" : "源装配"}
+              {selected.clip.locked
+                ? "已锁定，自动编排受保护"
+                : selected.clip.manuallyEdited
+                  ? "有人工编辑"
+                  : "源装配"}
             </p>
             {selected.clip.text && (
               <p className="mt-2 text-sm">{selected.clip.text}</p>
@@ -9812,6 +9987,53 @@ function TimelineEditorPanel(props: {
             >
               在中点分割
             </button>
+            {[
+              "dialogue",
+              "narration",
+              "bgm",
+              "sfx",
+            ].includes(selected.track.kind) && (
+              <>
+                <label className="grid gap-1 text-xs">
+                  片段音量（0–2）
+                  <input
+                    className="rounded border border-line px-2 py-1 text-sm"
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="0.01"
+                    value={clipVolume}
+                    onChange={(event) => setClipVolume(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="self-end rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+                  disabled={working}
+                  onClick={() =>
+                    void apply({
+                      type: "set-clip-audio",
+                      clipId: selected.clip.id,
+                      volume: Number(clipVolume),
+                    })
+                  }
+                >
+                  保存音量
+                </button>
+                <button
+                  className="rounded border border-brand px-2 py-1 text-sm text-brand disabled:opacity-50"
+                  disabled={working}
+                  onClick={() =>
+                    void apply({
+                      type: "set-clip-audio",
+                      clipId: selected.clip.id,
+                      locked: !selected.clip.locked,
+                    })
+                  }
+                >
+                  {selected.clip.locked ? "解除编排锁定" : "锁定，保护自动编排"}
+                </button>
+              </>
+            )}
           </div>
           <div className="grid gap-2">
             <label className="grid gap-1 text-xs">

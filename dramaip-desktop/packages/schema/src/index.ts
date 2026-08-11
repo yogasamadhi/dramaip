@@ -1229,6 +1229,14 @@ export const TimelineClip = Schema.Struct({
   sourceOffsetSeconds: Schema.Number,
   mediaStatus: TimelineMediaStatus,
   text: Schema.optionalKey(Schema.String),
+  /** 音频片段的非破坏性混音参数；视频和字幕可省略。 */
+  volume: Schema.optionalKey(Schema.Number),
+  fadeInSeconds: Schema.optionalKey(Schema.Number),
+  fadeOutSeconds: Schema.optionalKey(Schema.Number),
+  /** BGM 在对白 / 旁白存在时采用的相对增益。 */
+  duckingGain: Schema.optionalKey(Schema.Number),
+  /** 用户显式锁定，自动编排不得替换或删除该片段。 */
+  locked: Schema.optionalKey(Schema.Boolean),
   manuallyEdited: Schema.Boolean,
 });
 export interface TimelineClip {
@@ -1243,6 +1251,11 @@ export interface TimelineClip {
   sourceOffsetSeconds: number;
   mediaStatus: TimelineMediaStatus;
   text?: string;
+  volume?: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+  duckingGain?: number;
+  locked?: boolean;
   manuallyEdited: boolean;
 }
 
@@ -1324,6 +1337,12 @@ export const TimelineEditCommand = Schema.Union([
     clipId: Id,
     assetId: Id,
   }),
+  Schema.Struct({
+    type: Schema.Literal("set-clip-audio"),
+    clipId: Id,
+    volume: Schema.optionalKey(Schema.Number),
+    locked: Schema.optionalKey(Schema.Boolean),
+  }),
 ]);
 export type TimelineEditCommand =
   | { type: "move"; clipId: Id; startSeconds: number }
@@ -1340,7 +1359,13 @@ export type TimelineEditCommand =
       muted?: boolean;
       solo?: boolean;
     }
-  | { type: "relink"; clipId: Id; assetId: Id };
+  | { type: "relink"; clipId: Id; assetId: Id }
+  | {
+      type: "set-clip-audio";
+      clipId: Id;
+      volume?: number;
+      locked?: boolean;
+    };
 
 export const TimelineCommandInput = Schema.Struct({
   version: Schema.Int,
@@ -1369,6 +1394,112 @@ export interface TimelineMediaPreview {
   id: Id;
   kind: "image" | "audio" | "video";
   dataUrl: string;
+}
+
+/**
+ * 自动音频编排只引用已采用的版本化音轨。预览中的每一项都带回到文本、音色、
+ * 素材、服务商、成本和权利状态的最小可审查谱系，不暴露凭据或本地绝对路径。
+ */
+export const AudioAssemblyClip = Schema.Struct({
+  id: Id,
+  audioTrackId: Id,
+  sourceClipId: Id,
+  kind: Schema.Literals(["dialogue", "narration", "bgm", "sfx"]),
+  name: Schema.String,
+  shotId: Schema.optionalKey(Id),
+  assetId: Schema.optionalKey(Id),
+  voiceProfileId: Schema.optionalKey(Id),
+  text: Schema.optionalKey(Schema.String),
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  volume: Schema.Number,
+  fadeInSeconds: Schema.Number,
+  fadeOutSeconds: Schema.Number,
+  duckingGain: Schema.optionalKey(Schema.Number),
+  overflowSeconds: Schema.Number,
+  provider: Schema.String,
+  cost: Schema.optionalKey(Schema.Number),
+  rightsStatus: Schema.Union([
+    Schema.Literal("cleared"),
+    Schema.Literal("unknown"),
+    Schema.Literal("restricted"),
+  ]),
+});
+export interface AudioAssemblyClip {
+  id: Id;
+  audioTrackId: Id;
+  sourceClipId: Id;
+  kind: AudioTrackKind;
+  name: string;
+  shotId?: Id;
+  assetId?: Id;
+  voiceProfileId?: Id;
+  text?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  volume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  duckingGain?: number;
+  overflowSeconds: number;
+  provider: string;
+  cost?: number;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+}
+
+export const SubtitleCue = Schema.Struct({
+  id: Id,
+  audioTrackId: Id,
+  sourceClipId: Id,
+  shotId: Schema.optionalKey(Id),
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  text: Schema.String,
+});
+export interface SubtitleCue {
+  id: Id;
+  audioTrackId: Id;
+  sourceClipId: Id;
+  shotId?: Id;
+  startSeconds: number;
+  durationSeconds: number;
+  text: string;
+}
+
+export const AudioAssemblyPreview = Schema.Struct({
+  timelineId: Id,
+  timelineVersion: Schema.Int,
+  sourceFingerprint: Schema.String,
+  clips: Schema.Array(AudioAssemblyClip),
+  subtitleCues: Schema.Array(SubtitleCue),
+  srt: Schema.String,
+  webVtt: Schema.String,
+  warnings: Schema.Array(Schema.String),
+  protectedClipIds: Schema.Array(Id),
+  staleTrackIds: Schema.Array(Id),
+});
+export interface AudioAssemblyPreview {
+  timelineId: Id;
+  timelineVersion: number;
+  sourceFingerprint: string;
+  clips: AudioAssemblyClip[];
+  subtitleCues: SubtitleCue[];
+  srt: string;
+  webVtt: string;
+  warnings: string[];
+  protectedClipIds: Id[];
+  staleTrackIds: Id[];
+}
+
+export const AudioAssemblyApplyInput = Schema.Struct({
+  timelineVersion: Schema.Int,
+  audioTrackIds: Schema.Array(Id),
+  includeSubtitles: Schema.Boolean,
+});
+export interface AudioAssemblyApplyInput {
+  timelineVersion: number;
+  audioTrackIds: Id[];
+  includeSubtitles: boolean;
 }
 export const EditorExportPreflight = Schema.Struct({
   canExport: Schema.Boolean,
@@ -2291,6 +2422,8 @@ export const AudioTrackClip = Schema.Struct({
   startSeconds: Schema.Number,
   durationSeconds: Schema.Number,
   text: Schema.optionalKey(Schema.String),
+  /** 片段级谱系，避免无关台词修改使整条分集音频全部失效。 */
+  sourceFingerprint: Schema.optionalKey(Schema.String),
 });
 export interface AudioTrackClip {
   id: Id;
@@ -2300,6 +2433,7 @@ export interface AudioTrackClip {
   startSeconds: number;
   durationSeconds: number;
   text?: string;
+  sourceFingerprint?: string;
 }
 
 export const AudioTrackClipInput = Schema.Struct({

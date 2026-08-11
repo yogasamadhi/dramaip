@@ -106,6 +106,8 @@ import {
   TimelineCommandInput,
   TimelineHistoryAvailability,
   TimelineMediaPreview,
+  AudioAssemblyPreview,
+  AudioAssemblyApplyInput,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -886,6 +888,29 @@ const TimelineGroup = HttpApiGroup.make("timeline")
       success: TimelineMediaPreview,
       error: ApiError,
     }),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "audioAssemblyPreview",
+      `${API_PREFIX}/episodes/:id/audio-assembly/preview`,
+      {
+        params: { id: Schema.String },
+        success: AudioAssemblyPreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "applyAudioAssembly",
+      `${API_PREFIX}/episodes/:id/audio-assembly/apply`,
+      {
+        params: { id: Schema.String },
+        payload: AudioAssemblyApplyInput,
+        success: TimelineManifest,
+        error: ApiError,
+      },
+    ),
   );
 
 const ReviewEditorGroup = HttpApiGroup.make("review-editor")

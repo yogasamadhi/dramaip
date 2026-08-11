@@ -104,6 +104,8 @@ import type {
   TimelineCommandInput,
   TimelineHistoryAvailability,
   TimelineMediaPreview,
+  AudioAssemblyPreview,
+  AudioAssemblyApplyInput,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
@@ -334,6 +336,11 @@ export interface StudioClient {
     redo(id: string): Promise<TimelineManifest>;
     history(id: string): Promise<TimelineHistoryAvailability>;
     preview(id: string): Promise<TimelineMediaPreview>;
+    audioAssemblyPreview(episodeId: string): Promise<AudioAssemblyPreview>;
+    applyAudioAssembly(
+      episodeId: string,
+      input: AudioAssemblyApplyInput,
+    ): Promise<TimelineManifest>;
   };
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
@@ -1019,6 +1026,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
       preview: (id) =>
         request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
+      audioAssemblyPreview: (episodeId) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,
+        ),
+      applyAudioAssembly: (episodeId, input) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/apply`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
     },
     reviewEditor: {
       timeline: (episodeId) =>

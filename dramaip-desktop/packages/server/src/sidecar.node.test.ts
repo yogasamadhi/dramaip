@@ -2879,6 +2879,196 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(timelineAudioPreview.status, 200);
     assert.equal(timelineAudioPreview.body.kind, "audio");
     assert.match(timelineAudioPreview.body.dataUrl, /^data:audio\/wav;base64,/);
+    const dialogueTrack = await request<{ id: string; stale: boolean }>(
+      "/api/v1/audio-tracks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          kind: "dialogue",
+          label: "门口对白 v1",
+          clips: [
+            {
+              shotId: shot.body.id,
+              assetId: playableTimelineAudio.body.id,
+              voiceProfileId: voiceProfile.body.id,
+              startSeconds: 0,
+              durationSeconds: 2.4,
+              text: "这封信不能让任何人看见。",
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(dialogueTrack.status, 201);
+    assert.equal(dialogueTrack.body.stale, false);
+    const bgmTrack = await request<{ id: string; stale: boolean }>(
+      "/api/v1/audio-tracks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          kind: "bgm",
+          label: "雨夜氛围配乐",
+          clips: [
+            {
+              assetId: playableTimelineAudio.body.id,
+              startSeconds: 0,
+              durationSeconds: 5,
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(bgmTrack.status, 201);
+    assert.equal(bgmTrack.body.stale, false);
+    for (const trackId of [dialogueTrack.body.id, bgmTrack.body.id]) {
+      const adopted = await request<{ status: string }>(
+        `/api/v1/audio-tracks/${trackId}/adopt`,
+        { method: "POST" },
+      );
+      assert.equal(adopted.status, 200);
+      assert.equal(adopted.body.status, "adopted");
+    }
+    const audioAssemblyPreview = await request<{
+      timelineId: string;
+      timelineVersion: number;
+      clips: Array<{
+        id: string;
+        audioTrackId: string;
+        kind: string;
+        volume: number;
+        duckingGain?: number;
+        rightsStatus: string;
+      }>;
+      subtitleCues: Array<{ text: string }>;
+      srt: string;
+      webVtt: string;
+      protectedClipIds: string[];
+      staleTrackIds: string[];
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/preview`);
+    assert.equal(audioAssemblyPreview.status, 200);
+    assert.equal(
+      audioAssemblyPreview.body.timelineId,
+      canonicalTimeline.body.id,
+    );
+    assert.ok(
+      audioAssemblyPreview.body.protectedClipIds.includes(
+        canonicalNarration.clips[0]!.id,
+      ),
+      "重链接属于人工编辑，自动编排必须保护它",
+    );
+    const plannedBgm = audioAssemblyPreview.body.clips.find(
+      (clip) => clip.audioTrackId === bgmTrack.body.id,
+    );
+    assert.equal(plannedBgm?.kind, "bgm");
+    assert.equal(plannedBgm?.volume, 0.24);
+    assert.equal(plannedBgm?.duckingGain, 0.55);
+    assert.equal(plannedBgm?.rightsStatus, "unknown");
+    assert.ok(
+      audioAssemblyPreview.body.subtitleCues.some((cue) =>
+        cue.text.includes("不能让任何人"),
+      ),
+    );
+    assert.match(audioAssemblyPreview.body.srt, /不能让任何人/);
+    assert.match(audioAssemblyPreview.body.webVtt, /^WEBVTT/);
+    const assembledTimeline = await request<{
+      version: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{
+          id: string;
+          audioTrackId?: string;
+          assetId?: string;
+          volume?: number;
+          duckingGain?: number;
+          text?: string;
+        }>;
+      }>;
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/apply`, {
+      method: "POST",
+      body: JSON.stringify({
+        timelineVersion: audioAssemblyPreview.body.timelineVersion,
+        audioTrackIds: [dialogueTrack.body.id, bgmTrack.body.id],
+        includeSubtitles: true,
+      }),
+    });
+    assert.equal(assembledTimeline.status, 200);
+    const assembledNarration = assembledTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!.clips[0]!;
+    assert.equal(
+      assembledNarration.assetId,
+      playableTimelineAudio.body.id,
+      "受保护的人工重链接不能被自动编排替换",
+    );
+    const assembledBgm = assembledTimeline.body.tracks
+      .find((track) => track.kind === "bgm")!
+      .clips.find((clip) => clip.audioTrackId === bgmTrack.body.id)!;
+    assert.equal(assembledBgm.volume, 0.24);
+    assert.equal(assembledBgm.duckingGain, 0.55);
+    assert.ok(
+      assembledTimeline.body.tracks
+        .find((track) => track.kind === "subtitle")!
+        .clips.some((clip) => clip.text?.includes("不能让任何人")),
+    );
+    const undoAssembly = await request<{
+      tracks: Array<{ kind: string; clips: Array<{ audioTrackId?: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(undoAssembly.status, 200);
+    assert.ok(
+      !undoAssembly.body.tracks
+        .find((track) => track.kind === "bgm")!
+        .clips.some((clip) => clip.audioTrackId === bgmTrack.body.id),
+      "自动编排应作为一个可撤销的 change set",
+    );
+    const redoAssembly = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ audioTrackId?: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/redo`, {
+      method: "POST",
+    });
+    assert.equal(redoAssembly.status, 200);
+    assert.ok(
+      redoAssembly.body.tracks
+        .find((track) => track.kind === "bgm")!
+        .clips.some((clip) => clip.audioTrackId === bgmTrack.body.id),
+    );
+    const currentShot = await request<{
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/shots/${shot.body.id}`);
+    const updatedShot = await request<{ version: number }>(
+      `/api/v1/shots/${shot.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: currentShot.body.title,
+          version: currentShot.body.version,
+          payload: {
+            ...currentShot.body.payload,
+            对白: "这封信只能由我保管。",
+          },
+        }),
+      },
+    );
+    assert.equal(updatedShot.status, 200);
+    const partialStalePreview = await request<{
+      staleTrackIds: string[];
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/preview`);
+    assert.equal(partialStalePreview.status, 200);
+    assert.ok(
+      partialStalePreview.body.staleTrackIds.includes(dialogueTrack.body.id),
+    );
+    assert.ok(
+      !partialStalePreview.body.staleTrackIds.includes(bgmTrack.body.id),
+      "无关的项目级配乐不应因单句台词修改而过期",
+    );
     const timeline = await request<{
       clips: Array<{ shotId: string; mediaStatus: string }>;
     }>(`/api/v1/episodes/${first.body.id}/editor-timeline`);
