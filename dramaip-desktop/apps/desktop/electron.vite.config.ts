@@ -43,6 +43,10 @@ export default defineConfig({
         "@sdns/server": pkgSrc("server"),
         "@sdns/tasks": pkgSrc("tasks"),
         "@sdns/mcp": pkgSrc("mcp"),
+        "@sdns/ai-legacy/prompt-catalog": resolve(
+          root,
+          "../../packages/ai-legacy/src/prompt-catalog.generated.ts",
+        ),
         "@sdns/ai-legacy": resolve(
           root,
           "../../packages/ai-legacy/src/index.ts",

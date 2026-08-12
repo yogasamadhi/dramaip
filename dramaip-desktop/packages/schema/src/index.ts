@@ -560,6 +560,29 @@ export const AgentEngineDescriptor = Schema.Struct({
   name: Schema.String,
   version: Schema.String,
   status: Schema.Literals(["starting", "available", "degraded", "unavailable"]),
+  runtimeStatus: Schema.optionalKey(
+    Schema.Literals(["starting", "running", "stopped", "crashed"]),
+  ),
+  configurationStatus: Schema.optionalKey(
+    Schema.Literals([
+      "configured",
+      "missing_credentials",
+      "missing_model",
+      "login_required",
+    ]),
+  ),
+  invocationStatus: Schema.optionalKey(
+    Schema.Literals(["verified", "untested", "failed"]),
+  ),
+  canRun: Schema.optionalKey(Schema.Boolean),
+  lastCheckedAt: Schema.optionalKey(IsoDateTime),
+  lastFailure: Schema.optionalKey(
+    Schema.Struct({
+      code: Schema.String,
+      message: Schema.String,
+      occurredAt: IsoDateTime,
+    }),
+  ),
   isDefault: Schema.Boolean,
   isBeta: Schema.Boolean,
   statusMessage: Schema.optionalKey(Schema.String),
@@ -570,6 +593,13 @@ export interface AgentEngineDescriptor {
   name: string;
   version: string;
   status: "starting" | "available" | "degraded" | "unavailable";
+  runtimeStatus?: "starting" | "running" | "stopped" | "crashed";
+  configurationStatus?:
+    "configured" | "missing_credentials" | "missing_model" | "login_required";
+  invocationStatus?: "verified" | "untested" | "failed";
+  canRun?: boolean;
+  lastCheckedAt?: IsoDateTime;
+  lastFailure?: { code: string; message: string; occurredAt: IsoDateTime };
   isDefault: boolean;
   isBeta: boolean;
   statusMessage?: string;
@@ -682,6 +712,116 @@ export interface DomainEntityPatch {
   title?: string;
   payload?: unknown;
   version: number;
+}
+
+export const NovelChapterStatus = Schema.Struct({
+  chapterId: Id,
+  words: Schema.Int,
+  hasMemory: Schema.Boolean,
+  quality: Schema.optionalKey(Schema.Literals(["pass", "warn", "block"])),
+  latestTaskStatus: Schema.optionalKey(TaskStatus),
+});
+export interface NovelChapterStatus {
+  chapterId: Id;
+  words: number;
+  hasMemory: boolean;
+  quality?: "pass" | "warn" | "block";
+  latestTaskStatus?: TaskStatus;
+}
+
+export const NovelWorkspace = Schema.Struct({
+  project: Project,
+  chapters: Schema.Array(Chapter),
+  characters: Schema.Array(DomainEntity),
+  outlines: Schema.Array(DomainEntity),
+  storyArcs: Schema.Array(DomainEntity),
+  statuses: Schema.Array(NovelChapterStatus),
+});
+export interface NovelWorkspace {
+  project: Project;
+  chapters: Chapter[];
+  characters: DomainEntity[];
+  outlines: DomainEntity[];
+  storyArcs: DomainEntity[];
+  statuses: NovelChapterStatus[];
+}
+
+export const ChapterTextSelection = Schema.Struct({
+  text: Schema.String.pipe(Schema.check(Schema.isMinLength(1))),
+  from: Schema.optionalKey(Schema.Int),
+  to: Schema.optionalKey(Schema.Int),
+});
+export interface ChapterTextSelection {
+  text: string;
+  from?: number;
+  to?: number;
+}
+
+export const ChapterAgentRunInput = Schema.Struct({
+  taskType: AgentTaskType,
+  engineKind: AgentEngineKind,
+  model: Schema.optionalKey(AgentModelSelection),
+  prompt: Schema.optionalKey(Schema.String),
+  wordGoal: Schema.optionalKey(Schema.Int),
+  baseVersion: Schema.Int,
+  selection: Schema.optionalKey(ChapterTextSelection),
+});
+export interface ChapterAgentRunInput {
+  taskType: AgentTaskType;
+  engineKind: AgentEngineKind;
+  model?: AgentModelSelection;
+  prompt?: string;
+  wordGoal?: number;
+  baseVersion: number;
+  selection?: ChapterTextSelection;
+}
+
+export const ChapterAgentRunStart = Schema.Struct({
+  taskId: Id,
+  sessionId: Id,
+  runId: Id,
+  chapterId: Id,
+  autoCommitWhenReady: Schema.Boolean,
+});
+export interface ChapterAgentRunStart {
+  taskId: Id;
+  sessionId: Id;
+  runId: Id;
+  chapterId: Id;
+  autoCommitWhenReady: boolean;
+}
+
+export const ContinueChapterAgentRunInput = Schema.Struct({
+  sourceChapterId: Id,
+  engineKind: AgentEngineKind,
+  model: Schema.optionalKey(AgentModelSelection),
+  prompt: Schema.optionalKey(Schema.String),
+  wordGoal: Schema.optionalKey(Schema.Int),
+  baseVersion: Schema.Int,
+});
+export interface ContinueChapterAgentRunInput {
+  sourceChapterId: Id;
+  engineKind: AgentEngineKind;
+  model?: AgentModelSelection;
+  prompt?: string;
+  wordGoal?: number;
+  baseVersion: number;
+}
+
+export const ContinueChapterAgentRunStart = Schema.Struct({
+  chapter: Chapter,
+  run: ChapterAgentRunStart,
+});
+export interface ContinueChapterAgentRunStart {
+  chapter: Chapter;
+  run: ChapterAgentRunStart;
+}
+
+export const ChapterVersionRestoreInput = Schema.Struct({
+  baseVersion: Schema.Int,
+});
+export interface ChapterVersionRestoreInput {
+  baseVersion: number;
 }
 
 /**
@@ -2773,6 +2913,14 @@ export interface ChangePreview {
   contentHash: string;
   createdAt: IsoDateTime;
   committedAt?: IsoDateTime;
+}
+
+/** 用户在差异窗口中编辑或逐段采用后的候选正文。 */
+export const ChangePreviewContentInput = Schema.Struct({
+  content: Schema.String,
+});
+export interface ChangePreviewContentInput {
+  content: string;
 }
 
 export const ProviderActionKind = Schema.Literals([

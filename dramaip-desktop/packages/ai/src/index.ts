@@ -11,6 +11,7 @@ import type {
 import type { AgentTaskDefinition } from "./task-catalog";
 
 export * from "./task-catalog";
+export * from "./opencode-config";
 export type {
   AgentEngineCapabilities,
   AgentEngineKind,

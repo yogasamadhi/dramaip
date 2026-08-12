@@ -84,6 +84,84 @@ test("Renderer 只暴露桌面原生白名单", async () => {
   });
 });
 
+test("智能助手只在用户打开弹窗后显示", async () => {
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "DramaIP 智能助手" }),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "打开智能助手" }).click();
+  const dialog = page.getByRole("dialog", { name: "DramaIP 智能助手" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", { name: "DramaIP 智能助手" }),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "关闭智能助手" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("小说工作区保留旧版入口并按需打开智能写作抽屉", async () => {
+  await page.getByRole("link", { name: "项目", exact: true }).click();
+  if (!(await page.getByText("示例短剧：雨夜归来").count()))
+    await page.getByRole("button", { name: "创建示例项目" }).click();
+  await page
+    .getByRole("link", { name: /示例短剧：雨夜归来/ })
+    .first()
+    .click();
+  for (const label of ["设定", "人物", "大纲", "章节", "故事圣经"])
+    await expect(
+      page.getByRole("button", { name: label, exact: true }),
+    ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "更多创作工具", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "章节", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "章节正文编辑器" }),
+  ).toBeVisible();
+  await expect(page.locator('aside[aria-label="智能写作抽屉"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "智能写作", exact: true }).click();
+  const drawer = page.locator('aside[aria-label="智能写作抽屉"]');
+  await expect(drawer).toBeVisible();
+  for (const label of [
+    "智能生成正文",
+    "续写本章",
+    "改写本章",
+    "润色本章",
+    "扩写本章",
+    "智能续写下一章",
+  ])
+    await expect(drawer.getByRole("button", { name: label })).toBeVisible();
+  await expect(
+    drawer.getByRole("textbox", { name: "本次写作要求（可选）" }),
+  ).toBeVisible();
+  await drawer.getByText("高级设置与强化方式", { exact: true }).click();
+  await expect(
+    drawer.getByRole("combobox", { name: /本次模型/ }),
+  ).toBeVisible();
+  await drawer.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(drawer).toHaveCount(0);
+
+  await page.getByRole("button", { name: "更多创作工具", exact: true }).click();
+  for (const label of [
+    "章节记忆",
+    "人物状态",
+    "时间线",
+    "伏笔",
+    "视觉档案",
+    "一致性",
+    "创作分析",
+    "编剧室",
+  ])
+    await expect(
+      page.getByRole("button", { name: label, exact: true }),
+    ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "开始智能分析", exact: true }),
+  ).toBeVisible();
+});
+
 test("模型服务商置顶并提供常用厂商与模型级联选择", async () => {
   await page.getByRole("link", { name: "设置", exact: true }).click();
   const providerHeading = page.getByText("模型服务商", { exact: true }).first();

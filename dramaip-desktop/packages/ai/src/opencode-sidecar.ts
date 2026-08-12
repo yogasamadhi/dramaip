@@ -4,6 +4,10 @@
  * imports sdk-next into the Renderer process.
  */
 import { mkdir } from "node:fs/promises";
+import {
+  createSandboxedOpenCodeConfig,
+  type OpenCodeRuntimeProvider,
+} from "./opencode-config";
 
 type StartCommand = {
   type: "start";
@@ -14,15 +18,7 @@ type StartCommand = {
   serverModule?: string;
   workspacePath: string;
   mcp?: { url: string; token: string };
-  agentProvider?: {
-    providerId: string;
-    providerKind: "openai" | "anthropic" | "google";
-    model: string;
-    baseUrl?: string;
-    environmentName:
-      "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "GOOGLE_GENERATIVE_AI_API_KEY";
-    secret: string;
-  };
+  agentProvider?: OpenCodeRuntimeProvider;
 };
 type Command = StartCommand | { type: "stop" };
 type ParentPort = {
@@ -65,7 +61,7 @@ async function start(command: StartCommand): Promise<void> {
     await mkdir(command.workspacePath, { recursive: true });
     process.chdir(command.workspacePath);
     process.env.OPENCODE_CONFIG_CONTENT = JSON.stringify(
-      sandboxedConfig(command.mcp, command.agentProvider),
+      createSandboxedOpenCodeConfig(command.mcp, command.agentProvider),
     );
     const mod = (await import(command.serverModule)) as {
       Server?: {
@@ -93,64 +89,6 @@ async function start(command: StartCommand): Promise<void> {
       reason: error instanceof Error ? error.message : String(error),
     });
   }
-}
-
-function sandboxedConfig(
-  mcp: StartCommand["mcp"],
-  agentProvider: StartCommand["agentProvider"],
-): Record<string, unknown> {
-  return {
-    $schema: "https://opencode.ai/config.json",
-    share: "disabled",
-    snapshot: false,
-    permission: {
-      bash: "deny",
-      edit: "deny",
-      read: "deny",
-      glob: "deny",
-      grep: "deny",
-      list: "deny",
-      external_directory: "deny",
-      webfetch: "deny",
-      websearch: "deny",
-      task: "deny",
-      lsp: "deny",
-      skill: "deny",
-      question: "deny",
-    },
-    agent: {
-      build: {
-        mode: "primary",
-        steps: 8,
-        prompt:
-          "你是 DramaIP 中文创作助手。只能使用获准的 DramaIP MCP 只读工具；禁止写文件、执行命令、读取任意本地路径、浏览网络或声称已提交修订。只返回正式分析、结构化结果和待确认建议，不得输出隐藏思维链。",
-      },
-    },
-    ...(agentProvider
-      ? {
-          model: `${agentProvider.providerKind}/${agentProvider.model}`,
-          provider: {
-            [agentProvider.providerKind]: {
-              options: agentProvider.baseUrl
-                ? { baseURL: agentProvider.baseUrl }
-                : {},
-            },
-          },
-        }
-      : {}),
-    ...(mcp
-      ? {
-          mcp: {
-            dramaip: {
-              type: "remote",
-              url: mcp.url,
-              headers: { Authorization: `Bearer ${mcp.token}` },
-              oauth: false,
-            },
-          },
-        }
-      : {}),
-  };
 }
 
 async function stop(): Promise<void> {

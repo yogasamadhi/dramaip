@@ -13,9 +13,14 @@
     "@sdns/client": "workspace:*",
     "@sdns/ui": "workspace:*",
     "@tanstack/react-query": "catalog:",
+    "@tiptap/extension-placeholder": "^2.11.2",
+    "@tiptap/pm": "^2.11.2",
+    "@tiptap/react": "^2.11.2",
+    "@tiptap/starter-kit": "^2.11.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^6.26.2",
+    "tiptap-markdown": "^0.8.10",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

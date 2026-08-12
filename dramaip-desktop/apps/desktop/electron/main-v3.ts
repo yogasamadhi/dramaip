@@ -14,6 +14,7 @@ import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { OpenCodeProviderAdapter } from "@sdns/ai";
 import { LocalCredentialVault } from "./local-credential-vault";
 
 const require = createRequire(import.meta.url);
@@ -36,7 +37,9 @@ type ChildMessage =
   | { type: "stopped" };
 type OpenCodeProviderConfiguration = {
   providerId: string;
+  runtimeProviderId: string;
   providerKind: "openai" | "anthropic" | "google";
+  providerAdapter: OpenCodeProviderAdapter;
   model: string;
   baseUrl?: string;
   credentialRef: string;
@@ -374,7 +377,9 @@ async function configureOpenCodeEngine(
   const current = opencodeEngine;
   const runtimeProvider: OpenCodeRuntimeProvider = {
     providerId: configuration.providerId,
+    runtimeProviderId: configuration.runtimeProviderId,
     providerKind: configuration.providerKind,
+    providerAdapter: configuration.providerAdapter,
     model: configuration.model,
     ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
     environmentName: configuration.environmentName,
@@ -389,6 +394,11 @@ async function configureOpenCodeEngine(
       { ...current.command, agentProvider: runtimeProvider },
       false,
     );
+    if (next && !(await openCodeModelIsRegistered(next, runtimeProvider))) {
+      intentionallyStoppedSidecars.add(next.child);
+      await next.stop();
+      next = undefined;
+    }
     opencodeEngine = next;
   }
   dramaServer?.child.postMessage({
@@ -406,6 +416,7 @@ async function configureOpenCodeEngine(
         ...currentLangGraph.command,
         provider: {
           providerKind: configuration.providerKind,
+          providerAdapter: configuration.providerAdapter,
           model: configuration.model,
           ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
           secret,
@@ -423,7 +434,35 @@ async function configureOpenCodeEngine(
   });
   return next
     ? { available: true }
-    : { available: false, message: "智能助手引擎未能以新的模型配置启动" };
+    : {
+        available: false,
+        message: "OpenCode 未能识别当前服务商或模型，请检查模型配置",
+      };
+}
+
+async function openCodeModelIsRegistered(
+  engine: ManagedProcess,
+  provider: OpenCodeRuntimeProvider,
+): Promise<boolean> {
+  const hostname = String(engine.command.hostname ?? "127.0.0.1");
+  const port = Number(engine.command.port);
+  const password = String(engine.command.password ?? "");
+  if (!Number.isInteger(port) || !password) return false;
+  try {
+    const authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
+    const response = await fetch(`http://${hostname}:${port}/provider`, {
+      headers: { Authorization: authorization },
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (!response.ok) return false;
+    const catalog = JSON.stringify(await response.json());
+    return (
+      catalog.includes(`"${provider.runtimeProviderId}"`) &&
+      catalog.includes(`"${provider.model}"`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function restartSidecar(previous: ManagedProcess): Promise<void> {

@@ -4,23 +4,33 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-canvas: #f8fafc;
+  --color-canvas: #faf9f6;
+  --color-page: #f5f1ec;
   --color-surface: #ffffff;
-  --color-ink: #172033;
-  --color-muted: #64748b;
-  --color-line: #e2e8f0;
-  --color-brand: #4f46e5;
-  --color-brand-soft: #eef2ff;
+  --color-ink: #20201f;
+  --color-muted: #706a64;
+  --color-line: #e5dfd8;
+  --color-brand: #b94727;
+  --color-brand-soft: #fff3eb;
+  --color-sand: #eadbc8;
+  --color-rust: #96391f;
+  --color-studio-dark: #242321;
   --font-sans:
-    Inter, ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
   --font-editor: "Iowan Old Style", "Songti SC", STSong, serif;
+  --radius-lg: 0.8rem;
+  --radius-xl: 1.15rem;
+  --radius-2xl: 1.65rem;
+  --shadow-studio: 0 24px 70px -30px rgba(61, 42, 30, 0.32);
+  --shadow-card: 0 14px 40px -28px rgba(61, 42, 30, 0.38);
 }
 
 :root {
   color: var(--color-ink);
   background: var(--color-canvas);
   font-family: var(--font-sans);
+  color-scheme: light;
 }
 * {
   box-sizing: border-box;
@@ -31,15 +41,200 @@ body,
   min-height: 100%;
   margin: 0;
 }
+body {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      rgba(234, 219, 200, 0.38),
+      transparent 30rem
+    ),
+    var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 button {
   cursor: pointer;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:disabled {
+  cursor: not-allowed;
+}
+input,
+textarea,
+select {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #c87558;
+  box-shadow: 0 0 0 3px rgba(185, 71, 39, 0.1);
+  outline: none;
 }
 :focus-visible {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
+}
+::selection {
+  background: #e9c8b8;
+}
+
+.studio-grid {
+  background-image:
+    linear-gradient(rgba(55, 48, 43, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(55, 48, 43, 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.studio-eyebrow {
+  color: var(--color-brand);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.17em;
+}
+
+.studio-card {
+  border: 1px solid var(--color-line);
+  border-radius: 1.65rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-card);
+}
+
+.studio-card-interactive:hover {
+  border-color: #cdb8aa;
+  box-shadow: var(--shadow-studio);
+  transform: translateY(-2px);
+}
+
+#root
+  main
+  :where(
+    section,
+    article
+  )[class*="rounded-2xl"][class*="border-line"][class*="bg-surface"],
+#root
+  main
+  :where(
+    section,
+    article
+  )[class*="rounded-2xl"][class*="border-line"][class*="bg-white"] {
+  box-shadow: var(--shadow-card);
+}
+
+#root button[class*="bg-brand"] {
+  border-color: var(--color-studio-dark);
+  background-color: var(--color-studio-dark);
+  box-shadow: 0 10px 24px -18px rgba(150, 57, 31, 0.75);
+}
+#root button[class*="bg-brand"]:hover:not(:disabled) {
+  border-color: var(--color-rust);
+  background-color: var(--color-rust);
+}
+
+#root button[class*="border-line"]:not([class*="rounded-none"]) {
+  border-radius: 999px;
+}
+
+#root
+  main
+  :where(section, article, div)[class*="rounded-xl"][class*="border-line"]:not(
+    [class*="bg-brand"]
+  ) {
+  background-color: color-mix(in srgb, var(--color-surface) 93%, transparent);
+}
+
+#root :where(input, textarea, select)[class*="border-line"] {
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+}
+
+.studio-scrollbar {
+  scrollbar-color: #cfc5bb transparent;
+  scrollbar-width: thin;
+}
+.studio-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.studio-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #cfc5bb;
+  background-clip: padding-box;
+}
+
+.dark {
+  --color-canvas: #1d1d1c;
+  --color-page: #242321;
+  --color-surface: #292928;
+  --color-ink: #f7f3ef;
+  --color-muted: #b7aea6;
+  --color-line: #46423e;
+  --color-brand: #e98765;
+  --color-brand-soft: #49332b;
+  --color-sand: #3b332d;
+  color-scheme: dark;
+}
+
+.novel-tiptap {
+  font-family: var(--font-editor);
+}
+.novel-tiptap .ProseMirror {
+  min-height: 560px;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+}
+.novel-tiptap .ProseMirror p {
+  margin: 0 0 1em;
+}
+.novel-tiptap .ProseMirror h2,
+.novel-tiptap .ProseMirror h3 {
+  margin: 1.5em 0 0.75em;
+  font-family: var(--font-sans);
+  font-weight: 650;
+  line-height: 1.4;
+}
+.novel-tiptap .ProseMirror h2 {
+  font-size: 1.25em;
+}
+.novel-tiptap .ProseMirror h3 {
+  font-size: 1.1em;
+}
+.novel-tiptap .ProseMirror blockquote {
+  margin: 1em 0;
+  border-left: 3px solid var(--color-brand);
+  padding-left: 1em;
+  color: var(--color-muted);
+}
+.novel-tiptap .ProseMirror ul,
+.novel-tiptap .ProseMirror ol {
+  margin: 1em 0;
+  padding-left: 1.5em;
+}
+.novel-tiptap .ProseMirror p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: #94a3b8;
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+.novel-tiptap .ProseMirror[contenteditable="false"] {
+  cursor: progress;
+  opacity: 0.88;
 }

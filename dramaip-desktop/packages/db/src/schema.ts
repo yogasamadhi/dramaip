@@ -518,4 +518,26 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
       created_at TEXT NOT NULL
     );
   `);
+
+  // 早期 HTTP 架构已经创建过 agent_sessions，但当时还没有任务目录、
+  // 会话标题和模型快照。CREATE TABLE IF NOT EXISTS 不会补列，因此旧的新架构
+  // 数据库会在引擎成功创建会话后，因本地 INSERT 缺列而失败。这里采用仅追加列的
+  // 原位升级，保留项目数据和已有会话；Node/Bun SQLite 共用同一迁移入口。
+  addColumnIfMissing(sqlite, "agent_sessions", "task_type", "TEXT");
+  addColumnIfMissing(sqlite, "agent_sessions", "title", "TEXT");
+  addColumnIfMissing(sqlite, "agent_sessions", "model_json", "TEXT");
+}
+
+function addColumnIfMissing(
+  sqlite: SqliteSchemaDatabase,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  try {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  } catch (cause) {
+    if (/duplicate column name/i.test(String(cause))) return;
+    throw cause;
+  }
 }

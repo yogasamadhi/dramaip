@@ -29,7 +29,10 @@
       "@sdns/app": ["./packages/app/src/main.tsx"],
       "@sdns/ui": ["./packages/ui/src/index.ts"],
       "@sdns/mcp": ["./packages/mcp/src/index.ts"],
-      "@sdns/ai-legacy": ["./packages/ai-legacy/src/index.ts"]
+      "@sdns/ai-legacy": ["./packages/ai-legacy/src/index.ts"],
+      "@sdns/ai-legacy/prompt-catalog": [
+        "./packages/ai-legacy/src/prompt-catalog.generated.ts"
+      ]
     }
   }
 }

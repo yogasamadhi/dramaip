@@ -14,6 +14,20 @@ export function runRepositoryConformanceSuite(
   sqlite: RepositoryConformanceDatabase,
 ): void {
   initializeOperationalSchema(sqlite);
+  // 复现第一版 HTTP 数据库，确保应用升级后会原位补齐会话列，且无需删库。
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS agent_sessions (
+      id TEXT PRIMARY KEY,
+      engine_session_id TEXT NOT NULL UNIQUE,
+      engine_kind TEXT NOT NULL,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      chapter_id TEXT REFERENCES chapters(id) ON DELETE SET NULL,
+      status TEXT NOT NULL,
+      active_task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
   initializeV3AgentSchema(sqlite);
   sqlite
     .prepare(
@@ -48,18 +62,33 @@ export function runRepositoryConformanceSuite(
   sqlite
     .prepare(
       `INSERT INTO agent_sessions(
-        id, engine_session_id, engine_kind, project_id, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        id, engine_session_id, engine_kind, project_id, task_type, title,
+        model_json, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       "session-1",
       "engine-session-1",
       "opencode",
       "project-1",
+      "generate_chapter",
+      "AI 生成正文：第 1 章",
+      JSON.stringify({ modelId: "测试模型" }),
       "idle",
       "2026-01-01T00:00:00.000Z",
       "2026-01-01T00:00:00.000Z",
     );
+  const migratedSession = sqlite
+    .prepare(
+      "SELECT task_type, title, model_json FROM agent_sessions WHERE id = ?",
+    )
+    .get("session-1");
+  if (
+    migratedSession?.task_type !== "generate_chapter" ||
+    migratedSession.title !== "AI 生成正文：第 1 章" ||
+    JSON.parse(String(migratedSession.model_json)).modelId !== "测试模型"
+  )
+    throw new Error("Repository 合约：早期智能会话表未完成原位升级");
   sqlite
     .prepare(
       `INSERT INTO agent_runs(

@@ -22,6 +22,7 @@ import {
   AgentExperimentInput,
   AgentExperimentReviewInput,
   ChangePreview,
+  ChangePreviewContentInput,
   ProviderActionPreview,
   CodexAuthStatus,
   CodexLoginInput,
@@ -30,6 +31,12 @@ import {
   ChapterInput,
   ChapterPatch,
   ChapterReorderInput,
+  NovelWorkspace,
+  ChapterAgentRunInput,
+  ChapterAgentRunStart,
+  ContinueChapterAgentRunInput,
+  ContinueChapterAgentRunStart,
+  ChapterVersionRestoreInput,
   Project,
   ProjectInput,
   ProjectPatch,
@@ -238,6 +245,62 @@ const ChapterGroup = HttpApiGroup.make("chapters")
       success: Empty,
       error: ApiError,
     }),
+  );
+
+const NovelWorkspaceGroup = HttpApiGroup.make("novel-workspace")
+  .add(
+    HttpApiEndpoint.get("get", `${API_PREFIX}/projects/:id/novel-workspace`, {
+      params: { id: Schema.String },
+      success: NovelWorkspace,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "runChapterAgent",
+      `${API_PREFIX}/chapters/:id/agent-runs`,
+      {
+        params: { id: Schema.String },
+        payload: ChapterAgentRunInput,
+        success: ChapterAgentRunStart,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "continueChapter",
+      `${API_PREFIX}/projects/:id/chapters/continue`,
+      {
+        params: { id: Schema.String },
+        payload: ContinueChapterAgentRunInput,
+        success: ContinueChapterAgentRunStart,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "listChapterVersions",
+      `${API_PREFIX}/chapters/:id/versions`,
+      {
+        params: { id: Schema.String },
+        success: Schema.Array(DomainEntity),
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "restoreChapterVersion",
+      `${API_PREFIX}/chapters/:id/versions/:versionId/restore`,
+      {
+        params: { id: Schema.String, versionId: Schema.String },
+        payload: ChapterVersionRestoreInput,
+        success: Chapter,
+        error: ApiError,
+      },
+    ),
   );
 
 const TaskGroup = HttpApiGroup.make("tasks")
@@ -471,6 +534,18 @@ const ChangePreviewGroup = HttpApiGroup.make("change-previews")
       success: ChangePreview,
       error: ApiError,
     }),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "updateContent",
+      `${API_PREFIX}/change-previews/:id/content`,
+      {
+        params: { id: Schema.String },
+        payload: ChangePreviewContentInput,
+        success: ChangePreview,
+        error: ApiError,
+      },
+    ),
   )
   .add(
     HttpApiEndpoint.post("commit", `${API_PREFIX}/change-previews/:id/commit`, {
@@ -1721,6 +1796,7 @@ const ResourceGroup = HttpApiGroup.make("resources")
 export const StudioApi = HttpApi.make("dramaip")
   .add(ProjectGroup)
   .add(ChapterGroup)
+  .add(NovelWorkspaceGroup)
   .add(TaskGroup)
   .add(RevisionGroup)
   .add(AgentGroup)

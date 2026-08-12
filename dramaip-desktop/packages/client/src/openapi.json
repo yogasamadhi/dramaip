@@ -1327,6 +1327,789 @@
         }
       }
     },
+    "/api/v1/projects/{id}/novel-workspace": {
+      "get": {
+        "tags": ["novel-workspace"],
+        "operationId": "novel-workspace.get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": {
+                          "type": "string",
+                          "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                        },
+                        "shortDramaType": {
+                          "type": "string",
+                          "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                        },
+                        "targetAudience": { "type": "string" },
+                        "targetWordCount": { "type": "integer" },
+                        "targetEpisodeCount": { "type": "integer" },
+                        "coreHook": { "type": "string" },
+                        "emotionalCore": { "type": "string" },
+                        "coreSellingPoint": { "type": "string" },
+                        "synopsis": { "type": "string" },
+                        "styleGuide": { "type": "string" },
+                        "visualStyleDirection": { "type": "string" },
+                        "genreOpportunity": { "type": "string" },
+                        "productionBrief": { "type": "string" },
+                        "currentAdaptationId": { "type": "string" },
+                        "deletedAt": { "type": "string" },
+                        "version": { "type": "integer" },
+                        "createdAt": { "type": "string" },
+                        "updatedAt": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "shortDramaType",
+                        "synopsis",
+                        "version",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "chapters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "projectId": { "type": "string" },
+                          "title": {
+                            "type": "string",
+                            "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                          },
+                          "orderIndex": { "type": "integer" },
+                          "summary": { "type": "string" },
+                          "outline": { "type": "string" },
+                          "content": { "type": "string" },
+                          "mainConflict": { "type": "string" },
+                          "hook": { "type": "string" },
+                          "highlight": { "type": "string" },
+                          "reversal": { "type": "string" },
+                          "cliffhanger": { "type": "string" },
+                          "shortDramaNote": { "type": "string" },
+                          "aiVideoNote": { "type": "string" },
+                          "version": { "type": "integer" },
+                          "createdAt": { "type": "string" },
+                          "updatedAt": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "projectId",
+                          "title",
+                          "orderIndex",
+                          "summary",
+                          "content",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "characters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "projectId": { "type": "string" },
+                          "parentId": { "type": "string" },
+                          "title": { "type": "string" },
+                          "payload": {},
+                          "version": { "type": "integer" },
+                          "createdAt": { "type": "string" },
+                          "updatedAt": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "domain",
+                          "title",
+                          "payload",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "outlines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "projectId": { "type": "string" },
+                          "parentId": { "type": "string" },
+                          "title": { "type": "string" },
+                          "payload": {},
+                          "version": { "type": "integer" },
+                          "createdAt": { "type": "string" },
+                          "updatedAt": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "domain",
+                          "title",
+                          "payload",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "storyArcs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "domain": { "type": "string" },
+                          "projectId": { "type": "string" },
+                          "parentId": { "type": "string" },
+                          "title": { "type": "string" },
+                          "payload": {},
+                          "version": { "type": "integer" },
+                          "createdAt": { "type": "string" },
+                          "updatedAt": { "type": "string" }
+                        },
+                        "required": [
+                          "id",
+                          "domain",
+                          "title",
+                          "payload",
+                          "version",
+                          "createdAt",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "statuses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "chapterId": { "type": "string" },
+                          "words": { "type": "integer" },
+                          "hasMemory": { "type": "boolean" },
+                          "quality": {
+                            "type": "string",
+                            "enum": ["pass", "warn", "block"]
+                          },
+                          "latestTaskStatus": {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "running",
+                              "succeeded",
+                              "failed",
+                              "canceled",
+                              "interrupted"
+                            ]
+                          }
+                        },
+                        "required": ["chapterId", "words", "hasMemory"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "project",
+                    "chapters",
+                    "characters",
+                    "outlines",
+                    "storyArcs",
+                    "statuses"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters/{id}/agent-runs": {
+      "post": {
+        "tags": ["novel-workspace"],
+        "operationId": "novel-workspace.runChapterAgent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "taskId": { "type": "string" },
+                    "sessionId": { "type": "string" },
+                    "runId": { "type": "string" },
+                    "chapterId": { "type": "string" },
+                    "autoCommitWhenReady": { "type": "boolean" }
+                  },
+                  "required": [
+                    "taskId",
+                    "sessionId",
+                    "runId",
+                    "chapterId",
+                    "autoCommitWhenReady"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskType": {
+                    "type": "string",
+                    "enum": [
+                      "chapter_diagnostic",
+                      "chapter_revision",
+                      "generate_project",
+                      "generate_characters",
+                      "generate_book_outline",
+                      "generate_chapter_outline",
+                      "generate_story_arc_outline",
+                      "generate_chapter",
+                      "continue_chapter",
+                      "rewrite_chapter",
+                      "polish_chapter",
+                      "expand_chapter",
+                      "enhance_conflict",
+                      "enhance_highlight",
+                      "enhance_ai_drama_feel",
+                      "enhance_author_style",
+                      "evaluate_ai_drama_fit",
+                      "summarize_chapter",
+                      "propose_story_bible_changes",
+                      "update_character_state",
+                      "extract_story_events",
+                      "extract_foreshadowing",
+                      "generate_character_visual_profile",
+                      "generate_visual_setting",
+                      "check_consistency",
+                      "build_long_context",
+                      "analyze_beats",
+                      "analyze_highlights",
+                      "analyze_ai_video_feasibility",
+                      "analyze_project_ai_drama_trend",
+                      "enhance_hook",
+                      "enhance_reversal",
+                      "enhance_cliffhanger",
+                      "rewrite_as_ai_drama_novel",
+                      "chat_project",
+                      "create_adaptation_strategy",
+                      "convert_novel_to_episodes",
+                      "rewrite_episode_outline",
+                      "enhance_episode_hook",
+                      "enhance_episode_visuals",
+                      "analyze_first_10_episodes",
+                      "generate_ai_drama_script",
+                      "split_script_to_scenes",
+                      "review_ai_drama_script",
+                      "rewrite_ai_drama_script",
+                      "enhance_dialogue_conflict",
+                      "enhance_script_dialogue_voice",
+                      "enhance_episode_cliffhanger",
+                      "enhance_script_visuality",
+                      "split_scene_to_shots",
+                      "generate_shot_prompt",
+                      "generate_negative_prompt",
+                      "review_shot_prompt",
+                      "rewrite_shot_prompt",
+                      "optimize_prompt_for_video_platform",
+                      "generate_video_asset_drafts",
+                      "plan_image_generation",
+                      "plan_audio_generation",
+                      "plan_video_generation",
+                      "plan_remote_render",
+                      "analyze_trope_freshness",
+                      "generate_anti_trope_variants",
+                      "analyze_narrative_curve",
+                      "generate_revision_tasks",
+                      "run_quality_gate",
+                      "simulate_audience_reaction",
+                      "analyze_video_cost_risk",
+                      "analyze_text_quality",
+                      "extract_case_structure",
+                      "generate_inspiration_schemes",
+                      "writing_room_review",
+                      "writing_room_consolidate",
+                      "template_run"
+                    ]
+                  },
+                  "engineKind": {
+                    "type": "string",
+                    "enum": ["opencode", "codex", "langgraph"]
+                  },
+                  "model": {
+                    "type": "object",
+                    "properties": {
+                      "providerId": { "type": "string" },
+                      "modelId": { "type": "string" },
+                      "profileId": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  },
+                  "prompt": { "type": "string" },
+                  "wordGoal": { "type": "integer" },
+                  "baseVersion": { "type": "integer" },
+                  "selection": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string",
+                        "allOf": [{ "minLength": 1 }]
+                      },
+                      "from": { "type": "integer" },
+                      "to": { "type": "integer" }
+                    },
+                    "required": ["text"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["taskType", "engineKind", "baseVersion"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/projects/{id}/chapters/continue": {
+      "post": {
+        "tags": ["novel-workspace"],
+        "operationId": "novel-workspace.continueChapter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chapter": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "projectId": { "type": "string" },
+                        "title": {
+                          "type": "string",
+                          "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                        },
+                        "orderIndex": { "type": "integer" },
+                        "summary": { "type": "string" },
+                        "outline": { "type": "string" },
+                        "content": { "type": "string" },
+                        "mainConflict": { "type": "string" },
+                        "hook": { "type": "string" },
+                        "highlight": { "type": "string" },
+                        "reversal": { "type": "string" },
+                        "cliffhanger": { "type": "string" },
+                        "shortDramaNote": { "type": "string" },
+                        "aiVideoNote": { "type": "string" },
+                        "version": { "type": "integer" },
+                        "createdAt": { "type": "string" },
+                        "updatedAt": { "type": "string" }
+                      },
+                      "required": [
+                        "id",
+                        "projectId",
+                        "title",
+                        "orderIndex",
+                        "summary",
+                        "content",
+                        "version",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "run": {
+                      "type": "object",
+                      "properties": {
+                        "taskId": { "type": "string" },
+                        "sessionId": { "type": "string" },
+                        "runId": { "type": "string" },
+                        "chapterId": { "type": "string" },
+                        "autoCommitWhenReady": { "type": "boolean" }
+                      },
+                      "required": [
+                        "taskId",
+                        "sessionId",
+                        "runId",
+                        "chapterId",
+                        "autoCommitWhenReady"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["chapter", "run"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceChapterId": { "type": "string" },
+                  "engineKind": {
+                    "type": "string",
+                    "enum": ["opencode", "codex", "langgraph"]
+                  },
+                  "model": {
+                    "type": "object",
+                    "properties": {
+                      "providerId": { "type": "string" },
+                      "modelId": { "type": "string" },
+                      "profileId": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  },
+                  "prompt": { "type": "string" },
+                  "wordGoal": { "type": "integer" },
+                  "baseVersion": { "type": "integer" }
+                },
+                "required": ["sourceChapterId", "engineKind", "baseVersion"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/v1/chapters/{id}/versions": {
+      "get": {
+        "tags": ["novel-workspace"],
+        "operationId": "novel-workspace.listChapterVersions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "domain": { "type": "string" },
+                      "projectId": { "type": "string" },
+                      "parentId": { "type": "string" },
+                      "title": { "type": "string" },
+                      "payload": {},
+                      "version": { "type": "integer" },
+                      "createdAt": { "type": "string" },
+                      "updatedAt": { "type": "string" }
+                    },
+                    "required": [
+                      "id",
+                      "domain",
+                      "title",
+                      "payload",
+                      "version",
+                      "createdAt",
+                      "updatedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters/{id}/versions/{versionId}/restore": {
+      "post": {
+        "tags": ["novel-workspace"],
+        "operationId": "novel-workspace.restoreChapterVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "title": {
+                      "type": "string",
+                      "allOf": [{ "minLength": 1 }, { "maxLength": 160 }]
+                    },
+                    "orderIndex": { "type": "integer" },
+                    "summary": { "type": "string" },
+                    "outline": { "type": "string" },
+                    "content": { "type": "string" },
+                    "mainConflict": { "type": "string" },
+                    "hook": { "type": "string" },
+                    "highlight": { "type": "string" },
+                    "reversal": { "type": "string" },
+                    "cliffhanger": { "type": "string" },
+                    "shortDramaNote": { "type": "string" },
+                    "aiVideoNote": { "type": "string" },
+                    "version": { "type": "integer" },
+                    "createdAt": { "type": "string" },
+                    "updatedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "title",
+                    "orderIndex",
+                    "summary",
+                    "content",
+                    "version",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "baseVersion": { "type": "integer" } },
+                "required": ["baseVersion"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/api/v1/tasks": {
       "get": {
         "tags": ["tasks"],
@@ -3870,6 +4653,35 @@
                           "unavailable"
                         ]
                       },
+                      "runtimeStatus": {
+                        "type": "string",
+                        "enum": ["starting", "running", "stopped", "crashed"]
+                      },
+                      "configurationStatus": {
+                        "type": "string",
+                        "enum": [
+                          "configured",
+                          "missing_credentials",
+                          "missing_model",
+                          "login_required"
+                        ]
+                      },
+                      "invocationStatus": {
+                        "type": "string",
+                        "enum": ["verified", "untested", "failed"]
+                      },
+                      "canRun": { "type": "boolean" },
+                      "lastCheckedAt": { "type": "string" },
+                      "lastFailure": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "message": { "type": "string" },
+                          "occurredAt": { "type": "string" }
+                        },
+                        "required": ["code", "message", "occurredAt"],
+                        "additionalProperties": false
+                      },
                       "isDefault": { "type": "boolean" },
                       "isBeta": { "type": "boolean" },
                       "statusMessage": { "type": "string" },
@@ -5670,6 +6482,215 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/v1/change-previews/{id}/content": {
+      "put": {
+        "tags": ["change-previews"],
+        "operationId": "change-previews.updateContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "schema": { "type": "string" },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "projectId": { "type": "string" },
+                    "sessionId": { "type": "string" },
+                    "runId": { "type": "string" },
+                    "taskId": { "type": "string" },
+                    "engineKind": {
+                      "type": "string",
+                      "enum": ["opencode", "codex", "langgraph"]
+                    },
+                    "taskType": {
+                      "type": "string",
+                      "enum": [
+                        "chapter_diagnostic",
+                        "chapter_revision",
+                        "generate_project",
+                        "generate_characters",
+                        "generate_book_outline",
+                        "generate_chapter_outline",
+                        "generate_story_arc_outline",
+                        "generate_chapter",
+                        "continue_chapter",
+                        "rewrite_chapter",
+                        "polish_chapter",
+                        "expand_chapter",
+                        "enhance_conflict",
+                        "enhance_highlight",
+                        "enhance_ai_drama_feel",
+                        "enhance_author_style",
+                        "evaluate_ai_drama_fit",
+                        "summarize_chapter",
+                        "propose_story_bible_changes",
+                        "update_character_state",
+                        "extract_story_events",
+                        "extract_foreshadowing",
+                        "generate_character_visual_profile",
+                        "generate_visual_setting",
+                        "check_consistency",
+                        "build_long_context",
+                        "analyze_beats",
+                        "analyze_highlights",
+                        "analyze_ai_video_feasibility",
+                        "analyze_project_ai_drama_trend",
+                        "enhance_hook",
+                        "enhance_reversal",
+                        "enhance_cliffhanger",
+                        "rewrite_as_ai_drama_novel",
+                        "chat_project",
+                        "create_adaptation_strategy",
+                        "convert_novel_to_episodes",
+                        "rewrite_episode_outline",
+                        "enhance_episode_hook",
+                        "enhance_episode_visuals",
+                        "analyze_first_10_episodes",
+                        "generate_ai_drama_script",
+                        "split_script_to_scenes",
+                        "review_ai_drama_script",
+                        "rewrite_ai_drama_script",
+                        "enhance_dialogue_conflict",
+                        "enhance_script_dialogue_voice",
+                        "enhance_episode_cliffhanger",
+                        "enhance_script_visuality",
+                        "split_scene_to_shots",
+                        "generate_shot_prompt",
+                        "generate_negative_prompt",
+                        "review_shot_prompt",
+                        "rewrite_shot_prompt",
+                        "optimize_prompt_for_video_platform",
+                        "generate_video_asset_drafts",
+                        "plan_image_generation",
+                        "plan_audio_generation",
+                        "plan_video_generation",
+                        "plan_remote_render",
+                        "analyze_trope_freshness",
+                        "generate_anti_trope_variants",
+                        "analyze_narrative_curve",
+                        "generate_revision_tasks",
+                        "run_quality_gate",
+                        "simulate_audience_reaction",
+                        "analyze_video_cost_risk",
+                        "analyze_text_quality",
+                        "extract_case_structure",
+                        "generate_inspiration_schemes",
+                        "writing_room_review",
+                        "writing_room_consolidate",
+                        "template_run"
+                      ]
+                    },
+                    "targets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "project",
+                              "chapter",
+                              "character",
+                              "outline",
+                              "story_bible",
+                              "episode",
+                              "script",
+                              "scene",
+                              "shot"
+                            ]
+                          },
+                          "id": { "type": "string" },
+                          "baseVersion": { "type": "integer" },
+                          "patch": {},
+                          "displayDiff": {}
+                        },
+                        "required": ["kind", "id", "baseVersion", "patch"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rationale": { "type": "string" },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "committed",
+                        "discarded",
+                        "conflicted"
+                      ]
+                    },
+                    "contentHash": { "type": "string" },
+                    "createdAt": { "type": "string" },
+                    "committedAt": { "type": "string" }
+                  },
+                  "required": [
+                    "id",
+                    "projectId",
+                    "targets",
+                    "rationale",
+                    "status",
+                    "contentHash",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "VALIDATION_ERROR",
+                        "NOT_FOUND",
+                        "CONFLICT",
+                        "UNAUTHORIZED",
+                        "ENGINE_UNAVAILABLE",
+                        "TASK_REJECTED",
+                        "INTERNAL_ERROR"
+                      ]
+                    },
+                    "message": { "type": "string" },
+                    "requestId": { "type": "string" },
+                    "details": {}
+                  },
+                  "required": ["code", "message", "requestId"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "content": { "type": "string" } },
+                "required": ["content"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": true
         }
       }
     },
@@ -19505,6 +20526,7 @@
   "tags": [
     { "name": "projects" },
     { "name": "chapters" },
+    { "name": "novel-workspace" },
     { "name": "tasks" },
     { "name": "revisions" },
     { "name": "agent-sessions" },

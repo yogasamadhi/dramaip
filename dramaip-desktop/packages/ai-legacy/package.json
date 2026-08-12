@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./prompt-catalog": "./src/prompt-catalog.generated.ts"
   },
   "scripts": {
     "generate:prompts": "node scripts/generate-prompt-catalog.mjs",
@@ -15,6 +16,7 @@
     "@ai-sdk/anthropic": "3.0.82",
     "@ai-sdk/google": "3.0.73",
     "@ai-sdk/openai": "3.0.84",
+    "@ai-sdk/openai-compatible": "2.0.56",
     "@langchain/langgraph": "0.2.43",
     "@sdns/schema": "workspace:*",
     "ai": "6.0.168"

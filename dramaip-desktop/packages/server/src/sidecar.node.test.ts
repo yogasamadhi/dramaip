@@ -133,31 +133,71 @@ test("production-structure HTTP contract persists active adaptation and atomical
       request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
       request.on("end", () => {
         const source = Buffer.concat(chunks).toString("utf8");
-        const text = source.includes("通用变更预览测试")
+        const text = source.includes("人物生成采用测试")
           ? JSON.stringify({
-              summary: "已生成受控章节润色预览",
-              content: "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
-              data: {},
-            })
-          : source.includes("厂商预览测试")
-            ? JSON.stringify({
-                summary: "已生成远程视频厂商调用预览",
-                content: "等待用户确认费用后发起远程视频任务。",
-                data: {
-                  providerAction: {
-                    kind: "video",
-                    providerId: agentProviderActionId,
-                    parameters: {
-                      shotId: agentProviderActionShotId,
-                      prompt: "雨夜信封缓慢推进，竖屏电影光影",
-                      seconds: 5,
-                    },
-                    estimatedCost: 0.12,
-                    currency: "USD",
-                  },
+              summary: "已生成两张人物卡",
+              content: "已完成主要人物设计。",
+              data: [
+                {
+                  name: "林晚",
+                  role: "主角",
+                  identity: "失踪调查记者",
+                  desire: "找回姐姐",
+                  secret: "曾经隐瞒关键证据",
+                  weakness: "不愿信任他人",
+                  arc: "从独行到学会合作",
+                  visualDescription: "黑色短发，旧相机不离身",
                 },
+                {
+                  name: "顾沉",
+                  role: "关键对手",
+                  identity: "雨城基金会负责人",
+                  desire: "掩盖旧案",
+                  secret: "掌握姐姐下落",
+                  weakness: "过度自信",
+                  visualDescription: "深色长风衣，银框眼镜",
+                },
+              ],
+            })
+          : source.includes("章节专用运行测试")
+            ? JSON.stringify({
+                summary: "已生成章节正文候选",
+                content: "雨声敲打窗沿，林晚拆开姐姐留下的第二封信。",
+                data: {},
               })
-            : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
+            : source.includes("通用变更预览测试")
+              ? JSON.stringify({
+                  summary: "已生成受控章节润色预览",
+                  content:
+                    "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
+                  data: {},
+                })
+              : source.includes("续写拼接测试") && source.includes("继续往下写")
+                ? JSON.stringify({
+                    summary: "已生成续写正文",
+                    content:
+                      "他推开雨幕中的铁门，终于看见姐姐留下的第二个记号。",
+                    data: {},
+                  })
+                : source.includes("厂商预览测试")
+                  ? JSON.stringify({
+                      summary: "已生成远程视频厂商调用预览",
+                      content: "等待用户确认费用后发起远程视频任务。",
+                      data: {
+                        providerAction: {
+                          kind: "video",
+                          providerId: agentProviderActionId,
+                          parameters: {
+                            shotId: agentProviderActionShotId,
+                            prompt: "雨夜信封缓慢推进，竖屏电影光影",
+                            seconds: 5,
+                          },
+                          estimatedCost: 0.12,
+                          currency: "USD",
+                        },
+                      },
+                    })
+                  : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
         const send = () => {
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ parts: [{ type: "text", text }] }));
@@ -894,6 +934,159 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(agentActivation.body.engineAvailable, true);
     assert.equal(agentActivation.body.providerKind, "openai");
     assert.equal(agentActivation.body.model, "test-agent-model");
+    const novelWorkspace = await request<{
+      project: { id: string };
+      chapters: Array<{ id: string }>;
+      statuses: Array<{ chapterId: string; words: number }>;
+    }>(`/api/v1/projects/${project.body.id}/novel-workspace`);
+    assert.equal(novelWorkspace.status, 200);
+    assert.equal(novelWorkspace.body.project.id, project.body.id);
+    assert.ok(
+      novelWorkspace.body.chapters.some(
+        (chapter) => chapter.id === agentChapter.body.id,
+      ),
+    );
+    assert.ok(
+      novelWorkspace.body.statuses.some(
+        (status) =>
+          status.chapterId === agentChapter.body.id && status.words > 0,
+      ),
+    );
+    const submissionMarkdown = await request<{
+      fileName: string;
+      content: string;
+    }>(`/api/v1/exports/projects/${project.body.id}/submission-markdown`);
+    assert.equal(submissionMarkdown.status, 200);
+    assert.match(submissionMarkdown.body.fileName, /小说投稿包\.md$/);
+    assert.match(submissionMarkdown.body.content, /小说投稿包/);
+    assert.match(submissionMarkdown.body.content, /章节目录/);
+    const submissionJson = await request<{
+      content: string;
+    }>(`/api/v1/exports/projects/${project.body.id}/submission-json`);
+    assert.equal(submissionJson.status, 200);
+    const submissionPackage = JSON.parse(submissionJson.body.content) as {
+      meta: { format: string; chapterLimit: number };
+      chapterCatalog: unknown[];
+      sampleChapters: unknown[];
+    };
+    assert.equal(
+      submissionPackage.meta.format,
+      "dramaip-novel-submission-package",
+    );
+    assert.equal(submissionPackage.meta.chapterLimit, 10);
+    assert.ok(submissionPackage.chapterCatalog.length > 0);
+    assert.ok(submissionPackage.sampleChapters.length > 0);
+    const chapterProductRun = await request<{
+      taskId: string;
+      sessionId: string;
+      runId: string;
+      chapterId: string;
+      autoCommitWhenReady: boolean;
+    }>(`/api/v1/chapters/${agentChapter.body.id}/agent-runs`, {
+      method: "POST",
+      headers: { "Idempotency-Key": "novel-chapter-run-contract" },
+      body: JSON.stringify({
+        taskType: "rewrite_chapter",
+        engineKind: "opencode",
+        prompt: "章节专用运行测试",
+        wordGoal: 2_000,
+        baseVersion: agentChapter.body.version,
+      }),
+    });
+    assert.equal(chapterProductRun.status, 202);
+    assert.equal(chapterProductRun.body.chapterId, agentChapter.body.id);
+    assert.equal(chapterProductRun.body.autoCommitWhenReady, false);
+    let chapterProductPreview:
+      | { id: string; taskId?: string; targets: Array<{ id: string }> }
+      | undefined;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const tasks = await request<
+        Array<{
+          id: string;
+          status: string;
+          result?: { changePreview?: typeof chapterProductPreview };
+        }>
+      >("/api/v1/tasks");
+      const current = tasks.body.find(
+        (item) => item.id === chapterProductRun.body.taskId,
+      );
+      chapterProductPreview = current?.result?.changePreview;
+      if (current && !["queued", "running"].includes(current.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.ok(chapterProductPreview);
+    assert.equal(chapterProductPreview.targets[0]?.id, agentChapter.body.id);
+    const discardedChapterProductPreview = await request<{ status: string }>(
+      `/api/v1/change-previews/${chapterProductPreview.id}/discard`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "novel-chapter-discard-contract" },
+      },
+    );
+    assert.equal(discardedChapterProductPreview.status, 200);
+    assert.equal(discardedChapterProductPreview.body.status, "discarded");
+
+    const characterSession = await request<{ id: string }>(
+      "/api/v1/agent-sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          engineKind: "opencode",
+          taskType: "generate_characters",
+          title: "人物生成采用测试",
+        }),
+      },
+    );
+    assert.equal(characterSession.status, 201);
+    const characterRun = await request<{ taskId: string }>(
+      `/api/v1/agent-sessions/${characterSession.body.id}/runs`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "novel-character-run-contract" },
+        body: JSON.stringify({
+          taskType: "generate_characters",
+          prompt: "人物生成采用测试",
+        }),
+      },
+    );
+    assert.equal(characterRun.status, 202);
+    let characterPreview:
+      { id: string; targets: Array<{ kind: string }> } | undefined;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const tasks = await request<
+        Array<{
+          id: string;
+          status: string;
+          result?: { changePreview?: typeof characterPreview };
+        }>
+      >("/api/v1/tasks");
+      const current = tasks.body.find(
+        (item) => item.id === characterRun.body.taskId,
+      );
+      characterPreview = current?.result?.changePreview;
+      if (current && !["queued", "running"].includes(current.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.ok(characterPreview);
+    assert.equal(characterPreview.targets.length, 2);
+    assert.ok(
+      characterPreview.targets.every((target) => target.kind === "character"),
+    );
+    const committedCharacters = await request<{ status: string }>(
+      `/api/v1/change-previews/${characterPreview.id}/commit`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "novel-character-commit-contract" },
+      },
+    );
+    assert.equal(committedCharacters.status, 200);
+    const generatedCharacters = await request<Array<{ title: string }>>(
+      `/api/v1/characters?projectId=${project.body.id}`,
+    );
+    assert.equal(generatedCharacters.status, 200);
+    assert.ok(generatedCharacters.body.some((item) => item.title === "林晚"));
+    assert.ok(generatedCharacters.body.some((item) => item.title === "顾沉"));
     const invalidSameModelExperiment = await request<{ code: string }>(
       "/api/v1/agent-experiments",
       {
@@ -1107,6 +1300,78 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(revisedChapter.status, 200);
     assert.match(revisedChapter.body.content, /不要相信来电的人/);
+    const automaticChapterVersions = await request<
+      Array<{ id: string; payload: { 内容?: string; 来源?: string } }>
+    >(`/api/v1/chapters/${agentChapter.body.id}/versions`);
+    assert.equal(automaticChapterVersions.status, 200);
+    assert.ok(automaticChapterVersions.body.length >= 1);
+    assert.match(
+      String(automaticChapterVersions.body[0]?.payload?.来源),
+      /智能修订/,
+    );
+    assert.equal(
+      automaticChapterVersions.body[0]?.payload?.内容,
+      "雨夜，主角在门口发现秘密来信。",
+    );
+    const continuationSession = await request<{ id: string }>(
+      "/api/v1/agent-sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          chapterId: agentChapter.body.id,
+          engineKind: "opencode",
+          taskType: "continue_chapter",
+        }),
+      },
+    );
+    assert.equal(continuationSession.status, 201);
+    const continuationRun = await request<{ taskId: string }>(
+      `/api/v1/agent-sessions/${continuationSession.body.id}/runs`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "chapter-continuation-contract" },
+        body: JSON.stringify({
+          taskType: "continue_chapter",
+          prompt: "续写拼接测试",
+        }),
+      },
+    );
+    assert.equal(continuationRun.status, 202);
+    let continuationPreview:
+      | {
+          id: string;
+          targets: Array<{ patch?: { content?: string } }>;
+        }
+      | undefined;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const tasks = await request<
+        Array<{
+          id: string;
+          status: string;
+          result?: {
+            changePreview?: {
+              id: string;
+              targets: Array<{ patch?: { content?: string } }>;
+            };
+          };
+        }>
+      >("/api/v1/tasks");
+      const item = tasks.body.find(
+        (task) => task.id === continuationRun.body.taskId,
+      );
+      continuationPreview = item?.result?.changePreview;
+      if (!item || !["queued", "running"].includes(item.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    const continuationContent = continuationPreview?.targets[0]?.patch?.content;
+    assert.ok(continuationPreview);
+    assert.match(String(continuationContent), /不要相信来电的人/);
+    assert.match(String(continuationContent), /姐姐留下的第二个记号/);
+    await request(`/api/v1/change-previews/${continuationPreview.id}/discard`, {
+      method: "POST",
+      headers: { "Idempotency-Key": "discard-continuation-contract" },
+    });
     const mcpSession = await request<{ id: string }>("/api/v1/agent-sessions", {
       method: "POST",
       body: JSON.stringify({
@@ -1226,6 +1491,19 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.ok(genericChangePreview);
     assert.equal(genericChangePreview.status, "pending");
     assert.equal(genericChangePreview.targets.length, 1);
+    const editedGenericPreview = await request<{
+      targets: Array<{ patch?: { content?: string } }>;
+    }>(`/api/v1/change-previews/${genericChangePreview.id}/content`, {
+      method: "PUT",
+      body: JSON.stringify({
+        content: "用户在差异窗口中逐段采用后形成的最终章节正文。",
+      }),
+    });
+    assert.equal(editedGenericPreview.status, 200);
+    assert.equal(
+      editedGenericPreview.body.targets[0]?.patch?.content,
+      "用户在差异窗口中逐段采用后形成的最终章节正文。",
+    );
     const concurrentChapterChange = await request<{ version: number }>(
       `/api/v1/chapters/${agentChapter.body.id}`,
       {
@@ -1842,6 +2120,10 @@ test("desktop production boundary excludes local renderers and business IPC", ()
     new URL("../../ai/src/opencode-sidecar.ts", import.meta.url),
     "utf8",
   );
+  const openCodeConfig = readFileSync(
+    new URL("../../ai/src/opencode-config.ts", import.meta.url),
+    "utf8",
+  );
   const serverSource = readFileSync(
     new URL("./sidecar.ts", import.meta.url),
     "utf8",
@@ -1866,7 +2148,13 @@ test("desktop production boundary excludes local renderers and business IPC", ()
     "websearch",
     "task",
   ])
-    assert.match(openCodeEngine, new RegExp(`${capability}: "deny"`));
+    assert.match(openCodeConfig, new RegExp(`${capability}: "deny"`));
+  assert.match(openCodeEngine, /createSandboxedOpenCodeConfig/);
+  assert.match(
+    openCodeConfig,
+    /DRAMAIP_OPENCODE_PROVIDER_ID = "dramaip-agent"/,
+  );
+  assert.match(openCodeConfig, /@ai-sdk\/openai-compatible/);
 
   const channels = [
     ...desktopMain.matchAll(/ipcMain\.handle\(\s*["']([^"']+)["']/g),

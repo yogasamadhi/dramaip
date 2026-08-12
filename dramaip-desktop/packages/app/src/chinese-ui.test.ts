@@ -1,9 +1,17 @@
 import { expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import ts from "typescript";
 
-const visibleSourcePath = join(import.meta.dir, "main.tsx");
+async function visibleSourcePaths(): Promise<string[]> {
+  const entries = await readdir(import.meta.dir, {
+    recursive: true,
+    withFileTypes: true,
+  });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".tsx"))
+    .map((entry) => join(entry.parentPath, entry.name));
+}
 
 function expressionText(node: ts.Expression | undefined): string[] {
   if (!node) return [];
@@ -30,30 +38,32 @@ function childText(child: ts.JsxChild): string[] {
 }
 
 test("所有静态按钮文案均包含中文", async () => {
-  const source = await readFile(visibleSourcePath, "utf8");
-  const sourceFile = ts.createSourceFile(
-    visibleSourcePath,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX,
-  );
   const buttonTexts: string[] = [];
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isJsxElement(node) &&
-      node.openingElement.tagName.getText(sourceFile) === "button"
-    ) {
-      buttonTexts.push(
-        ...node.children
-          .flatMap(childText)
-          .map((value) => value.replace(/\s+/g, " ").trim())
-          .filter(Boolean),
-      );
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
+  for (const visibleSourcePath of await visibleSourcePaths()) {
+    const source = await readFile(visibleSourcePath, "utf8");
+    const sourceFile = ts.createSourceFile(
+      visibleSourcePath,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isJsxElement(node) &&
+        node.openingElement.tagName.getText(sourceFile) === "button"
+      ) {
+        buttonTexts.push(
+          ...node.children
+            .flatMap(childText)
+            .map((value) => value.replace(/\s+/g, " ").trim())
+            .filter(Boolean),
+        );
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
 
   expect(buttonTexts.length).toBeGreaterThan(20);
   const englishOnly = buttonTexts.filter(
@@ -63,11 +73,16 @@ test("所有静态按钮文案均包含中文", async () => {
 });
 
 test("输入提示和可访问标签不使用纯英文", async () => {
-  const source = await readFile(visibleSourcePath, "utf8");
-  const visibleMessages = [
-    ...source.matchAll(/(?:placeholder|aria-label|title)="([^"]+)"/g),
-    ...source.matchAll(/throw\s+new\s+Error\("([^"]+)"\)/g),
-  ].map((match) => match[1]);
+  const visibleMessages: string[] = [];
+  for (const visibleSourcePath of await visibleSourcePaths()) {
+    const source = await readFile(visibleSourcePath, "utf8");
+    visibleMessages.push(
+      ...[
+        ...source.matchAll(/(?:placeholder|aria-label|title)="([^"]+)"/g),
+        ...source.matchAll(/throw\s+new\s+Error\("([^"]+)"\)/g),
+      ].map((match) => match[1]),
+    );
+  }
   const englishOnly = visibleMessages.filter(
     (value) => /[A-Za-z]/.test(value) && !/[㐀-鿿]/u.test(value),
   );

@@ -19,6 +19,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -36,6 +37,7 @@ import type {
   AgentExperiment,
   AgentTaskType,
   Chapter,
+  ChapterPatch,
   DomainEntity,
   Project,
   ProjectInput,
@@ -58,6 +60,13 @@ import type {
   ProviderActionPreview,
   RevisionPreview,
 } from "@sdns/schema";
+import { NovelChapterWorkspace } from "./features/novel/NovelChapterWorkspace";
+import {
+  NovelArtifactGenerator,
+  NovelCharactersSection,
+  NovelLongformToolsSection,
+  NovelOutlineSection,
+} from "./features/novel/NovelProjectSections";
 import "./styles.css";
 
 const ClientContext = createContext<StudioClient | undefined>(undefined);
@@ -181,19 +190,7 @@ function searchResultPath(
   return "/create";
 }
 
-type ChapterDetailKey =
-  | "outline"
-  | "mainConflict"
-  | "hook"
-  | "highlight"
-  | "reversal"
-  | "cliffhanger"
-  | "shortDramaNote"
-  | "aiVideoNote";
-type EditableChapter = Pick<
-  Chapter,
-  "title" | "summary" | "content" | ChapterDetailKey
->;
+type EditableChapter = Omit<ChapterPatch, "version">;
 type EditableProject = Pick<
   Project,
   | "title"
@@ -210,37 +207,6 @@ type EditableProject = Pick<
   | "genreOpportunity"
   | "productionBrief"
 >;
-
-const CHAPTER_DETAIL_FIELDS: ReadonlyArray<{
-  key: ChapterDetailKey;
-  label: string;
-  placeholder: string;
-}> = [
-  { key: "outline", label: "章节大纲", placeholder: "本章事件推进" },
-  { key: "mainConflict", label: "核心冲突", placeholder: "本章的主要矛盾" },
-  { key: "hook", label: "开场钩子", placeholder: "吸引观众继续观看的开端" },
-  { key: "highlight", label: "高光时刻", placeholder: "本章最有记忆点的场面" },
-  { key: "reversal", label: "反转", placeholder: "关系或信息的变化" },
-  { key: "cliffhanger", label: "章节悬念", placeholder: "推动下一章的悬念" },
-  {
-    key: "shortDramaNote",
-    label: "短剧节奏备注",
-    placeholder: "节奏、时长或情绪提示",
-  },
-  {
-    key: "aiVideoNote",
-    label: "视频制作备注",
-    placeholder: "画面、动作或制作限制",
-  },
-];
-
-function chapterDetailDraft(
-  chapter: Chapter,
-): Record<ChapterDetailKey, string> {
-  return Object.fromEntries(
-    CHAPTER_DETAIL_FIELDS.map(({ key }) => [key, chapter[key] ?? ""]),
-  ) as Record<ChapterDetailKey, string>;
-}
 
 function useStudio(): StudioClient {
   const client = useContext(ClientContext);
@@ -305,43 +271,155 @@ function StartupFailure(props: { error: string; onRetry(): void }) {
   );
 }
 
+function WorkspaceIntro(props: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  badge?: string;
+}) {
+  return (
+    <section className="studio-grid relative overflow-hidden rounded-[28px] border border-[#dcc8b6] bg-sand/70 px-6 py-6 shadow-card sm:px-7">
+      <div
+        aria-hidden="true"
+        className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/45 blur-3xl"
+      />
+      <div className="relative flex flex-wrap items-end justify-between gap-5">
+        <div className="max-w-3xl">
+          <p className="studio-eyebrow">{props.eyebrow}</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-[2rem]">
+            {props.title}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            {props.description}
+          </p>
+        </div>
+        <span className="rounded-full bg-studio-dark px-4 py-2 text-xs font-medium text-white shadow-card">
+          {props.badge ?? "本地工作区"}
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function Studio() {
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => {
+    if (!assistantOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAssistantOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [assistantOpen]);
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-surface px-6">
-        <Link to="/" className="font-semibold tracking-tight text-ink">
-          DramaIP <span className="text-brand">创作工作台</span>
-        </Link>
-        <nav className="flex gap-4 text-sm text-muted">
-          <Link to="/">项目</Link>
-          <Link to="/create">创作</Link>
-          <Link to="/adapt">改编</Link>
-          <Link to="/produce">制作</Link>
-          <Link to="/review">审核交付</Link>
-          <Link to="/insights">数据洞察</Link>
-          <Link to="/search">搜索</Link>
-          <Link to="/tasks">任务</Link>
-          <Link to="/settings">设置</Link>
-        </nav>
+      <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/90 backdrop-blur-xl">
+        <div className="mx-auto flex min-h-[72px] max-w-[1720px] items-center gap-6 px-5 py-3 lg:px-8">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-3 text-lg font-semibold tracking-tight text-ink"
+          >
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 place-items-center rounded-full bg-studio-dark text-sm text-white shadow-card"
+            >
+              D
+            </span>
+            <span>
+              DramaIP <span className="font-normal text-stone-400">Studio</span>
+            </span>
+          </Link>
+          <nav
+            className="studio-scrollbar flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto text-sm"
+            aria-label="主导航"
+          >
+            {(
+              [
+                ["/", "项目"],
+                ["/create", "创作"],
+                ["/adapt", "改编"],
+                ["/produce", "制作"],
+                ["/review", "审核交付"],
+                ["/insights", "数据洞察"],
+                ["/search", "搜索"],
+                ["/tasks", "任务"],
+                ["/settings", "设置"],
+              ] as const
+            ).map(([to, label]) => {
+              const current =
+                to === "/"
+                  ? location.pathname === "/" ||
+                    location.pathname.startsWith("/projects/")
+                  : location.pathname.startsWith(to);
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-current={current ? "page" : undefined}
+                  className={`shrink-0 rounded-full px-3 py-2 transition ${current ? "bg-white font-medium text-rust shadow-card" : "text-muted hover:bg-white/70 hover:text-ink"}`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+          <button
+            aria-label="打开智能助手"
+            className="shrink-0 rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
+            onClick={() => setAssistantOpen(true)}
+          >
+            智能助手
+          </button>
+        </div>
       </header>
-      <main className="mx-auto grid max-w-[1600px] grid-cols-[1fr_340px] gap-6 p-6">
-        <section className="min-w-0">
-          <Routes>
-            <Route path="/" element={<ProjectHome />} />
-            <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/create" element={<CreativeWorkspace />} />
-            <Route path="/adapt" element={<AdaptationWorkspace />} />
-            <Route path="/produce" element={<ProductionWorkspace />} />
-            <Route path="/review" element={<ReviewDeliveryWorkspace />} />
-            <Route path="/insights" element={<FeedbackPage />} />
-            <Route path="/tasks" element={<TaskPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </section>
-        <AgentSidePanel />
+      <main className="mx-auto max-w-[1720px] px-5 py-7 lg:px-8 lg:py-8">
+        <Routes>
+          <Route path="/" element={<ProjectHome />} />
+          <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/create" element={<CreativeWorkspace />} />
+          <Route path="/adapt" element={<AdaptationWorkspace />} />
+          <Route path="/produce" element={<ProductionWorkspace />} />
+          <Route path="/review" element={<ReviewDeliveryWorkspace />} />
+          <Route path="/insights" element={<FeedbackPage />} />
+          <Route path="/tasks" element={<TaskPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
+      {assistantOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-end bg-studio-dark/40 p-4 backdrop-blur-sm sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setAssistantOpen(false);
+          }}
+        >
+          <section
+            aria-labelledby="assistant-dialog-title"
+            aria-modal="true"
+            role="dialog"
+            className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-line bg-canvas shadow-studio sm:max-h-[calc(100vh-3rem)]"
+          >
+            <div className="flex items-center justify-between border-b border-line bg-white/80 px-5 py-4 backdrop-blur-xl">
+              <div>
+                <p className="studio-eyebrow">DRAMAIP · 智能协作</p>
+                <h2 className="mt-1 font-semibold">智能助手</h2>
+              </div>
+              <button
+                aria-label="关闭智能助手"
+                className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted hover:border-stone-400 hover:text-ink"
+                onClick={() => setAssistantOpen(false)}
+              >
+                关闭
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4">
+              <AgentSidePanel />
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -377,12 +455,13 @@ function SearchPage() {
     }
   };
   return (
-    <section className="mx-auto max-w-4xl">
-      <p className="text-sm text-muted">全局搜索</p>
-      <h1 className="mt-1 text-2xl font-semibold">查找项目资料</h1>
-      <p className="mt-2 text-sm text-muted">
-        可搜索项目、章节和全部创作、制作、审核资料。
-      </p>
+    <section className="mx-auto max-w-5xl">
+      <WorkspaceIntro
+        eyebrow="全局搜索"
+        title="查找项目资料"
+        description="搜索项目、章节与全部创作、制作、审核资料，快速回到正在推进的内容。"
+        badge="统一资料库"
+      />
       <div className="mt-5 flex gap-3 rounded-2xl border border-line bg-surface p-4">
         <input
           className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2"
@@ -502,7 +581,7 @@ function ProjectPackageImportPanel(props: {
     }
   };
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5">
+    <section className="studio-card p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold">导入新版项目包</h2>
@@ -656,39 +735,91 @@ function ProjectHome() {
     }
   };
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-br from-brand to-indigo-700 p-8 text-white">
-        <p className="text-sm text-indigo-200">智能漫剧生产工作台</p>
-        <h1 className="mt-2 text-3xl font-semibold">从故事到可交付内容</h1>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-indigo-100">
-          项目资料、章节创作、改编生产与智能助手工作流全部由本地服务统一管理。
-        </p>
+    <div className="space-y-8">
+      <section className="relative overflow-hidden rounded-[32px] border border-[#d8c7b7] bg-sand shadow-studio">
+        <div className="studio-grid absolute inset-0 opacity-70" />
+        <div className="relative grid min-h-[320px] items-center gap-10 p-8 lg:grid-cols-[1.15fr_.85fr] lg:p-10">
+          <div>
+            <p className="studio-eyebrow">AI 漫剧创作与生产工作台</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-[-0.035em] text-ink lg:text-5xl">
+              从故事到可交付内容
+            </h1>
+            <p className="mt-5 max-w-2xl text-base leading-8 text-stone-700">
+              让小说创作、故事圣经、改编生产和智能助手工作流保持同一份上下文，每一次采用都有版本，每一次改动都可以恢复。
+            </p>
+            <div className="mt-7 flex flex-wrap gap-2 text-xs text-stone-600">
+              {[
+                "三智能引擎",
+                "本地项目数据库",
+                "受控内容修改",
+                "远程媒体生成",
+              ].map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full border border-stone-400/50 bg-white/55 px-3 py-1.5 backdrop-blur-sm"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="relative overflow-hidden rounded-[26px] border border-stone-700 bg-studio-dark p-4 text-white shadow-studio">
+            <div className="flex items-center justify-between px-1 pb-4 text-[11px] text-stone-400">
+              <span>DRAMAIP · 创作流程</span>
+              <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-emerald-300">
+                本地服务已连接
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                ["01", "小说创作", "设定 · 人物 · 大纲 · 正文"],
+                ["02", "改编拆解", "分集 · 剧本 · 场景 · 分镜"],
+                ["03", "媒体生产", "图片 · 音频 · 视频 · 动态分镜"],
+                ["04", "审核交付", "质量 · 合规 · 审片 · 导出"],
+              ].map(([number, label, detail], index) => (
+                <div
+                  key={number}
+                  className={`rounded-2xl border p-4 ${index === 0 ? "border-[#e98765] bg-[#49332b]" : "border-stone-700 bg-[#191918]"}`}
+                >
+                  <p className="font-mono text-[10px] text-[#e98765]">
+                    {number}
+                  </p>
+                  <p className="mt-5 text-sm font-medium">{label}</p>
+                  <p className="mt-1 text-[11px] text-stone-400">{detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
-      <section className="rounded-2xl border border-line bg-surface p-5">
+      <section className="studio-card p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-semibold">新建项目</h2>
+          <div>
+            <p className="studio-eyebrow">新建项目</p>
+            <h2 className="mt-1 text-xl font-semibold">开始一个新故事</h2>
+          </div>
           <button
-            className="rounded-lg border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm text-ink hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50"
             disabled={saving || creatingDemo}
             onClick={() => void createDemo()}
           >
             {creatingDemo ? "正在创建示例…" : "创建示例项目"}
           </button>
         </div>
-        <div className="mt-4 flex gap-3">
+        <div className="mt-5 flex flex-wrap gap-3 lg:flex-nowrap">
           <input
-            className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2"
+            className="h-12 min-w-[260px] flex-1 rounded-xl border border-line bg-[#fdfcf9] px-4"
             placeholder="项目名称"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
           <input
-            className="w-36 rounded-lg border border-line px-3 py-2"
+            className="h-12 w-44 rounded-xl border border-line bg-[#fdfcf9] px-4"
             value={type}
             onChange={(event) => setType(event.target.value)}
           />
           <button
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="h-12 rounded-full bg-studio-dark px-7 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
             disabled={saving}
             onClick={() => void create()}
           >
@@ -701,8 +832,11 @@ function ProjectHome() {
         onImported={(project) => setProjects((items) => [project, ...items])}
       />
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">项目</h2>
+        <div className="mb-5 flex items-end justify-between">
+          <div>
+            <p className="studio-eyebrow">本地项目库</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">项目</h2>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted">{projects.length} 个</span>
             <button
@@ -716,23 +850,29 @@ function ProjectHome() {
             </button>
           </div>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {projects.map((project, index) => (
             <article
               key={project.id}
-              className="rounded-xl border border-line bg-surface p-5 transition hover:border-brand"
+              className="studio-card studio-card-interactive group relative overflow-hidden p-6 transition"
             >
+              <span className="absolute right-5 top-5 font-mono text-xs text-stone-300">
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <Link to={`/projects/${project.id}`} className="block">
-                <p className="font-medium">{project.title}</p>
-                <p className="mt-1 text-sm text-muted">
+                <span className="inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-medium text-rust">
                   {project.shortDramaType}
+                </span>
+                <p className="mt-8 text-xl font-semibold tracking-tight group-hover:text-rust">
+                  {project.title}
                 </p>
-                <p className="mt-5 line-clamp-2 text-sm text-muted">
+                <p className="mt-3 min-h-12 line-clamp-2 text-sm leading-6 text-muted">
                   {project.synopsis || "尚未填写项目简介"}
                 </p>
+                <p className="mt-6 text-sm font-medium text-rust">进入项目 →</p>
               </Link>
               <button
-                className="mt-4 text-xs text-muted hover:text-red-600"
+                className="mt-5 text-xs text-muted hover:text-red-600"
                 onClick={() => void trashProject(project)}
               >
                 移入回收站
@@ -798,28 +938,41 @@ function ProjectWorkspace() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [error, setError] = useState<string>();
-  const [showProjectSettings, setShowProjectSettings] = useState(false);
+  const [novelSection, setNovelSection] = useState<
+    "settings" | "characters" | "outlines" | "chapters" | "story-bible" | "more"
+  >("chapters");
   const [exporting, setExporting] = useState<
-    "markdown" | "json" | "script" | "storyboard" | "delivery"
+    | "markdown"
+    | "submission-markdown"
+    | "submission-json"
+    | "json"
+    | "script"
+    | "storyboard"
+    | "delivery"
   >();
   const [exportNotice, setExportNotice] = useState<string>();
   const active = chapters.find((item) => item.id === activeId) ?? chapters[0];
-  const load = () => {
+  const load = async (): Promise<void> => {
     if (!projectId) return;
-    void Promise.all([
-      client.projects.get(projectId),
-      client.chapters.list(projectId),
-    ])
-      .then(([p, c]) => {
-        setProject(p);
-        setChapters(c);
-        setActiveId((current) => current ?? c[0]?.id);
-      })
-      .catch((cause) => setError(message(cause)));
+    try {
+      const [p, c] = await Promise.all([
+        client.projects.get(projectId),
+        client.chapters.list(projectId),
+      ]);
+      setProject(p);
+      setChapters(c);
+      setActiveId((current) =>
+        current && c.some((item) => item.id === current) ? current : c[0]?.id,
+      );
+    } catch (cause) {
+      setError(message(cause));
+    }
   };
-  useEffect(load, [client, projectId]);
-  const addChapter = async () => {
-    if (!projectId) return;
+  useEffect(() => {
+    void load();
+  }, [client, projectId]);
+  const addChapter = async (): Promise<Chapter | undefined> => {
+    if (!projectId) return undefined;
     try {
       const created = await client.chapters.create({
         projectId,
@@ -829,23 +982,30 @@ function ProjectWorkspace() {
       });
       setChapters((items) => [...items, created]);
       setActiveId(created.id);
+      return created;
     } catch (cause) {
       setError(message(cause));
+      return undefined;
     }
   };
-  const updateChapter = async (patch: Partial<EditableChapter>) => {
-    if (!active) return;
+  const updateChapterById = async (
+    chapterId: string,
+    patch: Partial<EditableChapter>,
+    baseVersion: number,
+  ): Promise<Chapter> => {
     try {
-      const updated = await client.chapters.update(active.id, {
+      const updated = await client.chapters.update(chapterId, {
         ...patch,
-        version: active.version,
+        version: baseVersion,
       });
       setChapters((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );
+      return updated;
     } catch (cause) {
       setError(message(cause));
-      load();
+      await load();
+      throw cause;
     }
   };
   const updateProject = async (patch: EditableProject) => {
@@ -856,30 +1016,19 @@ function ProjectWorkspace() {
         version: project.version,
       });
       setProject(updated);
-      setShowProjectSettings(false);
     } catch (cause) {
       setError(message(cause));
       load();
     }
   };
-  const moveChapter = async (chapterId: string, direction: -1 | 1) => {
+  const reorderChapters = async (chapterIds: string[]): Promise<void> => {
     if (!projectId) return;
-    const index = chapters.findIndex((item) => item.id === chapterId);
-    const nextIndex = index + direction;
-    if (index < 0 || nextIndex < 0 || nextIndex >= chapters.length) return;
-    const reordered = [...chapters];
-    [reordered[index], reordered[nextIndex]] = [
-      reordered[nextIndex],
-      reordered[index],
-    ];
     try {
-      const updated = await client.chapters.reorder(projectId, {
-        chapterIds: reordered.map((item) => item.id),
-      });
+      const updated = await client.chapters.reorder(projectId, { chapterIds });
       setChapters(updated);
     } catch (cause) {
       setError(message(cause));
-      load();
+      await load();
     }
   };
   const removeChapter = async (chapter: Chapter) => {
@@ -896,7 +1045,14 @@ function ProjectWorkspace() {
     }
   };
   const exportProject = async (
-    format: "markdown" | "json" | "script" | "storyboard" | "delivery",
+    format:
+      | "markdown"
+      | "submission-markdown"
+      | "submission-json"
+      | "json"
+      | "script"
+      | "storyboard"
+      | "delivery",
   ) => {
     if (!project) return;
     setExporting(format);
@@ -916,62 +1072,63 @@ function ProjectWorkspace() {
   };
   if (!project) return <div className="text-sm text-muted">加载项目…</div>;
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <button
-        className="text-sm text-muted hover:text-brand"
+        className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-card hover:border-stone-400 hover:text-ink"
         onClick={() => navigate("/")}
       >
         ← 返回项目
       </button>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">{project.shortDramaType}</p>
-          <h1 className="text-2xl font-semibold">{project.title}</h1>
+      <section className="studio-card studio-grid relative flex min-h-40 items-center justify-between gap-6 overflow-visible bg-[#f4eadf] p-7 lg:p-8">
+        <div className="relative">
+          <p className="studio-eyebrow">{project.shortDramaType} · 创作项目</p>
+          <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] lg:text-4xl">
+            {project.title}
+          </h1>
+          <div className="mt-4 flex flex-wrap gap-4 text-sm text-stone-600">
+            <span>{chapters.length} 个章节</span>
+            <span>
+              {project.targetWordCount
+                ? `目标 ${project.targetWordCount} 字`
+                : "尚未设置目标字数"}
+            </span>
+            <span>版本 {project.version + 1}</span>
+          </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand disabled:opacity-50"
-            disabled={Boolean(exporting)}
-            onClick={() => void exportProject("markdown")}
-          >
-            {exporting === "markdown" ? "导出中…" : "导出文档"}
-          </button>
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand disabled:opacity-50"
-            disabled={Boolean(exporting)}
-            onClick={() => void exportProject("json")}
-          >
-            {exporting === "json" ? "导出中…" : "导出数据"}
-          </button>
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand disabled:opacity-50"
-            disabled={Boolean(exporting)}
-            onClick={() => void exportProject("script")}
-          >
-            {exporting === "script" ? "导出中…" : "导出剧本"}
-          </button>
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand disabled:opacity-50"
-            disabled={Boolean(exporting)}
-            onClick={() => void exportProject("storyboard")}
-          >
-            {exporting === "storyboard" ? "导出中…" : "导出分镜"}
-          </button>
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand disabled:opacity-50"
-            disabled={Boolean(exporting)}
-            onClick={() => void exportProject("delivery")}
-          >
-            {exporting === "delivery" ? "导出中…" : "导出交付资料"}
-          </button>
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:text-brand"
-            onClick={() => setShowProjectSettings((value) => !value)}
-          >
-            项目设定
-          </button>
-        </div>
-      </div>
+        <details className="relative">
+          <summary className="cursor-pointer list-none rounded-full border border-stone-400/60 bg-white/80 px-5 py-2.5 text-sm font-medium text-ink shadow-card backdrop-blur-sm hover:border-rust hover:text-rust">
+            项目输入输出
+          </summary>
+          <div className="absolute right-0 z-20 mt-3 grid w-52 gap-1 rounded-2xl border border-line bg-white p-2 shadow-studio">
+            {(
+              [
+                ["markdown", "导出完整小说文档"],
+                ["submission-markdown", "导出投稿包文档"],
+                ["submission-json", "导出投稿包数据"],
+                ["json", "导出完整项目包"],
+                ["script", "导出剧本资料"],
+                ["storyboard", "导出分镜资料"],
+                ["delivery", "导出投稿与交付包"],
+              ] as const
+            ).map(([format, label]) => (
+              <button
+                key={format}
+                className="rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-brand-soft hover:text-brand disabled:opacity-50"
+                disabled={Boolean(exporting)}
+                onClick={() => void exportProject(format)}
+              >
+                {exporting === format ? "正在导出…" : label}
+              </button>
+            ))}
+            <button
+              className="rounded-lg px-3 py-2 text-left text-sm text-muted hover:bg-brand-soft hover:text-brand"
+              onClick={() => setNovelSection("more")}
+            >
+              导入小说与拆章
+            </button>
+          </div>
+        </details>
+      </section>
       {error && (
         <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
       )}
@@ -980,70 +1137,108 @@ function ProjectWorkspace() {
           {exportNotice}
         </p>
       )}
-      {showProjectSettings && (
-        <ProjectSettingsEditor project={project} onSave={updateProject} />
+      <nav
+        className="flex flex-wrap gap-1 rounded-[24px] border border-line bg-[#eee8e1]/85 p-1.5 shadow-card backdrop-blur-sm"
+        aria-label="小说创作入口"
+      >
+        {(
+          [
+            ["settings", "设定"],
+            ["characters", "人物"],
+            ["outlines", "大纲"],
+            ["chapters", "章节"],
+            ["story-bible", "故事圣经"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            className={`rounded-full px-5 py-2.5 text-sm ${novelSection === value ? "bg-studio-dark font-medium text-white shadow-card" : "text-muted hover:bg-white hover:text-ink"}`}
+            onClick={() => setNovelSection(value)}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          className={`ml-auto rounded-full px-5 py-2.5 text-sm ${novelSection === "more" ? "bg-white font-medium text-rust shadow-card" : "text-muted hover:bg-white hover:text-ink"}`}
+          onClick={() => setNovelSection("more")}
+        >
+          更多创作工具
+        </button>
+      </nav>
+      {novelSection === "settings" && (
+        <div className="space-y-4">
+          <section className="studio-card p-6">
+            <div>
+              <h2 className="text-xl font-semibold">一句话完成项目设定</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                像旧版一样输入一个想法即可生成题材钩子、故事梗概、情绪主轴、创作规范和视觉方向；结果确认后才写入。
+              </p>
+            </div>
+            <NovelArtifactGenerator
+              client={client}
+              projectId={project.id}
+              taskType="generate_project"
+              title="智能补全项目设定"
+              description="可以只写一句话，也可以补充目标读者、题材偏好和不希望出现的内容。"
+              onCommitted={load}
+            />
+          </section>
+          <ProjectSettingsEditor project={project} onSave={updateProject} />
+        </div>
       )}
-      <SourceImportPanel projectId={project.id} onImported={load} />
-      <ContentVersionPanel projectId={project.id} onRestored={load} />
-      <ProjectActivityPanel projectId={project.id} />
-      <div className="grid min-h-[650px] grid-cols-[220px_1fr] overflow-hidden rounded-2xl border border-line bg-surface">
-        <aside className="border-r border-line p-3">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-medium">章节</span>
-            <button
-              className="rounded-md px-2 py-1 text-sm text-brand hover:bg-brand-soft"
-              onClick={() => void addChapter()}
-            >
-              ＋
-            </button>
-          </div>
-          <div className="space-y-1">
-            {chapters.map((chapter, index) => (
-              <div
-                key={chapter.id}
-                className={`group flex items-center gap-1 rounded-lg ${active?.id === chapter.id ? "bg-brand-soft text-brand" : "hover:bg-slate-50"}`}
-              >
-                <button
-                  className="min-w-0 flex-1 px-3 py-2 text-left text-sm"
-                  onClick={() => setActiveId(chapter.id)}
-                >
-                  {chapter.title}
-                </button>
-                <div className="flex pr-1 text-xs text-muted opacity-0 transition group-hover:opacity-100">
-                  <button
-                    aria-label="上移章节"
-                    className="rounded px-1 hover:text-brand disabled:opacity-30"
-                    disabled={index === 0}
-                    onClick={() => void moveChapter(chapter.id, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    aria-label="下移章节"
-                    className="rounded px-1 hover:text-brand disabled:opacity-30"
-                    disabled={index === chapters.length - 1}
-                    onClick={() => void moveChapter(chapter.id, 1)}
-                  >
-                    ↓
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </aside>
-        {active ? (
-          <ChapterEditor
-            chapter={active}
-            onSave={updateChapter}
-            onReload={load}
-            onRemove={() => void removeChapter(active)}
+      {novelSection === "characters" && (
+        <NovelCharactersSection client={client} projectId={project.id} />
+      )}
+      {novelSection === "outlines" && (
+        <NovelOutlineSection client={client} projectId={project.id} />
+      )}
+      {novelSection === "chapters" && (
+        <NovelChapterWorkspace
+          client={client}
+          projectId={project.id}
+          chapters={chapters}
+          activeChapter={active}
+          onSelectChapter={setActiveId}
+          onCreateChapter={addChapter}
+          onSaveChapter={updateChapterById}
+          onRemoveChapter={removeChapter}
+          onReorderChapters={reorderChapters}
+          onReload={load}
+        />
+      )}
+      {novelSection === "story-bible" && (
+        <StoryBibleChangeSetPanel projectId={project.id} />
+      )}
+      {novelSection === "more" && (
+        <div className="space-y-5">
+          <NovelLongformToolsSection
+            client={client}
+            projectId={project.id}
+            chapters={chapters}
           />
-        ) : (
-          <div className="grid place-items-center text-sm text-muted">
-            创建章节开始写作。
-          </div>
-        )}
-      </div>
+          <SourceImportPanel projectId={project.id} onImported={load} />
+          <ContentVersionPanel projectId={project.id} onRestored={load} />
+          <ProjectActivityPanel projectId={project.id} />
+          <ChapterAnalysisPanel />
+          <CreativeDiagnosticsPanel />
+          <DomainWorkspace
+            title="项目技能、灵感与模板"
+            projectId={project.id}
+            domains={[
+              "project-skills",
+              "agent-schemes",
+              "inspirations",
+              "visual-settings",
+              "beats",
+              "highlights",
+              "feasibility",
+              "trends",
+              "evaluations",
+              "templates",
+            ]}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1698,13 +1893,70 @@ function importWarning(value: string): string {
     : value;
 }
 
-function ChapterEditor(props: {
+/* 已删除的临时章节写作界面，仅在本次迁移提交的差异中保留历史上下文；不会进入编译产物。
+const CHAPTER_AI_ACTIONS: ReadonlyArray<{
+  taskType: AgentTaskType;
+  label: string;
+  description: string;
+  requiresContent?: boolean;
+  primary?: boolean;
+}> = [
+  {
+    taskType: "generate_chapter",
+    label: "AI 生成正文",
+    description: "根据项目设定、大纲和创作要点生成完整章节",
+    primary: true,
+  },
+  {
+    taskType: "continue_chapter",
+    label: "续写本章",
+    description: "承接现有结尾继续写，并安全拼接到正文",
+    requiresContent: true,
+  },
+  {
+    taskType: "rewrite_chapter",
+    label: "改写本章",
+    description: "按本次要求生成完整改写版本",
+    requiresContent: true,
+  },
+  {
+    taskType: "polish_chapter",
+    label: "润色本章",
+    description: "修正表达并提升文字、对白和画面质感",
+    requiresContent: true,
+  },
+  {
+    taskType: "expand_chapter",
+    label: "扩写本章",
+    description: "补充情节、动作、对白和情绪细节",
+    requiresContent: true,
+  },
+];
+
+const CHAPTER_AI_ENHANCEMENTS: ReadonlyArray<{
+  taskType: AgentTaskType;
+  label: string;
+}> = [
+  { taskType: "enhance_conflict", label: "增强冲突" },
+  { taskType: "enhance_highlight", label: "增强爽点" },
+  { taskType: "enhance_hook", label: "强化钩子" },
+  { taskType: "enhance_reversal", label: "强化反转" },
+  { taskType: "enhance_cliffhanger", label: "强化悬念" },
+  { taskType: "enhance_ai_drama_feel", label: "增强短剧感" },
+  { taskType: "enhance_author_style", label: "强化作者风格" },
+  { taskType: "rewrite_as_ai_drama_novel", label: "短剧化改写" },
+];
+
+export function DeprecatedChapterEditor(props: {
+  projectId: string;
   chapter: Chapter;
   onSave(patch: Partial<EditableChapter>): Promise<void>;
   onReload(): void;
   onRemove(): void;
+  onCreateNextChapter(): Promise<Chapter | undefined>;
 }) {
   const client = useStudio();
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState(props.chapter.title);
   const [content, setContent] = useState(props.chapter.content);
   const [summary, setSummary] = useState(props.chapter.summary);
@@ -1723,6 +1975,72 @@ function ChapterEditor(props: {
   }>();
   const [revisionError, setRevisionError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [aiEngineKind, setAiEngineKind] = useState<AgentEngineKind>("opencode");
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiStarting, setAiStarting] = useState(false);
+  const [aiWatching, setAiWatching] = useState(false);
+  const [aiTaskType, setAiTaskType] = useState<AgentTaskType>();
+  const [aiTaskId, setAiTaskId] = useState<string>();
+  const [aiRunId, setAiRunId] = useState<string>();
+  const [aiPreview, setAiPreview] = useState<ChangePreview>();
+  const [aiNotice, setAiNotice] = useState<string>();
+  const { data: aiEngines = [] } = useQuery({
+    queryKey: ["agent-engines"],
+    queryFn: client.agentEngines.list,
+    refetchInterval: 5_000,
+  });
+  const { data: projectAgentSettings } = useQuery({
+    queryKey: ["project-agent-settings", props.projectId],
+    queryFn: () => client.agentEngines.getProjectSettings(props.projectId),
+  });
+  const { data: aiTasks = [] } = useQuery({
+    queryKey: ["chapter-ai-task", aiTaskId],
+    queryFn: client.tasks.list,
+    enabled: Boolean(aiTaskId),
+    refetchInterval: aiWatching ? 1_000 : false,
+  });
+  const { data: aiItems = [] } = useQuery({
+    queryKey: ["chapter-ai-items", aiRunId],
+    queryFn: () => client.agentSessions.listItems(aiRunId!),
+    enabled: Boolean(aiRunId),
+    refetchInterval: aiWatching ? 750 : false,
+  });
+  const currentAiTask = aiTasks.find((item) => item.id === aiTaskId);
+  const currentAiEngine = aiEngines.find(
+    (engine) => engine.kind === aiEngineKind,
+  );
+  const latestAiText = [...aiItems]
+    .reverse()
+    .find(
+      (item) =>
+        (item.type === "message" || item.type === "structured_output") &&
+        item.content?.trim(),
+    )?.content;
+  useEffect(() => {
+    if (projectAgentSettings)
+      setAiEngineKind(projectAgentSettings.defaultEngineKind);
+  }, [projectAgentSettings]);
+  useEffect(() => {
+    if (!currentAiTask) return;
+    if (["queued", "running", "interrupted"].includes(currentAiTask.status))
+      return;
+    setAiWatching(false);
+    if (currentAiTask.status === "succeeded") {
+      const generatedPreview = agentChangePreview(currentAiTask.result);
+      setAiPreview(generatedPreview);
+      setAiNotice(
+        generatedPreview
+          ? "AI 正文已生成，请核对候选内容后确认应用。"
+          : "AI 任务已完成，但没有返回可采用的正文，请在任务中心查看结果后重试。",
+      );
+    } else {
+      setAiNotice(
+        currentAiTask.error
+          ? message(new Error(currentAiTask.error))
+          : "AI 写作任务未能完成，请调整要求后重试。",
+      );
+    }
+  }, [currentAiTask]);
   useEffect(() => {
     setTitle(props.chapter.title);
     setContent(props.chapter.content);
@@ -1773,6 +2091,125 @@ function ChapterEditor(props: {
       setSubmitting(false);
     }
   };
+  const currentDraft = (): EditableChapter => ({
+    title,
+    summary,
+    content,
+    ...details,
+  });
+  const persistCurrentDraft = async (): Promise<Chapter> => {
+    const draft = currentDraft();
+    const originalDetails = chapterDetailDraft(props.chapter);
+    const changed =
+      draft.title !== props.chapter.title ||
+      draft.summary !== props.chapter.summary ||
+      draft.content !== props.chapter.content ||
+      CHAPTER_DETAIL_FIELDS.some(
+        ({ key }) => draft[key] !== originalDetails[key],
+      );
+    if (changed) await props.onSave(draft);
+    const persisted = await client.chapters.get(props.chapter.id);
+    if (
+      persisted.title !== draft.title ||
+      persisted.summary !== draft.summary ||
+      persisted.content !== draft.content ||
+      CHAPTER_DETAIL_FIELDS.some(
+        ({ key }) => (persisted[key] ?? "") !== draft[key],
+      )
+    )
+      throw new Error("当前章节尚未成功保存，AI 写作没有开始。请重试保存。");
+    return persisted;
+  };
+  const queueChapterAi = async (
+    taskType: AgentTaskType,
+    targetChapter: Chapter,
+    prompt: string,
+  ) => {
+    const action = [...CHAPTER_AI_ACTIONS, ...CHAPTER_AI_ENHANCEMENTS].find(
+      (item) => item.taskType === taskType,
+    );
+    const session = await client.agentSessions.create({
+      projectId: props.projectId,
+      chapterId: targetChapter.id,
+      engineKind: aiEngineKind,
+      taskType,
+      title: `${action?.label ?? "AI 写作"}：${targetChapter.title}`,
+    });
+    const run = await client.agentSessions.run(session.id, {
+      taskType,
+      ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+    });
+    setAiTaskType(taskType);
+    setAiTaskId(run.taskId);
+    setAiRunId(run.runId);
+    setAiWatching(true);
+    setAiNotice(`${action?.label ?? "AI 写作"}已开始，正文正在生成。`);
+    await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  };
+  const runCurrentChapterAi = async (taskType: AgentTaskType) => {
+    if (currentAiEngine?.status !== "available") {
+      setAiNotice("所选智能引擎当前不可用，请在设置中完成模型配置或登录。");
+      return;
+    }
+    setAiStarting(true);
+    setAiPreview(undefined);
+    setAiNotice(undefined);
+    try {
+      const persisted = await persistCurrentDraft();
+      await queueChapterAi(taskType, persisted, aiInstruction);
+    } catch (cause) {
+      setAiNotice(message(cause));
+    } finally {
+      setAiStarting(false);
+    }
+  };
+  const generateNextChapter = async () => {
+    if (!content.trim()) {
+      setAiNotice("当前章节还没有正文，请先生成当前章节，再续写下一章。");
+      return;
+    }
+    if (currentAiEngine?.status !== "available") {
+      setAiNotice("所选智能引擎当前不可用，请在设置中完成模型配置或登录。");
+      return;
+    }
+    setAiStarting(true);
+    setAiPreview(undefined);
+    setAiNotice(undefined);
+    try {
+      const previous = await persistCurrentDraft();
+      const next = await props.onCreateNextChapter();
+      if (!next) throw new Error("新建下一章失败，请重试。");
+      const continuationPrompt = [
+        "请承接上一章结尾，直接生成新章节的完整正文，不要复述上一章。",
+        previous.summary ? `上一章摘要：${previous.summary}` : "",
+        `上一章结尾：${previous.content.slice(-2_400)}`,
+        aiInstruction.trim() ? `补充要求：${aiInstruction.trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n")
+        .slice(0, 3_900);
+      await queueChapterAi("generate_chapter", next, continuationPrompt);
+    } catch (cause) {
+      setAiNotice(message(cause));
+    } finally {
+      setAiStarting(false);
+    }
+  };
+  const interruptAi = async () => {
+    if (!aiRunId) return;
+    try {
+      await client.agentSessions.interrupt(aiRunId);
+      setAiWatching(false);
+      setAiNotice("AI 写作任务已中断，可以前往任务中心恢复或重试。");
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    } catch (cause) {
+      setAiNotice(message(cause));
+    }
+  };
+  const aiBusy =
+    aiStarting ||
+    aiWatching ||
+    ["queued", "running"].includes(currentAiTask?.status ?? "");
   return (
     <article className="flex min-w-0 flex-col">
       <header className="flex items-center justify-between border-b border-line p-4">
@@ -1872,6 +2309,183 @@ function ChapterEditor(props: {
           </div>
         </section>
       )}
+      <section
+        aria-label="AI 小说写作"
+        className="border-b border-[#ead4c7] bg-gradient-to-r from-brand-soft/80 to-white p-4"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-ink">AI 小说写作</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              无需手写正文。选择生成方式后，AI
+              会读取项目设定、人物、大纲和当前章节；结果先进入预览，确认后才写入。
+            </p>
+          </div>
+          <label className="grid min-w-44 gap-1 text-xs text-muted">
+            本次使用的智能引擎
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={aiEngineKind}
+              disabled={aiBusy}
+              onChange={(event) =>
+                setAiEngineKind(event.target.value as AgentEngineKind)
+              }
+            >
+              {aiEngines.map((engine) => (
+                <option key={engine.kind} value={engine.kind}>
+                  {engine.name}
+                  {engine.isBeta ? "（测试版）" : ""} ·{" "}
+                  {engine.status === "available" ? "可用" : "未配置"}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {currentAiEngine?.status !== "available" && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            当前引擎尚不可执行写作任务。请先前往
+            <Link className="mx-1 font-medium underline" to="/settings">
+              模型服务商与智能引擎设置
+            </Link>
+            完成配置。
+          </p>
+        )}
+        <label className="mt-3 grid gap-1 text-sm text-muted">
+          本次写作要求（可选）
+          <textarea
+            className="min-h-20 rounded-lg border border-line bg-white p-3 text-sm text-ink"
+            placeholder="例如：本章约 2500 字，开篇直接进入冲突，强化女主反击，并在结尾留下身份揭露钩子。"
+            value={aiInstruction}
+            disabled={aiBusy}
+            onChange={(event) => setAiInstruction(event.target.value)}
+          />
+        </label>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {CHAPTER_AI_ACTIONS.map((action) => {
+            const disabled =
+              aiBusy ||
+              currentAiEngine?.status !== "available" ||
+              (action.requiresContent && !content.trim());
+            return (
+              <button
+                key={action.taskType}
+                className={`rounded-xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-45 ${
+                  action.primary
+                    ? "border-brand bg-brand text-white"
+                    : "border-line bg-white text-ink hover:border-brand"
+                }`}
+                disabled={disabled}
+                onClick={() => void runCurrentChapterAi(action.taskType)}
+              >
+                <span className="block text-sm font-semibold">
+                  {aiBusy && aiTaskType === action.taskType
+                    ? "正在生成…"
+                    : content.trim() && action.taskType === "generate_chapter"
+                      ? "AI 重新生成正文"
+                      : action.label}
+                </span>
+                <span
+                  className={`mt-1 block text-xs leading-5 ${action.primary ? "text-white/80" : "text-muted"}`}
+                >
+                  {action.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className="rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-45"
+            disabled={
+              aiBusy ||
+              !content.trim() ||
+              currentAiEngine?.status !== "available"
+            }
+            onClick={() => void generateNextChapter()}
+          >
+            AI 续写下一章
+          </button>
+          <details className="group">
+            <summary className="cursor-pointer rounded-lg border border-line bg-white px-3 py-2 text-sm text-muted">
+              更多 AI 强化方式
+            </summary>
+            <div className="mt-2 flex max-w-3xl flex-wrap gap-2 rounded-xl border border-line bg-white p-3">
+              {CHAPTER_AI_ENHANCEMENTS.map((action) => (
+                <button
+                  key={action.taskType}
+                  className="rounded-lg border border-line px-3 py-2 text-sm text-ink hover:border-brand hover:text-brand disabled:opacity-45"
+                  disabled={
+                    aiBusy ||
+                    !content.trim() ||
+                    currentAiEngine?.status !== "available"
+                  }
+                  onClick={() => void runCurrentChapterAi(action.taskType)}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </details>
+          {aiWatching && aiRunId && (
+            <button
+              className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600"
+              onClick={() => void interruptAi()}
+            >
+              中断生成
+            </button>
+          )}
+        </div>
+        {(aiStarting || currentAiTask) && (
+          <div className="mt-3 rounded-2xl border border-[#ead4c7] bg-white p-4 shadow-card">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-medium">
+                {aiStarting
+                  ? "正在准备写作上下文…"
+                  : (currentAiTask?.title ?? "AI 写作任务")}
+              </span>
+              <span className="text-xs text-muted">
+                {aiStarting
+                  ? "准备中"
+                  : (TASK_STATUS_LABELS[currentAiTask?.status ?? "running"] ??
+                    "生成中")}
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 rounded bg-slate-100">
+              <div
+                className="h-full rounded bg-brand transition-all"
+                style={{
+                  width: `${aiStarting ? 5 : (currentAiTask?.progress ?? 0) * 100}%`,
+                }}
+              />
+            </div>
+            {latestAiText && aiWatching && (
+              <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-canvas p-3 font-editor text-sm leading-6 text-muted">
+                {latestAiText}
+              </pre>
+            )}
+            {aiTaskId && (
+              <Link
+                className="mt-2 inline-block text-xs text-brand hover:underline"
+                to="/tasks"
+              >
+                在任务中心查看完整过程
+              </Link>
+            )}
+          </div>
+        )}
+        {aiNotice && (
+          <p className="mt-3 text-sm leading-6 text-muted">{aiNotice}</p>
+        )}
+        {aiPreview?.targets.some(
+          (target) =>
+            target.kind === "chapter" && target.id === props.chapter.id,
+        ) && (
+          <AgentChangePreviewCard
+            preview={aiPreview}
+            onCommitted={props.onReload}
+          />
+        )}
+      </section>
       <div className="grid flex-1 grid-rows-[auto_auto_1fr] gap-3 p-5">
         <textarea
           className="min-h-20 resize-none rounded-lg border border-line p-3 text-sm"
@@ -1913,6 +2527,7 @@ function ChapterEditor(props: {
   );
 }
 
+*/
 const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
   queued: "等待生成",
   draft: "待确认草案",
@@ -1924,14 +2539,14 @@ const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
   failed: "生成失败",
 };
 
-function StoryBibleChangeSetPanel() {
+function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(props.projectId ?? "");
   const [chapterId, setChapterId] = useState("");
   const [notice, setNotice] = useState<string>();
   const { data: chapters = [] } = useQuery({
@@ -1954,6 +2569,9 @@ function StoryBibleChangeSetPanel() {
     queryFn: () => client.storyBible.stale(projectId),
     enabled: Boolean(projectId),
   });
+  useEffect(() => {
+    if (props.projectId) setProjectId(props.projectId);
+  }, [props.projectId]);
   useEffect(() => {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
@@ -2073,24 +2691,26 @@ function StoryBibleChangeSetPanel() {
         </label>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <label className="grid gap-1 text-sm">
-          项目
-          <select
-            className="rounded-lg border border-line px-3 py-2"
-            value={projectId}
-            onChange={(event) => {
-              setProjectId(event.target.value);
-              setChapterId("");
-            }}
-          >
-            <option value="">选择项目</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.title}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!props.projectId && (
+          <label className="grid gap-1 text-sm">
+            项目
+            <select
+              className="rounded-lg border border-line px-3 py-2"
+              value={projectId}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setChapterId("");
+              }}
+            >
+              <option value="">选择项目</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="grid gap-1 text-sm">
           章节
           <select
@@ -2205,6 +2825,12 @@ function StoryBibleChangeSetPanel() {
 function CreativeWorkspace() {
   return (
     <div className="space-y-5">
+      <WorkspaceIntro
+        eyebrow="小说与故事开发"
+        title="创作工作区"
+        description="把故事圣经、章节分析、人物关系和创意诊断集中在同一个上下文中。"
+        badge="智能创作"
+      />
       <StoryBibleChangeSetPanel />
       <ChapterAnalysisPanel />
       <CreativeDiagnosticsPanel />
@@ -2863,9 +3489,14 @@ function TaskPage() {
       void queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
   return (
-    <section>
-      <h1 className="text-2xl font-semibold">任务</h1>
-      <label className="mt-4 flex max-w-xs flex-col gap-1 text-sm text-muted">
+    <section className="space-y-5">
+      <WorkspaceIntro
+        eyebrow="执行与恢复"
+        title="任务中心"
+        description="统一查看生成、分析和交付任务的进度、失败原因与恢复入口。"
+        badge="实时进度"
+      />
+      <label className="studio-card flex max-w-md flex-col gap-1 p-4 text-sm text-muted">
         重试使用的智能引擎
         <select
           className="rounded-md border border-line bg-surface px-3 py-2 text-ink"
@@ -2880,7 +3511,7 @@ function TaskPage() {
         </select>
       </label>
       {error && <p className="mt-4 text-sm text-red-600">{message(error)}</p>}
-      <div className="mt-5 space-y-2">
+      <div className="space-y-3">
         {items.map((item) => (
           <div
             key={item.id}
@@ -3074,7 +3705,10 @@ function AgentRevisionPreviewCard(props: {
   );
 }
 
-function AgentChangePreviewCard(props: { preview: ChangePreview }) {
+function AgentChangePreviewCard(props: {
+  preview: ChangePreview;
+  onCommitted?(): void;
+}) {
   const client = useStudio();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(props.preview.status);
@@ -3090,6 +3724,7 @@ function AgentChangePreviewCard(props: { preview: ChangePreview }) {
       setStatus(preview.status);
       setNotice("已应用变更；所有目标均已通过版本检查并在同一事务中更新。");
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      props.onCommitted?.();
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -4144,23 +4779,27 @@ function DomainWorkspace(props: {
     }
   };
   return (
-    <section>
-      <p className="text-sm text-muted">{props.title}资料库</p>
-      <h1 className="mt-1 text-2xl font-semibold">{domainLabel(domain)}</h1>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted">{definition.description}</p>
+    <section className="studio-card p-5 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="studio-eyebrow">{props.title}资料库</p>
+          <h2 className="mt-1 text-2xl font-semibold">{domainLabel(domain)}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {definition.description}
+          </p>
+        </div>
         <button
-          className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white"
+          className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
           onClick={() => openEditor("new")}
         >
           新建{domainLabel(domain)}
         </button>
       </div>
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2 rounded-2xl bg-page p-2">
         {props.domains.map((item) => (
           <button
             key={item}
-            className={`rounded-full px-3 py-1.5 text-sm ${domain === item ? "bg-brand text-white" : "bg-surface text-muted ring-1 ring-line"}`}
+            className={`rounded-full px-4 py-2 text-sm ${domain === item ? "bg-studio-dark text-white shadow-card" : "bg-white text-muted ring-1 ring-line hover:text-ink"}`}
             onClick={() => {
               setDomain(item);
               setEditor(null);
@@ -4596,13 +5235,12 @@ function AdaptationWorkspace() {
   const parentRequired = stage !== "adaptations";
   return (
     <section className="space-y-5">
-      <div>
-        <p className="text-sm text-muted">改编生产链路</p>
-        <h1 className="mt-1 text-2xl font-semibold">从故事到分镜</h1>
-        <p className="mt-2 text-sm text-muted">
-          依次建立改编项目、分集、剧本、场景和分镜；下级资料会明确归属到上级条目。
-        </p>
-      </div>
+      <WorkspaceIntro
+        eyebrow="改编生产链路"
+        title="从故事到分镜"
+        description="依次建立改编项目、分集、剧本、场景和分镜，下级资料始终明确归属到上级条目。"
+        badge="结构化改编"
+      />
       <section className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-5">
         <label className="grid gap-1 text-sm">
           项目
@@ -5406,13 +6044,12 @@ function ProductionWorkspace() {
   };
   return (
     <section className="space-y-5">
-      <div>
-        <p className="text-sm text-muted">制作工作区</p>
-        <h1 className="mt-1 text-2xl font-semibold">素材与视听制作</h1>
-        <p className="mt-2 text-sm text-muted">
-          素材、版权和视觉资产归属项目；静帧与视频归属具体分镜；音频、动态分镜和渲染预检归属分集。
-        </p>
-      </div>
+      <WorkspaceIntro
+        eyebrow="制作工作区"
+        title="素材与视听制作"
+        description="素材、版权和视觉资产归属项目；静帧与视频归属分镜；音频、动态分镜与渲染预检归属分集。"
+        badge="远程媒体生成"
+      />
       <section className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-3">
         <label className="grid gap-1 text-sm">
           项目
@@ -6815,13 +7452,12 @@ function ReviewDeliveryWorkspace() {
   }, [episodeId, episodes]);
   return (
     <section className="space-y-5">
-      <div>
-        <p className="text-sm text-muted">审核交付工作区</p>
-        <h1 className="mt-1 text-2xl font-semibold">质量、审片与交付</h1>
-        <p className="mt-2 text-sm text-muted">
-          所有质量、合规、本地化、审片和交付记录均归属到具体分集。
-        </p>
-      </div>
+      <WorkspaceIntro
+        eyebrow="审核交付工作区"
+        title="质量、审片与交付"
+        description="质量、合规、本地化、审片和平台交付记录统一归属到具体分集。"
+        badge="交付就绪"
+      />
       <section className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-3">
         <label className="grid gap-1 text-sm">
           项目
@@ -8296,14 +8932,12 @@ function FeedbackPage() {
   const batches = dashboard?.batches ?? [];
   return (
     <section className="space-y-5">
-      <div>
-        <p className="text-sm text-muted">反馈闭环</p>
-        <h1 className="mt-1 text-2xl font-semibold">运营数据与用户反馈</h1>
-        <p className="mt-2 text-sm text-muted">
-          先预览再导入 CSV 或
-          JSON。指标与评论只保存在本地项目数据库，可用于后续人工修订决策。
-        </p>
-      </div>
+      <WorkspaceIntro
+        eyebrow="反馈闭环"
+        title="运营数据与用户反馈"
+        description="先预览再导入指标与评论；数据只保存在本地项目数据库，用于后续人工修订决策。"
+        badge="数据洞察"
+      />
       <section className="rounded-2xl border border-line bg-surface p-4">
         <label className="grid max-w-md gap-1 text-sm">
           所属项目
@@ -9028,232 +9662,243 @@ function ProviderSettingsPanel() {
   };
 
   return (
-    <section className="rounded-2xl border border-brand bg-surface p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-semibold">模型服务商</p>
-          <p className="mt-1 text-sm text-muted">
-            常用服务商已预填接口地址和协议，只需选择模型并填写接口密钥。
-          </p>
+    <section className="studio-card overflow-hidden p-0">
+      <div className="border-b border-line bg-brand-soft/55 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="studio-eyebrow">第一步</p>
+            <h2 className="mt-1 text-xl font-semibold">模型服务商</h2>
+            <p className="mt-1 text-sm text-muted">
+              常用服务商已预填接口地址和协议，只需选择模型并填写接口密钥。
+            </p>
+          </div>
+          <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">
+            模型目录核对于 {MODEL_PROVIDER_CATALOG_UPDATED_AT}
+          </span>
         </div>
-        <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">
-          模型目录核对于 {MODEL_PROVIDER_CATALOG_UPDATED_AT}
-        </span>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        <label className="grid gap-1 text-sm text-muted">
-          服务商
-          <select
-            className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-            value={choice}
-            onChange={(event) =>
-              selectPreset(event.target.value as ProviderChoice)
-            }
-          >
-            {MODEL_PROVIDER_CATALOG.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.name}
-              </option>
-            ))}
-            <option value="other">其他（全部手动填写）</option>
-          </select>
-        </label>
-
-        {preset ? (
+      <div className="p-5">
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
           <label className="grid gap-1 text-sm text-muted">
-            模型
+            服务商
             <select
               className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              value={modelId}
-              onChange={(event) => setModelId(event.target.value)}
+              value={choice}
+              onChange={(event) =>
+                selectPreset(event.target.value as ProviderChoice)
+              }
             >
-              {selectableModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                  {"recommended" in model && model.recommended
-                    ? "（推荐）"
-                    : ""}
+              {MODEL_PROVIDER_CATALOG.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name}
                 </option>
               ))}
+              <option value="other">其他（全部手动填写）</option>
             </select>
           </label>
-        ) : (
+
+          {preset ? (
+            <label className="grid gap-1 text-sm text-muted">
+              模型
+              <select
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                value={modelId}
+                onChange={(event) => setModelId(event.target.value)}
+              >
+                {selectableModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                    {"recommended" in model && model.recommended
+                      ? "（推荐）"
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="grid gap-1 text-sm text-muted">
+              服务商名称
+              <input
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                placeholder="输入服务商名称"
+                value={customName}
+                onChange={(event) => setCustomName(event.target.value)}
+              />
+            </label>
+          )}
+
           <label className="grid gap-1 text-sm text-muted">
-            服务商名称
+            接口密钥（API Key）
             <input
               className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              placeholder="输入服务商名称"
-              value={customName}
-              onChange={(event) => setCustomName(event.target.value)}
+              type="password"
+              autoComplete="off"
+              disabled={credentialStorage?.available !== true}
+              placeholder={
+                editing ? "留空表示继续使用已保存密钥" : "粘贴接口密钥"
+              }
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
             />
           </label>
+        </div>
+
+        {!preset && (
+          <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <label className="grid gap-1 text-sm text-muted">
+              服务类型
+              <select
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                value={customServiceType}
+                onChange={(event) => setCustomServiceType(event.target.value)}
+              >
+                <option value="智能模型">智能模型</option>
+                <option value="图片生成">图片生成</option>
+                <option value="语音生成">语音生成</option>
+                <option value="视频生成">视频生成</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm text-muted">
+              模型名称
+              <input
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                placeholder="输入模型标识"
+                value={customModel}
+                onChange={(event) => setCustomModel(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-sm text-muted">
+              服务地址
+              <input
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                placeholder="输入完整接口基础地址"
+                value={customBaseUrl}
+                onChange={(event) => setCustomBaseUrl(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-sm text-muted">
+              调用协议
+              <select
+                className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
+                value={customProtocol}
+                onChange={(event) => setCustomProtocol(event.target.value)}
+              >
+                <option value="OpenAI 兼容文本">OpenAI 兼容文本</option>
+                <option value="Anthropic">Anthropic</option>
+                <option value="Google Gemini">Google Gemini</option>
+                <option value="OpenAI 兼容图片">OpenAI 兼容图片</option>
+                <option value="OpenAI 兼容语音">OpenAI 兼容语音</option>
+                <option value="OpenAI 兼容视频">OpenAI 兼容视频</option>
+                <option value="Stable Diffusion WebUI">
+                  Stable Diffusion WebUI
+                </option>
+              </select>
+            </label>
+          </div>
         )}
 
-        <label className="grid gap-1 text-sm text-muted">
-          接口密钥（API Key）
-          <input
-            className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-            type="password"
-            autoComplete="off"
-            disabled={credentialStorage?.available !== true}
-            placeholder={
-              editing ? "留空表示继续使用已保存密钥" : "粘贴接口密钥"
-            }
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-          />
-        </label>
-      </div>
-
-      {!preset && (
-        <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-          <label className="grid gap-1 text-sm text-muted">
-            服务类型
-            <select
-              className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              value={customServiceType}
-              onChange={(event) => setCustomServiceType(event.target.value)}
-            >
-              <option value="智能模型">智能模型</option>
-              <option value="图片生成">图片生成</option>
-              <option value="语音生成">语音生成</option>
-              <option value="视频生成">视频生成</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
-            模型名称
-            <input
-              className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              placeholder="输入模型标识"
-              value={customModel}
-              onChange={(event) => setCustomModel(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
-            服务地址
-            <input
-              className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              placeholder="输入完整接口基础地址"
-              value={customBaseUrl}
-              onChange={(event) => setCustomBaseUrl(event.target.value)}
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-muted">
-            调用协议
-            <select
-              className="rounded-lg border border-line bg-white px-3 py-2 text-ink"
-              value={customProtocol}
-              onChange={(event) => setCustomProtocol(event.target.value)}
-            >
-              <option value="OpenAI 兼容文本">OpenAI 兼容文本</option>
-              <option value="Anthropic">Anthropic</option>
-              <option value="Google Gemini">Google Gemini</option>
-              <option value="OpenAI 兼容图片">OpenAI 兼容图片</option>
-              <option value="OpenAI 兼容语音">OpenAI 兼容语音</option>
-              <option value="OpenAI 兼容视频">OpenAI 兼容视频</option>
-              <option value="Stable Diffusion WebUI">
-                Stable Diffusion WebUI
-              </option>
-            </select>
-          </label>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-3 text-xs text-muted">
-          {preset && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-3 text-xs text-muted">
+            {preset && (
+              <button
+                className="text-brand hover:underline"
+                onClick={() =>
+                  void window.desktop.openExternal(preset.apiKeyUrl)
+                }
+              >
+                打开接口密钥申请页面
+              </button>
+            )}
+            <span>密钥仅进入本地加密凭据库，业务数据库只保存凭据引用。</span>
+          </div>
+          <div className="flex gap-2">
+            {editing && (
+              <button
+                className="rounded-lg border border-line px-3 py-2 text-sm"
+                onClick={resetForm}
+              >
+                取消编辑
+              </button>
+            )}
             <button
-              className="text-brand hover:underline"
-              onClick={() => void window.desktop.openExternal(preset.apiKeyUrl)}
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              disabled={saving}
+              onClick={() => void saveProvider()}
             >
-              打开接口密钥申请页面
+              {saving
+                ? "保存中…"
+                : editing
+                  ? "保存服务商修改"
+                  : "添加模型服务商"}
             </button>
-          )}
-          <span>密钥仅进入本地加密凭据库，业务数据库只保存凭据引用。</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          {editing && (
-            <button
-              className="rounded-lg border border-line px-3 py-2 text-sm"
-              onClick={resetForm}
-            >
-              取消编辑
-            </button>
-          )}
-          <button
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={saving}
-            onClick={() => void saveProvider()}
-          >
-            {saving ? "保存中…" : editing ? "保存服务商修改" : "添加模型服务商"}
-          </button>
-        </div>
-      </div>
 
-      {credentialStorage?.available === false && (
-        <p className="mt-3 text-sm text-amber-700">
-          本地凭据库不可用，当前不能新增或更换接口密钥，也不会降级保存明文。
-        </p>
-      )}
-      {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        {providers.map((provider) => {
-          const payload = recordPayload(provider.payload);
-          return (
-            <article
-              key={provider.id}
-              className="rounded-xl border border-line p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium">{provider.title}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    {String(payload["模型名称"] ?? "尚未选择模型")}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {String(payload["连接状态"] ?? "尚未测试连接")}
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-                    onClick={() => editProvider(provider)}
-                  >
-                    编辑配置
-                  </button>
-                  <button
-                    className="rounded-md border border-line px-2 py-1 text-xs text-brand"
-                    onClick={() => void testProvider(provider)}
-                  >
-                    测试连接
-                  </button>
-                  {payload["服务类型"] === "智能模型" && (
-                    <button
-                      className="rounded-md border border-brand px-2 py-1 text-xs text-brand"
-                      onClick={() => void activateProvider(provider)}
-                    >
-                      设为智能助手模型
-                    </button>
-                  )}
-                  <button
-                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600"
-                    onClick={() => void removeProvider(provider)}
-                  >
-                    删除服务商
-                  </button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-        {!providers.length && (
-          <p className="text-sm text-muted">
-            尚未配置模型服务商，请从上方常用服务商开始添加。
+        {credentialStorage?.available === false && (
+          <p className="mt-3 text-sm text-amber-700">
+            本地凭据库不可用，当前不能新增或更换接口密钥，也不会降级保存明文。
           </p>
         )}
+        {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          {providers.map((provider) => {
+            const payload = recordPayload(provider.payload);
+            return (
+              <article
+                key={provider.id}
+                className="rounded-xl border border-line p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{provider.title}</p>
+                    <p className="mt-1 text-sm text-muted">
+                      {String(payload["模型名称"] ?? "尚未选择模型")}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {String(payload["连接状态"] ?? "尚未测试连接")}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                      onClick={() => editProvider(provider)}
+                    >
+                      编辑配置
+                    </button>
+                    <button
+                      className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                      onClick={() => void testProvider(provider)}
+                    >
+                      测试连接
+                    </button>
+                    {payload["服务类型"] === "智能模型" && (
+                      <button
+                        className="rounded-md border border-brand px-2 py-1 text-xs text-brand"
+                        onClick={() => void activateProvider(provider)}
+                      >
+                        设为智能助手模型
+                      </button>
+                    )}
+                    <button
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600"
+                      onClick={() => void removeProvider(provider)}
+                    >
+                      删除服务商
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {!providers.length && (
+            <p className="text-sm text-muted">
+              尚未配置模型服务商，请从上方常用服务商开始添加。
+            </p>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -9262,6 +9907,12 @@ function ProviderSettingsPanel() {
 function SettingsPage() {
   return (
     <div className="space-y-5">
+      <WorkspaceIntro
+        eyebrow="应用与智能能力"
+        title="设置中心"
+        description="先配置模型服务商，再管理智能引擎、备份、诊断和外部连接。"
+        badge="安全配置"
+      />
       <ProviderSettingsPanel />
       <AgentEngineSettingsPanel />
       <BackupPanel />
@@ -9409,10 +10060,11 @@ function AgentEngineSettingsPanel() {
     onError: (cause) => setNotice(message(cause)),
   });
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5">
+    <section className="studio-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-medium">智能引擎</p>
+          <p className="studio-eyebrow">第二步</p>
+          <h2 className="mt-1 text-xl font-semibold">智能引擎</h2>
           <p className="mt-1 text-xs leading-5 text-muted">
             每次任务只运行你明确选择的引擎。引擎失败时不会自动切换。
           </p>
@@ -9426,7 +10078,7 @@ function AgentEngineSettingsPanel() {
         {engines.map((engine) => (
           <article
             key={engine.kind}
-            className="rounded-xl border border-line p-3"
+            className="rounded-2xl border border-line bg-[#fdfcf9] p-4 shadow-card"
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium">{engine.name}</p>
@@ -9783,9 +10435,11 @@ function AgentSidePanel() {
     onError: (cause) => setNotice(message(cause)),
   });
   return (
-    <aside className="sticky top-20 h-fit rounded-2xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50 p-5">
+    <section className="rounded-[26px] border border-[#ead4c7] bg-gradient-to-br from-white to-brand-soft p-6 shadow-card">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">DramaIP 智能助手</h2>
+        <h2 id="assistant-dialog-title" className="font-semibold">
+          DramaIP 智能助手
+        </h2>
         <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">
           受控引擎
         </span>
@@ -10009,7 +10663,7 @@ function AgentSidePanel() {
       <p className="mt-3 text-xs leading-5 text-muted">
         任务状态会实时同步到任务中心。
       </p>
-    </aside>
+    </section>
   );
 }
 
@@ -10109,6 +10763,7 @@ function message(cause: unknown): string {
     "DramaIP Server health check failed": "本地服务健康检查失败",
   };
   if (translations[raw]) return translations[raw];
+  if (/[㐀-鿿]/u.test(raw)) return raw;
   return /[A-Za-z]{2,}/.test(raw) ? "操作未能完成，请稍后重试。" : raw;
 }
 

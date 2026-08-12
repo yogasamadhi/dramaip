@@ -23,9 +23,12 @@ import {
 } from "@sdns/db";
 import {
   AGENT_TASK_CATALOG,
+  DRAMAIP_OPENCODE_PROVIDER_ID,
   getAgentTaskDefinition,
   isAgentTaskType,
+  type OpenCodeProviderAdapter,
 } from "@sdns/ai";
+import { getLegacyPrompt } from "@sdns/ai-legacy/prompt-catalog";
 import {
   authorizeMcpTool,
   enforceMcpResultLimit,
@@ -1170,8 +1173,42 @@ async function route(
         projectChapters,
       ]).map(chapter),
     );
+  const novelWorkspaceProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/novel-workspace$/,
+  );
+  if (novelWorkspaceProjectId && method === "GET")
+    return getNovelWorkspace(res, novelWorkspaceProjectId, requestId);
+  const continueNovelProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/chapters\/continue$/,
+  );
+  if (continueNovelProjectId && method === "POST")
+    return continueNovelChapter(req, res, continueNovelProjectId, requestId);
   if (method === "POST" && path === "/api/v1/chapters")
     return createChapter(req, res, requestId);
+  const chapterAgentRunId = match(
+    path,
+    /^\/api\/v1\/chapters\/([^/]+)\/agent-runs$/,
+  );
+  if (chapterAgentRunId && method === "POST")
+    return runNovelChapterAgent(req, res, chapterAgentRunId, requestId);
+  const chapterVersionsId = match(
+    path,
+    /^\/api\/v1\/chapters\/([^/]+)\/versions$/,
+  );
+  if (chapterVersionsId && method === "GET")
+    return listNovelChapterVersions(res, chapterVersionsId, requestId);
+  const chapterVersionRestore =
+    /^\/api\/v1\/chapters\/([^/]+)\/versions\/([^/]+)\/restore$/.exec(path);
+  if (chapterVersionRestore && method === "POST")
+    return restoreNovelChapterVersion(
+      req,
+      res,
+      decodeURIComponent(chapterVersionRestore[1]!),
+      decodeURIComponent(chapterVersionRestore[2]!),
+      requestId,
+    );
   const chapterId = match(path, /^\/api\/v1\/chapters\/([^/]+)$/);
   if (chapterId && method === "GET")
     return getChapter(res, chapterId, requestId);
@@ -1279,6 +1316,17 @@ async function route(
   const changePreviewId = match(path, /^\/api\/v1\/change-previews\/([^/]+)$/);
   if (changePreviewId && method === "GET")
     return getChangePreview(res, changePreviewId, requestId);
+  const changePreviewContentId = match(
+    path,
+    /^\/api\/v1\/change-previews\/([^/]+)\/content$/,
+  );
+  if (changePreviewContentId && method === "PUT")
+    return updateChangePreviewContent(
+      req,
+      res,
+      changePreviewContentId,
+      requestId,
+    );
   const commitChangePreviewId = match(
     path,
     /^\/api\/v1\/change-previews\/([^/]+)\/commit$/,
@@ -1456,7 +1504,15 @@ function exportProject(
   if (!source)
     return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
   if (
-    !["json", "markdown", "script", "storyboard", "delivery"].includes(format)
+    ![
+      "json",
+      "markdown",
+      "submission-markdown",
+      "submission-json",
+      "script",
+      "storyboard",
+      "delivery",
+    ].includes(format)
   )
     return respondError(
       res,
@@ -1488,6 +1544,18 @@ function exportProject(
       mimeType: "application/json",
       content: JSON.stringify(snapshot, null, 2),
     });
+  if (format === "submission-json")
+    return json(res, 200, {
+      fileName: `${safeTitle}-小说投稿包.json`,
+      mimeType: "application/json",
+      content: JSON.stringify(novelSubmissionPackage(snapshot), null, 2),
+    });
+  if (format === "submission-markdown")
+    return json(res, 200, {
+      fileName: `${safeTitle}-小说投稿包.md`,
+      mimeType: "text/markdown",
+      content: novelSubmissionMarkdown(snapshot),
+    });
   if (format === "script")
     return json(res, 200, {
       fileName: `${safeTitle}-剧本.md`,
@@ -1511,6 +1579,128 @@ function exportProject(
     mimeType: "text/markdown",
     content: projectMarkdown(snapshot),
   });
+}
+
+function novelSubmissionPackage(snapshot: {
+  exportedAt: string;
+  project: ReturnType<typeof project>;
+  chapters: Array<ReturnType<typeof chapter>>;
+  resources: Array<ReturnType<typeof domainEntity>>;
+}) {
+  const sampleLimit = 10;
+  const characters = snapshot.resources.filter(
+    (resource) => resource.domain === "characters",
+  );
+  const outlines = snapshot.resources.filter(
+    (resource) => resource.domain === "outlines",
+  );
+  const evaluations = snapshot.resources.filter((resource) =>
+    ["analysis", "evaluations", "quality"].includes(resource.domain),
+  );
+  return {
+    meta: {
+      format: "dramaip-novel-submission-package",
+      version: 1,
+      exportedAt: snapshot.exportedAt,
+      sourceTitle: snapshot.project.title,
+      chapterLimit: sampleLimit,
+    },
+    project: snapshot.project,
+    sellingPoints: {
+      coreHook: snapshot.project.coreHook,
+      coreSellingPoint: snapshot.project.coreSellingPoint,
+      emotionalCore: snapshot.project.emotionalCore,
+      synopsis: snapshot.project.synopsis,
+      styleGuide: snapshot.project.styleGuide,
+      visualStyleDirection: snapshot.project.visualStyleDirection,
+    },
+    characters,
+    outlines,
+    chapterCatalog: snapshot.chapters.map((item, index) => ({
+      order: index + 1,
+      title: item.title,
+      summary: item.summary,
+      hook: item.hook,
+      mainConflict: item.mainConflict,
+      highlight: item.highlight,
+      reversal: item.reversal,
+      cliffhanger: item.cliffhanger,
+      wordCount: String(item.content ?? "").replace(/\s/gu, "").length,
+    })),
+    sampleChapters: snapshot.chapters.slice(0, sampleLimit),
+    qualitySummary: evaluations.slice(0, 10),
+  };
+}
+
+function novelSubmissionMarkdown(snapshot: {
+  exportedAt: string;
+  project: ReturnType<typeof project>;
+  chapters: Array<ReturnType<typeof chapter>>;
+  resources: Array<ReturnType<typeof domainEntity>>;
+}): string {
+  const submission = novelSubmissionPackage(snapshot);
+  const lines = [
+    `# ${snapshot.project.title} · 小说投稿包`,
+    "",
+    `- 题材：${snapshot.project.shortDramaType}`,
+    snapshot.project.targetAudience
+      ? `- 目标读者：${snapshot.project.targetAudience}`
+      : "",
+    snapshot.project.targetWordCount
+      ? `- 目标字数：${snapshot.project.targetWordCount}`
+      : "",
+    "- 正文试读：前 10 章",
+    "",
+    "## 卖点摘要",
+    "",
+    snapshot.project.coreHook
+      ? `- 一句话钩子：${snapshot.project.coreHook}`
+      : "",
+    snapshot.project.coreSellingPoint
+      ? `- 核心卖点：${snapshot.project.coreSellingPoint}`
+      : "",
+    snapshot.project.emotionalCore
+      ? `- 情绪主轴：${snapshot.project.emotionalCore}`
+      : "",
+    "",
+    "## 作品简介",
+    "",
+    snapshot.project.synopsis || "（未填写）",
+    "",
+  ].filter((line, index, source) => line || source[index - 1] !== "");
+  if (submission.characters.length) {
+    lines.push("## 人物小传", "");
+    for (const character of submission.characters) {
+      const payload = domainPayload(character.payload);
+      lines.push(`### ${character.title}`, "");
+      for (const key of [
+        "角色定位",
+        "身份背景",
+        "性格",
+        "欲望与目标",
+        "秘密与弱点",
+        "人物弧光",
+      ])
+        if (payload[key]) lines.push(`- ${key}：${String(payload[key])}`);
+      lines.push("");
+    }
+  }
+  lines.push("## 章节目录", "");
+  for (const item of submission.chapterCatalog)
+    lines.push(
+      `${item.order}. ${item.title}（${item.wordCount} 字${item.summary ? `；${item.summary}` : ""}）`,
+    );
+  lines.push("", "## 正文试读", "");
+  for (const item of submission.sampleChapters)
+    lines.push(
+      `### ${item.title}`,
+      "",
+      item.content || "（正文为空）",
+      "",
+      "---",
+      "",
+    );
+  return `${lines.join("\n").trim()}\n`;
 }
 
 function projectMarkdown(snapshot: {
@@ -5539,18 +5729,19 @@ function createContentCheckpoint(
   title: string,
   content: string,
   baseVersion?: number,
+  options?: { label?: string; source?: string },
 ): void {
   insertDomainEntity(
     "content-versions",
     projectId,
     targetId,
-    `导入前检查点：${title}`,
+    options?.label ?? `导入前检查点：${title}`,
     {
       目标类型: targetKind === "chapter" ? "章节" : "剧本",
       目标标识: targetId,
       ...(baseVersion === undefined ? {} : { 基础版本: baseVersion }),
       内容: content,
-      来源: "原稿导入前自动保存",
+      来源: options?.source ?? "原稿导入前自动保存",
     },
   );
 }
@@ -9326,7 +9517,9 @@ async function testProviderConnection(
 
 type OpenCodeProviderConfiguration = {
   providerId: string;
+  runtimeProviderId: string;
   providerKind: "openai" | "anthropic" | "google";
+  providerAdapter: OpenCodeProviderAdapter;
   model: string;
   baseUrl?: string;
   credentialRef: string;
@@ -9349,6 +9542,7 @@ function openCodeProviderConfiguration(
   const credentialRef = text(payload["凭据引用"]);
   const model = text(payload["模型名称"]);
   const baseUrl = text(payload["服务地址"]);
+  const presetProvider = text(payload["预设服务商"])?.toLowerCase();
   if (serviceType !== "智能模型")
     throw new Error("仅“智能模型”类型的服务商可供智能助手使用");
   if (!credentialRef || !model)
@@ -9359,6 +9553,14 @@ function openCodeProviderConfiguration(
     : protocol.includes("google") || protocol.includes("gemini")
       ? "google"
       : "openai";
+  const providerAdapter: OpenCodeProviderAdapter =
+    providerKind === "anthropic"
+      ? "anthropic"
+      : providerKind === "google"
+        ? "google"
+        : presetProvider === "openai"
+          ? "openai"
+          : "openai-compatible";
   if (baseUrl) {
     const address = new URL(baseUrl);
     if (
@@ -9370,7 +9572,9 @@ function openCodeProviderConfiguration(
   }
   return {
     providerId: String(provider.id),
+    runtimeProviderId: DRAMAIP_OPENCODE_PROVIDER_ID,
     providerKind,
+    providerAdapter,
     model,
     ...(baseUrl ? { baseUrl } : {}),
     credentialRef,
@@ -12250,6 +12454,509 @@ async function purgeProject(
   res.writeHead(204).end();
 }
 
+const NOVEL_CHAPTER_AGENT_TASKS = new Set<AgentTaskType>([
+  "generate_chapter",
+  "continue_chapter",
+  "rewrite_chapter",
+  "polish_chapter",
+  "expand_chapter",
+  "enhance_conflict",
+  "enhance_highlight",
+  "enhance_hook",
+  "enhance_reversal",
+  "enhance_cliffhanger",
+  "enhance_ai_drama_feel",
+  "enhance_author_style",
+  "rewrite_as_ai_drama_novel",
+]);
+
+function getNovelWorkspace(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  const projectRecord = one(
+    "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL",
+    [projectId],
+  );
+  if (!projectRecord)
+    return respondError(res, 404, "NOT_FOUND", "未找到项目", requestId);
+  const chapterRecords = rows(
+    "SELECT * FROM chapters WHERE project_id = ? ORDER BY order_index",
+    [projectId],
+  );
+  const resources = (domain: string) =>
+    rows(
+      "SELECT * FROM domain_entities WHERE project_id = ? AND domain = ? ORDER BY updated_at DESC",
+      [projectId, domain],
+    ).map(domainEntity);
+  const statuses = chapterRecords.map((item) => {
+    const chapterId = String(item.id);
+    const latestTask = one(
+      `SELECT tasks.status FROM tasks
+       JOIN agent_runs ON agent_runs.task_id = tasks.id
+       JOIN agent_sessions ON agent_sessions.id = agent_runs.session_id
+       WHERE agent_sessions.chapter_id = ?
+       ORDER BY tasks.updated_at DESC LIMIT 1`,
+      [chapterId],
+    );
+    const latestQuality = one(
+      `SELECT payload_json FROM domain_entities
+       WHERE project_id = ? AND parent_id = ?
+         AND domain IN ('analysis', 'evaluations', 'quality')
+       ORDER BY updated_at DESC LIMIT 1`,
+      [projectId, chapterId],
+    );
+    const qualityPayload = latestQuality
+      ? domainPayload(latestQuality.payload_json)
+      : undefined;
+    const qualityScore = Number(
+      qualityPayload?.["评分"] ?? qualityPayload?.["总分"] ?? 0,
+    );
+    const qualityText = JSON.stringify(qualityPayload ?? {});
+    const quality = !latestQuality
+      ? undefined
+      : /阻塞|严重|不通过|失败/u.test(qualityText) ||
+          (qualityScore > 0 && qualityScore < 50)
+        ? "block"
+        : /提醒|警告|待修正|风险/u.test(qualityText) ||
+            (qualityScore > 0 && qualityScore < 75)
+          ? "warn"
+          : "pass";
+    return {
+      chapterId,
+      words: String(item.content ?? "").replace(/\s/gu, "").length,
+      hasMemory: Boolean(
+        one(
+          "SELECT id FROM domain_entities WHERE domain = 'chapter-memories' AND project_id = ? AND parent_id = ? LIMIT 1",
+          [projectId, chapterId],
+        ),
+      ),
+      ...(latestTask?.status
+        ? { latestTaskStatus: String(latestTask.status) }
+        : {}),
+      ...(quality ? { quality } : {}),
+    };
+  });
+  json(res, 200, {
+    project: project(projectRecord),
+    chapters: chapterRecords.map(chapter),
+    characters: resources("characters"),
+    outlines: resources("outlines"),
+    storyArcs: resources("story-arcs"),
+    statuses,
+  });
+}
+
+function internalResponseError(
+  res: ServerResponse,
+  response: ReturnType<typeof internalJsonResponse>,
+): void {
+  json(
+    res,
+    response.status(),
+    response.json() ?? {
+      code: "INTERNAL_ERROR",
+      message: "智能写作请求未能完成",
+      requestId: randomUUID(),
+    },
+  );
+}
+
+async function runNovelChapterAgent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  chapterId: string,
+  requestId: string,
+): Promise<void> {
+  const idempotencyKey = req.headers["idempotency-key"];
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "启动智能写作必须提供幂等键",
+      requestId,
+    );
+  const replay = one(
+    "SELECT * FROM request_deduplication WHERE idempotency_key = ?",
+    [idempotencyKey],
+  );
+  if (replay)
+    return json(
+      res,
+      Number(replay.response_status),
+      JSON.parse(String(replay.response_json)),
+    );
+  const input = await body(req);
+  const chapterRecord = one("SELECT * FROM chapters WHERE id = ?", [chapterId]);
+  if (!chapterRecord)
+    return respondError(res, 404, "NOT_FOUND", "未找到章节", requestId);
+  if (Number(input.baseVersion) !== Number(chapterRecord.version))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "章节内容已经变化，请刷新后重新发起智能写作",
+      requestId,
+      { current: chapter(chapterRecord) },
+    );
+  const taskType =
+    typeof input.taskType === "string" && isAgentTaskType(input.taskType)
+      ? input.taskType
+      : undefined;
+  if (!taskType || !NOVEL_CHAPTER_AGENT_TASKS.has(taskType))
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "所选任务不是章节写作任务",
+      requestId,
+    );
+  if (
+    taskType !== "generate_chapter" &&
+    !String(chapterRecord.content ?? "").trim()
+  )
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "当前章节还没有正文，请先生成正文",
+      requestId,
+    );
+  const engineKind = isEngineKind(input.engineKind)
+    ? input.engineKind
+    : undefined;
+  if (!engineKind)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "请选择有效的智能引擎",
+      requestId,
+    );
+  const engine = agentEngineDescriptor(engineKind);
+  if (!engine.canRun)
+    return respondError(
+      res,
+      503,
+      "ENGINE_UNAVAILABLE",
+      engine.statusMessage,
+      requestId,
+      { engine },
+    );
+  const instruction =
+    typeof input.prompt === "string" ? input.prompt.trim() : "";
+  if (instruction.length > 4_000)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "本次写作要求不能超过 4000 个字符",
+      requestId,
+    );
+  const wordGoal = Number(input.wordGoal);
+  if (
+    input.wordGoal !== undefined &&
+    (!Number.isInteger(wordGoal) || wordGoal < 300 || wordGoal > 20_000)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "章节目标字数必须在 300 到 20000 字之间",
+      requestId,
+    );
+  const selection = domainPayload(input.selection);
+  const selectionText =
+    typeof selection.text === "string"
+      ? selection.text.trim().slice(0, 2_000)
+      : "";
+  const prompt = [
+    instruction,
+    Number.isInteger(wordGoal) ? `本章目标字数约为 ${wordGoal} 字。` : "",
+    selectionText
+      ? [
+          "本次只需要重点处理用户选中的段落，但必须返回修改后的完整章节正文，未选中的内容保持不变。",
+          `用户选中的段落：\n${selectionText}`,
+        ].join("\n\n")
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 4_000);
+  const projectId = String(chapterRecord.project_id);
+  const model = normalizeAgentModelSelection(input.model);
+  if (input.model !== undefined && !model)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "模型配置格式无效",
+      requestId,
+    );
+  const sessionResponse = internalJsonResponse();
+  await createAgentSession(
+    internalJsonRequest(
+      {
+        projectId,
+        chapterId,
+        engineKind,
+        taskType,
+        title: `${getAgentTaskDefinition(taskType).label}：${chapterRecord.title}`,
+        ...(model ? { model } : {}),
+      },
+      `session-${idempotencyKey}`,
+    ),
+    sessionResponse.value,
+    requestId,
+  );
+  if (sessionResponse.status() >= 400)
+    return internalResponseError(res, sessionResponse);
+  const createdSession = sessionResponse.json();
+  const sessionId = text(createdSession?.id);
+  if (!sessionId)
+    return respondError(
+      res,
+      500,
+      "INTERNAL_ERROR",
+      "智能会话创建成功但没有返回会话编号",
+      requestId,
+    );
+  const runResponse = internalJsonResponse();
+  await runAgentSession(
+    internalJsonRequest(
+      { taskType, prompt, ...(model ? { model } : {}) },
+      `chapter-run-${idempotencyKey}`,
+    ),
+    runResponse.value,
+    sessionId,
+    requestId,
+  );
+  if (runResponse.status() >= 400) {
+    const cleanupResponse = internalJsonResponse();
+    await disposeAgentSession(cleanupResponse.value, sessionId, requestId);
+    return internalResponseError(res, runResponse);
+  }
+  const run = runResponse.json();
+  const response = {
+    taskId: String(run?.taskId),
+    sessionId,
+    runId: String(run?.runId),
+    chapterId,
+    autoCommitWhenReady:
+      taskType === "generate_chapter" &&
+      !String(chapterRecord.content ?? "").trim(),
+  };
+  db!
+    .prepare("INSERT INTO request_deduplication VALUES (?, 202, ?, ?)")
+    .run(idempotencyKey, JSON.stringify(response), timestamp());
+  json(res, 202, response);
+}
+
+async function continueNovelChapter(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): Promise<void> {
+  const idempotencyKey = req.headers["idempotency-key"];
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "续写下一章必须提供幂等键",
+      requestId,
+    );
+  const replay = one(
+    "SELECT * FROM request_deduplication WHERE idempotency_key = ?",
+    [idempotencyKey],
+  );
+  if (replay)
+    return json(
+      res,
+      Number(replay.response_status),
+      JSON.parse(String(replay.response_json)),
+    );
+  const input = await body(req);
+  const sourceId = text(input.sourceChapterId);
+  const source = sourceId
+    ? one("SELECT * FROM chapters WHERE id = ? AND project_id = ?", [
+        sourceId,
+        projectId,
+      ])
+    : undefined;
+  if (!source)
+    return respondError(res, 404, "NOT_FOUND", "未找到要承接的章节", requestId);
+  if (Number(input.baseVersion) !== Number(source.version))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "上一章内容已经变化，请刷新后重试",
+      requestId,
+    );
+  if (!String(source.content ?? "").trim())
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "请先完成当前章节正文，再续写下一章",
+      requestId,
+    );
+  const nextIndex = Number(
+    one(
+      "SELECT COALESCE(MAX(order_index), -1) + 1 AS value FROM chapters WHERE project_id = ?",
+      [projectId],
+    )?.value ?? 0,
+  );
+  const nextId = randomUUID();
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO chapters (
+        id, project_id, title, order_index, summary, outline, content,
+        main_conflict, hook, highlight, reversal, cliffhanger, short_drama_note,
+        ai_video_note, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, '', NULL, '', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, ?, ?)`,
+    )
+    .run(nextId, projectId, `第 ${nextIndex + 1} 章`, nextIndex, now, now);
+  const previousEnding = String(source.content).trim().slice(-2_400);
+  const prompt = [
+    "请承接上一章结尾，直接生成下一章完整正文，不要复述上一章。",
+    source.summary ? `上一章摘要：${source.summary}` : "",
+    `上一章结尾：\n${previousEnding}`,
+    typeof input.prompt === "string" && input.prompt.trim()
+      ? `补充要求：${input.prompt.trim()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 3_900);
+  const runResponse = internalJsonResponse();
+  await runNovelChapterAgent(
+    internalJsonRequest(
+      {
+        taskType: "generate_chapter",
+        engineKind: input.engineKind,
+        ...(input.model ? { model: input.model } : {}),
+        prompt,
+        ...(input.wordGoal !== undefined ? { wordGoal: input.wordGoal } : {}),
+        baseVersion: 0,
+      },
+      `continue-run-${idempotencyKey}`,
+    ),
+    runResponse.value,
+    nextId,
+    requestId,
+  );
+  if (runResponse.status() >= 400) {
+    db!
+      .prepare("DELETE FROM chapters WHERE id = ? AND content = ''")
+      .run(nextId);
+    return internalResponseError(res, runResponse);
+  }
+  const response = {
+    chapter: chapter(one("SELECT * FROM chapters WHERE id = ?", [nextId])!),
+    run: runResponse.json(),
+  };
+  db!
+    .prepare("INSERT INTO request_deduplication VALUES (?, 202, ?, ?)")
+    .run(idempotencyKey, JSON.stringify(response), timestamp());
+  emit("chapter.created", response.chapter);
+  json(res, 202, response);
+}
+
+function listNovelChapterVersions(
+  res: ServerResponse,
+  chapterId: string,
+  requestId: string,
+): void {
+  if (!one("SELECT id FROM chapters WHERE id = ?", [chapterId]))
+    return respondError(res, 404, "NOT_FOUND", "未找到章节", requestId);
+  json(
+    res,
+    200,
+    rows(
+      "SELECT * FROM domain_entities WHERE domain = 'content-versions' AND parent_id = ? ORDER BY created_at DESC",
+      [chapterId],
+    ).map(domainEntity),
+  );
+}
+
+async function restoreNovelChapterVersion(
+  req: IncomingMessage,
+  res: ServerResponse,
+  chapterId: string,
+  versionId: string,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const current = one("SELECT * FROM chapters WHERE id = ?", [chapterId]);
+  if (!current)
+    return respondError(res, 404, "NOT_FOUND", "未找到章节", requestId);
+  if (Number(input.baseVersion) !== Number(current.version))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "章节内容已经变化，请刷新后再恢复版本",
+      requestId,
+      { current: chapter(current) },
+    );
+  const version = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = 'content-versions' AND parent_id = ?",
+    [versionId, chapterId],
+  );
+  if (!version)
+    return respondError(res, 404, "NOT_FOUND", "未找到所选章节版本", requestId);
+  const payload = domainPayload(version.payload_json);
+  const restoredContent = payload["内容"];
+  if (typeof restoredContent !== "string")
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "所选章节版本缺少正文",
+      requestId,
+    );
+  const now = timestamp();
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    createContentCheckpoint(
+      String(current.project_id),
+      "chapter",
+      chapterId,
+      String(current.title),
+      String(current.content),
+      Number(current.version),
+    );
+    db!
+      .prepare(
+        "UPDATE chapters SET content = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+      )
+      .run(restoredContent, now, chapterId, current.version);
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  const updated = chapter(
+    one("SELECT * FROM chapters WHERE id = ?", [chapterId])!,
+  );
+  markStoryBibleStaleForChapter(String(current.project_id), chapterId);
+  emit("chapter.updated", updated);
+  emit("content-version.restored", {
+    targetKind: "chapter",
+    targetId: chapterId,
+    restoredFromId: versionId,
+  });
+  json(res, 200, updated);
+}
+
 async function createChapter(
   req: IncomingMessage,
   res: ServerResponse,
@@ -13032,6 +13739,22 @@ async function commitRevision(
     );
   db!.exec("BEGIN IMMEDIATE");
   try {
+    const chapterBeforeCommit = one("SELECT * FROM chapters WHERE id = ?", [
+      item.chapter_id,
+    ]);
+    if (chapterBeforeCommit)
+      createContentCheckpoint(
+        String(chapterBeforeCommit.project_id),
+        "chapter",
+        String(chapterBeforeCommit.id),
+        String(chapterBeforeCommit.title),
+        String(chapterBeforeCommit.content),
+        Number(chapterBeforeCommit.version),
+        {
+          label: `智能修订前检查点：${String(chapterBeforeCommit.title)}`,
+          source: "用户确认智能修订前自动保存",
+        },
+      );
     const result = db!
       .prepare(
         "UPDATE chapters SET content = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
@@ -13145,9 +13868,46 @@ function engineVersion(kind: AgentEngineKind): string {
   return command?.langgraph?.version ?? "0.2.43";
 }
 
+function agentFailureCode(raw: string): string {
+  if (/no output generated|没有返回内容|没有生成内容|empty output/i.test(raw))
+    return "EMPTY_OUTPUT";
+  if (
+    /401|unauthorized|invalid api.?key|authentication|凭据|密钥无效/i.test(raw)
+  )
+    return "CREDENTIAL_INVALID";
+  if (/404|model.*not found|unknown model|模型.*不存在/i.test(raw))
+    return "MODEL_NOT_FOUND";
+  if (/429|rate.?limit|频率|too many requests/i.test(raw))
+    return "RATE_LIMITED";
+  if (/quota|balance|额度|余额/i.test(raw)) return "QUOTA_EXHAUSTED";
+  if (/parse|json|格式|schema/i.test(raw)) return "OUTPUT_INVALID";
+  if (/timeout|timed out|超时|5\d\d|temporar/i.test(raw))
+    return "PROVIDER_TEMPORARY";
+  if (/interrupt|abort|cancel|中断|取消/i.test(raw)) return "INTERRUPTED";
+  return "PROVIDER_ERROR";
+}
+
 function agentEngineDescriptor(kind: AgentEngineKind) {
   const healthy = engineHealthy(kind);
   const globalSettings = globalAgentSettingsRecord();
+  const providerConfigured =
+    kind === "codex" || Boolean(activeAgentProviderId());
+  const canRun = healthy && providerConfigured;
+  const latestRun = one(
+    "SELECT status, error, updated_at FROM agent_runs WHERE engine_kind = ? ORDER BY updated_at DESC LIMIT 1",
+    [kind],
+  );
+  const lastFailed = latestRun?.status === "failed" && latestRun.error;
+  const invocationStatus = lastFailed
+    ? "failed"
+    : latestRun?.status === "succeeded"
+      ? "verified"
+      : "untested";
+  const status = !canRun
+    ? "unavailable"
+    : invocationStatus === "failed"
+      ? "degraded"
+      : "available";
   return {
     kind,
     name:
@@ -13157,10 +13917,36 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
           ? "Codex"
           : "LangGraph.js",
     version: engineVersion(kind),
-    status: healthy ? "available" : "unavailable",
+    status,
+    runtimeStatus: healthy ? "running" : "stopped",
+    configurationStatus: providerConfigured
+      ? "configured"
+      : "missing_credentials",
+    invocationStatus,
+    canRun,
+    ...(latestRun?.updated_at
+      ? { lastCheckedAt: String(latestRun.updated_at) }
+      : {}),
+    ...(lastFailed
+      ? {
+          lastFailure: {
+            code: agentFailureCode(String(latestRun.error)),
+            message: publicErrorMessage(String(latestRun.error)),
+            occurredAt: String(latestRun.updated_at),
+          },
+        }
+      : {}),
     isDefault: kind === globalSettings.defaultEngineKind,
     isBeta: kind === "codex",
-    statusMessage: healthy ? "引擎运行正常" : "引擎当前未启动或尚未完成配置",
+    statusMessage: !healthy
+      ? "引擎进程未启动"
+      : !providerConfigured
+        ? "尚未配置智能模型服务商"
+        : invocationStatus === "failed"
+          ? "引擎已启动，但上次模型调用失败"
+          : invocationStatus === "verified"
+            ? "引擎和模型最近调用正常"
+            : "引擎已启动，尚未完成实际调用验证",
     capabilities: {
       streaming: true,
       interrupt: true,
@@ -13721,16 +14507,27 @@ async function createAgentSession(
       "所选章节不属于当前项目",
       requestId,
     );
+  const title =
+    text(input.title) ??
+    `${taskType ? getAgentTaskDefinition(taskType).label : "智能任务"}：${sourceChapter?.title ?? sourceProject.title}`;
+  let engineSession: { id: string };
   try {
-    const title =
-      text(input.title) ??
-      `${taskType ? getAgentTaskDefinition(taskType).label : "智能任务"}：${sourceChapter?.title ?? sourceProject.title}`;
-    const engineSession = await createEngineSession(engineKind, {
+    engineSession = await createEngineSession(engineKind, {
       title,
       projectId,
       ...(chapterId ? { chapterId } : {}),
       ...(model ? { model } : {}),
     });
+  } catch (error) {
+    return respondError(
+      res,
+      503,
+      "ENGINE_UNAVAILABLE",
+      error instanceof Error ? error.message : "无法创建智能会话",
+      requestId,
+    );
+  }
+  try {
     const id = randomUUID();
     const now = timestamp();
     db!
@@ -13758,12 +14555,27 @@ async function createAgentSession(
     );
     emit("agent_session.created", created);
     json(res, 201, created);
-  } catch (error) {
+  } catch {
+    try {
+      if (engineKind === "opencode")
+        await engineRequest(
+          `/session/${encodeURIComponent(engineSession.id)}`,
+          {
+            method: "DELETE",
+          },
+        );
+      else
+        await bridgeEngineRequest(engineKind, "dispose", {
+          engineSessionId: engineSession.id,
+        });
+    } catch {
+      // 数据库记录才是会话所有权边界；引擎清理失败不改变返回的错误类型。
+    }
     respondError(
       res,
-      503,
-      "ENGINE_UNAVAILABLE",
-      error instanceof Error ? error.message : "无法创建智能会话",
+      500,
+      "INTERNAL_ERROR",
+      "智能会话已创建，但本地记录保存失败。请重启应用后重试。",
       requestId,
     );
   }
@@ -13884,12 +14696,18 @@ function buildUnifiedAgentPrompt(input: {
           "parameters 只能包含对应远程接口需要的项目、分集、镜头、提示词、音色、时长或尺寸等公开参数，绝不能包含密钥、令牌、凭据引用或任意本地路径。",
         ]
       : [];
+  const taskPrompt = getLegacyPrompt(input.definition.id);
   return [
     "你是 DramaIP 的中文创作智能助手。所有输出必须使用简体中文。",
     `任务：${input.definition.label}（${input.definition.id}）`,
     `输出策略：${input.definition.writePolicy}。你无权直接修改正式内容，也无权直接发起付费生成。`,
     "只使用 DramaIP 提供的只读工具，不得尝试读取本地路径、执行命令或访问未授权网络。",
-    '请返回 JSON 对象：{"summary":"简短结论","content":"主要内容","data":{}}。不要输出隐藏思维过程。',
+    `任务领域规范：\n${taskPrompt}`,
+    "任务领域规范中的创作目标、风格、字数和内容要求必须完整遵守；若其中的旧输出格式与下面的统一封装冲突，以统一封装为准。",
+    '请只返回 JSON 对象：{"summary":"简短结论","content":"主要内容","data":{}}。正文或 Markdown 必须完整放入 content；结构化对象或数组放入 data。不要输出隐藏思维过程。',
+    input.definition.id === "continue_chapter"
+      ? "续写任务的 content 只放新增的续写正文，不要重复已有正文；DramaIP 会在预览中安全拼接。"
+      : "",
     ...providerActionInstruction,
     input.userPrompt ? `用户补充要求：${input.userPrompt}` : "",
     `上下文快照编号：${input.snapshot.id}`,
@@ -14552,6 +15370,14 @@ function getChangePreview(
 function currentChangeTarget(target: Record<string, unknown>) {
   const kind = String(target.kind);
   const id = String(target.id);
+  const patch =
+    target.patch && typeof target.patch === "object"
+      ? (target.patch as Record<string, unknown>)
+      : {};
+  if (patch.$operation === "create")
+    return one("SELECT id, version FROM domain_entities WHERE id = ?", [id])
+      ? undefined
+      : { id, version: 0 };
   if (kind === "project")
     return one("SELECT * FROM projects WHERE id = ?", [id]);
   if (kind === "chapter")
@@ -14567,8 +15393,68 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     target.patch && typeof target.patch === "object"
       ? (target.patch as Record<string, unknown>)
       : {};
+  if (patch.$operation === "create") {
+    const domain = String(patch.domain ?? "");
+    const projectId = String(patch.projectId ?? "");
+    const title = String(patch.title ?? "").trim();
+    if (
+      !projectId ||
+      !title ||
+      !["characters", "outlines", "story-arcs"].includes(domain)
+    )
+      throw new Error("CHANGE_CONFLICT");
+    const expectedDomain: Record<string, string> = {
+      character: "characters",
+      outline: "outlines",
+      story_bible: "story-bible",
+    };
+    if (
+      (kind === "character" && domain !== expectedDomain.character) ||
+      (kind === "outline" && !["outlines", "story-arcs"].includes(domain))
+    )
+      throw new Error("CHANGE_CONFLICT");
+    let parentId: string | null = null;
+    if (domain === "story-arcs" && typeof patch.parentTitle === "string") {
+      parentId =
+        String(
+          one(
+            "SELECT id FROM domain_entities WHERE project_id = ? AND domain = 'story-arcs' AND title = ? ORDER BY created_at DESC LIMIT 1",
+            [projectId, patch.parentTitle],
+          )?.id ?? "",
+        ) || null;
+    }
+    db!
+      .prepare("INSERT INTO domain_entities VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)")
+      .run(
+        id,
+        domain,
+        projectId,
+        parentId,
+        title,
+        JSON.stringify(
+          patch.payload && typeof patch.payload === "object"
+            ? patch.payload
+            : {},
+        ),
+        now,
+        now,
+      );
+    return;
+  }
   if (kind === "chapter") {
     const current = one("SELECT * FROM chapters WHERE id = ?", [id])!;
+    createContentCheckpoint(
+      String(current.project_id),
+      "chapter",
+      id,
+      String(current.title),
+      String(current.content),
+      Number(current.version),
+      {
+        label: `智能修改前检查点：${String(current.title)}`,
+        source: "用户确认智能候选稿前自动保存",
+      },
+    );
     const result = db!
       .prepare(
         `UPDATE chapters SET
@@ -14592,15 +15478,44 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     const current = one("SELECT * FROM projects WHERE id = ?", [id])!;
     const result = db!
       .prepare(
-        `UPDATE projects SET title = ?, synopsis = ?, style_guide = ?,
+        `UPDATE projects SET
+          title = ?, target_audience = ?, target_word_count = ?,
+          target_episode_count = ?, core_hook = ?, emotional_core = ?,
+          core_selling_point = ?, synopsis = ?, style_guide = ?,
+          visual_style_direction = ?, genre_opportunity = ?, production_brief = ?,
           version = version + 1, updated_at = ? WHERE id = ? AND version = ?`,
       )
       .run(
         typeof patch.title === "string" ? patch.title : current.title,
+        typeof patch.targetAudience === "string"
+          ? patch.targetAudience
+          : current.target_audience,
+        Number.isInteger(patch.targetWordCount)
+          ? patch.targetWordCount
+          : current.target_word_count,
+        Number.isInteger(patch.targetEpisodeCount)
+          ? patch.targetEpisodeCount
+          : current.target_episode_count,
+        typeof patch.coreHook === "string" ? patch.coreHook : current.core_hook,
+        typeof patch.emotionalCore === "string"
+          ? patch.emotionalCore
+          : current.emotional_core,
+        typeof patch.coreSellingPoint === "string"
+          ? patch.coreSellingPoint
+          : current.core_selling_point,
         typeof patch.synopsis === "string" ? patch.synopsis : current.synopsis,
         typeof patch.styleGuide === "string"
           ? patch.styleGuide
           : current.style_guide,
+        typeof patch.visualStyleDirection === "string"
+          ? patch.visualStyleDirection
+          : current.visual_style_direction,
+        typeof patch.genreOpportunity === "string"
+          ? patch.genreOpportunity
+          : current.genre_opportunity,
+        typeof patch.productionBrief === "string"
+          ? patch.productionBrief
+          : current.production_brief,
         now,
         id,
         baseVersion,
@@ -14624,6 +15539,77 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
       baseVersion,
     );
   if (Number(result.changes) !== 1) throw new Error("CHANGE_CONFLICT");
+}
+
+async function updateChangePreviewContent(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const record = one("SELECT * FROM change_previews WHERE id = ?", [id]);
+  if (!record)
+    return respondError(res, 404, "NOT_FOUND", "变更预览不存在", requestId);
+  if (record.status !== "pending")
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "变更预览已不再等待确认",
+      requestId,
+    );
+  const input = await body(req);
+  if (!input || typeof input.content !== "string")
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "候选正文格式不正确",
+      requestId,
+    );
+  const content = input.content.trim();
+  if (!content)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "候选正文不能为空",
+      requestId,
+    );
+  const targets = JSON.parse(String(record.targets_json)) as Array<
+    Record<string, unknown>
+  >;
+  const chapterTargets = targets.filter((target) => target.kind === "chapter");
+  if (chapterTargets.length !== 1)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "只有单章节候选稿可以在差异窗口中编辑",
+      requestId,
+    );
+  chapterTargets[0]!.patch = { content };
+  chapterTargets[0]!.displayDiff = { proposedContent: content };
+  const serializedTargets = JSON.stringify(targets);
+  const contentHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        projectId: record.project_id,
+        taskType: record.task_type,
+        targets,
+      }),
+    )
+    .digest("hex");
+  db!
+    .prepare(
+      "UPDATE change_previews SET targets_json = ?, content_hash = ? WHERE id = ? AND status = 'pending'",
+    )
+    .run(serializedTargets, contentHash, id);
+  const updated = changePreviewRecord(
+    one("SELECT * FROM change_previews WHERE id = ?", [id])!,
+  );
+  emit("change_preview.updated", updated);
+  json(res, 200, updated);
 }
 
 async function commitChangePreview(
@@ -14667,14 +15653,25 @@ async function commitChangePreview(
   >;
   for (const target of targets) {
     const current = currentChangeTarget(target);
+    const patch =
+      target.patch && typeof target.patch === "object"
+        ? (target.patch as Record<string, unknown>)
+        : {};
+    const isControlledCreate =
+      patch.$operation === "create" &&
+      patch.projectId === record.project_id &&
+      ["characters", "outlines", "story-arcs"].includes(
+        String(patch.domain ?? ""),
+      );
     if (
       !current ||
       Number(current.version) !== Number(target.baseVersion) ||
-      !changeTargetBelongsToProject(
-        String(record.project_id),
-        String(target.kind),
-        String(target.id),
-      )
+      (!isControlledCreate &&
+        !changeTargetBelongsToProject(
+          String(record.project_id),
+          String(target.kind),
+          String(target.id),
+        ))
     ) {
       db!
         .prepare(
@@ -16137,7 +17134,7 @@ async function runOpenCodeWithEvents(
           ...(model?.modelId && configuration
             ? {
                 model: {
-                  providerID: configuration.providerKind,
+                  providerID: configuration.runtimeProviderId,
                   modelID: model.modelId,
                 },
               }
@@ -17198,6 +18195,26 @@ function respondError(
 }
 
 function publicErrorMessage(raw: string, code?: string): string {
+  if (/no output generated|empty output/i.test(raw))
+    return "模型本次没有返回正文，可使用相同设置重试";
+  if (/invalid api.?key|unauthorized|authentication failed/i.test(raw))
+    return "模型服务凭据无效或已经失效，请在设置中重新填写";
+  if (/unknown model|model.*not found/i.test(raw))
+    return "当前服务商不存在所选模型，请重新选择模型";
+  if (/rate.?limit|too many requests/i.test(raw))
+    return "模型服务调用过于频繁，请稍后使用相同设置重试";
+  if (/quota|insufficient.*balance/i.test(raw))
+    return "模型服务额度不足，请充值或更换服务商后重试";
+  if (/forbidden|permission denied|model.*access/i.test(raw))
+    return "当前账号没有使用所选模型的权限，请检查服务商授权";
+  if (/service unavailable|bad gateway|gateway timeout|\b5\d\d\b/i.test(raw))
+    return "模型服务暂时不可用，请稍后使用相同设置重试";
+  if (
+    /invalid json|json.*parse|output.*format|无法解析|缺少 summary/i.test(raw)
+  )
+    return "模型返回的内容格式不正确，可使用相同设置重试";
+  if (/aborted|abort error|任务已取消|任务已中断/i.test(raw))
+    return "智能写作任务已中断，生成前草稿已经保留";
   if (/[㐀-鿿]/u.test(raw)) return raw;
   const known: Record<string, string> = {
     "Server is not initialized": "本地服务尚未初始化",
@@ -17475,19 +18492,225 @@ function createAgentChangePreview(input: {
       });
     }
   }
+  const generatedData = (() => {
+    if (input.normalized?.data !== undefined) return input.normalized.data;
+    if (!input.normalized?.content) return undefined;
+    try {
+      return JSON.parse(input.normalized.content);
+    } catch {
+      return input.normalized.content;
+    }
+  })();
+  if (targets.length === 0 && input.taskType === "generate_project") {
+    const value =
+      generatedData &&
+      typeof generatedData === "object" &&
+      !Array.isArray(generatedData)
+        ? (generatedData as Record<string, unknown>)
+        : undefined;
+    const current = one("SELECT version FROM projects WHERE id = ?", [
+      input.projectId,
+    ]);
+    if (value && current) {
+      const allowed = [
+        "title",
+        "targetAudience",
+        "targetWordCount",
+        "targetEpisodeCount",
+        "coreHook",
+        "emotionalCore",
+        "coreSellingPoint",
+        "synopsis",
+        "styleGuide",
+        "visualStyleDirection",
+        "genreOpportunity",
+        "productionBrief",
+      ];
+      const patch = Object.fromEntries(
+        allowed
+          .filter((key) => value[key] !== undefined)
+          .map((key) => [key, value[key]]),
+      );
+      if (Object.keys(patch).length)
+        targets.push({
+          kind: "project",
+          id: input.projectId,
+          baseVersion: Number(current.version),
+          patch,
+          displayDiff: value,
+        });
+    }
+  }
+  const createDomainTarget = (
+    kind: "character" | "outline",
+    domain: "characters" | "outlines" | "story-arcs",
+    title: string,
+    payload: Record<string, unknown>,
+    parentTitle?: string,
+  ): void => {
+    if (!title.trim()) return;
+    const id = randomUUID();
+    targets.push({
+      kind,
+      id,
+      baseVersion: 0,
+      patch: {
+        $operation: "create",
+        domain,
+        projectId: input.projectId,
+        title: title.trim(),
+        payload,
+        ...(parentTitle ? { parentTitle } : {}),
+      },
+      displayDiff: { title: title.trim(), ...payload },
+    });
+  };
+  if (targets.length === 0 && input.taskType === "generate_characters") {
+    const items = Array.isArray(generatedData) ? generatedData : [];
+    for (const raw of items) {
+      if (!raw || typeof raw !== "object") continue;
+      const value = raw as Record<string, unknown>;
+      createDomainTarget(
+        "character",
+        "characters",
+        String(value.name ?? value.title ?? ""),
+        {
+          角色定位: value.role ?? "",
+          身份背景: value.identity ?? "",
+          性格: value.personality ?? "",
+          欲望与目标: value.desire ?? "",
+          秘密与弱点: [value.secret, value.weakness].filter(Boolean).join("；"),
+          人物弧光: value.arc ?? "",
+          视觉描述: value.visualDescription ?? value.appearancePrompt ?? "",
+          冲突对象: value.conflictTarget ?? "",
+          情绪功能: value.emotionalFunction ?? "",
+          短剧功能: value.shortDramaFunction ?? "",
+          负面提示: value.negativePrompt ?? "",
+        },
+      );
+    }
+  }
+  if (targets.length === 0 && input.taskType === "generate_book_outline") {
+    const content =
+      typeof generatedData === "string"
+        ? generatedData
+        : (input.normalized?.content ?? "");
+    if (content.trim()) {
+      const existing = one(
+        "SELECT * FROM domain_entities WHERE project_id = ? AND domain = 'outlines' AND json_extract(payload_json, '$.大纲层级') = '全书' ORDER BY created_at LIMIT 1",
+        [input.projectId],
+      );
+      if (existing)
+        targets.push({
+          kind: "outline",
+          id: String(existing.id),
+          baseVersion: Number(existing.version),
+          patch: {
+            title: "全书大纲",
+            payload: {
+              ...domainPayload(existing.payload_json),
+              大纲层级: "全书",
+              内容: content.trim(),
+            },
+          },
+          displayDiff: { title: "全书大纲", content: content.trim() },
+        });
+      else
+        createDomainTarget("outline", "outlines", "全书大纲", {
+          大纲层级: "全书",
+          排序: 0,
+          内容: content.trim(),
+        });
+    }
+  }
+  if (targets.length === 0 && input.taskType === "generate_chapter_outline") {
+    const items = Array.isArray(generatedData) ? generatedData : [];
+    const existingCount = Number(
+      one(
+        "SELECT COUNT(*) AS value FROM domain_entities WHERE project_id = ? AND domain = 'outlines'",
+        [input.projectId],
+      )?.value ?? 0,
+    );
+    items.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object") return;
+      const value = raw as Record<string, unknown>;
+      const content = [
+        value.objective ? `章节目标：${value.objective}` : "",
+        value.mainConflict ? `核心冲突：${value.mainConflict}` : "",
+        value.sellingPoint ? `爽点：${value.sellingPoint}` : "",
+        value.reversal ? `反转：${value.reversal}` : "",
+        value.cliffhanger ? `结尾钩子：${value.cliffhanger}` : "",
+        value.shortDramaNote ? `短剧备注：${value.shortDramaNote}` : "",
+        value.keyVisuals ? `关键画面：${value.keyVisuals}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+      createDomainTarget(
+        "outline",
+        "outlines",
+        String(value.title ?? `第 ${existingCount + index + 1} 章大纲`),
+        { 大纲层级: "章节", 排序: existingCount + index, 内容: content },
+      );
+    });
+  }
+  if (targets.length === 0 && input.taskType === "generate_story_arc_outline") {
+    const items = Array.isArray(generatedData) ? generatedData : [];
+    items.forEach((raw, index) => {
+      if (!raw || typeof raw !== "object") return;
+      const value = raw as Record<string, unknown>;
+      const level =
+        value.kind === "volume"
+          ? "卷"
+          : value.kind === "unit"
+            ? "单元"
+            : "阶段";
+      createDomainTarget(
+        "outline",
+        "story-arcs",
+        String(value.title ?? `${level} ${index + 1}`),
+        {
+          层级: level,
+          父级故事弧: value.parentTitle ?? "",
+          起始章节: value.chapterStart ?? 0,
+          结束章节: value.chapterEnd ?? 0,
+          目标章节数: value.targetChapterCount ?? 0,
+          目标字数: value.targetWordCount ?? 0,
+          摘要: value.summary ?? "",
+          核心冲突: value.coreConflict ?? "",
+          高光与伏笔回收: [value.keyHighlights, value.foreshadowingPayoffs]
+            .flat()
+            .filter(Boolean)
+            .join("；"),
+        },
+        typeof value.parentTitle === "string" ? value.parentTitle : undefined,
+      );
+    });
+  }
   if (
     targets.length === 0 &&
     input.chapterId &&
     input.chapterBaseVersion !== undefined &&
     input.normalized.content
-  )
+  ) {
+    const generatedContent = input.normalized.content.trim();
+    const currentChapter = one("SELECT content FROM chapters WHERE id = ?", [
+      input.chapterId,
+    ]);
+    const currentContent = String(currentChapter?.content ?? "").trimEnd();
+    const proposedContent =
+      input.taskType === "continue_chapter" &&
+      currentContent &&
+      !generatedContent.startsWith(currentContent)
+        ? `${currentContent}\n\n${generatedContent}`
+        : generatedContent;
     targets.push({
       kind: "chapter",
       id: input.chapterId,
       baseVersion: input.chapterBaseVersion,
-      patch: { content: input.normalized.content },
-      displayDiff: { proposedContent: input.normalized.content },
+      patch: { content: proposedContent },
+      displayDiff: { proposedContent },
     });
+  }
   if (targets.length === 0) return undefined;
   const id = randomUUID();
   const createdAt = timestamp();

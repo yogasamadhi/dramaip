@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "ba8507252262f39bec3e5e6d7504330fafad5593cad2e96e1cb2129f871d5543";
+  "13d59fbbaf1eb09d9dffbe9abcdf38cd7ee9447702058072ee2a3d6662b356d8";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -17,6 +17,7 @@ import type {
   AgentSession,
   AgentSessionInput,
   ChangePreview,
+  ChangePreviewContentInput,
   CodexAuthStatus,
   CodexLoginInput,
   CodexLoginResult,
@@ -26,6 +27,12 @@ import type {
   ChapterInput,
   ChapterPatch,
   ChapterReorderInput,
+  NovelWorkspace,
+  ChapterAgentRunInput,
+  ChapterAgentRunStart,
+  ContinueChapterAgentRunInput,
+  ContinueChapterAgentRunStart,
+  ChapterVersionRestoreInput,
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
@@ -167,6 +174,25 @@ export interface StudioClient {
     reorder(projectId: string, input: ChapterReorderInput): Promise<Chapter[]>;
     remove(id: string): Promise<void>;
   };
+  novelWorkspace: {
+    get(projectId: string): Promise<NovelWorkspace>;
+    runChapterAgent(
+      chapterId: string,
+      input: ChapterAgentRunInput,
+      idempotencyKey: string,
+    ): Promise<ChapterAgentRunStart>;
+    continueChapter(
+      projectId: string,
+      input: ContinueChapterAgentRunInput,
+      idempotencyKey: string,
+    ): Promise<ContinueChapterAgentRunStart>;
+    listChapterVersions(chapterId: string): Promise<DomainEntity[]>;
+    restoreChapterVersion(
+      chapterId: string,
+      versionId: string,
+      input: ChapterVersionRestoreInput,
+    ): Promise<Chapter>;
+  };
   tasks: {
     list(): Promise<Task[]>;
     create(input: TaskInput, idempotencyKey: string): Promise<Task>;
@@ -227,6 +253,10 @@ export interface StudioClient {
   };
   changePreviews: {
     get(id: string): Promise<ChangePreview>;
+    updateContent(
+      id: string,
+      input: ChangePreviewContentInput,
+    ): Promise<ChangePreview>;
     commit(id: string, idempotencyKey: string): Promise<ChangePreview>;
     discard(id: string, idempotencyKey: string): Promise<ChangePreview>;
   };
@@ -378,7 +408,14 @@ export interface StudioClient {
   exports: {
     project(
       id: string,
-      format: "json" | "markdown" | "script" | "storyboard" | "delivery",
+      format:
+        | "json"
+        | "markdown"
+        | "submission-markdown"
+        | "submission-json"
+        | "script"
+        | "storyboard"
+        | "delivery",
     ): Promise<ExportDocument>;
   };
   sourceImports: {
@@ -630,6 +667,37 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
       remove: (id) => request(`/api/v1/chapters/${id}`, { method: "DELETE" }),
     },
+    novelWorkspace: {
+      get: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/novel-workspace`,
+        ),
+      runChapterAgent: (chapterId, input, idempotencyKey) =>
+        request(
+          `/api/v1/chapters/${encodeURIComponent(chapterId)}/agent-runs`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": idempotencyKey },
+            body: JSON.stringify(input),
+          },
+        ),
+      continueChapter: (projectId, input, idempotencyKey) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/chapters/continue`,
+          {
+            method: "POST",
+            headers: { "Idempotency-Key": idempotencyKey },
+            body: JSON.stringify(input),
+          },
+        ),
+      listChapterVersions: (chapterId) =>
+        request(`/api/v1/chapters/${encodeURIComponent(chapterId)}/versions`),
+      restoreChapterVersion: (chapterId, versionId, input) =>
+        request(
+          `/api/v1/chapters/${encodeURIComponent(chapterId)}/versions/${encodeURIComponent(versionId)}/restore`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+    },
     tasks: {
       list: () => request("/api/v1/tasks"),
       create: (input, idempotencyKey) =>
@@ -744,6 +812,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     changePreviews: {
       get: (id) => request(`/api/v1/change-previews/${encodeURIComponent(id)}`),
+      updateContent: (id, input) =>
+        request(`/api/v1/change-previews/${encodeURIComponent(id)}/content`, {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
       commit: (id, idempotencyKey) =>
         request(`/api/v1/change-previews/${encodeURIComponent(id)}/commit`, {
           method: "POST",

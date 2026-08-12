@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@sdns/ai": "workspace:*",
+    "@sdns/ai-legacy": "workspace:*",
     "@sdns/db": "workspace:*",
     "@sdns/protocol": "workspace:*",
     "@sdns/schema": "workspace:*",
