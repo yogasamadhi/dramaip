@@ -3,6 +3,7 @@ import {
   QueryClientProvider,
   useMutation,
   useQuery,
+  useQueries,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
@@ -10,6 +11,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import ReactDOM from "react-dom/client";
@@ -24,6 +26,34 @@ import {
   useParams,
 } from "react-router-dom";
 import { createStudioClient, type StudioClient } from "@sdns/client";
+import {
+  defaultProductionBrief,
+  projectInputFromBrief,
+  type ProductionBriefDraft,
+  type ProjectCreationSource,
+} from "./project-intake";
+import { deriveProjectCockpit } from "./project-cockpit";
+import {
+  buildStoryboard,
+  reorderStoryboardShots,
+  type StoryboardScene,
+  type StoryboardShot,
+} from "./storyboard-board";
+import {
+  buildEpisodePacingBoard,
+  type PacingKind,
+  type PacingPoint,
+} from "./episode-pacing";
+import {
+  buildStoryBibleSidecar,
+  type StoryBibleContext,
+} from "./story-bible-sidecar";
+import {
+  contextAssistantPage,
+  contextAssistantPreflight,
+  contextAssistantProjectId,
+  resolveContextAssistantActions,
+} from "./context-assistant";
 import {
   MODEL_PROVIDER_CATALOG,
   MODEL_PROVIDER_CATALOG_RELEASE,
@@ -40,9 +70,10 @@ import type {
   ChapterPatch,
   DomainEntity,
   Project,
-  ProjectInput,
+  PilotPlan,
   SourceImportPreview,
   SourceImportStrategy,
+  ImportExtractionChangeSet,
   EpisodeWorkflowKind,
   FeedbackKind,
   FeedbackPreview,
@@ -59,6 +90,16 @@ import type {
   ChangePreview,
   ProviderActionPreview,
   RevisionPreview,
+  AssetCenterAsset,
+  AssetCenterPreviewMedia,
+  Series,
+  SeriesLibrary,
+  TimelineManifest,
+  TimelineEditCommand,
+  TimelineDeliveryExportFormat,
+  VideoGenerationInput,
+  VideoGenerationPreflight,
+  CloudReviewPublishPreview,
 } from "@sdns/schema";
 import { NovelChapterWorkspace } from "./features/novel/NovelChapterWorkspace";
 import {
@@ -109,6 +150,8 @@ const DOMAIN_LABELS: Record<string, string> = {
   shots: "分镜",
   "shot-stills": "分镜静帧候选",
   "visual-assets": "视觉资产",
+  "asset-center": "资产中心",
+  storyboard: "导演看板",
   assets: "素材",
   rights: "版权声明",
   "content-versions": "内容检查点",
@@ -116,6 +159,7 @@ const DOMAIN_LABELS: Record<string, string> = {
   audio: "音频制作",
   video: "视频制作",
   animatics: "动态分镜",
+  timeline: "多轨时间线",
   renders: "成片渲染",
   quality: "质量检查",
   compliance: "合规检查",
@@ -190,6 +234,15 @@ function searchResultPath(
   return "/create";
 }
 
+type ChapterDetailKey =
+  | "outline"
+  | "mainConflict"
+  | "hook"
+  | "highlight"
+  | "reversal"
+  | "cliffhanger"
+  | "shortDramaNote"
+  | "aiVideoNote";
 type EditableChapter = Omit<ChapterPatch, "version">;
 type EditableProject = Pick<
   Project,
@@ -207,6 +260,37 @@ type EditableProject = Pick<
   | "genreOpportunity"
   | "productionBrief"
 >;
+
+const CHAPTER_DETAIL_FIELDS: ReadonlyArray<{
+  key: ChapterDetailKey;
+  label: string;
+  placeholder: string;
+}> = [
+  { key: "outline", label: "章节大纲", placeholder: "本章事件推进" },
+  { key: "mainConflict", label: "核心冲突", placeholder: "本章的主要矛盾" },
+  { key: "hook", label: "开场钩子", placeholder: "吸引观众继续观看的开端" },
+  { key: "highlight", label: "高光时刻", placeholder: "本章最有记忆点的场面" },
+  { key: "reversal", label: "反转", placeholder: "关系或信息的变化" },
+  { key: "cliffhanger", label: "章节悬念", placeholder: "推动下一章的悬念" },
+  {
+    key: "shortDramaNote",
+    label: "短剧节奏备注",
+    placeholder: "节奏、时长或情绪提示",
+  },
+  {
+    key: "aiVideoNote",
+    label: "视频制作备注",
+    placeholder: "画面、动作或制作限制",
+  },
+];
+
+function chapterDetailDraft(
+  chapter: Chapter,
+): Record<ChapterDetailKey, string> {
+  return Object.fromEntries(
+    CHAPTER_DETAIL_FIELDS.map(({ key }) => [key, chapter[key] ?? ""]),
+  ) as Record<ChapterDetailKey, string>;
+}
 
 function useStudio(): StudioClient {
   const client = useContext(ClientContext);
@@ -303,7 +387,6 @@ function WorkspaceIntro(props: {
 
 function Studio() {
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const location = useLocation();
   useEffect(() => {
     if (!assistantOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -334,35 +417,15 @@ function Studio() {
             className="studio-scrollbar flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto text-sm"
             aria-label="主导航"
           >
-            {(
-              [
-                ["/", "项目"],
-                ["/create", "创作"],
-                ["/adapt", "改编"],
-                ["/produce", "制作"],
-                ["/review", "审核交付"],
-                ["/insights", "数据洞察"],
-                ["/search", "搜索"],
-                ["/tasks", "任务"],
-                ["/settings", "设置"],
-              ] as const
-            ).map(([to, label]) => {
-              const current =
-                to === "/"
-                  ? location.pathname === "/" ||
-                    location.pathname.startsWith("/projects/")
-                  : location.pathname.startsWith(to);
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  aria-current={current ? "page" : undefined}
-                  className={`shrink-0 rounded-full px-3 py-2 transition ${current ? "bg-white font-medium text-rust shadow-card" : "text-muted hover:bg-white/70 hover:text-ink"}`}
-                >
-                  {label}
-                </Link>
-              );
-            })}
+            <Link to="/">项目</Link>
+            <Link to="/create">创作</Link>
+            <Link to="/adapt">改编</Link>
+            <Link to="/produce">制作</Link>
+            <Link to="/review">审核交付</Link>
+            <Link to="/insights">数据洞察</Link>
+            <Link to="/search">搜索</Link>
+            <Link to="/tasks">任务</Link>
+            <Link to="/settings">设置</Link>
           </nav>
           <button
             aria-label="打开智能助手"
@@ -650,9 +713,13 @@ function ProjectPackageImportPanel(props: {
 
 function ProjectHome() {
   const client = useStudio();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [title, setTitle] = useState("");
-  const [type, setType] = useState("都市情感");
+  const [creationSource, setCreationSource] = useState<ProjectCreationSource>();
+  const [brief, setBrief] = useState<ProductionBriefDraft>(() =>
+    defaultProductionBrief("inspiration"),
+  );
+  const [scriptContent, setScriptContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [error, setError] = useState<string>();
@@ -669,18 +736,55 @@ function ProjectHome() {
       .listTrash()
       .then(setTrashedProjects)
       .catch((cause) => setError(message(cause)));
-  const create = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
+  const selectCreationSource = (source: ProjectCreationSource) => {
+    setCreationSource(source);
+    setBrief(defaultProductionBrief(source));
+    setScriptContent("");
+    setError(undefined);
+  };
+  const updateBrief = <Key extends keyof ProductionBriefDraft>(
+    key: Key,
+    value: ProductionBriefDraft[Key],
+  ) => setBrief((current) => ({ ...current, [key]: value }));
+  const cleanupUnfinishedProject = async (project: Project) => {
     try {
-      const input: ProjectInput = {
-        title: title.trim(),
-        shortDramaType: type,
-        synopsis: "",
-      };
-      const project = await client.projects.create(input);
+      await client.projects.trash(project.id);
+      await client.projects.purge(project.id, project.title);
+    } catch {
+      // The source write itself is transactional. A failed local cleanup never
+      // hides the error or makes an unverified draft look like an imported one.
+    }
+  };
+  const createFromBrief = async (
+    mode: "inspiration" | "source-file" | "script-draft" | "script-file",
+  ) => {
+    if (!creationSource || !brief.title.trim() || !brief.shortDramaType.trim())
+      return;
+    if (mode === "script-draft" && !scriptContent.trim()) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      const project = await client.projects.create(
+        projectInputFromBrief(brief),
+      );
+      if (mode === "script-draft") {
+        try {
+          await client.chapters.create({
+            projectId: project.id,
+            title: "第 1 集剧本草稿",
+            summary: "从首页直接粘贴的剧本草稿，待后续拆分为场景与分镜。",
+            content: scriptContent.trim(),
+          });
+        } catch (cause) {
+          await cleanupUnfinishedProject(project);
+          throw cause;
+        }
+      }
       setProjects((items) => [project, ...items]);
-      setTitle("");
+      const sourceImport = mode === "source-file" || mode === "script-file";
+      navigate(
+        `/projects/${project.id}${sourceImport ? "?intake=source" : ""}`,
+      );
     } catch (cause) {
       setError(message(cause));
     } finally {
@@ -792,11 +896,13 @@ function ProjectHome() {
           </div>
         </div>
       </section>
-      <section className="studio-card p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="rounded-2xl border border-line bg-surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="studio-eyebrow">新建项目</p>
-            <h2 className="mt-1 text-xl font-semibold">开始一个新故事</h2>
+            <h2 className="font-semibold">选择开始方式</h2>
+            <p className="mt-1 text-sm text-muted">
+              先选择你手里的内容，再补齐可编辑的生产简报。不会要求选择模型、智能任务或服务商。
+            </p>
           </div>
           <button
             className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm text-ink hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50"
@@ -806,30 +912,198 @@ function ProjectHome() {
             {creatingDemo ? "正在创建示例…" : "创建示例项目"}
           </button>
         </div>
-        <div className="mt-5 flex flex-wrap gap-3 lg:flex-nowrap">
-          <input
-            className="h-12 min-w-[260px] flex-1 rounded-xl border border-line bg-[#fdfcf9] px-4"
-            placeholder="项目名称"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-          <input
-            className="h-12 w-44 rounded-xl border border-line bg-[#fdfcf9] px-4"
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-          />
-          <button
-            className="h-12 rounded-full bg-studio-dark px-7 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
-            disabled={saving}
-            onClick={() => void create()}
-          >
-            {saving ? "创建中…" : "创建项目"}
-          </button>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[
+            {
+              source: "inspiration" as const,
+              title: "从灵感开始",
+              description: "先保存故事构思和试制方向，再逐步补全人物与章节。",
+              outcome: "首个产出：可继续完善的生产简报",
+            },
+            {
+              source: "source-import" as const,
+              title: "导入原著",
+              description:
+                "导入你拥有权利的小说或 IP；文件会先预览，确认授权后才写入。",
+              outcome: "首个产出：可审查的原著导入预览",
+            },
+            {
+              source: "script" as const,
+              title: "直接导入 / 粘贴剧本",
+              description:
+                "已有剧本可直接粘贴为首集草稿，也可选择文件进入同一预览流程。",
+              outcome: "首个产出：可编辑的首集剧本草稿",
+            },
+          ].map((path) => (
+            <button
+              key={path.source}
+              className={`rounded-xl border p-4 text-left transition ${creationSource === path.source ? "border-brand bg-brand-soft" : "border-line hover:border-brand"}`}
+              aria-pressed={creationSource === path.source}
+              onClick={() => selectCreationSource(path.source)}
+            >
+              <p className="font-medium">{path.title}</p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {path.description}
+              </p>
+              <p className="mt-3 text-xs text-brand">{path.outcome}</p>
+            </button>
+          ))}
         </div>
+        {creationSource && (
+          <div className="mt-5 border-t border-line pt-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1 text-sm">
+                项目名称
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.title}
+                  onChange={(event) => updateBrief("title", event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                短剧题材
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.shortDramaType}
+                  onChange={(event) =>
+                    updateBrief("shortDramaType", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                目标受众
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.targetAudience}
+                  onChange={(event) =>
+                    updateBrief("targetAudience", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                目标平台
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.targetPlatform}
+                  onChange={(event) =>
+                    updateBrief("targetPlatform", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                单集时长
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.episodeDuration}
+                  onChange={(event) =>
+                    updateBrief("episodeDuration", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                计划集数
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  inputMode="numeric"
+                  value={brief.targetEpisodeCount}
+                  onChange={(event) =>
+                    updateBrief("targetEpisodeCount", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                画幅
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.aspectRatio}
+                  onChange={(event) =>
+                    updateBrief("aspectRatio", event.target.value)
+                  }
+                />
+              </label>
+              <label className="grid gap-1 text-sm">
+                视觉方向
+                <input
+                  className="rounded-lg border border-line px-3 py-2"
+                  value={brief.visualStyleDirection}
+                  onChange={(event) =>
+                    updateBrief("visualStyleDirection", event.target.value)
+                  }
+                />
+              </label>
+            </div>
+            {creationSource === "script" && (
+              <label className="mt-3 grid gap-1 text-sm">
+                首集剧本
+                <textarea
+                  className="min-h-40 rounded-lg border border-line p-3 font-editor"
+                  placeholder="粘贴已拥有权利的剧本内容；保存后会作为首集草稿进入项目。"
+                  value={scriptContent}
+                  onChange={(event) => setScriptContent(event.target.value)}
+                />
+              </label>
+            )}
+            {creationSource === "source-import" && (
+              <p className="mt-4 rounded-lg bg-brand-soft/40 p-3 text-sm text-muted">
+                下一步会先选择本地文件并生成导入预览。只有确认内容权利后，章节、剧本和场景才会写入项目。
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                className="rounded-lg border border-line px-3 py-2 text-sm text-muted"
+                disabled={saving}
+                onClick={() => setCreationSource(undefined)}
+              >
+                取消
+              </button>
+              {creationSource === "inspiration" && (
+                <button
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={saving || !brief.title.trim()}
+                  onClick={() => void createFromBrief("inspiration")}
+                >
+                  {saving ? "正在创建…" : "创建项目并开始构思"}
+                </button>
+              )}
+              {creationSource === "source-import" && (
+                <button
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={saving || !brief.title.trim()}
+                  onClick={() => void createFromBrief("source-file")}
+                >
+                  {saving ? "正在创建…" : "创建项目并预览原著"}
+                </button>
+              )}
+              {creationSource === "script" && (
+                <>
+                  <button
+                    className="rounded-lg border border-brand px-4 py-2 text-sm font-medium text-brand disabled:opacity-50"
+                    disabled={saving || !brief.title.trim()}
+                    onClick={() => void createFromBrief("script-file")}
+                  >
+                    选择剧本文件并预览
+                  </button>
+                  <button
+                    className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    disabled={
+                      saving || !brief.title.trim() || !scriptContent.trim()
+                    }
+                    onClick={() => void createFromBrief("script-draft")}
+                  >
+                    {saving ? "正在保存…" : "保存剧本草稿并进入项目"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </section>
       <ProjectPackageImportPanel
-        onImported={(project) => setProjects((items) => [project, ...items])}
+        onImported={(project) => {
+          setProjects((items) => [project, ...items]);
+          navigate(`/projects/${project.id}`);
+        }}
       />
       <section>
         <div className="mb-5 flex items-end justify-between">
@@ -1137,6 +1411,10 @@ function ProjectWorkspace() {
           {exportNotice}
         </p>
       )}
+      <ProjectCockpitPanel project={project} chapters={chapters} />
+      <ProjectPilotPanel project={project} chapters={chapters} />
+      <SeriesLibraryPanel project={project} onProjectChanged={setProject} />
+      <ImportExtractionReviewPanel projectId={project.id} onChanged={load} />
       <nav
         className="flex flex-wrap gap-1 rounded-[24px] border border-line bg-[#eee8e1]/85 p-1.5 shadow-card backdrop-blur-sm"
         aria-label="小说创作入口"
@@ -1240,6 +1518,767 @@ function ProjectWorkspace() {
         </div>
       )}
     </div>
+  );
+}
+
+function ProjectCockpitPanel(props: { project: Project; chapters: Chapter[] }) {
+  const client = useStudio();
+  const { data: graph, error: graphError } = useQuery({
+    queryKey: ["production-graph", props.project.id],
+    queryFn: () => client.production.graph(props.project.id),
+  });
+  const { data: tasks = [], error: taskError } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: client.tasks.list,
+    refetchInterval: 15_000,
+  });
+  if (graphError || taskError)
+    return (
+      <p className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
+        项目驾驶舱暂时无法读取真实状态：{message(graphError ?? taskError)}
+      </p>
+    );
+  if (!graph)
+    return (
+      <section
+        aria-label="项目驾驶舱"
+        className="rounded-2xl border border-line bg-surface p-5 text-sm text-muted"
+      >
+        正在根据已保存的项目资料整理阶段、阻断项和下一步…
+      </section>
+    );
+  const cockpit = deriveProjectCockpit({
+    project: props.project,
+    chapters: props.chapters,
+    graph,
+    tasks,
+  });
+  const context = new URLSearchParams({
+    projectId: props.project.id,
+  }).toString();
+  const zones = [
+    {
+      label: "创作",
+      to: `/projects/${props.project.id}`,
+      detail: "正文与项目设定",
+    },
+    {
+      label: "改编",
+      to: `/adapt?${context}`,
+      detail: "方案、分集、剧本和分镜",
+    },
+    {
+      label: "制作",
+      to: `/produce?${context}`,
+      detail: "资产、静帧与视听制作",
+    },
+    {
+      label: "审核交付",
+      to: `/review?${context}`,
+      detail: "质量、审片与交付记录",
+    },
+  ];
+  return (
+    <section
+      aria-label="项目驾驶舱"
+      className="rounded-2xl border border-brand/30 bg-gradient-to-br from-brand-soft/50 to-surface p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-brand">项目驾驶舱</p>
+          <h2 className="mt-1 text-xl font-semibold">{cockpit.statusLabel}</h2>
+          <p className="mt-1 text-sm text-muted">{cockpit.recentResult}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs text-brand">
+          {cockpit.status}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+        <article className="rounded-xl border border-brand/20 bg-white p-4">
+          <p className="text-xs font-medium text-muted">唯一推荐下一步</p>
+          <p className="mt-1 font-semibold">{cockpit.primaryAction.label}</p>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {cockpit.primaryAction.description}
+          </p>
+          <Link
+            className="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white"
+            to={cockpit.primaryAction.to}
+          >
+            {cockpit.primaryAction.label}
+          </Link>
+        </article>
+        <div className="rounded-xl border border-line bg-white p-4">
+          <p className="text-xs font-medium text-muted">真实覆盖情况</p>
+          <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {cockpit.coverage.map((item) => (
+              <div key={item.label} className="rounded-lg bg-canvas p-2">
+                <dt className="text-xs text-muted">{item.label}</dt>
+                <dd className="mt-1 font-semibold">
+                  {item.required === undefined
+                    ? item.current
+                    : `${item.current}/${item.required}`}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {cockpit.blockers.length > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-medium">当前阻断项</p>
+              <ul className="mt-1 list-disc space-y-1 pl-5">
+                {cockpit.blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+      <nav
+        aria-label="项目四区导航"
+        className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        {zones.map((zone) => (
+          <Link
+            key={zone.label}
+            to={zone.to}
+            className="rounded-lg border border-line bg-white p-3 transition hover:border-brand"
+          >
+            <p className="font-medium">{zone.label}</p>
+            <p className="mt-1 text-xs text-muted">{zone.detail}</p>
+          </Link>
+        ))}
+      </nav>
+    </section>
+  );
+}
+
+const PILOT_STAGE_LABELS: Record<PilotPlan["stage"], string> = {
+  "confirm-source": "确认试制来源",
+  script: "采用试制剧本",
+  scenes: "拆分制作场景",
+  shots: "建立试制分镜",
+  assets: "整理试制资产",
+  review: "进入人工审核",
+};
+
+function SeriesLibraryPanel(props: {
+  project: Project;
+  onProjectChanged(project: Project): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: series = [] } = useQuery({
+    queryKey: ["series"],
+    queryFn: client.series.list,
+  });
+  const { data: library } = useQuery<SeriesLibrary>({
+    queryKey: ["series-library", props.project.id],
+    queryFn: () => client.series.library(props.project.id),
+  });
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: client.projects.list,
+  });
+  const [newSeriesTitle, setNewSeriesTitle] = useState("");
+  const [settingTitle, setSettingTitle] = useState("");
+  const [settingJson, setSettingJson] = useState('{"说明":"待补充"}');
+  const [sourceProjectId, setSourceProjectId] = useState(props.project.id);
+  const { data: sourceAssets = [] } = useQuery({
+    queryKey: ["series-source-assets", sourceProjectId],
+    queryFn: () => client.resources.list("visual-assets", sourceProjectId),
+  });
+  const [sourceAssetId, setSourceAssetId] = useState("");
+  const [notice, setNotice] = useState<string>();
+  const [working, setWorking] = useState(false);
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["series"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["series-library", props.project.id],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["projects"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["series-source-assets", sourceProjectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["asset-center", props.project.id],
+      }),
+    ]);
+  };
+  const joinSeries = async (seriesId?: string) => {
+    setWorking(true);
+    try {
+      const updated = await client.series.setProjectSeries(
+        props.project.id,
+        seriesId ? { seriesId } : {},
+      );
+      props.onProjectChanged(updated);
+      setNotice(
+        seriesId
+          ? "项目已加入系列；既有项目资料不会被自动迁移。"
+          : "项目已解除系列归属；项目内版本保持不变。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const createSeries = async () => {
+    const title = newSeriesTitle.trim();
+    if (!title) return setNotice("请填写系列名称。");
+    setWorking(true);
+    try {
+      const created = await client.series.create({ title });
+      await joinSeries(created.id);
+      setNewSeriesTitle("");
+      setNotice(`已创建并加入「${created.title}」。`);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const createSetting = async () => {
+    if (!library?.series) return;
+    let payload: unknown;
+    try {
+      payload = JSON.parse(settingJson);
+    } catch {
+      return setNotice("系列设定必须是合法 JSON 对象。");
+    }
+    if (
+      !settingTitle.trim() ||
+      !payload ||
+      typeof payload !== "object" ||
+      Array.isArray(payload)
+    )
+      return setNotice("请填写设定标题和 JSON 对象。");
+    setWorking(true);
+    try {
+      const created = await client.series.createStoryBible(library.series.id, {
+        title: settingTitle.trim(),
+        payload,
+      });
+      await client.series.upgradeStoryBible(props.project.id, created.id, {
+        sourceVersion: created.version,
+      });
+      setSettingTitle("");
+      setNotice("系列故事圣经已新增；项目可以选择性覆写。 ");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const overrideSetting = async (
+    setting: SeriesLibrary["storyBible"][number],
+  ) => {
+    setWorking(true);
+    try {
+      await client.series.overrideStoryBible(props.project.id, setting.id, {
+        title: setting.title,
+        payload: setting.payload,
+        sourceVersion: setting.sourceVersion,
+      });
+      setNotice("已建立项目覆写快照；后续系列更新不会静默覆盖它。 ");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const transfer = async (mode: "copy" | "fork" | "link") => {
+    const asset = sourceAssets.find((item) => item.id === sourceAssetId);
+    if (!asset) return setNotice("请选择已锁定、权利已核验的源资产版本。");
+    setWorking(true);
+    try {
+      await client.series.transferAsset(props.project.id, {
+        sourceAssetId: asset.id,
+        sourceVersion: asset.version,
+        mode,
+      });
+      setNotice(
+        mode === "link"
+          ? "已建立不可变版本链接；源资产后续更新不会改变这个项目。"
+          : mode === "fork"
+            ? "已建立可独立修改的 Fork。"
+            : "已建立独立副本。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  return (
+    <section
+      className="rounded-xl border border-line bg-panel p-4 space-y-4"
+      data-testid="series-library"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">系列资产库</h2>
+          <p className="mt-1 text-sm text-muted">
+            共享只通过明确版本进入项目：Link 不可变，Copy 和 Fork
+            保持项目内独立；不会连接云端或复制媒体二进制。
+          </p>
+        </div>
+        <select
+          aria-label="项目所属系列"
+          className="rounded-lg border border-line bg-canvas px-2 py-1.5 text-sm"
+          value={library?.series?.id ?? ""}
+          disabled={working}
+          onChange={(event) => void joinSeries(event.target.value || undefined)}
+        >
+          <option value="">不加入系列</option>
+          {series.map((item: Series) => (
+            <option key={item.id} value={item.id}>
+              {item.title}
+            </option>
+          ))}
+        </select>
+      </div>
+      {!library?.series ? (
+        <div className="flex flex-wrap gap-2">
+          <input
+            aria-label="新系列名称"
+            className="min-w-52 flex-1 rounded-lg border border-line bg-canvas px-3 py-2 text-sm"
+            placeholder="例如：雨城宇宙"
+            value={newSeriesTitle}
+            onChange={(event) => setNewSeriesTitle(event.target.value)}
+          />
+          <button
+            className="rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+            disabled={working}
+            onClick={() => void createSeries()}
+          >
+            新建系列并加入
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-lg bg-canvas p-3 text-sm">
+            <span className="font-medium">
+              当前系列：{library.series.title}
+            </span>
+            <span className="ml-2 text-muted">
+              v{library.series.version} · 项目覆写与导入版本均需人工升级。
+            </span>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2 rounded-lg border border-line p-3">
+              <p className="text-sm font-medium">系列故事圣经</p>
+              {library.storyBible.length ? (
+                library.storyBible.map((setting) => (
+                  <div
+                    key={setting.id}
+                    className="rounded border border-line bg-canvas p-2 text-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{setting.title}</span>
+                      <button
+                        className="text-brand disabled:opacity-50"
+                        disabled={working || setting.overridden}
+                        onClick={() => void overrideSetting(setting)}
+                      >
+                        {setting.overridden ? "项目已覆写" : "建立项目覆写"}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-muted">
+                      来源 v{setting.sourceVersion}
+                      {setting.overridden
+                        ? "；当前使用本项目快照"
+                        : "；继承系列版本"}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted">尚无系列设定。</p>
+              )}
+              <div className="grid gap-2 pt-1">
+                <input
+                  aria-label="系列设定标题"
+                  className="rounded border border-line bg-canvas px-2 py-1.5 text-sm"
+                  placeholder="设定标题"
+                  value={settingTitle}
+                  onChange={(event) => setSettingTitle(event.target.value)}
+                />
+                <textarea
+                  aria-label="系列设定 JSON"
+                  className="min-h-16 rounded border border-line bg-canvas px-2 py-1.5 font-mono text-xs"
+                  value={settingJson}
+                  onChange={(event) => setSettingJson(event.target.value)}
+                />
+                <button
+                  className="w-fit rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+                  disabled={working}
+                  onClick={() => void createSetting()}
+                >
+                  新增系列设定
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-lg border border-line p-3">
+              <p className="text-sm font-medium">从同系列项目导入锁定版本</p>
+              <select
+                aria-label="源项目"
+                className="w-full rounded border border-line bg-canvas px-2 py-1.5 text-sm"
+                value={sourceProjectId}
+                onChange={(event) => {
+                  setSourceProjectId(event.target.value);
+                  setSourceAssetId("");
+                }}
+              >
+                {projects.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                    {item.seriesId === library.series?.id
+                      ? ""
+                      : "（非当前系列）"}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="源资产版本"
+                className="w-full rounded border border-line bg-canvas px-2 py-1.5 text-sm"
+                value={sourceAssetId}
+                onChange={(event) => setSourceAssetId(event.target.value)}
+              >
+                <option value="">选择资产版本</option>
+                {sourceAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.title} · v{asset.version}
+                  </option>
+                ))}
+              </select>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded border border-line px-2 py-1 text-sm disabled:opacity-50"
+                  disabled={working}
+                  onClick={() => void transfer("copy")}
+                >
+                  Copy 独立副本
+                </button>
+                <button
+                  className="rounded border border-line px-2 py-1 text-sm disabled:opacity-50"
+                  disabled={working}
+                  onClick={() => void transfer("fork")}
+                >
+                  Fork 可编辑
+                </button>
+                <button
+                  className="rounded bg-brand px-2 py-1 text-sm text-white disabled:opacity-50"
+                  disabled={working}
+                  onClick={() => void transfer("link")}
+                >
+                  Link 固定版本
+                </button>
+              </div>
+              {library.assets.length ? (
+                <div className="pt-1 text-xs text-muted">
+                  已导入：
+                  {library.assets
+                    .map(
+                      (asset) =>
+                        `${asset.mode} · 源版本 v${asset.sourceVersion}`,
+                    )
+                    .join("；")}
+                </div>
+              ) : (
+                <p className="text-sm text-muted">还没有导入系列资产。</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+      {notice && (
+        <p className="rounded bg-brand-soft px-3 py-2 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ProjectPilotPanel(props: { project: Project; chapters: Chapter[] }) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: plans = [] } = useQuery({
+    queryKey: ["pilot-plans", props.project.id],
+    queryFn: () => client.pilotPlans.list(props.project.id),
+  });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [episodeCount, setEpisodeCount] = useState(1);
+  const [notice, setNotice] = useState<string>();
+  const [working, setWorking] = useState(false);
+  useEffect(() => {
+    setSelectedIds((current) =>
+      current.filter((id) =>
+        props.chapters.some((chapter) => chapter.id === id),
+      ).length
+        ? current.filter((id) =>
+            props.chapters.some((chapter) => chapter.id === id),
+          )
+        : props.chapters.slice(0, 1).map((chapter) => chapter.id),
+    );
+  }, [props.chapters]);
+  const active = plans.find((plan) => plan.status !== "canceled") ?? plans[0];
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["pilot-plans", props.project.id],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["production-graph", props.project.id],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+    ]);
+  };
+  const toggle = (id: string) => {
+    setSelectedIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 3) {
+        setNotice("试制最多选择 3 个来源章节。");
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+  const create = async () => {
+    if (!selectedIds.length || episodeCount > selectedIds.length) {
+      setNotice("请选择 1–3 个章节，且试制集数不能超过来源章节数。");
+      return;
+    }
+    setWorking(true);
+    try {
+      await client.pilotPlans.create({
+        projectId: props.project.id,
+        chapterIds: selectedIds,
+        episodeCount,
+      });
+      setNotice("已保存试制范围；确认来源后才会创建试制分集。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const act = async (
+    plan: PilotPlan,
+    action: "confirm-source" | "return-source" | "cancel" | "resume",
+  ) => {
+    setWorking(true);
+    try {
+      await client.pilotPlans.action(plan.id, { action });
+      setNotice(
+        action === "confirm-source"
+          ? "来源已人工确认，已建立可继续编辑的试制分集。"
+          : action === "cancel"
+            ? "试制运行已取消；已采用内容会保留在现有工作区。"
+            : action === "resume"
+              ? "已用当前章节版本恢复试制，等待重新确认来源。"
+              : "已退回来源确认；不会删除已采用内容。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    } finally {
+      setWorking(false);
+    }
+  };
+  const nextTo = (plan: PilotPlan) => {
+    const context = new URLSearchParams({
+      projectId: plan.projectId,
+      ...(plan.adaptationId ? { adaptationId: plan.adaptationId } : {}),
+      ...(plan.episodeIds[0] ? { episodeId: plan.episodeIds[0] } : {}),
+    }).toString();
+    if (plan.stage === "script") return `/adapt?${context}&stage=scripts`;
+    if (plan.stage === "scenes") return `/adapt?${context}&stage=scenes`;
+    if (plan.stage === "shots") return `/adapt?${context}&stage=shots`;
+    if (plan.stage === "assets")
+      return `/produce?${context}&stage=visual-assets`;
+    if (plan.stage === "review") return `/review?${context}&stage=quality`;
+    return undefined;
+  };
+  return (
+    <section
+      aria-label="试制向导"
+      className="rounded-2xl border border-line bg-surface p-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">1–3 集可恢复试制</p>
+          <h2 className="mt-1 text-xl font-semibold">
+            先完成一小段可信制作链路
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            向导只保存试制范围与人工确认。剧本、场景、分镜、资产和完成度都来自已有的权威资料，关闭后可随时恢复。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
+          最多 3 集
+        </span>
+      </div>
+      {notice && (
+        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {!active && (
+        <div className="mt-4 rounded-xl border border-line bg-canvas p-4">
+          <p className="font-medium">选择试制来源</p>
+          <p className="mt-1 text-sm text-muted">
+            建议从最能代表项目钩子的连续章节开始。
+          </p>
+          <div className="mt-3 space-y-2">
+            {props.chapters.slice(0, 12).map((chapter) => (
+              <label
+                key={chapter.id}
+                className="flex items-center gap-2 rounded-lg bg-white p-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(chapter.id)}
+                  onChange={() => toggle(chapter.id)}
+                />
+                <span>来源章节：{chapter.title}</span>
+              </label>
+            ))}
+            {!props.chapters.length && (
+              <p className="text-sm text-amber-800">
+                请先导入或写入至少一个章节。
+              </p>
+            )}
+          </div>
+          <label className="mt-3 grid max-w-xs gap-1 text-sm">
+            试制集数
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2"
+              value={episodeCount}
+              onChange={(event) => setEpisodeCount(Number(event.target.value))}
+            >
+              {[1, 2, 3].map((count) => (
+                <option
+                  key={count}
+                  value={count}
+                  disabled={count > selectedIds.length}
+                >
+                  {count} 集
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            disabled={working || !props.chapters.length}
+            onClick={() => void create()}
+          >
+            建立试制计划
+          </button>
+        </div>
+      )}
+      {active && (
+        <div className="mt-4 rounded-xl border border-line p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">
+                当前阶段：{PILOT_STAGE_LABELS[active.stage]}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                {active.episodeCount} 集试制 ·{" "}
+                {active.sourceConfirmed ? "来源已确认" : "尚未确认来源"}
+              </p>
+              {active.blocker && (
+                <p className="mt-2 text-sm text-amber-800">{active.blocker}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {active.stage === "confirm-source" &&
+                active.status !== "canceled" && (
+                  <button
+                    className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                    disabled={working}
+                    onClick={() => void act(active, "confirm-source")}
+                  >
+                    确认来源并创建试制分集
+                  </button>
+                )}
+              {active.status === "canceled" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  disabled={working}
+                  onClick={() => void act(active, "resume")}
+                >
+                  恢复试制
+                </button>
+              )}
+              {active.status === "stale" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  disabled={working}
+                  onClick={() => void act(active, "resume")}
+                >
+                  按当前来源重新开始
+                </button>
+              )}
+              {nextTo(active) && (
+                <Link
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-brand"
+                  to={nextTo(active)!}
+                >
+                  前往唯一待办
+                </Link>
+              )}
+              {active.status !== "canceled" && (
+                <button
+                  className="rounded-md border border-line px-3 py-1.5 text-xs text-muted"
+                  disabled={working}
+                  onClick={() => void act(active, "return-source")}
+                >
+                  退回来源
+                </button>
+              )}
+              {active.status !== "canceled" && (
+                <button
+                  className="rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-600"
+                  disabled={working}
+                  onClick={() => void act(active, "cancel")}
+                >
+                  取消试制
+                </button>
+              )}
+            </div>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {Object.entries(active.coverage).map(([label, count]) => (
+              <div key={label} className="rounded-lg bg-canvas p-2 text-sm">
+                <dt className="text-xs text-muted">
+                  {
+                    (
+                      {
+                        episodes: "分集",
+                        scripts: "剧本",
+                        scenes: "场景",
+                        shots: "分镜",
+                        assets: "资产",
+                      } as Record<string, string>
+                    )[label]
+                  }
+                </dt>
+                <dd className="mt-1 font-semibold">{count}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1391,9 +2430,13 @@ function ProjectSettingsEditor(props: {
   );
 }
 
-function SourceImportPanel(props: { projectId: string; onImported(): void }) {
+function SourceImportPanel(props: {
+  projectId: string;
+  initialOpen?: boolean;
+  onImported(): void;
+}) {
   const client = useStudio();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.initialOpen ?? false);
   const [importId, setImportId] = useState<string>();
   const [preview, setPreview] = useState<SourceImportPreview>();
   const [duplicates, setDuplicates] = useState<{
@@ -1409,6 +2452,10 @@ function SourceImportPanel(props: { projectId: string; onImported(): void }) {
   const [destructiveConfirmed, setDestructiveConfirmed] = useState(false);
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
+
+  useEffect(() => {
+    if (props.initialOpen) setOpen(true);
+  }, [props.initialOpen]);
 
   const totalEntries =
     (preview?.chapters.length ?? 0) + (preview?.episodes.length ?? 0);
@@ -1767,6 +2814,399 @@ function SourceImportPanel(props: { projectId: string; onImported(): void }) {
   );
 }
 
+const IMPORT_EXTRACTION_STATUS_LABELS: Record<string, string> = {
+  draft: "待审查",
+  applied: "已部分/全部采用",
+  stale: "来源已更新",
+  discarded: "已撤销",
+  failed: "整理失败",
+  rejected: "未采用",
+  adopted: "已采用",
+  conflict: "需人工处理",
+};
+const IMPORT_EXTRACTION_TYPE_LABELS: Record<string, string> = {
+  character: "人物",
+  scene: "场景",
+  prop: "道具",
+  "chapter-summary": "章节摘要",
+  adaptation: "改编建议",
+};
+
+function ImportExtractionReviewPanel(props: {
+  projectId: string;
+  onChanged(): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: changeSets = [] } = useQuery({
+    queryKey: ["import-extractions", props.projectId],
+    queryFn: () => client.importExtractions.list(props.projectId),
+  });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string>();
+  const [draft, setDraft] = useState({ title: "", summary: "" });
+  const [notice, setNotice] = useState<string>();
+  const [workingId, setWorkingId] = useState<string>();
+  useEffect(() => {
+    const draftIds = changeSets.flatMap((set) =>
+      set.candidates
+        .filter((candidate) => candidate.status === "draft")
+        .map((candidate) => candidate.id),
+    );
+    setSelectedIds((current) =>
+      draftIds.some((id) => current.has(id)) ? current : new Set(draftIds),
+    );
+  }, [changeSets]);
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["import-extractions", props.projectId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "characters", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "scenes", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "assets", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "adaptations", props.projectId],
+      }),
+    ]);
+    props.onChanged();
+  };
+  const toggle = (candidateId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(candidateId)) next.delete(candidateId);
+      else next.add(candidateId);
+      return next;
+    });
+  };
+  const startEdit = (
+    candidate: ImportExtractionChangeSet["candidates"][number],
+  ) => {
+    setEditingId(candidate.id);
+    setDraft({ title: candidate.title, summary: candidate.summary });
+  };
+  const saveEdit = async (changeSetId: string, candidateId: string) => {
+    setWorkingId(candidateId);
+    setNotice(undefined);
+    try {
+      await client.importExtractions.updateCandidate(
+        changeSetId,
+        candidateId,
+        draft,
+      );
+      setEditingId(undefined);
+      setNotice("候选已更新；采用前仍可继续调整。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const setCandidateStatus = async (
+    changeSetId: string,
+    candidateId: string,
+    status: "draft" | "rejected",
+  ) => {
+    setWorkingId(candidateId);
+    try {
+      await client.importExtractions.updateCandidate(changeSetId, candidateId, {
+        status,
+      });
+      setNotice(
+        status === "rejected"
+          ? "候选已保留为未采用，不会写入项目。"
+          : "候选已重新加入待审查列表。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const adopt = async (changeSet: ImportExtractionChangeSet) => {
+    const ids = changeSet.candidates
+      .filter(
+        (candidate) =>
+          candidate.status === "draft" && selectedIds.has(candidate.id),
+      )
+      .map((candidate) => candidate.id);
+    if (!ids.length) {
+      setNotice("请至少选择一条待审查候选。未选择的候选不会被采用。");
+      return;
+    }
+    if (
+      !window.confirm(
+        `将采用 ${ids.length} 条已选候选。系统会在一个事务中写入；如检测到人工内容冲突，不会部分采用。确定继续吗？`,
+      )
+    )
+      return;
+    setWorkingId(changeSet.id);
+    try {
+      await client.importExtractions.adopt(changeSet.id, { candidateIds: ids });
+      setNotice("已采用所选候选，并保留可撤销记录。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const undo = async (changeSet: ImportExtractionChangeSet) => {
+    if (
+      !window.confirm(
+        "撤销只会回退本次采用且未被人工编辑的内容；人工后续修改会被保留。确定继续吗？",
+      )
+    )
+      return;
+    setWorkingId(changeSet.id);
+    try {
+      const result = await client.importExtractions.undo(changeSet.id);
+      setNotice(
+        result.status === "stale"
+          ? "已撤销未修改的项目；人工改动已保护并标记为待处理。"
+          : "已撤销本变更集采用的内容。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  if (!changeSets.length) return null;
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">导入候选审阅</p>
+          <h2 className="mt-1 text-xl font-semibold">
+            先查看差异，再采用到项目资料
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            每个候选都保留原稿章节、文本范围与置信度。采用前不会改写权威资料；可逐项编辑、拒绝或选择性采用。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs text-brand">
+          全部候选预览
+        </span>
+      </div>
+      {notice && (
+        <p className="mt-3 rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      <div className="mt-4 space-y-4">
+        {changeSets.map((changeSet) => {
+          const draftCount = changeSet.candidates.filter(
+            (candidate) => candidate.status === "draft",
+          ).length;
+          return (
+            <article
+              key={changeSet.id}
+              className="rounded-xl border border-line p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{changeSet.sourceTitle}</p>
+                  <p className="mt-1 text-xs text-muted">{changeSet.summary}</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {IMPORT_EXTRACTION_STATUS_LABELS[changeSet.status] ??
+                      changeSet.status}{" "}
+                    · {draftCount} 条可选
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {draftCount > 0 &&
+                    ["draft", "applied"].includes(changeSet.status) && (
+                      <button
+                        className="rounded-md bg-brand px-3 py-1.5 text-xs text-white disabled:opacity-50"
+                        disabled={workingId === changeSet.id}
+                        onClick={() => void adopt(changeSet)}
+                      >
+                        采用已选项目
+                      </button>
+                    )}
+                  {["applied", "stale"].includes(changeSet.status) && (
+                    <button
+                      className="rounded-md border border-line px-3 py-1.5 text-xs text-brand disabled:opacity-50"
+                      disabled={workingId === changeSet.id}
+                      onClick={() => void undo(changeSet)}
+                    >
+                      撤销采用
+                    </button>
+                  )}
+                </div>
+              </div>
+              {changeSet.errorMessage && (
+                <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                  {changeSet.errorMessage}
+                </p>
+              )}
+              <div className="mt-3 space-y-2">
+                {changeSet.candidates.map((candidate) => {
+                  const editing = editingId === candidate.id;
+                  const selectable = candidate.status === "draft";
+                  return (
+                    <div
+                      key={candidate.id}
+                      className="rounded-lg border border-line bg-canvas p-3"
+                    >
+                      <div className="flex flex-wrap items-start gap-3">
+                        {selectable && (
+                          <input
+                            className="mt-1"
+                            aria-label={`选择候选 ${candidate.title}`}
+                            type="checkbox"
+                            checked={selectedIds.has(candidate.id)}
+                            onChange={() => toggle(candidate.id)}
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-brand">
+                              {IMPORT_EXTRACTION_TYPE_LABELS[candidate.type]}
+                            </span>
+                            <span className="text-xs text-muted">
+                              {IMPORT_EXTRACTION_STATUS_LABELS[
+                                candidate.status
+                              ] ?? candidate.status}{" "}
+                              · 置信度 {Math.round(candidate.confidence * 100)}%
+                            </span>
+                          </div>
+                          {editing ? (
+                            <div className="mt-2 space-y-2">
+                              <input
+                                className="w-full rounded-md border border-line bg-white px-2 py-1 text-sm"
+                                aria-label="候选标题"
+                                value={draft.title}
+                                onChange={(event) =>
+                                  setDraft((value) => ({
+                                    ...value,
+                                    title: event.target.value,
+                                  }))
+                                }
+                              />
+                              <textarea
+                                className="min-h-20 w-full rounded-md border border-line bg-white p-2 text-sm"
+                                aria-label="候选说明"
+                                value={draft.summary}
+                                onChange={(event) =>
+                                  setDraft((value) => ({
+                                    ...value,
+                                    summary: event.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <p className="mt-2 font-medium">
+                                {candidate.title}
+                              </p>
+                              <p className="mt-1 text-sm text-muted">
+                                {candidate.summary}
+                              </p>
+                            </>
+                          )}
+                          {candidate.sourceRefs.map((ref) => (
+                            <blockquote
+                              key={`${ref.sourceKey}-${ref.start}`}
+                              className="mt-2 border-l-2 border-brand/30 pl-2 text-xs text-muted"
+                            >
+                              《{ref.chapterTitle}》 {ref.start}–{ref.end}：
+                              {ref.excerpt || "（原文为空）"}
+                            </blockquote>
+                          ))}
+                          {candidate.conflictNote && (
+                            <p className="mt-2 text-xs text-amber-800">
+                              {candidate.conflictNote}
+                            </p>
+                          )}
+                        </div>
+                        {candidate.status !== "adopted" && (
+                          <div className="flex gap-2">
+                            {editing ? (
+                              <>
+                                <button
+                                  className="rounded-md bg-brand px-2 py-1 text-xs text-white disabled:opacity-50"
+                                  disabled={workingId === candidate.id}
+                                  onClick={() =>
+                                    void saveEdit(changeSet.id, candidate.id)
+                                  }
+                                >
+                                  保存
+                                </button>
+                                <button
+                                  className="rounded-md border border-line px-2 py-1 text-xs text-muted"
+                                  onClick={() => setEditingId(undefined)}
+                                >
+                                  取消
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                                onClick={() => startEdit(candidate)}
+                              >
+                                编辑
+                              </button>
+                            )}
+                            {candidate.status === "draft" && (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                                disabled={workingId === candidate.id}
+                                onClick={() =>
+                                  void setCandidateStatus(
+                                    changeSet.id,
+                                    candidate.id,
+                                    "rejected",
+                                  )
+                                }
+                              >
+                                不采用
+                              </button>
+                            )}
+                            {(candidate.status === "rejected" ||
+                              candidate.status === "conflict") && (
+                              <button
+                                className="rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                                disabled={workingId === candidate.id}
+                                onClick={() =>
+                                  void setCandidateStatus(
+                                    changeSet.id,
+                                    candidate.id,
+                                    "draft",
+                                  )
+                                }
+                              >
+                                重新审查
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ProjectActivityPanel(props: { projectId: string }) {
   const client = useStudio();
   const { data: tasks = [] } = useQuery({
@@ -1887,13 +3327,448 @@ function sourceTypeLabel(type: SourceImportPreview["sourceType"]): string {
   return labels[type];
 }
 
+const STORY_BIBLE_SIDECAR_DOMAINS = [
+  "characters",
+  "character-states",
+  "story-bible",
+  "outlines",
+  "story-events",
+  "foreshadowings",
+  "visual-assets",
+  "visual-settings",
+  "assets",
+  "chapter-memories",
+] as const;
+
+function StoryBibleSidecar(props: {
+  projectId: string;
+  context: StoryBibleContext;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  const [wide, setWide] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const [selectedFields, setSelectedFields] = useState<
+    Record<string, string[]>
+  >({});
+  const { data: records = [], error: recordsError } = useQuery({
+    queryKey: ["story-bible-sidecar-records", props.projectId],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          STORY_BIBLE_SIDECAR_DOMAINS.map((domain) =>
+            client.resources.list(domain, props.projectId),
+          ),
+        )
+      ).flat(),
+  });
+  const { data: changeSets = [] } = useQuery({
+    queryKey: ["story-bible-change-sets", props.projectId],
+    queryFn: () => client.storyBible.list(props.projectId),
+  });
+  const { data: staleMarks = [] } = useQuery({
+    queryKey: ["story-bible-stale", props.projectId],
+    queryFn: () => client.storyBible.stale(props.projectId),
+  });
+  const { data: preferences = [] } = useQuery({
+    queryKey: ["story-bible-sidecar-preferences", props.projectId],
+    queryFn: () =>
+      client.resources.list("story-bible-sidecar-preferences", props.projectId),
+  });
+  const preference = preferences[0];
+  const preferencePayload = preference ? recordPayload(preference.payload) : {};
+  const pinned = Array.isArray(preferencePayload["固定标识"])
+    ? preferencePayload["固定标识"].filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+  useEffect(() => {
+    if (!preference) return;
+    setCollapsed(preferencePayload["已折叠"] === true);
+    setWide(preferencePayload["宽度"] === "宽");
+  }, [preference?.id, preference?.version]);
+  const model = buildStoryBibleSidecar({
+    context: props.context,
+    records,
+    changeSets,
+    staleMarks,
+  });
+  const storyBiblePath = `/create?projectId=${encodeURIComponent(props.projectId)}${
+    props.context.kind === "chapter"
+      ? `&chapterId=${encodeURIComponent(props.context.id)}`
+      : ""
+  }`;
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-sidecar-records", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-change-sets", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-stale", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["story-bible-sidecar-preferences", props.projectId],
+      }),
+    ]);
+  };
+  const savePreference = async (patch: Record<string, unknown>) => {
+    const payload = { ...preferencePayload, ...patch };
+    if (preference)
+      await client.resources.update(
+        "story-bible-sidecar-preferences",
+        preference.id,
+        {
+          title: preference.title,
+          payload,
+          version: preference.version,
+        },
+      );
+    else
+      await client.resources.create("story-bible-sidecar-preferences", {
+        projectId: props.projectId,
+        title: "Story Bible 侧栏偏好",
+        payload,
+      });
+    await refresh();
+  };
+  const updateCollapsed = async (next: boolean) => {
+    setCollapsed(next);
+    try {
+      await savePreference({ 已折叠: next, 宽度: wide ? "宽" : "常规" });
+    } catch (cause) {
+      setCollapsed(!next);
+      setNotice(message(cause));
+    }
+  };
+  const updateWide = async (next: boolean) => {
+    setWide(next);
+    try {
+      await savePreference({ 已折叠: collapsed, 宽度: next ? "宽" : "常规" });
+    } catch (cause) {
+      setWide(!next);
+      setNotice(message(cause));
+    }
+  };
+  const togglePin = async (id: string) => {
+    const next = pinned.includes(id)
+      ? pinned.filter((item) => item !== id)
+      : [...pinned, id];
+    try {
+      await savePreference({
+        固定标识: next,
+        已折叠: collapsed,
+        宽度: wide ? "宽" : "常规",
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const queue = async () => {
+    if (props.context.kind !== "chapter") return;
+    try {
+      await client.storyBible.queue({
+        projectId: props.projectId,
+        chapterId: props.context.id,
+      });
+      setNotice("已生成待确认变更草案，请先核对字段差异。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const apply = async (item: StoryBibleChangeSet) => {
+    const fields =
+      selectedFields[item.id] ?? item.preview.fields.map((field) => field.key);
+    if (!fields.length) {
+      setNotice("请至少选择一个待采用字段。");
+      return;
+    }
+    if (
+      !window.confirm(
+        "采用后只会写入所选的章节记忆字段，不会修改正文。确定采用吗？",
+      )
+    )
+      return;
+    try {
+      await client.storyBible.apply(item.id, { fields });
+      setNotice("已采用所选字段，并保留可撤销记录。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+      await refresh();
+    }
+  };
+  const undo = async (item: StoryBibleChangeSet) => {
+    if (
+      !window.confirm(
+        "撤销会删除此变更集创建的章节记忆，不会修改正文。确定撤销吗？",
+      )
+    )
+      return;
+    try {
+      await client.storyBible.undo(item.id);
+      setNotice("已撤销此变更集创建的资料。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const setStatus = async (item: StoryBibleChangeSet, status: "discarded") => {
+    try {
+      await client.storyBible.setStatus(item.id, status);
+      setNotice("已丢弃该变更草案。");
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const toggleField = (item: StoryBibleChangeSet, key: string) => {
+    const current =
+      selectedFields[item.id] ?? item.preview.fields.map((field) => field.key);
+    setSelectedFields((previous) => ({
+      ...previous,
+      [item.id]: current.includes(key)
+        ? current.filter((field) => field !== key)
+        : [...current, key],
+    }));
+  };
+  const visible = model.items
+    .filter((item) =>
+      `${item.group} ${item.title} ${item.text}`
+        .toLocaleLowerCase("zh-CN")
+        .includes(query.trim().toLocaleLowerCase("zh-CN")),
+    )
+    .sort(
+      (left, right) =>
+        Number(pinned.includes(right.id)) - Number(pinned.includes(left.id)),
+    );
+  return (
+    <aside
+      className={`border-t border-line bg-canvas/40 p-3 xl:border-l xl:border-t-0 ${collapsed ? "xl:w-14 xl:p-2" : wide ? "xl:w-[26rem]" : "xl:w-80"}`}
+      aria-label="Story Bible 侧栏"
+    >
+      <div className="flex items-start justify-between gap-2">
+        {!collapsed && (
+          <div>
+            <p className="text-xs text-muted">
+              当前{props.context.kind === "chapter" ? "章节" : "剧本"}上下文
+            </p>
+            <h2 className="text-sm font-semibold">Story Bible</h2>
+          </div>
+        )}
+        <div className="flex gap-1">
+          {!collapsed && (
+            <button
+              className="rounded px-2 py-1 text-xs text-brand hover:bg-brand-soft"
+              onClick={() => void updateWide(!wide)}
+            >
+              {wide ? "窄" : "宽"}
+            </button>
+          )}
+          <button
+            className="rounded px-2 py-1 text-xs text-brand hover:bg-brand-soft"
+            aria-expanded={!collapsed}
+            onClick={() => void updateCollapsed(!collapsed)}
+          >
+            {collapsed ? "展开" : "折叠"}
+          </button>
+        </div>
+      </div>
+      {!collapsed && (
+        <>
+          <input
+            className="mt-3 w-full rounded border border-line bg-white px-2 py-1.5 text-xs"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索人物、伏笔、设定…"
+            aria-label="搜索 Story Bible"
+          />
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Link className="text-brand underline" to={storyBiblePath}>
+              打开完整 Story Bible
+            </Link>
+            {props.context.kind === "chapter" && (
+              <button
+                className="text-brand underline"
+                onClick={() => void queue()}
+              >
+                生成变更草案
+              </button>
+            )}
+          </div>
+          {notice && (
+            <p
+              className="mt-3 rounded bg-brand-soft p-2 text-xs text-brand"
+              role="status"
+            >
+              {notice}
+            </p>
+          )}
+          {recordsError && (
+            <p
+              className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900"
+              role="alert"
+            >
+              本地 Story Bible 暂不可读取；正文编辑与保存不受影响。
+            </p>
+          )}
+          {model.staleMarks.length > 0 && (
+            <p className="mt-3 rounded bg-amber-50 p-2 text-xs text-amber-900">
+              待复核：{model.staleMarks.map((mark) => mark.reason).join("；")}
+            </p>
+          )}
+          <div
+            className="mt-3 max-h-[calc(100vh-15rem)] space-y-2 overflow-y-auto pr-1"
+            aria-live="polite"
+          >
+            {visible.map((item) => (
+              <article
+                key={item.id}
+                className="rounded border border-line bg-white p-2 text-xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-muted">
+                      {item.group} · {sidecarStateLabel(item.state)}
+                    </p>
+                    <p className="mt-1 font-medium">{item.title}</p>
+                  </div>
+                  <button
+                    className="text-brand underline"
+                    onClick={() => void togglePin(item.id)}
+                  >
+                    {pinned.includes(item.id) ? "取消固定" : "固定"}
+                  </button>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-muted">
+                  {item.text}
+                </p>
+                <p className="mt-1 text-[0.6875rem] text-muted">
+                  来源 {item.sourceId.slice(0, 8)}
+                  {item.sourceVersion !== undefined
+                    ? ` · v${item.sourceVersion}`
+                    : ""}{" "}
+                  ·{" "}
+                  <Link className="text-brand underline" to={storyBiblePath}>
+                    查看来源
+                  </Link>
+                </p>
+              </article>
+            ))}
+            {!visible.length && (
+              <p className="rounded border border-dashed border-line p-3 text-xs text-muted">
+                当前范围没有可关联的 Story Bible 条目。
+              </p>
+            )}
+          </div>
+          {model.relevantChangeSets.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs font-medium">当前章节变更集</p>
+              {model.relevantChangeSets.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded border border-line bg-white p-2 text-xs"
+                >
+                  <p>{item.summary}</p>
+                  <p className="mt-1 text-muted">
+                    章节版本 {item.sourceVersion} ·{" "}
+                    {sidecarStateLabel(
+                      item.status === "draft"
+                        ? "suggested"
+                        : item.status === "applied"
+                          ? "confirmed"
+                          : item.status === "stale"
+                            ? "stale"
+                            : "authoritative",
+                    )}
+                  </p>
+                  {item.conflictNotes.length > 0 && (
+                    <p className="mt-1 text-amber-800">
+                      冲突：{item.conflictNotes.join("；")}
+                    </p>
+                  )}
+                  {item.status === "draft" && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-brand">
+                        查看字段差异并选择采用
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {item.preview.fields.map((field) => {
+                          const fields =
+                            selectedFields[item.id] ??
+                            item.preview.fields.map((entry) => entry.key);
+                          return (
+                            <label key={field.key} className="flex gap-2">
+                              <input
+                                type="checkbox"
+                                checked={fields.includes(field.key)}
+                                onChange={() => toggleField(item, field.key)}
+                              />
+                              <span>
+                                <b>{field.key}</b>：{field.value}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  )}
+                  {item.status === "draft" && (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        className="text-brand underline"
+                        onClick={() => void apply(item)}
+                      >
+                        采用所选字段
+                      </button>
+                      <button
+                        className="text-muted underline"
+                        onClick={() => void setStatus(item, "discarded")}
+                      >
+                        丢弃
+                      </button>
+                    </div>
+                  )}
+                  {["applied", "stale"].includes(item.status) && (
+                    <button
+                      className="mt-2 text-brand underline"
+                      onClick={() => void undo(item)}
+                    >
+                      撤销采用
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </aside>
+  );
+}
+
+function sidecarStateLabel(
+  state: ReturnType<typeof buildStoryBibleSidecar>["items"][number]["state"],
+) {
+  return {
+    authoritative: "权威事实",
+    confirmed: "人工确认",
+    suggested: "AI 建议",
+    stale: "来源已变化",
+  }[state];
+}
+
 function importWarning(value: string): string {
   return /[A-Za-z]{3,}/.test(value)
     ? "导入内容存在需要人工复核的格式或结构问题。"
     : value;
 }
 
-/* 已删除的临时章节写作界面，仅在本次迁移提交的差异中保留历史上下文；不会进入编译产物。
 const CHAPTER_AI_ACTIONS: ReadonlyArray<{
   taskType: AgentTaskType;
   label: string;
@@ -1947,7 +3822,7 @@ const CHAPTER_AI_ENHANCEMENTS: ReadonlyArray<{
   { taskType: "rewrite_as_ai_drama_novel", label: "短剧化改写" },
 ];
 
-export function DeprecatedChapterEditor(props: {
+export function ChapterEditor(props: {
   projectId: string;
   chapter: Chapter;
   onSave(patch: Partial<EditableChapter>): Promise<void>;
@@ -2211,102 +4086,105 @@ export function DeprecatedChapterEditor(props: {
     aiWatching ||
     ["queued", "running"].includes(currentAiTask?.status ?? "");
   return (
-    <article className="flex min-w-0 flex-col">
-      <header className="flex items-center justify-between border-b border-line p-4">
-        <input
-          className="min-w-0 border-0 text-lg font-semibold outline-none"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        <div className="flex gap-2">
-          <button
-            className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted"
-            onClick={() => setShowRevision((value) => !value)}
-          >
-            修订预览
-          </button>
-          <button
-            className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600"
-            onClick={props.onRemove}
-          >
-            删除本章
-          </button>
-          <button
-            className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            disabled={saving}
-            onClick={() => void save()}
-          >
-            {saving ? "保存中…" : "保存"}
-          </button>
-        </div>
-      </header>
-      {showRevision && (
-        <section className="border-b border-line bg-brand-soft/40 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">受控修订预览</p>
-              <p className="mt-1 text-xs text-muted">
-                此处不会改写正文。只有确认提交且版本仍匹配时，本地服务才会在事务中应用修订。
-              </p>
-            </div>
-            {preview && (
-              <span className="rounded-full bg-white px-2 py-1 text-xs text-brand">
-                等待确认
-              </span>
-            )}
-          </div>
-          <textarea
-            className="mt-4 min-h-40 w-full rounded-lg border border-line bg-white p-3 font-editor text-sm leading-7"
-            value={proposedContent}
-            onChange={(event) => setProposedContent(event.target.value)}
-            placeholder="粘贴或编辑候选改写…"
-            disabled={Boolean(preview)}
-          />
+    <div className="grid min-w-0 xl:grid-cols-[minmax(0,1fr)_auto]">
+      <article className="flex min-w-0 flex-col">
+        <header className="flex items-center justify-between border-b border-line p-4">
           <input
-            className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
-            value={rationale}
-            onChange={(event) => setRationale(event.target.value)}
-            placeholder="修订依据（可选）"
-            disabled={Boolean(preview)}
+            className="min-w-0 border-0 text-lg font-semibold outline-none"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
           />
-          {preview && (
-            <div className="mt-3 grid gap-3 rounded-lg border border-line bg-white p-3 md:grid-cols-2">
-              <div>
-                <p className="text-xs font-medium text-muted">当前已保存内容</p>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
-                  {content}
-                </pre>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-brand">候选修订</p>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
-                  {preview.proposedContent}
-                </pre>
-              </div>
-            </div>
-          )}
-          {revisionError && (
-            <p className="mt-3 text-sm text-red-600">{revisionError}</p>
-          )}
-          <div className="mt-3 flex justify-end gap-2">
-            {!preview ? (
-              <button
-                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-                disabled={!proposedContent.trim() || submitting}
-                onClick={() => void createPreview()}
-              >
-                {submitting ? "保存预览…" : "保存预览"}
-              </button>
-            ) : (
-              <button
-                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-                disabled={submitting}
-                onClick={() => void commitPreview()}
-              >
-                {submitting ? "提交中…" : "确认提交修订"}
-              </button>
-            )}
+          <div className="flex gap-2">
+            <button
+              className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted"
+              onClick={() => setShowRevision((value) => !value)}
+            >
+              修订预览
+            </button>
+            <button
+              className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-600"
+              onClick={props.onRemove}
+            >
+              删除本章
+            </button>
+            <button
+              className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              disabled={saving}
+              onClick={() => void save()}
+            >
+              {saving ? "保存中…" : "保存"}
+            </button>
           </div>
+        </header>
+        {showRevision && (
+          <section className="border-b border-line bg-brand-soft/40 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">受控修订预览</p>
+                <p className="mt-1 text-xs text-muted">
+                  此处不会改写正文。只有确认提交且版本仍匹配时，本地服务才会在事务中应用修订。
+                </p>
+              </div>
+              {preview && (
+                <span className="rounded-full bg-white px-2 py-1 text-xs text-brand">
+                  等待确认
+                </span>
+              )}
+            </div>
+            <textarea
+              className="mt-4 min-h-40 w-full rounded-lg border border-line bg-white p-3 font-editor text-sm leading-7"
+              value={proposedContent}
+              onChange={(event) => setProposedContent(event.target.value)}
+              placeholder="粘贴或编辑候选改写…"
+              disabled={Boolean(preview)}
+            />
+            <input
+              className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
+              value={rationale}
+              onChange={(event) => setRationale(event.target.value)}
+              placeholder="修订依据（可选）"
+              disabled={Boolean(preview)}
+            />
+            {preview && (
+              <div className="mt-3 grid gap-3 rounded-lg border border-line bg-white p-3 md:grid-cols-2">
+                <div>
+                  <p className="text-xs font-medium text-muted">
+                    当前已保存内容
+                  </p>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
+                    {content}
+                  </pre>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-brand">候选修订</p>
+                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
+                    {preview.proposedContent}
+                  </pre>
+                </div>
+              </div>
+            )}
+            {revisionError && (
+              <p className="mt-3 text-sm text-red-600">{revisionError}</p>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              {!preview ? (
+                <button
+                  className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={!proposedContent.trim() || submitting}
+                  onClick={() => void createPreview()}
+                >
+                  {submitting ? "保存预览…" : "保存预览"}
+                </button>
+              ) : (
+                <button
+                  className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  disabled={submitting}
+                  onClick={() => void commitPreview()}
+                >
+                  {submitting ? "提交中…" : "确认提交修订"}
+                </button>
+              )}
+            </div>
         </section>
       )}
       <section
@@ -2524,10 +4402,20 @@ export function DeprecatedChapterEditor(props: {
         />
       </div>
     </article>
+      <StoryBibleSidecar
+        projectId={props.projectId}
+        context={{
+          kind: "chapter",
+          id: props.chapter.id,
+          title: props.chapter.title,
+          content,
+          version: props.chapter.version,
+        }}
+      />
+    </div>
   );
 }
 
-*/
 const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
   queued: "等待生成",
   draft: "待确认草案",
@@ -2542,6 +4430,7 @@ const STORY_BIBLE_STATUS_LABELS: Record<string, string> = {
 function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -2576,9 +4465,19 @@ function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
     if (chapterId && !chapters.some((chapter) => chapter.id === chapterId))
       setChapterId("");
   }, [chapterId, chapters]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("chapterId");
+    if (requested && chapters.some((chapter) => chapter.id === requested))
+      setChapterId(requested);
+  }, [chapters, location.search]);
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
@@ -2635,7 +4534,7 @@ function StoryBibleChangeSetPanel(props: { projectId?: string } = {}) {
     )
       return;
     try {
-      await client.storyBible.apply(item.id);
+      await client.storyBible.apply(item.id, {});
       setNotice("已采用变更集，并保留可撤销记录。");
       await refresh();
     } catch (cause) {
@@ -3460,6 +5359,8 @@ function CreativeCaseStudyCard(props: { item: CreativeCaseStudy }) {
 function TaskPage() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const projectId = new URLSearchParams(location.search).get("projectId");
   const [retryEngine, setRetryEngine] = useState<AgentEngineKind>("opencode");
   const { data: items = [], error } = useQuery({
     queryKey: ["tasks"],
@@ -3488,6 +5389,9 @@ function TaskPage() {
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
+  const visibleItems = projectId
+    ? items.filter((item) => item.projectId === projectId)
+    : items;
   return (
     <section className="space-y-5">
       <WorkspaceIntro
@@ -3497,6 +5401,9 @@ function TaskPage() {
         badge="实时进度"
       />
       <label className="studio-card flex max-w-md flex-col gap-1 p-4 text-sm text-muted">
+      {projectId && (
+        <p className="mt-1 text-sm text-muted">正在显示当前项目的任务。</p>
+      )}
         重试使用的智能引擎
         <select
           className="rounded-md border border-line bg-surface px-3 py-2 text-ink"
@@ -3512,7 +5419,7 @@ function TaskPage() {
       </label>
       {error && <p className="mt-4 text-sm text-red-600">{message(error)}</p>}
       <div className="space-y-3">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <div
             key={item.id}
             className="rounded-xl border border-line bg-surface p-4"
@@ -3851,6 +5758,7 @@ function AgentProviderActionPreviewCard(props: {
       video: "视频生成",
       remote_render: "远程渲染",
     }[props.preview.kind] ?? "远程厂商调用";
+  const costUnknown = props.preview.estimatedCost === undefined;
   return (
     <section className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3902,7 +5810,7 @@ function AgentProviderActionPreviewCard(props: {
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             className="rounded-lg bg-amber-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={execute.isPending || discard.isPending}
+            disabled={costUnknown || execute.isPending || discard.isPending}
             onClick={() => {
               const cost =
                 props.preview.estimatedCost === undefined
@@ -3922,6 +5830,11 @@ function AgentProviderActionPreviewCard(props: {
             {discard.isPending ? "正在放弃…" : "放弃此次调用"}
           </button>
         </div>
+      )}
+      {status === "pending" && costUnknown && (
+        <p className="mt-3 text-xs leading-5 text-amber-800">
+          厂商尚未返回可靠报价，远程任务已禁用。请更新服务商报价后重新生成调用预览；在此之前不会产生媒体生成费用。
+        </p>
       )}
       {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
     </section>
@@ -4313,9 +6226,14 @@ const RESOURCE_DEFINITIONS: Record<string, ResourceDefinition> = {
     fields: [
       shortText("资产类型", "资产类型", "角色、场景、道具或风格"),
       shortText("关联对象", "关联对象"),
+      shortText("资产版本", "资产版本", "例如：v1 或雨夜版"),
       longText("视觉说明", "视觉说明"),
       shortText("采用状态", "采用状态", "未采用或已采用"),
       shortText("锁定状态", "锁定状态", "未锁定或已锁定"),
+      shortText("权利状态", "权利状态", "已授权、待核验或受限"),
+      shortText("费用状态", "费用状态", "已核对或未知"),
+      shortText("服务状态", "服务状态", "可用、不可用或离线"),
+      shortText("设定状态", "设定状态", "当前或已过期"),
     ],
   },
   assets: {
@@ -5153,6 +7071,7 @@ function DomainWorkspace(props: {
 function AdaptationWorkspace() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -5196,9 +7115,29 @@ function AdaptationWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      ["adaptations", "episodes", "scripts", "scenes", "shots"].includes(
+        requested,
+      )
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
   useEffect(() => {
     const project = projects.find((item) => item.id === projectId);
     if (
@@ -5212,6 +7151,11 @@ function AdaptationWorkspace() {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
   useEffect(() => {
     if (scriptId && !scripts.some((item) => item.id === scriptId))
       setScriptId("");
@@ -5233,6 +7177,7 @@ function AdaptationWorkspace() {
             ? sceneId
             : undefined;
   const parentRequired = stage !== "adaptations";
+  const selectedScript = scripts.find((item) => item.id === scriptId);
   return (
     <section className="space-y-5">
       <WorkspaceIntro
@@ -5400,6 +7345,17 @@ function AdaptationWorkspace() {
       ) : (
         <>
           {adaptationId && <EpisodeAnalysisPanel adaptationId={adaptationId} />}
+          {episodeId && (
+            <EpisodePacingPanel
+              projectId={projectId}
+              episodeId={episodeId}
+              episode={episodes.find((item) => item.id === episodeId)}
+              onOpenScript={(nextScriptId) => {
+                setScriptId(nextScriptId);
+                setStage("scripts");
+              }}
+            />
+          )}
           <ProductionOrderPanel
             stage={stage}
             parentId={parentId}
@@ -5414,7 +7370,23 @@ function AdaptationWorkspace() {
             }
           />
           {stage === "scripts" && scriptId && (
-            <ScriptReviewPanel scriptId={scriptId} />
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto]">
+              <ScriptReviewPanel scriptId={scriptId} />
+              {selectedScript && (
+                <StoryBibleSidecar
+                  projectId={projectId}
+                  context={{
+                    kind: "script",
+                    id: scriptId,
+                    title: selectedScript.title,
+                    content: String(
+                      recordPayload(selectedScript.payload)["剧本内容"] ?? "",
+                    ),
+                    version: selectedScript.version,
+                  }}
+                />
+              )}
+            </div>
           )}
           {stage === "shots" && shotId && <ShotReviewPanel shotId={shotId} />}
           <DomainWorkspace
@@ -5428,6 +7400,387 @@ function AdaptationWorkspace() {
       )}
     </section>
   );
+}
+
+function EpisodePacingPanel(props: {
+  projectId: string;
+  episodeId: string;
+  episode?: DomainEntity;
+  onOpenScript: (scriptId: string) => void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [notice, setNotice] = useState<string>();
+  const { data: allScripts = [] } = useQuery({
+    queryKey: ["episode-pacing", "scripts", props.projectId],
+    queryFn: () => client.resources.list("scripts", props.projectId),
+  });
+  const { data: allBeats = [] } = useQuery({
+    queryKey: ["episode-pacing", "beats", props.projectId],
+    queryFn: () => client.resources.list("beats", props.projectId),
+  });
+  const { data: allScenes = [] } = useQuery({
+    queryKey: ["episode-pacing", "scenes", props.projectId],
+    queryFn: () => client.resources.list("scenes", props.projectId),
+  });
+  const { data: allShots = [] } = useQuery({
+    queryKey: ["episode-pacing", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const { data: manualMarks = [] } = useQuery({
+    queryKey: ["episode-pacing-marks", props.projectId, props.episodeId],
+    queryFn: () =>
+      client.resources.list(
+        "episode-pacing-marks",
+        props.projectId,
+        props.episodeId,
+      ),
+  });
+  const { data: checkpoints = [] } = useQuery({
+    queryKey: ["content-versions", props.projectId],
+    queryFn: () => client.contentVersions.list(props.projectId),
+  });
+  const scripts = allScripts.filter(
+    (item) => item.parentId === props.episodeId,
+  );
+  const scriptIds = new Set(scripts.map((item) => item.id));
+  const scenes = allScenes.filter(
+    (item) => item.parentId && scriptIds.has(item.parentId),
+  );
+  const sceneIds = new Set(scenes.map((item) => item.id));
+  const shots = allShots.filter(
+    (item) => item.parentId && sceneIds.has(item.parentId),
+  );
+  const beats = allBeats.filter(
+    (item) =>
+      item.parentId === props.episodeId ||
+      Boolean(item.parentId && scriptIds.has(item.parentId)),
+  );
+  const board = buildEpisodePacingBoard({
+    episodeId: props.episodeId,
+    episode: props.episode,
+    scripts,
+    beats,
+    scenes,
+    shots,
+    manualMarks,
+  });
+  const invalidate = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["episode-pacing-marks", props.projectId, props.episodeId],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["episode-pacing"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["content-versions", props.projectId],
+      }),
+    ]);
+  };
+  const addManual = async (kind: PacingKind) => {
+    const evidence = window.prompt("记录该节奏点的依据：", "");
+    if (evidence === null) return;
+    const source =
+      board.points.find(
+        (point) =>
+          point.sourceId && point.scriptId && point.disposition === "active",
+      ) ??
+      board.points.find(
+        (point) => point.sourceId && point.disposition === "active",
+      );
+    if (!source?.sourceId || source.sourceVersion === undefined) {
+      setNotice("请先保存分集、剧本、场景或镜头，再添加可追溯的人工标记。");
+      return;
+    }
+    try {
+      await client.resources.create("episode-pacing-marks", {
+        projectId: props.projectId,
+        parentId: props.episodeId,
+        title: `人工${pacingKindLabel(kind)}标记`,
+        payload: {
+          类型: kind,
+          位置: source.position,
+          依据: evidence,
+          来源标识: source.sourceId,
+          来源版本: source.sourceVersion,
+          状态: "已确认",
+        },
+      });
+      setNotice("已保存人工节奏标记；它会保留并在来源版本变化时标为过期。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const editManual = async (point: PacingPoint) => {
+    const record = manualMarks.find((item) => item.id === point.id);
+    if (!record) return;
+    const evidence = window.prompt("调整人工标记依据：", point.evidence);
+    if (evidence === null) return;
+    const requestedPosition = window.prompt(
+      "调整时间轴位置：",
+      String(point.position),
+    );
+    if (requestedPosition === null) return;
+    const position = Number(requestedPosition);
+    if (!Number.isFinite(position) || position < 1) {
+      setNotice("时间轴位置必须是大于等于 1 的数字。");
+      return;
+    }
+    try {
+      await client.resources.update("episode-pacing-marks", record.id, {
+        title: record.title,
+        payload: {
+          ...recordPayload(record.payload),
+          位置: Math.round(position),
+          依据: evidence,
+          状态: "已确认",
+        },
+        version: record.version,
+      });
+      setNotice("人工标记已调整并保留了来源版本。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const rejectManual = async (point: PacingPoint) => {
+    const record = manualMarks.find((item) => item.id === point.id);
+    if (
+      !record ||
+      !window.confirm("否决此人工标记吗？记录会保留在轨道中作为审查历史。")
+    )
+      return;
+    try {
+      await client.resources.update("episode-pacing-marks", record.id, {
+        title: record.title,
+        payload: { ...recordPayload(record.payload), 状态: "已否决" },
+        version: record.version,
+      });
+      setNotice("已否决人工标记；它不会被当作有效诊断点。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const createAiRecommendation = async (point: PacingPoint) => {
+    const script = scripts.find((item) => item.id === point.scriptId);
+    if (!script || !point.sourceId || point.sourceVersion === undefined) {
+      setNotice("该诊断点尚未关联到可修订的剧本来源。");
+      return;
+    }
+    const scriptPayload = recordPayload(script.payload);
+    const prompt = [
+      "请仅针对以下节奏诊断生成一份可审阅的剧本修订建议，不能直接修改内容。",
+      `诊断类型：${pacingKindLabel(point.kind)}；时间轴位置：${point.position}；依据：${point.evidence.slice(0, 800)}`,
+      `目标剧本 ID：${script.id}；基础版本：${script.version}；来源 ID：${point.sourceId}；来源版本：${point.sourceVersion}。`,
+      "严格输出 JSON：{summary,content,data:{targets:[{kind:'script',id,baseVersion,patch:{payload:{...原payload,剧本内容:完整候选稿}},displayDiff:{proposedContent:'完整候选稿',pacingSourceId:'来源 ID',pacingSourceVersion:来源版本}}]}}。",
+      "完整原 payload 已作为 target.scriptPayload 附在上下文中；必须保留未修改字段。",
+    ].join("\n");
+    try {
+      const session = await client.agentSessions.create({
+        projectId: props.projectId,
+        taskType: "rewrite_ai_drama_script",
+        title: `节奏修订建议：${script.title}`,
+      });
+      const run = await client.agentSessions.run(session.id, {
+        taskType: "rewrite_ai_drama_script",
+        prompt,
+        target: {
+          scriptId: script.id,
+          scriptVersion: script.version,
+          scriptPayload,
+          pacingSourceId: point.sourceId,
+          pacingSourceVersion: point.sourceVersion,
+          evidence: point.evidence,
+        },
+      });
+      setNotice(
+        `已创建智能修订建议任务 ${run.taskId.slice(0, 8)}；请在任务中心确认预览、采用或放弃。`,
+      );
+      navigate("/tasks");
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const restoreCheckpoint = async (checkpoint: DomainEntity) => {
+    if (
+      !window.confirm(
+        "恢复此修订前检查点吗？当前剧本会先自动保存为新的检查点。",
+      )
+    )
+      return;
+    try {
+      await client.contentVersions.restore(checkpoint.id);
+      setNotice("已恢复修订前版本；当前版本也已保存为新的检查点。");
+      await invalidate();
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const pacingCheckpoints = checkpoints.filter((checkpoint) => {
+    const checkpointPayload = recordPayload(checkpoint.payload);
+    return (
+      checkpointPayload["来源"] === "节奏修订预览采用前检查点" &&
+      scriptIds.has(checkpoint.parentId ?? "")
+    );
+  });
+  return (
+    <section
+      className="rounded-2xl border border-line bg-surface p-4"
+      aria-label="集级节奏看板"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">集级节奏看板</h2>
+          <p className="mt-1 text-sm text-muted">
+            四条轨道只呈现带来源的节奏点；这是编辑辅助，不预测市场成功。
+          </p>
+        </div>
+        <span className="text-xs text-muted">
+          {board.staleCount
+            ? `${board.staleCount} 个标记待复核`
+            : "来源均为当前版本"}
+          {board.rejectedCount ? `；${board.rejectedCount} 个已否决` : ""}
+        </span>
+      </div>
+      {!board.hasSources ? (
+        <p className="mt-3 text-sm text-muted">
+          尚无已采用分集、剧本、节拍、场景或镜头来源，无法生成可信的节奏曲线。
+        </p>
+      ) : (
+        <div className="mt-3 grid gap-2 md:grid-cols-4">
+          {(["density", "highlight", "reversal", "cliffhanger"] as const).map(
+            (kind) => (
+              <section
+                key={kind}
+                className="rounded-lg border border-line p-3"
+                aria-label={`${pacingKindLabel(kind)}轨道`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-medium">
+                    {pacingKindLabel(kind)}
+                  </h3>
+                  <button
+                    className="text-xs text-brand"
+                    onClick={() => void addManual(kind)}
+                  >
+                    人工标记
+                  </button>
+                </div>
+                <ol className="mt-2 space-y-2 text-xs">
+                  {board.points
+                    .filter((point) => point.kind === kind)
+                    .map((point) => (
+                      <li
+                        key={point.id}
+                        className={
+                          point.stale
+                            ? "rounded bg-amber-50 p-2 text-amber-800"
+                            : "rounded bg-canvas p-2"
+                        }
+                      >
+                        <button
+                          className="text-left underline"
+                          onClick={() =>
+                            point.scriptId && props.onOpenScript(point.scriptId)
+                          }
+                        >
+                          {point.position}. {point.title}
+                        </button>
+                        <p className="mt-1">{point.evidence}</p>
+                        <p className="mt-1 text-muted">
+                          {point.confidence === "manual"
+                            ? "人工确认"
+                            : "规则派生"}
+                          {point.disposition === "rejected" ? " · 已否决" : ""}
+                          {point.stale ? " · 来源已变化" : ""}
+                        </p>
+                        {point.confidence === "manual" &&
+                          point.disposition === "active" && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                className="text-xs text-brand underline"
+                                onClick={() => void editManual(point)}
+                              >
+                                调整
+                              </button>
+                              <button
+                                className="text-xs text-muted underline"
+                                onClick={() => void rejectManual(point)}
+                              >
+                                否决
+                              </button>
+                            </div>
+                          )}
+                        {point.confidence === "derived" &&
+                          point.disposition === "active" &&
+                          point.scriptId && (
+                            <button
+                              className="mt-2 text-xs text-brand underline"
+                              onClick={() => void createAiRecommendation(point)}
+                            >
+                              创建上下文 AI 修订预览
+                            </button>
+                          )}
+                      </li>
+                    ))}
+                  {!board.points.some((point) => point.kind === kind) && (
+                    <li className="text-muted">暂无可追溯标记</li>
+                  )}
+                </ol>
+              </section>
+            ),
+          )}
+        </div>
+      )}
+      {scripts[0] && (
+        <button
+          className="mt-3 rounded border border-brand px-3 py-2 text-sm text-brand"
+          onClick={() => props.onOpenScript(scripts[0].id)}
+        >
+          定位到剧本
+        </button>
+      )}
+      {pacingCheckpoints.length > 0 && (
+        <section
+          className="mt-3 rounded-lg border border-line p-3"
+          aria-label="节奏修订检查点"
+        >
+          <h3 className="text-sm font-medium">节奏修订检查点</h3>
+          <p className="mt-1 text-xs text-muted">
+            已采用的建议保留修订前内容，可随时恢复；恢复也会先保存当前版本。
+          </p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {pacingCheckpoints.slice(0, 3).map((checkpoint) => (
+              <li
+                key={checkpoint.id}
+                className="flex flex-wrap items-center justify-between gap-2"
+              >
+                <span>{checkpoint.title}</span>
+                <button
+                  className="text-brand underline"
+                  onClick={() => void restoreCheckpoint(checkpoint)}
+                >
+                  恢复此版本
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
+    </section>
+  );
+}
+
+function pacingKindLabel(kind: PacingKind): string {
+  return {
+    density: "节拍密度",
+    highlight: "爽点",
+    reversal: "反转",
+    cliffhanger: "结尾悬念",
+  }[kind];
 }
 
 function EpisodeAnalysisPanel(props: { adaptationId: string }) {
@@ -5942,6 +8295,8 @@ function ReviewFindings(props: { issues: string[]; suggestions: string[] }) {
 
 function ProductionWorkspace() {
   const client = useStudio();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -5954,6 +8309,8 @@ function ProductionWorkspace() {
   const [shotId, setShotId] = useState("");
   const [stage, setStage] = useState<
     | "assets"
+    | "asset-center"
+    | "storyboard"
     | "rights"
     | "visual-assets"
     | "shot-stills"
@@ -5961,6 +8318,7 @@ function ProductionWorkspace() {
     | "audio"
     | "video"
     | "animatics"
+    | "timeline"
     | "renders"
   >("assets");
   const { data: adaptations = [] } = useQuery({
@@ -5992,6 +8350,32 @@ function ProductionWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      [
+        "assets",
+        "asset-center",
+        "storyboard",
+        "rights",
+        "visual-assets",
+        "shot-stills",
+        "image",
+        "audio",
+        "video",
+        "animatics",
+        "timeline",
+        "renders",
+      ].includes(requested)
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
@@ -6007,6 +8391,11 @@ function ProductionWorkspace() {
     );
   }, [adaptationId, adaptations, projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
+  useEffect(() => {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
@@ -6014,17 +8403,47 @@ function ProductionWorkspace() {
     if (!episodeId && episodes[0]) setEpisodeId(episodes[0].id);
   }, [episodeId, episodes]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
+  useEffect(() => {
     if (scriptId && !scripts.some((item) => item.id === scriptId))
       setScriptId("");
   }, [scriptId, scripts]);
   useEffect(() => {
+    if (!scriptId && scripts[0]) setScriptId(scripts[0].id);
+  }, [scriptId, scripts]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("scriptId");
+    if (requested && scripts.some((item) => item.id === requested))
+      setScriptId(requested);
+  }, [location.search, scripts]);
+  useEffect(() => {
     if (sceneId && !scenes.some((item) => item.id === sceneId)) setSceneId("");
   }, [sceneId, scenes]);
   useEffect(() => {
-    if (shotId && !shots.some((item) => item.id === shotId)) setShotId("");
+    if (!sceneId && scenes[0]) setSceneId(scenes[0].id);
+  }, [sceneId, scenes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("sceneId");
+    if (requested && scenes.some((item) => item.id === requested))
+      setSceneId(requested);
+  }, [location.search, scenes]);
+  useEffect(() => {
+    if (shotId && shots.length && !shots.some((item) => item.id === shotId))
+      setShotId("");
   }, [shotId, shots]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("shotId");
+    if (requested && shots.some((item) => item.id === requested))
+      setShotId(requested);
+  }, [location.search, shots]);
   const parentId =
-    stage === "audio" || stage === "animatics" || stage === "renders"
+    stage === "audio" ||
+    stage === "animatics" ||
+    stage === "timeline" ||
+    stage === "renders"
       ? episodeId
       : stage === "video" || stage === "shot-stills"
         ? shotId
@@ -6032,6 +8451,7 @@ function ProductionWorkspace() {
   const parentRequired =
     stage === "audio" ||
     stage === "animatics" ||
+    stage === "timeline" ||
     stage === "renders" ||
     stage === "video" ||
     stage === "shot-stills";
@@ -6041,6 +8461,27 @@ function ProductionWorkspace() {
     setScriptId("");
     setSceneId("");
     setShotId("");
+  };
+  const selectStoryboardShot = (
+    nextShotId: string,
+    nextSceneId: string,
+    nextScriptId: string,
+    nextStage: "storyboard" | "asset-center" = "storyboard",
+  ) => {
+    setScriptId(nextScriptId);
+    setSceneId(nextSceneId);
+    setShotId(nextShotId);
+    setStage(nextStage);
+    const search = new URLSearchParams({
+      projectId,
+      adaptationId,
+      episodeId,
+      scriptId: nextScriptId,
+      sceneId: nextSceneId,
+      shotId: nextShotId,
+      stage: nextStage,
+    });
+    navigate(`/produce?${search}`);
   };
   return (
     <section className="space-y-5">
@@ -6173,6 +8614,8 @@ function ProductionWorkspace() {
         {(
           [
             "assets",
+            "asset-center",
+            "storyboard",
             "rights",
             "visual-assets",
             "shot-stills",
@@ -6180,6 +8623,7 @@ function ProductionWorkspace() {
             "audio",
             "video",
             "animatics",
+            "timeline",
             "renders",
           ] as const
         ).map((item) => (
@@ -6196,6 +8640,24 @@ function ProductionWorkspace() {
         <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
           请先选择项目，再登记或制作素材。
         </p>
+      ) : stage === "asset-center" ? (
+        <AssetCenterPanel
+          projectId={projectId}
+          selectedShotId={shotId}
+          onOpenCatalog={() => setStage("visual-assets")}
+        />
+      ) : stage === "storyboard" ? (
+        <StoryboardBoard
+          projectId={projectId}
+          episodeId={episodeId}
+          selectedShotId={shotId}
+          onSelectShot={(shotId, sceneId, scriptId) =>
+            selectStoryboardShot(shotId, sceneId, scriptId)
+          }
+          onOpenAssetCenter={(shotId, sceneId, scriptId) =>
+            selectStoryboardShot(shotId, sceneId, scriptId, "asset-center")
+          }
+        />
       ) : stage === "audio" && episodeId ? (
         <AudioProductionPanel
           projectId={projectId}
@@ -6212,6 +8674,12 @@ function ProductionWorkspace() {
         />
       ) : stage === "animatics" && episodeId ? (
         <AnimaticProductionPanel projectId={projectId} episodeId={episodeId} />
+      ) : stage === "timeline" && episodeId && adaptationId ? (
+        <TimelineEditorPanel
+          projectId={projectId}
+          adaptationId={adaptationId}
+          episodeId={episodeId}
+        />
       ) : stage === "renders" && episodeId ? (
         <EpisodeRenderPreflightPanel episodeId={episodeId} />
       ) : (
@@ -6223,6 +8691,854 @@ function ProductionWorkspace() {
           parentRequired={parentRequired}
         />
       )}
+    </section>
+  );
+}
+
+type StoryboardUndo = {
+  sceneId: string;
+  previousIds: string[];
+  currentRecords: DomainEntity[];
+};
+
+function stillStateLabel(state: StoryboardShot["stillState"]): string {
+  if (state === "adopted") return "静帧已采用";
+  if (state === "candidate") return "存在待确认静帧";
+  return "暂无静帧预览";
+}
+
+function StoryboardBoard(props: {
+  projectId: string;
+  episodeId: string;
+  selectedShotId?: string;
+  onSelectShot(shotId: string, sceneId: string, scriptId: string): void;
+  onOpenAssetCenter(shotId: string, sceneId: string, scriptId: string): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "attention" | "missing-assets">(
+    "all",
+  );
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [visiblePerScene, setVisiblePerScene] = useState(50);
+  const [draggingId, setDraggingId] = useState<string>();
+  const [savingSceneId, setSavingSceneId] = useState<string>();
+  const [notice, setNotice] = useState<string>();
+  const [undo, setUndo] = useState<StoryboardUndo>();
+  const { data: scripts = [] } = useQuery({
+    queryKey: ["storyboard", "scripts", props.projectId],
+    queryFn: () => client.resources.list("scripts", props.projectId),
+  });
+  const { data: scenes = [] } = useQuery({
+    queryKey: ["storyboard", "scenes", props.projectId],
+    queryFn: () => client.resources.list("scenes", props.projectId),
+  });
+  const { data: shots = [] } = useQuery({
+    queryKey: ["storyboard", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const { data: stills = [] } = useQuery({
+    queryKey: ["storyboard", "stills", props.projectId],
+    queryFn: () => client.resources.list("shot-stills", props.projectId),
+  });
+  const { data: assetCenter } = useQuery({
+    queryKey: ["asset-center", props.projectId],
+    queryFn: () => client.assetCenter.get(props.projectId),
+  });
+  const storyboard = buildStoryboard({
+    episodeId: props.episodeId || undefined,
+    scripts,
+    scenes,
+    shots,
+    stills,
+    assets: assetCenter?.assets ?? [],
+  });
+  const matchesFilter = (shot: StoryboardShot) => {
+    const haystack = [
+      shot.title,
+      shot.visualDescription,
+      shot.dialogue,
+      ...shot.referencedAssets.map((asset) => asset.title),
+    ]
+      .join(" ")
+      .toLocaleLowerCase();
+    if (query.trim() && !haystack.includes(query.trim().toLocaleLowerCase()))
+      return false;
+    if (filter === "attention")
+      return (
+        shot.rightsBlocked || shot.costRisk || shot.stillState !== "adopted"
+      );
+    return filter !== "missing-assets" || shot.missingAssetReference;
+  };
+  const visibleScenes = storyboard
+    .map((scene) => ({
+      ...scene,
+      shots: scene.shots.filter(matchesFilter),
+    }))
+    .filter((scene) => scene.shots.length);
+  const toggleSelected = (shotId: string) =>
+    setSelectedIds((current) =>
+      current.includes(shotId)
+        ? current.filter((id) => id !== shotId)
+        : [...current, shotId],
+    );
+  const refreshShots = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["storyboard", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["asset-center", props.projectId],
+      }),
+    ]);
+  };
+  const reorder = async (
+    scene: StoryboardScene,
+    movingId: string,
+    targetId: string,
+  ) => {
+    const next = reorderStoryboardShots(scene.shots, movingId, targetId);
+    if (next.every((shot, index) => shot.id === scene.shots[index]?.id)) return;
+    setSavingSceneId(scene.id);
+    setNotice(undefined);
+    try {
+      const result = await client.productionStructure.reorderShots(scene.id, {
+        items: next.map((shot) => ({ id: shot.id, version: shot.version })),
+      });
+      setUndo({
+        sceneId: scene.id,
+        previousIds: scene.shots.map((shot) => shot.id),
+        currentRecords: result.records,
+      });
+      setNotice("已保存分镜顺序；可在下一次调整前撤销这次重排。");
+      await refreshShots();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setSavingSceneId(undefined);
+      setDraggingId(undefined);
+    }
+  };
+  const move = (scene: StoryboardScene, shotId: string, direction: -1 | 1) => {
+    const index = scene.shots.findIndex((shot) => shot.id === shotId);
+    const target = scene.shots[index + direction];
+    if (target) void reorder(scene, shotId, target.id);
+  };
+  const undoReorder = async () => {
+    if (!undo) return;
+    const recordsById = new Map(
+      undo.currentRecords.map((record) => [record.id, record]),
+    );
+    const items = undo.previousIds
+      .map((id) => recordsById.get(id))
+      .filter((record): record is DomainEntity => Boolean(record))
+      .map((record) => ({ id: record.id, version: record.version }));
+    if (items.length !== undo.previousIds.length) {
+      setNotice("无法恢复：镜头集合已变化，请刷新后检查当前顺序。");
+      setUndo(undefined);
+      return;
+    }
+    setSavingSceneId(undo.sceneId);
+    try {
+      await client.productionStructure.reorderShots(undo.sceneId, { items });
+      setNotice("已恢复上一次分镜顺序。");
+      setUndo(undefined);
+      await refreshShots();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setSavingSceneId(undefined);
+    }
+  };
+  const selectedShot = storyboard
+    .flatMap((scene) => scene.shots.map((shot) => ({ scene, shot })))
+    .find(({ shot }) => selectedIds.length === 1 && shot.id === selectedIds[0]);
+  return (
+    <section className="space-y-5" aria-label="导演分镜看板">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">集级导演工作台</p>
+          <h2 className="mt-1 text-2xl font-semibold">卡片式导演分镜看板</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            按场景扫视镜头、静帧和锁定资产。重排只提交同一场景的完整镜头集合，并以版本号防止并发覆盖。
+          </p>
+        </div>
+        <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm text-brand">
+          {storyboard.reduce((total, scene) => total + scene.shots.length, 0)}{" "}
+          个镜头
+        </span>
+      </div>
+      <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
+        <label className="grid gap-1 text-sm">
+          搜索镜头、对白或资产
+          <input
+            className="rounded-lg border border-line px-3 py-2"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="例如：雨夜、门缝、林晚"
+          />
+        </label>
+        <div className="grid gap-1 text-sm">
+          风险筛选
+          <div
+            className="flex flex-wrap gap-2"
+            role="group"
+            aria-label="分镜筛选"
+          >
+            {(
+              [
+                ["all", "全部镜头"],
+                ["attention", "需处理"],
+                ["missing-assets", "缺资产引用"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                className={`rounded-full px-3 py-1.5 text-sm ${filter === value ? "bg-brand text-white" : "bg-canvas text-muted ring-1 ring-line"}`}
+                onClick={() => setFilter(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {(selectedIds.length > 0 || undo) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-3 text-sm">
+          {selectedIds.length > 0 && (
+            <span>已选 {selectedIds.length} 个镜头</span>
+          )}
+          {selectedShot && (
+            <button
+              className="rounded-lg border border-brand px-3 py-1.5 text-brand"
+              onClick={() =>
+                props.onOpenAssetCenter(
+                  selectedShot.shot.id,
+                  selectedShot.scene.id,
+                  selectedShot.scene.scriptId,
+                )
+              }
+            >
+              查看选定镜头的资产用途
+            </button>
+          )}
+          {selectedIds.length > 0 && (
+            <button
+              className="rounded-lg border border-line px-3 py-1.5 text-muted"
+              onClick={() => setSelectedIds([])}
+            >
+              清除选择
+            </button>
+          )}
+          {undo && (
+            <button
+              className="rounded-lg border border-brand px-3 py-1.5 text-brand disabled:opacity-50"
+              disabled={Boolean(savingSceneId)}
+              onClick={() => void undoReorder()}
+            >
+              撤销上次重排
+            </button>
+          )}
+        </div>
+      )}
+      {visibleScenes.map((scene) => {
+        const shownShots = scene.shots.slice(0, visiblePerScene);
+        return (
+          <section
+            key={scene.id}
+            className="rounded-2xl border border-line bg-surface p-4"
+            aria-label={`场景：${scene.title}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h3 className="font-semibold">{scene.title}</h3>
+                <p className="mt-1 text-sm text-muted">
+                  {scene.location || "未填写地点与时间"} · {scene.shots.length}{" "}
+                  个镜头
+                </p>
+              </div>
+              <span className="text-xs text-muted">
+                {savingSceneId === scene.id
+                  ? "正在保存顺序…"
+                  : "可拖拽或用 Alt + ↑/↓ 重排"}
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+              {shownShots.map((shot) => {
+                const fullIndex = scene.shots.findIndex(
+                  (candidate) => candidate.id === shot.id,
+                );
+                return (
+                  <article
+                    key={shot.id}
+                    data-shot-id={shot.id}
+                    draggable={!savingSceneId}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      setDraggingId(shot.id);
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggingId) void reorder(scene, draggingId, shot.id);
+                    }}
+                    className={`rounded-xl border p-4 ${props.selectedShotId === shot.id ? "border-brand bg-brand-soft" : "border-line bg-canvas"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <button
+                          className="text-left text-sm font-semibold hover:text-brand"
+                          aria-label={`选择分镜：${shot.title}`}
+                          aria-pressed={props.selectedShotId === shot.id}
+                          onClick={() =>
+                            props.onSelectShot(
+                              shot.id,
+                              scene.id,
+                              scene.scriptId,
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (!event.altKey) return;
+                            if (event.key === "ArrowUp") {
+                              event.preventDefault();
+                              move(scene, shot.id, -1);
+                            }
+                            if (event.key === "ArrowDown") {
+                              event.preventDefault();
+                              move(scene, shot.id, 1);
+                            }
+                          }}
+                        >
+                          {fullIndex + 1}. {shot.title}
+                        </button>
+                        <p className="mt-1 text-xs text-muted">
+                          {shot.visualDescription}
+                        </p>
+                      </div>
+                      <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(shot.id)}
+                          aria-label={`批量选择：${shot.title}`}
+                          onChange={() => toggleSelected(shot.id)}
+                        />
+                        选择
+                      </label>
+                    </div>
+                    <div
+                      className="mt-3 rounded-lg border border-dashed border-line bg-white p-3 text-xs text-muted"
+                      aria-label={`静帧预览：${stillStateLabel(shot.stillState)}`}
+                    >
+                      {stillStateLabel(shot.stillState)}
+                      ；本卡片只显示真实静帧状态，未附带受控媒体时不伪造缩略图。
+                    </div>
+                    <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      <div>
+                        <dt className="text-muted">对白</dt>
+                        <dd>{shot.dialogue || "无对白"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">景别 / 机位</dt>
+                        <dd>{shot.camera || "未填写"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">运镜 / 时长</dt>
+                        <dd>
+                          {[shot.movement, shot.duration]
+                            .filter(Boolean)
+                            .join(" · ") || "未填写"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted">任务状态</dt>
+                        <dd>{shot.taskStatus}</dd>
+                      </div>
+                    </dl>
+                    <div
+                      className="mt-3 flex flex-wrap gap-1.5"
+                      aria-label={`${shot.title} 资产覆盖`}
+                    >
+                      {(["character", "scene", "prop", "voice"] as const).map(
+                        (category) => (
+                          <span
+                            key={category}
+                            className="rounded-full bg-white px-2 py-1 text-xs text-muted ring-1 ring-line"
+                          >
+                            {ASSET_CATEGORY_LABELS[category]}{" "}
+                            {shot.categoryCounts[category]}
+                          </span>
+                        ),
+                      )}
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs ${shot.lockedAssetCount ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}
+                      >
+                        {shot.lockedAssetCount
+                          ? `已锁 ${shot.lockedAssetCount}`
+                          : "暂无锁定资产"}
+                      </span>
+                      {shot.missingAssetReference && (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                          缺资产引用
+                        </span>
+                      )}
+                      {shot.rightsBlocked && (
+                        <span className="rounded-full bg-red-50 px-2 py-1 text-xs text-red-700">
+                          权利 / stale 阻断
+                        </span>
+                      )}
+                      {shot.costRisk && (
+                        <span className="rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                          费用或服务风险
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40"
+                        disabled={Boolean(savingSceneId) || fullIndex === 0}
+                        onClick={() => move(scene, shot.id, -1)}
+                      >
+                        上移
+                      </button>
+                      <button
+                        className="rounded border border-line px-2 py-1 text-xs text-muted disabled:opacity-40"
+                        disabled={
+                          Boolean(savingSceneId) ||
+                          fullIndex === scene.shots.length - 1
+                        }
+                        onClick={() => move(scene, shot.id, 1)}
+                      >
+                        下移
+                      </button>
+                      <button
+                        className="rounded border border-brand px-2 py-1 text-xs text-brand"
+                        onClick={() =>
+                          props.onOpenAssetCenter(
+                            shot.id,
+                            scene.id,
+                            scene.scriptId,
+                          )
+                        }
+                      >
+                        查看资产用途
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            {scene.shots.length > shownShots.length && (
+              <button
+                className="mt-3 rounded-lg border border-line px-3 py-2 text-sm text-muted"
+                onClick={() => setVisiblePerScene((current) => current + 50)}
+              >
+                继续加载该场景的{" "}
+                {Math.min(50, scene.shots.length - shownShots.length)} 个镜头
+              </button>
+            )}
+          </section>
+        );
+      })}
+      {!visibleScenes.length && (
+        <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+          当前分集尚无可展示的分镜；可先在改编区建立场景和镜头，或调整筛选条件。
+        </p>
+      )}
+    </section>
+  );
+}
+
+const ASSET_CATEGORY_LABELS: Record<AssetCenterAsset["category"], string> = {
+  character: "角色",
+  scene: "场景",
+  prop: "道具",
+  voice: "音色",
+};
+
+function assetStatusLabel(asset: AssetCenterAsset): string {
+  if (asset.stale) return "设定已过期";
+  if (asset.preview.status === "missing") return "本地文件缺失";
+  if (asset.rightsStatus === "restricted") return "权利受限";
+  if (asset.costStatus === "unknown") return "费用未知";
+  if (asset.providerStatus === "unavailable") return "服务不可用";
+  if (asset.preview.status === "unattached") return "尚未附加媒体";
+  return asset.adopted ? "已采用" : "候选版本";
+}
+
+function AssetCenterPanel(props: {
+  projectId: string;
+  selectedShotId?: string;
+  onOpenCatalog(): void;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const { data: center, error } = useQuery({
+    queryKey: ["asset-center", props.projectId],
+    queryFn: () => client.assetCenter.get(props.projectId),
+  });
+  const { data: shots = [] } = useQuery({
+    queryKey: ["resource", "shots", props.projectId],
+    queryFn: () => client.resources.list("shots", props.projectId),
+  });
+  const [category, setCategory] = useState<
+    "all" | AssetCenterAsset["category"]
+  >("all");
+  const [query, setQuery] = useState("");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [shotId, setShotId] = useState("");
+  const [notice, setNotice] = useState<string>();
+  const [workingId, setWorkingId] = useState<string>();
+  const [previews, setPreviews] = useState<
+    Record<string, AssetCenterPreviewMedia>
+  >({});
+  useEffect(() => {
+    if (props.selectedShotId) setShotId(props.selectedShotId);
+  }, [props.selectedShotId]);
+  const assets = center?.assets ?? [];
+  const filtered = assets.filter(
+    (asset) =>
+      (category === "all" || asset.category === category) &&
+      `${asset.title} ${asset.subject}`
+        .toLocaleLowerCase()
+        .includes(query.trim().toLocaleLowerCase()),
+  );
+  const compared = assets.filter((asset) => compareIds.includes(asset.id));
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["asset-center", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "shots", props.projectId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["resource", "visual-assets", props.projectId],
+      }),
+    ]);
+  };
+  const action = async (
+    asset: AssetCenterAsset,
+    actionName: "adopt" | "lock" | "unlock" | "assign-shot" | "remove-shot",
+  ) => {
+    if (
+      (actionName === "assign-shot" || actionName === "remove-shot") &&
+      !shotId
+    ) {
+      setNotice("请先选择要查看或迁移用途的镜头。");
+      return;
+    }
+    setWorkingId(asset.id);
+    setNotice(undefined);
+    try {
+      await client.assetCenter.action(asset.id, {
+        action: actionName,
+        version: asset.version,
+        ...(actionName === "assign-shot" || actionName === "remove-shot"
+          ? { shotId }
+          : {}),
+      });
+      setNotice(
+        actionName === "assign-shot"
+          ? "已将锁定版本分配给镜头。"
+          : actionName === "remove-shot"
+            ? "已移除该镜头的资产用途。"
+            : "资产版本状态已更新。",
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  const toggleCompare = (id: string) => {
+    setCompareIds((current) => {
+      if (current.includes(id)) return current.filter((item) => item !== id);
+      if (current.length >= 4) {
+        setNotice("最多并排比较 4 个候选版本。");
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+  const openPreview = async (asset: AssetCenterAsset) => {
+    setWorkingId(asset.id);
+    setNotice(undefined);
+    try {
+      const preview = await client.assetCenter.preview(asset.id);
+      setPreviews((current) => ({ ...current, [asset.id]: preview }));
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorkingId(undefined);
+    }
+  };
+  return (
+    <section className="space-y-5" aria-label="资产中心">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">导演资产工作台</p>
+          <h2 className="mt-1 text-2xl font-semibold">统一资产中心</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            角色、场景、道具和音色的候选版本共用同一份本地实体记录；媒体只保留受控归档引用，不在此复制二进制或暴露路径。
+          </p>
+        </div>
+        <button
+          className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white"
+          onClick={props.onOpenCatalog}
+        >
+          新建资产候选
+        </button>
+      </div>
+      <div className="grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
+        <label className="grid gap-1 text-sm">
+          搜索资产或关联对象
+          <input
+            className="rounded-lg border border-line px-3 py-2"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="例如：林晚、雨夜门口"
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          镜头用途
+          <select
+            className="min-w-56 rounded-lg border border-line px-3 py-2"
+            value={shotId}
+            onChange={(event) => setShotId(event.target.value)}
+          >
+            <option value="">选择镜头以分配或迁移</option>
+            {shots.map((shot) => (
+              <option key={shot.id} value={shot.id}>
+                {shot.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="资产类型筛选"
+      >
+        {(["all", "character", "scene", "prop", "voice"] as const).map(
+          (item) => (
+            <button
+              key={item}
+              className={`rounded-full px-3 py-1.5 text-sm ${category === item ? "bg-brand text-white" : "bg-surface text-muted ring-1 ring-line"}`}
+              onClick={() => setCategory(item)}
+            >
+              {item === "all" ? "全部资产" : ASSET_CATEGORY_LABELS[item]}
+            </button>
+          ),
+        )}
+      </div>
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {message(error)}
+        </p>
+      )}
+      {compared.length > 0 && (
+        <section
+          className="rounded-2xl border border-brand bg-brand-soft/30 p-4"
+          aria-label="资产版本比较"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">候选版本比较</h3>
+              <p className="mt-1 text-sm text-muted">
+                比较不会改变采用、锁定或镜头引用。
+              </p>
+            </div>
+            <button
+              className="text-sm text-brand"
+              onClick={() => setCompareIds([])}
+            >
+              清空比较
+            </button>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {compared.map((asset) => (
+              <article
+                key={asset.id}
+                className="rounded-xl border border-line bg-white p-3 text-sm"
+              >
+                <p className="font-medium">{asset.title}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {asset.assetVersion} · {assetStatusLabel(asset)}
+                </p>
+                <p className="mt-3 line-clamp-3 text-muted">
+                  {asset.preview.label ?? "没有可展示的本地预览说明。"}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((asset) => (
+          <article
+            key={asset.id}
+            className="rounded-2xl border border-line bg-surface p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-brand">
+                  {ASSET_CATEGORY_LABELS[asset.category]} · {asset.subject}
+                </p>
+                <h3 className="mt-1 truncate font-semibold">{asset.title}</h3>
+                <p className="mt-1 text-xs text-muted">
+                  版本 {asset.assetVersion}
+                </p>
+              </div>
+              <button
+                className={`rounded-md px-2 py-1 text-xs ${compareIds.includes(asset.id) ? "bg-brand text-white" : "border border-line text-muted"}`}
+                onClick={() => toggleCompare(asset.id)}
+              >
+                {compareIds.includes(asset.id) ? "已加入比较" : "加入比较"}
+              </button>
+            </div>
+            <div className="mt-3 rounded-xl bg-canvas p-3 text-sm">
+              <p className="font-medium">
+                {asset.preview.kind === "audio" ? "音频预览" : "视觉预览"}
+              </p>
+              {previews[asset.id]?.kind === "image" ? (
+                <img
+                  className="mt-2 max-h-48 w-full rounded-lg object-cover"
+                  src={previews[asset.id].dataUrl}
+                  alt={`${asset.title} 本地预览`}
+                />
+              ) : previews[asset.id]?.kind === "audio" ? (
+                <audio
+                  className="mt-2 w-full"
+                  controls
+                  src={previews[asset.id].dataUrl}
+                  aria-label={`${asset.title} 音频预览`}
+                />
+              ) : (
+                <p className="mt-1 text-muted">
+                  {asset.preview.status === "available"
+                    ? `本地归档可用：${asset.preview.label ?? "已附加媒体"}`
+                    : asset.preview.status === "missing"
+                      ? "本地归档文件缺失；不会伪造预览。"
+                      : (asset.preview.label ??
+                        "尚未附加本地媒体；可先保留为文字候选。")}
+                </p>
+              )}
+              {asset.preview.status === "available" && !previews[asset.id] && (
+                <button
+                  className="mt-2 rounded-md border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void openPreview(asset)}
+                >
+                  打开本地预览
+                </button>
+              )}
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <dt className="text-muted">采用</dt>
+                <dd>{asset.adopted ? "已采用" : "候选"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">锁定</dt>
+                <dd>{asset.lockStatus === "locked" ? "已锁定" : "未锁定"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">权利</dt>
+                <dd>
+                  {asset.rightsStatus === "verified"
+                    ? "已核验"
+                    : asset.rightsStatus === "restricted"
+                      ? "受限"
+                      : "待核验"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted">费用 / 服务</dt>
+                <dd>
+                  {asset.costStatus === "unknown" ? "费用未知" : "费用已知"} ·{" "}
+                  {asset.providerStatus === "unavailable"
+                    ? "不可用"
+                    : "可用或无需服务"}
+                </dd>
+              </div>
+            </dl>
+            {asset.usages.length > 0 && (
+              <p className="mt-3 rounded-lg bg-brand-soft/50 p-2 text-xs text-brand">
+                正在用于：
+                {asset.usages.map((usage) => usage.shotTitle).join("、")}
+              </p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {!asset.adopted && (
+                <button
+                  className="rounded-md border border-brand px-2 py-1 text-xs text-brand disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "adopt")}
+                >
+                  采用此版本
+                </button>
+              )}
+              {asset.adopted && asset.lockStatus === "unlocked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "lock")}
+                >
+                  锁定版本
+                </button>
+              )}
+              {asset.lockStatus === "locked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "unlock")}
+                >
+                  解除锁定
+                </button>
+              )}
+              {asset.adopted && asset.lockStatus === "locked" && (
+                <button
+                  className="rounded-md border border-line px-2 py-1 text-xs text-muted disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "assign-shot")}
+                >
+                  分配到镜头
+                </button>
+              )}
+              {asset.usages.some((usage) => usage.shotId === shotId) && (
+                <button
+                  className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 disabled:opacity-50"
+                  disabled={workingId === asset.id}
+                  onClick={() => void action(asset, "remove-shot")}
+                >
+                  移除镜头用途
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+        {!filtered.length && (
+          <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+            当前筛选下没有资产候选。可先新建角色、场景、道具或音色版本。
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -6420,11 +9736,18 @@ function VideoGenerationPanel(props: {
   const [providerId, setProviderId] = useState("");
   const [prompt, setPrompt] = useState("");
   const [seconds, setSeconds] = useState("5");
+  const [confirmUnknownCost, setConfirmUnknownCost] = useState(false);
+  const [preflight, setPreflight] = useState<VideoGenerationPreflight>();
   const [notice, setNotice] = useState<string>();
   const [creating, setCreating] = useState(false);
+  const [checkingReadiness, setCheckingReadiness] = useState(false);
   const { data: providers = [] } = useQuery({
     queryKey: ["resource", "providers"],
     queryFn: () => client.resources.list("providers"),
+  });
+  const { data: shot } = useQuery({
+    queryKey: ["video-generation-shot", props.shotId],
+    queryFn: () => client.resources.get("shots", props.shotId),
   });
   const { data: jobs = [] } = useQuery({
     queryKey: ["video-generation", props.shotId],
@@ -6440,27 +9763,77 @@ function VideoGenerationPanel(props: {
     queryClient.invalidateQueries({
       queryKey: ["video-generation", props.shotId],
     });
-  const create = async () => {
+  useEffect(() => {
+    setPreflight(undefined);
+  }, [providerId, prompt, seconds, props.shotId]);
+  useEffect(() => {
+    const payload = recordPayload(shot?.payload);
+    const savedPrompt =
+      typeof payload["生成提示"] === "string" ? payload["生成提示"] : "";
+    const durationValue = payload["时长"] ?? payload["时长秒数"];
+    const duration =
+      typeof durationValue === "number"
+        ? durationValue
+        : typeof durationValue === "string"
+          ? Number(durationValue.match(/\d+/)?.[0])
+          : undefined;
+    if (savedPrompt) setPrompt(savedPrompt);
+    if (Number.isInteger(duration) && duration! > 0)
+      setSeconds(String(duration));
+  }, [shot?.id, shot?.version]);
+  const input = (): VideoGenerationInput | undefined => {
     if (!providerId || !prompt.trim()) {
       setNotice("请选择视频服务商并填写生成提示。");
-      return;
+      return undefined;
     }
     const length = Number(seconds);
     if (!Number.isInteger(length) || length < 1 || length > 60) {
       setNotice("视频时长须为 1 至 60 秒的整数。");
+      return undefined;
+    }
+    return {
+      providerId,
+      projectId: props.projectId,
+      episodeId: props.episodeId,
+      shotId: props.shotId,
+      prompt: prompt.trim(),
+      seconds: length,
+      confirmUnknownCost,
+    };
+  };
+  const checkReadiness = async () => {
+    const request = input();
+    if (!request) return;
+    setCheckingReadiness(true);
+    setNotice(undefined);
+    try {
+      const result = await client.videoGeneration.preflight(
+        props.shotId,
+        request,
+      );
+      setPreflight(result);
+      setNotice(
+        result.ready
+          ? "预检通过：本次提交将固定使用当前静帧、资产版本、参数与费用快照。"
+          : "预检发现阻断项；不会向视频服务商发起调用。",
+      );
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setCheckingReadiness(false);
+    }
+  };
+  const create = async () => {
+    const request = input();
+    if (!request) return;
+    if (!preflight?.ready) {
+      setNotice("请先完成静帧、资产、权利和费用预检。");
       return;
     }
     setCreating(true);
     try {
       const job = await client.videoGeneration.create(
-        {
-          providerId,
-          projectId: props.projectId,
-          episodeId: props.episodeId,
-          shotId: props.shotId,
-          prompt: prompt.trim(),
-          seconds: length,
-        },
+        { ...request, readinessHash: preflight.snapshotHash },
         crypto.randomUUID(),
       );
       setNotice(videoJobNotice(job.status));
@@ -6520,8 +9893,8 @@ function VideoGenerationPanel(props: {
       <div>
         <h2 className="font-semibold">视频生成与候选采用</h2>
         <p className="mt-1 text-sm text-muted">
-          提交到兼容 OpenAI
-          视频接口后，系统持久化远端任务标识；完成时自动归档视频为分镜候选。
+          先确认低成本静帧和锁定资产，再以服务端签发的快照提交兼容 OpenAI
+          视频接口； 任何预检阻断都会在厂商调用前停止。
         </p>
       </div>
       <section className="grid gap-3 rounded-xl border border-line p-3 md:grid-cols-2 xl:grid-cols-3">
@@ -6546,9 +9919,23 @@ function VideoGenerationPanel(props: {
           onChange={(event) => setSeconds(event.target.value)}
         />
         <button
+          className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+          disabled={
+            creating || checkingReadiness || !providerId || !prompt.trim()
+          }
+          onClick={() => void checkReadiness()}
+        >
+          {checkingReadiness ? "正在检查…" : "检查静帧与视频预检"}
+        </button>
+        <button
           className="w-fit rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
-          disabled={creating}
+          disabled={creating || !preflight?.ready}
           onClick={() => void create()}
+          title={
+            preflight?.ready
+              ? "提交与预检快照完全一致的视频任务"
+              : "请先通过静帧与视频预检"
+          }
         >
           {creating ? "正在提交…" : "提交视频生成"}
         </button>
@@ -6558,6 +9945,55 @@ function VideoGenerationPanel(props: {
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
         />
+      </section>
+      <section className="rounded-xl border border-line p-3 text-sm">
+        <h3 className="font-medium">静帧优先预检</h3>
+        <p className="mt-1 text-xs text-muted">
+          必须已采用未过期静帧，且当前镜头引用的资产均已采用、锁定并完成权利核验；提示、时长或资产版本变化后需重新检查。
+        </p>
+        {preflight?.costStatus === "unknown" && (
+          <label className="mt-3 flex items-start gap-2 text-xs text-amber-700">
+            <input
+              type="checkbox"
+              checked={confirmUnknownCost}
+              onChange={(event) => setConfirmUnknownCost(event.target.checked)}
+            />
+            我理解当前视频费用未知，并会在生成账本中复核实际费用。
+          </label>
+        )}
+        {preflight && (
+          <div className="mt-3 space-y-2 text-xs">
+            <p>
+              快照 {preflight.snapshotHash.slice(0, 18)}… · 静帧{" "}
+              {preflight.adoptedStillId ? "已采用" : "未采用"} · 已锁定资产{" "}
+              {preflight.lockedAssetIds.length} 个
+              {preflight.costStatus === "known"
+                ? ` · 预估费用 ${preflight.estimatedCost ?? 0} ${preflight.currency ?? "USD"}`
+                : " · 费用未知"}
+            </p>
+            {preflight.blockers.map((blocker) => (
+              <p
+                key={blocker}
+                className="rounded bg-red-50 px-2 py-1 text-red-700"
+              >
+                阻断：{blocker}
+              </p>
+            ))}
+            {preflight.warnings.map((warning) => (
+              <p
+                key={warning}
+                className="rounded bg-amber-50 px-2 py-1 text-amber-700"
+              >
+                注意：{warning}
+              </p>
+            ))}
+            {preflight.ready && (
+              <p className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">
+                已通过：提交按钮会携带此快照；服务端会再次校验，避免静默继承变化。
+              </p>
+            )}
+          </div>
+        )}
       </section>
       <section className="rounded-xl border border-line p-3">
         <h3 className="font-medium">本分镜生成任务</h3>
@@ -6900,6 +10336,7 @@ function AudioProductionPanel(props: {
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           <select
+            aria-label="音频服务商"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={ttsProviderId}
             onChange={(event) => setTtsProviderId(event.target.value)}
@@ -6945,6 +10382,7 @@ function AudioProductionPanel(props: {
             onChange={(event) => setTrackLabel(event.target.value)}
           />
           <select
+            aria-label="音轨类别"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={trackKind}
             onChange={(event) =>
@@ -6957,6 +10395,7 @@ function AudioProductionPanel(props: {
             <option value="sfx">音效</option>
           </select>
           <select
+            aria-label="音轨素材"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={assetId}
             onChange={(event) => setAssetId(event.target.value)}
@@ -6969,6 +10408,7 @@ function AudioProductionPanel(props: {
             ))}
           </select>
           <select
+            aria-label="音轨音色"
             className="rounded-lg border border-line px-3 py-2 text-sm"
             value={voiceProfileId}
             onChange={(event) => setVoiceProfileId(event.target.value)}
@@ -7220,6 +10660,943 @@ function AnimaticProductionPanel(props: {
   );
 }
 
+function timelineTrackLabel(
+  kind: TimelineManifest["tracks"][number]["kind"],
+): string {
+  return {
+    video: "视频",
+    dialogue: "对白",
+    narration: "旁白",
+    bgm: "配乐",
+    sfx: "音效",
+    subtitle: "字幕",
+  }[kind];
+}
+
+function timelineMediaStatusLabel(
+  status: TimelineManifest["tracks"][number]["clips"][number]["mediaStatus"],
+): string {
+  return {
+    linked: "已链接",
+    missing: "文件缺失",
+    unsupported: "编码不支持",
+    proxy: "使用代理",
+    unattached: "未附加媒体",
+  }[status];
+}
+
+function TimelineEditorPanel(props: {
+  projectId: string;
+  adaptationId: string;
+  episodeId: string;
+}) {
+  const client = useStudio();
+  const queryClient = useQueryClient();
+  const [playhead, setPlayhead] = useState(0);
+  const playheadRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const [zoom, setZoom] = useState(56);
+  const [selectedClipId, setSelectedClipId] = useState("");
+  const [moveStart, setMoveStart] = useState("");
+  const [trimStart, setTrimStart] = useState("");
+  const [trimDuration, setTrimDuration] = useState("");
+  const [relinkAssetId, setRelinkAssetId] = useState("");
+  const [clipVolume, setClipVolume] = useState("1");
+  const [includeAssemblySubtitles, setIncludeAssemblySubtitles] =
+    useState(true);
+  const [selectedAssemblyTrackIds, setSelectedAssemblyTrackIds] = useState<
+    string[]
+  >([]);
+  const [notice, setNotice] = useState<string>();
+  const [working, setWorking] = useState(false);
+  const [deliveryWorking, setDeliveryWorking] = useState<
+    TimelineDeliveryExportFormat | undefined
+  >();
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const audioMediaRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const { data: timeline, error } = useQuery({
+    queryKey: ["timeline", props.episodeId],
+    queryFn: () => client.timeline.get(props.episodeId),
+  });
+  const { data: history } = useQuery({
+    queryKey: ["timeline", "history", timeline?.id],
+    queryFn: () => client.timeline.history(timeline!.id),
+    enabled: Boolean(timeline?.id),
+  });
+  const { data: deliveryManifest, error: deliveryError } = useQuery({
+    queryKey: ["timeline", "delivery", props.episodeId],
+    queryFn: () => client.timeline.deliveryManifest(props.episodeId),
+  });
+  const {
+    data: audioAssembly,
+    isFetching: isLoadingAudioAssembly,
+    refetch: refetchAudioAssembly,
+  } = useQuery({
+    queryKey: ["timeline", "audio-assembly", props.episodeId],
+    queryFn: () => client.timeline.audioAssemblyPreview(props.episodeId),
+    enabled: false,
+  });
+  const { data: mediaAssets = [] } = useQuery({
+    queryKey: ["timeline", "media-assets", props.projectId],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          ["assets", "visual-assets", "video", "shot-stills"].map((domain) =>
+            client.resources.list(domain, props.projectId),
+          ),
+        )
+      ).flat(),
+  });
+  const selected = timeline?.tracks
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .find((item) => item.clip.id === selectedClipId);
+  const activeMedia = timeline?.tracks
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .filter(
+      (item) =>
+        item.clip.assetId &&
+        item.clip.mediaStatus === "linked" &&
+        playhead >= item.clip.startSeconds &&
+        playhead < item.clip.startSeconds + item.clip.durationSeconds,
+    );
+  const activeVideo = activeMedia?.find((item) => item.track.kind === "video");
+  const hasSolo = Boolean(timeline?.tracks.some((track) => track.solo));
+  const activeAudio = (activeMedia ?? []).filter(
+    (item) =>
+      ["dialogue", "narration", "bgm", "sfx"].includes(item.track.kind) &&
+      !item.track.muted &&
+      (!hasSolo || item.track.solo),
+  );
+  const active = activeVideo ?? activeAudio[0];
+  const { data: preview, error: previewError } = useQuery({
+    queryKey: ["timeline", "media-preview", active?.clip.assetId],
+    queryFn: () => client.timeline.preview(active!.clip.assetId!),
+    enabled: Boolean(active?.clip.assetId),
+  });
+  const audioPreviews = useQueries({
+    queries: activeAudio.map((item) => ({
+      queryKey: ["timeline", "audio-preview", item.clip.assetId],
+      queryFn: () => client.timeline.preview(item.clip.assetId!),
+      enabled: Boolean(item.clip.assetId),
+    })),
+  });
+  const activeVideoAudible =
+    Boolean(activeVideo) &&
+    !activeVideo!.track.muted &&
+    (!hasSolo || activeVideo!.track.solo);
+
+  useEffect(() => {
+    playheadRef.current = playhead;
+  }, [playhead]);
+  useEffect(() => {
+    if (!timeline || !playing) return;
+    const startedAt = Date.now() - playheadRef.current * 1_000;
+    const timer = window.setInterval(() => {
+      const next = Math.min(
+        timeline.durationSeconds,
+        (Date.now() - startedAt) / 1_000,
+      );
+      setPlayhead(next);
+      if (next >= timeline.durationSeconds) setPlaying(false);
+    }, 40);
+    return () => window.clearInterval(timer);
+  }, [playing, timeline?.durationSeconds]);
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media || !activeVideo) return;
+    const offset = Math.max(
+      0,
+      playhead -
+        activeVideo.clip.startSeconds +
+        activeVideo.clip.sourceOffsetSeconds,
+    );
+    if (Math.abs(media.currentTime - offset) > 0.15) media.currentTime = offset;
+    if (playing && activeVideoAudible) void media.play().catch(() => undefined);
+    else media.pause();
+  }, [
+    activeVideo?.clip.id,
+    activeVideo?.clip.sourceOffsetSeconds,
+    activeVideoAudible,
+    playhead,
+    playing,
+    preview?.dataUrl,
+  ]);
+  useEffect(() => {
+    const hasVoice = activeAudio.some((item) =>
+      ["dialogue", "narration"].includes(item.track.kind),
+    );
+    activeAudio.forEach((item, index) => {
+      const media = audioMediaRefs.current[item.clip.id];
+      const preview = audioPreviews[index]?.data;
+      if (!media || !preview) return;
+      const offset = Math.max(
+        0,
+        playhead - item.clip.startSeconds + item.clip.sourceOffsetSeconds,
+      );
+      if (Math.abs(media.currentTime - offset) > 0.15)
+        media.currentTime = offset;
+      const volume = Math.max(
+        0,
+        Math.min(
+          1,
+          (item.clip.volume ?? 1) *
+            (item.track.kind === "bgm" && hasVoice
+              ? (item.clip.duckingGain ?? 0.55)
+              : 1),
+        ),
+      );
+      if (Math.abs(media.volume - volume) > 0.01) media.volume = volume;
+      if (playing) void media.play().catch(() => undefined);
+      else media.pause();
+    });
+  }, [activeAudio, audioPreviews, playhead, playing]);
+  useEffect(() => {
+    if (!timeline) return;
+    const found = timeline.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === selectedClipId);
+    if (!found)
+      setSelectedClipId(
+        timeline.tracks.flatMap((track) => track.clips)[0]?.id ?? "",
+      );
+  }, [selectedClipId, timeline]);
+  useEffect(() => {
+    if (!selected) return;
+    setMoveStart(String(selected.clip.startSeconds));
+    setTrimStart(String(selected.clip.startSeconds));
+    setTrimDuration(String(selected.clip.durationSeconds));
+    setRelinkAssetId(selected.clip.assetId ?? "");
+    setClipVolume(String(selected.clip.volume ?? 1));
+  }, [selectedClipId]);
+
+  const refreshHistory = async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["timeline", "history", timeline?.id],
+    });
+  };
+  const apply = async (command: TimelineEditCommand) => {
+    if (!timeline) return;
+    setWorking(true);
+    setNotice(undefined);
+    try {
+      const saved = await client.timeline.command(timeline.id, {
+        version: timeline.version,
+        command,
+      });
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice("编辑已自动保存；源媒体没有被修改。");
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
+      ]);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const restore = async (direction: "undo" | "redo") => {
+    if (!timeline) return;
+    setWorking(true);
+    try {
+      const saved = await client.timeline[direction](timeline.id);
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice(
+        direction === "undo" ? "已撤销最近一次编辑。" : "已重做最近一次编辑。",
+      );
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
+      ]);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const selectClip = (id: string) => {
+    setSelectedClipId(id);
+    const found = timeline?.tracks
+      .flatMap((track) => track.clips)
+      .find((clip) => clip.id === id);
+    if (found) setPlayhead(found.startSeconds);
+  };
+  const reviewAudioAssembly = async () => {
+    try {
+      const result = await refetchAudioAssembly();
+      if (result.data) {
+        setSelectedAssemblyTrackIds([
+          ...new Set(result.data.clips.map((clip) => clip.audioTrackId)),
+        ]);
+        setNotice("已生成自动编排预览；请试听、核对字幕和保护项后再采用。");
+      }
+    } catch (cause) {
+      setNotice(message(cause));
+    }
+  };
+  const applyAudioAssembly = async () => {
+    if (!timeline || !audioAssembly) return;
+    setWorking(true);
+    try {
+      const saved = await client.timeline.applyAudioAssembly(props.episodeId, {
+        timelineVersion: timeline.version,
+        audioTrackIds: selectedAssemblyTrackIds,
+        includeSubtitles: includeAssemblySubtitles,
+      });
+      queryClient.setQueryData(["timeline", props.episodeId], saved);
+      setNotice(
+        "已采用选中的自动编排；人工移动、裁切、音量和锁定片段保持不变。",
+      );
+      await Promise.all([
+        refreshHistory(),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "audio-assembly", props.episodeId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["timeline", "delivery", props.episodeId],
+        }),
+      ]);
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const onKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      if (event.shiftKey) void restore("redo");
+      else void restore("undo");
+      return;
+    }
+    if (event.key === " ") {
+      event.preventDefault();
+      setPlaying((current) => !current);
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setPlayhead((current) => Math.max(0, current - 1));
+    }
+    if (event.key === "ArrowRight" && timeline) {
+      event.preventDefault();
+      setPlayhead((current) => Math.min(timeline.durationSeconds, current + 1));
+    }
+  };
+  const exportDelivery = async (format: TimelineDeliveryExportFormat) => {
+    setDeliveryWorking(format);
+    setNotice(undefined);
+    try {
+      const document = await client.timeline.exportDelivery(
+        props.episodeId,
+        format,
+      );
+      const result = await window.desktop.saveTextFile({
+        suggestedName: document.fileName,
+        content: document.content,
+      });
+      setNotice(result.saved ? "已导出可重链接时间线资料。" : "已取消导出。");
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setDeliveryWorking(undefined);
+    }
+  };
+
+  if (error)
+    return (
+      <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        {message(error)}
+      </p>
+    );
+  if (!timeline)
+    return (
+      <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+        正在建立当前分集的时间线…
+      </p>
+    );
+  const pixels = Math.max(680, timeline.durationSeconds * zoom + 120);
+  return (
+    <section
+      className="space-y-4 rounded-2xl border border-line bg-surface p-4"
+      aria-label="多轨时间线编辑器"
+      tabIndex={0}
+      onKeyDown={onKeyboard}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">版本化剪辑工作区</p>
+          <h2 className="mt-1 text-lg font-semibold">多轨时间线</h2>
+          <p className="mt-1 text-sm text-muted">
+            25 fps、秒级
+            timebase；编辑逐条自动保存并可撤销。媒体始终以引用方式使用，不会复制或改写源文件。
+          </p>
+        </div>
+        <p className="text-xs text-muted">
+          v{timeline.version} · 总长 {timeline.durationSeconds.toFixed(2)} 秒
+        </p>
+      </div>
+      <section
+        className="rounded-xl border border-line bg-page p-3"
+        aria-label="自动音频字幕编排"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-medium">自动音频与字幕编排</h3>
+            <p className="mt-1 text-xs text-muted">
+              基于已采用音轨生成可审查 change
+              set；不会覆盖人工移动、裁切、音量调整或锁定片段。
+            </p>
+          </div>
+          <button
+            className="rounded border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={isLoadingAudioAssembly || working}
+            onClick={() => void reviewAudioAssembly()}
+          >
+            {isLoadingAudioAssembly ? "正在生成预览…" : "审查自动编排"}
+          </button>
+        </div>
+        {audioAssembly && (
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2 text-sm">
+              <p>
+                候选 {audioAssembly.clips.length} 段 · 字幕{" "}
+                {audioAssembly.subtitleCues.length} 条 · 受保护人工片段{" "}
+                {audioAssembly.protectedClipIds.length} 个
+              </p>
+              {[
+                ...new Set(
+                  audioAssembly.clips.map((clip) => clip.audioTrackId),
+                ),
+              ].map((trackId) => {
+                const clips = audioAssembly.clips.filter(
+                  (clip) => clip.audioTrackId === trackId,
+                );
+                const first = clips[0]!;
+                const checked = selectedAssemblyTrackIds.includes(trackId);
+                return (
+                  <label
+                    key={trackId}
+                    className="flex items-center gap-2 rounded border border-line bg-surface p-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setSelectedAssemblyTrackIds((current) =>
+                          checked
+                            ? current.filter((id) => id !== trackId)
+                            : [...current, trackId],
+                        )
+                      }
+                    />
+                    <span>
+                      {timelineTrackLabel(first.kind)} · {first.name} ·{" "}
+                      {clips.length} 段 ·{" "}
+                      {first.rightsStatus === "cleared"
+                        ? "权利已核验"
+                        : first.rightsStatus === "restricted"
+                          ? "权利受限"
+                          : "权利待核验"}
+                    </span>
+                  </label>
+                );
+              })}
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={includeAssemblySubtitles}
+                  onChange={(event) =>
+                    setIncludeAssemblySubtitles(event.target.checked)
+                  }
+                />
+                同时采用由对白/旁白切分的可编辑字幕（SRT / WebVTT 已预览）
+              </label>
+              <button
+                className="rounded bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+                disabled={
+                  working ||
+                  !selectedAssemblyTrackIds.length ||
+                  selectedAssemblyTrackIds.some((trackId) =>
+                    audioAssembly.clips.some(
+                      (clip) =>
+                        clip.audioTrackId === trackId &&
+                        clip.rightsStatus === "restricted",
+                    ),
+                  )
+                }
+                onClick={() => void applyAudioAssembly()}
+              >
+                采用选中的自动编排
+              </button>
+            </div>
+            <div className="space-y-2 text-xs text-muted">
+              {audioAssembly.warnings.map((warning) => (
+                <p
+                  key={warning}
+                  className="rounded bg-amber-50 p-2 text-amber-900"
+                >
+                  {warning}
+                </p>
+              ))}
+              {audioAssembly.srt && (
+                <details>
+                  <summary className="cursor-pointer text-brand">
+                    查看 SRT / WebVTT 字幕预览
+                  </summary>
+                  <pre className="mt-2 max-h-36 overflow-auto rounded bg-surface p-2 whitespace-pre-wrap">
+                    {audioAssembly.srt}
+                  </pre>
+                </details>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+      <section
+        className="rounded-xl border border-line bg-page p-3"
+        aria-label="已验证 NLE 交付"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-medium">已验证 NLE 交付</h3>
+            <p className="mt-1 text-xs text-muted">
+              从当前 canonical timeline 生成 FCPXML、OTIO、CMX 3600
+              EDL、字幕和媒体重链接清单；只含相对路径、checksum 与最小谱系。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["fcpxml", "导出 FCPXML"],
+                ["otio", "导出 OTIO"],
+                ["edl", "导出 EDL"],
+                ["srt", "导出 SRT"],
+                ["vtt", "导出 WebVTT"],
+                ["relink", "导出重链接清单"],
+                ["manifest", "导出交付清单"],
+              ] as const
+            ).map(([format, label]) => (
+              <button
+                key={format}
+                className="rounded border border-line px-2 py-1 text-xs text-brand disabled:opacity-50"
+                disabled={working || Boolean(deliveryWorking)}
+                onClick={() => void exportDelivery(format)}
+              >
+                {deliveryWorking === format ? "正在导出…" : label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {deliveryManifest && (
+          <div className="mt-3 grid gap-3 text-xs text-muted lg:grid-cols-2">
+            <p>
+              时间线版本 {deliveryManifest.timeline.version} · 媒体{" "}
+              {deliveryManifest.media.length} 个 · 已校验{" "}
+              {
+                deliveryManifest.media.filter((item) => Boolean(item.checksum))
+                  .length
+              }{" "}
+              个
+            </p>
+            <p>
+              MP4 仅在 Provider 显式声明 timeline_render
+              时提供；当前目录未声明该能力，因此未生成或伪造成片。
+            </p>
+            {deliveryManifest.unsupportedFeatures.length > 0 && (
+              <p className="rounded bg-amber-50 p-2 text-amber-900">
+                兼容性报告：{deliveryManifest.unsupportedFeatures.join("；")}
+              </p>
+            )}
+            {deliveryManifest.warnings.map((warning) => (
+              <p
+                key={warning}
+                className="rounded bg-amber-50 p-2 text-amber-900"
+              >
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+        {deliveryError && (
+          <p className="mt-3 rounded bg-red-50 p-2 text-xs text-red-700">
+            {message(deliveryError)}
+          </p>
+        )}
+      </section>
+      <section className="grid gap-3 rounded-xl border border-line bg-page p-3 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-lg bg-brand px-3 py-2 text-sm text-white"
+              onClick={() => setPlaying((current) => !current)}
+            >
+              {playing ? "暂停" : "播放"}
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm"
+              onClick={() => setPlayhead(0)}
+            >
+              回到开头
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm disabled:opacity-50"
+              disabled={working || !history?.canUndo}
+              onClick={() => void restore("undo")}
+            >
+              撤销
+            </button>
+            <button
+              className="rounded border border-line px-3 py-2 text-sm disabled:opacity-50"
+              disabled={working || !history?.canRedo}
+              onClick={() => void restore("redo")}
+            >
+              重做
+            </button>
+            <span className="text-sm text-muted">{playhead.toFixed(2)} 秒</span>
+          </div>
+          <input
+            className="mt-3 w-full accent-brand"
+            aria-label="播放头定位"
+            type="range"
+            min="0"
+            max={timeline.durationSeconds}
+            step="0.04"
+            value={Math.min(playhead, timeline.durationSeconds)}
+            onChange={(event) => setPlayhead(Number(event.target.value))}
+          />
+          <label className="mt-2 flex items-center gap-2 text-xs text-muted">
+            缩放
+            <input
+              aria-label="时间线缩放"
+              type="range"
+              min="24"
+              max="160"
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+            />
+            {zoom} px/秒
+          </label>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-2 text-xs text-muted">
+          <p className="font-medium text-ink">预览主时钟</p>
+          {preview && active ? (
+            preview.kind === "video" ? (
+              <video
+                ref={mediaRef as React.RefObject<HTMLVideoElement>}
+                className="mt-2 max-h-40 w-full rounded"
+                controls
+                src={preview.dataUrl}
+              />
+            ) : preview.kind === "audio" ? (
+              <audio
+                ref={(node) => {
+                  audioMediaRefs.current[active.clip.id] = node;
+                }}
+                className="mt-2 w-full"
+                controls
+                src={preview.dataUrl}
+              />
+            ) : (
+              <img
+                className="mt-2 max-h-40 w-full rounded object-contain"
+                src={preview.dataUrl}
+                alt={`${active.clip.name} 预览`}
+              />
+            )
+          ) : (
+            <p className="mt-2">
+              播放头未落在可播放的本地媒体上；可继续定位、编辑或为缺失片段重链接。
+            </p>
+          )}
+          {activeAudio.map((item, index) => {
+            const audioPreview = audioPreviews[index]?.data;
+            if (!audioPreview || item.clip.id === active?.clip.id) return null;
+            return (
+              <audio
+                key={item.clip.id}
+                ref={(node) => {
+                  audioMediaRefs.current[item.clip.id] = node;
+                }}
+                className="hidden"
+                src={audioPreview.dataUrl}
+              />
+            );
+          })}
+          {previewError && (
+            <p className="mt-2 text-red-700">{message(previewError)}</p>
+          )}
+        </div>
+      </section>
+      <section
+        className="overflow-x-auto rounded-xl border border-line bg-page p-3"
+        aria-label="时间线轨道"
+      >
+        <div className="min-w-max" style={{ width: pixels }}>
+          <div className="relative mb-2 h-5 border-b border-line text-[10px] text-muted">
+            {Array.from(
+              { length: Math.ceil(timeline.durationSeconds) + 1 },
+              (_, second) => (
+                <span
+                  key={second}
+                  className="absolute top-0"
+                  style={{ left: second * zoom }}
+                >
+                  {second}s
+                </span>
+              ),
+            )}
+            <span
+              className="absolute -bottom-1 top-0 w-0.5 bg-red-500"
+              style={{ left: playhead * zoom }}
+            />
+          </div>
+          <div className="space-y-2">
+            {timeline.tracks.map((track) => (
+              <div key={track.id} className="grid grid-cols-[7rem_1fr] gap-2">
+                <div className="rounded-lg border border-line bg-surface p-2 text-xs">
+                  <p className="font-medium">
+                    {timelineTrackLabel(track.kind)}
+                  </p>
+                  <div className="mt-1 flex gap-1">
+                    <button
+                      aria-label={`${timelineTrackLabel(track.kind)}静音`}
+                      className={`rounded px-1.5 py-0.5 ${track.muted ? "bg-red-100 text-red-700" : "bg-page text-muted"}`}
+                      onClick={() =>
+                        void apply({
+                          type: "set-track-audio",
+                          trackId: track.id,
+                          muted: !track.muted,
+                        })
+                      }
+                    >
+                      静音
+                    </button>
+                    <button
+                      aria-label={`${timelineTrackLabel(track.kind)}独听`}
+                      className={`rounded px-1.5 py-0.5 ${track.solo ? "bg-brand-soft text-brand" : "bg-page text-muted"}`}
+                      onClick={() =>
+                        void apply({
+                          type: "set-track-audio",
+                          trackId: track.id,
+                          solo: !track.solo,
+                        })
+                      }
+                    >
+                      独听
+                    </button>
+                  </div>
+                </div>
+                <div
+                  className="relative h-14 overflow-hidden rounded-lg bg-canvas"
+                  style={{ width: pixels - 120 }}
+                >
+                  <span
+                    className="absolute bottom-0 top-0 z-10 w-0.5 bg-red-500"
+                    style={{ left: playhead * zoom }}
+                  />
+                  {track.clips.map((clip) => (
+                    <button
+                      key={clip.id}
+                      aria-label={`选择片段：${clip.name}`}
+                      className={`absolute top-2 h-10 overflow-hidden rounded border px-2 text-left text-xs ${selectedClipId === clip.id ? "border-brand bg-brand-soft text-brand" : clip.mediaStatus === "linked" ? "border-line bg-surface" : "border-amber-300 bg-amber-50 text-amber-900"}`}
+                      style={{
+                        left: clip.startSeconds * zoom,
+                        width: Math.max(42, clip.durationSeconds * zoom - 2),
+                      }}
+                      onClick={() => selectClip(clip.id)}
+                    >
+                      {clip.name} · {timelineMediaStatusLabel(clip.mediaStatus)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      {selected && (
+        <section className="grid gap-3 rounded-xl border border-line p-3 xl:grid-cols-3">
+          <div>
+            <h3 className="font-medium">{selected.clip.name}</h3>
+            <p className="mt-1 text-xs text-muted">
+              {timelineTrackLabel(selected.track.kind)} ·{" "}
+              {timelineMediaStatusLabel(selected.clip.mediaStatus)} ·{" "}
+              {selected.clip.locked
+                ? "已锁定，自动编排受保护"
+                : selected.clip.manuallyEdited
+                  ? "有人工编辑"
+                  : "源装配"}
+            </p>
+            {selected.clip.text && (
+              <p className="mt-2 text-sm">{selected.clip.text}</p>
+            )}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs">
+              移动到秒
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0"
+                step="0.04"
+                value={moveStart}
+                onChange={(event) => setMoveStart(event.target.value)}
+              />
+            </label>
+            <button
+              className="self-end rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "move",
+                  clipId: selected.clip.id,
+                  startSeconds: Number(moveStart),
+                })
+              }
+            >
+              移动
+            </button>
+            <label className="grid gap-1 text-xs">
+              裁切起点
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0"
+                step="0.04"
+                value={trimStart}
+                onChange={(event) => setTrimStart(event.target.value)}
+              />
+            </label>
+            <label className="grid gap-1 text-xs">
+              裁切时长
+              <input
+                className="rounded border border-line px-2 py-1 text-sm"
+                type="number"
+                min="0.04"
+                step="0.04"
+                value={trimDuration}
+                onChange={(event) => setTrimDuration(event.target.value)}
+              />
+            </label>
+            <button
+              className="rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "trim",
+                  clipId: selected.clip.id,
+                  startSeconds: Number(trimStart),
+                  durationSeconds: Number(trimDuration),
+                })
+              }
+            >
+              裁切
+            </button>
+            <button
+              className="rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working}
+              onClick={() =>
+                void apply({
+                  type: "split",
+                  clipId: selected.clip.id,
+                  atSeconds:
+                    selected.clip.startSeconds +
+                    selected.clip.durationSeconds / 2,
+                })
+              }
+            >
+              在中点分割
+            </button>
+            {["dialogue", "narration", "bgm", "sfx"].includes(
+              selected.track.kind,
+            ) && (
+              <>
+                <label className="grid gap-1 text-xs">
+                  片段音量（0–2）
+                  <input
+                    className="rounded border border-line px-2 py-1 text-sm"
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="0.01"
+                    value={clipVolume}
+                    onChange={(event) => setClipVolume(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="self-end rounded border border-line px-2 py-1 text-sm text-brand disabled:opacity-50"
+                  disabled={working}
+                  onClick={() =>
+                    void apply({
+                      type: "set-clip-audio",
+                      clipId: selected.clip.id,
+                      volume: Number(clipVolume),
+                    })
+                  }
+                >
+                  保存音量
+                </button>
+                <button
+                  className="rounded border border-brand px-2 py-1 text-sm text-brand disabled:opacity-50"
+                  disabled={working}
+                  onClick={() =>
+                    void apply({
+                      type: "set-clip-audio",
+                      clipId: selected.clip.id,
+                      locked: !selected.clip.locked,
+                    })
+                  }
+                >
+                  {selected.clip.locked ? "解除编排锁定" : "锁定，保护自动编排"}
+                </button>
+              </>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <label className="grid gap-1 text-xs">
+              重链接到项目媒体
+              <select
+                className="rounded border border-line px-2 py-1 text-sm"
+                value={relinkAssetId}
+                onChange={(event) => setRelinkAssetId(event.target.value)}
+              >
+                <option value="">选择归档媒体</option>
+                {mediaAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="w-fit rounded border border-brand px-2 py-1 text-sm text-brand disabled:opacity-50"
+              disabled={working || !relinkAssetId}
+              onClick={() =>
+                void apply({
+                  type: "relink",
+                  clipId: selected.clip.id,
+                  assetId: relinkAssetId,
+                })
+              }
+            >
+              保存重链接
+            </button>
+          </div>
+        </section>
+      )}
+      {notice && (
+        <p className="rounded-lg bg-brand-soft p-3 text-sm text-brand">
+          {notice}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function EpisodeRenderPreflightPanel(props: { episodeId: string }) {
   const client = useStudio();
   const {
@@ -7405,6 +11782,7 @@ function ProductionGraphPanel(props: { projectId: string }) {
 
 function ReviewDeliveryWorkspace() {
   const client = useStudio();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: client.projects.list,
@@ -7429,6 +11807,21 @@ function ReviewDeliveryWorkspace() {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
   }, [projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("projectId");
+    if (requested && projects.some((project) => project.id === requested))
+      setProjectId(requested);
+  }, [location.search, projects]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("stage");
+    if (
+      requested &&
+      ["quality", "compliance", "localization", "review", "delivery"].includes(
+        requested,
+      )
+    )
+      setStage(requested as typeof stage);
+  }, [location.search]);
+  useEffect(() => {
     if (adaptationId && !adaptations.some((item) => item.id === adaptationId))
       setAdaptationId("");
   }, [adaptationId, adaptations]);
@@ -7444,12 +11837,22 @@ function ReviewDeliveryWorkspace() {
     );
   }, [adaptationId, adaptations, projectId, projects]);
   useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("adaptationId");
+    if (requested && adaptations.some((item) => item.id === requested))
+      setAdaptationId(requested);
+  }, [adaptations, location.search]);
+  useEffect(() => {
     if (episodeId && !episodes.some((item) => item.id === episodeId))
       setEpisodeId("");
   }, [episodeId, episodes]);
   useEffect(() => {
     if (!episodeId && episodes[0]) setEpisodeId(episodes[0].id);
   }, [episodeId, episodes]);
+  useEffect(() => {
+    const requested = new URLSearchParams(location.search).get("episodeId");
+    if (requested && episodes.some((item) => item.id === requested))
+      setEpisodeId(requested);
+  }, [episodes, location.search]);
   return (
     <section className="space-y-5">
       <WorkspaceIntro
@@ -8266,6 +12669,28 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     "approve" | "return" | "request_changes" | "note"
   >("note");
   const [decisionNote, setDecisionNote] = useState("");
+  const [cloudBaseUrl, setCloudBaseUrl] = useState("");
+  const [cloudWorkspaceId, setCloudWorkspaceId] = useState("");
+  const [cloudAccessToken, setCloudAccessToken] = useState("");
+  const [cloudPin, setCloudPin] = useState("");
+  const [cloudMedia, setCloudMedia] = useState<
+    Array<{
+      id: string;
+      shotId: string;
+      relativePath: string;
+      mimeType: string;
+      capabilityToken: string;
+      name: string;
+    }>
+  >([]);
+  const [cloudShareUrl, setCloudShareUrl] = useState<string>();
+  const [cloudPublishPreview, setCloudPublishPreview] =
+    useState<CloudReviewPublishPreview>();
+  const [cloudPublishPreviewKey, setCloudPublishPreviewKey] = useState("");
+  const [reviewRevisionScriptId, setReviewRevisionScriptId] = useState("");
+  const [reviewRevisionContent, setReviewRevisionContent] = useState("");
+  const [reviewRevisionPreview, setReviewRevisionPreview] =
+    useState<ChangePreview>();
   const [notice, setNotice] = useState<string>();
   const [working, setWorking] = useState<string>();
   const { data: timeline, error: timelineError } = useQuery({
@@ -8280,10 +12705,57 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     queryKey: ["review-editor", "packages", props.episodeId],
     queryFn: () => client.reviewEditor.listPackages(props.episodeId),
   });
+  const selectedReviewPackage = packages.find((item) => item.id === packageId);
+  const { data: reviewScripts = [] } = useQuery({
+    queryKey: [
+      "review-editor",
+      "revision-scripts",
+      selectedReviewPackage?.projectId,
+      props.episodeId,
+    ],
+    queryFn: () =>
+      client.resources.list(
+        "scripts",
+        selectedReviewPackage!.projectId,
+        props.episodeId,
+      ),
+    enabled: Boolean(selectedReviewPackage),
+  });
+  const { data: cloudConnection } = useQuery({
+    queryKey: ["cloud-review", "connection"],
+    queryFn: () => client.cloudReview.connection(),
+  });
+  const { data: cloudBinding } = useQuery({
+    queryKey: ["cloud-review", "binding", packageId],
+    queryFn: () => client.cloudReview.binding(packageId),
+    enabled: Boolean(packageId),
+    retry: false,
+  });
+  const { data: credentialStorage } = useQuery({
+    queryKey: ["credential-storage-status"],
+    queryFn: () => window.desktop.getCredentialStorageStatus(),
+  });
+  useEffect(() => {
+    if (!cloudConnection?.configured) return;
+    setCloudBaseUrl((current) => current || cloudConnection.baseUrl);
+    setCloudWorkspaceId((current) => current || cloudConnection.workspaceId);
+  }, [cloudConnection]);
   useEffect(() => {
     if (!packages.some((item) => item.id === packageId))
       setPackageId(packages[0]?.id ?? "");
   }, [packageId, packages]);
+  useEffect(() => {
+    if (
+      reviewRevisionScriptId &&
+      !reviewScripts.some((item) => item.id === reviewRevisionScriptId)
+    )
+      setReviewRevisionScriptId("");
+    if (!reviewRevisionScriptId && reviewScripts[0])
+      setReviewRevisionScriptId(reviewScripts[0].id);
+  }, [reviewRevisionScriptId, reviewScripts]);
+  useEffect(() => {
+    setReviewRevisionPreview(undefined);
+  }, [packageId]);
   const { data: comments = [] } = useQuery({
     queryKey: ["review-editor", "comments", packageId],
     queryFn: () => client.reviewEditor.listComments(packageId),
@@ -8294,6 +12766,20 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     queryFn: () => client.reviewEditor.listDecisions(packageId),
     enabled: Boolean(packageId),
   });
+  const cloudSelectionKey = JSON.stringify({
+    packageId,
+    media: cloudMedia.map((item) => ({
+      id: item.id,
+      shotId: item.shotId,
+      relativePath: item.relativePath,
+      mimeType: item.mimeType,
+      capabilityToken: item.capabilityToken,
+    })),
+  });
+  const currentCloudPublishPreview =
+    cloudPublishPreviewKey === cloudSelectionKey
+      ? cloudPublishPreview
+      : undefined;
   const refresh = async () => {
     await queryClient.invalidateQueries({
       queryKey: ["review-editor", "packages", props.episodeId],
@@ -8373,6 +12859,200 @@ function ReviewEditorPanel(props: { episodeId: string }) {
         `已导入 ${result.commentCount} 条审阅意见和 ${result.decisionCount} 条决定。`,
       );
       await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const cloudMimeType = (name: string) => {
+    const extension = name.split(".").pop()?.toLowerCase();
+    return extension === "mp4"
+      ? "video/mp4"
+      : extension === "webp"
+        ? "image/webp"
+        : extension === "png"
+          ? "image/png"
+          : extension === "jpg" || extension === "jpeg"
+            ? "image/jpeg"
+            : extension === "mp3"
+              ? "audio/mpeg"
+              : extension === "wav"
+                ? "audio/wav"
+                : "text/vtt";
+  };
+  const chooseCloudMedia = async () => {
+    const files = await window.desktop.pickFiles({
+      multiple: true,
+      extensions: ["mp4", "jpg", "jpeg", "png", "webp", "mp3", "wav", "vtt"],
+    });
+    if (!files?.length) return;
+    setCloudMedia(
+      files.map((file, index) => ({
+        id: `cloud-${Date.now()}-${index}`,
+        shotId: timeline?.clips[index]?.shotId ?? "",
+        relativePath: `review/${file.name.replace(/[\\/]/g, "-")}`,
+        mimeType: cloudMimeType(file.name),
+        capabilityToken: file.token,
+        name: file.name,
+      })),
+    );
+  };
+  const saveCloudConnection = async () => {
+    if (
+      !cloudBaseUrl.trim() ||
+      !cloudWorkspaceId.trim() ||
+      !cloudAccessToken.trim()
+    ) {
+      setNotice("请填写平台地址、workspace 和短期访问令牌。");
+      return;
+    }
+    if (credentialStorage?.available !== true) {
+      setNotice("本机加密凭据库不可用，不能保存云审片令牌。");
+      return;
+    }
+    setWorking("保存云审片连接");
+    setNotice(undefined);
+    let credentialRef: string | undefined;
+    try {
+      credentialRef = (
+        await window.desktop.storeCredential(cloudAccessToken.trim())
+      ).credentialRef;
+      await client.cloudReview.saveConnection({
+        baseUrl: cloudBaseUrl.trim(),
+        workspaceId: cloudWorkspaceId.trim(),
+        credentialRef,
+      });
+      setCloudAccessToken("");
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "connection"],
+      });
+      setNotice("云审片连接已保存；令牌只保存在本机加密凭据库。");
+    } catch (cause) {
+      if (credentialRef)
+        await window.desktop.removeCredential(credentialRef).catch(() => {});
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const publishCloudReview = async () => {
+    if (!packageId || !cloudConnection?.configured || !cloudMedia.length) {
+      setNotice("请先选择本地审片包、保存连接并选择至少一个媒体文件。");
+      return;
+    }
+    if (cloudMedia.some((item) => !item.shotId)) {
+      setNotice("每个上传媒体都必须显式关联一个分镜。");
+      return;
+    }
+    if (!currentCloudPublishPreview) {
+      setNotice("请先计算 SHA-256 发布预览并确认当前上传清单。");
+      return;
+    }
+    setWorking("发布云审片");
+    setNotice(undefined);
+    try {
+      const published = await client.cloudReview.publish(packageId, {
+        ...(cloudPin.trim() ? { pin: cloudPin.trim() } : {}),
+        media: cloudMedia.map(({ name: _name, ...item }) => item),
+      });
+      setCloudPin("");
+      setCloudShareUrl(published.shareUrl);
+      setNotice(
+        `云审片包已发布，保留至 ${published.expiresAt}；请只分享下方链接。`,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "binding", packageId],
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const previewCloudReview = async () => {
+    if (!packageId || !cloudConnection?.configured || !cloudMedia.length) {
+      setNotice("请先选择本地审片包、保存连接并选择至少一个媒体文件。");
+      return;
+    }
+    if (cloudMedia.some((item) => !item.shotId)) {
+      setNotice("每个上传媒体都必须显式关联一个分镜。");
+      return;
+    }
+    setWorking("计算云审片发布预览");
+    setNotice(undefined);
+    try {
+      const preview = await client.cloudReview.preview(packageId, {
+        media: cloudMedia.map(({ name: _name, ...item }) => item),
+      });
+      setCloudPublishPreview(preview);
+      setCloudPublishPreviewKey(cloudSelectionKey);
+      setNotice("已在本机计算 SHA-256；尚未创建云端审片包或上传媒体。");
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const syncCloudReview = async () => {
+    if (!packageId) return;
+    setWorking("同步云端意见");
+    setNotice(undefined);
+    try {
+      const synced = await client.cloudReview.sync(packageId);
+      setNotice(
+        `已按游标同步 ${synced.commentCount} 条意见和 ${synced.decisionCount} 条决定。`,
+      );
+      await refresh();
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const deleteCloudReview = async () => {
+    if (!packageId || !cloudBinding) return;
+    setWorking("删除云审片");
+    setNotice(undefined);
+    try {
+      const deleted = await client.cloudReview.delete(packageId);
+      setCloudShareUrl(undefined);
+      setCloudMedia([]);
+      setNotice(
+        deleted.localFeedbackPreserved
+          ? "云审片包已删除；本地已同步的意见和决定已保留。"
+          : "云审片包已删除。",
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["cloud-review", "binding", packageId],
+      });
+    } catch (cause) {
+      setNotice(message(cause));
+    } finally {
+      setWorking(undefined);
+    }
+  };
+  const createReviewRevisionPreview = async () => {
+    if (
+      !packageId ||
+      !reviewRevisionScriptId ||
+      !reviewRevisionContent.trim()
+    ) {
+      setNotice("请选择目标剧本并填写修订草案。");
+      return;
+    }
+    setWorking("创建审片修订预览");
+    setNotice(undefined);
+    try {
+      const preview = await client.reviewEditor.createRevisionPreview(
+        packageId,
+        {
+          scriptId: reviewRevisionScriptId,
+          proposedContent: reviewRevisionContent.trim(),
+        },
+      );
+      setReviewRevisionPreview(preview);
+      setNotice("已创建待确认修订预览；正式剧本尚未改写。");
     } catch (cause) {
       setNotice(message(cause));
     } finally {
@@ -8586,6 +13266,264 @@ function ReviewEditorPanel(props: { episodeId: string }) {
           </select>
         </label>
       </section>
+      <section className="rounded-xl border border-line p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-medium">可选云审片</h3>
+            <p className="mt-1 text-sm text-muted">
+              仅上传下方明确选择的媒体。令牌只进入本机加密凭据库；不上传项目数据库、Provider
+              密钥或未选文件。
+            </p>
+          </div>
+          <span className="rounded bg-page px-2 py-1 text-xs text-muted">
+            {cloudConnection?.configured ? "连接已保存" : "尚未配置"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-4">
+          <label className="grid gap-1 text-sm">
+            平台地址
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              value={cloudBaseUrl}
+              onChange={(event) => setCloudBaseUrl(event.target.value)}
+              placeholder="例如：https://审片平台.example.com"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            Workspace ID
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              value={cloudWorkspaceId}
+              onChange={(event) => setCloudWorkspaceId(event.target.value)}
+              placeholder="已授权的 workspace"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            短期访问令牌
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              type="password"
+              value={cloudAccessToken}
+              onChange={(event) => setCloudAccessToken(event.target.value)}
+              placeholder="只在保存时写入凭据库"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            分享 PIN（可选）
+            <input
+              className="rounded-lg border border-line px-3 py-2"
+              type="password"
+              inputMode="numeric"
+              value={cloudPin}
+              onChange={(event) => setCloudPin(event.target.value)}
+              placeholder="4–12 位数字，仅本次发布使用"
+            />
+          </label>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={Boolean(working) || credentialStorage?.available !== true}
+            onClick={() => void saveCloudConnection()}
+          >
+            {working === "保存云审片连接" ? "正在保存…" : "保存安全连接"}
+          </button>
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={Boolean(working)}
+            onClick={() => void chooseCloudMedia()}
+          >
+            选择要上传的媒体
+          </button>
+          <button
+            className="rounded border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={
+              Boolean(working) ||
+              !packageId ||
+              !cloudConnection?.configured ||
+              !cloudMedia.length
+            }
+            onClick={() => void previewCloudReview()}
+          >
+            {working === "计算云审片发布预览"
+              ? "正在计算…"
+              : "计算 SHA-256 发布预览"}
+          </button>
+          <button
+            className="rounded-lg bg-brand px-3 py-2 text-sm text-white disabled:opacity-50"
+            disabled={
+              Boolean(working) ||
+              !packageId ||
+              !cloudConnection?.configured ||
+              !cloudMedia.length ||
+              !currentCloudPublishPreview
+            }
+            onClick={() => void publishCloudReview()}
+          >
+            {working === "发布云审片" ? "正在发布…" : "确认发布选定媒体"}
+          </button>
+          <button
+            className="rounded border border-line px-3 py-2 text-sm text-brand disabled:opacity-50"
+            disabled={
+              Boolean(working) || !packageId || !cloudConnection?.configured
+            }
+            onClick={() => void syncCloudReview()}
+          >
+            {working === "同步云端意见" ? "正在同步…" : "按游标同步意见"}
+          </button>
+          <button
+            className="rounded border border-red-300 px-3 py-2 text-sm text-red-700 disabled:opacity-50"
+            disabled={Boolean(working) || !cloudBinding}
+            onClick={() => void deleteCloudReview()}
+          >
+            {working === "删除云审片" ? "正在删除…" : "撤销并删除云审片"}
+          </button>
+        </div>
+        {credentialStorage?.available === false && (
+          <p className="mt-2 text-xs text-red-700">
+            {credentialStorage.message ?? "本机加密凭据库不可用。"}
+          </p>
+        )}
+        {cloudMedia.length > 0 && (
+          <div className="mt-3 space-y-2 rounded-lg bg-page p-3 text-sm">
+            <p className="font-medium">发布清单（确认后才会上传）</p>
+            {cloudMedia.map((item) => (
+              <label
+                key={item.id}
+                className="grid gap-1 md:grid-cols-[1fr_220px] md:items-center"
+              >
+                <span className="truncate" title={item.relativePath}>
+                  {item.name} · {item.mimeType} · {item.relativePath}
+                </span>
+                <select
+                  className="rounded border border-line bg-surface px-2 py-1"
+                  value={item.shotId}
+                  onChange={(event) =>
+                    setCloudMedia((current) =>
+                      current.map((candidate) =>
+                        candidate.id === item.id
+                          ? { ...candidate, shotId: event.target.value }
+                          : candidate,
+                      ),
+                    )
+                  }
+                >
+                  <option value="">关联分镜（必填）</option>
+                  {timeline?.clips.map((clip) => (
+                    <option key={clip.shotId} value={clip.shotId}>
+                      {clip.orderIndex + 1}. {clip.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        )}
+        {currentCloudPublishPreview && (
+          <div className="mt-3 space-y-2 rounded-lg border border-brand/30 bg-brand-soft/30 p-3 text-sm">
+            <p className="font-medium">已计算的发布预览（尚未上传）</p>
+            <p>
+              Workspace：{currentCloudPublishPreview.workspaceId} · 存储：
+              {currentCloudPublishPreview.storageBytes} /{" "}
+              {currentCloudPublishPreview.maxStorageBytes} 字节
+            </p>
+            <p className="text-muted">
+              保留期：{currentCloudPublishPreview.retention}
+              <br />
+              费用：{currentCloudPublishPreview.costEstimate}
+            </p>
+            {currentCloudPublishPreview.media.map((item) => (
+              <p
+                key={item.id}
+                className="break-all rounded bg-surface p-2 text-xs"
+              >
+                {item.relativePath} · {item.sizeBytes} 字节 · SHA-256{" "}
+                {item.sha256}
+              </p>
+            ))}
+            <details className="rounded bg-surface p-2 text-xs">
+              <summary className="cursor-pointer text-brand">
+                查看 review manifest
+              </summary>
+              <pre className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap">
+                {currentCloudPublishPreview.manifestJson}
+              </pre>
+            </details>
+          </div>
+        )}
+        {cloudPublishPreview && !currentCloudPublishPreview && (
+          <p className="mt-3 text-xs text-amber-800">
+            上传清单已变化，请重新计算发布预览后再确认发布。
+          </p>
+        )}
+        {(cloudShareUrl || cloudBinding?.shareUrl) && (
+          <p className="mt-3 break-all rounded-lg bg-brand-soft p-3 text-sm text-brand">
+            已创建受控分享链接：{cloudShareUrl ?? cloudBinding?.shareUrl}
+            {cloudBinding &&
+              ` · 状态：${cloudBinding.status} · 到期：${cloudBinding.expiresAt}`}
+          </p>
+        )}
+      </section>
+      {packageId &&
+        (comments.some((item) => !item.resolved) ||
+          decisions.some(
+            (item) =>
+              item.decision === "return" || item.decision === "request_changes",
+          )) && (
+          <section className="rounded-xl border border-brand/30 bg-brand-soft/30 p-3">
+            <h3 className="font-medium">从审片反馈创建修订预览</h3>
+            <p className="mt-1 text-sm text-muted">
+              未解决意见以及“退回 /
+              需要修改”决定会作为上下文写入预览；确认应用前不会改写正式剧本。
+            </p>
+            <div className="mt-3 grid gap-2">
+              <label className="grid gap-1 text-sm">
+                目标剧本
+                <select
+                  className="rounded-lg border border-line bg-surface px-3 py-2"
+                  value={reviewRevisionScriptId}
+                  onChange={(event) =>
+                    setReviewRevisionScriptId(event.target.value)
+                  }
+                >
+                  <option value="">选择本集剧本</option>
+                  {reviewScripts.map((script) => (
+                    <option key={script.id} value={script.id}>
+                      {script.title} · 版本 {script.version}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                修订草案
+                <textarea
+                  className="min-h-36 rounded-lg border border-line bg-surface px-3 py-2"
+                  value={reviewRevisionContent}
+                  onChange={(event) =>
+                    setReviewRevisionContent(event.target.value)
+                  }
+                  placeholder="基于审片反馈填写拟采用的剧本内容"
+                />
+              </label>
+              <button
+                className="w-fit rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+                disabled={
+                  Boolean(working) ||
+                  !reviewRevisionScriptId ||
+                  !reviewRevisionContent.trim()
+                }
+                onClick={() => void createReviewRevisionPreview()}
+              >
+                {working === "创建审片修订预览"
+                  ? "正在创建…"
+                  : "创建待确认修订预览"}
+              </button>
+            </div>
+            {reviewRevisionPreview && (
+              <AgentChangePreviewCard preview={reviewRevisionPreview} />
+            )}
+          </section>
+        )}
       {packageId && (
         <section className="grid gap-4 xl:grid-cols-2">
           <section className="rounded-xl border border-line p-3">
@@ -10260,8 +15198,9 @@ function AgentEngineSettingsPanel() {
 function AgentSidePanel() {
   const client = useStudio();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { data: projects = [] } = useQuery({
-    queryKey: ["agent-projects"],
+    queryKey: ["agent-projects", location.pathname],
     queryFn: client.projects.list,
   });
   const [projectId, setProjectId] = useState("");
@@ -10272,6 +15211,9 @@ function AgentSidePanel() {
   const [experimentMode, setExperimentMode] = useState<
     "recommended" | "same_model"
   >("recommended");
+  const [assistantMode, setAssistantMode] = useState<"simple" | "advanced">(
+    "simple",
+  );
   const [prompt, setPrompt] = useState("");
   const [notice, setNotice] = useState<string>();
   const [activeRunId, setActiveRunId] = useState<string>();
@@ -10295,43 +15237,127 @@ function AgentSidePanel() {
     queryFn: () => client.chapters.list(projectId),
     enabled: Boolean(projectId),
   });
+  const { data: contextShots = [] } = useQuery({
+    queryKey: ["agent-shots", projectId],
+    queryFn: () => client.resources.list("shots", projectId),
+    enabled: Boolean(projectId),
+  });
+  const requestedProjectId = contextAssistantProjectId(location);
+  const requestedShotId = new URLSearchParams(location.search).get("shotId");
   useEffect(() => {
+    if (requestedProjectId && projectId !== requestedProjectId) {
+      setProjectId(requestedProjectId);
+      return;
+    }
     if (!projectId && projects[0]) setProjectId(projects[0].id);
-  }, [projectId, projects]);
+  }, [projectId, projects, requestedProjectId]);
   useEffect(() => setChapterId(""), [projectId]);
   useEffect(() => {
     if (projectSettings) {
       setEngineKind(projectSettings.defaultEngineKind);
       setModelId(projectSettings.defaultModel?.modelId ?? "");
+      setAssistantMode(projectSettings.assistantMode);
     }
   }, [projectSettings]);
   const selectedTask = taskDefinitions.find((item) => item.id === taskType);
   const requiresChapter =
     selectedTask?.category === "章节写作" ||
     selectedTask?.category === "记忆与连续性";
+  const contextPage = contextAssistantPage(location.pathname);
+  const selectedShot = contextShots.find((shot) => shot.id === requestedShotId);
+  const selectedShotPayload = selectedShot
+    ? recordPayload(selectedShot.payload)
+    : {};
+  const shotContext = selectedShot
+    ? [
+        `当前导演看板分镜：${selectedShot.title}`,
+        selectedShotPayload["镜头描述"]
+          ? `镜头画面：${String(selectedShotPayload["镜头描述"])}`
+          : "",
+        selectedShotPayload["生成提示"]
+          ? `已有提示：${String(selectedShotPayload["生成提示"])}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+  const contextualPrompt = [shotContext, prompt.trim()]
+    .filter(Boolean)
+    .join("\n\n");
+  const { actions: contextActions, missingTaskTypes } =
+    resolveContextAssistantActions({
+      page: contextPage,
+      catalog: taskDefinitions,
+    });
+  const selectedEngine = engines.find((engine) => engine.kind === engineKind);
+  const preflightFor = (action: (typeof contextActions)[number]) =>
+    contextAssistantPreflight({
+      action,
+      projectId,
+      chapterId,
+      engine: selectedEngine,
+      modelId,
+    });
+  const updateAssistantMode = useMutation({
+    mutationFn: (nextMode: "simple" | "advanced") => {
+      if (!projectId) throw new Error("请先选择项目以保存助手偏好");
+      return client.agentEngines.updateProjectSettings(projectId, {
+        defaultEngineKind: projectSettings?.defaultEngineKind ?? engineKind,
+        ...(projectSettings?.defaultModel
+          ? { defaultModel: projectSettings.defaultModel }
+          : {}),
+        assistantMode: nextMode,
+      });
+    },
+    onSuccess: async (settings) => {
+      setAssistantMode(settings.assistantMode);
+      setNotice(
+        settings.assistantMode === "advanced"
+          ? "已恢复完整任务目录和高级参数。"
+          : "已切换为当前页面的简洁助手。",
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["project-agent-settings", projectId],
+      });
+    },
+    onError: (cause) => {
+      setAssistantMode(projectSettings?.assistantMode ?? "simple");
+      setNotice(message(cause));
+    },
+  });
   const runAgent = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (requested?: { taskType?: AgentTaskType }) => {
       if (!projectId) throw new Error("请先创建或选择一个项目");
-      if (requiresChapter && !chapterId)
+      const requestedTaskType = requested?.taskType ?? taskType;
+      const definition = taskDefinitions.find(
+        (item) => item.id === requestedTaskType,
+      );
+      const taskRequiresChapter =
+        definition?.category === "章节写作" ||
+        definition?.category === "记忆与连续性";
+      if (taskRequiresChapter && !chapterId)
         throw new Error("此智能任务需要先选择一个章节");
       const session = await client.agentSessions.create({
         projectId,
         ...(chapterId ? { chapterId } : {}),
         engineKind,
-        taskType,
-        title: selectedTask?.label,
+        taskType: requestedTaskType,
+        title: definition?.label,
         ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
       });
       return client.agentSessions.run(session.id, {
-        taskType,
+        taskType: requestedTaskType,
         ...(modelId.trim() ? { model: { modelId: modelId.trim() } } : {}),
-        ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+        ...(contextualPrompt ? { prompt: contextualPrompt } : {}),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: (result, requested) => {
+      const definition = taskDefinitions.find(
+        (item) => item.id === (requested?.taskType ?? taskType),
+      );
       setActiveRunId(result.runId);
       setNotice(
-        `${selectedTask?.label ?? "智能"}任务已创建：${result.taskId.slice(0, 8)}`,
+        `${definition?.label ?? "智能"}任务已创建：${result.taskId.slice(0, 8)}`,
       );
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
@@ -10377,7 +15403,8 @@ function AgentSidePanel() {
       const estimatedInputPerEngine = Math.max(
         800,
         Math.ceil(
-          ((selectedChapter?.content.length ?? 0) + prompt.trim().length) / 1.6,
+          ((selectedChapter?.content.length ?? 0) + contextualPrompt.length) /
+            1.6,
         ) + 600,
       );
       const estimatedOutputPerEngine =
@@ -10404,7 +15431,7 @@ function AgentSidePanel() {
           ...(experimentMode === "same_model"
             ? { model: { modelId: modelId.trim() } }
             : {}),
-          ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+          ...(contextualPrompt ? { prompt: contextualPrompt } : {}),
           confirmedEstimatedCost: true,
         },
         crypto.randomUUID(),
@@ -10448,6 +15475,32 @@ function AgentSidePanel() {
         智能助手经由 DramaIP
         本地服务代理，只使用受控的只读工具；所有内容改动和付费厂商调用都必须由你确认。
       </p>
+      <div
+        className="mt-3 flex rounded-lg border border-line bg-white p-1 text-xs"
+        role="group"
+        aria-label="智能助手模式"
+      >
+        <button
+          className={`flex-1 rounded-md px-2 py-1.5 ${assistantMode === "simple" ? "bg-brand-soft font-medium text-brand" : "text-muted"}`}
+          disabled={!projectId || updateAssistantMode.isPending}
+          onClick={() => {
+            setAssistantMode("simple");
+            updateAssistantMode.mutate("simple");
+          }}
+        >
+          简洁模式
+        </button>
+        <button
+          className={`flex-1 rounded-md px-2 py-1.5 ${assistantMode === "advanced" ? "bg-brand-soft font-medium text-brand" : "text-muted"}`}
+          disabled={!projectId || updateAssistantMode.isPending}
+          onClick={() => {
+            setAssistantMode("advanced");
+            updateAssistantMode.mutate("advanced");
+          }}
+        >
+          高级模式
+        </button>
+      </div>
       <select
         className="mt-4 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
         value={projectId}
@@ -10460,6 +15513,15 @@ function AgentSidePanel() {
           </option>
         ))}
       </select>
+      {selectedShot && (
+        <p
+          className="mt-3 rounded-lg bg-brand-soft p-3 text-xs leading-5 text-brand"
+          aria-label="当前分镜上下文"
+        >
+          当前分镜：{selectedShot.title}
+          。已从导演看板带入；新建任务会附带这段镜头上下文，不需要重复选择父级资料。
+        </p>
+      )}
       <select
         className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
         value={chapterId}
@@ -10469,122 +15531,202 @@ function AgentSidePanel() {
         <option value="">项目级诊断（可选）</option>
         {chapters.map((chapter) => (
           <option key={chapter.id} value={chapter.id}>
-            {chapter.title}
+            {chapter.title}（助手上下文）
           </option>
         ))}
       </select>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        智能引擎
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={engineKind}
-          onChange={(event) =>
-            setEngineKind(event.target.value as AgentEngineKind)
-          }
-        >
-          {engines.map((engine) => (
-            <option
-              key={engine.kind}
-              value={engine.kind}
-              disabled={engine.status !== "available"}
-            >
-              {engine.name}
-              {engine.isBeta ? "（测试版）" : ""} ·{" "}
-              {engine.status === "available" ? "可用" : "不可用"}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        智能任务
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={taskType}
-          onChange={(event) => setTaskType(event.target.value as AgentTaskType)}
-        >
-          {Array.from(
-            new Set(taskDefinitions.map((item) => item.category)),
-          ).map((category) => (
-            <optgroup key={category} label={category}>
-              {taskDefinitions
-                .filter((item) => item.category === category)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        本次模型（可选）
-        <input
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          placeholder="留空时使用项目或引擎默认模型"
-          value={modelId}
-          onChange={(event) => setModelId(event.target.value)}
-        />
-      </label>
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        盲测比较方式
-        <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
-          value={experimentMode}
-          onChange={(event) =>
-            setExperimentMode(
-              event.target.value as "recommended" | "same_model",
-            )
-          }
-        >
-          <option value="recommended">各引擎推荐配置</option>
-          <option value="same_model">三个引擎使用同一模型</option>
-        </select>
-      </label>
-      {requiresChapter && !chapterId && (
-        <p className="mt-2 text-xs leading-5 text-amber-700">
-          此任务需要先选择章节。生成结果只会创建待确认预览，不会直接改写正式内容。
-        </p>
+      {assistantMode === "simple" && (
+        <section className="mt-4 space-y-3" aria-label="当前页面推荐动作">
+          <div>
+            <p className="text-sm font-medium">当前页面推荐</p>
+            <p className="mt-1 text-xs leading-5 text-muted">
+              已根据当前页面和项目输入筛选；每次任务都会保留可追溯快照，结果仅进入预览或变更包。
+            </p>
+          </div>
+          {contextActions.map((action) => {
+            const preflight = preflightFor(action);
+            const costLabel =
+              preflight.cost === "unknown"
+                ? "费用：待厂商调用预览确认"
+                : "费用：模型调用按服务商账单结算";
+            return (
+              <article
+                key={action.actionId}
+                className="rounded-xl border border-line bg-white p-3"
+              >
+                <p className="text-sm font-medium">{action.label}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {action.summary}
+                </p>
+                <p className="mt-2 text-xs text-muted">
+                  输入：
+                  {preflight.input === "ready"
+                    ? "已就绪"
+                    : preflight.input === "chapter-required"
+                      ? "需要选择章节"
+                      : "需要选择项目"}
+                  <br />
+                  能力：
+                  {preflight.capability === "ready"
+                    ? `${selectedEngine?.name ?? "智能引擎"} 可用`
+                    : preflight.capability === "unavailable"
+                      ? "所选引擎当前不可用"
+                      : "需要配置引擎或默认模型"}
+                  <br />
+                  {costLabel}
+                </p>
+                {!preflight.ready && (
+                  <div className="mt-2 text-xs leading-5 text-amber-700">
+                    {preflight.fixes.map((fix) => (
+                      <p key={fix}>{fix}</p>
+                    ))}
+                    <Link className="text-brand hover:underline" to="/settings">
+                      前往设置修复
+                    </Link>
+                  </div>
+                )}
+                <button
+                  className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
+                  disabled={runAgent.isPending || !preflight.ready}
+                  onClick={() => runAgent.mutate({ taskType: action.id })}
+                >
+                  {runAgent.isPending
+                    ? "正在创建任务…"
+                    : `生成${action.label}预览`}
+                </button>
+              </article>
+            );
+          })}
+          {!contextActions.length && !missingTaskTypes.length && (
+            <p className="rounded-lg border border-line bg-white p-3 text-xs text-muted">
+              正在读取受控任务目录…
+            </p>
+          )}
+          {!!missingTaskTypes.length && (
+            <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+              当前安装的任务目录缺少推荐动作，请更新本地服务后重试。
+            </p>
+          )}
+        </section>
       )}
-      <label className="mt-3 grid gap-1 text-sm text-muted">
-        任务要求（可选）
-        <textarea
-          className="min-h-24 rounded-lg border border-line bg-white p-3 text-sm text-ink"
-          placeholder={
-            selectedTask?.writePolicy === "change-preview"
-              ? "例如：保持原有悬疑节奏，强化主角动机，并保留结尾钩子。"
-              : "例如：检查人物动机是否连贯，并给出可执行建议。"
-          }
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-        />
-      </label>
-      <button
-        className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
-        disabled={
-          runAgent.isPending ||
-          !projectId ||
-          (requiresChapter && !chapterId) ||
-          engines.find((engine) => engine.kind === engineKind)?.status !==
-            "available"
-        }
-        onClick={() => runAgent.mutate()}
-      >
-        {runAgent.isPending
-          ? "正在创建任务…"
-          : `执行${selectedTask?.label ?? "智能任务"}`}
-      </button>
-      <button
-        className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
-        disabled={
-          createExperiment.isPending ||
-          !projectId ||
-          (requiresChapter && !chapterId)
-        }
-        onClick={() => createExperiment.mutate()}
-      >
-        {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
-      </button>
+      {assistantMode === "advanced" && (
+        <>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            智能引擎
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={engineKind}
+              onChange={(event) =>
+                setEngineKind(event.target.value as AgentEngineKind)
+              }
+            >
+              {engines.map((engine) => (
+                <option
+                  key={engine.kind}
+                  value={engine.kind}
+                  disabled={engine.status !== "available"}
+                >
+                  {engine.name}
+                  {engine.isBeta ? "（测试版）" : ""} ·{" "}
+                  {engine.status === "available" ? "可用" : "不可用"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            智能任务
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={taskType}
+              onChange={(event) =>
+                setTaskType(event.target.value as AgentTaskType)
+              }
+            >
+              {Array.from(
+                new Set(taskDefinitions.map((item) => item.category)),
+              ).map((category) => (
+                <optgroup key={category} label={category}>
+                  {taskDefinitions
+                    .filter((item) => item.category === category)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            本次模型（可选）
+            <input
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              placeholder="留空时使用项目或引擎默认模型"
+              value={modelId}
+              onChange={(event) => setModelId(event.target.value)}
+            />
+          </label>
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            盲测比较方式
+            <select
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+              value={experimentMode}
+              onChange={(event) =>
+                setExperimentMode(
+                  event.target.value as "recommended" | "same_model",
+                )
+              }
+            >
+              <option value="recommended">各引擎推荐配置</option>
+              <option value="same_model">三个引擎使用同一模型</option>
+            </select>
+          </label>
+          {requiresChapter && !chapterId && (
+            <p className="mt-2 text-xs leading-5 text-amber-700">
+              此任务需要先选择章节。生成结果只会创建待确认预览，不会直接改写正式内容。
+            </p>
+          )}
+          <label className="mt-3 grid gap-1 text-sm text-muted">
+            任务要求（可选）
+            <textarea
+              className="min-h-24 rounded-lg border border-line bg-white p-3 text-sm text-ink"
+              placeholder={
+                selectedTask?.writePolicy === "change-preview"
+                  ? "例如：保持原有悬疑节奏，强化主角动机，并保留结尾钩子。"
+                  : "例如：检查人物动机是否连贯，并给出可执行建议。"
+              }
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+            />
+          </label>
+          <button
+            className="mt-3 w-full rounded-lg border border-brand bg-white px-3 py-2 text-sm font-medium text-brand disabled:opacity-50"
+            disabled={
+              runAgent.isPending ||
+              !projectId ||
+              (requiresChapter && !chapterId) ||
+              engines.find((engine) => engine.kind === engineKind)?.status !==
+                "available"
+            }
+            onClick={() => runAgent.mutate({})}
+          >
+            {runAgent.isPending
+              ? "正在创建任务…"
+              : `执行${selectedTask?.label ?? "智能任务"}`}
+          </button>
+          <button
+            className="mt-2 w-full rounded-lg border border-line px-3 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={
+              createExperiment.isPending ||
+              !projectId ||
+              (requiresChapter && !chapterId)
+            }
+            onClick={() => createExperiment.mutate()}
+          >
+            {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
+          </button>
+        </>
+      )}
       {activeRun && (
         <section className="mt-4 rounded-xl border border-line bg-white p-3">
           <div className="flex items-center justify-between gap-2">

@@ -40,6 +40,16 @@ import {
   Project,
   ProjectInput,
   ProjectPatch,
+  Series,
+  SeriesInput,
+  ProjectSeriesInput,
+  SeriesLibrary,
+  SeriesStoryBible,
+  SeriesStoryBibleInput,
+  SeriesStoryBibleOverrideInput,
+  SeriesStoryBibleUpgradeInput,
+  SeriesAssetLink,
+  SeriesAssetTransferInput,
   RevisionInput,
   RevisionPreview,
   Task,
@@ -48,6 +58,9 @@ import {
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
+  AssetCenter,
+  AssetCenterActionInput,
+  AssetCenterPreviewMedia,
   GlobalSearchResponse,
   BackupRecord,
   ExportDocument,
@@ -55,6 +68,12 @@ import {
   SourceImportPreviewResponse,
   SourceImportCommitInput,
   SourceImportCommitResult,
+  ImportExtractionChangeSet,
+  ImportExtractionCandidatePatch,
+  ImportExtractionAdoptInput,
+  PilotPlan,
+  PilotPlanCreateInput,
+  PilotPlanActionInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackPreviewInput,
@@ -76,6 +95,7 @@ import {
   ProviderConnectionResult,
   AgentProviderActivationResult,
   StoryBibleChangeSet,
+  StoryBibleChangeSetApplyInput,
   StoryBibleChangeSetInput,
   StoryBibleSettings,
   StoryBibleStaleMark,
@@ -99,14 +119,31 @@ import {
   PlatformDeliveryPreflightInput,
   PlatformDeliveryArchive,
   EditorTimelineManifest,
+  TimelineManifest,
+  TimelineCommandInput,
+  TimelineHistoryAvailability,
+  TimelineMediaPreview,
+  TimelineDeliveryManifest,
+  TimelineDeliveryExportFormat,
+  AudioAssemblyPreview,
+  AudioAssemblyApplyInput,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
   ReviewCommentInput,
   ReviewDecision,
   ReviewDecisionInput,
+  ReviewRevisionPreviewInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
+  CloudReviewConnection,
+  CloudReviewConnectionInput,
+  CloudReviewPublishInput,
+  CloudReviewPublishPreview,
+  CloudReviewPublishResult,
+  CloudReviewSyncResult,
+  CloudReviewBinding,
+  CloudReviewDeleteResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -124,6 +161,9 @@ import {
   TtsGenerationInput,
   TtsGenerationRun,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflightInput,
+  VideoGenerationBatchPreflight,
   VideoGenerationJob,
   VideoGenerationRetryInput,
   CreativeCaseStudy,
@@ -195,6 +235,92 @@ const ProjectGroup = HttpApiGroup.make("projects")
       success: Empty,
       error: ApiError,
     }),
+  );
+
+const SeriesGroup = HttpApiGroup.make("series")
+  .add(
+    HttpApiEndpoint.get("list", `${API_PREFIX}/series`, {
+      success: Schema.Array(Series),
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("create", `${API_PREFIX}/series`, {
+      payload: SeriesInput,
+      success: Series,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "library",
+      `${API_PREFIX}/projects/:id/series-library`,
+      {
+        params: { id: Schema.String },
+        success: SeriesLibrary,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "setProjectSeries",
+      `${API_PREFIX}/projects/:id/series`,
+      {
+        params: { id: Schema.String },
+        payload: ProjectSeriesInput,
+        success: Project,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "createStoryBible",
+      `${API_PREFIX}/series/:id/story-bible`,
+      {
+        params: { id: Schema.String },
+        payload: SeriesStoryBibleInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "overrideStoryBible",
+      `${API_PREFIX}/projects/:projectId/series-story-bible/:id/override`,
+      {
+        params: { projectId: Schema.String, id: Schema.String },
+        payload: SeriesStoryBibleOverrideInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "upgradeStoryBible",
+      `${API_PREFIX}/projects/:projectId/series-story-bible/:id/upgrade`,
+      {
+        params: { projectId: Schema.String, id: Schema.String },
+        payload: SeriesStoryBibleUpgradeInput,
+        success: SeriesStoryBible,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "transferAsset",
+      `${API_PREFIX}/projects/:id/series-assets`,
+      {
+        params: { id: Schema.String },
+        payload: SeriesAssetTransferInput,
+        success: SeriesAssetLink,
+        error: ApiError,
+      },
+    ),
   );
 
 const ChapterGroup = HttpApiGroup.make("chapters")
@@ -709,6 +835,7 @@ const StoryBibleGroup = HttpApiGroup.make("story-bible")
       `${API_PREFIX}/story-bible/change-sets/:id/apply`,
       {
         params: { id: Schema.String },
+        payload: StoryBibleChangeSetApplyInput,
         success: StoryBibleChangeSet,
         error: ApiError,
       },
@@ -900,6 +1027,96 @@ const PlatformDeliveryGroup = HttpApiGroup.make("platform-delivery")
     ),
   );
 
+const TimelineGroup = HttpApiGroup.make("timeline")
+  .add(
+    HttpApiEndpoint.get("get", `${API_PREFIX}/episodes/:id/timeline`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("command", `${API_PREFIX}/timelines/:id/commands`, {
+      params: { id: Schema.String },
+      payload: TimelineCommandInput,
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("undo", `${API_PREFIX}/timelines/:id/undo`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("redo", `${API_PREFIX}/timelines/:id/redo`, {
+      params: { id: Schema.String },
+      success: TimelineManifest,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("history", `${API_PREFIX}/timelines/:id/history`, {
+      params: { id: Schema.String },
+      success: TimelineHistoryAvailability,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("preview", `${API_PREFIX}/timeline-media/:id/preview`, {
+      params: { id: Schema.String },
+      success: TimelineMediaPreview,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "deliveryManifest",
+      `${API_PREFIX}/episodes/:id/timeline-delivery/manifest`,
+      {
+        params: { id: Schema.String },
+        success: TimelineDeliveryManifest,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "exportDelivery",
+      `${API_PREFIX}/episodes/:id/timeline-delivery/export/:format`,
+      {
+        params: { id: Schema.String, format: TimelineDeliveryExportFormat },
+        success: ExportDocument,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "audioAssemblyPreview",
+      `${API_PREFIX}/episodes/:id/audio-assembly/preview`,
+      {
+        params: { id: Schema.String },
+        success: AudioAssemblyPreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "applyAudioAssembly",
+      `${API_PREFIX}/episodes/:id/audio-assembly/apply`,
+      {
+        params: { id: Schema.String },
+        payload: AudioAssemblyApplyInput,
+        success: TimelineManifest,
+        error: ApiError,
+      },
+    ),
+  );
+
 const ReviewEditorGroup = HttpApiGroup.make("review-editor")
   .add(
     HttpApiEndpoint.get(
@@ -1035,12 +1252,100 @@ const ReviewEditorGroup = HttpApiGroup.make("review-editor")
   )
   .add(
     HttpApiEndpoint.post(
+      "createRevisionPreview",
+      `${API_PREFIX}/review-packages/:id/revision-preview`,
+      {
+        params: { id: Schema.String },
+        payload: ReviewRevisionPreviewInput,
+        success: ChangePreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
       "importOffline",
       `${API_PREFIX}/review-packages/:id/import-offline`,
       {
         params: { id: Schema.String },
         payload: OfflineReviewImportInput,
         success: OfflineReviewImportResult,
+        error: ApiError,
+      },
+    ),
+  );
+
+const CloudReviewGroup = HttpApiGroup.make("cloud-review")
+  .add(
+    HttpApiEndpoint.get("connection", `${API_PREFIX}/cloud-review/connection`, {
+      success: CloudReviewConnection,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.put(
+      "saveConnection",
+      `${API_PREFIX}/cloud-review/connection`,
+      {
+        payload: CloudReviewConnectionInput,
+        success: CloudReviewConnection,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "preview",
+      `${API_PREFIX}/review-packages/:id/cloud-preview`,
+      {
+        params: { id: Schema.String },
+        payload: CloudReviewPublishInput,
+        success: CloudReviewPublishPreview,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "publish",
+      `${API_PREFIX}/review-packages/:id/cloud-publish`,
+      {
+        params: { id: Schema.String },
+        payload: CloudReviewPublishInput,
+        success: CloudReviewPublishResult,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "sync",
+      `${API_PREFIX}/review-packages/:id/cloud-sync`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewSyncResult,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "binding",
+      `${API_PREFIX}/review-packages/:id/cloud-review`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewBinding,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.delete(
+      "delete",
+      `${API_PREFIX}/review-packages/:id/cloud-review`,
+      {
+        params: { id: Schema.String },
+        success: CloudReviewDeleteResult,
         error: ApiError,
       },
     ),
@@ -1134,6 +1439,78 @@ const SourceImportGroup = HttpApiGroup.make("source-imports")
     HttpApiEndpoint.delete("discard", `${API_PREFIX}/source-imports/:id`, {
       params: { id: Schema.String },
       success: Empty,
+      error: ApiError,
+    }),
+  );
+
+const ImportExtractionGroup = HttpApiGroup.make("import-extractions")
+  .add(
+    HttpApiEndpoint.get(
+      "list",
+      `${API_PREFIX}/projects/:id/import-extractions/change-sets`,
+      {
+        params: { id: Schema.String },
+        success: Schema.Array(ImportExtractionChangeSet),
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.patch(
+      "updateCandidate",
+      `${API_PREFIX}/import-extractions/change-sets/:id/candidates/:candidateId`,
+      {
+        params: { id: Schema.String, candidateId: Schema.String },
+        payload: ImportExtractionCandidatePatch,
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "adopt",
+      `${API_PREFIX}/import-extractions/change-sets/:id/adopt`,
+      {
+        params: { id: Schema.String },
+        payload: ImportExtractionAdoptInput,
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "undo",
+      `${API_PREFIX}/import-extractions/change-sets/:id/undo`,
+      {
+        params: { id: Schema.String },
+        success: ImportExtractionChangeSet,
+        error: ApiError,
+      },
+    ),
+  );
+
+const PilotPlanGroup = HttpApiGroup.make("pilot-plans")
+  .add(
+    HttpApiEndpoint.get("list", `${API_PREFIX}/projects/:id/pilot-plans`, {
+      params: { id: Schema.String },
+      success: Schema.Array(PilotPlan),
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("create", `${API_PREFIX}/pilot-plans`, {
+      payload: PilotPlanCreateInput,
+      success: PilotPlan,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("action", `${API_PREFIX}/pilot-plans/:id/action`, {
+      params: { id: Schema.String },
+      payload: PilotPlanActionInput,
+      success: PilotPlan,
       error: ApiError,
     }),
   );
@@ -1279,6 +1656,30 @@ const TtsGenerationGroup = HttpApiGroup.make("tts-generation").add(
 );
 
 const VideoGenerationGroup = HttpApiGroup.make("video-generation")
+  .add(
+    HttpApiEndpoint.post(
+      "batchPreflight",
+      `${API_PREFIX}/projects/:id/video-generation/batch-preflight`,
+      {
+        params: { id: Schema.String },
+        payload: VideoGenerationBatchPreflightInput,
+        success: VideoGenerationBatchPreflight,
+        error: ApiError,
+      },
+    ),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "preflight",
+      `${API_PREFIX}/shots/:id/video-generation/preflight`,
+      {
+        params: { id: Schema.String },
+        payload: VideoGenerationInput,
+        success: VideoGenerationPreflight,
+        error: ApiError,
+      },
+    ),
+  )
   .add(
     HttpApiEndpoint.post("create", `${API_PREFIX}/video-generation/runs`, {
       payload: VideoGenerationInput,
@@ -1429,6 +1830,30 @@ const VisualGroup = HttpApiGroup.make("visuals")
     HttpApiEndpoint.post("adoptVideo", `${API_PREFIX}/videos/:id/adopt`, {
       params: { id: Schema.String },
       success: DomainEntity,
+      error: ApiError,
+    }),
+  );
+
+const AssetCenterGroup = HttpApiGroup.make("asset-center")
+  .add(
+    HttpApiEndpoint.get("get", `${API_PREFIX}/projects/:id/asset-center`, {
+      params: { id: Schema.String },
+      success: AssetCenter,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.get("preview", `${API_PREFIX}/asset-center/:id/preview`, {
+      params: { id: Schema.String },
+      success: AssetCenterPreviewMedia,
+      error: ApiError,
+    }),
+  )
+  .add(
+    HttpApiEndpoint.post("action", `${API_PREFIX}/asset-center/:id/action`, {
+      params: { id: Schema.String },
+      payload: AssetCenterActionInput,
+      success: AssetCenter,
       error: ApiError,
     }),
   );
@@ -1795,6 +2220,7 @@ const ResourceGroup = HttpApiGroup.make("resources")
 
 export const StudioApi = HttpApi.make("dramaip")
   .add(ProjectGroup)
+  .add(SeriesGroup)
   .add(ChapterGroup)
   .add(NovelWorkspaceGroup)
   .add(TaskGroup)
@@ -1811,13 +2237,17 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(LocalizationGroup)
   .add(DeliveryGroup)
   .add(PlatformDeliveryGroup)
+  .add(TimelineGroup)
   .add(ReviewEditorGroup)
+  .add(CloudReviewGroup)
   .add(ComplianceGroup)
   .add(AnalysisGroup)
   .add(SearchGroup)
   .add(BackupGroup)
   .add(ExportGroup)
   .add(SourceImportGroup)
+  .add(ImportExtractionGroup)
+  .add(PilotPlanGroup)
   .add(WorkflowGroup)
   .add(EpisodeMediaGroup)
   .add(ImageGenerationGroup)
@@ -1826,6 +2256,7 @@ export const StudioApi = HttpApi.make("dramaip")
   .add(FeedbackGroup)
   .add(DesktopSupportGroup)
   .add(VisualGroup)
+  .add(AssetCenterGroup)
   .add(ProductionGroup)
   .add(GenerationGroup)
   .add(ContentVersionGroup)

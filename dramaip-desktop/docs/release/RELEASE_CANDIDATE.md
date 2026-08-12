@@ -11,6 +11,12 @@
 - Free/Creator/Studio/Enterprise 权益快照、团队席位和旧订阅续期迁移。
 - 官网、定价、信任、下载、团队、案例与匿名审片页面。
 
+## P2 机器验收边界
+
+`LM6-25` 使用 `full-electron-journey`、`timeline-reference-parser`、`local-project-package-and-migration`、`series-link-and-fork` 和 `two-identity-cloud-review-fake-gateway` 作为可复跑证据：本地样片可进入多轨时间线与离线审片，FCPXML / OTIO / EDL 由固定 reference parser 校验，系列 Link / Fork、项目包与两身份审片反馈由本地契约验证。
+
+这些结果不构成外部发布声明：`no-real-nle-import-claim`、`no-mp4-without-timeline-render-provider`、`cloud-review-is-optional-and-local-first` 与 `docker-compose-e2e-is-enhanced-evidence` 均适用。没有受管环境的真实导入、真实渲染、生产对象存储与签名安装包证据时，版本仍只能是 RC。
+
 ## 当前 GA 阻断项
 
 `pnpm release:gate` 是唯一 GA 判定入口。它要求正式 HTTPS 更新源、生产支付和对象存储配置、macOS/Windows 签名凭据，并逐项验证以下与当前 commit 绑定、已脱敏的受管证据：

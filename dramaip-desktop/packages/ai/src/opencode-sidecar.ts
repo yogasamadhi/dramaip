@@ -27,6 +27,19 @@ type ParentPort = {
 };
 type Listener = { stop(close?: boolean): void | Promise<void> };
 
+const SANDBOXED_PERMISSION_POLICY = {
+  bash: "deny",
+  edit: "deny",
+  read: "deny",
+  glob: "deny",
+  grep: "deny",
+  list: "deny",
+  external_directory: "deny",
+  webfetch: "deny",
+  websearch: "deny",
+  task: "deny",
+} as const;
+
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
   .parentPort;
 if (!parentPort)
@@ -61,7 +74,7 @@ async function start(command: StartCommand): Promise<void> {
     await mkdir(command.workspacePath, { recursive: true });
     process.chdir(command.workspacePath);
     process.env.OPENCODE_CONFIG_CONTENT = JSON.stringify(
-      createSandboxedOpenCodeConfig(command.mcp, command.agentProvider),
+      sandboxedConfig(command.mcp, command.agentProvider),
     );
     const mod = (await import(command.serverModule)) as {
       Server?: {
@@ -89,6 +102,21 @@ async function start(command: StartCommand): Promise<void> {
       reason: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+function sandboxedConfig(
+  mcp: StartCommand["mcp"],
+  agentProvider: OpenCodeRuntimeProvider | undefined,
+): Record<string, unknown> {
+  const config = createSandboxedOpenCodeConfig(mcp, agentProvider);
+  const permissions = config.permission as Record<string, unknown> | undefined;
+  for (const [capability, expected] of Object.entries(
+    SANDBOXED_PERMISSION_POLICY,
+  )) {
+    if (permissions?.[capability] !== expected)
+      throw new Error(`OpenCode 权限策略无效：${capability}`);
+  }
+  return config;
 }
 
 async function stop(): Promise<void> {

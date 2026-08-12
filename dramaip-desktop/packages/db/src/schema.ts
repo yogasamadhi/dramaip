@@ -115,6 +115,7 @@ export const projectAgentSettings = sqliteTable("project_agent_settings", {
     .references(() => projects.id, { onDelete: "cascade" }),
   defaultEngineKind: text("default_engine_kind").notNull().default("opencode"),
   defaultModelJson: text("default_model_json"),
+  assistantMode: text("assistant_mode").notNull().default("simple"),
   updatedAt: text("updated_at").notNull(),
 });
 
@@ -375,6 +376,7 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
       project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
       default_engine_kind TEXT NOT NULL DEFAULT 'opencode',
       default_model_json TEXT,
+      assistant_mode TEXT NOT NULL DEFAULT 'simple',
       updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS agent_sessions (
@@ -518,7 +520,6 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
       created_at TEXT NOT NULL
     );
   `);
-
   // 早期 HTTP 架构已经创建过 agent_sessions，但当时还没有任务目录、
   // 会话标题和模型快照。CREATE TABLE IF NOT EXISTS 不会补列，因此旧的新架构
   // 数据库会在引擎成功创建会话后，因本地 INSERT 缺列而失败。这里采用仅追加列的
@@ -526,6 +527,15 @@ export function initializeV3AgentSchema(sqlite: SqliteSchemaDatabase): void {
   addColumnIfMissing(sqlite, "agent_sessions", "task_type", "TEXT");
   addColumnIfMissing(sqlite, "agent_sessions", "title", "TEXT");
   addColumnIfMissing(sqlite, "agent_sessions", "model_json", "TEXT");
+  // v3 databases predate the presentation preference. SQLite lacks an
+  // idempotent ADD COLUMN form, so an existing column is the only expected
+  // failure on repeated startup.
+  addColumnIfMissing(
+    sqlite,
+    "project_agent_settings",
+    "assistant_mode",
+    "TEXT NOT NULL DEFAULT 'simple'",
+  );
 }
 
 function addColumnIfMissing(

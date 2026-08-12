@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "13d59fbbaf1eb09d9dffbe9abcdf38cd7ee9447702058072ee2a3d6662b356d8";
+  "49ba71b1d4a0247f39c7e102109520679325387ad6593cefcdd05773eda12bce";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
@@ -36,6 +36,9 @@ import type {
   DomainEntity,
   DomainEntityInput,
   DomainEntityPatch,
+  AssetCenter,
+  AssetCenterActionInput,
+  AssetCenterPreviewMedia,
   EventEnvelope,
   ExportDocument,
   GlobalSearchResponse,
@@ -44,6 +47,16 @@ import type {
   Project,
   ProjectInput,
   ProjectPatch,
+  Series,
+  SeriesInput,
+  ProjectSeriesInput,
+  SeriesLibrary,
+  SeriesStoryBible,
+  SeriesStoryBibleInput,
+  SeriesStoryBibleOverrideInput,
+  SeriesStoryBibleUpgradeInput,
+  SeriesAssetLink,
+  SeriesAssetTransferInput,
   ProjectAgentSettings,
   ProjectAgentSettingsInput,
   ProviderActionPreview,
@@ -53,6 +66,12 @@ import type {
   SourceImportCommitResult,
   SourceImportPreviewInput,
   SourceImportPreviewResponse,
+  ImportExtractionAdoptInput,
+  ImportExtractionCandidatePatch,
+  ImportExtractionChangeSet,
+  PilotPlan,
+  PilotPlanCreateInput,
+  PilotPlanActionInput,
   EpisodeWorkflowInput,
   EpisodeWorkflowResult,
   FeedbackBatch,
@@ -74,6 +93,7 @@ import type {
   ProviderConnectionResult,
   AgentProviderActivationResult,
   StoryBibleChangeSet,
+  StoryBibleChangeSetApplyInput,
   StoryBibleChangeSetInput,
   StoryBibleChangeSetStatus,
   StoryBibleSettings,
@@ -98,14 +118,31 @@ import type {
   PlatformDeliveryPreflightInput,
   PlatformDeliveryArchive,
   EditorTimelineManifest,
+  TimelineManifest,
+  TimelineCommandInput,
+  TimelineHistoryAvailability,
+  TimelineMediaPreview,
+  TimelineDeliveryManifest,
+  TimelineDeliveryExportFormat,
+  AudioAssemblyPreview,
+  AudioAssemblyApplyInput,
   EditorExportPreflight,
   ReviewPackage,
   ReviewComment,
   ReviewCommentInput,
   ReviewDecision,
   ReviewDecisionInput,
+  ReviewRevisionPreviewInput,
   OfflineReviewImportInput,
   OfflineReviewImportResult,
+  CloudReviewConnection,
+  CloudReviewConnectionInput,
+  CloudReviewPublishInput,
+  CloudReviewPublishPreview,
+  CloudReviewPublishResult,
+  CloudReviewSyncResult,
+  CloudReviewBinding,
+  CloudReviewDeleteResult,
   ComplianceRuleProfile,
   CompliancePreflightInput,
   EpisodeCompliancePreflight,
@@ -123,6 +160,9 @@ import type {
   TtsGenerationInput,
   TtsGenerationRun,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflightInput,
+  VideoGenerationBatchPreflight,
   VideoGenerationJob,
   VideoGenerationRetryInput,
   CreativeCaseStudy,
@@ -165,6 +205,33 @@ export interface StudioClient {
     trash(id: string): Promise<Project>;
     restore(id: string): Promise<Project>;
     purge(id: string, confirmationTitle: string): Promise<void>;
+  };
+  series: {
+    list(): Promise<Series[]>;
+    create(input: SeriesInput): Promise<Series>;
+    library(projectId: string): Promise<SeriesLibrary>;
+    setProjectSeries(
+      projectId: string,
+      input: ProjectSeriesInput,
+    ): Promise<Project>;
+    createStoryBible(
+      seriesId: string,
+      input: SeriesStoryBibleInput,
+    ): Promise<SeriesStoryBible>;
+    overrideStoryBible(
+      projectId: string,
+      storyBibleId: string,
+      input: SeriesStoryBibleOverrideInput,
+    ): Promise<SeriesStoryBible>;
+    upgradeStoryBible(
+      projectId: string,
+      storyBibleId: string,
+      input: SeriesStoryBibleUpgradeInput,
+    ): Promise<SeriesStoryBible>;
+    transferAsset(
+      projectId: string,
+      input: SeriesAssetTransferInput,
+    ): Promise<SeriesAssetLink>;
   };
   chapters: {
     list(projectId: string): Promise<Chapter[]>;
@@ -278,7 +345,10 @@ export interface StudioClient {
     list(projectId: string): Promise<StoryBibleChangeSet[]>;
     stale(projectId: string): Promise<StoryBibleStaleMark[]>;
     queue(input: StoryBibleChangeSetInput): Promise<StoryBibleChangeSet>;
-    apply(id: string): Promise<StoryBibleChangeSet>;
+    apply(
+      id: string,
+      input: StoryBibleChangeSetApplyInput,
+    ): Promise<StoryBibleChangeSet>;
     undo(id: string): Promise<StoryBibleChangeSet>;
     setStatus(
       id: string,
@@ -287,6 +357,24 @@ export interface StudioClient {
         "queued" | "paused" | "skipped" | "discarded"
       >,
     ): Promise<StoryBibleChangeSet>;
+  };
+  importExtractions: {
+    list(projectId: string): Promise<ImportExtractionChangeSet[]>;
+    updateCandidate(
+      id: string,
+      candidateId: string,
+      input: ImportExtractionCandidatePatch,
+    ): Promise<ImportExtractionChangeSet>;
+    adopt(
+      id: string,
+      input?: ImportExtractionAdoptInput,
+    ): Promise<ImportExtractionChangeSet>;
+    undo(id: string): Promise<ImportExtractionChangeSet>;
+  };
+  pilotPlans: {
+    list(projectId: string): Promise<PilotPlan[]>;
+    create(input: PilotPlanCreateInput): Promise<PilotPlan>;
+    action(id: string, input: PilotPlanActionInput): Promise<PilotPlan>;
   };
   projectPackages: {
     preview(input: ProjectPackagePreviewInput): Promise<ProjectPackagePreview>;
@@ -320,6 +408,24 @@ export interface StudioClient {
     ): Promise<PlatformDeliveryArchive>;
     exportArchive(id: string): Promise<ExportDocument>;
   };
+  timeline: {
+    get(episodeId: string): Promise<TimelineManifest>;
+    command(id: string, input: TimelineCommandInput): Promise<TimelineManifest>;
+    undo(id: string): Promise<TimelineManifest>;
+    redo(id: string): Promise<TimelineManifest>;
+    history(id: string): Promise<TimelineHistoryAvailability>;
+    preview(id: string): Promise<TimelineMediaPreview>;
+    deliveryManifest(episodeId: string): Promise<TimelineDeliveryManifest>;
+    exportDelivery(
+      episodeId: string,
+      format: TimelineDeliveryExportFormat,
+    ): Promise<ExportDocument>;
+    audioAssemblyPreview(episodeId: string): Promise<AudioAssemblyPreview>;
+    applyAudioAssembly(
+      episodeId: string,
+      input: AudioAssemblyApplyInput,
+    ): Promise<TimelineManifest>;
+  };
   reviewEditor: {
     timeline(episodeId: string): Promise<EditorTimelineManifest>;
     preflight(episodeId: string): Promise<EditorExportPreflight>;
@@ -341,10 +447,31 @@ export interface StudioClient {
       packageId: string,
       input: ReviewDecisionInput,
     ): Promise<ReviewDecision>;
+    createRevisionPreview(
+      packageId: string,
+      input: ReviewRevisionPreviewInput,
+    ): Promise<ChangePreview>;
     importOffline(
       packageId: string,
       input: OfflineReviewImportInput,
     ): Promise<OfflineReviewImportResult>;
+  };
+  cloudReview: {
+    connection(): Promise<CloudReviewConnection>;
+    saveConnection(
+      input: CloudReviewConnectionInput,
+    ): Promise<CloudReviewConnection>;
+    preview(
+      packageId: string,
+      input: CloudReviewPublishInput,
+    ): Promise<CloudReviewPublishPreview>;
+    publish(
+      packageId: string,
+      input: CloudReviewPublishInput,
+    ): Promise<CloudReviewPublishResult>;
+    sync(packageId: string): Promise<CloudReviewSyncResult>;
+    binding(packageId: string): Promise<CloudReviewBinding>;
+    delete(packageId: string): Promise<CloudReviewDeleteResult>;
   };
   compliance: {
     listProfiles(): Promise<ComplianceRuleProfile[]>;
@@ -383,6 +510,14 @@ export interface StudioClient {
     ): Promise<TtsGenerationRun>;
   };
   videoGeneration: {
+    batchPreflight(
+      projectId: string,
+      input: VideoGenerationBatchPreflightInput,
+    ): Promise<VideoGenerationBatchPreflight>;
+    preflight(
+      shotId: string,
+      input: VideoGenerationInput,
+    ): Promise<VideoGenerationPreflight>;
     create(
       input: VideoGenerationInput,
       idempotencyKey: string,
@@ -453,6 +588,11 @@ export interface StudioClient {
     adoptVisualAsset(id: string): Promise<DomainEntity>;
     lockVisualAsset(id: string): Promise<DomainEntity>;
     adoptVideo(id: string): Promise<DomainEntity>;
+  };
+  assetCenter: {
+    get(projectId: string): Promise<AssetCenter>;
+    preview(id: string): Promise<AssetCenterPreviewMedia>;
+    action(id: string, input: AssetCenterActionInput): Promise<AssetCenter>;
   };
   production: {
     graph(projectId: string): Promise<ProductionGraph>;
@@ -646,6 +786,46 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "DELETE",
           body: JSON.stringify({ confirmationTitle }),
         }),
+    },
+    series: {
+      list: () => request("/api/v1/series"),
+      create: (input) =>
+        request("/api/v1/series", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      library: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-library`,
+        ),
+      setProjectSeries: (projectId, input) =>
+        request(`/api/v1/projects/${encodeURIComponent(projectId)}/series`, {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      createStoryBible: (seriesId, input) =>
+        request(`/api/v1/series/${encodeURIComponent(seriesId)}/story-bible`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      overrideStoryBible: (projectId, storyBibleId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/override`,
+          { method: "PUT", body: JSON.stringify(input) },
+        ),
+      upgradeStoryBible: (projectId, storyBibleId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/upgrade`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+      transferAsset: (projectId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/series-assets`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
     },
     chapters: {
       list: (projectId) => request(`/api/v1/projects/${projectId}/chapters`),
@@ -885,11 +1065,12 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           method: "POST",
           body: JSON.stringify(input),
         }),
-      apply: (id) =>
+      apply: (id, input) =>
         request(
           `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/apply`,
           {
             method: "POST",
+            body: JSON.stringify(input),
           },
         ),
       undo: (id) =>
@@ -907,6 +1088,49 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
             body: JSON.stringify({ status }),
           },
         ),
+    },
+    importExtractions: {
+      list: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/import-extractions/change-sets`,
+        ),
+      updateCandidate: (id, candidateId, input) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify(input),
+          },
+        ),
+      adopt: (id, input = {}) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/adopt`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      undo: (id) =>
+        request(
+          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
+          { method: "POST" },
+        ),
+    },
+    pilotPlans: {
+      list: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/pilot-plans`,
+        ),
+      create: (input) =>
+        request("/api/v1/pilot-plans", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      action: (id, input) =>
+        request(`/api/v1/pilot-plans/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
     },
     projectPackages: {
       preview: (input) =>
@@ -970,6 +1194,44 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       exportArchive: (id) =>
         request(`/api/v1/platform-deliveries/${encodeURIComponent(id)}/export`),
     },
+    timeline: {
+      get: (episodeId) =>
+        request(`/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline`),
+      command: (id, input) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/commands`, {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      undo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/undo`, {
+          method: "POST",
+        }),
+      redo: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/redo`, {
+          method: "POST",
+        }),
+      history: (id) =>
+        request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
+      preview: (id) =>
+        request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
+      deliveryManifest: (episodeId) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/manifest`,
+        ),
+      exportDelivery: (episodeId, format) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/export/${encodeURIComponent(format)}`,
+        ),
+      audioAssemblyPreview: (episodeId) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,
+        ),
+      applyAudioAssembly: (episodeId, input) =>
+        request(
+          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/apply`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+    },
     reviewEditor: {
       timeline: (episodeId) =>
         request(
@@ -1017,10 +1279,47 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/decisions`,
           { method: "POST", body: JSON.stringify(input) },
         ),
+      createRevisionPreview: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/revision-preview`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
       importOffline: (packageId, input) =>
         request(
           `/api/v1/review-packages/${encodeURIComponent(packageId)}/import-offline`,
           { method: "POST", body: JSON.stringify(input) },
+        ),
+    },
+    cloudReview: {
+      connection: () => request("/api/v1/cloud-review/connection"),
+      saveConnection: (input) =>
+        request("/api/v1/cloud-review/connection", {
+          method: "PUT",
+          body: JSON.stringify(input),
+        }),
+      preview: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-preview`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+      publish: (packageId, input) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-publish`,
+          { method: "POST", body: JSON.stringify(input) },
+        ),
+      sync: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-sync`,
+          { method: "POST" },
+        ),
+      binding: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+        ),
+      delete: (packageId) =>
+        request(
+          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+          { method: "DELETE" },
         ),
     },
     compliance: {
@@ -1103,6 +1402,22 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         }),
     },
     videoGeneration: {
+      batchPreflight: (projectId, input) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/video-generation/batch-preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
+      preflight: (shotId, input) =>
+        request(
+          `/api/v1/shots/${encodeURIComponent(shotId)}/video-generation/preflight`,
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+          },
+        ),
       create: (input, idempotencyKey) =>
         request("/api/v1/video-generation/runs", {
           method: "POST",
@@ -1227,6 +1542,19 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       adoptVideo: (id) =>
         request(`/api/v1/videos/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
+        }),
+    },
+    assetCenter: {
+      get: (projectId) =>
+        request(
+          `/api/v1/projects/${encodeURIComponent(projectId)}/asset-center`,
+        ),
+      preview: (id) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/preview`),
+      action: (id, input) =>
+        request(`/api/v1/asset-center/${encodeURIComponent(id)}/action`, {
+          method: "POST",
+          body: JSON.stringify(input),
         }),
     },
     production: {

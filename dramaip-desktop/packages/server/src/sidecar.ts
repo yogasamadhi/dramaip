@@ -16,6 +16,7 @@ import {
 } from "node:fs";
 import { basename, dirname, extname, join, posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { createCloudReviewGateway } from "./cloud-review";
 import {
   initializeOperationalSchema,
   initializeV3AgentSchema,
@@ -42,7 +43,16 @@ import type {
   SourceImportPreview,
   SourceImportScene,
   SourceImportStrategy,
+  ImportExtractionCandidate,
+  ImportExtractionChangeSet,
+  PilotPlan,
   EpisodeWorkflowKind,
+  TimelineEditCommand,
+  TimelineCommandInput,
+  TimelineManifest,
+  TimelineTrackKind,
+  TimelineDeliveryExportFormat,
+  AudioAssemblyApplyInput,
   AudioTrackKind,
   AudioTrackInput,
   VoiceProfileInput,
@@ -51,6 +61,9 @@ import type {
   ImageGenerationInput,
   TtsGenerationInput,
   VideoGenerationInput,
+  VideoGenerationPreflight,
+  VideoGenerationBatchPreflight,
+  VideoGenerationBatchPreflightInput,
   CreativeCaseStudyInput,
   CreativeCaseStudyPatch,
   CreativeDiagnosticInput,
@@ -60,6 +73,9 @@ import type {
   AgentEngineKind,
   AgentModelSelection,
   AgentTaskType,
+  AssetCenter,
+  AssetCenterCategory,
+  AssetCenterUsage,
 } from "@sdns/schema";
 
 export interface ServerReadyData {
@@ -151,6 +167,8 @@ const RESOURCE_DOMAINS = new Set([
   "story-bible",
   "story-bible-settings",
   "story-bible-stale",
+  "story-bible-sidecar-preferences",
+  "series-library-snapshots",
   "memory",
   "chapter-memories",
   "character-states",
@@ -160,6 +178,7 @@ const RESOURCE_DOMAINS = new Set([
   "foreshadowings",
   "analysis",
   "beats",
+  "episode-pacing-marks",
   "highlights",
   "feasibility",
   "trends",
@@ -664,6 +683,57 @@ async function route(
   const sourceImportId = match(path, /^\/api\/v1\/source-imports\/([^/]+)$/);
   if (sourceImportId && method === "DELETE")
     return discardSourceImport(res, sourceImportId, requestId);
+  const importExtractionList = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/import-extractions\/change-sets$/,
+  );
+  if (importExtractionList && method === "GET")
+    return listImportExtractionChangeSets(res, importExtractionList, requestId);
+  const importExtractionCandidate =
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/candidates\/([^/]+)$/.exec(
+      path,
+    );
+  if (importExtractionCandidate && method === "PATCH")
+    return updateImportExtractionCandidate(
+      req,
+      res,
+      [
+        decodeURIComponent(importExtractionCandidate[1]),
+        decodeURIComponent(importExtractionCandidate[2]),
+      ],
+      requestId,
+    );
+  const importExtractionAdopt = match(
+    path,
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/adopt$/,
+  );
+  if (importExtractionAdopt && method === "POST")
+    return adoptImportExtractionChangeSet(
+      req,
+      res,
+      importExtractionAdopt,
+      requestId,
+    );
+  const importExtractionUndo = match(
+    path,
+    /^\/api\/v1\/import-extractions\/change-sets\/([^/]+)\/undo$/,
+  );
+  if (importExtractionUndo && method === "POST")
+    return undoImportExtractionChangeSet(res, importExtractionUndo, requestId);
+  const pilotPlanList = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/pilot-plans$/,
+  );
+  if (pilotPlanList && method === "GET")
+    return listPilotPlans(res, pilotPlanList, requestId);
+  if (method === "POST" && path === "/api/v1/pilot-plans")
+    return createPilotPlan(req, res, requestId);
+  const pilotPlanAction = match(
+    path,
+    /^\/api\/v1\/pilot-plans\/([^/]+)\/action$/,
+  );
+  if (pilotPlanAction && method === "POST")
+    return updatePilotPlanAction(req, res, pilotPlanAction, requestId);
   if (method === "POST" && path === "/api/v1/workflows/episodes/run")
     return runEpisodeWorkflow(req, res, requestId);
   if (method === "POST" && path === "/api/v1/image-generation/runs")
@@ -672,6 +742,23 @@ async function route(
     return runTtsGeneration(req, res, requestId);
   if (method === "POST" && path === "/api/v1/video-generation/runs")
     return createVideoGeneration(req, res, requestId);
+  const videoPreflightShotId = match(
+    path,
+    /^\/api\/v1\/shots\/([^/]+)\/video-generation\/preflight$/,
+  );
+  if (videoPreflightShotId && method === "POST")
+    return videoGenerationPreflight(req, res, videoPreflightShotId, requestId);
+  const videoBatchPreflightProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/video-generation\/batch-preflight$/,
+  );
+  if (videoBatchPreflightProjectId && method === "POST")
+    return videoGenerationBatchPreflight(
+      req,
+      res,
+      videoBatchPreflightProjectId,
+      requestId,
+    );
   const videoShotRuns = match(
     path,
     /^\/api\/v1\/shots\/([^/]+)\/video-generation\/runs$/,
@@ -809,6 +896,59 @@ async function route(
     );
   if (method === "POST" && path === "/api/v1/projects")
     return createProject(req, res, requestId);
+  if (method === "GET" && path === "/api/v1/series")
+    return json(
+      res,
+      200,
+      rows("SELECT * FROM series ORDER BY updated_at DESC").map(seriesRecord),
+    );
+  if (method === "POST" && path === "/api/v1/series")
+    return createSeries(req, res, requestId);
+  const seriesStoryBibleId = match(
+    path,
+    /^\/api\/v1\/series\/([^/]+)\/story-bible$/,
+  );
+  if (seriesStoryBibleId && method === "POST")
+    return createSeriesStoryBible(req, res, seriesStoryBibleId, requestId);
+  const projectSeriesLibraryId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/series-library$/,
+  );
+  if (projectSeriesLibraryId && method === "GET")
+    return getProjectSeriesLibrary(res, projectSeriesLibraryId, requestId);
+  const projectSeriesId = match(path, /^\/api\/v1\/projects\/([^/]+)\/series$/);
+  if (projectSeriesId && method === "PUT")
+    return setProjectSeries(req, res, projectSeriesId, requestId);
+  const seriesStoryBibleOverride =
+    /^\/api\/v1\/projects\/([^/]+)\/series-story-bible\/([^/]+)\/override$/.exec(
+      path,
+    );
+  if (seriesStoryBibleOverride && method === "PUT")
+    return overrideSeriesStoryBible(
+      req,
+      res,
+      decodeURIComponent(seriesStoryBibleOverride[1]),
+      decodeURIComponent(seriesStoryBibleOverride[2]),
+      requestId,
+    );
+  const seriesStoryBibleUpgrade =
+    /^\/api\/v1\/projects\/([^/]+)\/series-story-bible\/([^/]+)\/upgrade$/.exec(
+      path,
+    );
+  if (seriesStoryBibleUpgrade && method === "POST")
+    return upgradeSeriesStoryBible(
+      req,
+      res,
+      decodeURIComponent(seriesStoryBibleUpgrade[1]),
+      decodeURIComponent(seriesStoryBibleUpgrade[2]),
+      requestId,
+    );
+  const seriesAssetProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/series-assets$/,
+  );
+  if (seriesAssetProjectId && method === "POST")
+    return transferSeriesAsset(req, res, seriesAssetProjectId, requestId);
   if (method === "GET" && path === "/api/v1/projects/trash")
     return json(
       res,
@@ -1014,6 +1154,73 @@ async function route(
       platformDeliveryArchiveExportId,
       requestId,
     );
+  const episodeTimelineId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline$/,
+  );
+  if (episodeTimelineId && method === "GET")
+    return getTimeline(res, episodeTimelineId, requestId);
+  const timelineCommandId = match(
+    path,
+    /^\/api\/v1\/timelines\/([^/]+)\/commands$/,
+  );
+  if (timelineCommandId && method === "POST")
+    return applyTimelineCommand(req, res, timelineCommandId, requestId);
+  const timelineUndoId = match(path, /^\/api\/v1\/timelines\/([^/]+)\/undo$/);
+  if (timelineUndoId && method === "POST")
+    return undoTimelineCommand(res, timelineUndoId, requestId);
+  const timelineRedoId = match(path, /^\/api\/v1\/timelines\/([^/]+)\/redo$/);
+  if (timelineRedoId && method === "POST")
+    return redoTimelineCommand(res, timelineRedoId, requestId);
+  const timelineHistoryId = match(
+    path,
+    /^\/api\/v1\/timelines\/([^/]+)\/history$/,
+  );
+  if (timelineHistoryId && method === "GET")
+    return timelineHistory(res, timelineHistoryId, requestId);
+  const audioAssemblyPreviewEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/audio-assembly\/preview$/,
+  );
+  if (audioAssemblyPreviewEpisodeId && method === "GET")
+    return getAudioAssemblyPreview(
+      res,
+      audioAssemblyPreviewEpisodeId,
+      requestId,
+    );
+  const audioAssemblyApplyEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/audio-assembly\/apply$/,
+  );
+  if (audioAssemblyApplyEpisodeId && method === "POST")
+    return applyAudioAssembly(req, res, audioAssemblyApplyEpisodeId, requestId);
+  const timelineMediaPreviewId = match(
+    path,
+    /^\/api\/v1\/timeline-media\/([^/]+)\/preview$/,
+  );
+  if (timelineMediaPreviewId && method === "GET")
+    return timelineMediaPreview(res, timelineMediaPreviewId, requestId);
+  const timelineDeliveryManifestEpisodeId = match(
+    path,
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline-delivery\/manifest$/,
+  );
+  if (timelineDeliveryManifestEpisodeId && method === "GET")
+    return getTimelineDeliveryManifest(
+      res,
+      timelineDeliveryManifestEpisodeId,
+      requestId,
+    );
+  const timelineDeliveryExport =
+    /^\/api\/v1\/episodes\/([^/]+)\/timeline-delivery\/export\/(manifest|fcpxml|otio|edl|srt|vtt|relink)$/.exec(
+      path,
+    );
+  if (timelineDeliveryExport && method === "GET")
+    return exportTimelineDelivery(
+      res,
+      decodeURIComponent(timelineDeliveryExport[1]),
+      timelineDeliveryExport[2] as TimelineDeliveryExportFormat,
+      requestId,
+    );
   const editorTimelineId = match(
     path,
     /^\/api\/v1\/episodes\/([^/]+)\/editor-timeline$/,
@@ -1074,6 +1281,17 @@ async function route(
     return listReviewDecisions(res, reviewPackageDecisionsId, requestId);
   if (reviewPackageDecisionsId && method === "POST")
     return createReviewDecision(req, res, reviewPackageDecisionsId, requestId);
+  const reviewPackageRevisionPreviewId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/revision-preview$/,
+  );
+  if (reviewPackageRevisionPreviewId && method === "POST")
+    return createReviewRevisionPreview(
+      req,
+      res,
+      reviewPackageRevisionPreviewId,
+      requestId,
+    );
   const reviewPackageImportId = match(
     path,
     /^\/api\/v1\/review-packages\/([^/]+)\/import-offline$/,
@@ -1083,6 +1301,50 @@ async function route(
       req,
       res,
       reviewPackageImportId,
+      requestId,
+    );
+  if (path === "/api/v1/cloud-review/connection" && method === "GET")
+    return getCloudReviewConnection(res);
+  if (path === "/api/v1/cloud-review/connection" && method === "PUT")
+    return saveCloudReviewConnection(req, res, requestId);
+  const cloudPreviewPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-preview$/,
+  );
+  if (cloudPreviewPackageId && method === "POST")
+    return previewCloudReviewPackage(
+      req,
+      res,
+      cloudPreviewPackageId,
+      requestId,
+    );
+  const cloudPublishPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-publish$/,
+  );
+  if (cloudPublishPackageId && method === "POST")
+    return publishCloudReviewPackage(
+      req,
+      res,
+      cloudPublishPackageId,
+      requestId,
+    );
+  const cloudSyncPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-sync$/,
+  );
+  if (cloudSyncPackageId && method === "POST")
+    return syncCloudReviewPackage(res, cloudSyncPackageId, requestId);
+  const cloudReviewBindingPackageId = match(
+    path,
+    /^\/api\/v1\/review-packages\/([^/]+)\/cloud-review$/,
+  );
+  if (cloudReviewBindingPackageId && method === "GET")
+    return getCloudReviewBinding(res, cloudReviewBindingPackageId, requestId);
+  if (cloudReviewBindingPackageId && method === "DELETE")
+    return deleteCloudReviewPackage(
+      res,
+      cloudReviewBindingPackageId,
       requestId,
     );
   const voiceProfilesProjectId = match(
@@ -1412,7 +1674,7 @@ async function route(
     /^\/api\/v1\/story-bible\/change-sets\/([^/]+)\/apply$/,
   );
   if (storyBibleApply && method === "POST")
-    return applyStoryBibleChangeSet(res, storyBibleApply, requestId);
+    return applyStoryBibleChangeSet(req, res, storyBibleApply, requestId);
   const storyBibleUndo = match(
     path,
     /^\/api\/v1\/story-bible\/change-sets\/([^/]+)\/undo$/,
@@ -1454,6 +1716,24 @@ async function route(
   const deliveryExport = match(path, /^\/api\/v1\/delivery\/([^/]+)\/export$/);
   if (deliveryExport && method === "GET")
     return exportDeliveryManifest(res, deliveryExport, requestId);
+  const assetCenterProjectId = match(
+    path,
+    /^\/api\/v1\/projects\/([^/]+)\/asset-center$/,
+  );
+  if (assetCenterProjectId && method === "GET")
+    return getAssetCenter(res, assetCenterProjectId, requestId);
+  const assetCenterPreviewId = match(
+    path,
+    /^\/api\/v1\/asset-center\/([^/]+)\/preview$/,
+  );
+  if (assetCenterPreviewId && method === "GET")
+    return assetCenterPreview(res, assetCenterPreviewId, requestId);
+  const assetCenterActionId = match(
+    path,
+    /^\/api\/v1\/asset-center\/([^/]+)\/action$/,
+  );
+  if (assetCenterActionId && method === "POST")
+    return assetCenterAction(req, res, assetCenterActionId, requestId);
   const chapterAnalysis = match(
     path,
     /^\/api\/v1\/chapters\/([^/]+)\/analysis$/,
@@ -1521,9 +1801,14 @@ function exportProject(
       "Unsupported export format",
       requestId,
     );
+  const seriesLibrary = projectSeriesLibrary(projectId);
   const snapshot = {
     exportedAt: timestamp(),
     project: project(source),
+    // A package is self-explanatory away from the originating library. It is
+    // deliberately a snapshot only: importing it never silently joins a new
+    // project to a mutable series.
+    ...(seriesLibrary.series ? { seriesLibrary } : {}),
     chapters: rows(
       "SELECT * FROM chapters WHERE project_id = ? ORDER BY order_index",
       [projectId],
@@ -1532,6 +1817,10 @@ function exportProject(
       "SELECT * FROM domain_entities WHERE project_id = ? ORDER BY domain, updated_at DESC",
       [projectId],
     ).map(domainEntity),
+    importExtractions: rows(
+      "SELECT * FROM import_extraction_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(importExtractionChangeSet),
   };
   const safeTitle =
     String(source.title)
@@ -1948,6 +2237,16 @@ function createDemoProject(res: ServerResponse): void {
       审查备注: "人物身份揭示前避免完整正面曝光。",
     },
   );
+  insertDomainEntity("shots", id, sceneId, "镜头 2：雨中的来客", {
+    关联场景: "场景 1：雨夜门口",
+    镜头序号: 2,
+    镜头描述: "切到雨中的陆沉，他压低声音叫出林晚的小名。",
+    对白: "陆沉：你还记得我吗？",
+    景别: "近景",
+    运镜: "固定",
+    时长: "3 秒",
+    审查备注: "保持门内外视线关系，暂不揭示完整身份。",
+  });
   insertDomainEntity("assets", id, undefined, "雨夜霓虹参考素材", {
     素材类型: "视觉参考",
     来源: "DramaIP 内置示例素材说明",
@@ -2578,7 +2877,8 @@ function adoptShotStill(
     );
     for (const sibling of siblings) {
       const payload = domainPayload(sibling.payload_json);
-      payload["采用状态"] = sibling.id === id ? "已采用" : "未采用";
+      payload["采用状态"] =
+        String(sibling.id) === String(current.id) ? "已采用" : "未采用";
       updateDomainEntityPayload(
         String(sibling.id),
         String(sibling.title),
@@ -2588,6 +2888,23 @@ function adoptShotStill(
     const shotPayload = domainPayload(shot.payload_json);
     shotPayload["采用静帧候选"] = id;
     shotPayload["静帧采用说明"] = `已采用「${String(current.title)}」。`;
+    const adoptedStill = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+      [id, "shot-stills"],
+    );
+    if (!adoptedStill) throw new Error("采用静帧确认失败");
+    const assets = assetReferenceIds(shotPayload).map((assetId) =>
+      one(
+        "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+        [assetId, "visual-assets", shot.project_id],
+      ),
+    );
+    shotPayload["静帧确认指纹"] = stillConfirmationFingerprint(
+      shotPayload,
+      adoptedStill,
+      assets,
+    );
+    shotPayload["静帧确认时间"] = timestamp();
     updateDomainEntityPayload(String(shot.id), String(shot.title), shotPayload);
     db!.exec("COMMIT");
   } catch (error) {
@@ -2623,15 +2940,72 @@ function adoptVisualAsset(
       "Visual asset not found",
       requestId,
     );
-  const siblings = rows(
+  const lockedTitle = applyVisualAssetAdoption(current);
+  if (lockedTitle)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      `「${lockedTitle}」已锁定；请先明确解除锁定或迁移镜头用途。`,
+      requestId,
+    );
+  const adopted = domainEntity(
+    one("SELECT * FROM domain_entities WHERE id = ?", [id])!,
+  );
+  emit("visual-asset.adopted", adopted);
+  json(res, 200, adopted);
+}
+
+function visualAssetCategory(
+  payload: Record<string, unknown>,
+): AssetCenterCategory {
+  const value = String(payload["资产类型"] ?? "").trim();
+  if (value.includes("角色") || value.includes("人物")) return "character";
+  if (value.includes("场景") || value.includes("环境")) return "scene";
+  if (value.includes("音") || value.includes("声")) return "voice";
+  return "prop";
+}
+
+function visualAssetSubject(
+  payload: Record<string, unknown>,
+  fallback: string,
+): string {
+  return String(payload["关联对象"] ?? payload["资产族"] ?? fallback).trim();
+}
+
+function visualAssetSiblings(current: Record<string, any>) {
+  const payload = domainPayload(current.payload_json);
+  const category = visualAssetCategory(payload);
+  const subject = visualAssetSubject(payload, String(current.title));
+  return rows(
     "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ?",
     ["visual-assets", current.project_id],
-  ).filter((item) => (item.parent_id ?? null) === (current.parent_id ?? null));
+  ).filter((item) => {
+    const candidate = domainPayload(item.payload_json);
+    return (
+      visualAssetCategory(candidate) === category &&
+      visualAssetSubject(candidate, String(item.title)) === subject
+    );
+  });
+}
+
+/** Returns the blocking locked version title, otherwise adopts atomically. */
+function applyVisualAssetAdoption(
+  current: Record<string, any>,
+): string | undefined {
+  const siblings = visualAssetSiblings(current);
+  const locked = siblings.find(
+    (item) =>
+      String(item.id) !== String(current.id) &&
+      domainPayload(item.payload_json)["锁定状态"] === "已锁定",
+  );
+  if (locked) return String(locked.title);
   db!.exec("BEGIN IMMEDIATE");
   try {
     for (const sibling of siblings) {
       const payload = domainPayload(sibling.payload_json);
-      payload["采用状态"] = sibling.id === id ? "已采用" : "未采用";
+      payload["采用状态"] =
+        String(sibling.id) === String(current.id) ? "已采用" : "未采用";
       updateDomainEntityPayload(
         String(sibling.id),
         String(sibling.title),
@@ -2645,11 +3019,6 @@ function adoptVisualAsset(
     } catch {}
     throw error;
   }
-  const adopted = domainEntity(
-    one("SELECT * FROM domain_entities WHERE id = ?", [id])!,
-  );
-  emit("visual-asset.adopted", adopted);
-  json(res, 200, adopted);
 }
 
 function adoptVideo(res: ServerResponse, id: string, requestId: string): void {
@@ -2727,6 +3096,14 @@ function lockVisualAsset(
       requestId,
     );
   const payload = domainPayload(current.payload_json);
+  if (payload["采用状态"] !== "已采用")
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "只能锁定已采用的资产版本。",
+      requestId,
+    );
   payload["锁定状态"] = "已锁定";
   payload["锁定时间"] = timestamp();
   updateDomainEntityPayload(id, String(current.title), payload);
@@ -2735,6 +3112,1108 @@ function lockVisualAsset(
   );
   emit("visual-asset.locked", locked);
   json(res, 200, locked);
+}
+
+function assetReferenceIds(payload: Record<string, unknown>): string[] {
+  const value = payload["资产版本引用"];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function videoAssetIsStale(payload: Record<string, unknown>): boolean {
+  return [payload["设定状态"], payload["版本状态"]].some((value) =>
+    ["已过期", "过期"].includes(String(value)),
+  );
+}
+
+function videoAssetHasVerifiedRights(
+  payload: Record<string, unknown>,
+): boolean {
+  const rights = String(
+    payload["权利状态"] ?? payload["授权状态"] ?? payload["素材权利"] ?? "",
+  );
+  return (
+    rights.includes("已授权") ||
+    rights.includes("已核验") ||
+    rights.includes("已确认")
+  );
+}
+
+function shotVideoDurationSeconds(
+  payload: Record<string, unknown>,
+): number | undefined {
+  const value = payload["时长"] ?? payload["时长秒数"];
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  const matched = typeof value === "string" ? value.match(/\d+/) : undefined;
+  const parsed = matched?.[0] ? Number(matched[0]) : undefined;
+  return Number.isInteger(parsed) ? parsed : undefined;
+}
+
+function videoAssetSnapshot(asset: Record<string, any> | undefined) {
+  if (!asset) return undefined;
+  const payload = domainPayload(asset.payload_json);
+  return {
+    id: String(asset.id),
+    version: Number(asset.version),
+    adopted: payload["采用状态"] === "已采用",
+    locked: payload["锁定状态"] === "已锁定",
+    stale: videoAssetIsStale(payload),
+    rights: String(payload["权利状态"] ?? payload["授权状态"] ?? ""),
+    cost: String(payload["费用状态"] ?? ""),
+    provider: String(payload["服务状态"] ?? ""),
+  };
+}
+
+function stillConfirmationFingerprint(
+  shotPayload: Record<string, unknown>,
+  still: Record<string, any>,
+  assets: Array<Record<string, any> | undefined>,
+): string {
+  const stillPayload = domainPayload(still.payload_json);
+  const content = {
+    shotPrompt: String(shotPayload["生成提示"] ?? ""),
+    shotDuration: shotPayload["时长"] ?? shotPayload["时长秒数"] ?? null,
+    adoptedStill: {
+      id: String(still.id),
+      version: Number(still.version),
+      prompt: String(stillPayload["生成提示"] ?? ""),
+      status: String(stillPayload["采用状态"] ?? ""),
+      state: String(stillPayload["设定状态"] ?? stillPayload["版本状态"] ?? ""),
+    },
+    assets: assets
+      .map(videoAssetSnapshot)
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      .sort((left, right) => left.id.localeCompare(right.id)),
+  };
+  return `sha256:${createHash("sha256").update(JSON.stringify(content)).digest("hex")}`;
+}
+
+function videoGenerationReadiness(
+  input: Partial<VideoGenerationInput>,
+  shot: Record<string, any>,
+  provider: Record<string, any>,
+): VideoGenerationPreflight {
+  const shotPayload = domainPayload(shot.payload_json);
+  const providerPayload = domainPayload(provider.payload_json);
+  const providerId = String(provider.id);
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  const assetIds = [...new Set(assetReferenceIds(shotPayload))];
+  const assets = assetIds.map((id) =>
+    one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+      [id, "visual-assets", shot.project_id],
+    ),
+  );
+  const stillId = text(shotPayload["采用静帧候选"]);
+  const still = stillId
+    ? one("SELECT * FROM domain_entities WHERE id = ? AND domain = ?", [
+        stillId,
+        "shot-stills",
+      ])
+    : undefined;
+  if (!still) blockers.push("请先采用一个静帧候选，再进入视频生成。");
+  else {
+    const stillPayload = domainPayload(still.payload_json);
+    if (String(still.parent_id) !== String(shot.id))
+      blockers.push("已采用静帧不属于当前分镜，请重新采用。");
+    if (stillPayload["采用状态"] !== "已采用")
+      blockers.push("已采用静帧候选已失效，请重新采用。");
+    if (videoAssetIsStale(stillPayload))
+      blockers.push("已采用静帧已过期，请重新生成并采用。");
+  }
+  if (!assetIds.length)
+    blockers.push("请先在资产中心为分镜分配并锁定至少一个资产版本。");
+  const lockedAssetIds: string[] = [];
+  for (const [index, asset] of assets.entries()) {
+    const id = assetIds[index]!;
+    if (!asset) {
+      blockers.push(`资产版本 ${id} 已不存在或不属于当前项目。`);
+      continue;
+    }
+    const payload = domainPayload(asset.payload_json);
+    if (payload["采用状态"] !== "已采用")
+      blockers.push(`资产「${String(asset.title)}」尚未采用。`);
+    if (payload["锁定状态"] !== "已锁定")
+      blockers.push(`资产「${String(asset.title)}」尚未锁定。`);
+    if (videoAssetIsStale(payload))
+      blockers.push(`资产「${String(asset.title)}」已过期。`);
+    if (!videoAssetHasVerifiedRights(payload))
+      blockers.push(`资产「${String(asset.title)}」缺少已核验的权利状态。`);
+    if (String(payload["费用状态"] ?? "").includes("未知"))
+      blockers.push(`资产「${String(asset.title)}」的费用仍未知。`);
+    if (
+      String(payload["服务状态"] ?? "").includes("不可用") ||
+      String(payload["服务状态"] ?? "").includes("离线")
+    )
+      blockers.push(`资产「${String(asset.title)}」的服务当前不可用。`);
+    if (
+      payload["采用状态"] === "已采用" &&
+      payload["锁定状态"] === "已锁定" &&
+      !videoAssetIsStale(payload) &&
+      videoAssetHasVerifiedRights(payload)
+    )
+      lockedAssetIds.push(id);
+  }
+  const confirmationFingerprint = still
+    ? stillConfirmationFingerprint(shotPayload, still, assets)
+    : undefined;
+  if (
+    !confirmationFingerprint ||
+    text(shotPayload["静帧确认指纹"]) !== confirmationFingerprint
+  )
+    blockers.push(
+      "镜头提示、时长、采用静帧或资产锁已变化，请重新采用静帧确认视觉方向。",
+    );
+
+  const baseUrl = text(providerPayload["服务地址"]);
+  const credentialRef = text(providerPayload["凭据引用"]);
+  const model = text(providerPayload["模型名称"]);
+  if (!baseUrl || !credentialRef || !model)
+    blockers.push("视频服务商需要服务地址、模型和凭据引用。");
+  const seconds = input.seconds ?? 5;
+  if (!Number.isInteger(seconds) || seconds < 1 || seconds > 60)
+    blockers.push("视频时长须为 1 至 60 秒的整数。");
+  const confirmedPrompt = text(shotPayload["生成提示"]);
+  const confirmedSeconds = shotVideoDurationSeconds(shotPayload);
+  if (!confirmedPrompt || !confirmedSeconds)
+    blockers.push("请先在分镜中保存视频提示和时长，再采用静帧确认视觉方向。");
+  else if (
+    text(input.prompt) !== confirmedPrompt ||
+    seconds !== confirmedSeconds
+  )
+    blockers.push(
+      "视频提示或时长已偏离静帧确认基线，请更新分镜后重新采用静帧。",
+    );
+  const configuredCost = Number(providerPayload["预估费用"]);
+  const costKnown = Number.isFinite(configuredCost) && configuredCost >= 0;
+  if (!costKnown && input.confirmUnknownCost !== true)
+    blockers.push("视频费用未知；请明确确认后才可提交。");
+  if (!costKnown && input.confirmUnknownCost === true)
+    warnings.push("费用未知已由用户确认；请在生成账本中复核实际费用。");
+  const capacity = Number(providerPayload["并发上限"]);
+  if (Number.isInteger(capacity) && capacity > 0) {
+    const active = Number(
+      one(
+        "SELECT count(*) AS count FROM video_generation_jobs WHERE provider_id = ? AND status IN ('queued', 'running')",
+        [provider.id],
+      )?.count ?? 0,
+    );
+    if (active >= capacity)
+      blockers.push(
+        `视频服务商并发上限为 ${capacity}，当前已有 ${active} 个待处理任务。`,
+      );
+  }
+  const snapshotHash = `sha256:${createHash("sha256")
+    .update(
+      JSON.stringify({
+        confirmationFingerprint: confirmationFingerprint ?? null,
+        provider: {
+          id: providerId,
+          version: Number(provider.version),
+          model: model ?? null,
+          baseUrl: baseUrl ?? null,
+          cost: costKnown ? configuredCost : null,
+        },
+        request: {
+          prompt: text(input.prompt) ?? "",
+          negativePrompt: text(input.negativePrompt) ?? "",
+          seconds,
+          size: text(input.size) ?? "",
+        },
+      }),
+    )
+    .digest("hex")}`;
+  return {
+    shotId: String(shot.id),
+    providerId,
+    snapshotHash,
+    ready: blockers.length === 0,
+    ...(stillId ? { adoptedStillId: stillId } : {}),
+    lockedAssetIds,
+    blockers,
+    warnings,
+    costStatus: costKnown ? "known" : "unknown",
+    ...(costKnown ? { estimatedCost: configuredCost } : {}),
+    ...(costKnown
+      ? { currency: text(providerPayload["计费货币"]) ?? "USD" }
+      : {}),
+  };
+}
+
+function assetCenterUsages(
+  projectId: string | undefined,
+  assetId: string,
+): AssetCenterUsage[] {
+  if (!projectId) return [];
+  return rows(
+    "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ? ORDER BY updated_at DESC",
+    ["shots", projectId],
+  ).flatMap((shot) => {
+    if (!assetReferenceIds(domainPayload(shot.payload_json)).includes(assetId))
+      return [];
+    const scene = shot.parent_id
+      ? one("SELECT title FROM domain_entities WHERE id = ?", [shot.parent_id])
+      : undefined;
+    return [
+      {
+        shotId: String(shot.id),
+        shotTitle: String(shot.title),
+        ...(scene ? { sceneTitle: String(scene.title) } : {}),
+      },
+    ];
+  });
+}
+
+function seriesRecord(row: Record<string, any>) {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description ?? ""),
+    version: Number(row.version),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function seriesAssetLink(row: Record<string, any>) {
+  return {
+    id: String(row.id),
+    seriesId: String(row.series_id),
+    sourceAssetId: String(row.source_asset_id),
+    sourceVersion: Number(row.source_version),
+    targetProjectId: String(row.target_project_id),
+    targetAssetId: String(row.target_asset_id),
+    mode: String(row.mode) as "copy" | "fork" | "link",
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+/** Project settings resolve from their last deliberately adopted source version. */
+function projectSeriesLibrary(projectId: string) {
+  const membership = one(
+    `SELECT s.* FROM project_series ps
+     JOIN series s ON s.id = ps.series_id
+     WHERE ps.project_id = ?`,
+    [projectId],
+  );
+  if (!membership)
+    return {
+      projectId,
+      storyBible: [],
+      assets: [] as ReturnType<typeof seriesAssetLink>[],
+    };
+  const storyBible = rows(
+    `SELECT s.id, s.series_id,
+       v.title AS snapshot_title, v.payload_json AS snapshot_payload_json,
+       v.source_version AS snapshot_source_version, v.version AS snapshot_version,
+       v.created_at AS snapshot_created_at, v.updated_at AS snapshot_updated_at,
+       o.id AS override_id, o.title AS override_title,
+       o.payload_json AS override_payload_json, o.version AS override_version,
+       o.created_at AS override_created_at, o.updated_at AS override_updated_at
+     FROM series_story_bible s
+     JOIN project_series_story_bible_versions v
+       ON v.source_id = s.id AND v.project_id = ?
+     LEFT JOIN series_story_bible_overrides o
+       ON o.source_id = s.id AND o.project_id = ?
+     WHERE s.series_id = ?
+     ORDER BY v.updated_at DESC`,
+    [projectId, projectId, membership.id],
+  ).map((row) => {
+    const overridden = Boolean(row.override_id);
+    return {
+      id: String(row.id),
+      seriesId: String(row.series_id),
+      title: overridden
+        ? String(row.override_title)
+        : String(row.snapshot_title),
+      payload: domainPayload(
+        overridden ? row.override_payload_json : row.snapshot_payload_json,
+      ),
+      version: Number(overridden ? row.override_version : row.snapshot_version),
+      overridden,
+      sourceVersion: Number(row.snapshot_source_version),
+      createdAt: String(
+        overridden ? row.override_created_at : row.snapshot_created_at,
+      ),
+      updatedAt: String(
+        overridden ? row.override_updated_at : row.snapshot_updated_at,
+      ),
+    };
+  });
+  return {
+    projectId,
+    series: seriesRecord(membership),
+    storyBible,
+    assets: rows(
+      "SELECT * FROM series_asset_links WHERE target_project_id = ? ORDER BY created_at DESC",
+      [projectId],
+    ).map(seriesAssetLink),
+  };
+}
+
+async function createSeries(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (!title)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "series title is required",
+      requestId,
+    );
+  const now = timestamp();
+  const id = randomUUID();
+  db!
+    .prepare("INSERT INTO series VALUES (?, ?, ?, 0, ?, ?)")
+    .run(id, title, textValue(input.description, ""), now, now);
+  const created = seriesRecord(one("SELECT * FROM series WHERE id = ?", [id])!);
+  emit("series.created", created);
+  json(res, 201, created);
+}
+
+function getProjectSeriesLibrary(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(res, 200, projectSeriesLibrary(projectId));
+}
+
+async function setProjectSeries(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const projectRow = one(
+    "SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL",
+    [projectId],
+  );
+  if (!projectRow)
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  const seriesId = text(input.seriesId);
+  if (seriesId && !one("SELECT id FROM series WHERE id = ?", [seriesId]))
+    return respondError(res, 404, "NOT_FOUND", "Series not found", requestId);
+  const foreignLinks = seriesId
+    ? one(
+        "SELECT id FROM series_asset_links WHERE target_project_id = ? AND series_id <> ? LIMIT 1",
+        [projectId, seriesId],
+      )
+    : undefined;
+  if (foreignLinks)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "项目仍保留另一系列的资产版本投影；请先显式迁移这些资产。",
+      requestId,
+    );
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    if (seriesId)
+      db!
+        .prepare(
+          `INSERT INTO project_series(project_id, series_id, joined_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(project_id) DO UPDATE SET series_id = excluded.series_id, joined_at = excluded.joined_at`,
+        )
+        .run(projectId, seriesId, timestamp());
+    else
+      db!
+        .prepare("DELETE FROM project_series WHERE project_id = ?")
+        .run(projectId);
+    if (seriesId) {
+      const now = timestamp();
+      const insertSnapshot = db!.prepare(
+        `INSERT INTO project_series_story_bible_versions(
+          id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        ON CONFLICT(project_id, source_id) DO NOTHING`,
+      );
+      rows("SELECT * FROM series_story_bible WHERE series_id = ?", [
+        seriesId,
+      ]).forEach((setting) =>
+        insertSnapshot.run(
+          randomUUID(),
+          projectId,
+          setting.id,
+          setting.title,
+          setting.payload_json,
+          setting.version,
+          now,
+          now,
+        ),
+      );
+    }
+    db!
+      .prepare(
+        "UPDATE projects SET version = version + 1, updated_at = ? WHERE id = ?",
+      )
+      .run(timestamp(), projectId);
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  const updated = one("SELECT * FROM projects WHERE id = ?", [projectId])!;
+  emit("project.series_updated", { projectId, seriesId: seriesId ?? null });
+  json(res, 200, project(updated));
+}
+
+async function createSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  seriesId: string,
+  requestId: string,
+): Promise<void> {
+  if (!one("SELECT id FROM series WHERE id = ?", [seriesId]))
+    return respondError(res, 404, "NOT_FOUND", "Series not found", requestId);
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (
+    !title ||
+    !input.payload ||
+    typeof input.payload !== "object" ||
+    Array.isArray(input.payload)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "title and object payload are required",
+      requestId,
+    );
+  const now = timestamp();
+  const id = randomUUID();
+  db!
+    .prepare("INSERT INTO series_story_bible VALUES (?, ?, ?, ?, 0, ?, ?)")
+    .run(id, seriesId, title, JSON.stringify(input.payload), now, now);
+  const created = one("SELECT * FROM series_story_bible WHERE id = ?", [id])!;
+  const output = {
+    id,
+    seriesId,
+    title: String(created.title),
+    payload: domainPayload(created.payload_json),
+    version: Number(created.version),
+    overridden: false,
+    sourceVersion: Number(created.version),
+    createdAt: String(created.created_at),
+    updatedAt: String(created.updated_at),
+  };
+  emit("series.story_bible_created", output);
+  json(res, 201, output);
+}
+
+async function overrideSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  sourceId: string,
+  requestId: string,
+): Promise<void> {
+  const source = one("SELECT * FROM series_story_bible WHERE id = ?", [
+    sourceId,
+  ]);
+  const membership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [projectId],
+  );
+  if (
+    !source ||
+    !membership ||
+    String(source.series_id) !== String(membership.series_id)
+  )
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series story bible setting not found",
+      requestId,
+    );
+  if (
+    !one(
+      "SELECT id FROM project_series_story_bible_versions WHERE project_id = ? AND source_id = ?",
+      [projectId, sourceId],
+    )
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "请先显式采用此系列设定版本。",
+      requestId,
+    );
+  const input = await body(req);
+  const title = text(input.title)?.trim();
+  if (
+    !title ||
+    !input.payload ||
+    typeof input.payload !== "object" ||
+    Array.isArray(input.payload)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "title and object payload are required",
+      requestId,
+    );
+  if (
+    !Number.isInteger(input.sourceVersion) ||
+    input.sourceVersion !== source.version
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "系列设定已更新；请先阅读新版本，再明确决定是否覆写。",
+      requestId,
+    );
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO series_story_bible_overrides(
+        id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
+        title = excluded.title, payload_json = excluded.payload_json,
+        source_version = excluded.source_version, version = series_story_bible_overrides.version + 1,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      randomUUID(),
+      projectId,
+      sourceId,
+      title,
+      JSON.stringify(input.payload),
+      input.sourceVersion,
+      now,
+      now,
+    );
+  const library = projectSeriesLibrary(projectId);
+  const output = library.storyBible.find((item) => item.id === sourceId)!;
+  emit("series.story_bible_overridden", { projectId, sourceId });
+  json(res, 200, output);
+}
+
+async function upgradeSeriesStoryBible(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  sourceId: string,
+  requestId: string,
+): Promise<void> {
+  const source = one("SELECT * FROM series_story_bible WHERE id = ?", [
+    sourceId,
+  ]);
+  const membership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [projectId],
+  );
+  if (
+    !source ||
+    !membership ||
+    String(source.series_id) !== String(membership.series_id)
+  )
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series story bible setting not found",
+      requestId,
+    );
+  const input = await body(req);
+  if (
+    !Number.isInteger(input.sourceVersion) ||
+    input.sourceVersion !== source.version
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "系列设定已更新；请刷新后选择版本。",
+      requestId,
+    );
+  if (
+    one(
+      "SELECT id FROM series_story_bible_overrides WHERE project_id = ? AND source_id = ?",
+      [projectId, sourceId],
+    )
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "该设定已有项目覆写；请先保留或手动更新覆写。",
+      requestId,
+    );
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO project_series_story_bible_versions(
+        id, project_id, source_id, title, payload_json, source_version, version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      ON CONFLICT(project_id, source_id) DO UPDATE SET
+        title = excluded.title, payload_json = excluded.payload_json,
+        source_version = excluded.source_version,
+        version = project_series_story_bible_versions.version + 1,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      randomUUID(),
+      projectId,
+      sourceId,
+      source.title,
+      source.payload_json,
+      source.version,
+      now,
+      now,
+    );
+  const output = projectSeriesLibrary(projectId).storyBible.find(
+    (item) => item.id === sourceId,
+  )!;
+  emit("series.story_bible_upgraded", {
+    projectId,
+    sourceId,
+    sourceVersion: source.version,
+  });
+  json(res, 200, output);
+}
+
+async function transferSeriesAsset(
+  req: IncomingMessage,
+  res: ServerResponse,
+  targetProjectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const sourceAssetId = text(input.sourceAssetId);
+  const mode = text(input.mode) ?? "";
+  if (
+    !sourceAssetId ||
+    !Number.isInteger(input.sourceVersion) ||
+    !["copy", "fork", "link"].includes(mode)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "sourceAssetId, sourceVersion and mode are required",
+      requestId,
+    );
+  const targetMembership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [targetProjectId],
+  );
+  const source = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [sourceAssetId, "visual-assets"],
+  );
+  if (!targetMembership || !source)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Series membership or source asset not found",
+      requestId,
+    );
+  const sourceMembership = one(
+    "SELECT series_id FROM project_series WHERE project_id = ?",
+    [source.project_id],
+  );
+  if (
+    !sourceMembership ||
+    String(sourceMembership.series_id) !== String(targetMembership.series_id)
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "源资产与目标项目必须属于同一系列。",
+      requestId,
+    );
+  if (input.sourceVersion !== source.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "源资产已经更新；请确认所选版本后重试。",
+      requestId,
+    );
+  const sourcePayload = domainPayload(source.payload_json);
+  if (
+    sourcePayload["采用状态"] !== "已采用" ||
+    sourcePayload["锁定状态"] !== "已锁定"
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "只能共享已采用且锁定的资产版本。",
+      requestId,
+    );
+  const rights = String(sourcePayload["权利状态"] ?? "");
+  if (!rights.includes("已授权") && !rights.includes("已核验"))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "请先完成源资产的权利核验。",
+      requestId,
+    );
+  const targetPayload = JSON.parse(JSON.stringify(sourcePayload)) as Record<
+    string,
+    unknown
+  >;
+  targetPayload["系列资产来源"] = {
+    seriesId: String(targetMembership.series_id),
+    sourceAssetId,
+    sourceVersion: input.sourceVersion,
+    mode,
+  };
+  targetPayload["版本来源"] =
+    mode === "link"
+      ? "不可变系列链接"
+      : mode === "fork"
+        ? "系列 Fork 衍生"
+        : "系列独立副本";
+  targetPayload["采用状态"] = "未采用";
+  targetPayload["锁定状态"] = "未锁定";
+  delete targetPayload["锁定时间"];
+  const now = timestamp();
+  const targetAssetId = randomUUID();
+  const linkId = randomUUID();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    db!
+      .prepare(
+        "INSERT INTO domain_entities VALUES (?, ?, ?, NULL, ?, ?, 0, ?, ?)",
+      )
+      .run(
+        targetAssetId,
+        "visual-assets",
+        targetProjectId,
+        String(source.title),
+        JSON.stringify(targetPayload),
+        now,
+        now,
+      );
+    db!
+      .prepare(
+        "INSERT INTO series_asset_links VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        linkId,
+        targetMembership.series_id,
+        sourceAssetId,
+        input.sourceVersion,
+        targetProjectId,
+        targetAssetId,
+        mode,
+        now,
+        now,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  const created = seriesAssetLink(
+    one("SELECT * FROM series_asset_links WHERE id = ?", [linkId])!,
+  );
+  emit("series.asset_transferred", created);
+  json(res, 201, created);
+}
+
+function assetCenterForProject(projectId: string): AssetCenter {
+  const candidates = rows(
+    "SELECT * FROM domain_entities WHERE domain = ? AND project_id = ? ORDER BY updated_at DESC",
+    ["visual-assets", projectId],
+  );
+  return {
+    projectId,
+    assets: candidates.map((candidate) => {
+      const payload = domainPayload(candidate.payload_json);
+      const category = visualAssetCategory(payload);
+      const file = payload.file as Record<string, unknown> | undefined;
+      const fileName =
+        file && typeof file.name === "string" ? file.name : undefined;
+      const hasFile = Boolean(file && typeof file === "object");
+      const mediaKind = category === "voice" ? "audio" : "image";
+      const preview = hasFile
+        ? {
+            kind: mediaKind as "image" | "audio",
+            status: (hasArchivedFile(candidate) ? "available" : "missing") as
+              "available" | "missing",
+            ...(fileName ? { label: fileName } : {}),
+          }
+        : {
+            kind: "none" as const,
+            status: "unattached" as const,
+            ...(typeof payload["视觉说明"] === "string"
+              ? { label: String(payload["视觉说明"]) }
+              : {}),
+          };
+      const rights = String(payload["权利状态"] ?? "");
+      const provider = String(payload["服务状态"] ?? "");
+      return {
+        id: String(candidate.id),
+        title: String(candidate.title),
+        category,
+        subject: visualAssetSubject(payload, String(candidate.title)),
+        assetVersion: String(payload["资产版本"] ?? `v${candidate.version}`),
+        adopted: payload["采用状态"] === "已采用",
+        lockStatus:
+          payload["锁定状态"] === "已锁定"
+            ? ("locked" as const)
+            : ("unlocked" as const),
+        stale:
+          payload["设定状态"] === "已过期" || payload["版本状态"] === "已过期",
+        preview,
+        rightsStatus:
+          rights.includes("已授权") || rights.includes("已核验")
+            ? ("verified" as const)
+            : rights.includes("受限") ||
+                rights.includes("不足") ||
+                rights.includes("未授权")
+              ? ("restricted" as const)
+              : ("unknown" as const),
+        costStatus: String(payload["费用状态"] ?? "").includes("未知")
+          ? ("unknown" as const)
+          : ("known" as const),
+        providerStatus:
+          provider.includes("不可用") || provider.includes("离线")
+            ? ("unavailable" as const)
+            : provider
+              ? ("available" as const)
+              : ("not-required" as const),
+        usages: assetCenterUsages(projectId, String(candidate.id)),
+        version: Number(candidate.version),
+      };
+    }),
+  };
+}
+
+function getAssetCenter(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(res, 200, assetCenterForProject(projectId));
+}
+
+function assetCenterPreview(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const current = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [id, "visual-assets"],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset version not found",
+      requestId,
+    );
+  const file = domainPayload(current.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset has no local preview file",
+      requestId,
+    );
+  const path = join(command!.assetDirectory, storedName);
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch {
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset preview file is missing",
+      requestId,
+    );
+  }
+  if (size > 5 * 1024 * 1024)
+    return respondError(
+      res,
+      413,
+      "VALIDATION_ERROR",
+      "Preview file exceeds the local 5 MB safety limit",
+      requestId,
+    );
+  const extension = extname(storedName).toLowerCase();
+  const mime = (
+    {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+      ".gif": "image/gif",
+      ".svg": "image/svg+xml",
+      ".mp3": "audio/mpeg",
+      ".wav": "audio/wav",
+      ".ogg": "audio/ogg",
+      ".m4a": "audio/mp4",
+    } as Record<string, string>
+  )[extension];
+  if (!mime)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Only image and audio assets can be previewed",
+      requestId,
+    );
+  const kind = mime.startsWith("audio/") ? "audio" : "image";
+  const dataUrl = `data:${mime};base64,${readFileSync(path).toString("base64")}`;
+  json(res, 200, { id, kind, dataUrl });
+}
+
+async function assetCenterAction(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [id, "visual-assets"],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Asset version not found",
+      requestId,
+    );
+  const input = await body(req);
+  if (input.version !== current.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "资产版本已被其他操作更新，请刷新后重试。",
+      requestId,
+      { current: domainEntity(current) },
+    );
+  const action = text(input.action);
+  const projectId = String(current.project_id);
+  const payload = domainPayload(current.payload_json);
+  if (action === "adopt") {
+    const lockedTitle = applyVisualAssetAdoption(current);
+    if (lockedTitle)
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        `「${lockedTitle}」已锁定；请先解除锁定或迁移镜头用途。`,
+        requestId,
+      );
+  } else if (action === "lock") {
+    if (payload["采用状态"] !== "已采用")
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "只能锁定已采用的资产版本。",
+        requestId,
+      );
+    payload["锁定状态"] = "已锁定";
+    payload["锁定时间"] = timestamp();
+    updateDomainEntityPayload(id, String(current.title), payload);
+  } else if (action === "unlock") {
+    payload["锁定状态"] = "未锁定";
+    delete payload["锁定时间"];
+    updateDomainEntityPayload(id, String(current.title), payload);
+  } else if (action === "assign-shot" || action === "remove-shot") {
+    const shotId = text(input.shotId);
+    const shot = shotId
+      ? one(
+          "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+          [shotId, "shots", projectId],
+        )
+      : undefined;
+    if (!shot)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "请选择当前项目的镜头。",
+        requestId,
+      );
+    if (action === "assign-shot") {
+      if (payload["采用状态"] !== "已采用" || payload["锁定状态"] !== "已锁定")
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "请先采用并锁定资产版本，再分配给镜头。",
+          requestId,
+        );
+      if (payload["设定状态"] === "已过期" || payload["版本状态"] === "已过期")
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "过期资产不能分配给镜头。",
+          requestId,
+        );
+    }
+    const shotPayload = domainPayload(shot.payload_json);
+    const references = new Set(assetReferenceIds(shotPayload));
+    if (action === "assign-shot") references.add(id);
+    else references.delete(id);
+    shotPayload["资产版本引用"] = [...references];
+    updateDomainEntityPayload(String(shot.id), String(shot.title), shotPayload);
+  } else {
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Unsupported asset center action",
+      requestId,
+    );
+  }
+  emit("asset-center.updated", { assetId: id, action });
+  json(res, 200, assetCenterForProject(projectId));
 }
 
 type EpisodeMediaContext = {
@@ -2782,6 +4261,40 @@ function episodeMediaContext(
     shots: production.shots,
     sourceFingerprint,
   };
+}
+
+function audioClipSourceFingerprint(
+  context: EpisodeMediaContext,
+  clip: { shotId?: string; text?: string; voiceProfileId?: string },
+): string {
+  const shot = clip.shotId
+    ? context.shots.find((item) => String(item.id) === clip.shotId)
+    : undefined;
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        episode: [context.episode.id, context.episode.version],
+        shot: shot
+          ? [shot.id, shot.version, shot.updated_at, shot.payload_json]
+          : undefined,
+        text: clip.text ?? "",
+        voiceProfileId: clip.voiceProfileId,
+      }),
+    )
+    .digest("hex");
+}
+
+function audioTrackIsStale(
+  row: Record<string, any>,
+  context: EpisodeMediaContext,
+): boolean {
+  const clips = parseAudioTrackClips(row.clips_json);
+  if (!clips.length) return true;
+  return clips.some((clip) =>
+    clip.sourceFingerprint
+      ? clip.sourceFingerprint !== audioClipSourceFingerprint(context, clip)
+      : String(row.source_fingerprint) !== context.sourceFingerprint,
+  );
 }
 
 function listVoiceProfiles(
@@ -2932,7 +4445,7 @@ function listAudioTracks(
   const tracks = rows(
     "SELECT * FROM audio_tracks WHERE episode_id = ? ORDER BY created_at DESC",
     [episodeId],
-  ).map((row) => audioTrack(row, context.sourceFingerprint));
+  ).map((row) => audioTrack(row, context));
   json(res, 200, tracks);
 }
 
@@ -3017,6 +4530,10 @@ async function createAudioTrack(
         requestId,
       );
   }
+  const storedClips = clips.map((clip) => ({
+    ...clip,
+    sourceFingerprint: audioClipSourceFingerprint(context, clip),
+  }));
   const id = randomUUID();
   const now = timestamp();
   db!
@@ -3030,14 +4547,14 @@ async function createAudioTrack(
       kind,
       label,
       context.sourceFingerprint,
-      JSON.stringify(clips),
+      JSON.stringify(storedClips),
       "draft",
       now,
       now,
     );
   const created = audioTrack(
     one("SELECT * FROM audio_tracks WHERE id = ?", [id])!,
-    context.sourceFingerprint,
+    context,
   );
   emit("audio-track.created", created);
   json(res, 201, created);
@@ -3052,7 +4569,7 @@ function adoptAudioTrack(
   if (!current)
     return respondError(res, 404, "NOT_FOUND", "未找到音轨", requestId);
   const context = episodeMediaContext(String(current.episode_id));
-  if (!context || context.sourceFingerprint !== current.source_fingerprint)
+  if (!context || audioTrackIsStale(current, context))
     return respondError(
       res,
       409,
@@ -3081,7 +4598,7 @@ function adoptAudioTrack(
   }
   const adopted = audioTrack(
     one("SELECT * FROM audio_tracks WHERE id = ?", [id])!,
-    context.sourceFingerprint,
+    context,
   );
   emit("audio-track.adopted", adopted);
   json(res, 200, adopted);
@@ -3302,7 +4819,7 @@ function getEpisodeRenderPreflight(
     [episodeId, "adopted"],
   );
   const freshAudioRows = audioRows.filter(
-    (row) => row.source_fingerprint === context.sourceFingerprint,
+    (row) => !audioTrackIsStale(row, context),
   );
   if (!freshAudioRows.length)
     blockers.push("至少需要一条与当前镜头版本一致的已采用音轨。");
@@ -3416,6 +4933,7 @@ function parseAudioTrackClips(value: unknown): Array<{
   startSeconds: number;
   durationSeconds: number;
   text?: string;
+  sourceFingerprint?: string;
 }> {
   if (!Array.isArray(value)) {
     try {
@@ -3449,6 +4967,9 @@ function parseAudioTrackClips(value: unknown): Array<{
         startSeconds,
         durationSeconds,
         ...(text(record.text) ? { text: text(record.text) } : {}),
+        ...(text(record.sourceFingerprint)
+          ? { sourceFingerprint: text(record.sourceFingerprint) }
+          : {}),
       },
     ];
   });
@@ -4906,7 +6427,7 @@ async function previewSourceImport(
   copyFileSync(capability.path, join(importsDirectory, stagedFileName));
   const expiresAt = new Date(Date.now() + SOURCE_IMPORT_TTL_MS).toISOString();
   db!
-    .prepare("INSERT INTO source_imports VALUES (?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO source_imports VALUES (?, ?, ?, ?, ?, ?)")
     .run(
       id,
       projectId,
@@ -5044,6 +6565,11 @@ async function commitSourceImport(
         备注: "该声明由用户导入时确认；仍应在交付前完成版权核验。",
       },
     );
+    result.extractionChangeSet = createImportExtractionChangeSet(
+      projectId,
+      id,
+      preview,
+    );
     db!.prepare("DELETE FROM source_imports WHERE id = ?").run(id);
     db!.exec("COMMIT");
   } catch (error) {
@@ -5083,6 +6609,8 @@ type ProjectPackageSnapshot = {
   project: Record<string, unknown>;
   chapters: Array<Record<string, unknown>>;
   resources: Array<Record<string, unknown>>;
+  importExtractions: Array<Record<string, unknown>>;
+  seriesLibrary?: Record<string, unknown>;
   warnings: string[];
 };
 
@@ -5139,6 +6667,27 @@ function parseProjectPackage(
     warnings.push(
       "项目包不会复制本地媒体文件；相关资料会保留，但需重新附加源文件。",
     );
+  const importExtractions = Array.isArray(root.importExtractions)
+    ? root.importExtractions
+        .map((item) => domainPayload(item))
+        .filter(
+          (item) =>
+            packageString(item.sourceFingerprint) &&
+            packageString(item.sourceTitle) &&
+            Array.isArray(item.candidates),
+        )
+        .slice(0, 2_000)
+    : [];
+  if (
+    Array.isArray(root.importExtractions) &&
+    importExtractions.length !== root.importExtractions.length
+  )
+    warnings.push("部分导入候选变更集格式无效，未随项目包导入。");
+  const seriesLibrary = domainPayload(root.seriesLibrary);
+  if (Object.keys(seriesLibrary).length)
+    warnings.push(
+      "系列资料作为只读快照导入；不会自动加入原系列或跟随其后续更新。",
+    );
   return {
     project: {
       title,
@@ -5166,6 +6715,8 @@ function parseProjectPackage(
     },
     chapters,
     resources,
+    importExtractions,
+    ...(Object.keys(seriesLibrary).length ? { seriesLibrary } : {}),
     warnings,
   };
 }
@@ -5304,6 +6855,7 @@ async function commitProjectPackage(
   const now = timestamp();
   const projectId = randomUUID();
   const resourceIds = new Map<string, string>();
+  const chapterIds = new Map<string, string>();
   const pendingParents: Array<{ id: string; parentId?: string }> = [];
   try {
     db!.exec("BEGIN IMMEDIATE");
@@ -5343,6 +6895,8 @@ async function commitProjectPackage(
     );
     snapshot.chapters.forEach((source, index) => {
       const nextId = randomUUID();
+      if (!chapterIds.has(packageString(source.title)))
+        chapterIds.set(packageString(source.title), nextId);
       insertChapter.run(
         nextId,
         projectId,
@@ -5384,6 +6938,20 @@ async function commitProjectPackage(
         now,
       );
     });
+    if (snapshot.seriesLibrary) {
+      insertResource.run(
+        randomUUID(),
+        "series-library-snapshots",
+        projectId,
+        "系列资料快照（项目包导入）",
+        JSON.stringify({
+          ...snapshot.seriesLibrary,
+          说明: "来自项目包的不可变说明快照；未自动连接到原始系列。",
+        }),
+        now,
+        now,
+      );
+    }
     const updateParent = db!.prepare(
       "UPDATE domain_entities SET parent_id = ? WHERE id = ? AND project_id = ?",
     );
@@ -5392,6 +6960,58 @@ async function commitProjectPackage(
       if (resolvedParentId)
         updateParent.run(resolvedParentId, resourceId, projectId);
     });
+    const insertExtraction = db!.prepare(
+      `INSERT INTO import_extraction_change_sets(
+        id, project_id, source_import_id, source_fingerprint, source_title, source_versions_json,
+        status, summary, candidates_json, created_entity_ids_json, adoption_json, error_message,
+        applied_at, undone_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '[]', ?, NULL, NULL, ?, ?)`,
+    );
+    for (const importedExtraction of snapshot.importExtractions) {
+      const candidates = importExtractionCandidates(
+        JSON.stringify({ items: importedExtraction.candidates }),
+      );
+      if (!candidates.length) continue;
+      const versions = new Map<string, ImportExtractionSourceVersion>();
+      for (const candidate of candidates) {
+        for (const ref of candidate.sourceRefs) {
+          if (versions.has(ref.sourceKey)) continue;
+          const chapterId = chapterIds.get(ref.chapterTitle);
+          const importedChapter = chapterId
+            ? one("SELECT version, content FROM chapters WHERE id = ?", [
+                chapterId,
+              ])
+            : undefined;
+          versions.set(ref.sourceKey, {
+            sourceKey: ref.sourceKey,
+            ...(chapterId ? { chapterId } : {}),
+            version: Number(importedChapter?.version ?? ref.sourceVersion),
+            contentHash: storyBibleSourceHash(
+              String(importedChapter?.content ?? ref.excerpt),
+            ),
+          });
+        }
+      }
+      const requestedStatus = packageString(importedExtraction.status);
+      const status = requestedStatus === "draft" ? "draft" : "discarded";
+      insertExtraction.run(
+        randomUUID(),
+        projectId,
+        `project-package:${id}`,
+        packageString(importedExtraction.sourceFingerprint),
+        packageString(importedExtraction.sourceTitle),
+        JSON.stringify({ items: [...versions.values()] }),
+        status,
+        packageString(importedExtraction.summary) ||
+          `从项目包恢复的 ${candidates.length} 条导入候选。`,
+        JSON.stringify({ items: candidates }),
+        status === "draft"
+          ? null
+          : "项目包只恢复未采用候选；历史采用记录不支持跨项目撤销。",
+        now,
+        now,
+      );
+    }
     db!.prepare("DELETE FROM project_package_imports WHERE id = ?").run(id);
     db!.exec("COMMIT");
   } catch (error) {
@@ -5408,7 +7028,8 @@ async function commitProjectPackage(
   json(res, 201, {
     project: imported,
     chaptersCreated: snapshot.chapters.length,
-    resourcesCreated: snapshot.resources.length,
+    resourcesCreated:
+      snapshot.resources.length + (snapshot.seriesLibrary ? 1 : 0),
   });
 }
 
@@ -5729,19 +7350,33 @@ function createContentCheckpoint(
   title: string,
   content: string,
   baseVersion?: number,
-  options?: { label?: string; source?: string },
+  sourceOrOptions:
+    | string
+    | {
+        label?: string;
+        source?: string;
+        metadata?: Record<string, unknown>;
+      } = "原稿导入前自动保存",
+  metadata?: Record<string, unknown>,
 ): void {
+  const options =
+    typeof sourceOrOptions === "string"
+      ? { source: sourceOrOptions, metadata }
+      : sourceOrOptions;
+  const source = options.source ?? "原稿导入前自动保存";
   insertDomainEntity(
     "content-versions",
     projectId,
     targetId,
-    options?.label ?? `导入前检查点：${title}`,
+    options.label ??
+      `${source === "原稿导入前自动保存" ? "导入前检查点" : source}：${title}`,
     {
       目标类型: targetKind === "chapter" ? "章节" : "剧本",
       目标标识: targetId,
       ...(baseVersion === undefined ? {} : { 基础版本: baseVersion }),
       内容: content,
-      来源: options?.source ?? "原稿导入前自动保存",
+      来源: source,
+      ...options.metadata,
     },
   );
 }
@@ -5789,6 +7424,1368 @@ function domainPayload(value: unknown): Record<string, unknown> {
 
 function stringPayload(payload: Record<string, unknown>, key: string): string {
   return typeof payload[key] === "string" ? payload[key] : "";
+}
+
+type ImportExtractionSourceVersion = {
+  sourceKey: string;
+  chapterId?: string;
+  version: number;
+  contentHash: string;
+};
+type ImportExtractionAdoption =
+  | {
+      kind: "entity";
+      candidateId: string;
+      entityId: string;
+      expectedVersion: number;
+    }
+  | {
+      kind: "chapter-summary";
+      candidateId: string;
+      chapterId: string;
+      previousSummary: string;
+      appliedSummary: string;
+      appliedVersion: number;
+    };
+
+function importExtractionChangeSet(
+  row: Record<string, unknown>,
+): ImportExtractionChangeSet {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    sourceFingerprint: String(row.source_fingerprint),
+    sourceTitle: String(row.source_title),
+    status: String(row.status) as ImportExtractionChangeSet["status"],
+    summary: String(row.summary),
+    candidates: importExtractionCandidates(row.candidates_json),
+    ...(row.applied_at ? { appliedAt: String(row.applied_at) } : {}),
+    ...(row.undone_at ? { undoneAt: String(row.undone_at) } : {}),
+    ...(row.error_message ? { errorMessage: String(row.error_message) } : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function importExtractionCandidates(
+  value: unknown,
+): ImportExtractionCandidate[] {
+  const parsed = domainPayload(value);
+  const items = Array.isArray(parsed.items) ? parsed.items : [];
+  const types = new Set([
+    "character",
+    "scene",
+    "prop",
+    "chapter-summary",
+    "adaptation",
+  ]);
+  const statuses = new Set(["draft", "rejected", "adopted", "conflict"]);
+  return items.flatMap((item): ImportExtractionCandidate[] => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Record<string, unknown>;
+    if (
+      typeof candidate.id !== "string" ||
+      typeof candidate.title !== "string" ||
+      typeof candidate.summary !== "string" ||
+      !types.has(String(candidate.type)) ||
+      !statuses.has(String(candidate.status))
+    )
+      return [];
+    const sourceRefs = Array.isArray(candidate.sourceRefs)
+      ? candidate.sourceRefs.flatMap(
+          (source): ImportExtractionCandidate["sourceRefs"] => {
+            if (!source || typeof source !== "object") return [];
+            const ref = source as Record<string, unknown>;
+            if (
+              typeof ref.sourceKey !== "string" ||
+              typeof ref.chapterTitle !== "string" ||
+              typeof ref.excerpt !== "string" ||
+              !Number.isInteger(ref.start) ||
+              !Number.isInteger(ref.end) ||
+              !Number.isInteger(ref.sourceVersion)
+            )
+              return [];
+            return [
+              {
+                sourceKey: ref.sourceKey,
+                chapterTitle: ref.chapterTitle,
+                excerpt: ref.excerpt,
+                start: Number(ref.start),
+                end: Number(ref.end),
+                sourceVersion: Number(ref.sourceVersion),
+              },
+            ];
+          },
+        )
+      : [];
+    return [
+      {
+        id: candidate.id,
+        type: candidate.type as ImportExtractionCandidate["type"],
+        title: candidate.title,
+        summary: candidate.summary,
+        confidence: Math.max(0, Math.min(1, Number(candidate.confidence) || 0)),
+        sourceRefs,
+        status: candidate.status as ImportExtractionCandidate["status"],
+        ...(typeof candidate.conflictNote === "string"
+          ? { conflictNote: candidate.conflictNote }
+          : {}),
+      },
+    ];
+  });
+}
+
+function importExtractionSourceVersions(
+  projectId: string,
+  preview: SourceImportPreview,
+): ImportExtractionSourceVersion[] {
+  const segments = importExtractionSegments(preview);
+  return segments.map((segment) => {
+    const chapter = preview.chapters.some((item) => item.key === segment.key)
+      ? one(
+          "SELECT id, version, content FROM chapters WHERE project_id = ? AND title = ? ORDER BY updated_at DESC LIMIT 1",
+          [projectId, segment.title],
+        )
+      : undefined;
+    return {
+      sourceKey: segment.key,
+      ...(chapter ? { chapterId: String(chapter.id) } : {}),
+      version: Number(chapter?.version ?? 0),
+      contentHash: storyBibleSourceHash(
+        String(chapter?.content ?? segment.content),
+      ),
+    };
+  });
+}
+
+function importExtractionSegments(preview: SourceImportPreview) {
+  const chapters = preview.chapters.map((chapter) => ({
+    key: chapter.key,
+    title: chapter.title,
+    content: chapter.content,
+  }));
+  if (chapters.length) return chapters;
+  return preview.episodes.map((episode) => ({
+    key: episode.key,
+    title: `第${episode.episodeNumber}集·${episode.title}`,
+    content: episode.content,
+  }));
+}
+
+function importExtractionExcerpt(content: string, start = 0): string {
+  return content
+    .slice(Math.max(0, start), Math.max(0, start) + 180)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function createImportExtractionCandidate(
+  type: ImportExtractionCandidate["type"],
+  title: string,
+  summary: string,
+  segment: { key: string; title: string; content: string },
+  sourceVersions: ImportExtractionSourceVersion[],
+  confidence: number,
+  start = 0,
+): ImportExtractionCandidate {
+  const source = sourceVersions.find((item) => item.sourceKey === segment.key);
+  const excerpt = importExtractionExcerpt(segment.content, start);
+  return {
+    id: randomUUID(),
+    type,
+    title: title.trim().slice(0, 120),
+    summary: summary.trim().slice(0, 600),
+    confidence,
+    sourceRefs: [
+      {
+        sourceKey: segment.key,
+        chapterTitle: segment.title,
+        start,
+        end: start + excerpt.length,
+        excerpt,
+        sourceVersion: source?.version ?? 0,
+      },
+    ],
+    status: "draft",
+  };
+}
+
+function importExtractionCharacterCandidates(
+  segments: Array<{ key: string; title: string; content: string }>,
+  sourceVersions: ImportExtractionSourceVersion[],
+): ImportExtractionCandidate[] {
+  const names = new Map<
+    string,
+    { segment: (typeof segments)[number]; start: number }
+  >();
+  const stopWords = new Set([
+    "雨夜",
+    "门口",
+    "天亮",
+    "电话",
+    "脚步声",
+    "没有",
+    "一个",
+    "已经",
+    "自己",
+  ]);
+  for (const segment of segments) {
+    for (const expression of [
+      /([\p{Script=Han}]{2,4})[：:]/gu,
+      /([\p{Script=Han}]{2,3})(?:在|说|道|问|答|握|走|看|发现|决定|来到|进入|拿起|放下|听见)/gu,
+      /\b([A-Z][a-z]{2,})\b(?=\s+(?:said|asked|walked|looked|found|decided))/g,
+    ]) {
+      for (const match of segment.content.matchAll(expression)) {
+        const name = String(match[1]).trim();
+        if (!stopWords.has(name) && !names.has(name))
+          names.set(name, { segment, start: match.index ?? 0 });
+      }
+    }
+  }
+  const found = [...names.entries()]
+    .slice(0, 8)
+    .map(([name, reference]) =>
+      createImportExtractionCandidate(
+        "character",
+        name,
+        `${name}出现在《${reference.segment.title}》的原稿叙事中；采用后会创建可继续完善的人物资料草案。`,
+        reference.segment,
+        sourceVersions,
+        0.72,
+        reference.start,
+      ),
+    );
+  if (found.length) return found;
+  const first = segments[0];
+  return first
+    ? [
+        createImportExtractionCandidate(
+          "character",
+          `《${first.title}》人物线索待确认`,
+          "原稿未出现可稳定识别的人名；保留此来源线索供人工命名，采用前可编辑。",
+          first,
+          sourceVersions,
+          0.25,
+        ),
+      ]
+    : [];
+}
+
+function importExtractionPropCandidates(
+  segments: Array<{ key: string; title: string; content: string }>,
+  sourceVersions: ImportExtractionSourceVersion[],
+): ImportExtractionCandidate[] {
+  const propNames = [
+    "信封",
+    "钥匙",
+    "玉佩",
+    "戒指",
+    "照片",
+    "手机",
+    "电话",
+    "盒子",
+    "令牌",
+    "药瓶",
+    "书信",
+    "项链",
+    "剑",
+    "刀",
+  ];
+  const found: ImportExtractionCandidate[] = [];
+  const seen = new Set<string>();
+  for (const segment of segments) {
+    for (const prop of propNames) {
+      const start = segment.content.indexOf(prop);
+      if (start >= 0 && !seen.has(prop)) {
+        seen.add(prop);
+        found.push(
+          createImportExtractionCandidate(
+            "prop",
+            prop,
+            `${prop}在《${segment.title}》中被提及；采用后会作为制作素材/道具草案写入，便于补充视觉与权利信息。`,
+            segment,
+            sourceVersions,
+            0.7,
+            start,
+          ),
+        );
+      }
+    }
+  }
+  if (found.length) return found.slice(0, 8);
+  const first = segments[0];
+  return first
+    ? [
+        createImportExtractionCandidate(
+          "prop",
+          `《${first.title}》关键物件待确认`,
+          "未从原稿中识别到稳定的具体道具名称；保留对应原文范围供人工补充，不会虚构道具。",
+          first,
+          sourceVersions,
+          0.2,
+        ),
+      ]
+    : [];
+}
+
+function createImportExtractionChangeSet(
+  projectId: string,
+  sourceImportId: string,
+  preview: SourceImportPreview,
+): ImportExtractionChangeSet {
+  const sourceFingerprint = storyBibleSourceHash(
+    JSON.stringify({
+      title: preview.title,
+      sourceType: preview.sourceType,
+      chapters: preview.chapters.map((chapter) => [
+        chapter.key,
+        chapter.title,
+        chapter.content,
+      ]),
+      episodes: preview.episodes.map((episode) => [
+        episode.key,
+        episode.title,
+        episode.content,
+      ]),
+    }),
+  );
+  const duplicate = one(
+    `SELECT * FROM import_extraction_change_sets
+     WHERE project_id = ? AND source_fingerprint = ? AND status IN ('draft', 'applied', 'stale')`,
+    [projectId, sourceFingerprint],
+  );
+  if (duplicate) return importExtractionChangeSet(duplicate);
+  const segments = importExtractionSegments(preview);
+  const sourceVersions = importExtractionSourceVersions(projectId, preview);
+  const candidates: ImportExtractionCandidate[] = [
+    ...importExtractionCharacterCandidates(segments, sourceVersions),
+    ...segments.map((segment) =>
+      createImportExtractionCandidate(
+        "scene",
+        `${segment.title}·场景草案`,
+        `根据《${segment.title}》的原稿段落整理的场景候选；采用后只创建可编辑的制作场景草案。`,
+        segment,
+        sourceVersions,
+        0.66,
+      ),
+    ),
+    ...importExtractionPropCandidates(segments, sourceVersions),
+    ...segments.map((segment) =>
+      createImportExtractionCandidate(
+        "chapter-summary",
+        segment.title,
+        importExtractionExcerpt(segment.content) ||
+          "原稿段落为空，待人工补充摘要。",
+        segment,
+        sourceVersions,
+        0.8,
+      ),
+    ),
+  ];
+  if (segments[0]) {
+    candidates.push(
+      createImportExtractionCandidate(
+        "adaptation",
+        `《${preview.title}》短剧改编建议`,
+        `基于 ${segments.length} 个${preview.contentKind === "script" ? "分集" : "原稿章节"}、${preview.charCount.toLocaleString("zh-CN")} 字符：先以每章一个剧情单元建立节奏，再由人工确认集数、冲突升级与悬念位置。`,
+        segments[0],
+        sourceVersions,
+        0.62,
+      ),
+    );
+  }
+  const now = timestamp();
+  const id = randomUUID();
+  const summary = `已从《${preview.title}》整理 ${candidates.length} 条待审查候选：人物、场景、道具、章节摘要与改编建议均可逐项编辑后采用。`;
+  db!
+    .prepare(
+      `INSERT INTO import_extraction_change_sets(
+        id, project_id, source_import_id, source_fingerprint, source_title, source_versions_json,
+        status, summary, candidates_json, created_entity_ids_json, adoption_json, error_message,
+        applied_at, undone_at, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, '[]', '[]', NULL, NULL, NULL, ?, ?)`,
+    )
+    .run(
+      id,
+      projectId,
+      sourceImportId,
+      sourceFingerprint,
+      preview.title,
+      JSON.stringify({ items: sourceVersions }),
+      summary,
+      JSON.stringify({ items: candidates }),
+      now,
+      now,
+    );
+  const taskId = randomUUID();
+  db!
+    .prepare("INSERT INTO tasks VALUES (?, ?, ?, ?, 1, ?, NULL, ?, NULL, ?, ?)")
+    .run(
+      taskId,
+      "source_import.extract",
+      "succeeded",
+      `导入候选已整理：${preview.title}`,
+      projectId,
+      JSON.stringify({ changeSetId: id, candidateCount: candidates.length }),
+      now,
+      now,
+    );
+  return importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+}
+
+function importExtractionSourceVersionsFromRow(
+  row: Record<string, unknown>,
+): ImportExtractionSourceVersion[] {
+  const payload = domainPayload(row.source_versions_json);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): ImportExtractionSourceVersion[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      typeof item.sourceKey !== "string" ||
+      typeof item.contentHash !== "string" ||
+      !Number.isInteger(item.version)
+    )
+      return [];
+    return [
+      {
+        sourceKey: item.sourceKey,
+        ...(typeof item.chapterId === "string"
+          ? { chapterId: item.chapterId }
+          : {}),
+        version: Number(item.version),
+        contentHash: item.contentHash,
+      },
+    ];
+  });
+}
+
+function importExtractionStaleReason(
+  row: Record<string, unknown>,
+): string | undefined {
+  for (const source of importExtractionSourceVersionsFromRow(row)) {
+    if (!source.chapterId) continue;
+    const chapter = one("SELECT version, content FROM chapters WHERE id = ?", [
+      source.chapterId,
+    ]);
+    if (!chapter) return "导入来源章节已被删除，需要重新核对候选。";
+    if (
+      Number(chapter.version) !== source.version ||
+      storyBibleSourceHash(String(chapter.content ?? "")) !== source.contentHash
+    )
+      return "导入来源章节已更新，需要重新核对候选。";
+  }
+  return undefined;
+}
+
+function markImportExtractionStaleForChapter(
+  projectId: string,
+  chapterId: string,
+): void {
+  const now = timestamp();
+  for (const row of rows(
+    "SELECT * FROM import_extraction_change_sets WHERE project_id = ? AND status IN ('draft', 'applied')",
+    [projectId],
+  )) {
+    if (
+      !importExtractionSourceVersionsFromRow(row).some(
+        (source) => source.chapterId === chapterId,
+      )
+    )
+      continue;
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET status = 'stale', error_message = ?, updated_at = ? WHERE id = ?",
+      )
+      .run("导入来源章节已更新，需要重新核对候选。", now, row.id);
+  }
+}
+
+function listImportExtractionChangeSets(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (!one("SELECT id FROM projects WHERE id = ?", [projectId]))
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(
+    res,
+    200,
+    rows(
+      "SELECT * FROM import_extraction_change_sets WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(importExtractionChangeSet),
+  );
+}
+
+async function updateImportExtractionCandidate(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ids: [string, string],
+  requestId: string,
+): Promise<void> {
+  const [id, candidateId] = ids;
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["draft", "applied"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Only active change sets can be edited",
+      requestId,
+    );
+  const input = await body(req);
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const candidate = candidates.find((item) => item.id === candidateId);
+  if (!candidate)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction candidate not found",
+      requestId,
+    );
+  if (candidate.status === "adopted")
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Adopted candidates cannot be edited",
+      requestId,
+    );
+  if (typeof input.title === "string") {
+    candidate.title = input.title.trim().slice(0, 120);
+    if (!candidate.title)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "title cannot be empty",
+        requestId,
+      );
+  }
+  if (typeof input.summary === "string") {
+    candidate.summary = input.summary.trim().slice(0, 600);
+    if (!candidate.summary)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "summary cannot be empty",
+        requestId,
+      );
+  }
+  if (input.status === "draft" || input.status === "rejected") {
+    candidate.status = input.status;
+    if (input.status === "draft") delete candidate.conflictNote;
+  }
+  const now = timestamp();
+  db!
+    .prepare(
+      "UPDATE import_extraction_change_sets SET candidates_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+    )
+    .run(JSON.stringify({ items: candidates }), now, id);
+  json(
+    res,
+    200,
+    importExtractionChangeSet(
+      one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+    ),
+  );
+}
+
+function importExtractionConflict(
+  changeSetId: string,
+  projectId: string,
+  candidate: ImportExtractionCandidate,
+  sourceVersions: ImportExtractionSourceVersion[],
+): string | undefined {
+  if (candidate.type === "chapter-summary") {
+    const source = sourceVersions.find(
+      (item) => item.sourceKey === candidate.sourceRefs[0]?.sourceKey,
+    );
+    if (!source?.chapterId)
+      return "该摘要没有可写入的项目章节；请保留为人工草案。";
+    const chapter = one("SELECT version FROM chapters WHERE id = ?", [
+      source.chapterId,
+    ]);
+    return !chapter || Number(chapter.version) !== source.version
+      ? "来源章节已被人工修改，不会覆盖其摘要。"
+      : undefined;
+  }
+  const domain =
+    candidate.type === "character"
+      ? "characters"
+      : candidate.type === "scene"
+        ? "scenes"
+        : candidate.type === "prop"
+          ? "assets"
+          : "adaptations";
+  const current = one(
+    "SELECT id FROM domain_entities WHERE project_id = ? AND domain = ? AND title = ? AND payload_json NOT LIKE ? LIMIT 1",
+    [projectId, domain, candidate.title, `%${changeSetId}%`],
+  );
+  return current
+    ? `项目已有同名人工${candidate.type === "character" ? "人物" : candidate.type === "prop" ? "素材/道具" : "资料"}，不会覆盖。`
+    : undefined;
+}
+
+async function adoptImportExtractionChangeSet(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["draft", "applied"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "This change set is no longer adoptable",
+      requestId,
+    );
+  const staleReason = importExtractionStaleReason(current);
+  if (staleReason) {
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET status = 'stale', error_message = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(staleReason, timestamp(), id);
+    return respondError(res, 409, "CONFLICT", staleReason, requestId);
+  }
+  const input = await body(req);
+  const requested = Array.isArray(input.candidateIds)
+    ? input.candidateIds.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : undefined;
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const selectable = candidates.filter(
+    (candidate) => candidate.status === "draft",
+  );
+  const selected = requested
+    ? selectable.filter((candidate) => requested.includes(candidate.id))
+    : selectable;
+  if (!selected.length || (requested && selected.length !== requested.length))
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select one or more draft candidates",
+      requestId,
+    );
+  const sourceVersions = importExtractionSourceVersionsFromRow(current);
+  const conflicts = selected
+    .map((candidate) => ({
+      candidate,
+      note: importExtractionConflict(
+        id,
+        String(current.project_id),
+        candidate,
+        sourceVersions,
+      ),
+    }))
+    .filter(
+      (item): item is { candidate: ImportExtractionCandidate; note: string } =>
+        Boolean(item.note),
+    );
+  if (conflicts.length) {
+    for (const { candidate, note } of conflicts) {
+      candidate.status = "conflict";
+      candidate.conflictNote = note;
+    }
+    db!
+      .prepare(
+        "UPDATE import_extraction_change_sets SET candidates_json = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify({ items: candidates }), timestamp(), id);
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "One or more selected candidates conflict with existing human content",
+      requestId,
+    );
+  }
+  const createdIds = jsonStringArray(current.created_entity_ids_json);
+  const adoptions = importExtractionAdoptions(current.adoption_json);
+  const now = timestamp();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    for (const candidate of selected) {
+      if (candidate.type === "chapter-summary") {
+        const source = sourceVersions.find(
+          (item) => item.sourceKey === candidate.sourceRefs[0]?.sourceKey,
+        );
+        const chapter = source?.chapterId
+          ? one("SELECT * FROM chapters WHERE id = ?", [source.chapterId])
+          : undefined;
+        if (!source?.chapterId || !chapter)
+          throw new Error("来源章节不存在，无法写入摘要");
+        const result = db!
+          .prepare(
+            "UPDATE chapters SET summary = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+          )
+          .run(candidate.summary, now, source.chapterId, source.version);
+        if (Number(result.changes) !== 1)
+          throw new Error("来源章节已更新，无法安全写入摘要");
+        adoptions.push({
+          kind: "chapter-summary",
+          candidateId: candidate.id,
+          chapterId: source.chapterId,
+          previousSummary: String(chapter.summary ?? ""),
+          appliedSummary: candidate.summary,
+          appliedVersion: source.version + 1,
+        });
+      } else {
+        const domain =
+          candidate.type === "character"
+            ? "characters"
+            : candidate.type === "scene"
+              ? "scenes"
+              : candidate.type === "prop"
+                ? "assets"
+                : "adaptations";
+        const entityId = insertDomainEntity(
+          domain,
+          String(current.project_id),
+          undefined,
+          candidate.title,
+          {
+            来源变更集: id,
+            候选类型: candidate.type,
+            候选摘要: candidate.summary,
+            来源片段: candidate.sourceRefs.map((ref) => ({
+              章节: ref.chapterTitle,
+              范围: `${ref.start}-${ref.end}`,
+              摘录: ref.excerpt,
+            })),
+            置信度: candidate.confidence,
+            ...(candidate.type === "prop" ? { 素材类型: "原稿道具草案" } : {}),
+            ...(candidate.type === "adaptation"
+              ? { 改编方向: candidate.summary }
+              : {}),
+          },
+        );
+        createdIds.push(entityId);
+        adoptions.push({
+          kind: "entity",
+          candidateId: candidate.id,
+          entityId,
+          expectedVersion: 0,
+        });
+      }
+      candidate.status = "adopted";
+      delete candidate.conflictNote;
+    }
+    db!
+      .prepare(
+        `UPDATE import_extraction_change_sets SET
+          status = 'applied', candidates_json = ?, created_entity_ids_json = ?, adoption_json = ?,
+          error_message = NULL, applied_at = COALESCE(applied_at, ?), updated_at = ? WHERE id = ?`,
+      )
+      .run(
+        JSON.stringify({ items: candidates }),
+        JSON.stringify(createdIds),
+        JSON.stringify({ items: adoptions }),
+        now,
+        now,
+        id,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      error instanceof Error
+        ? error.message
+        : "Unable to adopt import candidates",
+      requestId,
+    );
+  }
+  const updated = importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+  emit("import_extraction.adopted", updated);
+  json(res, 200, updated);
+}
+
+function importExtractionAdoptions(value: unknown): ImportExtractionAdoption[] {
+  const payload = domainPayload(value);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): ImportExtractionAdoption[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      item.kind === "entity" &&
+      typeof item.candidateId === "string" &&
+      typeof item.entityId === "string" &&
+      Number.isInteger(item.expectedVersion)
+    )
+      return [
+        {
+          kind: "entity",
+          candidateId: item.candidateId,
+          entityId: item.entityId,
+          expectedVersion: Number(item.expectedVersion),
+        },
+      ];
+    if (
+      item.kind === "chapter-summary" &&
+      typeof item.candidateId === "string" &&
+      typeof item.chapterId === "string" &&
+      typeof item.previousSummary === "string" &&
+      typeof item.appliedSummary === "string" &&
+      Number.isInteger(item.appliedVersion)
+    )
+      return [
+        {
+          kind: "chapter-summary",
+          candidateId: item.candidateId,
+          chapterId: item.chapterId,
+          previousSummary: item.previousSummary,
+          appliedSummary: item.appliedSummary,
+          appliedVersion: Number(item.appliedVersion),
+        },
+      ];
+    return [];
+  });
+}
+
+function undoImportExtractionChangeSet(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const current = one(
+    "SELECT * FROM import_extraction_change_sets WHERE id = ?",
+    [id],
+  );
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Import extraction change set not found",
+      requestId,
+    );
+  if (!["applied", "stale"].includes(String(current.status)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Only adopted change sets can be undone",
+      requestId,
+    );
+  const candidates = importExtractionCandidates(current.candidates_json);
+  const adoptions = importExtractionAdoptions(current.adoption_json);
+  const remaining: ImportExtractionAdoption[] = [];
+  const protectedCandidateIds = new Set<string>();
+  const now = timestamp();
+  try {
+    db!.exec("BEGIN IMMEDIATE");
+    for (const adoption of adoptions) {
+      if (adoption.kind === "entity") {
+        const entity = one("SELECT * FROM domain_entities WHERE id = ?", [
+          adoption.entityId,
+        ]);
+        const payload = entity ? domainPayload(entity.payload_json) : {};
+        if (
+          !entity ||
+          Number(entity.version) !== adoption.expectedVersion ||
+          payload["来源变更集"] !== id
+        ) {
+          remaining.push(adoption);
+          protectedCandidateIds.add(adoption.candidateId);
+          continue;
+        }
+        db!
+          .prepare("DELETE FROM domain_entities WHERE id = ?")
+          .run(adoption.entityId);
+      } else {
+        const chapter = one("SELECT * FROM chapters WHERE id = ?", [
+          adoption.chapterId,
+        ]);
+        if (
+          !chapter ||
+          Number(chapter.version) !== adoption.appliedVersion ||
+          String(chapter.summary ?? "") !== adoption.appliedSummary
+        ) {
+          remaining.push(adoption);
+          protectedCandidateIds.add(adoption.candidateId);
+          continue;
+        }
+        db!
+          .prepare(
+            "UPDATE chapters SET summary = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+          )
+          .run(
+            adoption.previousSummary,
+            now,
+            adoption.chapterId,
+            adoption.appliedVersion,
+          );
+      }
+    }
+    for (const candidate of candidates) {
+      if (protectedCandidateIds.has(candidate.id)) {
+        candidate.status = "conflict";
+        candidate.conflictNote =
+          "该采用结果已被人工修改；撤销不会覆盖人工内容。";
+      }
+    }
+    const completed = remaining.length === 0;
+    db!
+      .prepare(
+        `UPDATE import_extraction_change_sets SET
+          status = ?, candidates_json = ?, created_entity_ids_json = ?, adoption_json = ?,
+          error_message = ?, undone_at = ?, updated_at = ? WHERE id = ?`,
+      )
+      .run(
+        completed ? "discarded" : "stale",
+        JSON.stringify({ items: candidates }),
+        JSON.stringify(
+          remaining
+            .filter(
+              (
+                item,
+              ): item is Extract<
+                ImportExtractionAdoption,
+                { kind: "entity" }
+              > => item.kind === "entity",
+            )
+            .map((item) => item.entityId),
+        ),
+        JSON.stringify({ items: remaining }),
+        completed ? null : "部分采用结果已被人工修改，已保留且可继续处理。",
+        completed ? now : null,
+        now,
+        id,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    return respondError(
+      res,
+      500,
+      "INTERNAL_ERROR",
+      error instanceof Error
+        ? error.message
+        : "Unable to undo import candidates",
+      requestId,
+    );
+  }
+  const updated = importExtractionChangeSet(
+    one("SELECT * FROM import_extraction_change_sets WHERE id = ?", [id])!,
+  );
+  emit("import_extraction.undone", updated);
+  json(res, 200, updated);
+}
+
+type PilotChapterVersion = { id: string; version: number; contentHash: string };
+
+function pilotChapterVersions(
+  row: Record<string, unknown>,
+): PilotChapterVersion[] {
+  const payload = domainPayload(row.chapter_versions_json);
+  const values = Array.isArray(payload.items) ? payload.items : [];
+  return values.flatMap((value): PilotChapterVersion[] => {
+    if (!value || typeof value !== "object") return [];
+    const item = value as Record<string, unknown>;
+    if (
+      typeof item.id !== "string" ||
+      !Number.isInteger(item.version) ||
+      typeof item.contentHash !== "string"
+    )
+      return [];
+    return [
+      {
+        id: item.id,
+        version: Number(item.version),
+        contentHash: item.contentHash,
+      },
+    ];
+  });
+}
+
+function pilotPlanStaleReason(
+  row: Record<string, unknown>,
+): string | undefined {
+  const versions = pilotChapterVersions(row);
+  if (!versions.length) return "试制来源记录不完整，请重新确认来源。";
+  for (const source of versions) {
+    const chapter = one("SELECT version, content FROM chapters WHERE id = ?", [
+      source.id,
+    ]);
+    if (
+      !chapter ||
+      Number(chapter.version) !== source.version ||
+      storyBibleSourceHash(String(chapter.content ?? "")) !== source.contentHash
+    )
+      return "试制来源章节已更新，请重新确认后继续。";
+  }
+  return undefined;
+}
+
+function pilotPlan(row: Record<string, unknown>): PilotPlan {
+  const chapterIds = jsonStringArray(row.chapter_ids_json);
+  const episodeIds = jsonStringArray(row.episode_ids_json);
+  const episodeRows = episodeIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'episodes' AND project_id = ? AND id IN (${episodeIds.map(() => "?").join(",")})`,
+        [row.project_id, ...episodeIds],
+      )
+    : [];
+  const actualEpisodeIds = episodeRows.map((item) => String(item.id));
+  const scriptRows = actualEpisodeIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'scripts' AND project_id = ? AND parent_id IN (${actualEpisodeIds.map(() => "?").join(",")})`,
+        [row.project_id, ...actualEpisodeIds],
+      )
+    : [];
+  const scriptIds = scriptRows.map((item) => String(item.id));
+  const sceneRows = scriptIds.length
+    ? rows(
+        `SELECT * FROM domain_entities WHERE domain = 'scenes' AND project_id = ? AND parent_id IN (${scriptIds.map(() => "?").join(",")})`,
+        [row.project_id, ...scriptIds],
+      )
+    : [];
+  const sceneIds = sceneRows.map((item) => String(item.id));
+  const shotCount = sceneIds.length
+    ? Number(
+        one(
+          `SELECT count(*) AS count FROM domain_entities WHERE domain = 'shots' AND project_id = ? AND parent_id IN (${sceneIds.map(() => "?").join(",")})`,
+          [row.project_id, ...sceneIds],
+        )?.count ?? 0,
+      )
+    : 0;
+  const coverage = {
+    episodes: actualEpisodeIds.length,
+    scripts: scriptRows.length,
+    scenes: sceneRows.length,
+    shots: shotCount,
+    assets: Number(
+      one(
+        "SELECT count(*) AS count FROM domain_entities WHERE domain IN ('assets', 'visual-assets') AND project_id = ?",
+        [row.project_id],
+      )?.count ?? 0,
+    ),
+  };
+  const staleReason =
+    Number(row.source_confirmed) === 1 ? pilotPlanStaleReason(row) : undefined;
+  const canceled = String(row.status) === "canceled";
+  const sourceConfirmed = Number(row.source_confirmed) === 1;
+  const target = Number(row.episode_count);
+  const stage: PilotPlan["stage"] =
+    !sourceConfirmed || staleReason || canceled
+      ? "confirm-source"
+      : coverage.scripts < target
+        ? "script"
+        : !coverage.scenes
+          ? "scenes"
+          : !coverage.shots
+            ? "shots"
+            : !coverage.assets
+              ? "assets"
+              : "review";
+  const status: PilotPlan["status"] = canceled
+    ? "canceled"
+    : staleReason
+      ? "stale"
+      : stage === "review"
+        ? "ready-for-review"
+        : sourceConfirmed
+          ? "active"
+          : "draft";
+  const blockers: Partial<Record<PilotPlan["stage"], string>> = {
+    "confirm-source":
+      staleReason ??
+      (canceled
+        ? "试制已取消，可恢复后重新确认来源。"
+        : "等待人工确认试制来源。"),
+    script: "每个试制分集都需要先采用剧本。",
+    scenes: "已采用剧本需要拆分为可制作场景。",
+    shots: "已采用场景需要建立分镜。",
+    assets: "制作前需至少归档一项视觉或道具资产。",
+  };
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    chapterIds,
+    episodeCount: target,
+    status,
+    stage,
+    sourceConfirmed,
+    ...(row.adaptation_id ? { adaptationId: String(row.adaptation_id) } : {}),
+    episodeIds: actualEpisodeIds,
+    coverage,
+    ...(blockers[stage] ? { blocker: blockers[stage] } : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  };
+}
+
+function listPilotPlans(
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): void {
+  if (
+    !one("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL", [
+      projectId,
+    ])
+  )
+    return respondError(res, 404, "NOT_FOUND", "Project not found", requestId);
+  json(
+    res,
+    200,
+    rows(
+      "SELECT * FROM pilot_plans WHERE project_id = ? ORDER BY updated_at DESC",
+      [projectId],
+    ).map(pilotPlan),
+  );
+}
+
+async function createPilotPlan(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const projectId = text(input.projectId);
+  const chapterIds = Array.isArray(input.chapterIds)
+    ? [
+        ...new Set(
+          input.chapterIds.filter(
+            (item): item is string => typeof item === "string",
+          ),
+        ),
+      ]
+    : [];
+  const episodeCount = Number(input.episodeCount);
+  if (
+    !projectId ||
+    !chapterIds.length ||
+    chapterIds.length > 3 ||
+    !Number.isInteger(episodeCount) ||
+    episodeCount < 1 ||
+    episodeCount > 3 ||
+    episodeCount > chapterIds.length
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Choose one to three source chapters and pilot episodes",
+      requestId,
+    );
+  const chapterRows = rows(
+    `SELECT * FROM chapters WHERE project_id = ? AND id IN (${chapterIds.map(() => "?").join(",")})`,
+    [projectId, ...chapterIds],
+  );
+  if (chapterRows.length !== chapterIds.length)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "One or more source chapters were not found",
+      requestId,
+    );
+  const duplicate = one(
+    "SELECT * FROM pilot_plans WHERE project_id = ? AND chapter_ids_json = ? AND episode_count = ? AND status != 'canceled' ORDER BY updated_at DESC LIMIT 1",
+    [projectId, JSON.stringify(chapterIds), episodeCount],
+  );
+  if (duplicate) return json(res, 200, pilotPlan(duplicate));
+  const now = timestamp();
+  const id = randomUUID();
+  const versions = chapterRows.map((chapter) => ({
+    id: String(chapter.id),
+    version: Number(chapter.version),
+    contentHash: storyBibleSourceHash(String(chapter.content ?? "")),
+  }));
+  db!
+    .prepare(
+      `INSERT INTO pilot_plans(id, project_id, chapter_ids_json, chapter_versions_json, episode_count, status, source_confirmed, adaptation_id, episode_ids_json, error_message, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, 'draft', 0, NULL, '[]', NULL, ?, ?)`,
+    )
+    .run(
+      id,
+      projectId,
+      JSON.stringify(chapterIds),
+      JSON.stringify({ items: versions }),
+      episodeCount,
+      now,
+      now,
+    );
+  const created = pilotPlan(
+    one("SELECT * FROM pilot_plans WHERE id = ?", [id])!,
+  );
+  emit("pilot_plan.created", created);
+  json(res, 201, created);
+}
+
+async function updatePilotPlanAction(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = one("SELECT * FROM pilot_plans WHERE id = ?", [id]);
+  if (!current)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Pilot plan not found",
+      requestId,
+    );
+  const input = await body(req);
+  const action = text(input.action);
+  if (
+    !action ||
+    !["confirm-source", "return-source", "cancel", "resume"].includes(action)
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Invalid pilot plan action",
+      requestId,
+    );
+  const now = timestamp();
+  if (action === "cancel") {
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET status = 'canceled', updated_at = ? WHERE id = ?",
+      )
+      .run(now, id);
+  } else if (action === "return-source") {
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET source_confirmed = 0, status = 'draft', updated_at = ? WHERE id = ?",
+      )
+      .run(now, id);
+  } else if (action === "resume") {
+    const chapterIds = jsonStringArray(current.chapter_ids_json);
+    const chapters = rows(
+      `SELECT * FROM chapters WHERE project_id = ? AND id IN (${chapterIds.map(() => "?").join(",")})`,
+      [current.project_id, ...chapterIds],
+    );
+    if (chapters.length !== chapterIds.length)
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "Pilot source is no longer available",
+        requestId,
+      );
+    const versions = chapters.map((chapter) => ({
+      id: String(chapter.id),
+      version: Number(chapter.version),
+      contentHash: storyBibleSourceHash(String(chapter.content ?? "")),
+    }));
+    db!
+      .prepare(
+        "UPDATE pilot_plans SET status = 'draft', source_confirmed = 0, chapter_versions_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify({ items: versions }), now, id);
+  } else {
+    const stale = pilotPlanStaleReason(current);
+    if (stale) return respondError(res, 409, "CONFLICT", stale, requestId);
+    const existing = pilotPlan(current);
+    if (!existing.sourceConfirmed) {
+      const chapters = rows(
+        `SELECT * FROM chapters WHERE id IN (${existing.chapterIds.map(() => "?").join(",")}) ORDER BY order_index`,
+        existing.chapterIds,
+      );
+      try {
+        db!.exec("BEGIN IMMEDIATE");
+        let adaptationId = current.adaptation_id
+          ? String(current.adaptation_id)
+          : undefined;
+        if (!adaptationId)
+          adaptationId = insertDomainEntity(
+            "adaptations",
+            String(current.project_id),
+            undefined,
+            "试制改编方案",
+            {
+              改编方向: "1–3 集试制",
+              目标集数: Number(current.episode_count),
+              来源: "试制向导人工确认",
+            },
+          );
+        const episodeIds = jsonStringArray(current.episode_ids_json);
+        while (episodeIds.length < Number(current.episode_count)) {
+          const source = chapters[episodeIds.length % chapters.length];
+          episodeIds.push(
+            insertDomainEntity(
+              "episodes",
+              String(current.project_id),
+              adaptationId,
+              `试制第 ${episodeIds.length + 1} 集·${String(source.title)}`,
+              {
+                集数: episodeIds.length + 1,
+                分集简介: String(source.summary || source.content).slice(
+                  0,
+                  240,
+                ),
+                试制来源章节: String(source.title),
+                审阅状态: "待采用剧本",
+              },
+            ),
+          );
+        }
+        db!
+          .prepare(
+            "UPDATE pilot_plans SET status = 'active', source_confirmed = 1, adaptation_id = ?, episode_ids_json = ?, error_message = NULL, updated_at = ? WHERE id = ?",
+          )
+          .run(adaptationId, JSON.stringify(episodeIds), now, id);
+        db!.exec("COMMIT");
+      } catch (error) {
+        try {
+          db!.exec("ROLLBACK");
+        } catch {}
+        throw error;
+      }
+    }
+  }
+  const updated = pilotPlan(
+    one("SELECT * FROM pilot_plans WHERE id = ?", [id])!,
+  );
+  emit("pilot_plan.updated", updated);
+  json(res, 200, updated);
 }
 
 function safeFileName(value: string): string {
@@ -7346,6 +10343,146 @@ function openAiTtsEndpoint(baseUrl: string): string {
   return source.toString();
 }
 
+async function videoGenerationPreflight(
+  req: IncomingMessage,
+  res: ServerResponse,
+  shotId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(req)) as Partial<VideoGenerationInput>;
+  const providerId = text(input.providerId);
+  const projectId = text(input.projectId);
+  if (!providerId || !projectId)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "视频预检需要服务商和项目。",
+      requestId,
+    );
+  const shot = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+    [shotId, "shots", projectId],
+  );
+  if (!shot)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "目标分镜不属于当前项目。",
+      requestId,
+    );
+  const provider = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [providerId, "providers"],
+  );
+  if (!provider)
+    return respondError(res, 404, "NOT_FOUND", "未找到视频服务商", requestId);
+  json(
+    res,
+    200,
+    videoGenerationReadiness({ ...input, shotId }, shot, provider),
+  );
+}
+
+async function videoGenerationBatchPreflight(
+  req: IncomingMessage,
+  res: ServerResponse,
+  projectId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(
+    req,
+  )) as Partial<VideoGenerationBatchPreflightInput>;
+  if (text(input.projectId) !== projectId || !Array.isArray(input.submissions))
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "批量视频预检需要当前项目和提交列表。",
+      requestId,
+    );
+  const items: VideoGenerationPreflight[] = [];
+  const providerCounts = new Map<
+    string,
+    { provider: Record<string, any>; requested: number }
+  >();
+  for (const submission of input.submissions) {
+    const shotId = text(submission.shotId);
+    const providerId = text(submission.providerId);
+    if (!shotId || !providerId)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "每个批量视频提交都需要分镜和服务商。",
+        requestId,
+      );
+    const shot = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ? AND project_id = ?",
+      [shotId, "shots", projectId],
+    );
+    const provider = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+      [providerId, "providers"],
+    );
+    if (!shot || !provider)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "批量视频提交包含无效的分镜或服务商。",
+        requestId,
+      );
+    items.push(videoGenerationReadiness(submission, shot, provider));
+    const current = providerCounts.get(providerId);
+    if (current) current.requested += 1;
+    else providerCounts.set(providerId, { provider, requested: 1 });
+  }
+  for (const [providerId, item] of providerCounts) {
+    const capacity = Number(
+      domainPayload(item.provider.payload_json)["并发上限"],
+    );
+    if (!Number.isInteger(capacity) || capacity <= 0) continue;
+    const active = Number(
+      one(
+        "SELECT count(*) AS count FROM video_generation_jobs WHERE provider_id = ? AND status IN ('queued', 'running')",
+        [providerId],
+      )?.count ?? 0,
+    );
+    if (active + item.requested <= capacity) continue;
+    const message = `服务商「${String(item.provider.title)}」批量并发上限为 ${capacity}，当前 ${active} 个任务与本批 ${item.requested} 个提交会超限。`;
+    for (let index = 0; index < items.length; index += 1) {
+      if (items[index]?.providerId !== providerId) continue;
+      const current = items[index]!;
+      items[index] = {
+        ...current,
+        ready: false,
+        blockers: [...current.blockers, message],
+      };
+    }
+  }
+  const knownEstimatedCost = items.reduce(
+    (sum, item) => sum + (item.estimatedCost ?? 0),
+    0,
+  );
+  const unknownCostCount = items.filter(
+    (item) => item.costStatus === "unknown",
+  ).length;
+  const blockers = items.flatMap((item) =>
+    item.blockers.map((blocker) => `分镜 ${item.shotId}：${blocker}`),
+  );
+  const result: VideoGenerationBatchPreflight = {
+    projectId,
+    ready: items.every((item) => item.ready),
+    items,
+    blockers,
+    knownEstimatedCost,
+    unknownCostCount,
+  };
+  json(res, 200, result);
+}
+
 async function createVideoGeneration(
   req: IncomingMessage,
   res: ServerResponse,
@@ -7404,6 +10541,25 @@ async function createVideoGeneration(
   );
   if (!provider)
     return respondError(res, 404, "NOT_FOUND", "未找到视频服务商", requestId);
+  const readiness = videoGenerationReadiness(input, shot, provider);
+  if (!readiness.ready)
+    return respondError(
+      res,
+      409,
+      "VIDEO_NOT_READY",
+      "视频提交前置条件未满足。",
+      requestId,
+      { preflight: readiness },
+    );
+  if (input.readinessHash !== readiness.snapshotHash)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "视频预检快照已变化，请重新检查后再提交。",
+      requestId,
+      { preflight: readiness },
+    );
   const payload = domainPayload(provider.payload_json),
     baseUrl = text(payload["服务地址"]),
     credentialRef = text(payload["凭据引用"]),
@@ -7447,7 +10603,7 @@ async function createVideoGeneration(
         0.1,
         projectId,
         parentTaskId ?? null,
-        JSON.stringify({ providerId, shotId, episodeId, prompt }),
+        JSON.stringify({ providerId, shotId, episodeId, prompt, readiness }),
         now,
         taskId,
       );
@@ -7466,7 +10622,7 @@ async function createVideoGeneration(
         0.1,
         projectId,
         parentTaskId ?? null,
-        JSON.stringify({ providerId, shotId, episodeId, prompt }),
+        JSON.stringify({ providerId, shotId, episodeId, prompt, readiness }),
         now,
         now,
       );
@@ -7516,7 +10672,7 @@ async function createVideoGeneration(
         providerId,
         remoteJobId,
         prompt,
-        JSON.stringify({ ...input, baseUrl }),
+        JSON.stringify({ ...input, baseUrl, readiness }),
         status,
         now,
         now,
@@ -7539,6 +10695,20 @@ async function createVideoGeneration(
     db!
       .prepare("INSERT INTO request_deduplication VALUES (?, 201, ?, ?)")
       .run(idempotencyKey, JSON.stringify(result), timestamp());
+    recordGeneration({
+      projectId,
+      taskId,
+      kind: "视频生成",
+      title: `视频生成 · ${String(shot.title)}`,
+      status: "已提交",
+      summary: [
+        `已固定静帧 ${readiness.adoptedStillId ?? "无"} 与 ${readiness.lockedAssetIds.length} 个锁定资产。`,
+        `预检快照 ${readiness.snapshotHash.slice(0, 18)}…。`,
+        readiness.costStatus === "known"
+          ? `预估费用 ${readiness.estimatedCost ?? 0} ${readiness.currency ?? "USD"}；实际费用请在生成账本补录。`
+          : "费用未知已由用户确认；实际费用请在生成账本补录。",
+      ].join(" "),
+    });
     emit(
       "task.created",
       task(one("SELECT * FROM tasks WHERE id = ?", [taskId])!),
@@ -9080,6 +12250,20 @@ async function resource(
     );
   if (method === "GET") return json(res, 200, domainEntity(current));
   if (method === "PATCH") {
+    if (
+      domain === "visual-assets" &&
+      one(
+        "SELECT id FROM series_asset_links WHERE target_asset_id = ? AND mode = 'link'",
+        [id],
+      )
+    )
+      return respondError(
+        res,
+        409,
+        "CONFLICT",
+        "这是不可变的系列版本链接；请创建 Fork 后再修改。",
+        requestId,
+      );
     const input = await body(req);
     if (input.version !== current.version)
       return respondError(
@@ -9128,6 +12312,34 @@ async function resource(
     return json(res, 200, updated);
   }
   if (method === "DELETE") {
+    if (domain === "visual-assets") {
+      const protectedLink = one(
+        `SELECT id FROM series_asset_links
+         WHERE mode = 'link' AND (source_asset_id = ? OR target_asset_id = ?)
+         LIMIT 1`,
+        [id, id],
+      );
+      if (protectedLink)
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          "该资产版本被系列链接引用；请先执行显式迁移或移除链接。",
+          requestId,
+        );
+      const usages = assetCenterUsages(
+        current.project_id ? String(current.project_id) : undefined,
+        id,
+      );
+      if (usages.length)
+        return respondError(
+          res,
+          409,
+          "CONFLICT",
+          `资产正在被 ${usages.length} 个镜头使用；请先在资产中心迁移或移除用途。`,
+          requestId,
+        );
+    }
     const deleted = removeDomainEntityCascade(current);
     emit(`${domain}.deleted`, { id, domain, deleted });
     res.writeHead(204).end();
@@ -9729,6 +12941,18 @@ function storyBibleSettings(row: Record<string, unknown>) {
 }
 
 function storyBibleChangeSet(row: Record<string, unknown>) {
+  const draft = domainPayload(row.payload_json);
+  const memory = domainPayload(draft.memory);
+  const memoryPayload = domainPayload(memory.payload);
+  const previewFields = [
+    "章节摘要",
+    "重要事件",
+    "人物变化与秘密",
+    "新增或回收伏笔",
+  ].flatMap((key) => {
+    const value = text(memoryPayload[key]);
+    return value ? [{ key, value }] : [];
+  });
   return {
     id: String(row.id),
     projectId: String(row.project_id),
@@ -9738,6 +12962,10 @@ function storyBibleChangeSet(row: Record<string, unknown>) {
     summary: String(row.summary),
     ...(row.task_id ? { taskId: String(row.task_id) } : {}),
     conflictNotes: jsonStringArray(row.conflict_notes_json),
+    preview: {
+      title: text(memory.title) ?? String(row.summary),
+      fields: previewFields,
+    },
     ...(row.applied_at ? { appliedAt: String(row.applied_at) } : {}),
     ...(row.undone_at ? { undoneAt: String(row.undone_at) } : {}),
     createdAt: String(row.created_at),
@@ -10031,11 +13259,12 @@ function maybeAutoSuggestStoryBibleChangeSet(
   }
 }
 
-function applyStoryBibleChangeSet(
+async function applyStoryBibleChangeSet(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   requestId: string,
-): void {
+): Promise<void> {
   const current = one("SELECT * FROM story_bible_change_sets WHERE id = ?", [
     id,
   ]);
@@ -10053,6 +13282,28 @@ function applyStoryBibleChangeSet(
       409,
       "CONFLICT",
       "Only a draft story bible change set can be applied",
+      requestId,
+    );
+  const input = await body(req);
+  const requestedFields = Array.isArray(input.fields)
+    ? input.fields.filter((value): value is string => typeof value === "string")
+    : undefined;
+  const selectableFields = [
+    "章节摘要",
+    "重要事件",
+    "人物变化与秘密",
+    "新增或回收伏笔",
+  ];
+  if (
+    requestedFields &&
+    (!requestedFields.length ||
+      requestedFields.some((field) => !selectableFields.includes(field)))
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Selected story bible fields are invalid",
       requestId,
     );
   const chapterRow = one("SELECT * FROM chapters WHERE id = ?", [
@@ -10077,6 +13328,21 @@ function applyStoryBibleChangeSet(
   }
   const payload = domainPayload(current.payload_json);
   const memory = domainPayload(payload.memory);
+  const memoryPayload = domainPayload(memory.payload);
+  const selectedMemoryPayload = requestedFields
+    ? {
+        ...(memoryPayload["关联章节"] === undefined
+          ? {}
+          : { 关联章节: memoryPayload["关联章节"] }),
+        ...Object.fromEntries(
+          requestedFields.flatMap((field) =>
+            memoryPayload[field] === undefined
+              ? []
+              : [[field, memoryPayload[field]]],
+          ),
+        ),
+      }
+    : memoryPayload;
   const now = timestamp();
   const memoryId = randomUUID();
   db!.exec("BEGIN IMMEDIATE");
@@ -10091,7 +13357,7 @@ function applyStoryBibleChangeSet(
         current.project_id,
         String(memory.title ?? `《${chapterRow.title}》章节记忆`),
         JSON.stringify({
-          ...domainPayload(memory.payload),
+          ...selectedMemoryPayload,
           来源变更集: current.id,
           来源章节版本: Number(current.source_version),
         }),
@@ -11282,6 +14548,1531 @@ function evaluatePlatformDeliveryPreflight(
   };
 }
 
+const TIMELINE_TRACK_DEFINITIONS: Array<{
+  kind: TimelineTrackKind;
+  label: string;
+}> = [
+  { kind: "video", label: "视频" },
+  { kind: "dialogue", label: "对白" },
+  { kind: "narration", label: "旁白" },
+  { kind: "bgm", label: "配乐" },
+  { kind: "sfx", label: "音效" },
+  { kind: "subtitle", label: "字幕" },
+];
+
+type StoredTimeline = TimelineManifest;
+
+function timelineTime(value: number): number {
+  return Math.round(value * 25) / 25;
+}
+
+function timelineMediaStatus(
+  assetId: string | undefined,
+): "linked" | "missing" | "unsupported" | "proxy" | "unattached" {
+  if (!assetId) return "unattached";
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset) return "missing";
+  const file = domainPayload(asset.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName) return "unattached";
+  if (!hasArchivedFile(asset)) return "missing";
+  if (
+    [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".webp",
+      ".gif",
+      ".mp3",
+      ".wav",
+      ".ogg",
+      ".m4a",
+      ".mp4",
+      ".webm",
+    ].includes(extname(storedName).toLowerCase())
+  )
+    return "linked";
+  return "unsupported";
+}
+
+function timelineDuration(tracks: StoredTimeline["tracks"]): number {
+  return timelineTime(
+    tracks.reduce(
+      (latest, track) =>
+        Math.max(
+          latest,
+          ...track.clips.map(
+            (clip) => clip.startSeconds + clip.durationSeconds,
+          ),
+        ),
+      0,
+    ),
+  );
+}
+
+function parseTimelineManifest(value: unknown): StoredTimeline | undefined {
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const manifest = value as Partial<StoredTimeline>;
+  if (
+    manifest.format !== "dramaip-timeline" ||
+    manifest.schemaVersion !== 1 ||
+    !Array.isArray(manifest.tracks) ||
+    !manifest.id ||
+    !manifest.projectId ||
+    !manifest.adaptationId ||
+    !manifest.episodeId
+  )
+    return undefined;
+  return manifest as StoredTimeline;
+}
+
+function cloneTimeline(timeline: StoredTimeline): StoredTimeline {
+  return JSON.parse(JSON.stringify(timeline)) as StoredTimeline;
+}
+
+function timelineForResponse(timeline: StoredTimeline): StoredTimeline {
+  const next = cloneTimeline(timeline);
+  next.tracks = next.tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) => ({
+      ...clip,
+      ...(clip.assetId
+        ? { mediaStatus: timelineMediaStatus(clip.assetId) }
+        : {}),
+    })),
+  }));
+  next.durationSeconds = timelineDuration(next.tracks);
+  return next;
+}
+
+function audioAssemblyDefaults(kind: AudioTrackKind): {
+  volume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  duckingGain?: number;
+} {
+  if (kind === "bgm")
+    return {
+      volume: 0.24,
+      fadeInSeconds: 0.4,
+      fadeOutSeconds: 0.6,
+      duckingGain: 0.55,
+    };
+  if (kind === "sfx")
+    return { volume: 0.62, fadeInSeconds: 0.04, fadeOutSeconds: 0.12 };
+  return { volume: 1, fadeInSeconds: 0.04, fadeOutSeconds: 0.08 };
+}
+
+function audioAssemblyLineage(assetId: string | undefined): {
+  provider: string;
+  cost?: number;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+} {
+  if (!assetId) return { provider: "未绑定素材", rightsStatus: "unknown" };
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset) return { provider: "缺失素材", rightsStatus: "restricted" };
+  const payload = domainPayload(asset.payload_json);
+  const provider =
+    firstTextPayload(payload, ["来源", "服务商", "Provider", "生成服务商"]) ||
+    "本地导入";
+  const rawRights = firstTextPayload(payload, [
+    "权利状态",
+    "授权状态",
+    "版权状态",
+    "许可",
+  ]).toLowerCase();
+  const rightsStatus = /受限|禁止|未授权|restricted|denied|blocked/.test(
+    rawRights,
+  )
+    ? "restricted"
+    : /已授权|许可|可用|cleared|licensed|approved/.test(rawRights)
+      ? "cleared"
+      : "unknown";
+  const rawCost =
+    payload["成本（元）"] ?? payload["成本"] ?? payload["实际成本"];
+  const cost = typeof rawCost === "number" ? rawCost : Number(rawCost);
+  return {
+    provider,
+    ...(Number.isFinite(cost) && cost >= 0 ? { cost } : {}),
+    rightsStatus,
+  };
+}
+
+function subtitleParts(value: string): string[] {
+  const source = value.trim();
+  if (!source) return [];
+  const parts: string[] = [];
+  let current = "";
+  for (const character of Array.from(source)) {
+    current += character;
+    if (
+      current.length >= 18 ||
+      (/[。！？!?；;，,]/u.test(character) && current.length >= 6)
+    ) {
+      parts.push(current.trim());
+      current = "";
+    }
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts.filter(Boolean);
+}
+
+function subtitleCuesForAssemblyClip(clip: {
+  id: string;
+  audioTrackId: string;
+  sourceClipId: string;
+  shotId?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  text?: string;
+}): Array<{
+  id: string;
+  audioTrackId: string;
+  sourceClipId: string;
+  shotId?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  text: string;
+}> {
+  const parts = subtitleParts(clip.text ?? "");
+  if (!parts.length) return [];
+  const slice = clip.durationSeconds / parts.length;
+  return parts.map((textValue, index) => {
+    const startSeconds = timelineTime(clip.startSeconds + slice * index);
+    const endSeconds = timelineTime(
+      index === parts.length - 1
+        ? clip.startSeconds + clip.durationSeconds
+        : clip.startSeconds + slice * (index + 1),
+    );
+    return {
+      id: `timeline-subtitle-${clip.audioTrackId}-${clip.sourceClipId}-${index}`,
+      audioTrackId: clip.audioTrackId,
+      sourceClipId: clip.sourceClipId,
+      ...(clip.shotId ? { shotId: clip.shotId } : {}),
+      startSeconds,
+      durationSeconds: Math.max(0.04, timelineTime(endSeconds - startSeconds)),
+      text: textValue,
+    };
+  });
+}
+
+function audioAssemblySubtitleExports(
+  cues: Array<{ startSeconds: number; durationSeconds: number; text: string }>,
+): { srt: string; webVtt: string } {
+  const entries = cues
+    .map(
+      (cue, index) =>
+        `${index + 1}\n${timelineSubtitleTime(cue.startSeconds)} --> ${timelineSubtitleTime(cue.startSeconds + cue.durationSeconds)}\n${cue.text}`,
+    )
+    .join("\n\n");
+  return {
+    srt: entries ? `${entries}\n` : "",
+    webVtt: entries
+      ? `WEBVTT\n\n${entries.replaceAll(/(\d{2}:\d{2}:\d{2}),/g, "$1.")}\n`
+      : "WEBVTT\n",
+  };
+}
+
+function buildAudioAssemblyPreview(episodeId: string):
+  | {
+      timeline: StoredTimeline;
+      sourceFingerprint: string;
+      clips: Array<{
+        id: string;
+        audioTrackId: string;
+        sourceClipId: string;
+        kind: AudioTrackKind;
+        name: string;
+        shotId?: string;
+        assetId?: string;
+        voiceProfileId?: string;
+        text?: string;
+        startSeconds: number;
+        durationSeconds: number;
+        volume: number;
+        fadeInSeconds: number;
+        fadeOutSeconds: number;
+        duckingGain?: number;
+        overflowSeconds: number;
+        provider: string;
+        cost?: number;
+        rightsStatus: "cleared" | "unknown" | "restricted";
+      }>;
+      subtitleCues: Array<{
+        id: string;
+        audioTrackId: string;
+        sourceClipId: string;
+        shotId?: string;
+        startSeconds: number;
+        durationSeconds: number;
+        text: string;
+      }>;
+      warnings: string[];
+      protectedClipIds: string[];
+      staleTrackIds: string[];
+    }
+  | undefined {
+  const context = episodeMediaContext(episodeId);
+  const timeline = getOrCreateTimeline(episodeId);
+  if (!context || !timeline) return undefined;
+  const audioRows = rows(
+    "SELECT * FROM audio_tracks WHERE episode_id = ? AND status = ? ORDER BY updated_at DESC, rowid DESC",
+    [episodeId, "adopted"],
+  );
+  const freshRows = audioRows.filter((row) => !audioTrackIsStale(row, context));
+  const staleTrackIds = audioRows
+    .filter((row) => audioTrackIsStale(row, context))
+    .map((row) => String(row.id));
+  const videoRanges = new Map(
+    (timeline.tracks.find((track) => track.kind === "video")?.clips ?? [])
+      .filter((clip) => Boolean(clip.shotId))
+      .map((clip) => [
+        clip.shotId!,
+        {
+          startSeconds: clip.startSeconds,
+          durationSeconds: clip.durationSeconds,
+        },
+      ]),
+  );
+  const warnings: string[] = [];
+  if (staleTrackIds.length)
+    warnings.push(
+      "已排除与当前剧本或分镜不一致的已采用音轨；仅相关音频和字幕需要局部重生成。",
+    );
+  const clips = freshRows.flatMap((row) => {
+    const kind = String(row.kind) as AudioTrackKind;
+    const defaults = audioAssemblyDefaults(kind);
+    return parseAudioTrackClips(row.clips_json).map((source) => {
+      const range = source.shotId ? videoRanges.get(source.shotId) : undefined;
+      const startSeconds = timelineTime(
+        (range?.startSeconds ?? 0) + source.startSeconds,
+      );
+      const overflowSeconds = range
+        ? timelineTime(
+            Math.max(
+              0,
+              startSeconds +
+                source.durationSeconds -
+                (range.startSeconds + range.durationSeconds),
+            ),
+          )
+        : 0;
+      const lineage = audioAssemblyLineage(source.assetId);
+      if (overflowSeconds > 0)
+        warnings.push(
+          `「${String(row.label)}」有 ${overflowSeconds.toFixed(2)} 秒超出镜头范围；请审查 time-stretch 或改词建议，系统不会静默裁断。`,
+        );
+      if (lineage.rightsStatus === "restricted")
+        warnings.push(`「${String(row.label)}」的素材权利受限，不能自动采用。`);
+      if (!source.assetId)
+        warnings.push(
+          `「${String(row.label)}」未绑定音频素材，可审查定位但不能试听。`,
+        );
+      return {
+        id: `timeline-audio-${String(row.id)}-${source.id}`,
+        audioTrackId: String(row.id),
+        sourceClipId: source.id,
+        kind,
+        name: String(row.label),
+        ...(source.shotId ? { shotId: source.shotId } : {}),
+        ...(source.assetId ? { assetId: source.assetId } : {}),
+        ...(source.voiceProfileId
+          ? { voiceProfileId: source.voiceProfileId }
+          : {}),
+        ...(source.text ? { text: source.text } : {}),
+        startSeconds,
+        durationSeconds: timelineTime(source.durationSeconds),
+        ...defaults,
+        overflowSeconds,
+        ...lineage,
+      };
+    });
+  });
+  const subtitleCues = clips.flatMap((clip) =>
+    ["dialogue", "narration"].includes(clip.kind)
+      ? subtitleCuesForAssemblyClip(clip)
+      : [],
+  );
+  const protectedClipIds = timeline.tracks.flatMap((track) =>
+    track.clips
+      .filter((clip) => clip.manuallyEdited || clip.locked)
+      .map((clip) => clip.id),
+  );
+  return {
+    timeline,
+    sourceFingerprint: context.sourceFingerprint,
+    clips: clips.sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    ),
+    subtitleCues: subtitleCues.sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    ),
+    warnings: [...new Set(warnings)],
+    protectedClipIds,
+    staleTrackIds,
+  };
+}
+
+function getAudioAssemblyPreview(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const preview = buildAudioAssemblyPreview(episodeId);
+  if (!preview)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  const exports = audioAssemblySubtitleExports(preview.subtitleCues);
+  json(res, 200, {
+    timelineId: preview.timeline.id,
+    timelineVersion: preview.timeline.version,
+    sourceFingerprint: preview.sourceFingerprint,
+    clips: preview.clips,
+    subtitleCues: preview.subtitleCues,
+    ...exports,
+    warnings: preview.warnings,
+    protectedClipIds: preview.protectedClipIds,
+    staleTrackIds: preview.staleTrackIds,
+  });
+}
+
+async function applyAudioAssembly(
+  req: IncomingMessage,
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): Promise<void> {
+  const input = (await body(req)) as Partial<AudioAssemblyApplyInput>;
+  if (
+    !Number.isInteger(input.timelineVersion) ||
+    !Array.isArray(input.audioTrackIds) ||
+    !input.audioTrackIds.every((id) => typeof id === "string") ||
+    typeof input.includeSubtitles !== "boolean"
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "自动编排需要当前时间线版本、音轨选择和字幕采用选择。",
+      requestId,
+    );
+  const preview = buildAudioAssemblyPreview(episodeId);
+  if (!preview)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  if (input.timelineVersion !== preview.timeline.version)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "时间线已更新，请重新审查自动编排预览。",
+      requestId,
+      { current: timelineForResponse(preview.timeline) },
+    );
+  const selectedTrackIds = [...new Set(input.audioTrackIds)];
+  const availableTrackIds = new Set(
+    preview.clips.map((clip) => clip.audioTrackId),
+  );
+  if (selectedTrackIds.some((id) => !availableTrackIds.has(id)))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "所选音轨不存在、已过期或尚未采用；请刷新预览。",
+      requestId,
+    );
+  const selected = new Set(selectedTrackIds);
+  const selectedClips = preview.clips.filter((clip) =>
+    selected.has(clip.audioTrackId),
+  );
+  const restricted = selectedClips.find(
+    (clip) => clip.rightsStatus === "restricted",
+  );
+  if (restricted)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      `素材「${restricted.name}」权利受限，不能自动采用。`,
+      requestId,
+    );
+  const before = cloneTimeline(preview.timeline);
+  const next = cloneTimeline(preview.timeline);
+  const protectedIds = new Set(preview.protectedClipIds);
+  for (const track of next.tracks) {
+    if (!["dialogue", "narration", "bgm", "sfx"].includes(track.kind)) continue;
+    const desired = selectedClips.filter((clip) => clip.kind === track.kind);
+    if (!desired.length) continue;
+    const retained = track.clips.filter(
+      (clip) =>
+        !selected.has(clip.audioTrackId ?? "") || protectedIds.has(clip.id),
+    );
+    const retainedIds = new Set(retained.map((clip) => clip.id));
+    track.clips = [
+      ...retained,
+      ...desired
+        .filter((clip) => !retainedIds.has(clip.id))
+        .map((clip) => ({
+          id: clip.id,
+          shotId: clip.shotId,
+          assetId: clip.assetId,
+          audioTrackId: clip.audioTrackId,
+          name: clip.name,
+          startSeconds: clip.startSeconds,
+          durationSeconds: clip.durationSeconds,
+          sourceOffsetSeconds: 0,
+          mediaStatus: timelineMediaStatus(clip.assetId),
+          ...(clip.text ? { text: clip.text } : {}),
+          volume: clip.volume,
+          fadeInSeconds: clip.fadeInSeconds,
+          fadeOutSeconds: clip.fadeOutSeconds,
+          ...(clip.duckingGain ? { duckingGain: clip.duckingGain } : {}),
+          locked: false,
+          manuallyEdited: false,
+        })),
+    ].sort(
+      (left, right) =>
+        left.startSeconds - right.startSeconds ||
+        left.id.localeCompare(right.id),
+    );
+  }
+  if (input.includeSubtitles) {
+    const subtitleTrack = next.tracks.find(
+      (track) => track.kind === "subtitle",
+    );
+    if (subtitleTrack) {
+      const desired = preview.subtitleCues.filter((cue) =>
+        selected.has(cue.audioTrackId),
+      );
+      const selectedShotIds = new Set(
+        desired.flatMap((cue) => (cue.shotId ? [cue.shotId] : [])),
+      );
+      const retained = subtitleTrack.clips.filter(
+        (clip) =>
+          protectedIds.has(clip.id) ||
+          (!selected.has(clip.audioTrackId ?? "") &&
+            !(
+              !clip.audioTrackId &&
+              clip.shotId &&
+              selectedShotIds.has(clip.shotId)
+            )),
+      );
+      const retainedIds = new Set(retained.map((clip) => clip.id));
+      subtitleTrack.clips = [
+        ...retained,
+        ...desired
+          .filter((cue) => !retainedIds.has(cue.id))
+          .map((cue) => ({
+            id: cue.id,
+            sourceClipId: cue.sourceClipId,
+            ...(cue.shotId ? { shotId: cue.shotId } : {}),
+            audioTrackId: cue.audioTrackId,
+            name: "自动字幕",
+            startSeconds: cue.startSeconds,
+            durationSeconds: cue.durationSeconds,
+            sourceOffsetSeconds: 0,
+            mediaStatus: "linked" as const,
+            text: cue.text,
+            locked: false,
+            manuallyEdited: false,
+          })),
+      ].sort(
+        (left, right) =>
+          left.startSeconds - right.startSeconds ||
+          left.id.localeCompare(right.id),
+      );
+    }
+  }
+  next.sourceFingerprint = preview.sourceFingerprint;
+  const saved = timelineWithVersion(next, preview.timeline.version + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "DELETE FROM timeline_history WHERE timeline_id = ? AND undone = 1",
+      )
+      .run(saved.id);
+    db!
+      .prepare(
+        "UPDATE timelines SET source_fingerprint = ?, manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        saved.sourceFingerprint,
+        JSON.stringify(saved),
+        saved.version,
+        saved.updatedAt,
+        saved.id,
+      );
+    db!
+      .prepare(
+        "INSERT INTO timeline_history (id, timeline_id, command_json, before_json, after_json, undone, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+      )
+      .run(
+        randomUUID(),
+        saved.id,
+        JSON.stringify({
+          type: "apply-audio-assembly",
+          audioTrackIds: selectedTrackIds,
+          includeSubtitles: input.includeSubtitles,
+        }),
+        JSON.stringify(before),
+        JSON.stringify(saved),
+        saved.updatedAt,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit("timeline.audio-assembly-applied", {
+    id: saved.id,
+    audioTrackIds: selectedTrackIds,
+    includeSubtitles: input.includeSubtitles,
+    version: saved.version,
+  });
+  json(res, 200, timelineForResponse(saved));
+}
+
+function buildInitialTimeline(context: {
+  episode: Record<string, any>;
+  adaptationId: string;
+  projectId: string;
+}): StoredTimeline {
+  const mediaContext = episodeMediaContext(String(context.episode.id));
+  const sourceFingerprint =
+    mediaContext?.sourceFingerprint ?? "sha256:unavailable";
+  const now = timestamp();
+  let cursor = 0;
+  const videoClips = (mediaContext?.shots ?? []).map((shot) => {
+    const durationSeconds = timelineTime(shotDuration(shot));
+    const source = visualSourceForShot(context.projectId, String(shot.id));
+    const clip = {
+      id: `timeline-video-${String(shot.id)}`,
+      shotId: String(shot.id),
+      ...(source ? { assetId: source.id } : {}),
+      name: String(shot.title),
+      startSeconds: timelineTime(cursor),
+      durationSeconds,
+      sourceOffsetSeconds: 0,
+      mediaStatus: timelineMediaStatus(source?.id),
+      manuallyEdited: false,
+    };
+    cursor += durationSeconds;
+    return clip;
+  });
+  const audioRows = rows(
+    "SELECT * FROM audio_tracks WHERE episode_id = ? AND status = ? ORDER BY updated_at DESC",
+    [context.episode.id, "adopted"],
+  ).filter((row) => !mediaContext || !audioTrackIsStale(row, mediaContext));
+  const audioClipsByKind = new Map<
+    TimelineTrackKind,
+    StoredTimeline["tracks"][number]["clips"]
+  >();
+  for (const kind of ["dialogue", "narration", "bgm", "sfx"] as const) {
+    const row = audioRows.find((item) => item.kind === kind);
+    audioClipsByKind.set(
+      kind,
+      row
+        ? parseAudioTrackClips(row.clips_json).map((clip) => ({
+            id: `timeline-audio-${String(row.id)}-${clip.id}`,
+            ...(clip.shotId ? { shotId: clip.shotId } : {}),
+            ...(clip.assetId ? { assetId: clip.assetId } : {}),
+            audioTrackId: String(row.id),
+            name: String(row.label),
+            startSeconds: timelineTime(clip.startSeconds),
+            durationSeconds: timelineTime(clip.durationSeconds),
+            sourceOffsetSeconds: 0,
+            mediaStatus: timelineMediaStatus(clip.assetId),
+            ...(clip.text ? { text: clip.text } : {}),
+            ...audioAssemblyDefaults(kind),
+            locked: false,
+            manuallyEdited: false,
+          }))
+        : [],
+    );
+  }
+  const subtitleClips = (mediaContext?.shots ?? []).flatMap((shot) => {
+    const textValue = firstTextPayload(domainPayload(shot.payload_json), [
+      "字幕",
+      "字幕草稿",
+      "对白",
+      "旁白",
+    ]);
+    const video = videoClips.find((clip) => clip.shotId === String(shot.id));
+    if (!textValue || !video) return [];
+    return [
+      {
+        id: `timeline-subtitle-${String(shot.id)}`,
+        shotId: String(shot.id),
+        name: String(shot.title),
+        startSeconds: video.startSeconds,
+        durationSeconds: video.durationSeconds,
+        sourceOffsetSeconds: 0,
+        mediaStatus: "linked" as const,
+        text: textValue,
+        locked: false,
+        manuallyEdited: false,
+      },
+    ];
+  });
+  const tracks = TIMELINE_TRACK_DEFINITIONS.map(({ kind, label }) => ({
+    id: `timeline-track-${kind}`,
+    kind,
+    label,
+    muted: false,
+    solo: false,
+    clips:
+      kind === "video"
+        ? videoClips
+        : kind === "subtitle"
+          ? subtitleClips
+          : (audioClipsByKind.get(kind) ?? []),
+  }));
+  return {
+    format: "dramaip-timeline",
+    schemaVersion: 1,
+    id: randomUUID(),
+    projectId: context.projectId,
+    adaptationId: context.adaptationId,
+    episodeId: String(context.episode.id),
+    sourceFingerprint,
+    frameRate: 25,
+    timebase: "seconds",
+    durationSeconds: timelineDuration(tracks),
+    tracks,
+    version: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function getOrCreateTimeline(episodeId: string): StoredTimeline | undefined {
+  const context = episodeDeliveryContext(episodeId);
+  if (!context) return undefined;
+  const current = one("SELECT * FROM timelines WHERE episode_id = ?", [
+    episodeId,
+  ]);
+  if (current) {
+    const parsed = parseTimelineManifest(current.manifest_json);
+    if (parsed) return parsed;
+  }
+  const timeline = buildInitialTimeline(context);
+  db!
+    .prepare(
+      "INSERT INTO timelines (id, project_id, adaptation_id, episode_id, source_fingerprint, manifest_json, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+    .run(
+      timeline.id,
+      timeline.projectId,
+      timeline.adaptationId,
+      timeline.episodeId,
+      timeline.sourceFingerprint,
+      JSON.stringify(timeline),
+      timeline.version,
+      timeline.createdAt,
+      timeline.updatedAt,
+    );
+  emit("timeline.initialized", timeline);
+  return timeline;
+}
+
+function getTimeline(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const timeline = getOrCreateTimeline(episodeId);
+  if (!timeline)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  json(res, 200, timelineForResponse(timeline));
+}
+
+function timelineRow(id: string): Record<string, any> | undefined {
+  return one("SELECT * FROM timelines WHERE id = ?", [id]);
+}
+
+function timelineWithVersion(
+  timeline: StoredTimeline,
+  version: number,
+): StoredTimeline {
+  const next = cloneTimeline(timeline);
+  next.version = version;
+  next.updatedAt = timestamp();
+  next.durationSeconds = timelineDuration(next.tracks);
+  return next;
+}
+
+function findTimelineClip(timeline: StoredTimeline, clipId: string) {
+  for (const track of timeline.tracks) {
+    const index = track.clips.findIndex((clip) => clip.id === clipId);
+    if (index >= 0) return { track, clip: track.clips[index]!, index };
+  }
+  return undefined;
+}
+
+function applyTimelineEdit(
+  timeline: StoredTimeline,
+  command: TimelineEditCommand,
+  projectId: string,
+): string | undefined {
+  if (command.type === "set-track-audio") {
+    const track = timeline.tracks.find((item) => item.id === command.trackId);
+    if (!track) return "未找到目标轨道";
+    if (command.muted === undefined && command.solo === undefined)
+      return "请指定静音或独听状态";
+    if (command.muted !== undefined) track.muted = command.muted;
+    if (command.solo !== undefined) {
+      if (command.solo)
+        for (const item of timeline.tracks) item.solo = item.id === track.id;
+      else track.solo = false;
+    }
+    return undefined;
+  }
+  const found = findTimelineClip(timeline, command.clipId);
+  if (!found) return "未找到目标片段";
+  const { track, clip, index } = found;
+  if (command.type === "move") {
+    if (
+      !Number.isFinite(command.startSeconds) ||
+      command.startSeconds < 0 ||
+      command.startSeconds > 86_400
+    )
+      return "片段起点必须是非负时间";
+    clip.startSeconds = timelineTime(command.startSeconds);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "trim") {
+    if (
+      !Number.isFinite(command.durationSeconds) ||
+      command.durationSeconds <= 0 ||
+      command.durationSeconds > 3_600
+    )
+      return "片段时长必须大于零";
+    const startSeconds =
+      command.startSeconds === undefined
+        ? clip.startSeconds
+        : timelineTime(command.startSeconds);
+    if (
+      !Number.isFinite(startSeconds) ||
+      startSeconds < 0 ||
+      startSeconds > 86_400
+    )
+      return "片段起点必须是非负时间";
+    clip.sourceOffsetSeconds = timelineTime(
+      clip.sourceOffsetSeconds + (startSeconds - clip.startSeconds),
+    );
+    clip.startSeconds = startSeconds;
+    clip.durationSeconds = timelineTime(command.durationSeconds);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "split") {
+    if (!Number.isFinite(command.atSeconds)) return "分割点必须是有效时间";
+    const atSeconds = timelineTime(command.atSeconds);
+    if (
+      atSeconds <= clip.startSeconds ||
+      atSeconds >= clip.startSeconds + clip.durationSeconds
+    )
+      return "分割点必须落在片段内部";
+    const firstDuration = timelineTime(atSeconds - clip.startSeconds);
+    const secondDuration = timelineTime(clip.durationSeconds - firstDuration);
+    const second = {
+      ...clip,
+      id: randomUUID(),
+      sourceClipId: clip.sourceClipId ?? clip.id,
+      startSeconds: atSeconds,
+      durationSeconds: secondDuration,
+      sourceOffsetSeconds: timelineTime(
+        clip.sourceOffsetSeconds + firstDuration,
+      ),
+      manuallyEdited: true,
+    };
+    clip.durationSeconds = firstDuration;
+    clip.manuallyEdited = true;
+    track.clips.splice(index + 1, 0, second);
+    return undefined;
+  }
+  if (command.type === "relink") {
+    const asset = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND project_id = ? AND domain IN ('assets', 'video', 'shot-stills', 'visual-assets')",
+      [command.assetId, projectId],
+    );
+    if (!asset) return "重链接媒体不属于当前项目或不受支持";
+    clip.assetId = command.assetId;
+    clip.mediaStatus = timelineMediaStatus(command.assetId);
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  if (command.type === "set-clip-audio") {
+    if (command.volume === undefined && command.locked === undefined)
+      return "请指定音量或锁定状态";
+    if (
+      command.volume !== undefined &&
+      (!Number.isFinite(command.volume) ||
+        command.volume < 0 ||
+        command.volume > 2)
+    )
+      return "音量必须在 0 到 2 之间";
+    if (command.volume !== undefined) clip.volume = command.volume;
+    if (command.locked !== undefined) clip.locked = command.locked;
+    clip.manuallyEdited = true;
+    return undefined;
+  }
+  return "不支持的时间线编辑命令";
+}
+
+async function applyTimelineCommand(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): Promise<void> {
+  const current = timelineRow(id);
+  if (!current)
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  const input = (await body(req)) as Partial<TimelineCommandInput>;
+  const timeline = parseTimelineManifest(current.manifest_json);
+  if (!timeline)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Timeline data is invalid",
+      requestId,
+    );
+  if (
+    !Number.isInteger(input.version) ||
+    input.version !== Number(current.version)
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "时间线已被更新，请刷新后重试。",
+      requestId,
+      {
+        current: timelineForResponse(timeline),
+      },
+    );
+  const command = input.command as TimelineEditCommand | undefined;
+  if (!command || typeof command.type !== "string")
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "缺少有效的时间线编辑命令",
+      requestId,
+    );
+  const before = cloneTimeline(timeline);
+  const next = cloneTimeline(timeline);
+  const problem = applyTimelineEdit(next, command, String(current.project_id));
+  if (problem)
+    return respondError(res, 400, "VALIDATION_ERROR", problem, requestId);
+  const saved = timelineWithVersion(next, Number(current.version) + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "DELETE FROM timeline_history WHERE timeline_id = ? AND undone = 1",
+      )
+      .run(id);
+    db!
+      .prepare(
+        "UPDATE timelines SET source_fingerprint = ?, manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        saved.sourceFingerprint,
+        JSON.stringify(saved),
+        saved.version,
+        saved.updatedAt,
+        id,
+      );
+    db!
+      .prepare(
+        "INSERT INTO timeline_history (id, timeline_id, command_json, before_json, after_json, undone, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)",
+      )
+      .run(
+        randomUUID(),
+        id,
+        JSON.stringify(command),
+        JSON.stringify(before),
+        JSON.stringify(saved),
+        saved.updatedAt,
+      );
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit("timeline.edited", { id, command, version: saved.version });
+  json(res, 200, timelineForResponse(saved));
+}
+
+function timelineHistory(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  if (!timelineRow(id))
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  json(res, 200, {
+    canUndo: Boolean(
+      one(
+        "SELECT id FROM timeline_history WHERE timeline_id = ? AND undone = 0 LIMIT 1",
+        [id],
+      ),
+    ),
+    canRedo: Boolean(
+      one(
+        "SELECT id FROM timeline_history WHERE timeline_id = ? AND undone = 1 LIMIT 1",
+        [id],
+      ),
+    ),
+  });
+}
+
+function restoreTimelineHistory(
+  res: ServerResponse,
+  id: string,
+  direction: "undo" | "redo",
+  requestId: string,
+): void {
+  const current = timelineRow(id);
+  if (!current)
+    return respondError(res, 404, "NOT_FOUND", "Timeline not found", requestId);
+  const history = one(
+    `SELECT * FROM timeline_history WHERE timeline_id = ? AND undone = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    [id, direction === "undo" ? 0 : 1],
+  );
+  if (!history)
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      direction === "undo" ? "没有可撤销的操作" : "没有可重做的操作",
+      requestId,
+    );
+  const restored = parseTimelineManifest(
+    direction === "undo" ? history.before_json : history.after_json,
+  );
+  if (!restored)
+    return respondError(res, 409, "CONFLICT", "历史时间线数据无效", requestId);
+  const saved = timelineWithVersion(restored, Number(current.version) + 1);
+  db!.exec("BEGIN IMMEDIATE");
+  try {
+    db!
+      .prepare(
+        "UPDATE timelines SET manifest_json = ?, version = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(JSON.stringify(saved), saved.version, saved.updatedAt, id);
+    db!
+      .prepare("UPDATE timeline_history SET undone = ? WHERE id = ?")
+      .run(direction === "undo" ? 1 : 0, history.id);
+    db!.exec("COMMIT");
+  } catch (error) {
+    try {
+      db!.exec("ROLLBACK");
+    } catch {}
+    throw error;
+  }
+  emit(`timeline.${direction}`, { id, version: saved.version });
+  json(res, 200, timelineForResponse(saved));
+}
+
+function undoTimelineCommand(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  restoreTimelineHistory(res, id, "undo", requestId);
+}
+
+function redoTimelineCommand(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  restoreTimelineHistory(res, id, "redo", requestId);
+}
+
+function timelineMediaPreview(
+  res: ServerResponse,
+  id: string,
+  requestId: string,
+): void {
+  const asset = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain IN ('assets', 'video', 'shot-stills', 'visual-assets')",
+    [id],
+  );
+  if (!asset)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Timeline media not found",
+      requestId,
+    );
+  const file = domainPayload(asset.payload_json).file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  if (!storedName || !hasArchivedFile(asset))
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Timeline media file is missing",
+      requestId,
+    );
+  const path = join(command!.assetDirectory, storedName);
+  if (statSync(path).size > 12 * 1024 * 1024)
+    return respondError(
+      res,
+      413,
+      "VALIDATION_ERROR",
+      "Timeline preview exceeds 12 MB",
+      requestId,
+    );
+  const mime = (
+    {
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+      ".gif": "image/gif",
+      ".mp3": "audio/mpeg",
+      ".wav": "audio/wav",
+      ".ogg": "audio/ogg",
+      ".m4a": "audio/mp4",
+      ".mp4": "video/mp4",
+      ".webm": "video/webm",
+    } as Record<string, string>
+  )[extname(storedName).toLowerCase()];
+  if (!mime)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "媒体编码不受本地预览支持",
+      requestId,
+    );
+  json(res, 200, {
+    id,
+    kind: mime.startsWith("video/")
+      ? "video"
+      : mime.startsWith("audio/")
+        ? "audio"
+        : "image",
+    dataUrl: `data:${mime};base64,${readFileSync(path).toString("base64")}`,
+  });
+}
+
+type TimelineDelivery = {
+  format: "dramaip-timeline-delivery";
+  schemaVersion: 1;
+  timeline: StoredTimeline;
+  media: Array<{
+    assetId: string;
+    title: string;
+    sourceVersion: number;
+    relativePath: string;
+    checksum?: string;
+    mediaStatus: "linked" | "missing" | "unsupported" | "proxy" | "unattached";
+    rightsStatus: "cleared" | "unknown" | "restricted";
+    lineage: string[];
+  }>;
+  unsupportedFeatures: string[];
+  warnings: string[];
+};
+
+function timelineDeliveryRelativePath(
+  assetId: string,
+  storedName: string,
+): string {
+  return `media/${safeFileName(`${assetId}-${basename(storedName)}`)}`;
+}
+
+function timelineDeliveryMedia(
+  assetId: string,
+  timeline: StoredTimeline,
+): TimelineDelivery["media"][number] {
+  const asset = one("SELECT * FROM domain_entities WHERE id = ?", [assetId]);
+  if (!asset)
+    return {
+      assetId,
+      title: "缺失素材",
+      sourceVersion: 0,
+      relativePath: `media/${safeFileName(assetId)}`,
+      mediaStatus: "missing" as const,
+      rightsStatus: "restricted" as const,
+      lineage: [
+        `timeline:${timeline.id}:v${timeline.version}`,
+        `asset:${assetId}:missing`,
+      ],
+    };
+  const payload = domainPayload(asset.payload_json);
+  const file = payload.file;
+  const storedName =
+    file && typeof file === "object"
+      ? safeStoredAssetName((file as Record<string, unknown>).storedName)
+      : undefined;
+  const mediaStatus = timelineMediaStatus(assetId);
+  const lineage = [
+    `timeline:${timeline.id}:v${timeline.version}`,
+    `asset:${String(asset.id)}:v${Number(asset.version)}`,
+  ];
+  const base = {
+    assetId: String(asset.id),
+    title: String(asset.title),
+    sourceVersion: Number(asset.version),
+    relativePath: storedName
+      ? timelineDeliveryRelativePath(String(asset.id), storedName)
+      : `media/${safeFileName(String(asset.id))}`,
+    mediaStatus,
+    rightsStatus: audioAssemblyLineage(assetId).rightsStatus,
+    lineage,
+  };
+  if (!storedName || !hasArchivedFile(asset)) return base;
+  return {
+    ...base,
+    checksum: createHash("sha256")
+      .update(readFileSync(join(command!.assetDirectory, storedName)))
+      .digest("hex"),
+  };
+}
+
+function buildTimelineDelivery(
+  episodeId: string,
+): TimelineDelivery | undefined {
+  const storedTimeline = getOrCreateTimeline(episodeId);
+  if (!storedTimeline) return undefined;
+  const timeline = timelineForResponse(storedTimeline);
+  const clips = timeline.tracks.flatMap((track) =>
+    track.clips.map((clip) => ({ track, clip })),
+  );
+  const assetIds = [
+    ...new Set(clips.flatMap(({ clip }) => clip.assetId ?? [])),
+  ].sort((left, right) => left.localeCompare(right));
+  const media = assetIds.map((assetId) =>
+    timelineDeliveryMedia(assetId, timeline),
+  );
+  const unsupportedFeatures = [
+    ...clips
+      .filter(({ track, clip }) => !clip.assetId && track.kind !== "subtitle")
+      .map(({ track, clip }) => `unbound-media:${track.kind}:${clip.id}`),
+    ...media
+      .filter((item) => item.mediaStatus !== "linked")
+      .map((item) => `media:${item.assetId}:${item.mediaStatus}`),
+    ...(timeline.tracks.some(
+      (track) => track.kind !== "video" && track.clips.length > 0,
+    )
+      ? ["cmx3600:non-video-tracks"]
+      : []),
+  ].sort((left, right) => left.localeCompare(right));
+  const warnings = [
+    ...media
+      .filter((item) => !item.checksum)
+      .map(
+        (item) =>
+          `媒体 ${item.title} 缺少可验证 checksum，重链接前需人工核验。`,
+      ),
+    ...media
+      .filter((item) => item.rightsStatus === "restricted")
+      .map((item) => `媒体 ${item.title} 的权利状态受限，禁止未经授权交付。`),
+    "当前 Provider 目录未声明 timeline_render；不会生成或伪造 MP4 成片。",
+  ].sort((left, right) => left.localeCompare(right));
+  return {
+    format: "dramaip-timeline-delivery",
+    schemaVersion: 1,
+    timeline,
+    media,
+    unsupportedFeatures,
+    warnings,
+  };
+}
+
+function timelineDeliveryOrderedClips(
+  timeline: StoredTimeline,
+  kind: TimelineTrackKind,
+) {
+  return timeline.tracks
+    .filter((track) => track.kind === kind)
+    .flatMap((track) => track.clips.map((clip) => ({ track, clip })))
+    .sort(
+      (left, right) =>
+        left.clip.startSeconds - right.clip.startSeconds ||
+        left.clip.id.localeCompare(right.clip.id),
+    );
+}
+
+function timelineDeliverySubtitles(timeline: StoredTimeline) {
+  return timelineDeliveryOrderedClips(timeline, "subtitle").filter(({ clip }) =>
+    Boolean(clip.text?.trim()),
+  );
+}
+
+function timelineDeliveryFcpxml(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const assets = delivery.media
+    .filter((item) => item.mediaStatus === "linked")
+    .map(
+      (item) =>
+        `    <asset id="asset-${escapeXml(item.assetId)}" name="${escapeXml(item.title)}" src="${escapeXml(item.relativePath)}" format="r1" hasVideo="1" hasAudio="1" />`,
+    )
+    .join("\n");
+  const clips = delivery.timeline.tracks
+    .filter((track) => track.clips.length > 0)
+    .map((track, index) => {
+      const lane = track.kind === "video" ? "" : ` lane="${index}"`;
+      return [...track.clips]
+        .sort(
+          (left, right) =>
+            left.startSeconds - right.startSeconds ||
+            left.id.localeCompare(right.id),
+        )
+        .map((clip) => {
+          const offset = `${Math.round(clip.startSeconds * 25)}/25s`;
+          const duration = `${Math.max(1, Math.round(clip.durationSeconds * 25))}/25s`;
+          const start = `${Math.round(clip.sourceOffsetSeconds * 25)}/25s`;
+          const linked = clip.assetId ? media.get(clip.assetId) : undefined;
+          if (track.kind === "subtitle")
+            return `        <title name="${escapeXml(clip.text ?? clip.name)}" offset="${offset}" duration="${duration}"${lane} />`;
+          if (linked?.mediaStatus === "linked")
+            return `        <asset-clip ref="asset-${escapeXml(linked.assetId)}" name="${escapeXml(clip.name)}" offset="${offset}" start="${start}" duration="${duration}"${lane} />`;
+          return `        <gap name="${escapeXml(clip.name)}" offset="${offset}" duration="${duration}"${lane} />`;
+        })
+        .join("\n");
+    })
+    .join("\n");
+  const duration = `${Math.max(1, Math.round(delivery.timeline.durationSeconds * 25))}/25s`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<fcpxml version="1.10">\n  <resources>\n    <format id="r1" name="DramaIP 25 fps" frameDuration="1/25s" width="1080" height="1920" />${assets ? `\n${assets}` : ""}\n  </resources>\n  <library>\n    <event name="DramaIP">\n      <project name="${escapeXml(`Timeline ${delivery.timeline.episodeId}`)}">\n        <sequence format="r1" duration="${duration}" tcStart="0s" tcFormat="NDF">\n          <spine>\n${clips}\n          </spine>\n        </sequence>\n      </project>\n    </event>\n  </library>\n</fcpxml>\n`;
+}
+
+function timelineDeliveryOtio(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const timeline = delivery.timeline;
+  const document = {
+    OTIO_SCHEMA: "Timeline.1",
+    name: `DramaIP ${timeline.episodeId}`,
+    global_start_time: {
+      OTIO_SCHEMA: "RationalTime.1",
+      value: 0,
+      rate: timeline.frameRate,
+    },
+    tracks: {
+      OTIO_SCHEMA: "Stack.1",
+      name: "DramaIP timeline",
+      children: timeline.tracks.map((track) => ({
+        OTIO_SCHEMA: "Track.1",
+        name: track.label,
+        kind:
+          track.kind === "video" || track.kind === "subtitle"
+            ? "Video"
+            : "Audio",
+        children: [...track.clips]
+          .sort(
+            (left, right) =>
+              left.startSeconds - right.startSeconds ||
+              left.id.localeCompare(right.id),
+          )
+          .map((clip) => {
+            const linked = clip.assetId ? media.get(clip.assetId) : undefined;
+            return {
+              OTIO_SCHEMA: "Clip.2",
+              name: clip.name,
+              source_range: {
+                OTIO_SCHEMA: "TimeRange.1",
+                start_time: {
+                  OTIO_SCHEMA: "RationalTime.1",
+                  value: Math.round(
+                    clip.sourceOffsetSeconds * timeline.frameRate,
+                  ),
+                  rate: timeline.frameRate,
+                },
+                duration: {
+                  OTIO_SCHEMA: "RationalTime.1",
+                  value: Math.max(
+                    1,
+                    Math.round(clip.durationSeconds * timeline.frameRate),
+                  ),
+                  rate: timeline.frameRate,
+                },
+              },
+              media_reference:
+                linked?.mediaStatus === "linked"
+                  ? {
+                      OTIO_SCHEMA: "ExternalReference.1",
+                      target_url: linked.relativePath,
+                    }
+                  : { OTIO_SCHEMA: "MissingReference.1" },
+              metadata: {
+                dramaip: {
+                  clipId: clip.id,
+                  timelineStartFrames: Math.round(
+                    clip.startSeconds * timeline.frameRate,
+                  ),
+                  ...(clip.text ? { subtitle: clip.text } : {}),
+                },
+              },
+            };
+          }),
+      })),
+    },
+    metadata: {
+      dramaip: {
+        timelineId: timeline.id,
+        timelineVersion: timeline.version,
+        unsupportedFeatures: delivery.unsupportedFeatures,
+      },
+    },
+  };
+  return `${JSON.stringify(document, null, 2)}\n`;
+}
+
+function timelineDeliveryEdl(delivery: TimelineDelivery): string {
+  const media = new Map(delivery.media.map((item) => [item.assetId, item]));
+  const entries = timelineDeliveryOrderedClips(delivery.timeline, "video").map(
+    ({ clip }, index) => {
+      const inTime = timelineTimecode(clip.sourceOffsetSeconds, 25);
+      const outTime = timelineTimecode(
+        clip.sourceOffsetSeconds + clip.durationSeconds,
+        25,
+      );
+      const recordIn = timelineTimecode(clip.startSeconds, 25);
+      const recordOut = timelineTimecode(
+        clip.startSeconds + clip.durationSeconds,
+        25,
+      );
+      const item = clip.assetId ? media.get(clip.assetId) : undefined;
+      return [
+        `${String(index + 1).padStart(3, "0")}  AX       V     C        ${inTime} ${outTime} ${recordIn} ${recordOut}`,
+        `* FROM CLIP NAME: ${item?.relativePath ?? clip.name}`,
+      ].join("\n");
+    },
+  );
+  const unsupported = delivery.unsupportedFeatures
+    .filter((item) => item === "cmx3600:non-video-tracks")
+    .map((item) => `* UNSUPPORTED FEATURE: ${item}`);
+  return [
+    `TITLE: DramaIP ${delivery.timeline.episodeId}`,
+    "FCM: NON-DROP FRAME",
+    "",
+    ...entries,
+    ...unsupported,
+    "",
+  ].join("\n");
+}
+
+function timelineDeliverySubtitleDocument(
+  delivery: TimelineDelivery,
+  format: "srt" | "vtt",
+): string {
+  const entries = timelineDeliverySubtitles(delivery.timeline)
+    .map(({ clip }, index) => {
+      const start = timelineSubtitleTime(clip.startSeconds);
+      const end = timelineSubtitleTime(
+        clip.startSeconds + clip.durationSeconds,
+      );
+      return `${index + 1}\n${format === "vtt" ? start.replace(",", ".") : start} --> ${format === "vtt" ? end.replace(",", ".") : end}\n${clip.text!.trim()}`;
+    })
+    .join("\n\n");
+  if (format === "vtt") return entries ? `WEBVTT\n\n${entries}\n` : "WEBVTT\n";
+  return entries ? `${entries}\n` : "";
+}
+
+function getTimelineDeliveryManifest(
+  res: ServerResponse,
+  episodeId: string,
+  requestId: string,
+): void {
+  const delivery = buildTimelineDelivery(episodeId);
+  if (!delivery)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  json(res, 200, delivery);
+}
+
+function exportTimelineDelivery(
+  res: ServerResponse,
+  episodeId: string,
+  format: TimelineDeliveryExportFormat,
+  requestId: string,
+): void {
+  const delivery = buildTimelineDelivery(episodeId);
+  if (!delivery)
+    return respondError(res, 404, "NOT_FOUND", "Episode not found", requestId);
+  const base = safeFileName(
+    `timeline-${delivery.timeline.episodeId}-v${delivery.timeline.version}`,
+  );
+  const document =
+    format === "manifest"
+      ? {
+          fileName: `${base}-delivery-manifest.json`,
+          mimeType: "application/json",
+          content: `${JSON.stringify(delivery, null, 2)}\n`,
+        }
+      : format === "fcpxml"
+        ? {
+            fileName: `${base}.fcpxml`,
+            mimeType: "application/xml",
+            content: timelineDeliveryFcpxml(delivery),
+          }
+        : format === "otio"
+          ? {
+              fileName: `${base}.otio`,
+              mimeType: "application/json",
+              content: timelineDeliveryOtio(delivery),
+            }
+          : format === "edl"
+            ? {
+                fileName: `${base}.edl`,
+                mimeType: "text/plain",
+                content: timelineDeliveryEdl(delivery),
+              }
+            : format === "srt" || format === "vtt"
+              ? {
+                  fileName: `${base}.${format}`,
+                  mimeType:
+                    format === "srt" ? "application/x-subrip" : "text/vtt",
+                  content: timelineDeliverySubtitleDocument(delivery, format),
+                }
+              : {
+                  fileName: `${base}-media-relink.json`,
+                  mimeType: "application/json",
+                  content: `${JSON.stringify(
+                    {
+                      format: "dramaip-media-relink",
+                      schemaVersion: 1,
+                      timelineId: delivery.timeline.id,
+                      timelineVersion: delivery.timeline.version,
+                      media: delivery.media,
+                      unsupportedFeatures: delivery.unsupportedFeatures,
+                    },
+                    null,
+                    2,
+                  )}\n`,
+                };
+  json(res, 200, document);
+}
+
 function getEditorTimeline(
   res: ServerResponse,
   episodeId: string,
@@ -11579,6 +16370,186 @@ async function createReviewDecision(
   json(res, 201, created);
 }
 
+/**
+ * Review feedback never changes the script by itself.  The editor supplies a
+ * proposed script body, while this route binds that proposal to the concrete
+ * review comments and return/request-change decisions in a pending preview.
+ */
+async function createReviewRevisionPreview(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  const input = await body(req);
+  const scriptId = text(input.scriptId);
+  const proposedContent = text(input.proposedContent);
+  if (!scriptId || !proposedContent)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "scriptId and proposedContent are required",
+      requestId,
+    );
+  const script = one(
+    `SELECT * FROM domain_entities
+     WHERE id = ? AND domain = 'scripts' AND project_id = ? AND parent_id = ?`,
+    [scriptId, packageRecord.project_id, packageRecord.episode_id],
+  );
+  if (!script)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Target script does not belong to this review package episode",
+      requestId,
+    );
+  const comments = rows(
+    `SELECT * FROM review_comments
+     WHERE package_id = ? AND resolved = 0 ORDER BY created_at LIMIT 200`,
+    [packageId],
+  );
+  const decisions = rows(
+    `SELECT * FROM review_decisions
+     WHERE package_id = ? AND decision IN ('return', 'request_changes')
+     ORDER BY created_at LIMIT 200`,
+    [packageId],
+  );
+  if (!comments.length && !decisions.length)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "No unresolved review feedback requires a revision preview",
+      requestId,
+    );
+  const references: Array<{
+    kind: "comment" | "decision";
+    id: string;
+    decision?: string;
+    shotId?: string;
+    timecodeSeconds?: number;
+    authorAlias?: string;
+    text: string;
+  }> = [
+    ...comments.map((comment) => ({
+      kind: "comment" as const,
+      id: String(comment.id),
+      shotId: comment.shot_id ? String(comment.shot_id) : undefined,
+      timecodeSeconds:
+        comment.timecode_seconds === null ||
+        comment.timecode_seconds === undefined
+          ? undefined
+          : Number(comment.timecode_seconds),
+      authorAlias: comment.author_alias
+        ? String(comment.author_alias)
+        : undefined,
+      text: String(comment.body),
+    })),
+    ...decisions.map((decision) => ({
+      kind: "decision" as const,
+      id: String(decision.id),
+      decision: String(decision.decision),
+      shotId: decision.shot_id ? String(decision.shot_id) : undefined,
+      authorAlias: decision.author_alias
+        ? String(decision.author_alias)
+        : undefined,
+      text: decision.note ? String(decision.note) : "未填写说明",
+    })),
+  ];
+  const sourcePayload = domainPayload(script.payload_json);
+  const targets = [
+    {
+      kind: "script",
+      id: scriptId,
+      baseVersion: Number(script.version),
+      patch: { payload: { ...sourcePayload, 剧本内容: proposedContent } },
+      displayDiff: {
+        proposedContent,
+        reviewPackageId: packageId,
+        reviewReferences: references,
+      },
+    },
+  ];
+  const rationale = [
+    `根据审片包「${String(packageRecord.title)}」创建的修订预览。`,
+    "以下反馈仅提供上下文；确认应用前不会改写正式剧本。",
+    ...references.map((reference) => {
+      const location = [
+        reference.shotId ? `分镜 ${reference.shotId}` : undefined,
+        reference.timecodeSeconds !== undefined
+          ? `${reference.timecodeSeconds} 秒`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const type =
+        reference.kind === "decision"
+          ? reference.decision === "return"
+            ? "退回"
+            : "需要修改"
+          : "意见";
+      return `- ${type}${location ? `（${location}）` : ""}：${reference.text}`;
+    }),
+  ].join("\n");
+  const contentHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        packageId,
+        scriptId,
+        baseVersion: Number(script.version),
+        proposedContent,
+        references,
+      }),
+    )
+    .digest("hex");
+  const existing = one(
+    "SELECT * FROM change_previews WHERE content_hash = ? AND status = 'pending'",
+    [contentHash],
+  );
+  if (existing) return json(res, 200, changePreviewRecord(existing));
+  const id = randomUUID();
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO change_previews(
+        id, project_id, session_id, run_id, task_id, engine_kind, task_type,
+        targets_json, rationale, status, content_hash, created_at, committed_at
+      ) VALUES (?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?, 'pending', ?, ?, NULL)`,
+    )
+    .run(
+      id,
+      packageRecord.project_id,
+      JSON.stringify(targets),
+      rationale,
+      contentHash,
+      now,
+    );
+  const created = changePreviewRecord(
+    one("SELECT * FROM change_previews WHERE id = ?", [id])!,
+  );
+  emit("change_preview.created", created);
+  emit("review.revision_preview_created", {
+    packageId,
+    previewId: id,
+    scriptId,
+    referenceCount: references.length,
+  });
+  json(res, 201, created);
+}
+
 async function importOfflineReviewComments(
   req: IncomingMessage,
   res: ServerResponse,
@@ -11671,6 +16642,638 @@ async function importOfflineReviewComments(
       requestId,
     );
   }
+}
+
+function getCloudReviewConnection(res: ServerResponse): void {
+  const current = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  json(
+    res,
+    200,
+    current
+      ? cloudReviewConnection(current)
+      : {
+          baseUrl: "",
+          workspaceId: "",
+          configured: false,
+          updatedAt: timestamp(),
+        },
+  );
+}
+
+async function saveCloudReviewConnection(
+  req: IncomingMessage,
+  res: ServerResponse,
+  requestId: string,
+): Promise<void> {
+  const input = await body(req);
+  const baseUrl = text(input.baseUrl);
+  const workspaceId = text(input.workspaceId);
+  const credentialRef = text(input.credentialRef);
+  if (!baseUrl || !workspaceId || !credentialRef)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Cloud review connection requires a platform URL, workspace, and credential reference",
+      requestId,
+    );
+  try {
+    const parsed = new URL(baseUrl);
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+      parsed.username ||
+      parsed.password
+    )
+      throw new Error("invalid URL");
+    const now = timestamp();
+    db!
+      .prepare(
+        `INSERT INTO cloud_review_connections(singleton, base_url, workspace_id, credential_ref, updated_at)
+         VALUES (1, ?, ?, ?, ?)
+         ON CONFLICT(singleton) DO UPDATE SET
+           base_url = excluded.base_url, workspace_id = excluded.workspace_id,
+           credential_ref = excluded.credential_ref, updated_at = excluded.updated_at`,
+      )
+      .run(
+        parsed.toString().replace(/\/$/, ""),
+        workspaceId,
+        credentialRef,
+        now,
+      );
+    json(
+      res,
+      200,
+      cloudReviewConnection(
+        one("SELECT * FROM cloud_review_connections WHERE singleton = 1")!,
+      ),
+    );
+  } catch {
+    respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Cloud review platform URL is invalid",
+      requestId,
+    );
+  }
+}
+
+async function previewCloudReviewPackage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const input = await body(req);
+  const media = await cloudReviewSelectedMedia(packageRecord, input.media);
+  if (!media.length)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select at least one readable media file for cloud review",
+      requestId,
+    );
+  const localPackage = reviewPackage(packageRecord);
+  const workspaceId = String(connection.workspace_id);
+  const manifestJson = cloudReviewManifest(localPackage, workspaceId, media);
+  json(res, 200, {
+    packageId,
+    workspaceId,
+    manifestJson,
+    media: media.map(({ bytes: _bytes, ...item }) => item),
+    storageBytes: media.reduce((total, item) => total + item.sizeBytes, 0),
+    maxStorageBytes: 512 * 1024 * 1024,
+    retention: "平台会在创建后按 workspace 保留策略返回到期时间（当前未知）。",
+    costEstimate: "平台未提供费用预估（未知，不按 0 处理）。",
+  });
+}
+
+async function publishCloudReviewPackage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  if (!packageRecord)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Review package not found",
+      requestId,
+    );
+  if (
+    one("SELECT 1 FROM cloud_review_bindings WHERE local_package_id = ?", [
+      packageId,
+    ])
+  )
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      "Review package is already published to cloud review",
+      requestId,
+    );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const input = await body(req);
+  const media = await cloudReviewSelectedMedia(packageRecord, input.media);
+  if (!media.length)
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "Select at least one readable media file for cloud review",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  const localPackage = reviewPackage(packageRecord);
+  const manifest = cloudReviewManifest(
+    localPackage,
+    String(connection.workspace_id),
+    media,
+  );
+  try {
+    const published = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).publish({
+      desktopPackageId: localPackage.id,
+      title: localPackage.title,
+      manifestJson: manifest,
+      ...(text(input.pin) ? { pin: text(input.pin) } : {}),
+      media: media.map(({ bytes, ...item }) => ({ ...item, bytes })),
+    });
+    const now = timestamp();
+    const shareUrl = `${String(connection.base_url).replace(/\/$/, "")}/review/${encodeURIComponent(published.shareToken)}`;
+    db!
+      .prepare(
+        `INSERT INTO cloud_review_bindings(
+          local_package_id, remote_package_id, share_url, sync_cursor, status, expires_at, created_at, updated_at
+        ) VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+      )
+      .run(
+        packageId,
+        published.packageId,
+        shareUrl,
+        published.status,
+        published.expiresAt,
+        now,
+        now,
+      );
+    emit("review.cloud_published", {
+      packageId,
+      remotePackageId: published.packageId,
+      shareUrl,
+    });
+    json(res, 201, {
+      packageId,
+      remotePackageId: published.packageId,
+      shareUrl,
+      status: published.status,
+      expiresAt: published.expiresAt,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review publish failed; the local review package remains unchanged",
+      requestId,
+    );
+  }
+}
+
+async function syncCloudReviewPackage(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const packageRecord = one("SELECT * FROM review_packages WHERE id = ?", [
+    packageId,
+  ]);
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!packageRecord || !binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  try {
+    const synced = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).sync(String(binding.remote_package_id), Number(binding.sync_cursor));
+    const localPackage = reviewPackage(packageRecord);
+    let commentCount = 0;
+    let decisionCount = 0;
+    for (const comment of synced.comments) {
+      const event = one(
+        `SELECT local_record_id FROM cloud_review_events
+         WHERE local_package_id = ? AND event_kind = 'comment' AND client_id = ?`,
+        [packageId, comment.clientId],
+      );
+      const local = insertReviewComment(packageRecord, {
+        id: event?.local_record_id ?? comment.id,
+        ...(comment.shotId ? { shotId: comment.shotId } : {}),
+        timecodeSeconds: comment.timecodeSeconds,
+        authorAlias: comment.authorAlias,
+        body: comment.body,
+        resolved: comment.resolved,
+      });
+      if (!local) continue;
+      upsertCloudReviewEvent(
+        packageId,
+        "comment",
+        comment.clientId,
+        comment.id,
+        local.id,
+        comment.cursor,
+      );
+      commentCount += 1;
+    }
+    for (const decision of synced.decisions) {
+      const event = one(
+        `SELECT local_record_id FROM cloud_review_events
+         WHERE local_package_id = ? AND event_kind = 'decision' AND client_id = ?`,
+        [packageId, decision.clientId],
+      );
+      const local = insertReviewDecision(packageRecord, {
+        id: event?.local_record_id ?? decision.id,
+        ...(decision.shotId ? { shotId: decision.shotId } : {}),
+        decision: decision.decision,
+        authorAlias: decision.authorAlias,
+        note: decision.note,
+      });
+      if (!local) continue;
+      upsertCloudReviewEvent(
+        packageId,
+        "decision",
+        decision.clientId,
+        decision.id,
+        local.id,
+        decision.cursor,
+      );
+      decisionCount += 1;
+    }
+    db!
+      .prepare(
+        "UPDATE cloud_review_bindings SET sync_cursor = ?, updated_at = ? WHERE local_package_id = ?",
+      )
+      .run(synced.nextCursor, timestamp(), packageId);
+    emit("review.cloud_synced", {
+      packageId: localPackage.id,
+      commentCount,
+      decisionCount,
+      nextCursor: synced.nextCursor,
+    });
+    json(res, 200, {
+      packageId,
+      nextCursor: synced.nextCursor,
+      commentCount,
+      decisionCount,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review sync failed; existing local feedback was preserved",
+      requestId,
+    );
+  }
+}
+
+function getCloudReviewBinding(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): void {
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  if (!binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  json(res, 200, cloudReviewBinding(binding));
+}
+
+async function deleteCloudReviewPackage(
+  res: ServerResponse,
+  packageId: string,
+  requestId: string,
+): Promise<void> {
+  const binding = one(
+    "SELECT * FROM cloud_review_bindings WHERE local_package_id = ?",
+    [packageId],
+  );
+  const connection = one(
+    "SELECT * FROM cloud_review_connections WHERE singleton = 1",
+  );
+  if (!binding)
+    return respondError(
+      res,
+      404,
+      "NOT_FOUND",
+      "Cloud review package binding not found",
+      requestId,
+    );
+  if (!connection)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review connection is not configured",
+      requestId,
+    );
+  const token = await resolveCredential(String(connection.credential_ref));
+  if (!token)
+    return respondError(
+      res,
+      409,
+      "TASK_REJECTED",
+      "Cloud review credential is unavailable in the local encrypted vault",
+      requestId,
+    );
+  try {
+    const deleted = await createCloudReviewGateway({
+      baseUrl: String(connection.base_url),
+      getAccessToken: async () => token,
+    }).delete(String(binding.remote_package_id));
+    if (deleted.status !== "deleted")
+      throw new Error("cloud package was not deleted");
+    db!
+      .prepare("DELETE FROM cloud_review_events WHERE local_package_id = ?")
+      .run(packageId);
+    db!
+      .prepare("DELETE FROM cloud_review_bindings WHERE local_package_id = ?")
+      .run(packageId);
+    emit("review.cloud_deleted", {
+      packageId,
+      remotePackageId: String(binding.remote_package_id),
+      localFeedbackPreserved: true,
+    });
+    json(res, 200, {
+      packageId,
+      status: "deleted",
+      localFeedbackPreserved: true,
+    });
+  } catch {
+    respondError(
+      res,
+      502,
+      "TASK_REJECTED",
+      "Cloud review deletion failed; local feedback and cloud binding were preserved",
+      requestId,
+    );
+  }
+}
+
+async function cloudReviewSelectedMedia(
+  packageRecord: Record<string, any>,
+  value: unknown,
+): Promise<
+  Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    bytes: Uint8Array;
+  }>
+> {
+  if (!Array.isArray(value) || value.length > 500) return [];
+  const manifest = domainPayload(packageRecord.manifest_json);
+  const clips = Array.isArray(manifest.clips) ? manifest.clips : [];
+  const selected = [] as Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+    bytes: Uint8Array;
+  }>;
+  let totalBytes = 0;
+  const ids = new Set<string>();
+  const paths = new Set<string>();
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+      return [];
+    const item = candidate as Record<string, unknown>;
+    const id = text(item.id);
+    const shotId = text(item.shotId);
+    const relativePath = text(item.relativePath);
+    const mimeType = text(item.mimeType)?.toLowerCase();
+    const capabilityToken = text(item.capabilityToken);
+    if (
+      !id ||
+      !shotId ||
+      !relativePath ||
+      !mimeType ||
+      !capabilityToken ||
+      ids.has(id) ||
+      paths.has(relativePath) ||
+      !safeCloudReviewRelativePath(relativePath) ||
+      !cloudReviewMimeType(mimeType) ||
+      !clips.some(
+        (clip) => clip && typeof clip === "object" && clip.shotId === shotId,
+      )
+    )
+      return [];
+    const capability = await resolveCapability(capabilityToken);
+    if (!capability?.permissions.includes("read")) return [];
+    const info = statSync(capability.path);
+    if (!info.isFile() || info.size <= 0 || info.size > 512 * 1024 * 1024)
+      return [];
+    totalBytes += info.size;
+    if (totalBytes > 512 * 1024 * 1024) return [];
+    const bytes = readFileSync(capability.path);
+    ids.add(id);
+    paths.add(relativePath);
+    selected.push({
+      id,
+      shotId,
+      relativePath,
+      mimeType,
+      sizeBytes: info.size,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes,
+    });
+  }
+  return selected;
+}
+
+function cloudReviewManifest(
+  packageRecord: ReturnType<typeof reviewPackage>,
+  workspaceId: string,
+  media: Array<{
+    id: string;
+    shotId: string;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }>,
+): string {
+  const clips = packageRecord.manifest.clips as Array<{
+    shotId: string;
+    orderIndex: number;
+    name: string;
+  }>;
+  return JSON.stringify({
+    format: "dramaip-review",
+    version: 1,
+    workspaceId,
+    packageId: packageRecord.id,
+    title: packageRecord.title,
+    projectId: packageRecord.projectId,
+    adaptationProjectId: packageRecord.adaptationId,
+    episodeId: packageRecord.episodeId,
+    media: media.map((item) => {
+      const clip = clips.find((entry) => entry.shotId === item.shotId);
+      return {
+        id: item.id,
+        relativePath: item.relativePath,
+        mimeType: item.mimeType,
+        sizeBytes: item.sizeBytes,
+        sha256: item.sha256,
+        shotId: item.shotId,
+        orderIndex: clip?.orderIndex ?? 0,
+        label: clip?.name ?? item.relativePath,
+      };
+    }),
+  });
+}
+
+function upsertCloudReviewEvent(
+  packageId: string,
+  eventKind: "comment" | "decision",
+  clientId: string,
+  remoteEventId: string,
+  localRecordId: string,
+  cursor: number,
+): void {
+  const now = timestamp();
+  db!
+    .prepare(
+      `INSERT INTO cloud_review_events(
+        local_package_id, event_kind, client_id, remote_event_id, local_record_id, cursor, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(local_package_id, event_kind, client_id) DO UPDATE SET
+        remote_event_id = excluded.remote_event_id, local_record_id = excluded.local_record_id,
+        cursor = excluded.cursor, updated_at = excluded.updated_at`,
+    )
+    .run(
+      packageId,
+      eventKind,
+      clientId,
+      remoteEventId,
+      localRecordId,
+      cursor,
+      now,
+      now,
+    );
+}
+
+function safeCloudReviewRelativePath(value: string): boolean {
+  return (
+    value.length <= 240 &&
+    !value.startsWith("/") &&
+    !value.includes("\\") &&
+    !value.includes("\0") &&
+    !value.startsWith("../") &&
+    !value.includes("/../")
+  );
+}
+
+function cloudReviewMimeType(value: string): boolean {
+  return [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "video/mp4",
+    "audio/mpeg",
+    "audio/wav",
+    "text/vtt",
+  ].includes(value);
 }
 
 function buildEditorTimeline(context: {
@@ -11910,18 +17513,39 @@ function insertReviewDecision(
     )
   )
     return undefined;
-  const id = randomUUID();
-  db!
-    .prepare("INSERT INTO review_decisions VALUES (?, ?, ?, ?, ?, ?, ?)")
-    .run(
-      id,
+  const id =
+    typeof input.id === "string" &&
+    !one("SELECT id FROM review_decisions WHERE id = ? AND package_id != ?", [
+      input.id,
       packageRecord.id,
-      shotId ?? null,
-      decision,
-      optionalText(input.authorAlias),
-      optionalText(input.note),
-      timestamp(),
-    );
+    ])
+      ? input.id
+      : randomUUID();
+  const existing = one("SELECT id FROM review_decisions WHERE id = ?", [id]);
+  if (existing)
+    db!
+      .prepare(
+        "UPDATE review_decisions SET shot_id = ?, decision = ?, author_alias = ?, note = ? WHERE id = ?",
+      )
+      .run(
+        shotId ?? null,
+        decision,
+        optionalText(input.authorAlias),
+        optionalText(input.note),
+        id,
+      );
+  else
+    db!
+      .prepare("INSERT INTO review_decisions VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(
+        id,
+        packageRecord.id,
+        shotId ?? null,
+        decision,
+        optionalText(input.authorAlias),
+        optionalText(input.note),
+        timestamp(),
+      );
   return reviewDecision(
     one("SELECT * FROM review_decisions WHERE id = ?", [id])!,
   );
@@ -13074,6 +18698,7 @@ async function updateChapter(
       current.version,
     );
   const updated = one("SELECT * FROM chapters WHERE id = ?", [id])!;
+  markImportExtractionStaleForChapter(String(current.project_id), id);
   if (content !== String(current.content)) {
     markStoryBibleStaleForChapter(String(current.project_id), id);
     maybeAutoSuggestStoryBibleChangeSet(updated);
@@ -14064,6 +19689,8 @@ function projectAgentSettingsRecord(projectId: string) {
     defaultModel: record?.default_model_json
       ? JSON.parse(String(record.default_model_json))
       : globalSettings.defaultModel,
+    assistantMode:
+      record?.assistant_mode === "advanced" ? "advanced" : "simple",
     updatedAt: record?.updated_at ?? timestamp(),
   };
 }
@@ -14095,14 +19722,29 @@ async function updateProjectAgentSettings(
       "请选择有效的智能引擎",
       requestId,
     );
+  if (
+    input.assistantMode !== undefined &&
+    input.assistantMode !== "simple" &&
+    input.assistantMode !== "advanced"
+  )
+    return respondError(
+      res,
+      400,
+      "VALIDATION_ERROR",
+      "请选择有效的智能助手界面模式",
+      requestId,
+    );
+  const previous = projectAgentSettingsRecord(projectId);
   const now = timestamp();
   db!
     .prepare(
-      `INSERT INTO project_agent_settings(project_id, default_engine_kind, default_model_json, updated_at)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO project_agent_settings(
+         project_id, default_engine_kind, default_model_json, assistant_mode, updated_at
+       ) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(project_id) DO UPDATE SET
          default_engine_kind = excluded.default_engine_kind,
          default_model_json = excluded.default_model_json,
+         assistant_mode = excluded.assistant_mode,
          updated_at = excluded.updated_at`,
     )
     .run(
@@ -14111,6 +19753,7 @@ async function updateProjectAgentSettings(
       input.defaultModel === undefined
         ? null
         : JSON.stringify(input.defaultModel),
+      input.assistantMode ?? previous.assistantMode,
       now,
     );
   const result = projectAgentSettingsRecord(projectId);
@@ -15524,6 +21167,34 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     return;
   }
   const current = one("SELECT * FROM domain_entities WHERE id = ?", [id])!;
+  const currentPayload = domainPayload(current.payload_json);
+  const nextPayload =
+    patch.payload === undefined ? currentPayload : patch.payload;
+  const displayDiff =
+    target.displayDiff && typeof target.displayDiff === "object"
+      ? (target.displayDiff as Record<string, unknown>)
+      : {};
+  if (
+    kind === "script" &&
+    typeof nextPayload === "object" &&
+    nextPayload !== null &&
+    stringPayload(currentPayload, "剧本内容") !==
+      stringPayload(nextPayload as Record<string, unknown>, "剧本内容")
+  )
+    createContentCheckpoint(
+      String(current.project_id),
+      "script",
+      id,
+      String(current.title),
+      stringPayload(currentPayload, "剧本内容"),
+      Number(current.version),
+      displayDiff.pacingSourceId
+        ? "节奏修订预览采用前检查点"
+        : "变更预览采用前检查点",
+      displayDiff.pacingSourceId
+        ? { 节奏来源: String(displayDiff.pacingSourceId) }
+        : undefined,
+    );
   const result = db!
     .prepare(
       `UPDATE domain_entities SET title = ?, payload_json = ?,
@@ -15531,9 +21202,7 @@ function applyChangeTarget(target: Record<string, unknown>, now: string): void {
     )
     .run(
       typeof patch.title === "string" ? patch.title : current.title,
-      patch.payload === undefined
-        ? current.payload_json
-        : JSON.stringify(patch.payload),
+      JSON.stringify(nextPayload),
       now,
       id,
       baseVersion,
@@ -17920,6 +23589,25 @@ function reviewPackage(row: Record<string, any>) {
     updatedAt: String(row.updated_at),
   };
 }
+function cloudReviewConnection(row: Record<string, any>) {
+  return {
+    baseUrl: String(row.base_url),
+    workspaceId: String(row.workspace_id),
+    configured: Boolean(row.credential_ref),
+    updatedAt: String(row.updated_at),
+  };
+}
+function cloudReviewBinding(row: Record<string, any>) {
+  return {
+    packageId: String(row.local_package_id),
+    remotePackageId: String(row.remote_package_id),
+    shareUrl: String(row.share_url),
+    status: String(row.status),
+    expiresAt: String(row.expires_at),
+    syncCursor: Number(row.sync_cursor),
+    updatedAt: String(row.updated_at),
+  };
+}
 function reviewComment(row: Record<string, any>) {
   return {
     id: String(row.id),
@@ -17989,8 +23677,8 @@ function voiceProfile(row: Record<string, any>) {
     updatedAt: String(row.updated_at),
   };
 }
-function audioTrack(row: Record<string, any>, currentFingerprint: string) {
-  const stale = String(row.source_fingerprint) !== currentFingerprint;
+function audioTrack(row: Record<string, any>, context: EpisodeMediaContext) {
+  const stale = audioTrackIsStale(row, context);
   return {
     id: String(row.id),
     projectId: String(row.project_id),
@@ -18028,6 +23716,14 @@ function animaticDraft(row: Record<string, any>) {
   };
 }
 function project(row: Record<string, any>) {
+  const seriesMembership = row.id
+    ? one(
+        `SELECT s.id, s.title FROM project_series ps
+         JOIN series s ON s.id = ps.series_id
+         WHERE ps.project_id = ?`,
+        [row.id],
+      )
+    : undefined;
   return {
     id: row.id,
     title: row.title,
@@ -18050,6 +23746,12 @@ function project(row: Record<string, any>) {
     visualStyleDirection: row.visual_style_direction ?? undefined,
     genreOpportunity: row.genre_opportunity ?? undefined,
     productionBrief: row.production_brief ?? undefined,
+    ...(seriesMembership
+      ? {
+          seriesId: String(seriesMembership.id),
+          seriesTitle: String(seriesMembership.title),
+        }
+      : {}),
     currentAdaptationId: row.current_adaptation_id ?? undefined,
     deletedAt: row.deleted_at ?? undefined,
     version: Number(row.version),
@@ -18170,7 +23872,7 @@ function applyCors(req: IncomingMessage, res: ServerResponse): void {
     );
     res.setHeader(
       "Access-Control-Allow-Methods",
-      "GET, POST, PATCH, DELETE, OPTIONS",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     );
   }
 }

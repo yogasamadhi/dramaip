@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { fork, type ChildProcess } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 type HostMessage = { type?: string; error?: string };
@@ -62,9 +63,15 @@ test("production-structure HTTP contract persists active adaptation and atomical
   let agentProviderActionShotId = "";
   let opencodeSessionSequence = 0;
   let bridgedEngineSessionSequence = 0;
+  let videoProviderCalls = 0;
   let codexShouldFailForNoFallbackTest = true;
   let lastSidecarDiagnostic = "";
+  let cloudReviewBaseUrl = "";
+  let cloudReviewShotId = "";
+  let cloudReviewObjectAuthorization: string | undefined;
+  let cloudReviewUploadedBytes = 0;
   let port: number;
+  const fileCapabilities = new Map<string, string>();
   try {
     port = await availablePort();
   } catch (error) {
@@ -133,76 +140,90 @@ test("production-structure HTTP contract persists active adaptation and atomical
       request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
       request.on("end", () => {
         const source = Buffer.concat(chunks).toString("utf8");
-        const text = source.includes("人物生成采用测试")
-          ? JSON.stringify({
-              summary: "已生成两张人物卡",
-              content: "已完成主要人物设计。",
-              data: [
-                {
-                  name: "林晚",
-                  role: "主角",
-                  identity: "失踪调查记者",
-                  desire: "找回姐姐",
-                  secret: "曾经隐瞒关键证据",
-                  weakness: "不愿信任他人",
-                  arc: "从独行到学会合作",
-                  visualDescription: "黑色短发，旧相机不离身",
-                },
-                {
-                  name: "顾沉",
-                  role: "关键对手",
-                  identity: "雨城基金会负责人",
-                  desire: "掩盖旧案",
-                  secret: "掌握姐姐下落",
-                  weakness: "过度自信",
-                  visualDescription: "深色长风衣，银框眼镜",
-                },
-              ],
-            })
-          : source.includes("章节专用运行测试")
-            ? JSON.stringify({
-                summary: "已生成章节正文候选",
-                content: "雨声敲打窗沿，林晚拆开姐姐留下的第二封信。",
-                data: {},
-              })
-            : source.includes("通用变更预览测试")
-              ? JSON.stringify({
-                  summary: "已生成受控章节润色预览",
-                  content:
-                    "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
-                  data: {},
-                })
-              : source.includes("续写拼接测试") && source.includes("继续往下写")
-                ? JSON.stringify({
-                    summary: "已生成续写正文",
-                    content:
-                      "他推开雨幕中的铁门，终于看见姐姐留下的第二个记号。",
-                    data: {},
-                  })
-                : source.includes("厂商预览测试")
-                  ? JSON.stringify({
-                      summary: "已生成远程视频厂商调用预览",
-                      content: "等待用户确认费用后发起远程视频任务。",
-                      data: {
-                        providerAction: {
-                          kind: "video",
-                          providerId: agentProviderActionId,
-                          parameters: {
-                            shotId: agentProviderActionShotId,
-                            prompt: "雨夜信封缓慢推进，竖屏电影光影",
-                            seconds: 5,
-                          },
-                          estimatedCost: 0.12,
-                          currency: "USD",
+        const prompt = (() => {
+          try {
+            const payload = JSON.parse(source) as {
+              parts?: Array<{ text?: unknown }>;
+            };
+            return typeof payload.parts?.[0]?.text === "string"
+              ? payload.parts[0].text
+              : source;
+          } catch {
+            return source;
+          }
+        })();
+        const text = prompt.includes("节奏修订预览测试")
+          ? (() => {
+              const scriptId = /目标剧本 ID：([^；\n]+)/.exec(prompt)?.[1];
+              const baseVersion = Number(
+                /基础版本：(\d+)/.exec(prompt)?.[1] ?? 0,
+              );
+              const contextMatch = /上下文：(\{.*\})$/.exec(prompt);
+              const originalPayload = contextMatch
+                ? ((
+                    JSON.parse(contextMatch[1]) as {
+                      target?: { scriptPayload?: Record<string, unknown> };
+                    }
+                  ).target?.scriptPayload ?? {})
+                : {};
+              const proposedContent =
+                "雨夜，主角没有立刻打开秘密来信，而是听见门外有人叫出他的名字。";
+              return JSON.stringify({
+                summary: "已生成节奏修订预览",
+                content: proposedContent,
+                data: {
+                  targets: [
+                    {
+                      kind: "script",
+                      id: scriptId,
+                      baseVersion,
+                      patch: {
+                        payload: {
+                          ...originalPayload,
+                          剧本内容: proposedContent,
                         },
                       },
-                    })
-                  : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
+                      displayDiff: {
+                        proposedContent,
+                        pacingSourceId: "pacing-shot",
+                        pacingSourceVersion: 1,
+                      },
+                    },
+                  ],
+                },
+              });
+            })()
+          : prompt.includes("通用变更预览测试")
+            ? JSON.stringify({
+                summary: "已生成受控章节润色预览",
+                content:
+                  "雨夜更深，主角握紧秘密来信，决定先查清姐姐失联的真相。",
+                data: {},
+              })
+            : prompt.includes("厂商预览测试")
+              ? JSON.stringify({
+                  summary: "已生成远程视频厂商调用预览",
+                  content: "等待用户确认费用后发起远程视频任务。",
+                  data: {
+                    providerAction: {
+                      kind: "video",
+                      providerId: agentProviderActionId,
+                      parameters: {
+                        shotId: agentProviderActionShotId,
+                        prompt: "雨夜信封缓慢推进，竖屏电影光影",
+                        seconds: 5,
+                      },
+                      estimatedCost: 0.12,
+                      currency: "USD",
+                    },
+                  },
+                })
+              : "已核对人物动机与结尾钩子。\n<dramaip-revision>雨夜，主角在门口发现秘密来信。他没有立刻拆开，而是先拨通了失联姐姐的电话。电话接通的瞬间，信封背面浮现出姐姐的笔迹：不要相信来电的人。</dramaip-revision>\n<dramaip-rationale>保留来信悬念，并把主角的主动选择提前，强化结尾反转。</dramaip-rationale>";
         const send = () => {
           response.writeHead(200, { "Content-Type": "application/json" });
           response.end(JSON.stringify({ parts: [{ type: "text", text }] }));
         };
-        if (source.includes("工具权限测试")) setTimeout(send, 300);
+        if (prompt.includes("工具权限测试")) setTimeout(send, 300);
         else send();
       });
       return;
@@ -241,6 +262,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       return;
     }
     if (request.url?.endsWith("/videos") && request.method === "POST") {
+      videoProviderCalls += 1;
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify({ id: "video-test-job", status: "processing" }),
@@ -269,6 +291,151 @@ test("production-structure HTTP contract persists active adaptation and atomical
       response.end(JSON.stringify({ sd_model_checkpoint: "sdxl-test" }));
       return;
     }
+    if (
+      request.url === "/api/v1/review-packages" &&
+      request.method === "POST"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(201, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            package: {
+              id: "remote-review-package-1",
+              workspaceId: "workspace-contract",
+              desktopPackageId: "desktop-package",
+              title: "第 1 集 · 离线审片包",
+              status: "uploading",
+              manifestJson: "{}",
+              storageBytes: 3,
+              syncCursor: 0,
+              expiresAt: "2026-09-01T00:00:00.000Z",
+              createdAt: "2026-08-12T00:00:00.000Z",
+              media: [],
+            },
+            shareToken: "contract-share-token",
+            uploadTargets: [
+              {
+                mediaId: "cloud-media-1",
+                method: "PUT",
+                url: `${cloudReviewBaseUrl}/review-object/contract`,
+                requiredHeaders: [{ name: "x-contract", value: "review" }],
+                expiresAt: "2026-08-12T00:05:00.000Z",
+              },
+            ],
+          },
+        }),
+      );
+      return;
+    }
+    if (request.url === "/review-object/contract" && request.method === "PUT") {
+      cloudReviewObjectAuthorization = request.headers.authorization;
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      request.on("end", () => {
+        cloudReviewUploadedBytes = Buffer.concat(chunks).byteLength;
+        response.writeHead(200);
+        response.end();
+      });
+      return;
+    }
+    if (
+      request.url ===
+        "/api/v1/review-packages/remote-review-package-1/complete" &&
+      request.method === "POST"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            id: "remote-review-package-1",
+            status: "published",
+            syncCursor: 0,
+            expiresAt: "2026-09-01T00:00:00.000Z",
+          },
+        }),
+      );
+      return;
+    }
+    if (
+      request.url?.startsWith(
+        "/api/v1/review-packages/remote-review-package-1/sync?afterCursor=",
+      ) &&
+      request.method === "GET"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: {
+            nextCursor: 2,
+            comments: [
+              {
+                id: "remote-comment-1",
+                packageId: "remote-review-package-1",
+                clientId: "member-comment-1",
+                shotId: cloudReviewShotId,
+                timecodeSeconds: 1.5,
+                authorAlias: "成员甲",
+                body: "补一秒停留。",
+                resolved: false,
+                cursor: 1,
+                createdAt: "2026-08-12T00:00:00.000Z",
+                updatedAt: "2026-08-12T00:00:00.000Z",
+              },
+            ],
+            decisions: [
+              {
+                id: "remote-decision-1",
+                packageId: "remote-review-package-1",
+                clientId: "guest-decision-1",
+                shotId: cloudReviewShotId,
+                decision: "request_changes",
+                authorAlias: "访客乙",
+                note: "补反应镜头。",
+                cursor: 2,
+                createdAt: "2026-08-12T00:00:01.000Z",
+              },
+            ],
+          },
+        }),
+      );
+      return;
+    }
+    if (
+      request.url === "/api/v1/review-packages/remote-review-package-1" &&
+      request.method === "DELETE"
+    ) {
+      assert.equal(
+        request.headers.authorization,
+        "Bearer test-image-provider-secret",
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          code: "OK",
+          message: "ok",
+          data: { packageId: "remote-review-package-1", status: "deleted" },
+        }),
+      );
+      return;
+    }
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ data: [{ b64_json: "iVBORw0KGgo=" }] }));
   });
@@ -278,6 +445,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
   const imageAddress = imageProvider.address();
   if (!imageAddress || typeof imageAddress === "string")
     throw new Error("Unable to start image provider mock");
+  cloudReviewBaseUrl = `http://127.0.0.1:${imageAddress.port}`;
   const child = fork(new URL("./sidecar-test-host.ts", import.meta.url), {
     execArgv: ["--import", "tsx"],
     stdio: ["ignore", "ignore", "ignore", "ipc"],
@@ -291,6 +459,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       operation?: string;
       payload?: Record<string, unknown>;
       message?: string;
+      token?: string;
     }) => {
       if (message.type === "diagnostic" && message.message)
         lastSidecarDiagnostic = message.message;
@@ -299,6 +468,19 @@ test("production-structure HTTP contract persists active adaptation and atomical
           type: "credential:resolved",
           requestId: message.requestId,
           secret: "test-image-provider-secret",
+        });
+      if (message.type === "capability:resolve" && message.requestId)
+        child.send({
+          type: "capability:resolved",
+          requestId: message.requestId,
+          ...(message.token && fileCapabilities.has(message.token)
+            ? {
+                capability: {
+                  path: fileCapabilities.get(message.token)!,
+                  permissions: ["read"],
+                },
+              }
+            : {}),
         });
       if (message.type === "opencode:configure" && message.requestId)
         child.send({
@@ -438,21 +620,577 @@ test("production-structure HTTP contract persists active adaptation and atomical
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
-    const project = await request<{ id: string }>("/api/v1/projects", {
+    const corsPreflight = await fetch(`${url}/api/v1/agent-settings`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: "dramaip://renderer",
+        "Access-Control-Request-Method": "PUT",
+      },
+    });
+    assert.equal(corsPreflight.status, 204);
+    assert.match(
+      corsPreflight.headers.get("access-control-allow-methods") ?? "",
+      /\bPUT\b/,
+    );
+    const project = await request<{
+      id: string;
+      targetAudience?: string;
+      targetEpisodeCount?: number;
+      visualStyleDirection?: string;
+      productionBrief?: string;
+    }>("/api/v1/projects", {
       method: "POST",
       body: JSON.stringify({
         title: "排序契约项目",
         shortDramaType: "悬疑",
         synopsis: "",
+        targetAudience: "18—35 岁短剧观众",
+        targetEpisodeCount: 12,
+        visualStyleDirection: "雨夜霓虹与人物近景",
+        productionBrief:
+          "DramaIP 生产简报 v1\n创建路径：从灵感开始\n画幅：9:16 竖屏",
       }),
     });
     assert.equal(project.status, 201);
+    assert.equal(project.body.targetAudience, "18—35 岁短剧观众");
+    assert.equal(project.body.targetEpisodeCount, 12);
+    assert.equal(project.body.visualStyleDirection, "雨夜霓虹与人物近景");
+    assert.match(project.body.productionBrief ?? "", /创建路径：从灵感开始/);
+    const storyBibleProject = await request<{ id: string }>(
+      "/api/v1/projects",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Story Bible 选择性采用项目",
+          shortDramaType: "悬疑",
+          synopsis: "",
+        }),
+      },
+    );
+    assert.equal(storyBibleProject.status, 201);
+    const storyBibleChapter = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/chapters", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: storyBibleProject.body.id,
+        title: "Story Bible 选择性采用",
+        summary: "林晚发现旧照片。",
+        content: "雨夜里，林晚发现旧照片背面藏有另一个日期。",
+        mainConflict: "照片日期与死亡记录冲突",
+      }),
+    });
+    assert.equal(storyBibleChapter.status, 201);
+    const storyBibleDraft = await request<{
+      id: string;
+      status: string;
+      preview: { fields: Array<{ key: string; value: string }> };
+    }>("/api/v1/story-bible/change-sets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: storyBibleProject.body.id,
+        chapterId: storyBibleChapter.body.id,
+      }),
+    });
+    assert.equal(storyBibleDraft.status, 201);
+    assert.equal(storyBibleDraft.body.status, "draft");
+    assert.ok(
+      storyBibleDraft.body.preview.fields.some(
+        (field) => field.key === "重要事件",
+      ),
+      "变更草案必须暴露可审查字段预览",
+    );
+    const invalidStoryBibleSelection = await request(
+      `/api/v1/story-bible/change-sets/${storyBibleDraft.body.id}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ fields: ["不存在的字段"] }),
+      },
+    );
+    assert.equal(invalidStoryBibleSelection.status, 400);
+    const appliedStoryBibleSelection = await request<{
+      status: string;
+    }>(`/api/v1/story-bible/change-sets/${storyBibleDraft.body.id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ fields: ["重要事件"] }),
+    });
+    assert.equal(appliedStoryBibleSelection.status, 200);
+    const selectedMemories = await request<
+      Array<{ payload: Record<string, unknown> }>
+    >(`/api/v1/chapter-memories?projectId=${storyBibleProject.body.id}`);
+    assert.equal(selectedMemories.status, 200);
+    assert.deepEqual(
+      Object.keys(selectedMemories.body[0]?.payload ?? {}).sort(),
+      ["关联章节", "来源变更集", "来源章节版本", "重要事件"].sort(),
+      "选择性采用不能写入未勾选的 Story Bible 字段",
+    );
     const firstEvent = await readSseEvent(0);
     assert.ok(Number.isInteger(firstEvent.id));
     assert.match(firstEvent.frame, /event: project\.created/);
     const replayedEvent = await readSseEvent(firstEvent.id - 1);
     assert.equal(replayedEvent.id, firstEvent.id);
     assert.equal(replayedEvent.frame, firstEvent.frame);
+    const sourceImportPath = fileURLToPath(
+      new URL(
+        "../../../tests/fixtures/lm6/lm6-00/source-import.md",
+        import.meta.url,
+      ),
+    );
+    fileCapabilities.set("lm6-source-import", sourceImportPath);
+    const sourcePreview = await request<{
+      importId: string;
+      preview: {
+        sourceType: string;
+        contentKind: string;
+        chapters: Array<{ title: string; content: string }>;
+      };
+    }>("/api/v1/source-imports/preview", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        capabilityToken: "lm6-source-import",
+      }),
+    });
+    assert.equal(
+      sourcePreview.status,
+      201,
+      `${JSON.stringify(sourcePreview.body)}\n${lastSidecarDiagnostic}`,
+    );
+    assert.equal(sourcePreview.body.preview.sourceType, "markdown");
+    assert.equal(sourcePreview.body.preview.contentKind, "novel");
+    assert.deepEqual(
+      sourcePreview.body.preview.chapters.map((chapter) => chapter.title),
+      ["前言", "第一章 雨夜来信", "第二章 失联电话"],
+    );
+    const sourceCommit = await request<{
+      createdChapters: number;
+      checkpointCount: number;
+      extractionChangeSet?: {
+        id: string;
+        status: string;
+        candidates: Array<{
+          id: string;
+          type: string;
+          title: string;
+          status: string;
+          sourceRefs: Array<{ chapterTitle: string; excerpt: string }>;
+        }>;
+      };
+    }>(`/api/v1/source-imports/${sourcePreview.body.importId}/commit`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        strategy: "append",
+        rightsConfirmed: true,
+        destructiveConfirmed: false,
+        preview: sourcePreview.body.preview,
+      }),
+    });
+    assert.equal(sourceCommit.status, 201);
+    assert.equal(sourceCommit.body.createdChapters, 3);
+    assert.equal(sourceCommit.body.checkpointCount, 0);
+    const pilotProject = await request<{ id: string }>("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "试制状态机项目",
+        shortDramaType: "悬疑",
+        synopsis: "用于隔离验证 1–3 集试制。",
+      }),
+    });
+    assert.equal(pilotProject.status, 201);
+    const pilotChapters = await Promise.all(
+      ["试制来源一", "试制来源二", "试制来源三"].map((title, index) =>
+        request<{
+          id: string;
+          title: string;
+          content: string;
+          summary: string;
+          version: number;
+        }>("/api/v1/chapters", {
+          method: "POST",
+          body: JSON.stringify({
+            projectId: pilotProject.body.id,
+            title,
+            content: `第 ${index + 1} 段试制来源正文。`,
+            summary: `试制摘要 ${index + 1}`,
+          }),
+        }),
+      ),
+    );
+    pilotChapters.forEach((chapter) => assert.equal(chapter.status, 201));
+    const invalidPilot = await request("/api/v1/pilot-plans", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: pilotProject.body.id,
+        chapterIds: pilotChapters.map((chapter) => chapter.body.id),
+        episodeCount: 4,
+      }),
+    });
+    assert.equal(invalidPilot.status, 400);
+    const pilot = await request<{
+      id: string;
+      status: string;
+      stage: string;
+      episodeCount: number;
+      episodeIds: string[];
+    }>("/api/v1/pilot-plans", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: pilotProject.body.id,
+        chapterIds: pilotChapters.map((chapter) => chapter.body.id),
+        episodeCount: 3,
+      }),
+    });
+    assert.equal(pilot.status, 201);
+    assert.equal(pilot.body.stage, "confirm-source");
+    const confirmedPilot = await request<{
+      status: string;
+      stage: string;
+      episodeIds: string[];
+      coverage: { episodes: number; scripts: number };
+    }>(`/api/v1/pilot-plans/${pilot.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "confirm-source" }),
+    });
+    assert.equal(confirmedPilot.status, 200);
+    assert.equal(confirmedPilot.body.status, "active");
+    assert.equal(confirmedPilot.body.stage, "script");
+    assert.equal(confirmedPilot.body.coverage.episodes, 3);
+    const duplicatePilotConfirmation = await request<{
+      episodeIds: string[];
+    }>(`/api/v1/pilot-plans/${pilot.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "confirm-source" }),
+    });
+    assert.equal(duplicatePilotConfirmation.status, 200);
+    assert.deepEqual(
+      duplicatePilotConfirmation.body.episodeIds,
+      confirmedPilot.body.episodeIds,
+      "重复确认不得新增试制分集",
+    );
+    const changedPilotSource = pilotChapters[0].body;
+    const pilotSourceUpdate = await request(
+      `/api/v1/chapters/${changedPilotSource.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: changedPilotSource.title,
+          summary: changedPilotSource.summary,
+          content: `${changedPilotSource.content}\n试制来源人工修订。`,
+          version: changedPilotSource.version,
+        }),
+      },
+    );
+    assert.equal(pilotSourceUpdate.status, 200);
+    const stalePilots = await request<Array<{ id: string; status: string }>>(
+      `/api/v1/projects/${pilotProject.body.id}/pilot-plans`,
+    );
+    assert.equal(
+      stalePilots.body.find((item) => item.id === pilot.body.id)?.status,
+      "stale",
+    );
+    const resumedPilot = await request<{ status: string; stage: string }>(
+      `/api/v1/pilot-plans/${pilot.body.id}/action`,
+      { method: "POST", body: JSON.stringify({ action: "resume" }) },
+    );
+    assert.equal(resumedPilot.status, 200);
+    assert.equal(resumedPilot.body.status, "draft");
+    assert.equal(resumedPilot.body.stage, "confirm-source");
+    const extraction = sourceCommit.body.extractionChangeSet;
+    assert.ok(extraction, "导入完成后必须创建可审查候选变更集");
+    assert.equal(extraction.status, "draft");
+    assert.deepEqual(
+      new Set(extraction.candidates.map((candidate) => candidate.type)),
+      new Set(["character", "scene", "prop", "chapter-summary", "adaptation"]),
+    );
+    assert.ok(
+      extraction.candidates.every(
+        (candidate) =>
+          candidate.sourceRefs.length > 0 &&
+          candidate.sourceRefs[0].chapterTitle &&
+          candidate.sourceRefs[0].excerpt,
+      ),
+      "每条候选都必须能够回溯到原稿章节和文本范围",
+    );
+    const listedExtractions = await request<
+      {
+        id: string;
+        candidates: typeof extraction.candidates;
+        status: string;
+      }[]
+    >(`/api/v1/projects/${project.body.id}/import-extractions/change-sets`);
+    assert.equal(listedExtractions.status, 200);
+    assert.equal(listedExtractions.body[0]?.id, extraction.id);
+    const exportedPackage = await request<{ content: string }>(
+      `/api/v1/exports/projects/${project.body.id}/json`,
+    );
+    assert.equal(exportedPackage.status, 200);
+    assert.equal(
+      JSON.parse(exportedPackage.body.content).importExtractions[0]?.id,
+      extraction.id,
+      "项目包必须携带导入候选变更集",
+    );
+    const roundTripPath = join(directory, "lm6-04-roundtrip.json");
+    writeFileSync(roundTripPath, exportedPackage.body.content, "utf8");
+    fileCapabilities.set("lm6-extraction-roundtrip", roundTripPath);
+    const extractionPackagePreview = await request<{ id: string }>(
+      "/api/v1/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: "lm6-extraction-roundtrip" }),
+      },
+    );
+    assert.equal(extractionPackagePreview.status, 201);
+    const roundTrip = await request<{ project: { id: string } }>(
+      `/api/v1/project-packages/${extractionPackagePreview.body.id}/commit`,
+      { method: "POST", body: JSON.stringify({ title: "候选变更集回环项目" }) },
+    );
+    assert.equal(roundTrip.status, 201);
+    const roundTripExtractions = await request<
+      Array<{ status: string; candidates: Array<{ type: string }> }>
+    >(
+      `/api/v1/projects/${roundTrip.body.project.id}/import-extractions/change-sets`,
+    );
+    assert.equal(roundTripExtractions.status, 200);
+    assert.equal(roundTripExtractions.body[0]?.status, "draft");
+    assert.deepEqual(
+      new Set(
+        roundTripExtractions.body[0]?.candidates.map((item) => item.type),
+      ),
+      new Set(["character", "scene", "prop", "chapter-summary", "adaptation"]),
+    );
+    const characterCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "character",
+    );
+    const propCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "prop",
+    );
+    const summaryCandidate = extraction.candidates.find(
+      (candidate) => candidate.type === "chapter-summary",
+    );
+    assert.ok(characterCandidate);
+    assert.ok(propCandidate);
+    assert.ok(summaryCandidate);
+    const manualSameName = await request<{ id: string }>("/api/v1/assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: propCandidate.title,
+        payload: { 来源: "人工创建，必须被保护" },
+      }),
+    });
+    assert.equal(manualSameName.status, 201);
+    const conflictingAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [propCandidate.id] }),
+      },
+    );
+    assert.equal(conflictingAdopt.status, 409);
+    const conflictList = await request<
+      {
+        candidates: Array<{
+          id: string;
+          status: string;
+          conflictNote?: string;
+        }>;
+      }[]
+    >(`/api/v1/projects/${project.body.id}/import-extractions/change-sets`);
+    const conflictedProp = conflictList.body[0]?.candidates.find(
+      (candidate) => candidate.id === propCandidate.id,
+    );
+    assert.equal(conflictedProp?.status, "conflict");
+    assert.match(conflictedProp?.conflictNote ?? "", /不会覆盖/);
+    const adoptedCharacter = await request<{
+      status: string;
+      candidates: Array<{ id: string; status: string }>;
+    }>(`/api/v1/import-extractions/change-sets/${extraction.id}/adopt`, {
+      method: "POST",
+      body: JSON.stringify({ candidateIds: [characterCandidate.id] }),
+    });
+    assert.equal(adoptedCharacter.status, 200);
+    assert.equal(
+      adoptedCharacter.body.candidates.find(
+        (candidate) => candidate.id === characterCandidate.id,
+      )?.status,
+      "adopted",
+    );
+    const extractedCharacters = await request<
+      Array<{
+        id: string;
+        title: string;
+        version: number;
+        payload: Record<string, unknown>;
+      }>
+    >(`/api/v1/characters?projectId=${project.body.id}`);
+    const extractedCharacter = extractedCharacters.body.find(
+      (item) => item.title === characterCandidate.title,
+    );
+    assert.ok(extractedCharacter);
+    assert.equal(extractedCharacter.payload["来源变更集"], extraction.id);
+    const duplicateAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [characterCandidate.id] }),
+      },
+    );
+    assert.equal(duplicateAdopt.status, 400);
+    const charactersAfterDuplicate = await request<Array<{ title: string }>>(
+      `/api/v1/characters?projectId=${project.body.id}`,
+    );
+    assert.equal(
+      charactersAfterDuplicate.body.filter(
+        (item) => item.title === characterCandidate.title,
+      ).length,
+      1,
+      "重复回调不得创建重复实体",
+    );
+    const importedChapters = await request<
+      Array<{ id: string; title: string; content: string; version: number }>
+    >(`/api/v1/projects/${project.body.id}/chapters`);
+    const sourceChapter = importedChapters.body.find(
+      (chapter) =>
+        chapter.title === summaryCandidate.sourceRefs[0]?.chapterTitle,
+    );
+    assert.ok(sourceChapter);
+    const updatedSource = await request(
+      `/api/v1/chapters/${sourceChapter.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: sourceChapter.title,
+          content: `${sourceChapter.content}\n人工补充：来源版本已变化。`,
+          summary: "人工摘要",
+          version: sourceChapter.version,
+        }),
+      },
+    );
+    assert.equal(updatedSource.status, 200);
+    const staleAdopt = await request(
+      `/api/v1/import-extractions/change-sets/${extraction.id}/adopt`,
+      {
+        method: "POST",
+        body: JSON.stringify({ candidateIds: [summaryCandidate.id] }),
+      },
+    );
+    assert.equal(staleAdopt.status, 409);
+    const manuallyChangedCharacter = await request<{
+      id: string;
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/characters/${extractedCharacter.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: extractedCharacter.title,
+        payload: {
+          ...extractedCharacter.payload,
+          备注: "人工补充，撤销时必须保留",
+        },
+        version: extractedCharacter.version,
+      }),
+    });
+    assert.equal(manuallyChangedCharacter.status, 200);
+    const protectedUndo = await request<{
+      status: string;
+      errorMessage?: string;
+    }>(`/api/v1/import-extractions/change-sets/${extraction.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(protectedUndo.status, 200);
+    assert.equal(protectedUndo.body.status, "stale");
+    assert.match(protectedUndo.body.errorMessage ?? "", /人工修改/);
+    const charactersAfterUndo = await request<Array<{ id: string }>>(
+      `/api/v1/characters?projectId=${project.body.id}`,
+    );
+    assert.ok(
+      charactersAfterUndo.body.some(
+        (item) => item.id === extractedCharacter.id,
+      ),
+      "撤销必须保护采用后的人工作品",
+    );
+    const visualAsset = await request<{
+      id: string;
+      payload: Record<string, unknown>;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "林晚·雨夜服装设定",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚",
+          权利状态: "已授权",
+          费用状态: "已核对",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(visualAsset.status, 201);
+    assert.equal(visualAsset.body.payload["锁定状态"], "未锁定");
+    const adoptedVisualAsset = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${visualAsset.body.id}/adopt`, {
+      method: "POST",
+    });
+    assert.equal(adoptedVisualAsset.status, 200);
+    assert.equal(adoptedVisualAsset.body.payload["采用状态"], "已采用");
+    const lockedVisualAsset = await request<{
+      id: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${visualAsset.body.id}/lock`, {
+      method: "POST",
+    });
+    assert.equal(lockedVisualAsset.status, 200);
+    assert.equal(lockedVisualAsset.body.payload["锁定状态"], "已锁定");
+    assert.equal(typeof lockedVisualAsset.body.payload["锁定时间"], "string");
+    const exportedProjectPackage = await request<{
+      fileName: string;
+      content: string;
+    }>(`/api/v1/exports/projects/${project.body.id}/json`);
+    assert.equal(exportedProjectPackage.status, 200);
+    assert.match(exportedProjectPackage.body.fileName, /\.json$/);
+    const projectPackagePath = join(directory, "lm6-00-round-trip.json");
+    writeFileSync(projectPackagePath, exportedProjectPackage.body.content);
+    fileCapabilities.set("lm6-project-package", projectPackagePath);
+    const packagePreview = await request<{
+      id: string;
+      projectTitle: string;
+      chapterCount: number;
+      resourceCount: number;
+    }>("/api/v1/project-packages/preview", {
+      method: "POST",
+      body: JSON.stringify({ capabilityToken: "lm6-project-package" }),
+    });
+    assert.equal(packagePreview.status, 201);
+    assert.equal(packagePreview.body.projectTitle, "排序契约项目");
+    assert.equal(packagePreview.body.chapterCount, 3);
+    const packageCommit = await request<{
+      project: { id: string; title: string; productionBrief?: string };
+      chaptersCreated: number;
+      resourcesCreated: number;
+    }>(`/api/v1/project-packages/${packagePreview.body.id}/commit`, {
+      method: "POST",
+      body: JSON.stringify({ title: "排序契约项目（项目包往返）" }),
+    });
+    assert.equal(packageCommit.status, 201);
+    assert.equal(
+      packageCommit.body.project.title,
+      "排序契约项目（项目包往返）",
+    );
+    assert.match(
+      packageCommit.body.project.productionBrief ?? "",
+      /创建路径：从灵感开始/,
+    );
+    assert.equal(packageCommit.body.chaptersCreated, 3);
+    assert.equal(
+      packageCommit.body.resourcesCreated,
+      packagePreview.body.resourceCount,
+    );
     const engines = await request<
       Array<{ kind: string; status: string; isBeta: boolean }>
     >("/api/v1/agent-engines");
@@ -521,14 +1259,23 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     const initialAgentSettings = await request<{
       defaultEngineKind: string;
+      assistantMode: string;
     }>(`/api/v1/projects/${project.body.id}/agent-settings`);
     assert.equal(initialAgentSettings.status, 200);
     assert.equal(initialAgentSettings.body.defaultEngineKind, "opencode");
-    const codexSettings = await request<{ defaultEngineKind: string }>(
-      `/api/v1/projects/${project.body.id}/agent-settings`,
-      { method: "PUT", body: JSON.stringify({ defaultEngineKind: "codex" }) },
-    );
+    assert.equal(initialAgentSettings.body.assistantMode, "simple");
+    const codexSettings = await request<{
+      defaultEngineKind: string;
+      assistantMode: string;
+    }>(`/api/v1/projects/${project.body.id}/agent-settings`, {
+      method: "PUT",
+      body: JSON.stringify({
+        defaultEngineKind: "codex",
+        assistantMode: "advanced",
+      }),
+    });
     assert.equal(codexSettings.status, 200);
+    assert.equal(codexSettings.body.assistantMode, "advanced");
     const noFallbackSession = await request<{ code: string; message: string }>(
       "/api/v1/agent-sessions",
       {
@@ -540,14 +1287,15 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(noFallbackSession.body.code, "ENGINE_UNAVAILABLE");
     assert.match(noFallbackSession.body.message, /Codex/);
     codexShouldFailForNoFallbackTest = false;
-    const restoredAgentSettings = await request<{ defaultEngineKind: string }>(
-      `/api/v1/projects/${project.body.id}/agent-settings`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ defaultEngineKind: "opencode" }),
-      },
-    );
+    const restoredAgentSettings = await request<{
+      defaultEngineKind: string;
+      assistantMode: string;
+    }>(`/api/v1/projects/${project.body.id}/agent-settings`, {
+      method: "PUT",
+      body: JSON.stringify({ defaultEngineKind: "opencode" }),
+    });
     assert.equal(restoredAgentSettings.body.defaultEngineKind, "opencode");
+    assert.equal(restoredAgentSettings.body.assistantMode, "advanced");
     const agentChapter = await request<{
       id: string;
       version: number;
@@ -680,6 +1428,394 @@ test("production-structure HTTP contract persists active adaptation and atomical
         },
       }),
     });
+    const secondVisualAsset = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "林晚·雨夜服装设定 v2",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚",
+          资产版本: "v2",
+          权利状态: "已授权",
+          费用状态: "未知",
+          服务状态: "不可用",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(secondVisualAsset.status, 201);
+    const previewFilePath = fileURLToPath(
+      new URL(
+        "../../../tests/fixtures/lm6/lm6-10/asset-preview.svg",
+        import.meta.url,
+      ),
+    );
+    fileCapabilities.set("lm6-10-preview", previewFilePath);
+    const previewVisualAsset = await request<{ id: string }>(
+      "/api/v1/visual-assets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          title: "旧相机道具参考",
+          capabilityToken: "lm6-10-preview",
+          payload: { 资产类型: "道具", 关联对象: "旧相机" },
+        }),
+      },
+    );
+    assert.equal(previewVisualAsset.status, 201);
+    const previewMedia = await request<{ kind: string; dataUrl: string }>(
+      `/api/v1/asset-center/${previewVisualAsset.body.id}/preview`,
+    );
+    assert.equal(previewMedia.status, 200);
+    assert.equal(previewMedia.body.kind, "image");
+    assert.match(previewMedia.body.dataUrl, /^data:image\/svg\+xml;base64,/);
+    const assetCenterBeforeMigration = await request<{
+      assets: Array<{
+        id: string;
+        category: string;
+        rightsStatus: string;
+        costStatus: string;
+        providerStatus: string;
+        lockStatus: string;
+        version: number;
+        usages: Array<{ shotId: string }>;
+      }>;
+    }>(`/api/v1/projects/${project.body.id}/asset-center`);
+    assert.equal(assetCenterBeforeMigration.status, 200);
+    const lockedVersion = assetCenterBeforeMigration.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const v2 = assetCenterBeforeMigration.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(lockedVersion?.category, "character");
+    assert.equal(v2?.rightsStatus, "verified");
+    assert.equal(v2?.costStatus, "unknown");
+    assert.equal(v2?.providerStatus, "unavailable");
+    const blockedAdoption = await request<{ code: string }>(
+      `/api/v1/asset-center/${secondVisualAsset.body.id}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({ action: "adopt", version: v2?.version }),
+      },
+    );
+    assert.equal(blockedAdoption.status, 409);
+    const assignedLockedVersion = await request<{
+      assets: Array<{
+        id: string;
+        usages: Array<{ shotId: string }>;
+        version: number;
+      }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assign-shot",
+        version: lockedVersion?.version,
+        shotId: shot.body.id,
+      }),
+    });
+    assert.equal(assignedLockedVersion.status, 200);
+    assert.ok(
+      assignedLockedVersion.body.assets
+        .find((asset) => asset.id === lockedVisualAsset.body.id)
+        ?.usages.some((usage) => usage.shotId === shot.body.id),
+    );
+    const protectedDelete = await request<never>(
+      `/api/v1/visual-assets/${lockedVisualAsset.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(protectedDelete.status, 409);
+    const currentLocked = assignedLockedVersion.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const unlocked = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "unlock",
+        version: currentLocked?.version,
+      }),
+    });
+    assert.equal(unlocked.status, 200);
+    const currentV2 = unlocked.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    const adoptedV2 = await request<{
+      assets: Array<{
+        id: string;
+        version: number;
+        adopted: boolean;
+        lockStatus: string;
+      }>;
+    }>(`/api/v1/asset-center/${secondVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({ action: "adopt", version: currentV2?.version }),
+    });
+    assert.equal(adoptedV2.status, 200);
+    const adoptedV2Entry = adoptedV2.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(adoptedV2Entry?.adopted, true);
+    const lockedV2 = await request<{
+      assets: Array<{ id: string; version: number; lockStatus: string }>;
+    }>(`/api/v1/asset-center/${secondVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "lock",
+        version: adoptedV2Entry?.version,
+      }),
+    });
+    assert.equal(lockedV2.status, 200);
+    const lockedV2Entry = lockedV2.body.assets.find(
+      (asset) => asset.id === secondVisualAsset.body.id,
+    );
+    assert.equal(lockedV2Entry?.lockStatus, "locked");
+    const series = await request<{ id: string; title: string }>(
+      "/api/v1/series",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "雨夜系列",
+          description: "跨项目版本合同",
+        }),
+      },
+    );
+    assert.equal(series.status, 201);
+    const sourceSeriesProject = await request<{ seriesId?: string }>(
+      `/api/v1/projects/${project.body.id}/series`,
+      { method: "PUT", body: JSON.stringify({ seriesId: series.body.id }) },
+    );
+    assert.equal(sourceSeriesProject.status, 200);
+    assert.equal(sourceSeriesProject.body.seriesId, series.body.id);
+    const seriesProject = await request<{ id: string; seriesId?: string }>(
+      "/api/v1/projects",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "雨夜系列·衍生项目",
+          shortDramaType: "都市悬疑",
+        }),
+      },
+    );
+    assert.equal(seriesProject.status, 201);
+    const joinedSeriesProject = await request<{ seriesId?: string }>(
+      `/api/v1/projects/${seriesProject.body.id}/series`,
+      { method: "PUT", body: JSON.stringify({ seriesId: series.body.id }) },
+    );
+    assert.equal(joinedSeriesProject.body.seriesId, series.body.id);
+    const seriesSetting = await request<{ id: string; version: number }>(
+      `/api/v1/series/${series.body.id}/story-bible`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "世界观基调",
+          payload: { 色调: "冷蓝", 禁忌: "不改变角色姓名" },
+        }),
+      },
+    );
+    assert.equal(seriesSetting.status, 201);
+    const adoptedSeriesSetting = await request<{ sourceVersion: number }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-story-bible/${seriesSetting.body.id}/upgrade`,
+      {
+        method: "POST",
+        body: JSON.stringify({ sourceVersion: seriesSetting.body.version }),
+      },
+    );
+    assert.equal(adoptedSeriesSetting.status, 200);
+    assert.equal(
+      adoptedSeriesSetting.body.sourceVersion,
+      seriesSetting.body.version,
+    );
+    const inheritedLibrary = await request<{
+      series?: { id: string };
+      storyBible: Array<{
+        id: string;
+        overridden: boolean;
+        sourceVersion: number;
+      }>;
+    }>(`/api/v1/projects/${seriesProject.body.id}/series-library`);
+    assert.equal(inheritedLibrary.body.series?.id, series.body.id);
+    assert.equal(inheritedLibrary.body.storyBible[0]?.overridden, false);
+    const overriddenSetting = await request<{
+      overridden: boolean;
+      payload: { 色调?: string };
+    }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-story-bible/${seriesSetting.body.id}/override`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          title: "世界观基调（衍生项目）",
+          payload: { 色调: "琥珀", 禁忌: "不改变角色姓名" },
+          sourceVersion: seriesSetting.body.version,
+        }),
+      },
+    );
+    assert.equal(overriddenSetting.status, 200);
+    assert.equal(overriddenSetting.body.overridden, true);
+    assert.equal(overriddenSetting.body.payload.色调, "琥珀");
+    const lockedSource = await request<{
+      id: string;
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${secondVisualAsset.body.id}`);
+    const linked = await request<{
+      targetAssetId: string;
+      sourceVersion: number;
+      mode: string;
+    }>(`/api/v1/projects/${seriesProject.body.id}/series-assets`, {
+      method: "POST",
+      body: JSON.stringify({
+        sourceAssetId: lockedSource.body.id,
+        sourceVersion: lockedSource.body.version,
+        mode: "link",
+      }),
+    });
+    assert.equal(linked.status, 201);
+    assert.equal(linked.body.mode, "link");
+    const frozenProjection = await request<{
+      id: string;
+      version: number;
+      payload: { 系列资产来源?: { sourceVersion?: number } };
+    }>(`/api/v1/visual-assets/${linked.body.targetAssetId}`);
+    assert.equal(
+      frozenProjection.body.payload.系列资产来源?.sourceVersion,
+      lockedSource.body.version,
+    );
+    const projectionPatch = await request<{ code: string }>(
+      `/api/v1/visual-assets/${linked.body.targetAssetId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: frozenProjection.body.version,
+          payload: { 资产类型: "角色" },
+        }),
+      },
+    );
+    assert.equal(projectionPatch.status, 409);
+    const upgradedSource = await request<{
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${lockedSource.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        version: lockedSource.body.version,
+        payload: {
+          ...lockedSource.body.payload,
+          视觉说明: "系列新版本，仅显式升级后采用",
+        },
+      }),
+    });
+    assert.equal(upgradedSource.status, 200);
+    const unchangedProjection = await request<{
+      payload: { 系列资产来源?: { sourceVersion?: number } };
+    }>(`/api/v1/visual-assets/${linked.body.targetAssetId}`);
+    assert.equal(
+      unchangedProjection.body.payload.系列资产来源?.sourceVersion,
+      lockedSource.body.version,
+    );
+    const protectedSeriesSource = await request<{ code: string }>(
+      `/api/v1/visual-assets/${lockedSource.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(protectedSeriesSource.status, 409);
+    const forked = await request<{ targetAssetId: string }>(
+      `/api/v1/projects/${seriesProject.body.id}/series-assets`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          sourceAssetId: lockedSource.body.id,
+          sourceVersion: upgradedSource.body.version,
+          mode: "fork",
+        }),
+      },
+    );
+    assert.equal(forked.status, 201);
+    const forkBeforeChange = await request<{
+      version: number;
+      title: string;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/visual-assets/${forked.body.targetAssetId}`);
+    const changedFork = await request<{ title: string }>(
+      `/api/v1/visual-assets/${forked.body.targetAssetId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          version: forkBeforeChange.body.version,
+          title: "林晚·雨夜服装设定 Fork",
+          payload: {
+            ...forkBeforeChange.body.payload,
+            视觉说明: "只在衍生项目中生效",
+          },
+        }),
+      },
+    );
+    assert.equal(changedFork.status, 200);
+    const sourceAfterFork = await request<{ title: string }>(
+      `/api/v1/visual-assets/${lockedSource.body.id}`,
+    );
+    assert.equal(sourceAfterFork.body.title, lockedSource.body.title);
+    const exportedSeriesProject = await request<{ content: string }>(
+      `/api/v1/exports/projects/${seriesProject.body.id}/json`,
+    );
+    assert.equal(exportedSeriesProject.status, 200);
+    assert.match(exportedSeriesProject.body.content, /seriesLibrary/);
+    assert.match(exportedSeriesProject.body.content, /雨夜系列/);
+    const seriesPackagePath = join(directory, "lm6-23-series-package.json");
+    writeFileSync(seriesPackagePath, exportedSeriesProject.body.content);
+    fileCapabilities.set("lm6-23-series-package", seriesPackagePath);
+    const seriesPackagePreview = await request<{ id: string }>(
+      "/api/v1/project-packages/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ capabilityToken: "lm6-23-series-package" }),
+      },
+    );
+    assert.equal(seriesPackagePreview.status, 201);
+    const importedSeriesPackage = await request<{
+      project: { id: string; seriesId?: string };
+    }>(`/api/v1/project-packages/${seriesPackagePreview.body.id}/commit`, {
+      method: "POST",
+      body: JSON.stringify({ title: "雨夜系列·离线项目包" }),
+    });
+    assert.equal(importedSeriesPackage.status, 201);
+    assert.equal(importedSeriesPackage.body.project.seriesId, undefined);
+    const importedSeriesSnapshots = await request<
+      Array<{ title: string; payload: { 说明?: string } }>
+    >(
+      `/api/v1/series-library-snapshots?projectId=${importedSeriesPackage.body.project.id}`,
+    );
+    assert.equal(importedSeriesSnapshots.status, 200);
+    assert.equal(importedSeriesSnapshots.body.length, 1);
+    assert.match(
+      importedSeriesSnapshots.body[0]?.payload.说明 ?? "",
+      /不可变说明快照/,
+    );
+    const oldVersion = lockedV2.body.assets.find(
+      (asset) => asset.id === lockedVisualAsset.body.id,
+    );
+    const removedUsage = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${lockedVisualAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "remove-shot",
+        version: oldVersion?.version,
+        shotId: shot.body.id,
+      }),
+    });
+    assert.equal(removedUsage.status, 200);
+    const removableOldVersion = await request<never>(
+      `/api/v1/visual-assets/${lockedVisualAsset.body.id}`,
+      { method: "DELETE" },
+    );
+    assert.equal(removableOldVersion.status, 204);
     const caseStudy = await request<{ id: string; version: number }>(
       "/api/v1/creative/case-studies",
       {
@@ -797,6 +1933,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
             服务地址: `http://127.0.0.1:${imageAddress.port}/v1`,
             模型名称: "test-image-model",
             凭据引用: "test-image-credential",
+            并发上限: 1,
           },
         }),
       },
@@ -934,159 +2071,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(agentActivation.body.engineAvailable, true);
     assert.equal(agentActivation.body.providerKind, "openai");
     assert.equal(agentActivation.body.model, "test-agent-model");
-    const novelWorkspace = await request<{
-      project: { id: string };
-      chapters: Array<{ id: string }>;
-      statuses: Array<{ chapterId: string; words: number }>;
-    }>(`/api/v1/projects/${project.body.id}/novel-workspace`);
-    assert.equal(novelWorkspace.status, 200);
-    assert.equal(novelWorkspace.body.project.id, project.body.id);
-    assert.ok(
-      novelWorkspace.body.chapters.some(
-        (chapter) => chapter.id === agentChapter.body.id,
-      ),
-    );
-    assert.ok(
-      novelWorkspace.body.statuses.some(
-        (status) =>
-          status.chapterId === agentChapter.body.id && status.words > 0,
-      ),
-    );
-    const submissionMarkdown = await request<{
-      fileName: string;
-      content: string;
-    }>(`/api/v1/exports/projects/${project.body.id}/submission-markdown`);
-    assert.equal(submissionMarkdown.status, 200);
-    assert.match(submissionMarkdown.body.fileName, /小说投稿包\.md$/);
-    assert.match(submissionMarkdown.body.content, /小说投稿包/);
-    assert.match(submissionMarkdown.body.content, /章节目录/);
-    const submissionJson = await request<{
-      content: string;
-    }>(`/api/v1/exports/projects/${project.body.id}/submission-json`);
-    assert.equal(submissionJson.status, 200);
-    const submissionPackage = JSON.parse(submissionJson.body.content) as {
-      meta: { format: string; chapterLimit: number };
-      chapterCatalog: unknown[];
-      sampleChapters: unknown[];
-    };
-    assert.equal(
-      submissionPackage.meta.format,
-      "dramaip-novel-submission-package",
-    );
-    assert.equal(submissionPackage.meta.chapterLimit, 10);
-    assert.ok(submissionPackage.chapterCatalog.length > 0);
-    assert.ok(submissionPackage.sampleChapters.length > 0);
-    const chapterProductRun = await request<{
-      taskId: string;
-      sessionId: string;
-      runId: string;
-      chapterId: string;
-      autoCommitWhenReady: boolean;
-    }>(`/api/v1/chapters/${agentChapter.body.id}/agent-runs`, {
-      method: "POST",
-      headers: { "Idempotency-Key": "novel-chapter-run-contract" },
-      body: JSON.stringify({
-        taskType: "rewrite_chapter",
-        engineKind: "opencode",
-        prompt: "章节专用运行测试",
-        wordGoal: 2_000,
-        baseVersion: agentChapter.body.version,
-      }),
-    });
-    assert.equal(chapterProductRun.status, 202);
-    assert.equal(chapterProductRun.body.chapterId, agentChapter.body.id);
-    assert.equal(chapterProductRun.body.autoCommitWhenReady, false);
-    let chapterProductPreview:
-      | { id: string; taskId?: string; targets: Array<{ id: string }> }
-      | undefined;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const tasks = await request<
-        Array<{
-          id: string;
-          status: string;
-          result?: { changePreview?: typeof chapterProductPreview };
-        }>
-      >("/api/v1/tasks");
-      const current = tasks.body.find(
-        (item) => item.id === chapterProductRun.body.taskId,
-      );
-      chapterProductPreview = current?.result?.changePreview;
-      if (current && !["queued", "running"].includes(current.status)) break;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.ok(chapterProductPreview);
-    assert.equal(chapterProductPreview.targets[0]?.id, agentChapter.body.id);
-    const discardedChapterProductPreview = await request<{ status: string }>(
-      `/api/v1/change-previews/${chapterProductPreview.id}/discard`,
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": "novel-chapter-discard-contract" },
-      },
-    );
-    assert.equal(discardedChapterProductPreview.status, 200);
-    assert.equal(discardedChapterProductPreview.body.status, "discarded");
-
-    const characterSession = await request<{ id: string }>(
-      "/api/v1/agent-sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: project.body.id,
-          engineKind: "opencode",
-          taskType: "generate_characters",
-          title: "人物生成采用测试",
-        }),
-      },
-    );
-    assert.equal(characterSession.status, 201);
-    const characterRun = await request<{ taskId: string }>(
-      `/api/v1/agent-sessions/${characterSession.body.id}/runs`,
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": "novel-character-run-contract" },
-        body: JSON.stringify({
-          taskType: "generate_characters",
-          prompt: "人物生成采用测试",
-        }),
-      },
-    );
-    assert.equal(characterRun.status, 202);
-    let characterPreview:
-      { id: string; targets: Array<{ kind: string }> } | undefined;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const tasks = await request<
-        Array<{
-          id: string;
-          status: string;
-          result?: { changePreview?: typeof characterPreview };
-        }>
-      >("/api/v1/tasks");
-      const current = tasks.body.find(
-        (item) => item.id === characterRun.body.taskId,
-      );
-      characterPreview = current?.result?.changePreview;
-      if (current && !["queued", "running"].includes(current.status)) break;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    assert.ok(characterPreview);
-    assert.equal(characterPreview.targets.length, 2);
-    assert.ok(
-      characterPreview.targets.every((target) => target.kind === "character"),
-    );
-    const committedCharacters = await request<{ status: string }>(
-      `/api/v1/change-previews/${characterPreview.id}/commit`,
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": "novel-character-commit-contract" },
-      },
-    );
-    assert.equal(committedCharacters.status, 200);
-    const generatedCharacters = await request<Array<{ title: string }>>(
-      `/api/v1/characters?projectId=${project.body.id}`,
-    );
-    assert.equal(generatedCharacters.status, 200);
-    assert.ok(generatedCharacters.body.some((item) => item.title === "林晚"));
-    assert.ok(generatedCharacters.body.some((item) => item.title === "顾沉"));
     const invalidSameModelExperiment = await request<{ code: string }>(
       "/api/v1/agent-experiments",
       {
@@ -1300,78 +2284,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(revisedChapter.status, 200);
     assert.match(revisedChapter.body.content, /不要相信来电的人/);
-    const automaticChapterVersions = await request<
-      Array<{ id: string; payload: { 内容?: string; 来源?: string } }>
-    >(`/api/v1/chapters/${agentChapter.body.id}/versions`);
-    assert.equal(automaticChapterVersions.status, 200);
-    assert.ok(automaticChapterVersions.body.length >= 1);
-    assert.match(
-      String(automaticChapterVersions.body[0]?.payload?.来源),
-      /智能修订/,
-    );
-    assert.equal(
-      automaticChapterVersions.body[0]?.payload?.内容,
-      "雨夜，主角在门口发现秘密来信。",
-    );
-    const continuationSession = await request<{ id: string }>(
-      "/api/v1/agent-sessions",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: project.body.id,
-          chapterId: agentChapter.body.id,
-          engineKind: "opencode",
-          taskType: "continue_chapter",
-        }),
-      },
-    );
-    assert.equal(continuationSession.status, 201);
-    const continuationRun = await request<{ taskId: string }>(
-      `/api/v1/agent-sessions/${continuationSession.body.id}/runs`,
-      {
-        method: "POST",
-        headers: { "Idempotency-Key": "chapter-continuation-contract" },
-        body: JSON.stringify({
-          taskType: "continue_chapter",
-          prompt: "续写拼接测试",
-        }),
-      },
-    );
-    assert.equal(continuationRun.status, 202);
-    let continuationPreview:
-      | {
-          id: string;
-          targets: Array<{ patch?: { content?: string } }>;
-        }
-      | undefined;
-    for (let attempt = 0; attempt < 80; attempt += 1) {
-      const tasks = await request<
-        Array<{
-          id: string;
-          status: string;
-          result?: {
-            changePreview?: {
-              id: string;
-              targets: Array<{ patch?: { content?: string } }>;
-            };
-          };
-        }>
-      >("/api/v1/tasks");
-      const item = tasks.body.find(
-        (task) => task.id === continuationRun.body.taskId,
-      );
-      continuationPreview = item?.result?.changePreview;
-      if (!item || !["queued", "running"].includes(item.status)) break;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    const continuationContent = continuationPreview?.targets[0]?.patch?.content;
-    assert.ok(continuationPreview);
-    assert.match(String(continuationContent), /不要相信来电的人/);
-    assert.match(String(continuationContent), /姐姐留下的第二个记号/);
-    await request(`/api/v1/change-previews/${continuationPreview.id}/discard`, {
-      method: "POST",
-      headers: { "Idempotency-Key": "discard-continuation-contract" },
-    });
     const mcpSession = await request<{ id: string }>("/api/v1/agent-sessions", {
       method: "POST",
       body: JSON.stringify({
@@ -1491,19 +2403,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.ok(genericChangePreview);
     assert.equal(genericChangePreview.status, "pending");
     assert.equal(genericChangePreview.targets.length, 1);
-    const editedGenericPreview = await request<{
-      targets: Array<{ patch?: { content?: string } }>;
-    }>(`/api/v1/change-previews/${genericChangePreview.id}/content`, {
-      method: "PUT",
-      body: JSON.stringify({
-        content: "用户在差异窗口中逐段采用后形成的最终章节正文。",
-      }),
-    });
-    assert.equal(editedGenericPreview.status, 200);
-    assert.equal(
-      editedGenericPreview.body.targets[0]?.patch?.content,
-      "用户在差异窗口中逐段采用后形成的最终章节正文。",
-    );
     const concurrentChapterChange = await request<{ version: number }>(
       `/api/v1/chapters/${agentChapter.body.id}`,
       {
@@ -1524,6 +2423,106 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(conflictedChange.status, 409);
     assert.equal(conflictedChange.body.code, "CONFLICT");
+
+    const pacingScript = await request<{
+      id: string;
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.equal(pacingScript.status, 200);
+    const pacingSession = await request<{ id: string }>(
+      "/api/v1/agent-sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          engineKind: "opencode",
+          taskType: "rewrite_ai_drama_script",
+        }),
+      },
+    );
+    assert.equal(pacingSession.status, 201);
+    const pacingRun = await request<{ taskId: string }>(
+      `/api/v1/agent-sessions/${pacingSession.body.id}/runs`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "pacing-change-preview-contract" },
+        body: JSON.stringify({
+          taskType: "rewrite_ai_drama_script",
+          prompt: [
+            "节奏修订预览测试",
+            `目标剧本 ID：${pacingScript.body.id}；基础版本：${pacingScript.body.version}；来源 ID：pacing-shot；来源版本：1。`,
+            "完整原 payload 已作为 target.scriptPayload 附在上下文中；必须保留未修改字段。",
+          ].join("\n"),
+          target: {
+            scriptPayload: pacingScript.body.payload,
+          },
+        }),
+      },
+    );
+    assert.equal(pacingRun.status, 202);
+    let pacingPreview:
+      { id: string; status: string; targets: unknown[] } | undefined;
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const tasks = await request<
+        Array<{
+          id: string;
+          status: string;
+          result?: {
+            changePreview?: {
+              id: string;
+              status: string;
+              targets: unknown[];
+            };
+          };
+        }>
+      >("/api/v1/tasks");
+      const item = tasks.body.find((task) => task.id === pacingRun.body.taskId);
+      pacingPreview = item?.result?.changePreview;
+      if (!item || !["queued", "running"].includes(item.status)) break;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    assert.ok(pacingPreview);
+    assert.equal(pacingPreview.status, "pending");
+    const adoptedPacingPreview = await request<{ status: string }>(
+      `/api/v1/change-previews/${pacingPreview.id}/commit`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "pacing-change-preview-adopt" },
+      },
+    );
+    assert.equal(adoptedPacingPreview.status, 200);
+    assert.equal(adoptedPacingPreview.body.status, "committed");
+    const pacingCheckpoints = await request<
+      Array<{ id: string; parentId?: string; payload: Record<string, unknown> }>
+    >(`/api/v1/projects/${project.body.id}/content-versions`);
+    const pacingCheckpoint = pacingCheckpoints.body.find(
+      (item) =>
+        item.parentId === script.body.id &&
+        item.payload["来源"] === "节奏修订预览采用前检查点",
+    );
+    assert.ok(pacingCheckpoint);
+    const restoredPacingScript = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.match(
+      String(restoredPacingScript.body.payload["剧本内容"]),
+      /没有立刻打开/,
+    );
+    const restoredPacingCheckpoint = await request<{ targetId: string }>(
+      `/api/v1/content-versions/${pacingCheckpoint.id}/restore`,
+      { method: "POST" },
+    );
+    assert.equal(restoredPacingCheckpoint.status, 200);
+    assert.equal(restoredPacingCheckpoint.body.targetId, script.body.id);
+    const revertedPacingScript = await request<{
+      payload: Record<string, unknown>;
+    }>(`/api/v1/scripts/${script.body.id}`);
+    assert.equal(
+      revertedPacingScript.body.payload["剧本内容"],
+      pacingScript.body.payload["剧本内容"],
+    );
 
     const providerPreviewSession = await request<{ id: string }>(
       "/api/v1/agent-sessions",
@@ -1595,7 +2594,12 @@ test("production-structure HTTP contract persists active adaptation and atomical
       if (providerTaskStatus !== "queued") break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
-    assert.equal(providerTaskStatus, "running");
+    assert.equal(
+      providerTaskStatus,
+      "failed",
+      "未携带静帧预检快照的厂商预览不得绕过视频门禁",
+    );
+    assert.equal(videoProviderCalls, 0, "门禁失败前不得调用视频服务商");
     const replayedProviderTask = await request<{ id: string }>(
       `/api/v1/provider-action-previews/${providerActionPreview.id}/execute`,
       {
@@ -1667,6 +2671,211 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(discardedPreview.status, 200);
     assert.equal(discardedPreview.body.status, "discarded");
+    const blockedVideo = await request<{ code: string }>(
+      "/api/v1/video-generation/runs",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "video-generation-blocked-contract" },
+        body: JSON.stringify({
+          providerId: imageProviderConfig.body.id,
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          shotId: shot.body.id,
+          prompt: "雨夜信封特写，竖屏构图，冷色光线",
+          seconds: 5,
+        }),
+      },
+    );
+    assert.equal(blockedVideo.status, 409);
+    assert.equal(blockedVideo.body.code, "VIDEO_NOT_READY");
+    assert.equal(videoProviderCalls, 0, "负向视频请求不能触发厂商调用");
+
+    const videoReadyAsset = await request<{
+      id: string;
+      version: number;
+    }>("/api/v1/visual-assets", {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        title: "视频门禁·林晚雨夜服装",
+        payload: {
+          资产类型: "角色",
+          关联对象: "林晚视频造型",
+          权利状态: "已授权",
+          费用状态: "已核对",
+          服务状态: "可用",
+          锁定状态: "未锁定",
+        },
+      }),
+    });
+    assert.equal(videoReadyAsset.status, 201);
+    const adoptedVideoReadyAsset = await request<{
+      id: string;
+      version: number;
+    }>(`/api/v1/visual-assets/${videoReadyAsset.body.id}/adopt`, {
+      method: "POST",
+    });
+    assert.equal(adoptedVideoReadyAsset.status, 200);
+    const lockedVideoReadyAsset = await request<{
+      assets: Array<{ id: string; version: number }>;
+    }>(`/api/v1/asset-center/${videoReadyAsset.body.id}/action`, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "lock",
+        version: adoptedVideoReadyAsset.body.version,
+      }),
+    });
+    assert.equal(lockedVideoReadyAsset.status, 200);
+    const lockedVideoReadyAssetVersion = lockedVideoReadyAsset.body.assets.find(
+      (asset) => asset.id === videoReadyAsset.body.id,
+    )?.version;
+    assert.ok(lockedVideoReadyAssetVersion);
+    const assignedVideoReadyAsset = await request<unknown>(
+      `/api/v1/asset-center/${videoReadyAsset.body.id}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action: "assign-shot",
+          version: lockedVideoReadyAssetVersion,
+          shotId: shot.body.id,
+        }),
+      },
+    );
+    assert.equal(assignedVideoReadyAsset.status, 200);
+    const shotForVideo = await request<{
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/shots/${shot.body.id}`);
+    const videoBaselineShot = await request<{ version: number }>(
+      `/api/v1/shots/${shot.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: shotForVideo.body.title,
+          version: shotForVideo.body.version,
+          payload: { ...shotForVideo.body.payload, 时长: 5 },
+        }),
+      },
+    );
+    assert.equal(videoBaselineShot.status, 200);
+    const adoptedStill = await request<{ id: string }>(
+      `/api/v1/shot-stills/${imageRun.body.candidates[0]!.id}/adopt`,
+      { method: "POST" },
+    );
+    assert.equal(adoptedStill.status, 200);
+    const videoPreflight = await request<{
+      ready: boolean;
+      snapshotHash: string;
+      lockedAssetIds: string[];
+      adoptedStillId?: string;
+      costStatus: string;
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
+        seconds: 5,
+        confirmUnknownCost: true,
+      }),
+    });
+    assert.equal(videoPreflight.status, 200);
+    assert.equal(videoPreflight.body.ready, true);
+    assert.equal(
+      videoPreflight.body.adoptedStillId,
+      imageRun.body.candidates[0]?.id,
+    );
+    assert.ok(
+      videoPreflight.body.lockedAssetIds.includes(videoReadyAsset.body.id),
+    );
+    assert.equal(videoPreflight.body.costStatus, "unknown");
+    const changedPromptPreflight = await request<{
+      ready: boolean;
+      blockers: string[];
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "改写后的镜头提示不得静默继承旧静帧",
+        seconds: 5,
+        confirmUnknownCost: true,
+      }),
+    });
+    assert.equal(changedPromptPreflight.status, 200);
+    assert.equal(changedPromptPreflight.body.ready, false);
+    assert.ok(
+      changedPromptPreflight.body.blockers.some((item) =>
+        item.includes("偏离"),
+      ),
+    );
+    const unconfirmedCostPreflight = await request<{
+      ready: boolean;
+      blockers: string[];
+    }>(`/api/v1/shots/${shot.body.id}/video-generation/preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        providerId: imageProviderConfig.body.id,
+        projectId: project.body.id,
+        episodeId: first.body.id,
+        shotId: shot.body.id,
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
+        seconds: 5,
+      }),
+    });
+    assert.equal(unconfirmedCostPreflight.status, 200);
+    assert.equal(unconfirmedCostPreflight.body.ready, false);
+    assert.ok(
+      unconfirmedCostPreflight.body.blockers.some((item) =>
+        item.includes("费用未知"),
+      ),
+    );
+    const videoBatchPreflight = await request<{
+      ready: boolean;
+      unknownCostCount: number;
+      blockers: string[];
+      items: Array<{ ready: boolean }>;
+    }>(`/api/v1/projects/${project.body.id}/video-generation/batch-preflight`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId: project.body.id,
+        submissions: [
+          {
+            providerId: imageProviderConfig.body.id,
+            projectId: project.body.id,
+            episodeId: first.body.id,
+            shotId: shot.body.id,
+            prompt: "雨夜信封特写，竖屏构图，冷色光线",
+            seconds: 5,
+            confirmUnknownCost: true,
+          },
+          {
+            providerId: imageProviderConfig.body.id,
+            projectId: project.body.id,
+            episodeId: first.body.id,
+            shotId: shot.body.id,
+            prompt: "雨夜信封特写，竖屏构图，冷色光线",
+            seconds: 5,
+            confirmUnknownCost: true,
+          },
+        ],
+      }),
+    });
+    assert.equal(videoBatchPreflight.status, 200);
+    assert.equal(videoBatchPreflight.body.ready, false);
+    assert.equal(videoBatchPreflight.body.unknownCostCount, 2);
+    assert.ok(videoBatchPreflight.body.items.every((item) => !item.ready));
+    assert.ok(
+      videoBatchPreflight.body.blockers.some((item) =>
+        item.includes("批量并发上限"),
+      ),
+    );
+
     const videoRun = await request<{
       id: string;
       status: string;
@@ -1679,12 +2888,43 @@ test("production-structure HTTP contract persists active adaptation and atomical
         projectId: project.body.id,
         episodeId: first.body.id,
         shotId: shot.body.id,
-        prompt: "雨夜信封缓慢推进，竖屏电影光影",
+        prompt: "雨夜信封特写，竖屏构图，冷色光线",
         seconds: 5,
+        confirmUnknownCost: true,
+        readinessHash: videoPreflight.body.snapshotHash,
       }),
     });
     assert.equal(videoRun.status, 201);
     assert.equal(videoRun.body.status, "running");
+    assert.equal(videoProviderCalls, 1, "通过预检后才允许发起一次视频调用");
+    const replayedVideoRun = await request<{ id: string }>(
+      "/api/v1/video-generation/runs",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": "video-generation-contract" },
+        body: JSON.stringify({
+          providerId: imageProviderConfig.body.id,
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          shotId: shot.body.id,
+          prompt: "雨夜信封特写，竖屏构图，冷色光线",
+          seconds: 5,
+          confirmUnknownCost: true,
+          readinessHash: videoPreflight.body.snapshotHash,
+        }),
+      },
+    );
+    assert.equal(replayedVideoRun.status, 201);
+    assert.equal(replayedVideoRun.body.id, videoRun.body.id);
+    assert.equal(videoProviderCalls, 1, "幂等重放不得重复调用视频服务商");
+    const videoLedger = await request<
+      Array<{ taskId?: string; kind: string; summary: string }>
+    >(`/api/v1/projects/${project.body.id}/generation-ledger`);
+    const videoLedgerRecord = videoLedger.body.find(
+      (item) => item.taskId === videoRun.body.taskId,
+    );
+    assert.equal(videoLedgerRecord?.kind, "视频生成");
+    assert.match(videoLedgerRecord?.summary ?? "", /费用未知已由用户确认/);
     const refreshedVideo = await request<{
       status: string;
       results: Array<{
@@ -1844,6 +3084,439 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(renderPreflight.body.ok, true);
     assert.ok(renderPreflight.body.audioTrackIds.includes(audioTrack.body.id));
     assert.equal(renderPreflight.body.blockers.length, 0);
+    const canonicalTimeline = await request<{
+      id: string;
+      version: number;
+      timebase: string;
+      durationSeconds: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{
+          id: string;
+          shotId?: string;
+          startSeconds: number;
+          durationSeconds: number;
+          mediaStatus: string;
+        }>;
+      }>;
+    }>(`/api/v1/episodes/${first.body.id}/timeline`);
+    assert.equal(canonicalTimeline.status, 200);
+    assert.equal(canonicalTimeline.body.timebase, "seconds");
+    const reopenedCanonicalTimeline = await request<
+      typeof canonicalTimeline.body
+    >(`/api/v1/episodes/${first.body.id}/timeline`);
+    assert.equal(reopenedCanonicalTimeline.status, 200);
+    assert.deepEqual(reopenedCanonicalTimeline.body, canonicalTimeline.body);
+    assert.deepEqual(
+      canonicalTimeline.body.tracks.map((track) => track.kind),
+      ["video", "dialogue", "narration", "bgm", "sfx", "subtitle"],
+    );
+    const canonicalVideo = canonicalTimeline.body.tracks
+      .find((track) => track.kind === "video")!
+      .clips.find((clip) => clip.shotId === shot.body.id)!;
+    assert.ok(canonicalVideo.id);
+    const canonicalNarration = canonicalTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!;
+    assert.equal(canonicalNarration.clips.length, 1);
+    const movedTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ startSeconds: number }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: canonicalTimeline.body.version,
+        command: {
+          type: "move",
+          clipId: canonicalVideo.id,
+          startSeconds: 1.21,
+        },
+      }),
+    });
+    assert.equal(movedTimeline.status, 200);
+    assert.equal(
+      movedTimeline.body.version,
+      canonicalTimeline.body.version + 1,
+    );
+    assert.equal(
+      movedTimeline.body.tracks.find((track) => track.kind === "video")
+        ?.clips[0]?.startSeconds,
+      1.2,
+    );
+    const splitTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: movedTimeline.body.version,
+        command: {
+          type: "split",
+          clipId: canonicalVideo.id,
+          atSeconds: 2.4,
+        },
+      }),
+    });
+    assert.equal(splitTimeline.status, 200);
+    assert.equal(
+      splitTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      2,
+    );
+    const undoTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(undoTimeline.status, 200);
+    assert.equal(
+      undoTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      1,
+    );
+    const redoTimeline = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ id: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/redo`, {
+      method: "POST",
+    });
+    assert.equal(redoTimeline.status, 200);
+    assert.equal(
+      redoTimeline.body.tracks.find((track) => track.kind === "video")?.clips
+        .length,
+      2,
+    );
+    const timelineHistory = await request<{
+      canUndo: boolean;
+      canRedo: boolean;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/history`);
+    assert.equal(timelineHistory.status, 200);
+    assert.equal(timelineHistory.body.canUndo, true);
+    assert.equal(timelineHistory.body.canRedo, false);
+    const playableTimelineAudio = await request<{ id: string }>(
+      "/api/v1/assets",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          title: "可播放时间线短音频",
+          payload: {
+            file: {
+              name: "timeline-tone.wav",
+              storedName: "timeline-tone.wav",
+            },
+          },
+        }),
+      },
+    );
+    assert.equal(playableTimelineAudio.status, 201);
+    writeFileSync(
+      join(directory, "assets", "timeline-tone.wav"),
+      Buffer.from([
+        0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+        0x66, 0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+        0x44, 0xac, 0x00, 0x00, 0x88, 0x58, 0x01, 0x00, 0x02, 0x00, 0x10, 0x00,
+        0x64, 0x61, 0x74, 0x61, 0x00, 0x00, 0x00, 0x00,
+      ]),
+    );
+    const relinkedTimeline = await request<{
+      version: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{ assetId?: string; mediaStatus: string }>;
+      }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        version: redoTimeline.body.version,
+        command: {
+          type: "relink",
+          clipId: canonicalNarration.clips[0]!.id,
+          assetId: playableTimelineAudio.body.id,
+        },
+      }),
+    });
+    assert.equal(relinkedTimeline.status, 200);
+    const relinkedClip = relinkedTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!.clips[0]!;
+    assert.equal(relinkedClip.assetId, playableTimelineAudio.body.id);
+    assert.equal(relinkedClip.mediaStatus, "linked");
+    const timelineAudioPreview = await request<{
+      kind: string;
+      dataUrl: string;
+    }>(`/api/v1/timeline-media/${playableTimelineAudio.body.id}/preview`);
+    assert.equal(timelineAudioPreview.status, 200);
+    assert.equal(timelineAudioPreview.body.kind, "audio");
+    assert.match(timelineAudioPreview.body.dataUrl, /^data:audio\/wav;base64,/);
+    const dialogueTrack = await request<{ id: string; stale: boolean }>(
+      "/api/v1/audio-tracks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          kind: "dialogue",
+          label: "门口对白 v1",
+          clips: [
+            {
+              shotId: shot.body.id,
+              assetId: playableTimelineAudio.body.id,
+              voiceProfileId: voiceProfile.body.id,
+              startSeconds: 0,
+              durationSeconds: 2.4,
+              text: "这封信不能让任何人看见。",
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(dialogueTrack.status, 201);
+    assert.equal(dialogueTrack.body.stale, false);
+    const bgmTrack = await request<{ id: string; stale: boolean }>(
+      "/api/v1/audio-tracks",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: project.body.id,
+          episodeId: first.body.id,
+          kind: "bgm",
+          label: "雨夜氛围配乐",
+          clips: [
+            {
+              assetId: playableTimelineAudio.body.id,
+              startSeconds: 0,
+              durationSeconds: 5,
+            },
+          ],
+        }),
+      },
+    );
+    assert.equal(bgmTrack.status, 201);
+    assert.equal(bgmTrack.body.stale, false);
+    for (const trackId of [dialogueTrack.body.id, bgmTrack.body.id]) {
+      const adopted = await request<{ status: string }>(
+        `/api/v1/audio-tracks/${trackId}/adopt`,
+        { method: "POST" },
+      );
+      assert.equal(adopted.status, 200);
+      assert.equal(adopted.body.status, "adopted");
+    }
+    const audioAssemblyPreview = await request<{
+      timelineId: string;
+      timelineVersion: number;
+      clips: Array<{
+        id: string;
+        audioTrackId: string;
+        kind: string;
+        volume: number;
+        duckingGain?: number;
+        rightsStatus: string;
+      }>;
+      subtitleCues: Array<{ text: string }>;
+      srt: string;
+      webVtt: string;
+      protectedClipIds: string[];
+      staleTrackIds: string[];
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/preview`);
+    assert.equal(audioAssemblyPreview.status, 200);
+    assert.equal(
+      audioAssemblyPreview.body.timelineId,
+      canonicalTimeline.body.id,
+    );
+    assert.ok(
+      audioAssemblyPreview.body.protectedClipIds.includes(
+        canonicalNarration.clips[0]!.id,
+      ),
+      "重链接属于人工编辑，自动编排必须保护它",
+    );
+    const plannedBgm = audioAssemblyPreview.body.clips.find(
+      (clip) => clip.audioTrackId === bgmTrack.body.id,
+    );
+    assert.equal(plannedBgm?.kind, "bgm");
+    assert.equal(plannedBgm?.volume, 0.24);
+    assert.equal(plannedBgm?.duckingGain, 0.55);
+    assert.equal(plannedBgm?.rightsStatus, "unknown");
+    assert.ok(
+      audioAssemblyPreview.body.subtitleCues.some((cue) =>
+        cue.text.includes("不能让任何人"),
+      ),
+    );
+    assert.match(audioAssemblyPreview.body.srt, /不能让任何人/);
+    assert.match(audioAssemblyPreview.body.webVtt, /^WEBVTT/);
+    const assembledTimeline = await request<{
+      version: number;
+      tracks: Array<{
+        kind: string;
+        clips: Array<{
+          id: string;
+          audioTrackId?: string;
+          assetId?: string;
+          volume?: number;
+          duckingGain?: number;
+          text?: string;
+        }>;
+      }>;
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/apply`, {
+      method: "POST",
+      body: JSON.stringify({
+        timelineVersion: audioAssemblyPreview.body.timelineVersion,
+        audioTrackIds: [dialogueTrack.body.id, bgmTrack.body.id],
+        includeSubtitles: true,
+      }),
+    });
+    assert.equal(assembledTimeline.status, 200);
+    const assembledNarration = assembledTimeline.body.tracks.find(
+      (track) => track.kind === "narration",
+    )!.clips[0]!;
+    assert.equal(
+      assembledNarration.assetId,
+      playableTimelineAudio.body.id,
+      "受保护的人工重链接不能被自动编排替换",
+    );
+    const assembledBgm = assembledTimeline.body.tracks
+      .find((track) => track.kind === "bgm")!
+      .clips.find((clip) => clip.audioTrackId === bgmTrack.body.id)!;
+    assert.equal(assembledBgm.volume, 0.24);
+    assert.equal(assembledBgm.duckingGain, 0.55);
+    assert.ok(
+      assembledTimeline.body.tracks
+        .find((track) => track.kind === "subtitle")!
+        .clips.some((clip) => clip.text?.includes("不能让任何人")),
+    );
+    const undoAssembly = await request<{
+      tracks: Array<{ kind: string; clips: Array<{ audioTrackId?: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/undo`, {
+      method: "POST",
+    });
+    assert.equal(undoAssembly.status, 200);
+    assert.ok(
+      !undoAssembly.body.tracks
+        .find((track) => track.kind === "bgm")!
+        .clips.some((clip) => clip.audioTrackId === bgmTrack.body.id),
+      "自动编排应作为一个可撤销的 change set",
+    );
+    const redoAssembly = await request<{
+      version: number;
+      tracks: Array<{ kind: string; clips: Array<{ audioTrackId?: string }> }>;
+    }>(`/api/v1/timelines/${canonicalTimeline.body.id}/redo`, {
+      method: "POST",
+    });
+    assert.equal(redoAssembly.status, 200);
+    assert.ok(
+      redoAssembly.body.tracks
+        .find((track) => track.kind === "bgm")!
+        .clips.some((clip) => clip.audioTrackId === bgmTrack.body.id),
+    );
+    const deliveryManifest = await request<{
+      format: string;
+      timeline: { id: string; version: number; frameRate: number };
+      media: Array<{
+        assetId: string;
+        relativePath: string;
+        checksum?: string;
+        lineage: string[];
+      }>;
+      unsupportedFeatures: string[];
+      warnings: string[];
+    }>(`/api/v1/episodes/${first.body.id}/timeline-delivery/manifest`);
+    assert.equal(deliveryManifest.status, 200);
+    assert.equal(deliveryManifest.body.format, "dramaip-timeline-delivery");
+    assert.equal(deliveryManifest.body.timeline.id, canonicalTimeline.body.id);
+    assert.equal(deliveryManifest.body.timeline.frameRate, 25);
+    const deliveryAudio = deliveryManifest.body.media.find(
+      (item) => item.assetId === playableTimelineAudio.body.id,
+    );
+    assert.ok(deliveryAudio);
+    assert.match(deliveryAudio.relativePath, /^media\//);
+    assert.match(deliveryAudio.checksum ?? "", /^[a-f0-9]{64}$/);
+    assert.ok(
+      deliveryAudio.lineage.some((item) =>
+        item.includes(`timeline:${canonicalTimeline.body.id}:v`),
+      ),
+    );
+    assert.ok(
+      deliveryManifest.body.unsupportedFeatures.includes(
+        "cmx3600:non-video-tracks",
+      ),
+    );
+    assert.ok(
+      deliveryManifest.body.warnings.some((item) => item.includes("MP4")),
+    );
+    const exportedTimelineDocuments = await Promise.all(
+      ["manifest", "fcpxml", "otio", "edl", "srt", "vtt", "relink"].map(
+        async (format) => ({
+          format,
+          response: await request<{ fileName: string; content: string }>(
+            `/api/v1/episodes/${first.body.id}/timeline-delivery/export/${format}`,
+          ),
+        }),
+      ),
+    );
+    exportedTimelineDocuments.forEach(({ response }) => {
+      assert.equal(response.status, 200);
+      assert.ok(response.body.fileName);
+      assert.ok(response.body.content.length > 0);
+      assert.equal(
+        response.body.content.includes(directory),
+        false,
+        "交付文件不得包含本机绝对路径",
+      );
+    });
+    const timelineDocument = (format: string) =>
+      exportedTimelineDocuments.find((item) => item.format === format)!.response
+        .body.content;
+    const fcpxml = timelineDocument("fcpxml");
+    assert.match(fcpxml, /<fcpxml version="1\.10">/);
+    assert.match(fcpxml, /src="media\//);
+    const otio = JSON.parse(timelineDocument("otio")) as {
+      OTIO_SCHEMA: string;
+      metadata: { dramaip: { timelineId: string } };
+    };
+    assert.equal(otio.OTIO_SCHEMA, "Timeline.1");
+    assert.equal(otio.metadata.dramaip.timelineId, canonicalTimeline.body.id);
+    assert.match(timelineDocument("edl"), /FCM: NON-DROP FRAME/);
+    assert.match(timelineDocument("edl"), /UNSUPPORTED FEATURE/);
+    assert.match(timelineDocument("srt"), /不能让任何人/);
+    assert.match(timelineDocument("vtt"), /^WEBVTT/);
+    assert.match(timelineDocument("relink"), /dramaip-media-relink/);
+    const repeatedFcpxml = await request<{ content: string }>(
+      `/api/v1/episodes/${first.body.id}/timeline-delivery/export/fcpxml`,
+    );
+    assert.equal(repeatedFcpxml.status, 200);
+    assert.equal(repeatedFcpxml.body.content, fcpxml);
+    const currentShot = await request<{
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/shots/${shot.body.id}`);
+    const updatedShot = await request<{ version: number }>(
+      `/api/v1/shots/${shot.body.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: currentShot.body.title,
+          version: currentShot.body.version,
+          payload: {
+            ...currentShot.body.payload,
+            对白: "这封信只能由我保管。",
+          },
+        }),
+      },
+    );
+    assert.equal(updatedShot.status, 200);
+    const partialStalePreview = await request<{
+      staleTrackIds: string[];
+    }>(`/api/v1/episodes/${first.body.id}/audio-assembly/preview`);
+    assert.equal(partialStalePreview.status, 200);
+    assert.ok(
+      partialStalePreview.body.staleTrackIds.includes(dialogueTrack.body.id),
+    );
+    assert.ok(
+      !partialStalePreview.body.staleTrackIds.includes(bgmTrack.body.id),
+      "无关的项目级配乐不应因单句台词修改而过期",
+    );
     const timeline = await request<{
       clips: Array<{ shotId: string; mediaStatus: string }>;
     }>(`/api/v1/episodes/${first.body.id}/editor-timeline`);
@@ -1907,6 +3580,275 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(decision.status, 201);
     assert.equal(decision.body.decision, "request_changes");
+    const initialCloudConnection = await request<{
+      configured: boolean;
+      baseUrl: string;
+    }>("/api/v1/cloud-review/connection");
+    assert.equal(initialCloudConnection.status, 200);
+    assert.equal(initialCloudConnection.body.configured, false);
+    const cloudConnection = await request<{
+      configured: boolean;
+      baseUrl: string;
+      workspaceId: string;
+      credentialRef?: string;
+    }>("/api/v1/cloud-review/connection", {
+      method: "PUT",
+      body: JSON.stringify({
+        baseUrl: cloudReviewBaseUrl,
+        workspaceId: "workspace-contract",
+        credentialRef: "cloud-review-contract-credential",
+      }),
+    });
+    assert.equal(cloudConnection.status, 200);
+    assert.equal(cloudConnection.body.configured, true);
+    assert.equal(cloudConnection.body.workspaceId, "workspace-contract");
+    assert.equal(cloudConnection.body.credentialRef, undefined);
+    const cloudMediaPath = join(directory, "cloud-review-selected.mp4");
+    writeFileSync(cloudMediaPath, Buffer.from([1, 2, 3]));
+    fileCapabilities.set("cloud-review-media", cloudMediaPath);
+    cloudReviewShotId = shot.body.id;
+    const cloudPreview = await request<{
+      workspaceId: string;
+      storageBytes: number;
+      maxStorageBytes: number;
+      retention: string;
+      costEstimate: string;
+      manifestJson: string;
+      media: Array<{ sizeBytes: number; sha256: string }>;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-preview`, {
+      method: "POST",
+      body: JSON.stringify({
+        media: [
+          {
+            id: "cloud-media-1",
+            shotId: shot.body.id,
+            relativePath: "episode-1/selected.mp4",
+            mimeType: "video/mp4",
+            capabilityToken: "cloud-review-media",
+          },
+        ],
+      }),
+    });
+    assert.equal(cloudPreview.status, 200);
+    assert.equal(cloudPreview.body.workspaceId, "workspace-contract");
+    assert.equal(cloudPreview.body.storageBytes, 3);
+    assert.equal(cloudPreview.body.maxStorageBytes, 512 * 1024 * 1024);
+    assert.match(cloudPreview.body.retention, /未知/);
+    assert.match(cloudPreview.body.costEstimate, /未知/);
+    assert.equal(cloudPreview.body.media[0]?.sizeBytes, 3);
+    assert.match(cloudPreview.body.media[0]?.sha256 ?? "", /^[a-f0-9]{64}$/);
+    assert.doesNotMatch(cloudPreview.body.manifestJson, /capabilityToken/);
+    const cloudPublished = await request<{
+      remotePackageId: string;
+      shareUrl: string;
+      status: string;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-publish`, {
+      method: "POST",
+      body: JSON.stringify({
+        media: [
+          {
+            id: "cloud-media-1",
+            shotId: shot.body.id,
+            relativePath: "episode-1/selected.mp4",
+            mimeType: "video/mp4",
+            capabilityToken: "cloud-review-media",
+          },
+        ],
+      }),
+    });
+    assert.equal(cloudPublished.status, 201);
+    assert.equal(
+      cloudPublished.body.remotePackageId,
+      "remote-review-package-1",
+    );
+    assert.match(cloudPublished.body.shareUrl, /contract-share-token$/);
+    assert.equal(cloudPublished.body.status, "published");
+    assert.equal(cloudReviewUploadedBytes, 3);
+    assert.equal(
+      cloudReviewObjectAuthorization,
+      undefined,
+      "Bearer token must never reach object storage",
+    );
+    const cloudSync = await request<{
+      nextCursor: number;
+      commentCount: number;
+      decisionCount: number;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-sync`, {
+      method: "POST",
+    });
+    assert.equal(cloudSync.status, 200);
+    assert.deepEqual(cloudSync.body, {
+      packageId: reviewPackage.body.id,
+      nextCursor: 2,
+      commentCount: 1,
+      decisionCount: 1,
+    });
+    const cloudSyncRepeated = await request<{
+      nextCursor: number;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-sync`, {
+      method: "POST",
+    });
+    assert.equal(cloudSyncRepeated.status, 200);
+    assert.equal(cloudSyncRepeated.body.nextCursor, 2);
+    const synchronizedComments = await request<
+      Array<{ id: string; body: string }>
+    >(`/api/v1/review-packages/${reviewPackage.body.id}/comments`);
+    assert.equal(
+      synchronizedComments.body.filter((item) => item.id === "remote-comment-1")
+        .length,
+      1,
+      "remote client ID must update the same local comment",
+    );
+    const synchronizedDecisions = await request<
+      Array<{ id: string; decision: string }>
+    >(`/api/v1/review-packages/${reviewPackage.body.id}/decisions`);
+    assert.equal(
+      synchronizedDecisions.body.filter(
+        (item) => item.id === "remote-decision-1",
+      ).length,
+      1,
+      "remote client ID must update the same local decision",
+    );
+    const reviewRevisionScript = await request<{ version: number }>(
+      `/api/v1/scripts/${script.body.id}`,
+    );
+    assert.equal(reviewRevisionScript.status, 200);
+    const cloudRevisionPreview = await request<{
+      id: string;
+      status: string;
+      rationale: string;
+      targets: Array<{
+        kind: string;
+        id: string;
+        baseVersion: number;
+        patch: { payload: Record<string, unknown> };
+        displayDiff: Record<string, unknown>;
+      }>;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/revision-preview`, {
+      method: "POST",
+      body: JSON.stringify({
+        scriptId: script.body.id,
+        proposedContent: "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+      }),
+    });
+    assert.equal(cloudRevisionPreview.status, 201);
+    assert.equal(cloudRevisionPreview.body.status, "pending");
+    assert.equal(cloudRevisionPreview.body.targets.length, 1);
+    const revisionTarget = cloudRevisionPreview.body.targets[0]!;
+    assert.equal(revisionTarget.kind, "script");
+    assert.equal(revisionTarget.id, script.body.id);
+    assert.equal(revisionTarget.baseVersion, reviewRevisionScript.body.version);
+    assert.equal(
+      revisionTarget.patch.payload["剧本内容"],
+      "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+    );
+    assert.equal(
+      revisionTarget.displayDiff.proposedContent,
+      "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+    );
+    assert.equal(
+      revisionTarget.displayDiff.reviewPackageId,
+      reviewPackage.body.id,
+    );
+    const revisionReferences = revisionTarget.displayDiff.reviewReferences as
+      Array<Record<string, unknown>> | undefined;
+    assert.ok(revisionReferences);
+    assert.deepEqual(
+      revisionReferences.find((item) => item.id === "remote-comment-1"),
+      {
+        kind: "comment",
+        id: "remote-comment-1",
+        shotId: cloudReviewShotId,
+        timecodeSeconds: 1.5,
+        authorAlias: "成员甲",
+        text: "补一秒停留。",
+      },
+    );
+    assert.deepEqual(
+      revisionReferences.find((item) => item.id === "remote-decision-1"),
+      {
+        kind: "decision",
+        id: "remote-decision-1",
+        decision: "request_changes",
+        shotId: cloudReviewShotId,
+        authorAlias: "访客乙",
+        text: "补反应镜头。",
+      },
+    );
+    assert.match(cloudRevisionPreview.body.rationale, /补一秒停留/);
+    assert.match(cloudRevisionPreview.body.rationale, /需要修改/);
+    const cloudRevisionPreviewRepeated = await request<{ id: string }>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/revision-preview`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          scriptId: script.body.id,
+          proposedContent: "雨夜，主角先观察门外的反应，再谨慎拆开秘密来信。",
+        }),
+      },
+    );
+    assert.equal(cloudRevisionPreviewRepeated.status, 200);
+    assert.equal(
+      cloudRevisionPreviewRepeated.body.id,
+      cloudRevisionPreview.body.id,
+    );
+    const cloudBinding = await request<{
+      packageId: string;
+      remotePackageId: string;
+      shareUrl: string;
+      status: string;
+      expiresAt: string;
+      syncCursor: number;
+      updatedAt: string;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`);
+    assert.equal(cloudBinding.status, 200);
+    assert.equal(cloudBinding.body.packageId, reviewPackage.body.id);
+    assert.equal(cloudBinding.body.remotePackageId, "remote-review-package-1");
+    assert.equal(
+      cloudBinding.body.shareUrl,
+      `${cloudReviewBaseUrl}/review/contract-share-token`,
+    );
+    assert.equal(cloudBinding.body.status, "published");
+    assert.equal(cloudBinding.body.expiresAt, "2026-09-01T00:00:00.000Z");
+    assert.equal(cloudBinding.body.syncCursor, 2);
+    assert.ok(cloudBinding.body.updatedAt);
+    const cloudDeleted = await request<{
+      packageId: string;
+      status: string;
+      localFeedbackPreserved: boolean;
+    }>(`/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`, {
+      method: "DELETE",
+    });
+    assert.equal(cloudDeleted.status, 200);
+    assert.deepEqual(cloudDeleted.body, {
+      packageId: reviewPackage.body.id,
+      status: "deleted",
+      localFeedbackPreserved: true,
+    });
+    const deletedCloudBinding = await request(
+      `/api/v1/review-packages/${reviewPackage.body.id}/cloud-review`,
+    );
+    assert.equal(deletedCloudBinding.status, 404);
+    const commentsAfterCloudDelete = await request<Array<{ id: string }>>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/comments`,
+    );
+    assert.equal(
+      commentsAfterCloudDelete.body.filter(
+        (item) => item.id === "remote-comment-1",
+      ).length,
+      1,
+      "deleting the cloud package must keep synchronized local comments",
+    );
+    const decisionsAfterCloudDelete = await request<Array<{ id: string }>>(
+      `/api/v1/review-packages/${reviewPackage.body.id}/decisions`,
+    );
+    assert.equal(
+      decisionsAfterCloudDelete.body.filter(
+        (item) => item.id === "remote-decision-1",
+      ).length,
+      1,
+      "deleting the cloud package must keep synchronized local decisions",
+    );
     const asset = await request<{ id: string }>("/api/v1/assets", {
       method: "POST",
       body: JSON.stringify({
@@ -2120,10 +4062,6 @@ test("desktop production boundary excludes local renderers and business IPC", ()
     new URL("../../ai/src/opencode-sidecar.ts", import.meta.url),
     "utf8",
   );
-  const openCodeConfig = readFileSync(
-    new URL("../../ai/src/opencode-config.ts", import.meta.url),
-    "utf8",
-  );
   const serverSource = readFileSync(
     new URL("./sidecar.ts", import.meta.url),
     "utf8",
@@ -2148,13 +4086,7 @@ test("desktop production boundary excludes local renderers and business IPC", ()
     "websearch",
     "task",
   ])
-    assert.match(openCodeConfig, new RegExp(`${capability}: "deny"`));
-  assert.match(openCodeEngine, /createSandboxedOpenCodeConfig/);
-  assert.match(
-    openCodeConfig,
-    /DRAMAIP_OPENCODE_PROVIDER_ID = "dramaip-agent"/,
-  );
-  assert.match(openCodeConfig, /@ai-sdk\/openai-compatible/);
+    assert.match(openCodeEngine, new RegExp(`${capability}: "deny"`));
 
   const channels = [
     ...desktopMain.matchAll(/ipcMain\.handle\(\s*["']([^"']+)["']/g),

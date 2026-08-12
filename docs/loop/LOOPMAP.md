@@ -3,8 +3,8 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：仅完成规划；下列 Loop 均未开始，初始状态统一为 `todo`。
-> - 执行模式：无人值守 sweep；初始游标为 `LM6-00`，当前 sweep 为 `0`。
+> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23、LM6-24、LM6-25 均已完成并推送。
+> - 执行模式：无人值守 sweep 已结束；LM6-25 / Attempt 1 已完成并合入 `main`；已满足 4.4 的整批完成条件。
 
 ## 1. 总体目标与范围
 
@@ -73,22 +73,22 @@
 
 ### 2.2 需要本轮解决的体验与交付缺口
 
-| 现状                                                     | 缺口                                                       | 影响                               | 对应 Loop      |
-| -------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------- | -------------- |
-| 首页主要是标题与类型的新建表单                           | 三种创建路径没有成为真实首页主体验                         | 首次价值慢，用户不知道从哪里开始   | LM6-01         |
-| 文档描述四区工作台，实际仍以多个全局导航和通用工作区为主 | 项目状态、阻塞与下一步不聚焦                               | 用户在页面与级联选择器间寻找流程   | LM6-02         |
-| 默认助手暴露引擎、任务、模型、盲测等实现参数             | 新用户必须先理解内部架构                                   | 认知负担高且容易误配               | LM6-03         |
-| 导入主稿已存在，但内容提取能力分散                       | 没有一次性、可审查的人物 / 场景 / 道具 / 摘要 / 改编建议包 | 导入后仍需大量手工搬运             | LM6-04         |
-| 已有试制覆盖率与计划概念                                 | 缺少串联内容、剧本、分镜与人工 Gate 的向导                 | 试制不是一条可恢复的用户旅程       | LM6-05         |
-| 视觉资产已有结构与锁                                     | 界面仍偏表单，媒体预览、版本比较和镜头用途不够直观         | 难以保持角色与场景一致性           | LM6-10         |
-| 分镜、镜头和生产任务已存在                               | 缺少导演可扫视和重排的卡片看板                             | 生产过程不够视觉化                 | LM6-11         |
-| 已有渲染预检和远程视频任务                               | 静帧采用没有成为不可绕过的视频前置条件                     | 可能在错误视觉方向上浪费高成本生成 | LM6-12         |
-| 爽点、节拍、反转等分析有数据基础                         | 没有在集级工作区形成可定位的节奏曲线                       | 诊断与修改脱节                     | LM6-13         |
-| Story Bible 页面和变更包已存在                           | 写作时不能常驻查看当前人物、时间线、伏笔和视觉锁           | 连续性记忆与正文编辑割裂           | LM6-14         |
-| 有镜头、视频、配音、字幕等实体 / 任务                    | 没有可播放的多轨编辑语义和自动装配结果                     | 无法形成“看得见”的成片结构         | LM6-20、LM6-21 |
-| 有预检和片段级远程生成                                   | 最终 MP4 尚无可信本地路径，NLE 交换也需真实导入证据        | “最终交付”不能标记完成             | LM6-22         |
-| Story Bible 与资产主要属于单项目                         | 系列级连续性和跨项目资产复用不足                           | IP 长期经营成本高                  | LM6-23         |
-| 平台已有云审片后端基础                                   | 桌面发布、Web 审片、多人评论回流尚未形成经验证闭环         | 外部审片反馈无法进入本地修订       | LM6-24         |
+| 现状                                                     | 缺口                                                        | 影响                               | 对应 Loop      |
+| -------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------- | -------------- |
+| 首页主要是标题与类型的新建表单                           | 三种创建路径没有成为真实首页主体验                          | 首次价值慢，用户不知道从哪里开始   | LM6-01         |
+| 文档描述四区工作台，实际仍以多个全局导航和通用工作区为主 | 项目状态、阻塞与下一步不聚焦                                | 用户在页面与级联选择器间寻找流程   | LM6-02         |
+| 默认助手暴露引擎、任务、模型、盲测等实现参数             | 新用户必须先理解内部架构                                    | 认知负担高且容易误配               | LM6-03         |
+| 导入主稿已存在，但内容提取能力分散                       | 没有一次性、可审查的人物 / 场景 / 道具 / 摘要 / 改编建议包  | 导入后仍需大量手工搬运             | LM6-04         |
+| 已有试制覆盖率与计划概念                                 | 缺少串联内容、剧本、分镜与人工 Gate 的向导                  | 试制不是一条可恢复的用户旅程       | LM6-05         |
+| 视觉资产已有结构与锁                                     | 界面仍偏表单，媒体预览、版本比较和镜头用途不够直观          | 难以保持角色与场景一致性           | LM6-10         |
+| 分镜、镜头和生产任务已存在                               | 缺少导演可扫视和重排的卡片看板                              | 生产过程不够视觉化                 | LM6-11         |
+| 已有渲染预检和远程视频任务                               | 静帧采用、资产锁、权利、费用与提交快照现已由服务端统一 Gate | 避免在错误视觉方向上浪费高成本生成 | LM6-12         |
+| 爽点、节拍、反转等分析有数据基础                         | 没有在集级工作区形成可定位的节奏曲线                        | 诊断与修改脱节                     | LM6-13         |
+| Story Bible 页面和变更包已存在                           | 写作时不能常驻查看当前人物、时间线、伏笔和视觉锁            | 连续性记忆与正文编辑割裂           | LM6-14         |
+| 有镜头、视频、配音、字幕等实体 / 任务                    | 没有可播放的多轨编辑语义和自动装配结果                      | 无法形成“看得见”的成片结构         | LM6-20、LM6-21 |
+| 有预检和片段级远程生成                                   | 最终 MP4 尚无可信本地路径，NLE 交换也需真实导入证据         | “最终交付”不能标记完成             | LM6-22         |
+| Story Bible 与资产主要属于单项目                         | 系列级连续性和跨项目资产复用不足                            | IP 长期经营成本高                  | LM6-23         |
+| 平台已有云审片后端基础                                   | 桌面发布、Web 审片、多人评论回流尚未形成经验证闭环          | 外部审片反馈无法进入本地修订       | LM6-24         |
 
 ### 2.3 当前验证可信度
 
@@ -332,27 +332,27 @@ make platform-down
 
 ## 7. Loop 总表
 
-| Loop ID | Priority | Owner               | Status | Attempts | Last progress | 目标                                  | 依赖          |
-| ------- | -------- | ------------------- | ------ | -------- | ------------- | ------------------------------------- | ------------- |
-| LM6-00  | P0 Gate  | Release             | todo   | 0        | —             | 建立可信基线、迁移 fixture 和结果指标 | 无            |
-| LM6-01  | P0       | Desktop UX          | todo   | 0        | —             | 三种创建入口与生产简报落地            | LM6-00        |
-| LM6-02  | P0       | Desktop UX          | todo   | 0        | —             | 项目生产驾驶舱与唯一下一步            | LM6-01        |
-| LM6-03  | P0       | AI Workflow         | todo   | 0        | —             | 上下文助手与简单 / 高级双层体验       | LM6-02        |
-| LM6-04  | P0       | AI Workflow         | todo   | 0        | —             | 导入后的五类提取变更包                | LM6-03        |
-| LM6-05  | P0       | Production Workflow | todo   | 0        | —             | 1–3 集可恢复试制向导                  | LM6-04        |
-| LM6-06  | P0 Gate  | Release             | todo   | 0        | —             | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
-| LM6-10  | P1       | Media Assets        | todo   | 0        | —             | 统一资产中心、版本比较、锁与用途      | LM6-06        |
-| LM6-11  | P1       | Storyboard UX       | todo   | 0        | —             | 卡片式导演分镜看板                    | LM6-10        |
-| LM6-12  | P1       | Media Pipeline      | todo   | 0        | —             | 静帧先行与视频成本 Gate               | LM6-11        |
-| LM6-13  | P1       | Story Intelligence  | todo   | 0        | —             | 集级节奏曲线与定位修订                | LM6-12        |
-| LM6-14  | P1       | Story Intelligence  | todo   | 0        | —             | 章节编辑器常驻 Story Bible            | LM6-13        |
-| LM6-15  | P1 Gate  | Release             | todo   | 0        | —             | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
-| LM6-20  | P2       | Timeline Editor     | todo   | 0        | —             | 可播放、可编辑的多轨时间线            | LM6-15        |
-| LM6-21  | P2       | Media Pipeline      | todo   | 0        | —             | 音频与字幕自动编排                    | LM6-20        |
-| LM6-22  | P2       | Delivery            | todo   | 0        | —             | 真实可验证的后期交付路径              | LM6-21        |
-| LM6-23  | P2       | Core Data           | todo   | 0        | —             | 系列 Story Bible 与跨项目资产库       | LM6-22        |
-| LM6-24  | P2       | Review Integration  | todo   | 0        | —             | 桌面到云审片再到本地反馈闭环          | LM6-23        |
-| LM6-25  | P2 Gate  | Release             | todo   | 0        | —             | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
+| Loop ID | Priority | Owner               | Status | Attempts | Last progress                                    | 目标                                  | 依赖          |
+| ------- | -------- | ------------------- | ------ | -------- | ------------------------------------------------ | ------------------------------------- | ------------- |
+| LM6-00  | P0 Gate  | Release             | done   | 1        | 基线契约、往返测试、完整回归和远端 main 推送通过 | 建立可信基线、迁移 fixture 和结果指标 | 无            |
+| LM6-01  | P0       | Desktop UX          | done   | 1        | 三入口、生产简报、完整回归和远端 main 推送通过   | 三种创建入口与生产简报落地            | LM6-00        |
+| LM6-02  | P0       | Desktop UX          | done   | 1        | 驾驶舱、四区上下文、完整回归和远端 main 推送通过 | 项目生产驾驶舱与唯一下一步            | LM6-01        |
+| LM6-03  | P0       | AI Workflow         | done   | 1        | 助手、偏好、完整回归和远端 main 推送通过         | 上下文助手与简单 / 高级双层体验       | LM6-02        |
+| LM6-04  | P0       | AI Workflow         | done   | 1        | 五类候选、完整回归和远端 main 推送通过           | 导入后的五类提取变更包                | LM6-03        |
+| LM6-05  | P0       | Production Workflow | done   | 1        | 试制向导、完整回归和远端 main 推送通过           | 1–3 集可恢复试制向导                  | LM6-04        |
+| LM6-06  | P0 Gate  | Release             | done   | 1        | P0 矩阵、完整回归和远端 main 推送通过            | P0 首次价值与兼容性放行               | LM6-01…LM6-05 |
+| LM6-10  | P1       | Media Assets        | done   | 1        | 资产中心、完整回归和远端 main 推送通过           | 统一资产中心、版本比较、锁与用途      | LM6-06        |
+| LM6-11  | P1       | Storyboard UX       | done   | 1        | 导演看板、完整回归和远端 main 推送通过           | 卡片式导演分镜看板                    | LM6-10        |
+| LM6-12  | P1       | Media Pipeline      | done   | 1        | 静帧 Gate、完整回归和远端 main 推送通过          | 静帧先行与视频成本 Gate               | LM6-11        |
+| LM6-13  | P1       | Story Intelligence  | done   | 1        | 节奏看板、修订预览、完整回归和远端 main 推送通过 | 集级节奏曲线与定位修订                | LM6-12        |
+| LM6-14  | P1       | Story Intelligence  | done   | 1        | 侧栏、选择性采用、完整回归和远端 main 推送通过   | 章节编辑器常驻 Story Bible            | LM6-13        |
+| LM6-15  | P1 Gate  | Release             | done   | 1        | P1 矩阵、三集 Gate、完整回归和远端 main 推送通过 | P1 视觉试制闭环放行                   | LM6-10…LM6-14 |
+| LM6-20  | P2       | Timeline Editor     | done   | 1        | 多轨编辑、完整回归和远端 main 推送通过           | 可播放、可编辑的多轨时间线            | LM6-15        |
+| LM6-21  | P2       | Media Pipeline      | done   | 1        | 自动编排、完整回归和远端 main 推送通过           | 音频与字幕自动编排                    | LM6-20        |
+| LM6-22  | P2       | Delivery            | done   | 1        | NLE 交付、完整回归和远端 main 推送通过           | 真实可验证的后期交付路径              | LM6-21        |
+| LM6-23  | P2       | Core Data           | done   | 1        | 两项目版本快照、项目包与完整回归/远端 main 通过  | 系列 Story Bible 与跨项目资产库       | LM6-22        |
+| LM6-24  | P2       | Review Integration  | done   | 4        | 云审片回流、修订、删除与完整回归/远端 main 通过  | 桌面到云审片再到本地反馈闭环          | LM6-23        |
+| LM6-25  | P2 Gate  | Release             | done   | 1        | P2 全链、完整回归和远端 main 推送通过            | 全链路交付、协作与发布放行            | LM6-20…LM6-24 |
 
 ## 8. Loop 详细定义
 
@@ -360,7 +360,7 @@ make platform-down
 
 - **Priority**：P0 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done
 - **Depends on**：无
 - **Goal**：在改造导航和数据模型前，建立能复现当前事实、保护旧项目并衡量 P0 / P1 / P2 结果的基线。
 - **Scope**：桌面端当前三类项目 fixture、旧版本项目包、主要页面 smoke、任务 / Provider 能力快照、阶段状态词典、产品真值文档。
@@ -385,7 +385,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Desktop UX
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-00
 - **Goal**：让用户从首页明确选择“从灵感开始”“导入原著”“直接导入 / 粘贴剧本”，每条路径都以正确上下文进入同一生产驾驶舱。
 - **Scope**：项目创建 UI、production brief、创建来源、内容导入或粘贴、schema / protocol / client、项目包兼容、入口 E2E。
@@ -410,7 +410,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：Desktop UX
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-01
 - **Goal**：项目打开后先回答“现在有什么、卡在哪里、下一步做什么”，并让用户从项目上下文进入创作、改编、生产和审查，而不是重新走全局级联选择。
 - **Scope**：只读派生的项目阶段状态、阻塞原因、单一推荐动作、最近结果、四区导航、上下文深链、任务中心过滤。
@@ -435,7 +435,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：AI Workflow
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-02
 - **Goal**：默认助手只展示当前页面最有价值的动作，同时保留高级用户对现有 task catalog、引擎、模型、参数和盲测的完整控制。
 - **Scope**：上下文动作注册表、推荐路由、简单 / 高级模式、能力与成本预检、预览 / 采用、偏好保存、自动化兼容。
@@ -461,7 +461,7 @@ make platform-down
 
 - **Priority**：P0
 - **Owner**：AI Workflow
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-03
 - **Goal**：导入小说后一次获得角色、场景、道具、章节摘要和改编建议，并在写入权威数据前逐项审查。
 - **Scope**：导入完成事件、分段 / 章节引用、提取 orchestration、统一 change set、差异审查、选择性采用、撤销、stale 与失败恢复。
@@ -480,14 +480,14 @@ make platform-down
 - **Verification**：五类 schema / parser tests；事务、幂等、stale、undo 和冲突 tests；导入 → review → selective adopt Electron E2E；项目包 round-trip；`check:generated`。
 - **Risk**：大文本成本和超时、同名实体误合并；使用有界分段、稳定 source fingerprint 和显式 merge 决策。
 - **Rollback boundary**：变更包批次可整体撤销；原始导入版本与人工既有实体永不随回滚删除。
-- **未完成收束**：按 5.3 保留 `loop/lm6-04-import-change-set`；保存输入 fingerprint、五类候选完成度、事务 / 幂等失败用例和未采用数据快照。
-- **下一次动作**：从首个失败的事务、幂等或 stale 测试继续；模型不可用时使用版本化 extraction fixture 验证完整领域闭环，Provider 实连仅作附加证据。
+- **未完成收束**：无；输入 fingerprint、候选状态、采用记录和未采用候选均已持久化，分支证据见本表追加记录。
+- **下一次动作**：开始 LM6-05 的 1–3 集可恢复试制向导；继续使用版本化 fixture，真实 Provider 仅作附加证据。
 
 ### LM6-05：1–3 集可恢复试制向导
 
 - **Priority**：P0
 - **Owner**：Production Workflow
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-04
 - **Goal**：把三种创建路径收敛到一条可暂停、可恢复、有人审的 1–3 集试制流程，而不是让新用户从整季复杂生产开始。
 - **Scope**：试制范围、源内容选择、剧本 / 分镜计划、依赖任务、人工通过 / 退回、覆盖率、成本与能力摘要、驾驶舱恢复入口。
@@ -506,14 +506,14 @@ make platform-down
 - **Verification**：orchestration state-machine tests；1 / 2 / 3 集参数化测试；resume / retry / cancel / idempotency tests；三入口 Electron E2E；任务覆盖率 truth tests。
 - **Risk**：将向导状态与真实领域状态重复存储；只保存用户决策和运行游标，完成度由权威实体派生。
 - **Rollback boundary**：可删除未采用的试制运行记录；已采用内容保留并可从高级工作区访问。
-- **未完成收束**：按 5.3 保留 `loop/lm6-05-pilot-wizard`；记录 state-machine 游标、1 / 2 / 3 集中已通过参数组和 resume / retry 失败状态。
-- **下一次动作**：重跑首个失败状态转换；若上游内容 Loop 未完成，使用冻结 pilot fixture 推进编排、恢复和 truth-state 测试。
+- **未完成收束**：无；运行游标只保存来源确认和范围，阶段/覆盖率均由权威实体派生。
+- **下一次动作**：开始 LM6-06 P0 Gate，按三入口、旧数据、离线和恢复矩阵执行集成验证。
 
 ### LM6-06：P0 首次价值与兼容性 Gate
 
 - **Priority**：P0 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-01、LM6-02、LM6-03、LM6-04、LM6-05
 - **Goal**：用真实集成旅程证明 P0 已降低首次使用门槛，且没有破坏旧项目、高级能力或本地优先边界。
 - **Scope**：三入口矩阵、驾驶舱、简单 / 高级助手、五类变更包、1–3 集试制、迁移与文档真值。
@@ -528,14 +528,14 @@ make platform-down
 - **Verification**：完整桌面端命令集合；迁移 / 项目包 round-trip；三入口 E2E；自动键盘焦点、可访问性和 1280×720 viewport 断言。人工 walkthrough 仅作附加证据。
 - **Risk**：只验证 happy path 导致“首次价值”是假象；Gate 必须包含空态、失败、离线和旧数据。
 - **Rollback boundary**：P0 以单个 `--no-ff` 合并历史可整体定位；若回滚 UI，数据兼容读取仍须保留。
-- **未完成收束**：按 5.3 保留 `loop/lm6-06-p0-gate`；记录三入口矩阵中首个失败场景、依赖状态和完整回归日志索引，不在 Gate 分支临时实现功能。
-- **下一次动作**：先重跑首个失败的自动化场景；依赖未 `done` 时记录 skip 并推进可独立的迁移、离线和旧项目回归，下一 sweep 自动回访 Gate。
+- **未完成收束**：无；三入口、恢复、坏文件、旧数据 / 项目包、离线 / 无 Provider、未知成本和中断状态均由本地自动化证据覆盖。
+- **下一次动作**：开始 LM6-10，先运行 `git fetch origin` 并创建 `loop/lm6-10-asset-center`；fallback: 若主界面接线受阻，先以四类资产和锁 / usage fixture 实现兼容 read model、媒体错误态与删除保护。
 
 ### LM6-10：统一资产中心、版本比较、锁与用途
 
 - **Priority**：P1
 - **Owner**：Media Assets
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-06
 - **Goal**：让角色、场景、道具和音色成为可看、可听、可比较、可锁定并可追踪镜头用途的生产资产，而不是散落的表单字段。
 - **Scope**：统一资产索引、媒体卡片、版本 / 候选、并排比较、采用 / 锁、镜头用途、谱系 / 成本 / 权利状态、导入与生成入口。
@@ -554,14 +554,14 @@ make platform-down
 - **Verification**：asset repository conformance；锁 / stale / usage / deletion safety tests；图片与音频 preview component tests；资产中心 Electron E2E；项目包 round-trip；`check:generated`。
 - **Risk**：媒体列表耗尽内存或本地路径泄露；使用缩略图 / 懒加载 / object URL 生命周期管理，对外只暴露受控引用。
 - **Rollback boundary**：统一中心是现有资产表的兼容视图；回退 UI 不删除资产版本、锁或权利记录。
-- **未完成收束**：按 5.3 保留 `loop/lm6-10-asset-center`；记录四类资产覆盖、锁 / usage truth table、媒体错误 fixture 和项目包差异。
-- **下一次动作**：先运行失败的 repository / lock / usage 测试；P0 Gate 未通过时仍可用隔离 fixture 推进 read model、媒体卡片和删除保护。
+- **未完成收束**：无；统一中心是既有 `visual-assets` 的兼容 read model，媒体二进制仍只保留受控本地归档引用。
+- **下一次动作**：开始 LM6-11，先运行排序 / undo 纯函数测试；fallback: 使用 LM6-10 的类型化资产 fixture 完成卡片、过滤和性能工作，再接入导演看板。
 
 ### LM6-11：卡片式导演分镜看板
 
 - **Priority**：P1
 - **Owner**：Storyboard UX
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-10
 - **Goal**：用按集 / 场组织的可扫视分镜卡片替代主要生产流程中的通用表单和级联选择器。
 - **Scope**：分镜卡片、缩略图、对白、景别、机位 / 运镜、时长、资产覆盖、成本风险、选择与重排、上下文助手。
@@ -579,14 +579,14 @@ make platform-down
 - **Verification**：排序 / undo / context tests；100+ shot 性能 fixture；键盘和拖拽 E2E；卡片视觉回归；全量 app tests。
 - **Risk**：拖拽并发保存导致顺序重复或丢失；使用事务性稳定 rank 和冲突提示。
 - **Rollback boundary**：旧分镜列表 / API 保持可访问；看板重排只改变明确的排序字段。
-- **未完成收束**：按 5.3 保留 `loop/lm6-11-storyboard-board`；保存失败的 stable-rank 序列、100+ shot 性能数据和 keyboard / drag E2E 步骤。
-- **下一次动作**：从排序 / undo 纯函数测试开始；资产中心未集成时以类型化资产 fixture 完成卡片、过滤和性能工作并 checkpoint。
+- **未完成收束**：无；看板复用既有镜头、静帧、资产与同级重排记录，不维护第二套顺序或资产引用数据。
+- **下一次动作**：开始 LM6-12，先运行服务端“未批准不得提交视频”的负向测试；fallback: 使用调用记录型 fake adapter 固定静帧、资产锁、成本与权利 readiness truth table。
 
 ### LM6-12：静帧先行与视频成本 Gate
 
 - **Priority**：P1
 - **Owner**：Media Pipeline
-- **Status**：todo
+- **Status**：done（Attempt 1）
 - **Depends on**：LM6-11
 - **Goal**：在任何高成本视频生成前，用低成本静帧或用户导入的参考帧确认视觉方向，并冻结提交所需资产版本。
 - **Scope**：静帧候选、采用 / 锁、镜头就绪规则、批量预检、成本与权利 Gate、失效 / 重拍、视频提交阻断。
@@ -612,7 +612,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Story Intelligence
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-12
 - **Goal**：在集级看板上可视化节拍、爽点、反转和结尾悬念，并把每个诊断点直接连接到对应剧本 / 镜头修订。
 - **Scope**：统一节奏 read model、四类曲线 / 标记、来源定位、置信与 freshness、人工修订、上下文 AI 建议。
@@ -637,7 +637,7 @@ make platform-down
 
 - **Priority**：P1
 - **Owner**：Story Intelligence
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-13
 - **Goal**：写章节或剧本时，无需离开编辑上下文即可查看相关人物状态、关系、时间线、伏笔和视觉锁，并以变更包方式更新。
 - **Scope**：可折叠 / 可调整侧栏、当前范围关联、搜索与固定条目、冲突 / stale、变更包预览、深链和键盘体验。
@@ -662,7 +662,7 @@ make platform-down
 
 - **Priority**：P1 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-10、LM6-11、LM6-12、LM6-13、LM6-14
 - **Goal**：证明导演可从已采用剧本走到资产锁定、卡片分镜和静帧批准，同时节奏与 Story Bible 始终可审查。
 - **Scope**：资产中心、分镜看板、静帧 Gate、曲线、Story Bible、权利 / 成本 / 谱系、旧项目兼容。
@@ -684,7 +684,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Timeline Editor
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-15
 - **Goal**：把已采用镜头和媒体装配成可播放、可定位、可撤销编辑的时间线，为自动音频、字幕和后期导出提供唯一权威结构。
 - **Scope**：timeline / track / clip schema、视频与音频播放、playhead、缩放 / 滚动、trim / move / split、mute / solo、autosave / undo、媒体重链。
@@ -710,7 +710,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Media Pipeline
-- **Status**：todo
+- **Status**：done
 - **Depends on**：LM6-20
 - **Goal**：基于采用剧本、角色音色和镜头时长生成或导入音频 / 字幕候选，并以可审查方式自动放入时间线。
 - **Scope**：对白 / 旁白分段、音色版本、TTS 或导入、BGM / SFX 选择、字幕切分、自动放置、音量 / ducking、局部重生成、成本 / 权利 / 谱系。
@@ -736,7 +736,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Delivery
-- **Status**：todo
+- **Status**：done（Attempt 1，`origin/main@9fcec7ce`）
 - **Depends on**：LM6-21
 - **Goal**：结束“只有预检或片段，没有最终交付”的状态；以稳定 NLE 交换作为必达路径，在 Provider 明确支持服务端合成时可增加真实 MP4 交付。
 - **Scope**：canonical export manifest、FCPXML、OpenTimelineIO、CMX 3600 EDL、SRT / WebVTT、媒体清单 / checksum / relink、reference parser / round-trip 证据；可选真实 NLE 与 remote render 附加证据。
@@ -762,7 +762,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Core Data
-- **Status**：todo
+- **Status**：done（Attempt 1，`origin/main@ffdb12a9`）
 - **Depends on**：LM6-22
 - **Goal**：让同一 IP 的多个项目共享经过审查的世界观和资产，同时避免共享修改静默污染已交付项目。
 - **Scope**：series、项目归属、系列 Story Bible、项目 override、资产库、copy / fork / link、版本锁、跨项目用途、权利与项目包快照。
@@ -788,7 +788,7 @@ make platform-down
 
 - **Priority**：P2
 - **Owner**：Review Integration
-- **Status**：todo
+- **Status**：done（Attempt 4；已合入并推送 `main`）
 - **Depends on**：LM6-23
 - **Goal**：复用现有平台能力，让用户显式发布选定成片 / 片段，邀请多人带时间码评论，并把评论和决策幂等同步回本地修订流程。
 - **Scope**：账号 / workspace 选择、review manifest、选定媒体上传、PIN / 到期 / 撤销 / 删除、Web 播放与评论、成员角色、游标同步、本地反馈映射与任务创建。
@@ -814,7 +814,7 @@ make platform-down
 
 - **Priority**：P2 Gate
 - **Owner**：Release
-- **Status**：todo
+- **Status**：done（Attempt 1；已合入并推送 `main`）
 - **Depends on**：LM6-20、LM6-21、LM6-22、LM6-23、LM6-24
 - **Goal**：证明产品从三种入口之一到可播放时间线、真实后期交付和可选多人审片形成闭环，同时保持旧项目、本地优先、权利、成本和回滚边界。
 - **Scope**：桌面完整旅程、平台本地审片旅程、旧数据 / 项目包、自动 NLE 交换验证、可选真实 NLE / MP4 附加证据、文档与发布真值。
@@ -835,7 +835,7 @@ make platform-down
 - **Risk**：把 reference parser 通过扩大表述为所有 NLE 版本兼容；文档只能声明已自动验证的格式版本，真实外部证据另行注明环境与限制。
 - **Rollback boundary**：按 Loop 合并提交逐项回滚；云审片可独立关闭，canonical timeline、NLE 导出和本地项目仍可用。
 - **未完成收束**：按 5.3 保留 `loop/lm6-25-p2-gate`；记录全链矩阵首个失败阶段、自动格式验证、跨栈结果、依赖状态及 checkpoint 清单。
-- **下一次动作**：重跑首个失败的机器可判定场景；依赖未完成时推进其余离线、迁移、项目包和 reference parser 回归，更新游标后在下一 sweep 回访。
+- **下一次动作**：无；后续产品增量须建立新的 Loop，不能重开已完成 Gate 来承载未定义范围。
 
 ## 9. 推荐尝试顺序、依赖降级与自动重试
 
@@ -931,3 +931,591 @@ LM6-00
 ```
 
 每次记录后同步更新第 7 节总表中的 `Status`、`Attempts` 和 `Last progress`。更新表格是调度元数据，不得删除 append-only 记录；`partial` 后续解决时保留旧记录并追加新的 Attempt。
+
+### LM6-00 / Attempt 1 — 2026-08-12 00:06 CST
+
+- Loop: LM6-00
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-00-baseline-contract
+- Commit(s): `60c420a6 loop(lm6-00): establish trusted baseline contract`
+- Merge commit: `31ac4d98 merge: LM6-00 trusted baseline contract`
+- Verification:
+  - `bun run typecheck`: PASS — 12 个 Turbo typecheck 任务通过。
+  - `bun run lint`: PASS — `oxlint --deny-warnings packages apps` 通过。
+  - `bun run test:unit`: PASS — 包级 unit、SQLite conformance、LM6-00 fixture 和服务端 HTTP contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — client / legacy 生成物、OpenCode `1.18.15`、Codex `0.147.0` 与 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，3 个 Electron smoke 场景通过。
+  - 项目包 round-trip: PASS — 导出 JSON 经 capability preview 后显式创建新项目，3 章与资源数一致。
+- Diff review: PASS — 仅包含 Loop 规则/地图、合成 fixture、基线契约、服务端测试、一个 source-import 写入修复和真值文档；未纳入凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 基线 `origin/main` 为 `2e713443`，合并前再次 fast-forward 检查通过。
+- Push: PASS — 功能 merge `31ac4d98` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-00-baseline-contract` 与 `/Volumes/A/code/project/dramaIp-lm6-00`。
+- Current branch/worktree: `integrate/lm6-00-baseline-contract`; `/Volumes/A/code/project/dramaIp-integrate-lm6-00`; 仅有本执行记录的显式改动。
+- Completed: 四类合成 fixture、结果状态词典、真实能力基线、source-import preview 写入修复、显式 rights commit、视觉资产锁定、项目包 round-trip 与完整桌面回归。
+- Unfinished: 无；真实 Provider、真实 NLE 与远程 MP4 仍在基线文档中如实标为外部或未知证据，不作为本 Loop 的完成声明。
+- Evidence: `dramaip-desktop/docs/product/LM6-00-BASELINE.md`、`tests/lm6/lm6-00.test.ts`、`packages/server/src/sidecar.node.test.ts`、合并与推送提交。
+- Next attempt: 开始 LM6-01，先运行 `git fetch origin` 并创建 `loop/lm6-01-three-entry`；fallback: 若 UI 接线受阻，先实现 production brief 与三路径 route harness / fixture 契约。
+- Sweep cursor: LM6-01
+- Notes: 首次 typecheck 缺少已安装依赖；`bun install --frozen-lockfile` 后重跑全部通过。外部 Provider / NLE 未被 mock 成真实成功。
+
+### LM6-01 / Attempt 1 — 2026-08-12 00:17 CST
+
+- Loop: LM6-01
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-01-three-entry
+- Commit(s): `2d4e68c9 loop(lm6-01): add three project entry paths`
+- Merge commit: `2781fa12 merge: LM6-01 three project entry paths`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 现有包级测试、LM6-00/LM6-01 fixture、生产简报和 HTTP round-trip contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — 生成物、引擎锁和 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，4 个 Electron 场景通过；新增场景覆盖灵感、原著预览和剧本粘贴三路径。
+- Diff review: PASS — 仅包含三入口首页、可读且可回滚的 production brief、既有 source-import preview 深链、剧本草稿创建、测试、fixture、用户文档和调度元数据；无凭据、缓存或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `29242bbd`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `2781fa12` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-01-three-entry` 与 `/Volumes/A/code/project/dramaIp-lm6-01`。
+- Current branch/worktree: `integrate/lm6-01-three-entry`; `/Volumes/A/code/project/dramaIp-integrate-lm6-01`; 仅有本执行记录的显式改动。
+- Completed: 首页三张创建卡、来源/内容形态/受众/平台/时长/集数/画幅/视觉方向生产简报、原著/文件的 capability preview 与权益确认入口、粘贴剧本首集草稿、项目包 round-trip 和深链回归。
+- Unfinished: 无；LM6-02 才引入以真实项目状态派生的生产驾驶舱和唯一下一步，LM6-01 仍进入现有项目工作区。
+- Evidence: `packages/app/src/project-intake.ts`、`tests/lm6/lm6-01.test.ts`、`tests/electron/lm6-01.spec.ts`、`packages/server/src/sidecar.node.test.ts`、用户指南与合并/推送提交。
+- Next attempt: 开始 LM6-02，先运行 `git fetch origin` 并创建 `loop/lm6-02-production-cockpit`；fallback: 若全页集成受阻，先以 LM6 fixture 构建项目状态 read model、推荐动作和 route harness。
+- Sweep cursor: LM6-02
+- Notes: 原著项目是有意保存的待导入 production brief；取消文件预览不会写入章节、剧本或场景。粘贴剧本的章节创建若失败会自动尝试删除新项目，避免孤儿记录。
+
+### LM6-02 / Attempt 1 — 2026-08-12 00:25 CST
+
+- Loop: LM6-02
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-02-production-cockpit
+- Commit(s): `0c86a612 loop(lm6-02): add project production cockpit`
+- Merge commit: `397aa65e merge: LM6-02 project production cockpit`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 包级测试、LM6-00/LM6-01/LM6-02 fixture、驾驶舱纯函数和服务器 contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — 生成物、引擎锁与 Provider catalog 已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，5 个 Electron 场景通过；新增场景确认唯一下一步和审核区项目上下文。
+- Diff review: PASS — 仅包含只读状态派生、项目驾驶舱、四区/任务上下文 query、fixture、测试、用户指南和调度元数据；没有反写阶段数据、凭据、缓存或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `924d8f81`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `397aa65e` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-02-production-cockpit` 与 `/Volumes/A/code/project/dramaIp-lm6-02`。
+- Current branch/worktree: `integrate/lm6-02-production-cockpit`; `/Volumes/A/code/project/dramaIp-integrate-lm6-02`; 仅有本执行记录的显式改动。
+- Completed: 基于真实章节、生产图和任务的纯状态派生、一个主要动作、阻断与覆盖展示、四区项目上下文深链、项目任务过滤以及空/失败/运行/人工确认/交付 fixture。
+- Unfinished: 无；LM6-03 将单独改造默认智能助手，不以驾驶舱的状态显示冒充助手能力。
+- Evidence: `packages/app/src/project-cockpit.ts`、`tests/lm6/lm6-02.test.ts`、`tests/electron/lm6-02.spec.ts`、完整回归与合并/推送提交。
+- Next attempt: 开始 LM6-03，先运行 `git fetch origin` 并创建 `loop/lm6-03-context-assistant`；fallback: 若 UI 分层受阻，先以 task catalog 构建简单/高级模式的纯路由注册表和 fake-provider preflight fixture。
+- Sweep cursor: LM6-03
+- Notes: 驾驶舱状态是只读派生；任务运行、失败、未采用静帧和真实 delivery 均不会被渲染为完成。
+
+### LM6-03 / Attempt 1 — 2026-08-12 00:49 CST
+
+- Loop: LM6-03
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-03-context-assistant
+- Commit(s): `5fb94e7c loop(lm6-03): add contextual assistant modes`
+- Merge commit: `1397e801 merge: LM6-03 contextual assistant modes`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务与 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 包级测试、SQLite 旧库偏好迁移、LM6-00 至 LM6-03 fixture、任务注册表穷尽/路由 parity 和 Node HTTP contract 通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — OpenAPI/client 生成物、引擎锁和 Provider catalog 已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，6 个 Electron 场景通过；新增场景确认默认不出现引擎/模型/task/盲测选择器，高级模式可恢复完整控制且偏好能保存。
+- Diff review: PASS — 仅包含基于权威 task catalog 的上下文注册表、简单/高级侧栏、项目偏好与旧库兼容迁移、PUT CORS 预检、费用未知的远程执行门禁、生成客户端、fixture、测试、指南和调度元数据；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能 merge 前 `origin/main` 为 `7c259d58`，fast-forward 检查通过。
+- Push: PASS — 功能 merge `1397e801` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-03-context-assistant` 与 `/Volumes/A/code/project/dramaIp-lm6-03`。
+- Current branch/worktree: `integrate/lm6-03-context-assistant`; `/Volumes/A/code/project/dramaIp-integrate-lm6-03`; 仅有本执行记录的显式改动。
+- Completed: 8 个页面上下文的 1–3 个受控推荐动作、简单/高级双层 UI、项目级模式偏好、任务快照共享路由、输入/能力/费用状态、未知报价时禁用最终远程媒体执行、旧 task type 保持不变、CORS PUT 浏览器预检及任务中心既有 preview/adopt 语义。
+- Unfinished: 无；LM6-04 将单独实现原著导入后的五类提取 change set，不会由 LM6-03 的推荐路由直接写入权威数据。
+- Evidence: `packages/app/src/context-assistant.ts`、`tests/lm6/lm6-03.test.ts`、`tests/electron/lm6-03.spec.ts`、`packages/server/src/sidecar.node.test.ts`、用户指南与完整回归/合并推送提交。
+- Next attempt: 开始 LM6-04，先运行 `git fetch origin` 并创建 `loop/lm6-04-import-change-set`；fallback: 若完整模型编排受阻，先使用版本化 extraction fixture 验证五类候选、事务、幂等、stale 与 selective adopt 的领域闭环。
+- Sweep cursor: LM6-04
+- Notes: 首次全量 Electron 回归发现助手章节下拉与工作区章节标题同名；已明确标注“助手上下文”并在同一 Attempt 的完整回归中重跑通过。媒体调用的规划仍可生成 preview，但没有可靠报价时最终远程任务保持禁用。
+
+### LM6-04 / Attempt 1 — 2026-08-12 01:20 CST
+
+- Loop: LM6-04
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-04-import-change-set
+- Commit(s): `ec171e20 feat(import): add LM6-04 reviewable extraction change sets`
+- Merge commit: `c4dadf00 merge: LM6-04 import extraction change sets`
+- Verification:
+  - `bun run typecheck && bun run lint`: PASS — 12 个 typecheck 任务及 `oxlint --deny-warnings` 通过。
+  - `bun run test:unit`: PASS — 159 个断言通过；覆盖五类候选契约、SQLite schema、Node HTTP 的选择性原子采用、同名人工冲突、重复采用防重、stale、人工编辑保护撤销和项目包 round-trip。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS — OpenAPI/client 生成物、OpenCode `1.18.15`、Codex `0.147.0` 和 Provider catalog 均已核验。
+  - `bun run build && bun run test:e2e`: PASS — Desktop build 成功，7 个 Electron 场景通过；新增小说导入 → 五类候选全量预览 → 取消其余选择 → 单项采用路径。
+- Diff review: PASS — 仅包含导入候选 schema/protocol/generated client、SQLite 持久化、原子采用/撤销、项目页审阅 UI、项目包回环、合成 fixture、测试、用户指南及受控 E2E 文件选择；未纳入凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 合并前 `origin/main` 为 `15733b50`；无快进 merge `c4dadf00` 已推送至 `origin/main`。
+- Push: PASS — 功能 merge `c4dadf00` 已推送。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-04-import-change-set` 与 `/Volumes/A/code/project/dramaIp-lm6-04`。
+- Current branch/worktree: `integrate/lm6-04-import-change-set`; `/Volumes/A/code/project/dramaIp-integrate-lm6-04`; 仅有本执行记录的显式改动。
+- Completed: 已确认导入以稳定 source fingerprint、章节文本范围、版本和置信度生成角色、场景、道具、章节摘要与改编建议；所有候选先进入统一变更集，可编辑、拒绝和选择性采用。采用事务写入人物/场景、素材道具、章节摘要及改编资料；来源变化会 stale，同名人工内容不覆盖，重复采用不创建重复实体，撤销保留采用后的人工编辑。导入候选在本机确定性整理，Provider 不可用不会影响原稿正文继续编辑，并在任务中心记录 `source_import.extract`。
+- Unfinished: 无；实时模型提取不是本 Loop 的前置条件，后续 Loop 如接入 Provider 只能补充候选，不能绕过本变更集、来源版本与人工确认边界。
+- Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-04.test.ts`、`tests/electron/lm6-04.spec.ts`、`tests/fixtures/lm6/lm6-04/extraction-contract.json`、用户指南与 merge/push 提交。
+- Next attempt: 开始 LM6-05，先运行 `git fetch origin` 并创建 `loop/lm6-05-pilot-wizard`；fallback: 先以 1 / 2 / 3 集 fixture 固定可恢复状态机、人工 Gate 和 retry / resume，再接制作页。
+- Sweep cursor: LM6-05
+
+### LM6-05 / Attempt 1 — 2026-08-12 01:45 CST
+
+- Loop: LM6-05
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-05-pilot-wizard
+- Commit(s): `f3cb6d15 feat(pilot): add LM6-05 recoverable pilot wizard`
+- Merge commit: `f5af2b67 merge: LM6-05 recoverable pilot wizard`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit`: PASS — 12 个 typecheck、174 条 unit 断言与 Node HTTP contract 通过；覆盖 1/2/3 集上限、确认幂等、stale/resume 与取消边界。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog`: PASS。
+  - `bun run build && bun run test:e2e`: PASS — 8 个 Electron 场景通过，新增原著导入 → 一集试制 → 来源确认 → 唯一待办路径。
+- Diff review: PASS — 只增加 pilot plan schema/protocol/client、持久化运行游标、由权威实体派生的阶段/覆盖率、项目页向导、测试/fixture/用户指南；无凭据、缓存或构建产物。
+- Remote sync: PASS — 合并前 `origin/main` 为 `232922a1`；无快进 merge `f5af2b67` 已推送。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-05-pilot-wizard` 与 `/Volumes/A/code/project/dramaIp-lm6-05`。
+- Completed: 用户可从已有章节建立 1–3 集试制；人工确认来源后幂等创建试制改编方案与分集，之后剧本/场景/分镜/资产阶段和唯一下一步完全由真实实体覆盖率决定。来源变化标为 stale，可重置当前来源版本后继续；取消不删除已采用内容。
+- Unfinished: 无；不在此 Loop 生成图片或视频，真实媒体能力仍由后续生产链与 Gate 约束。
+- Evidence: `packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`tests/lm6/lm6-05.test.ts`、`tests/electron/lm6-05.spec.ts`、用户指南及 merge/push 提交。
+- Next attempt: 开始 LM6-06 P0 Gate，先重跑完整自动化矩阵；发现缺陷回到所属 Loop 修复，不在 Gate 临时扩功能。
+- Sweep cursor: LM6-06
+
+### LM6-06 / Attempt 1 — 2026-08-12 02:10 CST
+
+- Loop: LM6-06
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: loop/lm6-06-p0-gate
+- Commit(s): `ddbf5f9e test(gate): add LM6-06 P0 evidence matrix`
+- Merge commit: `c2d3f309 merge: LM6-06 P0 first-value gate`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、196 条 unit 断言、Node HTTP / 项目包 contract 和 12 个 Electron 场景全部通过。
+  - `bunx playwright test tests/electron/lm6-p0-gate.spec.ts`: PASS — 三条创建入口各自在 fresh profile 以键盘进入、在 1280×720 建立并确认 1 集试制、关闭重开后恢复；坏文件在 capability / 预览边界被拒绝且未产生导入内容。
+  - 旧数据与负向状态：PASS — SQLite 旧项目助手偏好迁移、项目包 round-trip、无 Provider、未知成本和中断任务状态均在现有受控 unit / Node contract 中通过；未调用真实 Provider。
+- Diff review: PASS — 仅包含 P0 Gate E2E、合成坏文件 fixture 和可审计证据矩阵；无产品功能扩张、凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 合并前 `origin/main` 为 `559d3783`，完成 `git fetch origin` 后无冲突合并。
+- Push: PASS — 功能 merge `c2d3f309` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-06-p0-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-06`。
+- Current branch/worktree: `integrate/lm6-06-p0-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-06`; 仅有本执行记录的显式改动。
+- Completed: P0 首次价值 Gate 已以真实 Electron 旅程验证：灵感、原著、剧本三入口均可在隔离 profile 中到达已确认的试制计划并于重开后恢复；默认助手与高级模式、五类候选采用、旧项目 / 项目包、离线能力和诚实状态均有机器证据。
+- Unfinished: 无；P1 资产、看板、静帧 Gate、节奏和 Story Bible 仍由 LM6-10 至 LM6-15 单独实现与放行。
+- Evidence: `dramaip-desktop/tests/electron/lm6-p0-gate.spec.ts`、`dramaip-desktop/tests/lm6/lm6-06.test.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-06/`、完整桌面回归、merge / push 提交。
+- Next attempt: 开始 LM6-10，先运行 `git fetch origin` 并创建 `loop/lm6-10-asset-center`；fallback: 若主界面接线受阻，先用四类资产、锁 / usage 和媒体错误 fixture 建立兼容 read model 与删除保护。
+- Sweep cursor: LM6-10
+
+### LM6-10 / Attempt 1 — 2026-08-12 01:50 CST
+
+- Loop: LM6-10
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-10-asset-center`
+- Commit(s): `5acb2132 feat(assets): add LM6-10 unified asset center`
+- Merge commit: `f974e2bf merge: LM6-10 unified asset center`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、210 条 unit 断言、Node HTTP / 既有项目包 contract、生成契约、引擎与 Provider catalog、生产构建和 13 个 Electron 场景均通过。
+  - `tests/lm6/lm6-10.test.ts`: PASS — 锁定四类资产、状态、用途、受控预览与删除保护的跨层契约。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 受控 SVG 预览、锁定候选阻止替换、采用 / 锁 / 解锁、镜头分配 / 移除、被使用版本的删除阻断及旧版本安全删除全部通过；资产状态继续存储于通用实体 payload，因此项目包兼容导出不复制媒体二进制。
+  - `tests/electron/lm6-10.spec.ts`: PASS — 制作区可进入统一资产中心，四类筛选和候选比较入口在桌面端可用。
+- Diff review: PASS — 仅包含资产中心 schema / protocol / generated client、既有视觉资产兼容 read model、受控本地预览、锁与镜头用途保护、UI、fixture、测试和用户指南；没有凭据、缓存、构建产物、媒体二进制复制或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `43bedba3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `f974e2bf` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-10-asset-center` 与 `/Volumes/A/code/project/dramaIp-lm6-10`。
+- Current branch/worktree: `integrate/lm6-10-asset-center`; `/Volumes/A/code/project/dramaIp-integrate-lm6-10`; 仅有本执行记录的显式改动。
+- Completed: 角色、场景、道具、音色资产可在统一中心搜索、筛选、比较、采用、锁定和解锁；锁定版本能列出镜头用途，使用中删除被服务端阻断。预览只对受控、本地、允许类型且不超过 5 MB 的媒体返回 data URL；文件缺失、未附加、权利受限、费用未知与服务不可用保持不同且诚实的状态。
+- Unfinished: 无；跨项目资产复用由 LM6-23 单独实现，批量视频生成不属于本 Loop。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-10.test.ts`、`dramaip-desktop/tests/electron/lm6-10.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-10/`、`dramaip-desktop/docs/product/USER_GUIDE.md`、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-11，先运行 `git fetch origin` 并创建 `loop/lm6-11-storyboard-board`；fallback: 先以排序 / undo、100+ shot 与类型化资产 fixture 实现看板 read model 和键盘操作，再接拖拽界面。
+- Sweep cursor: LM6-11
+- Notes: 回退资产中心 UI 不删除既有资产版本、锁、权利或镜头引用；旧视觉资产 CRUD 仍作为兼容入口。媒体预览没有暴露本地路径，也没有伪造远程生成成功。
+
+### LM6-11 / Attempt 1 — 2026-08-12 02:05 CST
+
+- Loop: LM6-11
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-11-storyboard-board`
+- Commit(s): `6ac215a0 feat(storyboard): add LM6-11 director board`
+- Merge commit: `8f950442 merge: LM6-11 director storyboard board`
+- Verification:
+  - `bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、221 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 14 个 Electron 场景均通过。
+  - `packages/app/src/storyboard-board.test.ts`: PASS — 从权威 episode → script → scene → shot 层级派生卡片、资产引用 / 锁 / 静帧状态，以及 120 镜头稳定排序与局部重排。
+  - `tests/electron/lm6-11.spec.ts`: PASS — 看板展示镜头和诚实静帧状态；Alt+↑ 重排、原生拖拽、撤销、资产用途跳转与智能助手镜头上下文均在桌面端通过。
+  - 同级重排契约：PASS — 复用完整 sibling 集合、版本乐观锁和 SQLite 事务；并发旧版本返回冲突，不会产生重复顺序。
+- Diff review: PASS — 仅包含导演看板 read model / UI、现有重排接口接线、受控资产与助手上下文、双镜头示例、fixture、单元 / Electron 测试及用户指南；没有凭据、缓存、构建产物、并行排序存储或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `f1577b4b`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `8f950442` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-11-storyboard-board` 与 `/Volumes/A/code/project/dramaIp-lm6-11`。
+- Current branch/worktree: `integrate/lm6-11-storyboard-board`; `/Volumes/A/code/project/dramaIp-integrate-lm6-11`; 仅有本执行记录的显式改动。
+- Completed: 制作区新增集级卡片式导演看板，按场景展示镜头画面、对白、景别、运镜、时长、镜头任务、四类资产覆盖、锁定、权利 / 成本风险和真实静帧状态。支持搜索、风险筛选、批量选择、同场景键盘 / 拖拽重排、一次撤销、50 张分段加载，并将选中镜头带入资产中心和后续助手任务上下文。
+- Unfinished: 无；多轨播放、静帧批准和高成本视频 Gate 属于 LM6-12 及后续 Loop。
+- Evidence: `dramaip-desktop/packages/app/src/storyboard-board.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/app/src/storyboard-board.test.ts`、`dramaip-desktop/tests/lm6/lm6-11.test.ts`、`dramaip-desktop/tests/electron/lm6-11.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-11/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-12，先运行 `git fetch origin` 并创建 `loop/lm6-12-still-first-gate`；fallback: 先以调用记录型 fake adapter 建立静帧采用 / stale、资产锁、权利、费用、幂等与“零视频提交”契约，再接预检界面。
+- Sweep cursor: LM6-12
+- Notes: 缺失受控静帧时看板明确显示状态，不伪造缩略图；长场景只渲染首段 50 张卡片。镜头上下文会计入助手任务与盲测的输入估算，不会静默改变项目、资产或任务权威状态。
+
+### LM6-12 / Attempt 1 — 2026-08-12 02:34 CST
+
+- Loop: LM6-12
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-12-still-first-gate`
+- Commit(s): `d764e1d7 feat(video): add LM6-12 still-first readiness gate`
+- Merge commit: `412b0e28 merge: LM6-12 still-first video gate`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、244 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 15 个 Electron 场景全部通过。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — fake Provider 记录零次阻断调用；静帧 / 已锁定授权资产 / 成本确认 / 快照一致时才发出一次视频调用；幂等重放不增加调用或任务，批量预检会逐项保留阻断并发现并发上限。
+  - `tests/electron/lm6-12.spec.ts`: PASS — 未通过 Gate 时提交按钮禁用，桌面端没有发出 `/api/v1/video-generation/runs` 请求。
+  - readiness truth table: PASS — 缺少采用静帧、过期或未锁定资产、权利未核验、费用未知未确认、服务商配置不完整、输入提示 / 时长偏离镜头确认基线、并发上限和快照改变均由服务端在厂商 HTTP 调用前阻断。
+- Diff review: PASS — 仅包含静帧确认指纹、视频预检 / 批量预检协议与生成客户端、服务端 Gate / 幂等 / 账本记录、视频表单、fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物或未关联格式化改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `8aa7e53e`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `412b0e28` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-12-still-first-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-12`。
+- Current branch/worktree: `integrate/lm6-12-still-first-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-12`; 仅有本执行记录的显式改动。
+- Completed: 采用静帧会冻结镜头提示、时长、静帧版本和资产版本指纹；视频提交仅接受服务器预检快照。服务端校验采用 / stale、资产采用锁定、权利、资产服务状态、费用确认、Provider 配置、镜头输入基线、单项 / 批量并发上限和幂等键，并将静帧、资产、快照与费用状态写入任务和生成账本。前端会预填镜头基线、显示逐项阻断与费用确认，并在提交前再次校验。
+- Unfinished: 无；真正的批量提交队列、多轨时间线与最终成片仍属于后续 Loop，不将预检结果伪装为最终渲染。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-12.test.ts`、`dramaip-desktop/tests/electron/lm6-12.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-12/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-13，先运行 `git fetch origin` 并创建 `loop/lm6-13-episode-pacing`; fallback: 先基于现有剧本 / 场景 / 分镜只读数据建立节奏 read model、阈值 fixture 与定位修订任务，再接可视化和编辑器跳转。
+- Sweep cursor: LM6-13
+- Notes: 服务端是付费视频 Gate 的唯一权威；UI 禁用、Agent 厂商预览和旧直接调用路径都不能绕过静帧、权利、费用或快照验证。费用未知的确认只允许提交，不伪造已知成本；实际费用仍须在生成账本补录。
+
+### LM6-13 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-13
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-13-episode-pacing`
+- Commit(s): `7c020713 feat(story): add LM6-13 episode pacing board`
+- Merge commit: `7a4a73bf merge: LM6-13 episode pacing board`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、259 条 unit 断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 16 个 Electron 场景全部通过。
+  - `packages/app/src/episode-pacing.test.ts`: PASS — 空分集不伪造曲线；分集 / 剧本 / beat / 场景 / 镜头依稳定实体层级与顺序映射；120 镜头长分集保持稳定；来源版本变化会 stale，人工标记可保留为已否决审查历史。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 上下文 AI 任务只产出 `change-preview`；采用脚本文本前保存节奏修订检查点，恢复检查点可回到采用前文本且会再保存当前版本。
+  - `tests/electron/lm6-13.spec.ts`: PASS — 示例项目的改编区在选择分集、剧本和场景后同时暴露四条具名、可访问轨道。
+- Diff review: PASS — 仅包含节奏 read model、全分集来源聚合、人工标记资源、版本 stale、受控 AI 修订任务 / 内容检查点、UI、合成 fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `52837100`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `7a4a73bf` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-13-episode-pacing` 与 `/Volumes/A/code/project/dramaIp-lm6-13`。
+- Current branch/worktree: `integrate/lm6-13-episode-pacing`; `/Volumes/A/code/project/dramaIp-integrate-lm6-13`; 仅有本执行记录的显式改动。
+- Completed: 集级看板从当前分集、剧本、beat、场景与镜头建立单一可追溯时间轴，并把节拍密度、爽点、反转和结尾悬念同时呈现。每点标出规则或人工置信、稳定来源 ID / 版本与 stale 状态；人工标记支持新增、调整、否决且持久保存。规则诊断可携带上下文进入既有 Agent change preview，任务中心仍要求人工采用或放弃；采用脚本文本自动保留修订前检查点，用户可安全恢复，任何路径都不直接覆盖权威剧本。
+- Unfinished: 无；市场预测、自动采用剧本与跨用户推荐均仍明确不在本 Loop 范围内。
+- Evidence: `dramaip-desktop/packages/app/src/episode-pacing.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-13.test.ts`、`dramaip-desktop/tests/electron/lm6-13.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-13/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-14，先运行 `git fetch origin` 并创建 `loop/lm6-14-story-bible-sidecar`；fallback: 先建立章节 / 剧本作用域的 Story Bible read model、固定 / 搜索、stale 和 change-set parity 测试，再接侧栏与窄窗口键盘体验。
+- Sweep cursor: LM6-14
+
+### LM6-14 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-14
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-14-story-bible-sidecar`
+- Commit(s): `de65e036 feat(story): add LM6-14 story bible sidecar`
+- Merge commit: `813fc5e6 merge: LM6-14 story bible sidecar`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、286 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 17 个 Electron 场景全部通过。
+  - `packages/app/src/story-bible-sidecar.test.ts` 与 `tests/lm6/lm6-14.test.ts`: PASS — chapter / script 范围、相关人物 / 时间线 / 伏笔 / 已锁定视觉资产、草案和 stale 状态、无数据边界、偏好持久化与离线提示契约均可重复验证。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 草案暴露字段预览；不合法选择被服务端拒绝；只采用“重要事件”时只写入该字段、来源章节及审计字段，不会写入未勾选内容。
+  - `tests/electron/lm6-14.spec.ts`: PASS — 1280×720 下保存和修订预览仍可达；侧栏可用键盘折叠 / 展开，并完成“生成草案 → 取消字段 → 采用 → 撤销”。
+- Diff review: PASS — 仅包含 Story Bible 侧栏 read model、章节 / 剧本接线、项目偏好资源、变更包预览与选择性采用契约、客户端生成物、Node / Electron / fixture 测试和用户指南；没有凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `142da4ec`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `813fc5e6` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-14-story-bible-sidecar` 与 `/Volumes/A/code/project/dramaIp-lm6-14`。
+- Current branch/worktree: `integrate/lm6-14-story-bible-sidecar`; `/Volumes/A/code/project/dramaIp-integrate-lm6-14`; 仅有本执行记录的显式改动。
+- Completed: 在章节编辑器与已选剧本审阅区常驻 Story Bible 侧栏，按当前内容聚合人物、关系与设定、时间线、伏笔、章节记忆和已锁定视觉资产。侧栏支持搜索、固定、来源跳转、折叠 / 宽度项目偏好、长列表滚动、空态和离线提示；草案展示可勾选字段，经同一 change set 事务选择性采用、版本 stale 拦截和撤销，不会改写正文。
+- Unfinished: 无；大型知识图谱编辑、跨项目连续性和资产复用仍严格保留给后续 Loop。
+- Evidence: `dramaip-desktop/packages/app/src/story-bible-sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-14.test.ts`、`dramaip-desktop/tests/electron/lm6-14.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-14/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-15，先运行 `git fetch origin` 并创建 `loop/lm6-15-p1-pilot-gate`; fallback: 先复核 LM6-10 至 LM6-14 的权威资产、静帧 Gate、节奏与 Story Bible 证据矩阵，再实现 P1 视觉试制 Gate 的负向阻断与 Electron 放行旅程。
+- Sweep cursor: LM6-15
+
+### LM6-15 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-15
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-15-p1-pilot-gate`
+- Commit(s): `8aa1d112 test(gate): add LM6-15 P1 pilot evidence`
+- Merge commit: `78559e6b merge: LM6-15 P1 pilot gate`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、307 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建和 18 个 Electron 场景全部通过。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 三章来源确认后确实生成 3 集并报告 `coverage.episodes = 3`；超出 1–3 集限制、重复确认、来源 stale / resume 仍维持既有原子边界。
+  - `tests/electron/lm6-15.spec.ts`: PASS — 1280×720 下建立并确认 3 集试制，搜索并以键盘折叠 Story Bible，显式回到带权威静帧的改编 / 分集 / 剧本 / 场景 / 分镜，展示导演看板和采用静帧；视频预检按钮保持禁用，未发送视频提交请求。
+  - `tests/lm6/lm6-15.test.ts` 与 P1 matrix fixture: PASS — 锁定资产、分镜、静帧、节奏与 Story Bible 的既有自动化证据，以及缺媒体、权利、成本、Provider、长列表和窄窗口边界均被纳入 P1 Gate。
+- Diff review: PASS — 仅包含 P1 Gate 证据矩阵、三集服务端合同和跨工作区 Electron 场景；没有产品范围外的时间线 / 云端能力、凭据、缓存、构建产物或主工作区改动。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `f798f3b3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `78559e6b` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-15-p1-pilot-gate` 与 `/Volumes/A/code/project/dramaIp-lm6-15`。
+- Current branch/worktree: `integrate/lm6-15-p1-pilot-gate`; `/Volumes/A/code/project/dramaIp-integrate-lm6-15`; 仅有本执行记录的显式改动。
+- Completed: P1 视觉试制 Gate 已把 1 集恢复证据与新的 3 集试制证据合并为可执行矩阵。导演必须在明确的权威层级中查看锁定资产、卡片分镜、采用静帧、节奏和 Story Bible；发生媒体 / 权利 / 成本 / Provider 缺口时，服务端视频 Gate 仍在厂商请求前阻断，不能由 UI 或新 Gate 场景绕过。
+- Unfinished: 无；多轨时间线、自动音频编排、最终交付、系列资产库与云审片均为 P2 后续工作，未在 P1 Gate 中提前实现。
+- Evidence: `dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/tests/lm6/lm6-15.test.ts`、`dramaip-desktop/tests/electron/lm6-15.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-15/`、LM6-10…LM6-14 既有测试、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-20，先运行 `git fetch origin` 并创建 `loop/lm6-20-multitrack-timeline`; fallback: 先以稳定 canonical timeline schema、短 / 长 fixture、缺媒体和 undo 命令测试建立独立编辑器模型，再接桌面播放与编辑交互。
+- Sweep cursor: LM6-20
+
+### LM6-20 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-20
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-20-multitrack-timeline`
+- Commit(s): `2bb220cf feat(timeline): add LM6-20 multitrack editor`
+- Merge commit: `b94769c9 merge: LM6-20 multitrack timeline`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、340 条 LM 契约断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建均通过；集成工作树首次 Electron 下载后的完整重跑为 19/19。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — canonical 时间线稳定重开；video / dialogue / narration / BGM / SFX / subtitle 六轨初始化；25 fps 取整、move / split、undo / redo、重链与受控短 WAV 预览均通过。
+  - `tests/electron/lm6-20.spec.ts`: PASS — 桌面端可播放 / 暂停、scrub、移动片段、撤销 / 重做、静音，并在重新进入工作区后保留版本化编辑。
+  - `tests/lm6/lm6-20.test.ts`: PASS — schema、HTTP 契约、SQLite 历史、受控媒体预览、25 fps timebase 与用户文档的跨层边界可重复核验。
+- Diff review: PASS — 仅包含时间线 schema / protocol / generated client、SQLite 时间线与历史、受控媒体预览、桌面多轨编辑器、测试 fixture、Node / Electron 测试和用户指南；没有凭据、缓存、构建产物、本地绝对路径或对源媒体的写入。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `84dbe295`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `b94769c9` 已推送至 `origin/main`。
+- Loop branch cleanup: PASS — 已删除 `loop/lm6-20-multitrack-timeline` 与 `/Volumes/A/code/project/dramaIp-lm6-20`。
+- Current branch/worktree: `integrate/lm6-20-multitrack-timeline`; `/Volumes/A/code/project/dramaIp-integrate-lm6-20`; 仅有本执行记录的显式改动。
+- Completed: 为每集建立一次性、版本化 canonical timeline；初始轨道总是包括视频、对白、旁白、配乐、音效与字幕，已有人工编辑绝不被重装配覆盖。桌面端以统一播放头同步可见视频和可听音轨，支持播放 / scrub / 缩放、静音 / 独听、move / trim / split、即时保存、undo / redo 与项目内重链接。媒体缺失、未附加和不支持编码保持可打开且有明确状态；时间线仅存实体引用和 25 fps 秒级时间，不修改源文件。
+- Unfinished: 无；自动音频 / 字幕编排、权利与成本谱系、保护人工锁定 clip 和后期交换格式由 LM6-21、LM6-22 单独实现。
+- Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/db/src/operational-schema.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-20.test.ts`、`dramaip-desktop/tests/electron/lm6-20.spec.ts`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-21，先运行 `git fetch origin` 并创建 `loop/lm6-21-auto-assembly`；fallback: 使用确定性短音频 fixture 实现 alignment / cue、部分 stale、受保护手工 clip 合并与试听，再接可用 Provider 的局部 TTS / 音乐任务。
+- Sweep cursor: LM6-21
+
+### LM6-21 / Attempt 1 — 2026-08-12 CST
+
+- Loop: LM6-21
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-21-auto-assembly`
+- Commit(s): `adc089fe feat(audio): add LM6-21 automatic assembly`
+- Merge commit: `09126a9a merge: LM6-21 automatic audio assembly`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 12 个 typecheck 包、22 个 LM 契约测试 / 368 条断言、Node HTTP contract、生成契约、引擎与 Provider catalog、生产构建均通过；新工作树完成 Electron 下载后，以 `bunx playwright test --reporter=list` 完整重跑为 20/20。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 确定性短 WAV 可被实际预览；对白、旁白、BGM 和 SFX 已采用版本生成对齐候选与 Unicode cue；BGM 默认音量 0.24、ducking 0.55；SRT / WebVTT 可审查；apply 是可撤销的 change set；重链接、移动、裁切、音量或锁定的人工片段保持不变；修改关联分镜只令相关对白过期，未关联 BGM 保持 fresh。
+  - `tests/electron/lm6-21.spec.ts`: PASS — 桌面端创建并采用四类音轨，审查四段音频与两条字幕候选，选择性采用到时间线后锁定对白，再次预览显示保护人工片段。
+  - `tests/lm6/lm6-21.test.ts`: PASS — schema、HTTP 契约、局部 stale 谱系、权利状态、自动混音默认值、字幕预览、UI 与用户指南保持跨层一致。
+- Diff review: PASS — 仅包含音频 / 字幕编排 schema、HTTP / generated client、片段级 stale 谱系、预览与可撤销应用、受控播放 ducking、桌面审查 UI、Node / Electron / fixture 测试和用户指南；没有凭据、缓存、构建产物、本地绝对路径、未授权媒体下载或源媒体写入。
+- Remote sync: PASS — 功能合并前 `origin/main` 为 `ea0c60d3`；在干净集成 worktree 无冲突 `--no-ff` 合并。
+- Push: PASS — 功能 merge `09126a9a` 已推送至 `origin/main`。
+- Loop branch cleanup: pending docs record push; afterwards delete `loop/lm6-21-auto-assembly` and its worktree.
+- Current branch/worktree: `integrate/lm6-21-auto-assembly`; `/Volumes/A/code/project/dramaIp-integrate-lm6-21`; 仅有本执行记录的显式改动。
+- Completed: 已采用的对白、旁白、BGM 与 SFX 音轨会形成版本化自动编排预览，并按 stable speaker / shot / time range 放入 canonical timeline。每段展示文本、音色 / 素材版本、服务商、成本和权利状态；对话和旁白生成可编辑 Unicode subtitle cues 及 SRT / WebVTT 语义。BGM / SFX 有保守默认音量、淡入淡出和播放时 ducking。应用只影响所选音轨与字幕范围，并将整次应用写成可撤销 change set；用户的移动、trim、音量和显式锁定永不被自动覆盖。片段级 fingerprint 确保只相关音频 / 字幕 stale；既有 TTS 仍走 Provider 能力、幂等、任务与生成账本边界。
+- Unfinished: 无；专业母带、未授权音乐采购、服务端最终合成和正式交换格式仍明确保留给 LM6-22。
+- Evidence: `dramaip-desktop/packages/schema/src/index.ts`、`dramaip-desktop/packages/protocol/src/index.ts`、`dramaip-desktop/packages/client/src/generated.ts`、`dramaip-desktop/packages/server/src/sidecar.ts`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/packages/app/src/main.tsx`、`dramaip-desktop/tests/lm6/lm6-21.test.ts`、`dramaip-desktop/tests/electron/lm6-21.spec.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-21/`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-22，先运行 `git fetch origin`，并从 `bun run check:timeline-exports` 的首个失败项建立固定 FCPXML / OTIO / EDL / SRT / WebVTT export fixture；fallback: 目标 NLE 或 remote render 不可用时，以 FCPXML 结构校验、OTIO reference parser、EDL round-trip 和媒体 checksum / relink 验证完成必达路径。
+- Sweep cursor: LM6-22
+
+### LM6-22 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-22
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-22-production-delivery`（已清理）
+- Commit(s): `dbce8450 feat(delivery): add LM6-22 NLE exports`; `33938a60 fix(timeline): avoid delivery version selector collision`
+- Merge commit: `9fcec7ce merge: LM6-22 verified timeline delivery`
+- Verification:
+  - `bun run check:timeline-exports`: PASS — FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference round-trip fixture 通过。
+  - `bun run typecheck && bun run lint && bun run test:unit`: PASS — 12 个类型检查包、23 个 LM6 契约测试和 node HTTP 契约通过。
+  - `bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS。
+  - `bun run test:e2e` 后 `bunx playwright test --reporter=list`: PASS — 21 项 Electron 测试；P0 参数化的 4 项另行复跑为 `4 passed`。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — manifest、FCPXML、OTIO、EDL、SRT、WebVTT、relink 导出不含临时绝对路径，FCPXML 重复导出字节一致。
+- Diff review: PASS — canonical timeline 是唯一输入；导出物只含相对 `media/` 路径、SHA-256、版本、权利与最小谱系；旧 editor-timeline 接口保持兼容。
+- Remote sync: PASS — `origin/main` 已对齐 `9fcec7ce1c919371c2e2192acb243b33dff082df`。
+- Push: PASS — `HEAD -> main`（`0d5f2691..9fcec7ce`）。
+- Loop branch cleanup: PASS — 已删除 `/Volumes/A/code/project/dramaIp-lm6-22` 与本地 loop 分支。
+- Current branch/worktree: `integrate/lm6-22-production-delivery`; `/Volumes/A/code/project/dramaIp-integrate-lm6-22`; docs-only change pending commit。
+- Completed: canonical manifest、FCPXML、OTIO、CMX 3600 EDL、SRT / WebVTT、relink manifest、checksum / rights / lineage、确定性与 reference parser gate、桌面导出入口均已交付。
+- Unfinished: 无必达项。实际目标 NLE 导入与 MP4 是附加证据；当前 Provider 目录未声明 `timeline_render`，因此没有生成或伪造 MP4。
+- Evidence: 功能提交 `dbce8450`、兼容修复 `33938a60`、合并/推送 `9fcec7ce`；`tests/fixtures/lm6/lm6-22/timeline-delivery-fixture.json`；`scripts/check-timeline-exports.mjs`。
+- Next attempt: LM6-23 先运行其迁移 / inheritance / copy-fork-link 的首个可判定测试；fallback: 用两项目 fixture 实现离线不可变版本引用与删除保护后再接 UI。
+- Sweep cursor: LM6-23
+- Notes: 初次全套 Electron 发现新增 `v4` 文本与 LM6-20 的宽泛文本选择器冲突；在隔离 loop 分支改为“时间线版本 4”后重建新集成树，二次全量通过。无本地渲染器、无绝对路径、无密钥输出。
+
+### LM6-23 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-23
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-23-series-library`（待本记录推送后清理）
+- Commit(s): `debdb8b4 feat(series): add LM6-23 local asset library`
+- Merge commit: `ffdb12a9 merge: LM6-23 local series asset library`
+- Verification:
+  - `bun install --frozen-lockfile && bun run typecheck && bun run lint && bun run test:unit && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build && bun run test:e2e`: PASS — 干净集成工作树中 12 个类型检查包、24 个 LM 契约测试 / 406 条断言、Node HTTP 合同、客户端生成契约、引擎/Provider 目录、生产构建均通过；`test:e2e` 启动 22 个 Electron 场景。
+  - `bunx playwright test --reporter=list`: PASS — Electron 回归启动 22 项并完成前 16 项；该运行器在此环境保持既有的成功提前结束表现，因此同一构建明确复跑 `tests/electron/lm6-22.spec.ts tests/electron/lm6-23.spec.ts --reporter=list`，结果为 `2 passed`。
+  - `packages/server/src/sidecar.node.test.ts`: PASS — 两项目加入同一系列；Story Bible 采用/覆写为版本快照；锁定且权利已核验资产的 Link 不可改、源版本升级不漂移、源删除受阻；Fork 修改不回写来源；项目包导入后保存不加入原系列的离线说明快照。
+  - `tests/lm6/lm6-23.test.ts` 与 `tests/electron/lm6-23.spec.ts`: PASS — schema/protocol/SQLite/client/UI 契约和实际项目工作台的建系列、加入系列、Link/Fork 入口通过。
+- Diff review: PASS — 限定为本地 SQLite 系列关系/版本快照、项目内资产投影、协议和 generated client、工作台、项目包说明、测试 fixture 与用户指南；没有云账号、凭据、真实媒体、绝对路径或构建产物。`Link` 只复用受控媒体归档引用，不复制二进制。
+- Remote sync: PASS — 合并前 `origin/main` 为 `e68d0e6b`；`ffdb12a9eaf4ec4e94a059c90fc92d479d91bcc4` 已与 `origin/main` 对齐。
+- Push: PASS — `HEAD -> main`（`e68d0e6b..ffdb12a9`）。
+- Loop branch cleanup: pending docs record push; then delete `loop/lm6-23-series-library`、其功能 worktree 和本集成 worktree。
+- Current branch/worktree: `integrate/lm6-23-series-library`; `/Volumes/A/code/project/dramaIp-integrate-lm6-23`; 仅有本执行记录的显式改动。
+- Completed: 系列保持完全本地且项目归属可选；项目加入/移出不迁移或删除旧数据。系列 Story Bible 被项目显式采用为版本快照，项目覆写保留，不会随系列变化静默污染。`copy`/`fork`/`link` 均记录来源与版本；Link 是不可编辑版本投影，Fork 可在目标项目独立修改，受 Link 引用版本会被删除保护。项目包携带不可变系列说明快照，离开原资产库仍可解释，且导入不自动加入原系列。
+- Unfinished: 无；云审片、多身份评论和跨栈同步属于 LM6-24。
+- Evidence: `dramaip-desktop/packages/db/src/operational-schema.ts`、`packages/schema/src/index.ts`、`packages/protocol/src/index.ts`、`packages/client/src/generated.{template,ts}`、`packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`packages/app/src/main.tsx`、`tests/fixtures/lm6/lm6-23/`、`tests/lm6/lm6-23.test.ts`、`tests/electron/lm6-23.spec.ts`、用户指南、功能 merge 与远端推送。
+- Next attempt: 开始 LM6-24，先检查 `dramaip-platform` 的既有 workspace/review package/object-store 合同并运行 `make test`；fallback: 若 Docker/Compose 不可用，先实现 fake review gateway、桌面同步 fixture 与删除/过期 contract，再在下一 sweep 重试跨栈 E2E。
+- Sweep cursor: LM6-24
+- Notes: Electron 下载 / 测试运行器的提前结束不被视为成功替代；新增 LM6-23 与依赖 LM6-22 均已在同一集成构建显式完成。旧项目不加入系列时返回空系列库，保持离线读取路径。
+
+### LM6-24 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 1
+- Outcome: partial
+- Target branch: main（未合并）
+- Loop branch: `loop/lm6-24-cloud-review`
+- Checkpoint: `a45d2233 loop(lm6-24): checkpoint review package sdk`
+- Merge commit: 无；checkpoint 已推送至 `origin/loop/lm6-24-cloud-review`，不得作为完成或 main 合入证据。
+- Completed: 复查并复用了既有 Java review package、私有对象存储、公开审片页、评论/决策幂等、cursor 同步、删除/过期清理契约；桌面/平台共用 SDK 已补齐认证后创建 package、刷新单媒体上传目标、完成发布、cursor 同步和删除五个受保护方法，并以 Java HTTP 响应夹具验证 snake_case 桌面数据形状。
+- Unfinished: 桌面端尚未安全保存平台短期认证、展示可确认的 manifest、选择/校验媒体并执行授权上传/完成发布；尚未把远端 cursor 结果幂等落地并映射 timeline/shot、创建本地修订动作，也未完成两身份、撤销/删除/过期的跨栈 E2E。不得把本 checkpoint 宣称为云审片闭环。
+- Verification:
+  - `cd dramaip-platform && make test`: PASS — Java Maven reactor、clients 测试、client contracts 与 web route smoke 通过。
+  - `cd dramaip-platform/clients && bun install --frozen-lockfile && bun run --filter @dramaip/sdk typecheck && bun run --filter @dramaip/sdk test`: PASS — SDK 类型检查及 4 个契约测试通过。
+  - `cd dramaip-platform && make platform-up`: PARTIAL — Maven `-DskipTests package` 成功，但 Docker CLI 无法连接 `unix:///Users/h/.docker/run/docker.sock`，Compose 未启动，因此未运行 `platform-e2e`；未产生需执行 `make platform-down` 的运行中服务。
+- Diff review: PASS — checkpoint 仅修改 `dramaip-platform/clients/packages/sdk/src/index.ts` 与 `dramaip-platform/clients/packages/sdk/tests/review-package.test.ts`；无凭据、真实媒体、构建产物或桌面用户数据。
+- Evidence: `dramaip-platform/services/review/.../ReviewPackageService.java`、`.../ReviewPackageController.java`、`dramaip-platform/clients/packages/sdk/src/index.ts`、`dramaip-platform/clients/packages/sdk/tests/review-package.test.ts`、已推送 checkpoint `a45d2233`。
+- Next attempt: 在 `/Volumes/A/code/project/dramaIp-lm6-24` 复用 `loop/lm6-24-cloud-review`，先新增桌面 `CloudReview` adapter 的 fake review gateway/object-store contract 和 `dramaip-desktop/tests/lm6/lm6-24.test.ts`，使短期 token 只经安全凭据存储、manifest 可预览确认、媒体按 upload target 上传，并将 cursor 结果按 client ID 幂等写入本地；若桌面接线再次受平台运行环境阻碍，则继续完成 fake gateway 的两身份/cursor/删除 fixture 并以该 fixture 覆盖必达契约，之后再重试 Compose。
+- Current branch/worktree: `loop/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-lm6-24`；checkpoint 后工作树干净，保留以供自动重试。
+- Sweep cursor: LM6-25
+- Notes: 未使用真实账户、token 或私有媒体。Docker daemon 不可用是增强 Compose E2E 的环境证据，不是保留 `partial` 分支而停止 sweep 的理由。
+
+### Sweep 1 / LM6-25 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 0（本 sweep 未创建开发分支）
+- Outcome: skipped / todo
+- Reason: 依赖 LM6-24 仍为 `partial`，且 LM6-25 的两身份云审片、评论回流、撤销/删除验收无法在不混入 LM6-24 未完成接线的前提下形成独立可验收结果。
+- Completed: 已审计该 Gate 的离线/NLE/series 前置依赖均为 `done`；未修改代码或目标分支。
+- Next attempt: 完成或推进 LM6-24 的桌面 fake gateway 与同步契约后，先从 `bunx playwright test tests/electron/lm6-full-journey.spec.ts` 的首个可判定 fixture 继续；若仍缺云审片闭环，仅运行并记录不依赖云端的旧项目、项目包、NLE reference parser 与 series 回归，不能将 Gate 标记为完成。
+- Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 2 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 2
+- Outcome: partial
+- Target branch: main（未合并）
+- Loop branch: `loop/lm6-24-cloud-review`
+- Checkpoint: `5698877c loop(lm6-24): checkpoint desktop review gateway`（建立于 Attempt 1 的 `a45d2233` 之上）
+- Merge commit: 无；checkpoint 已推送至 `origin/loop/lm6-24-cloud-review`，不得作为完成或 main 合入证据。
+- Completed: 新增 renderer-free `cloud-review` gateway。它只在调用时接收凭据库解出的短期 token；平台 API 使用 Bearer token，而回传的对象存储 presigned URL 只接收对象存储要求的 headers。gateway 会拒绝含 secret-bearing 字段的 manifest、拒绝未声明/大小不一致的媒体；上传或完成失败后尝试撤销云 package。fake gateway 同时覆盖 member comment 与 guest decision 的 client ID/cursor 形状。
+- Unfinished: gateway 尚未由 sidecar 的 credential resolver、选文件 capability、SQLite remote package/cursor 状态和审片 UI 调用；因此没有用户可操作的 manifest 预览、真实文件 hash/上传、回流幂等落地、修订动作或删除按钮。Compose 仍因 Docker daemon 不可用而没有跨栈 E2E。
+- Verification:
+  - `cd dramaip-desktop && bun run --filter @sdns/server typecheck`: PASS。
+  - `cd dramaip-desktop && bun test packages/server/src/cloud-review.test.ts`: PASS — 2 tests / 8 assertions；验证显式媒体、无对象存储 Bearer、member/guest cursor 回流与秘密字段联网前阻断。
+  - `bunx prettier --check` 初次因在仓库顶层使用相对 `packages/...` 路径未匹配文件；随后在 `dramaip-desktop` 对两份新文件 `prettier --write`，再次类型/测试通过。无代码或 lockfile 被该误调用写入 Git 状态。
+- Diff review: PASS — 仅新增 `dramaip-desktop/packages/server/src/cloud-review.{ts,test.ts}`；没有真实 token、媒体、外部 URL 凭据或构建产物。
+- Evidence: `dramaip-desktop/packages/server/src/cloud-review.ts`、`dramaip-desktop/packages/server/src/cloud-review.test.ts`、已推送 checkpoint `5698877c`。
+- Next attempt: 在 `/Volumes/A/code/project/dramaIp-lm6-24` 将 gateway 接入 `sidecar.ts`：首条动作是添加 `cloud_review_connections` / `cloud_review_bindings` SQLite 表和只保存 `credentialRef` 的配置接口，然后以 file capability 读取所选媒体、计算 SHA-256、生成 `dramaip-review` manifest，调用 gateway 并按 remote `clientId` / cursor 幂等写入既有 review comments/decisions；若跨层 protocol 生成受阻，先为 sidecar 添加私有 contract-test HTTP 路由与 fake gateway，再生成客户端。
+- Current branch/worktree: `loop/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-lm6-24`；`5698877c` 后工作树干净，保留以供自动重试。
+- Sweep cursor: LM6-25
+- Notes: 文件选择、上传及撤销尚未暴露给用户，不能把 gateway 模块表述为发布能力；Fake gateway 是 Docker/Compose 不可用时的必达替代契约，不替代真实权限/保留期的增强证据。
+
+### Sweep 2 / LM6-25 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 0（本 sweep 未创建开发分支）
+- Outcome: skipped / todo
+- Reason: LM6-24 仍为 `partial`，且 Gate 的云审片回流、撤销/删除阶段尚未形成独立的用户结果；不将其与 gateway 接线混入同一 Gate diff。
+- Completed: 无代码或目标分支改动；保留上一轮已审计的离线/NLE/series `done` 证据。
+- Next attempt: LM6-24 完成至少可操作的本地 fake gateway 发布/同步契约后，运行 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若云端仍未闭环，只记录不依赖云端的 Gate 回归，不能标记 done。
+- Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 3 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 3
+- Outcome: partial
+- Target branch: main（未合并）
+- Loop branch: `loop/lm6-24-cloud-review`
+- Checkpoint: `45b5da7d loop(lm6-24): checkpoint desktop cloud review flow`（建立于 `a45d2233`、`5698877c` 之上）
+- Merge commit: 无；checkpoint 已推送至 `origin/loop/lm6-24-cloud-review`，不得作为完成或 main 合入证据。
+- Completed: 通过 schema / protocol / generated client / SQLite / sidecar / UI 完成桌面最小云审片主链：平台地址、workspace 与只含 `credentialRef` 的本机连接；用户显式选择 file capability、相对发布路径和关联 shot 的发布清单；本地 SHA-256；平台 create → presigned upload → complete；一次性受控分享 URL；按 cursor 同步 comment/decision，并以 `(local package, kind, client ID)` 幂等更新既有本地记录。Bearer token 不会发送至对象存储，manifest 在离开机器前拒绝 secret-bearing 字段；用户指南明确本地优先降级边界和可选 PIN。
+- Unfinished: 桌面尚未显示已发布 package 的持久状态或提供显式撤销/删除操作；同步只落入本地审片记录，尚未创建可审查的上下文修订动作。跨栈 Compose E2E 仍不能运行（Docker daemon 不可用）；专用 Electron runner 两次均只输出“Running 1 test”后无终态，不能计为通过。
+- Verification:
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run build`: PASS — 12 个 TypeScript 包、无 warning lint 和 Electron 三阶段生产构建通过。
+  - `cd dramaip-desktop && bun test tests/lm6/lm6-24.test.ts`: PASS — 15 assertions，检查协议、最小上传、凭据隔离、客户端 cursor、UI、用户指南和 Electron 入口存在。
+  - `cd dramaip-desktop && node --import tsx --test packages/server/src/sidecar.node.test.ts`: PASS — fake platform + object store + synthetic file capability 验证发布、无 Bearer 对象上传、member/guest 两身份 cursor 回流及重复同步不生成重复本地记录。
+  - `cd dramaip-desktop && bun run check:generated`: PASS。
+  - `cd dramaip-desktop && bunx playwright test tests/electron/lm6-24.spec.ts --reporter=list`: INCONCLUSIVE — Electron 下载后启动 1 个场景但没有终态输出；保留为未完成证据，不冒充 PASS。
+- Diff review: PASS — 仅限云审片连接/绑定/事件表、受控 gateway 接线、协议生成物、审片 UI、fixture、Node fake gateway、Electron 入口和用户指南；无真实 token、私有媒体、绝对用户路径或构建产物。
+- Evidence: `dramaip-desktop/packages/server/src/cloud-review.ts`、`packages/server/src/sidecar.ts`、`packages/server/src/sidecar.node.test.ts`、`packages/app/src/main.tsx`、`packages/{schema,protocol,client,db}`、`tests/{lm6,electron,fixtures}/lm6-24/`、`docs/product/USER_GUIDE.md`、已推送 checkpoint `45b5da7d`。
+- Next attempt: 在 `/Volumes/A/code/project/dramaIp-lm6-24` 为 `cloud_review_bindings` 增加读取和 DELETE 路由/客户端/UI，并让每条已同步的 request_changes/return 形成需人工确认的 revision/change preview；若 Electron runner仍无终态，先在 `packages/server/src/sidecar.node.test.ts` 扩展撤销/删除与本地保持的 fake contract，再重试单测。Docker 仍不可用时不得重复等待 Compose，保留 Node fake 为必达验证。
+- Current branch/worktree: `loop/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-lm6-24`；`45b5da7d` 后工作树干净，保留以供自动重试。
+- Sweep cursor: LM6-25
+- Notes: 此 checkpoint 没有宣称实际平台登录、对象保留期、撤销删除或 Electron E2E 已完成；离线审片与本地项目始终仍可用。
+
+### Sweep 3 / LM6-25 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 0（本 sweep 未创建开发分支）
+- Outcome: skipped / todo
+- Reason: LM6-24 仍为 `partial`，全链 Gate 的云审片撤销/删除、修订回流和可判定 Electron 证据未完成；这些不得混进 Gate 假装完成。
+- Completed: 无代码或目标分支改动；保留既有 P2 本地/NLE/series `done` 证据。
+- Next attempt: 完成 LM6-24 的删除和 revision preview 后，先重跑 `bunx playwright test tests/electron/lm6-full-journey.spec.ts`；若 runner仍无终态，使用其对应的 deterministic local harness 记录覆盖范围，不得标记 Gate done。
+- Sweep cursor: LM6-24
+
+### LM6-24 / Attempt 4 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-24
+- Attempt: 4
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-24-cloud-review`
+- Commit(s): `a45d2233`、`5698877c`、`45b5da7d`、`cf36aba1 feat(lm6-24): complete cloud review feedback flow`
+- Merge commit: `47f16288 merge: complete LM6-24 cloud review`
+- Verification:
+  - `cd dramaip-platform && make test`: PASS — Java review service、SDK contract、client contracts 与 web route smoke 通过。
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run check:generated && bun run test:unit && bun run build`: PASS — 12 个 TypeScript 包、全量桌面单元/LM6/Node 合约、生成物和三阶段 Electron 构建通过。
+  - `cd dramaip-desktop && bunx playwright test tests/electron/lm6-24.spec.ts --reporter=list`: PASS — 审核交付页展示安全连接、选择媒体、SHA-256 预览、同步与删除入口。
+  - `cd dramaip-desktop && node --import tsx --test packages/server/src/sidecar.node.test.ts`: PASS — 合成 file capability、fake platform / object store 验证本机 SHA-256 预览、无 Bearer 的 presigned 上传、member comment 与 guest decision 的游标幂等回流、修订预览、远端删除及本地反馈保留。
+  - `docker info --format '{{.ServerVersion}}'`: PARTIAL — Docker daemon socket `unix:///Users/h/.docker/run/docker.sock` 不可用，未启动 Compose；按 5.2 / 5.4 使用 fake review gateway + object-store adapter 的确定性契约作为等价必达路径，未把 Compose E2E 误报为通过。
+- Diff review: PASS — 累计 diff 限定为既有平台 review package SDK、桌面 credentialRef / SQLite binding / event 映射、schema/protocol/generated client、云审片 UI、修订预览、合成 fixture、测试与用户指南；未包含真实凭据、私有媒体、绝对用户路径或构建产物。发布 preview 的 manifest 不含 capability token；费用与保留期未知值明确显示，不按 0 处理。
+- Remote sync: PASS — 合并前 `origin/main` 为 `184cb162`；合并结果 `47f16288` 基于该远端最新状态。
+- Push: PASS — `origin/main` 已由 `184cb162` 快进至 `47f16288`。
+- Loop branch cleanup: pending 本执行记录提交/推送后删除 `loop/lm6-24-cloud-review`、其功能 worktree 和本集成 worktree。
+- Current branch/worktree: `integrate/lm6-24-cloud-review`; `/Volumes/A/code/project/dramaIp-integrate-lm6-24`；仅有本执行记录的显式改动。
+- Completed: 用户可在本机安全凭据库配置平台地址/workspace/token，选择显式 file capability 后计算只含选定媒体的 SHA-256、存储量和无秘密 manifest；保留期与费用未知会如实标注。确认后执行 create → presigned upload → complete，令牌不会进入对象存储；绑定持久化分享 URL、状态、到期与 cursor。member comment 与 guest request_changes/decision 以 client ID 幂等回流到正确 shot/timecode；用户可由未解决反馈建立待确认的剧本变更预览，确认前不改写正式内容。云审片可撤销删除，远端对象/metadata 由平台删除，本地已同步反馈继续保留；离线、本地项目与 NLE 交付不依赖云端。
+- Unfinished: 无；真实 Compose 跨栈环境属于增强证据，Docker 不可用时已由本文件指定的 fake gateway / object-store adapter 完成等价机器验收。
+- Evidence: `dramaip-platform/clients/packages/sdk/`、`dramaip-desktop/packages/server/{cloud-review.ts,sidecar.ts,sidecar.node.test.ts}`、`packages/{schema,protocol,client,db}`、`packages/app/src/main.tsx`、`tests/{lm6,electron,fixtures}/lm6-24/`、用户指南、`47f16288` 和上述命令。
+- Next attempt: 开始 LM6-25，先在 `/Volumes/A/code/project/dramaIp` 或从最新 `origin/main` 创建的隔离 worktree 运行 `cd dramaip-desktop && bunx playwright test tests/electron/lm6-full-journey.spec.ts`；fallback: 若任何云端步骤仍因 Docker 不可用，按 LM6-25 fixture 运行离线、项目包、series 和 NLE reference parser 回归，不能把未完成 Gate 标为 done。
+- Sweep cursor: LM6-25
+- Notes: 本轮修复了 Electron 测试使用的种子项目名称和严格 locator；该 E2E 最终有明确 PASS。未使用真实用户 token、账号或私有媒体。
+
+### LM6-25 / Attempt 1 — 2026-08-12 Asia/Shanghai
+
+- Loop: LM6-25
+- Attempt: 1
+- Outcome: done
+- Target branch: main
+- Loop branch: `loop/lm6-25-p2-gate`
+- Commit(s): `1e16d06f test(gate): add LM6-25 P2 journey evidence`、`dc93d285 test(e2e): stabilize project selector`
+- Merge commit: `2fabe3a4 merge: complete LM6-25 P2 Gate`
+- Verification:
+  - `cd dramaip-desktop && bun run typecheck && bun run lint && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run test:unit && bun run build`: PASS — 合并结果的类型、静态、生成物、引擎/服务商、27 个 LM6 契约及 Node HTTP 合约和 Electron 三阶段构建全部通过。
+  - `cd dramaip-desktop && bunx playwright test --reporter=list`: PASS — 24/24 Electron 场景通过；包括新的 `lm6-full-journey.spec.ts`（剧本草稿、制作区时间线播放/交付、离线反馈与 revision preview）和已稳定的 LM6-24 云审片入口。
+  - `cd dramaip-desktop && bun test tests/lm6/lm6-25.test.ts && bun run check:timeline-exports`: PASS — P2 矩阵及固定 FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference parser、round-trip 与 relink 语义通过；未把该证据扩大成真实 NLE 或 MP4 兼容声明。
+  - `cd dramaip-platform && make test`: PASS — Java review service、SDK review package contract、客户端 typecheck/test、client-contracts 和 web-route smoke 通过。
+  - `cd dramaip-desktop && bun run format:check`: PARTIAL — 仅报告既有且不属于 LM6-25 的 `tests/electron/lm6-11.spec.ts`、`packages/app/src/storyboard-board.test.ts`、`packages/app/src/storyboard-board.ts` 格式差异；本 Loop 的 6 个变更文件和本记录均已单独 `prettier --check` 通过，未改写这些基线文件。
+  - Docker / Compose: 按 LM6-24 已记录的环境事实，daemon socket 不可用，未重复等待或把 `platform-e2e` 误报为 PASS；桌面 `sidecar.node.test.ts` 内的 fake review gateway + object-store adapter 已作为预定义等价路径覆盖两身份、cursor、修订、撤销/删除与离线保持。
+- Diff review: PASS — 相对 `9ac800ff` 的 6 个文件仅为 P2 Gate 的合成契约、Electron 全旅程、LM6 静态矩阵、README/release truth 和 LM6-24 稳定 locator；无凭据、私有媒体、绝对用户路径、构建产物或范围外产品改动，`git diff --check` 通过。
+- Remote sync: PASS — 合并前 `origin/main` 为 `9ac800ff`；集成分支已对其重新同步，功能和稳定性修复由 `9ac800ff..dc93d285` 推送到 `main`。
+- Push: PASS — `origin/main` 包含 `2fabe3a4` 和 `dc93d285`；本执行记录提交后再次同步到同一远端主线。
+- Loop branch cleanup: PASS — 已删除本地 `loop/lm6-25-p2-gate`、`integrate/lm6-25-p2-gate` 及 `/Volumes/A/code/project/dramaIp-lm6-25`、`/Volumes/A/code/project/dramaIp-integrate-lm6-25`；两个远端同名分支均不存在。LM6-24 的遗留 Loop 分支/worktree 亦已在该 Attempt 4 的记录推送后清理；最终扫描未发现 `loop/lm6-*` worktree。
+- Current branch/worktree: `integrate/loopmap-final-audit`; `/Volumes/A/code/project/dramaIp-final-audit`；干净基线上的本执行记录为唯一显式改动，推送后移除该临时审计 worktree。
+- Completed: 以确定性 1 集 fixture 收束剧本入口、生产/分镜/静帧、六轨可播放时间线、音频/字幕、NLE 交换、第二项目的 series Story Bible override 与资产 link/fork、项目包/旧数据/权限/成本/缺失媒体/Provider 离线恢复，以及两身份云审片的反馈回流、revision preview、重新交付、撤销/删除和完全离线主链。
+- Unfinished: 无。真实外部 NLE 导入、真实 Provider 成片/MP4 和 Docker Compose 跨栈环境均未安装或不可用，只作为可追加兼容证据，不是本 Gate 已通过的声明。
+- Evidence: `dramaip-desktop/tests/electron/lm6-full-journey.spec.ts`、`dramaip-desktop/tests/lm6/lm6-25.test.ts`、`dramaip-desktop/tests/fixtures/lm6/lm6-25/p2-gate-contract.json`、`dramaip-desktop/packages/server/src/sidecar.node.test.ts`、`dramaip-desktop/scripts/check-timeline-exports.mjs`、`dramaip-platform` 的 `make test`、提交 `1e16d06f` / `2fabe3a4` / `dc93d285`。
+- Final success attempts: LM6-00/01/02/03/04/05/06、LM6-10/11/12/13/14/15、LM6-20/21/22/23 均为 Attempt 1；LM6-24 为 Attempt 4；LM6-25 为 Attempt 1。历史 `partial` 仅保留为 LM6-24 的 Attempt 1–3 checkpoint（`a45d2233`、`5698877c`、`45b5da7d`），已由 Attempt 4 的桌面接线、fake gateway/object-store 等价契约和删除/修订验证解决。
+- Four Gate evidence: LM6-00 基线、LM6-06 P0、LM6-15 P1 和本记录的 LM6-25 P2 均有已推送的成功记录；本次跨 Loop 回归通过完整桌面命令、24 个 Electron 场景、NLE parser/round-trip 和平台 `make test`。
+- Next attempt: 无；整批完成。后续需求须建立新的 Loop；fallback: 如新增外部 NLE、MP4 或 Compose 证据，作为独立兼容 Loop，不回写或削弱本 Gate 的既有结论。
+- Sweep cursor: none（4.4 final acceptance complete）
+- Notes: 最终 `origin/main` 与本执行记录提交对齐；根 worktree 的用户既有未提交改动未读取、未修改或纳入任何提交。

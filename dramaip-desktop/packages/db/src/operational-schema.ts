@@ -55,6 +55,48 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS domain_entities_domain_project ON domain_entities(domain, project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS series (
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS project_series (
+      project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+      series_id TEXT NOT NULL REFERENCES series(id) ON DELETE RESTRICT,
+      joined_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS project_series_series ON project_series(series_id, project_id);
+    CREATE TABLE IF NOT EXISTS series_story_bible (
+      id TEXT PRIMARY KEY, series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', version INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS series_story_bible_series ON series_story_bible(series_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS project_series_story_bible_versions (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL REFERENCES series_story_bible(id) ON DELETE RESTRICT,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', source_version INTEGER NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(project_id, source_id)
+    );
+    CREATE INDEX IF NOT EXISTS project_series_story_bible_versions_project ON project_series_story_bible_versions(project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS series_story_bible_overrides (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_id TEXT NOT NULL REFERENCES series_story_bible(id) ON DELETE RESTRICT,
+      title TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', source_version INTEGER NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(project_id, source_id)
+    );
+    CREATE TABLE IF NOT EXISTS series_asset_links (
+      id TEXT PRIMARY KEY, series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+      source_asset_id TEXT NOT NULL REFERENCES domain_entities(id) ON DELETE CASCADE,
+      source_version INTEGER NOT NULL, target_project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      target_asset_id TEXT NOT NULL REFERENCES domain_entities(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL CHECK(mode IN ('copy', 'fork', 'link')),
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      UNIQUE(target_asset_id)
+    );
+    CREATE INDEX IF NOT EXISTS series_asset_links_target ON series_asset_links(target_project_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS series_asset_links_source ON series_asset_links(source_asset_id, source_version);
     CREATE TABLE IF NOT EXISTS script_reviews (
       id TEXT PRIMARY KEY, script_id TEXT NOT NULL UNIQUE,
       hook_strength_score REAL NOT NULL, dialogue_score REAL NOT NULL,
@@ -109,6 +151,19 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       UNIQUE(episode_id, profile_id, delivery_version)
     );
     CREATE INDEX IF NOT EXISTS platform_delivery_archives_episode ON platform_delivery_archives(episode_id, created_at DESC);
+    CREATE TABLE IF NOT EXISTS timelines (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      adaptation_id TEXT NOT NULL, episode_id TEXT NOT NULL UNIQUE,
+      source_fingerprint TEXT NOT NULL, manifest_json TEXT NOT NULL,
+      version INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS timelines_episode ON timelines(episode_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS timeline_history (
+      id TEXT PRIMARY KEY, timeline_id TEXT NOT NULL REFERENCES timelines(id) ON DELETE CASCADE,
+      command_json TEXT NOT NULL, before_json TEXT NOT NULL, after_json TEXT NOT NULL,
+      undone INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS timeline_history_timeline ON timeline_history(timeline_id, created_at DESC);
     CREATE TABLE IF NOT EXISTS review_packages (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       adaptation_id TEXT NOT NULL, episode_id TEXT NOT NULL, kind TEXT NOT NULL,
@@ -127,6 +182,28 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       author_alias TEXT, note TEXT, created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS review_decisions_package ON review_decisions(package_id, created_at);
+    CREATE TABLE IF NOT EXISTS cloud_review_connections (
+      singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+      base_url TEXT NOT NULL, workspace_id TEXT NOT NULL, credential_ref TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cloud_review_bindings (
+      local_package_id TEXT PRIMARY KEY REFERENCES review_packages(id) ON DELETE CASCADE,
+      remote_package_id TEXT NOT NULL UNIQUE, share_url TEXT NOT NULL,
+      sync_cursor INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+      expires_at TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS cloud_review_events (
+      local_package_id TEXT NOT NULL REFERENCES review_packages(id) ON DELETE CASCADE,
+      event_kind TEXT NOT NULL CHECK(event_kind IN ('comment', 'decision')),
+      client_id TEXT NOT NULL, remote_event_id TEXT NOT NULL,
+      local_record_id TEXT NOT NULL, cursor INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY(local_package_id, event_kind, client_id),
+      UNIQUE(remote_event_id)
+    );
+    CREATE INDEX IF NOT EXISTS cloud_review_events_cursor
+      ON cloud_review_events(local_package_id, cursor);
     CREATE TABLE IF NOT EXISTS voice_profiles (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       title TEXT NOT NULL, character_id TEXT, sample_asset_id TEXT,
@@ -196,6 +273,26 @@ export const OPERATIONAL_SCHEMA_SQL = String.raw`
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS source_imports_expiry ON source_imports(expires_at);
+    CREATE TABLE IF NOT EXISTS import_extraction_change_sets (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      source_import_id TEXT NOT NULL, source_fingerprint TEXT NOT NULL, source_title TEXT NOT NULL,
+      source_versions_json TEXT NOT NULL, status TEXT NOT NULL, summary TEXT NOT NULL,
+      candidates_json TEXT NOT NULL, created_entity_ids_json TEXT NOT NULL DEFAULT '[]',
+      adoption_json TEXT NOT NULL DEFAULT '[]', error_message TEXT,
+      applied_at TEXT, undone_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS import_extraction_change_sets_project
+      ON import_extraction_change_sets(project_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS pilot_plans (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      chapter_ids_json TEXT NOT NULL, chapter_versions_json TEXT NOT NULL,
+      episode_count INTEGER NOT NULL CHECK(episode_count BETWEEN 1 AND 3),
+      status TEXT NOT NULL, source_confirmed INTEGER NOT NULL DEFAULT 0,
+      adaptation_id TEXT REFERENCES domain_entities(id) ON DELETE SET NULL,
+      episode_ids_json TEXT NOT NULL DEFAULT '[]', error_message TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS pilot_plans_project ON pilot_plans(project_id, updated_at DESC);
     CREATE TABLE IF NOT EXISTS feedback_previews (
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       kind TEXT NOT NULL, source_name TEXT NOT NULL, rows_json TEXT NOT NULL,

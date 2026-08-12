@@ -28,6 +28,8 @@ export const Project = Schema.Struct({
   visualStyleDirection: Schema.optionalKey(Schema.String),
   genreOpportunity: Schema.optionalKey(Schema.String),
   productionBrief: Schema.optionalKey(Schema.String),
+  seriesId: Schema.optionalKey(Id),
+  seriesTitle: Schema.optionalKey(Schema.String),
   currentAdaptationId: Schema.optionalKey(Id),
   deletedAt: Schema.optionalKey(IsoDateTime),
   version: Schema.Int,
@@ -49,6 +51,9 @@ export interface Project {
   visualStyleDirection?: string;
   genreOpportunity?: string;
   productionBrief?: string;
+  /** 可选系列归属；解除关联不会迁移或删除项目内资料。 */
+  seriesId?: Id;
+  seriesTitle?: string;
   /** 当前在改编工作台中采用的改编方案；只由专用选择接口更新。 */
   currentAdaptationId?: Id;
   deletedAt?: IsoDateTime;
@@ -650,21 +655,25 @@ export const ProjectAgentSettings = Schema.Struct({
   projectId: Id,
   defaultEngineKind: AgentEngineKind,
   defaultModel: Schema.optionalKey(AgentModelSelection),
+  assistantMode: Schema.Literals(["simple", "advanced"]),
   updatedAt: IsoDateTime,
 });
 export interface ProjectAgentSettings {
   projectId: Id;
   defaultEngineKind: AgentEngineKind;
   defaultModel?: AgentModelSelection;
+  assistantMode: "simple" | "advanced";
   updatedAt: IsoDateTime;
 }
 export const ProjectAgentSettingsInput = Schema.Struct({
   defaultEngineKind: AgentEngineKind,
   defaultModel: Schema.optionalKey(AgentModelSelection),
+  assistantMode: Schema.optionalKey(Schema.Literals(["simple", "advanced"])),
 });
 export interface ProjectAgentSettingsInput {
   defaultEngineKind: AgentEngineKind;
   defaultModel?: AgentModelSelection;
+  assistantMode?: "simple" | "advanced";
 }
 
 export const DomainEntity = Schema.Struct({
@@ -822,6 +831,225 @@ export const ChapterVersionRestoreInput = Schema.Struct({
 });
 export interface ChapterVersionRestoreInput {
   baseVersion: number;
+}
+
+/** P1 资产中心只读取既有 domain_entities，不复制本地媒体二进制或路径。 */
+export const AssetCenterCategory = Schema.Literals([
+  "character",
+  "scene",
+  "prop",
+  "voice",
+]);
+export type AssetCenterCategory = "character" | "scene" | "prop" | "voice";
+export const AssetCenterPreview = Schema.Struct({
+  kind: Schema.Literals(["image", "audio", "none"]),
+  status: Schema.Literals(["available", "missing", "unattached"]),
+  label: Schema.optionalKey(Schema.String),
+});
+export interface AssetCenterPreview {
+  kind: "image" | "audio" | "none";
+  status: "available" | "missing" | "unattached";
+  label?: string;
+}
+export const AssetCenterPreviewMedia = Schema.Struct({
+  id: Id,
+  kind: Schema.Literals(["image", "audio"]),
+  dataUrl: Schema.String,
+});
+export interface AssetCenterPreviewMedia {
+  id: Id;
+  kind: "image" | "audio";
+  dataUrl: string;
+}
+export const AssetCenterUsage = Schema.Struct({
+  shotId: Id,
+  shotTitle: Schema.String,
+  sceneTitle: Schema.optionalKey(Schema.String),
+});
+export interface AssetCenterUsage {
+  shotId: Id;
+  shotTitle: string;
+  sceneTitle?: string;
+}
+export const AssetCenterAsset = Schema.Struct({
+  id: Id,
+  title: Schema.String,
+  category: AssetCenterCategory,
+  subject: Schema.String,
+  assetVersion: Schema.String,
+  adopted: Schema.Boolean,
+  lockStatus: Schema.Literals(["locked", "unlocked"]),
+  stale: Schema.Boolean,
+  preview: AssetCenterPreview,
+  rightsStatus: Schema.Literals(["verified", "restricted", "unknown"]),
+  costStatus: Schema.Literals(["known", "unknown"]),
+  providerStatus: Schema.Literals(["available", "unavailable", "not-required"]),
+  usages: Schema.Array(AssetCenterUsage),
+  version: Schema.Int,
+});
+export interface AssetCenterAsset {
+  id: Id;
+  title: string;
+  category: AssetCenterCategory;
+  subject: string;
+  assetVersion: string;
+  adopted: boolean;
+  lockStatus: "locked" | "unlocked";
+  stale: boolean;
+  preview: AssetCenterPreview;
+  rightsStatus: "verified" | "restricted" | "unknown";
+  costStatus: "known" | "unknown";
+  providerStatus: "available" | "unavailable" | "not-required";
+  usages: AssetCenterUsage[];
+  version: number;
+}
+export const AssetCenter = Schema.Struct({
+  projectId: Id,
+  assets: Schema.Array(AssetCenterAsset),
+});
+export interface AssetCenter {
+  projectId: Id;
+  assets: AssetCenterAsset[];
+}
+export const AssetCenterActionInput = Schema.Struct({
+  action: Schema.Literals([
+    "adopt",
+    "lock",
+    "unlock",
+    "assign-shot",
+    "remove-shot",
+  ]),
+  version: Schema.Int,
+  shotId: Schema.optionalKey(Id),
+});
+export interface AssetCenterActionInput {
+  action: "adopt" | "lock" | "unlock" | "assign-shot" | "remove-shot";
+  version: number;
+  shotId?: Id;
+}
+
+/** 系列是本地、可选的跨项目边界；不承载账号、凭据或云端共享状态。 */
+export const Series = Schema.Struct({
+  id: Id,
+  title: Schema.String,
+  description: Schema.String,
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface Series {
+  id: Id;
+  title: string;
+  description: string;
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesInput = Schema.Struct({
+  title: Schema.String,
+  description: Schema.optionalKey(Schema.String),
+});
+export interface SeriesInput {
+  title: string;
+  description?: string;
+}
+export const ProjectSeriesInput = Schema.Struct({
+  seriesId: Schema.optionalKey(Id),
+});
+export interface ProjectSeriesInput {
+  seriesId?: Id;
+}
+export const SeriesStoryBible = Schema.Struct({
+  id: Id,
+  seriesId: Id,
+  title: Schema.String,
+  payload: Schema.Unknown,
+  version: Schema.Int,
+  overridden: Schema.Boolean,
+  sourceVersion: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface SeriesStoryBible {
+  id: Id;
+  seriesId: Id;
+  title: string;
+  payload: unknown;
+  version: number;
+  overridden: boolean;
+  sourceVersion: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesStoryBibleInput = Schema.Struct({
+  title: Schema.String,
+  payload: Schema.Unknown,
+});
+export interface SeriesStoryBibleInput {
+  title: string;
+  payload: unknown;
+}
+export const SeriesStoryBibleOverrideInput = Schema.Struct({
+  title: Schema.String,
+  payload: Schema.Unknown,
+  sourceVersion: Schema.Int,
+});
+export interface SeriesStoryBibleOverrideInput {
+  title: string;
+  payload: unknown;
+  sourceVersion: number;
+}
+export const SeriesStoryBibleUpgradeInput = Schema.Struct({
+  sourceVersion: Schema.Int,
+});
+export interface SeriesStoryBibleUpgradeInput {
+  sourceVersion: number;
+}
+export const SeriesAssetMode = Schema.Literals(["copy", "fork", "link"]);
+export type SeriesAssetMode = "copy" | "fork" | "link";
+export const SeriesAssetTransferInput = Schema.Struct({
+  sourceAssetId: Id,
+  sourceVersion: Schema.Int,
+  mode: SeriesAssetMode,
+});
+export interface SeriesAssetTransferInput {
+  sourceAssetId: Id;
+  sourceVersion: number;
+  mode: SeriesAssetMode;
+}
+export const SeriesAssetLink = Schema.Struct({
+  id: Id,
+  seriesId: Id,
+  sourceAssetId: Id,
+  sourceVersion: Schema.Int,
+  targetProjectId: Id,
+  targetAssetId: Id,
+  mode: SeriesAssetMode,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface SeriesAssetLink {
+  id: Id;
+  seriesId: Id;
+  sourceAssetId: Id;
+  sourceVersion: number;
+  targetProjectId: Id;
+  targetAssetId: Id;
+  mode: SeriesAssetMode;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+export const SeriesLibrary = Schema.Struct({
+  projectId: Id,
+  series: Schema.optionalKey(Series),
+  storyBible: Schema.Array(SeriesStoryBible),
+  assets: Schema.Array(SeriesAssetLink),
+});
+export interface SeriesLibrary {
+  projectId: Id;
+  series?: Series;
+  storyBible: SeriesStoryBible[];
+  assets: SeriesAssetLink[];
 }
 
 /**
@@ -1232,6 +1460,374 @@ export interface EditorTimelineManifest {
   clips: EditorTimelineClip[];
   createdAt: IsoDateTime;
 }
+
+/**
+ * 编辑器唯一权威时间线。它只保存媒体实体引用和时间信息，绝不保存本地绝对路径或修改源媒体。
+ * 旧的 EditorTimelineManifest 仍用于审片交接导出；后续 NLE 交付应从此结构读取。
+ */
+export const TimelineTrackKind = Schema.Literals([
+  "video",
+  "dialogue",
+  "narration",
+  "bgm",
+  "sfx",
+  "subtitle",
+]);
+export type TimelineTrackKind =
+  "video" | "dialogue" | "narration" | "bgm" | "sfx" | "subtitle";
+
+export const TimelineMediaStatus = Schema.Literals([
+  "linked",
+  "missing",
+  "unsupported",
+  "proxy",
+  "unattached",
+]);
+export type TimelineMediaStatus =
+  "linked" | "missing" | "unsupported" | "proxy" | "unattached";
+
+export const TimelineClip = Schema.Struct({
+  id: Id,
+  sourceClipId: Schema.optionalKey(Id),
+  shotId: Schema.optionalKey(Id),
+  assetId: Schema.optionalKey(Id),
+  audioTrackId: Schema.optionalKey(Id),
+  name: Schema.String,
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  sourceOffsetSeconds: Schema.Number,
+  mediaStatus: TimelineMediaStatus,
+  text: Schema.optionalKey(Schema.String),
+  /** 音频片段的非破坏性混音参数；视频和字幕可省略。 */
+  volume: Schema.optionalKey(Schema.Number),
+  fadeInSeconds: Schema.optionalKey(Schema.Number),
+  fadeOutSeconds: Schema.optionalKey(Schema.Number),
+  /** BGM 在对白 / 旁白存在时采用的相对增益。 */
+  duckingGain: Schema.optionalKey(Schema.Number),
+  /** 用户显式锁定，自动编排不得替换或删除该片段。 */
+  locked: Schema.optionalKey(Schema.Boolean),
+  manuallyEdited: Schema.Boolean,
+});
+export interface TimelineClip {
+  id: Id;
+  sourceClipId?: Id;
+  shotId?: Id;
+  assetId?: Id;
+  audioTrackId?: Id;
+  name: string;
+  startSeconds: number;
+  durationSeconds: number;
+  sourceOffsetSeconds: number;
+  mediaStatus: TimelineMediaStatus;
+  text?: string;
+  volume?: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+  duckingGain?: number;
+  locked?: boolean;
+  manuallyEdited: boolean;
+}
+
+export const TimelineTrack = Schema.Struct({
+  id: Id,
+  kind: TimelineTrackKind,
+  label: Schema.String,
+  muted: Schema.Boolean,
+  solo: Schema.Boolean,
+  clips: Schema.Array(TimelineClip),
+});
+export interface TimelineTrack {
+  id: Id;
+  kind: TimelineTrackKind;
+  label: string;
+  muted: boolean;
+  solo: boolean;
+  clips: TimelineClip[];
+}
+
+export const TimelineManifest = Schema.Struct({
+  format: Schema.Literal("dramaip-timeline"),
+  schemaVersion: Schema.Literal(1),
+  id: Id,
+  projectId: Id,
+  adaptationId: Id,
+  episodeId: Id,
+  sourceFingerprint: Schema.String,
+  frameRate: Schema.Literal(25),
+  timebase: Schema.Literal("seconds"),
+  durationSeconds: Schema.Number,
+  tracks: Schema.Array(TimelineTrack),
+  version: Schema.Int,
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface TimelineManifest {
+  format: "dramaip-timeline";
+  schemaVersion: 1;
+  id: Id;
+  projectId: Id;
+  adaptationId: Id;
+  episodeId: Id;
+  sourceFingerprint: string;
+  frameRate: 25;
+  timebase: "seconds";
+  durationSeconds: number;
+  tracks: TimelineTrack[];
+  version: number;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const TimelineEditCommand = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("move"),
+    clipId: Id,
+    startSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("trim"),
+    clipId: Id,
+    startSeconds: Schema.optionalKey(Schema.Number),
+    durationSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("split"),
+    clipId: Id,
+    atSeconds: Schema.Number,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("set-track-audio"),
+    trackId: Id,
+    muted: Schema.optionalKey(Schema.Boolean),
+    solo: Schema.optionalKey(Schema.Boolean),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("relink"),
+    clipId: Id,
+    assetId: Id,
+  }),
+  Schema.Struct({
+    type: Schema.Literal("set-clip-audio"),
+    clipId: Id,
+    volume: Schema.optionalKey(Schema.Number),
+    locked: Schema.optionalKey(Schema.Boolean),
+  }),
+]);
+export type TimelineEditCommand =
+  | { type: "move"; clipId: Id; startSeconds: number }
+  | {
+      type: "trim";
+      clipId: Id;
+      startSeconds?: number;
+      durationSeconds: number;
+    }
+  | { type: "split"; clipId: Id; atSeconds: number }
+  | {
+      type: "set-track-audio";
+      trackId: Id;
+      muted?: boolean;
+      solo?: boolean;
+    }
+  | { type: "relink"; clipId: Id; assetId: Id }
+  | {
+      type: "set-clip-audio";
+      clipId: Id;
+      volume?: number;
+      locked?: boolean;
+    };
+
+export const TimelineCommandInput = Schema.Struct({
+  version: Schema.Int,
+  command: TimelineEditCommand,
+});
+export interface TimelineCommandInput {
+  version: number;
+  command: TimelineEditCommand;
+}
+
+export const TimelineHistoryAvailability = Schema.Struct({
+  canUndo: Schema.Boolean,
+  canRedo: Schema.Boolean,
+});
+export interface TimelineHistoryAvailability {
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+export const TimelineMediaPreview = Schema.Struct({
+  id: Id,
+  kind: Schema.Literals(["image", "audio", "video"]),
+  dataUrl: Schema.String,
+});
+export interface TimelineMediaPreview {
+  id: Id;
+  kind: "image" | "audio" | "video";
+  dataUrl: string;
+}
+
+/**
+ * 可交付时间线只序列化 canonical timeline 的受控引用；相对媒体路径和 checksum
+ * 用于 NLE 重链接，绝不携带本地绝对路径、凭据或源数据库。
+ */
+export const TimelineDeliveryMedia = Schema.Struct({
+  assetId: Id,
+  title: Schema.String,
+  sourceVersion: Schema.Int,
+  relativePath: Schema.String,
+  checksum: Schema.optionalKey(Schema.String),
+  mediaStatus: TimelineMediaStatus,
+  rightsStatus: Schema.Union([
+    Schema.Literal("cleared"),
+    Schema.Literal("unknown"),
+    Schema.Literal("restricted"),
+  ]),
+  lineage: Schema.Array(Schema.String),
+});
+export interface TimelineDeliveryMedia {
+  assetId: Id;
+  title: string;
+  sourceVersion: number;
+  relativePath: string;
+  checksum?: string;
+  mediaStatus: TimelineMediaStatus;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+  lineage: string[];
+}
+
+export const TimelineDeliveryManifest = Schema.Struct({
+  format: Schema.Literal("dramaip-timeline-delivery"),
+  schemaVersion: Schema.Literal(1),
+  timeline: TimelineManifest,
+  media: Schema.Array(TimelineDeliveryMedia),
+  unsupportedFeatures: Schema.Array(Schema.String),
+  warnings: Schema.Array(Schema.String),
+});
+export interface TimelineDeliveryManifest {
+  format: "dramaip-timeline-delivery";
+  schemaVersion: 1;
+  timeline: TimelineManifest;
+  media: TimelineDeliveryMedia[];
+  unsupportedFeatures: string[];
+  warnings: string[];
+}
+
+export const TimelineDeliveryExportFormat = Schema.Literals([
+  "manifest",
+  "fcpxml",
+  "otio",
+  "edl",
+  "srt",
+  "vtt",
+  "relink",
+]);
+export type TimelineDeliveryExportFormat =
+  "manifest" | "fcpxml" | "otio" | "edl" | "srt" | "vtt" | "relink";
+
+/**
+ * 自动音频编排只引用已采用的版本化音轨。预览中的每一项都带回到文本、音色、
+ * 素材、服务商、成本和权利状态的最小可审查谱系，不暴露凭据或本地绝对路径。
+ */
+export const AudioAssemblyClip = Schema.Struct({
+  id: Id,
+  audioTrackId: Id,
+  sourceClipId: Id,
+  kind: Schema.Literals(["dialogue", "narration", "bgm", "sfx"]),
+  name: Schema.String,
+  shotId: Schema.optionalKey(Id),
+  assetId: Schema.optionalKey(Id),
+  voiceProfileId: Schema.optionalKey(Id),
+  text: Schema.optionalKey(Schema.String),
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  volume: Schema.Number,
+  fadeInSeconds: Schema.Number,
+  fadeOutSeconds: Schema.Number,
+  duckingGain: Schema.optionalKey(Schema.Number),
+  overflowSeconds: Schema.Number,
+  provider: Schema.String,
+  cost: Schema.optionalKey(Schema.Number),
+  rightsStatus: Schema.Union([
+    Schema.Literal("cleared"),
+    Schema.Literal("unknown"),
+    Schema.Literal("restricted"),
+  ]),
+});
+export interface AudioAssemblyClip {
+  id: Id;
+  audioTrackId: Id;
+  sourceClipId: Id;
+  kind: AudioTrackKind;
+  name: string;
+  shotId?: Id;
+  assetId?: Id;
+  voiceProfileId?: Id;
+  text?: string;
+  startSeconds: number;
+  durationSeconds: number;
+  volume: number;
+  fadeInSeconds: number;
+  fadeOutSeconds: number;
+  duckingGain?: number;
+  overflowSeconds: number;
+  provider: string;
+  cost?: number;
+  rightsStatus: "cleared" | "unknown" | "restricted";
+}
+
+export const SubtitleCue = Schema.Struct({
+  id: Id,
+  audioTrackId: Id,
+  sourceClipId: Id,
+  shotId: Schema.optionalKey(Id),
+  startSeconds: Schema.Number,
+  durationSeconds: Schema.Number,
+  text: Schema.String,
+});
+export interface SubtitleCue {
+  id: Id;
+  audioTrackId: Id;
+  sourceClipId: Id;
+  shotId?: Id;
+  startSeconds: number;
+  durationSeconds: number;
+  text: string;
+}
+
+export const AudioAssemblyPreview = Schema.Struct({
+  timelineId: Id,
+  timelineVersion: Schema.Int,
+  sourceFingerprint: Schema.String,
+  clips: Schema.Array(AudioAssemblyClip),
+  subtitleCues: Schema.Array(SubtitleCue),
+  srt: Schema.String,
+  webVtt: Schema.String,
+  warnings: Schema.Array(Schema.String),
+  protectedClipIds: Schema.Array(Id),
+  staleTrackIds: Schema.Array(Id),
+});
+export interface AudioAssemblyPreview {
+  timelineId: Id;
+  timelineVersion: number;
+  sourceFingerprint: string;
+  clips: AudioAssemblyClip[];
+  subtitleCues: SubtitleCue[];
+  srt: string;
+  webVtt: string;
+  warnings: string[];
+  protectedClipIds: Id[];
+  staleTrackIds: Id[];
+}
+
+export const AudioAssemblyApplyInput = Schema.Struct({
+  timelineVersion: Schema.Int,
+  audioTrackIds: Schema.Array(Id),
+  includeSubtitles: Schema.Boolean,
+});
+export interface AudioAssemblyApplyInput {
+  timelineVersion: number;
+  audioTrackIds: Id[];
+  includeSubtitles: boolean;
+}
 export const EditorExportPreflight = Schema.Struct({
   canExport: Schema.Boolean,
   blockers: Schema.Array(Schema.String),
@@ -1344,6 +1940,14 @@ export interface ReviewDecisionInput {
   authorAlias?: string;
   note?: string;
 }
+export const ReviewRevisionPreviewInput = Schema.Struct({
+  scriptId: Id,
+  proposedContent: RequiredText,
+});
+export interface ReviewRevisionPreviewInput {
+  scriptId: Id;
+  proposedContent: string;
+}
 export const OfflineReviewImportInput = Schema.Struct({
   capabilityToken: Schema.String,
 });
@@ -1359,6 +1963,142 @@ export interface OfflineReviewImportResult {
   packageId: Id;
   commentCount: number;
   decisionCount: number;
+}
+/** A platform endpoint and workspace; the access token itself stays in the credential vault. */
+export const CloudReviewConnection = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  configured: Schema.Boolean,
+  updatedAt: IsoDateTime,
+});
+export interface CloudReviewConnection {
+  baseUrl: string;
+  workspaceId: string;
+  configured: boolean;
+  updatedAt: IsoDateTime;
+}
+export const CloudReviewConnectionInput = Schema.Struct({
+  baseUrl: Schema.String,
+  workspaceId: Schema.String,
+  credentialRef: Schema.String,
+});
+export interface CloudReviewConnectionInput {
+  baseUrl: string;
+  workspaceId: string;
+  credentialRef: string;
+}
+export const CloudReviewMediaInput = Schema.Struct({
+  id: Schema.String,
+  shotId: Id,
+  relativePath: Schema.String,
+  mimeType: Schema.String,
+  capabilityToken: Schema.String,
+});
+export interface CloudReviewMediaInput {
+  id: string;
+  shotId: Id;
+  relativePath: string;
+  mimeType: string;
+  capabilityToken: string;
+}
+export const CloudReviewPublishInput = Schema.Struct({
+  pin: Schema.optionalKey(Schema.String),
+  media: Schema.Array(CloudReviewMediaInput),
+});
+export interface CloudReviewPublishInput {
+  pin?: string;
+  media: CloudReviewMediaInput[];
+}
+/** Local-only publish review: storage is known, platform retention and cost are intentionally explicit when unknown. */
+export const CloudReviewPublishPreview = Schema.Struct({
+  packageId: Id,
+  workspaceId: Schema.String,
+  manifestJson: Schema.String,
+  media: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      shotId: Id,
+      relativePath: Schema.String,
+      mimeType: Schema.String,
+      sizeBytes: Schema.Int,
+      sha256: Schema.String,
+    }),
+  ),
+  storageBytes: Schema.Int,
+  maxStorageBytes: Schema.Int,
+  retention: Schema.String,
+  costEstimate: Schema.String,
+});
+export interface CloudReviewPublishPreview {
+  packageId: Id;
+  workspaceId: string;
+  manifestJson: string;
+  media: Array<{
+    id: string;
+    shotId: Id;
+    relativePath: string;
+    mimeType: string;
+    sizeBytes: number;
+    sha256: string;
+  }>;
+  storageBytes: number;
+  maxStorageBytes: number;
+  retention: string;
+  costEstimate: string;
+}
+export const CloudReviewPublishResult = Schema.Struct({
+  packageId: Id,
+  remotePackageId: Schema.String,
+  shareUrl: Schema.String,
+  status: Schema.String,
+  expiresAt: IsoDateTime,
+});
+export interface CloudReviewPublishResult {
+  packageId: Id;
+  remotePackageId: string;
+  shareUrl: string;
+  status: string;
+  expiresAt: IsoDateTime;
+}
+export const CloudReviewSyncResult = Schema.Struct({
+  packageId: Id,
+  nextCursor: Schema.Int,
+  commentCount: Schema.Int,
+  decisionCount: Schema.Int,
+});
+export interface CloudReviewSyncResult {
+  packageId: Id;
+  nextCursor: number;
+  commentCount: number;
+  decisionCount: number;
+}
+export const CloudReviewBinding = Schema.Struct({
+  packageId: Id,
+  remotePackageId: Schema.String,
+  shareUrl: Schema.String,
+  status: Schema.String,
+  expiresAt: IsoDateTime,
+  syncCursor: Schema.Int,
+  updatedAt: IsoDateTime,
+});
+export interface CloudReviewBinding {
+  packageId: Id;
+  remotePackageId: string;
+  shareUrl: string;
+  status: string;
+  expiresAt: IsoDateTime;
+  syncCursor: number;
+  updatedAt: IsoDateTime;
+}
+export const CloudReviewDeleteResult = Schema.Struct({
+  packageId: Id,
+  status: Schema.Literal("deleted"),
+  localFeedbackPreserved: Schema.Boolean,
+});
+export interface CloudReviewDeleteResult {
+  packageId: Id;
+  status: "deleted";
+  localFeedbackPreserved: boolean;
 }
 
 /** 版本化离线合规规则是本地证据，不构成法律意见或平台审核结果。 */
@@ -1511,6 +2251,19 @@ export interface StoryBibleSettings {
   autoSuggest: boolean;
   updatedAt: IsoDateTime;
 }
+export const StoryBibleChangePreview = Schema.Struct({
+  title: Schema.String,
+  fields: Schema.Array(
+    Schema.Struct({
+      key: Schema.String,
+      value: Schema.String,
+    }),
+  ),
+});
+export interface StoryBibleChangePreview {
+  title: string;
+  fields: Array<{ key: string; value: string }>;
+}
 export const StoryBibleChangeSet = Schema.Struct({
   id: Id,
   projectId: Id,
@@ -1520,6 +2273,7 @@ export const StoryBibleChangeSet = Schema.Struct({
   summary: Schema.String,
   taskId: Schema.optionalKey(Id),
   conflictNotes: Schema.Array(Schema.String),
+  preview: StoryBibleChangePreview,
   appliedAt: Schema.optionalKey(IsoDateTime),
   undoneAt: Schema.optionalKey(IsoDateTime),
   createdAt: IsoDateTime,
@@ -1534,6 +2288,7 @@ export interface StoryBibleChangeSet {
   summary: string;
   taskId?: Id;
   conflictNotes: string[];
+  preview: StoryBibleChangePreview;
   appliedAt?: IsoDateTime;
   undoneAt?: IsoDateTime;
   createdAt: IsoDateTime;
@@ -1562,6 +2317,12 @@ export const StoryBibleChangeSetInput = Schema.Struct({
 export interface StoryBibleChangeSetInput {
   projectId: Id;
   chapterId: Id;
+}
+export const StoryBibleChangeSetApplyInput = Schema.Struct({
+  fields: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+export interface StoryBibleChangeSetApplyInput {
+  fields?: string[];
 }
 
 export const ProjectPackagePreview = Schema.Struct({
@@ -1804,6 +2565,123 @@ export interface SourceImportCommitInput {
   preview: SourceImportPreview;
 }
 
+/** A traceable text range used by the post-import review workflow. */
+export const ImportExtractionSourceRef = Schema.Struct({
+  sourceKey: Schema.String,
+  chapterTitle: Schema.String,
+  start: Schema.Int,
+  end: Schema.Int,
+  excerpt: Schema.String,
+  sourceVersion: Schema.Int,
+});
+export interface ImportExtractionSourceRef {
+  sourceKey: string;
+  chapterTitle: string;
+  start: number;
+  end: number;
+  excerpt: string;
+  sourceVersion: number;
+}
+
+export const ImportExtractionCandidateType = Schema.Union([
+  Schema.Literal("character"),
+  Schema.Literal("scene"),
+  Schema.Literal("prop"),
+  Schema.Literal("chapter-summary"),
+  Schema.Literal("adaptation"),
+]);
+export type ImportExtractionCandidateType =
+  "character" | "scene" | "prop" | "chapter-summary" | "adaptation";
+
+export const ImportExtractionCandidateStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("rejected"),
+  Schema.Literal("adopted"),
+  Schema.Literal("conflict"),
+]);
+export type ImportExtractionCandidateStatus =
+  "draft" | "rejected" | "adopted" | "conflict";
+
+export const ImportExtractionCandidate = Schema.Struct({
+  id: Id,
+  type: ImportExtractionCandidateType,
+  title: Schema.String,
+  summary: Schema.String,
+  confidence: Schema.Number,
+  sourceRefs: Schema.Array(ImportExtractionSourceRef),
+  status: ImportExtractionCandidateStatus,
+  conflictNote: Schema.optionalKey(Schema.String),
+});
+export interface ImportExtractionCandidate {
+  id: Id;
+  type: ImportExtractionCandidateType;
+  title: string;
+  summary: string;
+  confidence: number;
+  sourceRefs: ImportExtractionSourceRef[];
+  status: ImportExtractionCandidateStatus;
+  conflictNote?: string;
+}
+
+export const ImportExtractionChangeSetStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("applied"),
+  Schema.Literal("stale"),
+  Schema.Literal("discarded"),
+  Schema.Literal("failed"),
+]);
+export type ImportExtractionChangeSetStatus =
+  "draft" | "applied" | "stale" | "discarded" | "failed";
+
+export const ImportExtractionChangeSet = Schema.Struct({
+  id: Id,
+  projectId: Id,
+  sourceFingerprint: Schema.String,
+  sourceTitle: Schema.String,
+  status: ImportExtractionChangeSetStatus,
+  summary: Schema.String,
+  candidates: Schema.Array(ImportExtractionCandidate),
+  appliedAt: Schema.optionalKey(IsoDateTime),
+  undoneAt: Schema.optionalKey(IsoDateTime),
+  errorMessage: Schema.optionalKey(Schema.String),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface ImportExtractionChangeSet {
+  id: Id;
+  projectId: Id;
+  sourceFingerprint: string;
+  sourceTitle: string;
+  status: ImportExtractionChangeSetStatus;
+  summary: string;
+  candidates: ImportExtractionCandidate[];
+  appliedAt?: IsoDateTime;
+  undoneAt?: IsoDateTime;
+  errorMessage?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const ImportExtractionCandidatePatch = Schema.Struct({
+  title: Schema.optionalKey(Schema.String),
+  summary: Schema.optionalKey(Schema.String),
+  status: Schema.optionalKey(
+    Schema.Union([Schema.Literal("draft"), Schema.Literal("rejected")]),
+  ),
+});
+export interface ImportExtractionCandidatePatch {
+  title?: string;
+  summary?: string;
+  status?: "draft" | "rejected";
+}
+
+export const ImportExtractionAdoptInput = Schema.Struct({
+  candidateIds: Schema.optionalKey(Schema.Array(Id)),
+});
+export interface ImportExtractionAdoptInput {
+  candidateIds?: Id[];
+}
+
 export const SourceImportCommitResult = Schema.Struct({
   createdChapters: Schema.Int,
   updatedChapters: Schema.Int,
@@ -1813,6 +2691,7 @@ export const SourceImportCommitResult = Schema.Struct({
   createdScenes: Schema.Int,
   adaptationProjectId: Schema.optionalKey(Id),
   checkpointCount: Schema.Int,
+  extractionChangeSet: Schema.optionalKey(ImportExtractionChangeSet),
 });
 export interface SourceImportCommitResult {
   createdChapters: number;
@@ -1823,6 +2702,94 @@ export interface SourceImportCommitResult {
   createdScenes: number;
   adaptationProjectId?: Id;
   checkpointCount: number;
+  extractionChangeSet?: ImportExtractionChangeSet;
+}
+
+export const PilotPlanStatus = Schema.Union([
+  Schema.Literal("draft"),
+  Schema.Literal("active"),
+  Schema.Literal("stale"),
+  Schema.Literal("ready-for-review"),
+  Schema.Literal("canceled"),
+]);
+export type PilotPlanStatus =
+  "draft" | "active" | "stale" | "ready-for-review" | "canceled";
+
+export const PilotPlanStage = Schema.Union([
+  Schema.Literal("confirm-source"),
+  Schema.Literal("script"),
+  Schema.Literal("scenes"),
+  Schema.Literal("shots"),
+  Schema.Literal("assets"),
+  Schema.Literal("review"),
+]);
+export type PilotPlanStage =
+  "confirm-source" | "script" | "scenes" | "shots" | "assets" | "review";
+
+export const PilotPlan = Schema.Struct({
+  id: Id,
+  projectId: Id,
+  chapterIds: Schema.Array(Id),
+  episodeCount: Schema.Int,
+  status: PilotPlanStatus,
+  stage: PilotPlanStage,
+  sourceConfirmed: Schema.Boolean,
+  adaptationId: Schema.optionalKey(Id),
+  episodeIds: Schema.Array(Id),
+  coverage: Schema.Struct({
+    episodes: Schema.Int,
+    scripts: Schema.Int,
+    scenes: Schema.Int,
+    shots: Schema.Int,
+    assets: Schema.Int,
+  }),
+  blocker: Schema.optionalKey(Schema.String),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export interface PilotPlan {
+  id: Id;
+  projectId: Id;
+  chapterIds: Id[];
+  episodeCount: number;
+  status: PilotPlanStatus;
+  stage: PilotPlanStage;
+  sourceConfirmed: boolean;
+  adaptationId?: Id;
+  episodeIds: Id[];
+  coverage: {
+    episodes: number;
+    scripts: number;
+    scenes: number;
+    shots: number;
+    assets: number;
+  };
+  blocker?: string;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+export const PilotPlanCreateInput = Schema.Struct({
+  projectId: Id,
+  chapterIds: Schema.Array(Id),
+  episodeCount: Schema.Int,
+});
+export interface PilotPlanCreateInput {
+  projectId: Id;
+  chapterIds: Id[];
+  episodeCount: number;
+}
+
+export const PilotPlanActionInput = Schema.Struct({
+  action: Schema.Union([
+    Schema.Literal("confirm-source"),
+    Schema.Literal("return-source"),
+    Schema.Literal("cancel"),
+    Schema.Literal("resume"),
+  ]),
+});
+export interface PilotPlanActionInput {
+  action: "confirm-source" | "return-source" | "cancel" | "resume";
 }
 
 export const EpisodeWorkflowKind = Schema.Union([
@@ -1926,6 +2893,8 @@ export const AudioTrackClip = Schema.Struct({
   startSeconds: Schema.Number,
   durationSeconds: Schema.Number,
   text: Schema.optionalKey(Schema.String),
+  /** 片段级谱系，避免无关台词修改使整条分集音频全部失效。 */
+  sourceFingerprint: Schema.optionalKey(Schema.String),
 });
 export interface AudioTrackClip {
   id: Id;
@@ -1935,6 +2904,7 @@ export interface AudioTrackClip {
   startSeconds: number;
   durationSeconds: number;
   text?: string;
+  sourceFingerprint?: string;
 }
 
 export const AudioTrackClipInput = Schema.Struct({
@@ -2220,6 +3190,8 @@ export const VideoGenerationInput = Schema.Struct({
   negativePrompt: Schema.optionalKey(Schema.String),
   seconds: Schema.optionalKey(Schema.Int),
   size: Schema.optionalKey(Schema.String),
+  readinessHash: Schema.optionalKey(Schema.String),
+  confirmUnknownCost: Schema.optionalKey(Schema.Boolean),
 });
 export interface VideoGenerationInput {
   providerId: Id;
@@ -2230,6 +3202,62 @@ export interface VideoGenerationInput {
   negativePrompt?: string;
   seconds?: number;
   size?: string;
+  readinessHash?: string;
+  confirmUnknownCost?: boolean;
+}
+
+/** A server-derived, short-lived submission snapshot for the still-first gate. */
+export const VideoGenerationPreflight = Schema.Struct({
+  shotId: Id,
+  providerId: Id,
+  snapshotHash: Schema.String,
+  ready: Schema.Boolean,
+  adoptedStillId: Schema.optionalKey(Id),
+  lockedAssetIds: Schema.Array(Id),
+  blockers: Schema.Array(Schema.String),
+  warnings: Schema.Array(Schema.String),
+  costStatus: Schema.Literals(["known", "unknown"]),
+  estimatedCost: Schema.optionalKey(Schema.Number),
+  currency: Schema.optionalKey(Schema.String),
+});
+export interface VideoGenerationPreflight {
+  shotId: Id;
+  providerId: Id;
+  snapshotHash: string;
+  ready: boolean;
+  adoptedStillId?: Id;
+  lockedAssetIds: Id[];
+  blockers: string[];
+  warnings: string[];
+  costStatus: "known" | "unknown";
+  estimatedCost?: number;
+  currency?: string;
+}
+
+export const VideoGenerationBatchPreflightInput = Schema.Struct({
+  projectId: Id,
+  submissions: Schema.Array(VideoGenerationInput),
+});
+export interface VideoGenerationBatchPreflightInput {
+  projectId: Id;
+  submissions: VideoGenerationInput[];
+}
+
+export const VideoGenerationBatchPreflight = Schema.Struct({
+  projectId: Id,
+  ready: Schema.Boolean,
+  items: Schema.Array(VideoGenerationPreflight),
+  blockers: Schema.Array(Schema.String),
+  knownEstimatedCost: Schema.Number,
+  unknownCostCount: Schema.Int,
+});
+export interface VideoGenerationBatchPreflight {
+  projectId: Id;
+  ready: boolean;
+  items: VideoGenerationPreflight[];
+  blockers: string[];
+  knownEstimatedCost: number;
+  unknownCostCount: number;
 }
 
 export const VideoGenerationJob = Schema.Struct({
