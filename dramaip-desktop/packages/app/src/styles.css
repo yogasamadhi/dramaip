@@ -186,6 +186,11 @@ select:focus {
 }
 
 .workbench {
+  color: var(--ui-ink);
+  color-scheme: light;
+}
+
+.dark .workbench {
   --ui-canvas: #171a17;
   --ui-page: #1c1f1b;
   --ui-surface: #222521;

@@ -1526,7 +1526,7 @@ LM6-00
 
 - 仅迁移 `dramaip-desktop`，保留数据库、HTTP 契约、URL、自动保存、预览采用、版本与任务语义。
 - 应用栏常驻“项目、小说写作、改编、制作、审核交付”，“更多”承载数据洞察、搜索、任务和设置。
-- 项目、小说写作和管理界面采用克制暖白；制作、媒体预览、时间线与审核使用局部深色工作台。
+- 项目、小说写作和管理界面采用克制暖白；制作、时间线与审核使用跟随全局主题的专业工作台，仅媒体预览舞台按需使用局部深色底。
 - 主题支持跟随系统、浅色、深色；首次默认跟随系统并使用 `dramaip-theme-v1` 本机持久化。
 - 最终 Gate 前不把任何中间状态视为正式整站交付。
 
@@ -1537,9 +1537,10 @@ LM6-00
 | LM7-00 | `@sdns/ui` 语义令牌、组件变体、主题与统一浮层 |
 | LM7-01 | 原生安全区、自定义标题栏、64px 应用栏、导航分组与主题菜单 |
 | LM7-02 / 03 | 项目稀疏布局、小说核心入口、无网格正文编辑器与 AI 抽屉 |
-| LM7-04 / 05 / 06 | 改编阶段导航、制作与审核局部深色工作台 |
+| LM7-04 / 05 / 06 | 改编阶段导航、制作与审核主题自适应专业工作台 |
 | LM7-07 | 数据洞察、搜索、任务、设置、助手与全部浮层统一 |
 | LM7-08 | 遗留样式清理、文档、视觉与全量质量 Gate |
+| LM7-09 | 制作与审核交付工作台的浅色主题一致性修正 |
 
 ### LM7 / Attempt 1 — 2026-08-13 Asia/Shanghai
 
@@ -1550,7 +1551,7 @@ LM6-00
 - Baseline: `747f5c8f feat(desktop): prioritize novel writing workspace` 已单独验证并推送，未纳入根 `AGENTS.md` 或 platform timestamp 文件。
 - Commit: `c8e19a5b feat(desktop): deliver LM7 UI V2`
 - Merge commit: `53dd27ac merge: deliver LM7 desktop UI V2`
-- Completed: 建成正式 `@sdns/ui` 语义组件与主题层，统一按钮、表单、卡片、工具栏、状态、Radix 弹窗/抽屉/菜单/滚动区和应用内确认；主题在 React 渲染前按 `dramaip-theme-v1` 应用并同步系统变化。Electron 使用 macOS `hiddenInset`、Windows/Linux `hidden + titleBarOverlay` 与受限 `setWindowTheme` IPC。64px 应用栏固定项目、小说写作、改编、制作、审核交付，并把数据洞察、搜索、任务、设置收进“更多”。项目稀疏态、小说纸张编辑器/章节侧栏/Story Bible/AI 抽屉、改编阶段导航、制作和审核局部深色工作台、辅助页面及反馈状态完成同批切换；旧原生确认框、重复章节编辑器、类名片段覆盖、业务网格和直接业务 `<button>` 已清理。
+- Completed: 建成正式 `@sdns/ui` 语义组件与主题层，统一按钮、表单、卡片、工具栏、状态、Radix 弹窗/抽屉/菜单/滚动区和应用内确认；主题在 React 渲染前按 `dramaip-theme-v1` 应用并同步系统变化。Electron 使用 macOS `hiddenInset`、Windows/Linux `hidden + titleBarOverlay` 与受限 `setWindowTheme` IPC。64px 应用栏固定项目、小说写作、改编、制作、审核交付，并把数据洞察、搜索、任务、设置收进“更多”。项目稀疏态、小说纸张编辑器/章节侧栏/Story Bible/AI 抽屉、改编阶段导航、制作和审核专业工作台、辅助页面及反馈状态完成同批切换；旧原生确认框、重复章节编辑器、类名片段覆盖、业务网格和直接业务 `<button>` 已清理。
 - Verification:
   - 在功能分支和 `main` 合并结果上各执行一次 `git diff --check`、`bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run check:generated`、`bun run check:engine-locks`、`bun run check:provider-catalog`、`bun run build`、`bunx playwright test --reporter=list`：全部 PASS。
   - `bunx playwright test --reporter=list`: PASS — 31/31 Electron 场景，包括既有 LM6 全旅程、三种项目入口、导入/采用、Story Bible、导演看板、时间线/交付，以及 LM7 视觉、主题和最小窗口检查。

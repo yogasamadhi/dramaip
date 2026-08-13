@@ -106,6 +106,37 @@ test("1080×700 下应用栏、正文与制作工作台不横向溢出", async (
   }
 });
 
+test("制作与审核交付工作台跟随全局明暗主题", async () => {
+  await page.setViewportSize({ width: 1440, height: 920 });
+
+  for (const theme of ["light", "dark"] as const) {
+    await useTheme(theme);
+    for (const path of ["/produce", "/review"]) {
+      await openRoute(path);
+      const appearance = await page
+        .locator(".workbench")
+        .evaluate((element) => {
+          const style = getComputedStyle(element);
+          const channels = style.backgroundColor
+            .match(/[\d.]+/g)
+            ?.slice(0, 3)
+            .map(Number);
+          return {
+            colorScheme: style.colorScheme,
+            brightness: channels
+              ? channels.reduce((sum, channel) => sum + channel, 0) /
+                channels.length
+              : 0,
+          };
+        });
+
+      expect(appearance.colorScheme).toContain(theme);
+      if (theme === "light") expect(appearance.brightness).toBeGreaterThan(220);
+      else expect(appearance.brightness).toBeLessThan(80);
+    }
+  }
+});
+
 test("主题首次跟随系统并持久化手动选择", async () => {
   await page.evaluate(() => {
     window.localStorage.removeItem("dramaip-theme-v1");
