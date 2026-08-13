@@ -1560,3 +1560,24 @@ LM6-00
 - Diff review: PASS — 只修改 `dramaip-desktop` 与本 LM7 执行记录；数据库、HTTP 契约、业务 URL 与 platform web 未变。根 `AGENTS.md` 和 admin timestamp 文件保持未跟踪，未读取、未修改或纳入提交。
 - Evidence: `dramaip-desktop/packages/ui/src/`、`packages/app/src/{main.tsx,studio-app.tsx,app-shell.tsx,styles.css,ui-showcase.tsx,lm7-ui.test.ts}`、novel feature components、Electron main/preload、`tests/electron/{abc-smoke.spec.ts,lm7-ui-visual.spec.ts}`、22 份视觉快照、用户指南、`c8e19a5b` 与 `53dd27ac`。
 - Unfinished: 无；真实 Windows/Linux 机器上的窗口控件属于后续兼容性增强，当前平台分支、IPC 白名单和 Electron 构建/契约均已验证。
+
+### LM7-09 / Attempt 1 — 2026-08-13 Asia/Shanghai
+
+- Loop: LM7-09
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm7-09-light-workbenches`
+- Commit: `b6680aa5 fix(desktop): honor light theme in workbenches`
+- Merge commit: `b7c24750 merge: fix LM7 light workbenches`
+- Completed: 制作与审核交付最外层工作台不再无条件覆盖深色令牌；浅色主题使用暖白的 `surface-muted` 容器和浅色语义卡片，深色主题才启用专业深色工作台令牌与 `studio-dark` 背景。媒体、时间线和业务行为均未改变。
+- Verification:
+  - 功能分支完整质量 Gate PASS：`git diff --check`、`bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run check:generated`、`bun run check:engine-locks`、`bun run check:provider-catalog`、`bun run build`、`bunx playwright test --reporter=list`。
+  - Electron 全量回归 PASS：32/32；新增“制作与审核交付工作台跟随全局明暗主题”场景，直接检查两个页面在浅色主题中的高明度背景和 `color-scheme: light`，并验证深色主题仍保持低明度工作台。
+  - 视觉 Gate PASS：仅 `light-production-darwin.png` 与 `light-review-darwin.png` 因预期的暖白改版更新；22 份明暗基线全部通过，深色制作与审核基线未变化。
+  - 合并后再次执行 lint、format、typecheck、build 和 LM7 Electron 视觉套件：4/4 PASS。
+- Diff review: PASS — 仅修改工作台主题选择、两个页面容器、主题回归测试、两份浅色视觉基线及相应文档；数据库、HTTP 契约、业务 URL 和 platform web 未变。根 `AGENTS.md` 与 admin timestamp 文件保持未跟踪，未纳入提交。
+- Remote sync: PASS — `origin/main` 从 `69917440` 快进至 `b7c24750`，功能提交与 `--no-ff` 合并均已推送。
+- Loop branch cleanup: PASS — 本地 `loop/lm7-09-light-workbenches` 已删除；未创建远端 Loop 分支或额外 worktree。
+- Evidence: `dramaip-desktop/packages/app/src/{styles.css,studio-app.tsx}`、`tests/electron/lm7-ui-visual.spec.ts`、两份浅色视觉基线、用户指南、`b6680aa5` 与 `b7c24750`。
+- Unfinished: 无。
+- Next attempt: 无；后续主题问题作为新的独立兼容 Loop 处理。
