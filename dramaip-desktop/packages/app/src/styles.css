@@ -138,17 +138,20 @@ select:focus {
   box-shadow: var(--shadow-card);
 }
 
-#root button[class*="bg-brand"] {
+#root button[class~="bg-brand"] {
   border-color: var(--color-studio-dark);
   background-color: var(--color-studio-dark);
   box-shadow: 0 10px 24px -18px rgba(150, 57, 31, 0.75);
 }
-#root button[class*="bg-brand"]:hover:not(:disabled) {
+#root button[class~="bg-brand"]:hover:not(:disabled) {
   border-color: var(--color-rust);
   background-color: var(--color-rust);
 }
 
-#root button[class*="border-line"]:not([class*="rounded-none"]) {
+#root
+  button[class~="border-line"]:not([class~="rounded-none"]):not(
+    [class~="rounded-xl"]
+  ):not([class~="rounded-2xl"]) {
   border-radius: 999px;
 }
 

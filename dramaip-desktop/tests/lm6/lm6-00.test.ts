@@ -70,7 +70,7 @@ test("LM6-00 事实文档与当前导航及基线命令保持一致", () => {
   );
   for (const [path, label] of [
     ["/", "项目"],
-    ["/create", "创作"],
+    ["/write", "小说写作"],
     ["/adapt", "改编"],
     ["/produce", "制作"],
     ["/review", "审核交付"],
@@ -79,7 +79,7 @@ test("LM6-00 事实文档与当前导航及基线命令保持一致", () => {
     ["/tasks", "任务"],
     ["/settings", "设置"],
   ]) {
-    expect(appSource).toContain(`<Link to="${path}">${label}</Link>`);
+    expect(appSource).toContain(`["${path}", "${label}"]`);
   }
 
   const guide = readFileSync(

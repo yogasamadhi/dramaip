@@ -25,9 +25,11 @@ test.beforeAll(async () => {
   });
   page = await application.firstWindow();
   await page.waitForLoadState("domcontentloaded");
-  await expect(page.getByText("从故事到可交付内容")).toBeVisible({
-    timeout: 30_000,
-  });
+  await expect(page.getByRole("heading", { name: "选择开始方式" })).toBeVisible(
+    {
+      timeout: 30_000,
+    },
+  );
 });
 
 test.afterAll(async () => {
@@ -36,6 +38,9 @@ test.afterAll(async () => {
 });
 
 test("全中文项目壳与示例项目纵向链路可用", async () => {
+  await expect(
+    page.getByRole("link", { name: "小说写作", exact: true }),
+  ).toBeVisible();
   const buttonTexts = await page.getByRole("button").allTextContents();
   const englishOnly = buttonTexts
     .map((value) => value.trim())
@@ -109,14 +114,20 @@ test("小说工作区保留旧版入口并按需打开智能写作抽屉", async
     .getByRole("link", { name: /示例短剧：雨夜归来/ })
     .first()
     .click();
-  for (const label of ["设定", "人物", "大纲", "章节", "故事圣经"])
+  for (const label of [
+    "正文写作",
+    "全书大纲",
+    "人物",
+    "项目设定",
+    "故事圣经",
+  ])
     await expect(
       page.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "更多创作工具", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "章节", exact: true }).click();
+  await page.getByRole("button", { name: "正文写作", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "章节正文编辑器" }),
   ).toBeVisible();

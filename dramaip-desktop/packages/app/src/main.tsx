@@ -362,13 +362,21 @@ function WorkspaceIntro(props: {
   badge?: string;
 }) {
   return (
-    <section className="studio-grid relative overflow-hidden rounded-[28px] border border-[#dcc8b6] bg-sand/70 px-6 py-6 shadow-card sm:px-7">
+    <section className="relative isolate overflow-hidden rounded-[26px] border border-[#e1d7ce] bg-[linear-gradient(125deg,#fffdfb_0%,#faf6f1_56%,#f2e9df_100%)] px-6 py-6 shadow-[0_22px_55px_-38px_rgba(61,42,30,0.5)] sm:px-7">
       <div
         aria-hidden="true"
-        className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-white/45 blur-3xl"
+        className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
       />
-      <div className="relative flex flex-wrap items-end justify-between gap-5">
-        <div className="max-w-3xl">
+      <div
+        aria-hidden="true"
+        className="absolute -right-20 -top-32 h-72 w-72 rounded-full bg-[#e7cdbc]/45 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute -bottom-28 left-[38%] h-44 w-96 rounded-full bg-white/65 blur-3xl"
+      />
+      <div className="relative flex min-h-28 flex-wrap items-end justify-between gap-x-10 gap-y-4">
+        <div className="max-w-3xl border-l-2 border-[#c87558]/70 pl-5">
           <p className="studio-eyebrow">{props.eyebrow}</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-[2rem]">
             {props.title}
@@ -377,9 +385,9 @@ function WorkspaceIntro(props: {
             {props.description}
           </p>
         </div>
-        <span className="rounded-full bg-studio-dark px-4 py-2 text-xs font-medium text-white shadow-card">
+        <p className="mb-1 text-xs font-medium tracking-[0.08em] text-stone-500">
           {props.badge ?? "本地工作区"}
-        </span>
+        </p>
       </div>
     </section>
   );
@@ -387,6 +395,18 @@ function WorkspaceIntro(props: {
 
 function Studio() {
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const location = useLocation();
+  const navigationItems = [
+    ["/", "项目"],
+    ["/write", "小说写作"],
+    ["/adapt", "改编"],
+    ["/produce", "制作"],
+    ["/review", "审核交付"],
+    ["/insights", "数据洞察"],
+    ["/search", "搜索"],
+    ["/tasks", "任务"],
+    ["/settings", "设置"],
+  ] as const;
   useEffect(() => {
     if (!assistantOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -398,7 +418,7 @@ function Studio() {
   return (
     <div className="min-h-screen bg-canvas">
       <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/90 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[72px] max-w-[1720px] items-center gap-6 px-5 py-3 lg:px-8">
+        <div className="mx-auto flex min-h-[82px] max-w-[1720px] items-center gap-5 px-5 py-3 lg:px-8">
           <Link
             to="/"
             className="flex shrink-0 items-center gap-3 text-lg font-semibold tracking-tight text-ink"
@@ -414,22 +434,32 @@ function Studio() {
             </span>
           </Link>
           <nav
-            className="studio-scrollbar flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto text-sm"
+            className="studio-scrollbar flex min-w-0 flex-1 items-center justify-start gap-2 overflow-x-auto py-1 text-base xl:justify-end"
             aria-label="主导航"
           >
-            <Link to="/">项目</Link>
-            <Link to="/create">创作</Link>
-            <Link to="/adapt">改编</Link>
-            <Link to="/produce">制作</Link>
-            <Link to="/review">审核交付</Link>
-            <Link to="/insights">数据洞察</Link>
-            <Link to="/search">搜索</Link>
-            <Link to="/tasks">任务</Link>
-            <Link to="/settings">设置</Link>
+            {navigationItems.map(([to, label]) => {
+              const active =
+                to === "/"
+                  ? location.pathname === "/"
+                  : to === "/write"
+                    ? location.pathname === "/write" ||
+                      location.pathname.startsWith("/projects/")
+                  : location.pathname.startsWith(to);
+              return (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-current={active ? "page" : undefined}
+                  className={`shrink-0 rounded-xl border px-3.5 py-2.5 font-medium leading-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c87558]/30 focus-visible:ring-offset-2 ${active ? "border-[#d5a18e] bg-brand-soft text-rust shadow-sm" : "border-line/90 bg-white/70 text-stone-600 shadow-sm hover:-translate-y-px hover:border-[#d6a994] hover:bg-white hover:text-ink hover:shadow-card"}`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
           <button
             aria-label="打开智能助手"
-            className="shrink-0 rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
+            className="shrink-0 rounded-xl border border-studio-dark bg-studio-dark px-5 py-3 text-base font-semibold text-white shadow-card hover:-translate-y-0.5 hover:border-rust hover:bg-rust hover:shadow-studio"
             onClick={() => setAssistantOpen(true)}
           >
             智能助手
@@ -440,6 +470,7 @@ function Studio() {
         <Routes>
           <Route path="/" element={<ProjectHome />} />
           <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+          <Route path="/write" element={<NovelWritingHome />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/create" element={<CreativeWorkspace />} />
           <Route path="/adapt" element={<AdaptationWorkspace />} />
@@ -711,6 +742,106 @@ function ProjectPackageImportPanel(props: {
   );
 }
 
+function NovelWritingHome() {
+  const client = useStudio();
+  const {
+    data: projects = [],
+    error,
+    isLoading,
+  } = useQuery({
+    queryKey: ["novel-writing-projects"],
+    queryFn: client.projects.list,
+  });
+  return (
+    <div className="space-y-5">
+      <WorkspaceIntro
+        eyebrow="核心工作区"
+        title="小说写作"
+        description="集中完成项目设定、人物塑造、全书大纲和章节正文，并在同一上下文中使用智能写作。"
+        badge="主要创作入口"
+      />
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">继续写作</h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              选择一个项目后直接进入章节正文编辑器。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/create"
+              className="rounded-xl border border-line bg-white px-4 py-2.5 text-sm font-medium text-muted shadow-sm hover:border-[#d6a994] hover:text-rust"
+            >
+              创作分析工具
+            </Link>
+            <Link
+              to="/"
+              className="rounded-xl border border-studio-dark bg-studio-dark px-4 py-2.5 text-sm font-medium text-white shadow-card hover:border-rust hover:bg-rust"
+            >
+              新建或导入项目
+            </Link>
+          </div>
+        </div>
+        {error && (
+          <p className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+            {message(error)}
+          </p>
+        )}
+        {isLoading ? (
+          <p className="mt-5 text-sm text-muted">正在读取小说项目…</p>
+        ) : projects.length ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <Link
+                key={project.id}
+                to={`/projects/${project.id}`}
+                className="group rounded-2xl border border-stone-200 bg-white/80 p-5 shadow-[0_10px_30px_-26px_rgba(61,42,30,0.45)] transition-all hover:-translate-y-0.5 hover:border-[#d6a994] hover:bg-[#fffaf7] hover:shadow-card"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-xs font-medium text-rust">
+                    {project.shortDramaType}
+                  </span>
+                  <span className="text-xs text-muted">
+                    版本 {project.version + 1}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-lg font-semibold tracking-tight text-ink group-hover:text-rust">
+                  {project.title}
+                </h3>
+                <p className="mt-2 line-clamp-2 min-h-12 text-sm leading-6 text-muted">
+                  {project.synopsis || "尚未填写项目简介"}
+                </p>
+                <div className="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4 text-sm">
+                  <span className="text-muted">
+                    {project.targetWordCount
+                      ? `目标 ${project.targetWordCount} 字`
+                      : "尚未设置目标字数"}
+                  </span>
+                  <span className="font-medium text-rust">进入正文写作 →</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-dashed border-[#d8c7b7] bg-[#fffaf7] p-8 text-center">
+            <h3 className="font-semibold">还没有可写作的小说项目</h3>
+            <p className="mt-2 text-sm text-muted">
+              先从灵感创建项目，或导入已有原著开始写作。
+            </p>
+            <Link
+              to="/"
+              className="mt-4 inline-flex rounded-xl bg-studio-dark px-4 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
+            >
+              创建第一个项目
+            </Link>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function ProjectHome() {
   const client = useStudio();
   const navigate = useNavigate();
@@ -840,62 +971,12 @@ function ProjectHome() {
   };
   return (
     <div className="space-y-8">
-      <section className="relative overflow-hidden rounded-[32px] border border-[#d8c7b7] bg-sand shadow-studio">
-        <div className="studio-grid absolute inset-0 opacity-70" />
-        <div className="relative grid min-h-[320px] items-center gap-10 p-8 lg:grid-cols-[1.15fr_.85fr] lg:p-10">
-          <div>
-            <p className="studio-eyebrow">AI 漫剧创作与生产工作台</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-semibold leading-tight tracking-[-0.035em] text-ink lg:text-5xl">
-              从故事到可交付内容
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-stone-700">
-              让小说创作、故事圣经、改编生产和智能助手工作流保持同一份上下文，每一次采用都有版本，每一次改动都可以恢复。
-            </p>
-            <div className="mt-7 flex flex-wrap gap-2 text-xs text-stone-600">
-              {[
-                "三智能引擎",
-                "本地项目数据库",
-                "受控内容修改",
-                "远程媒体生成",
-              ].map((label) => (
-                <span
-                  key={label}
-                  className="rounded-full border border-stone-400/50 bg-white/55 px-3 py-1.5 backdrop-blur-sm"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="relative overflow-hidden rounded-[26px] border border-stone-700 bg-studio-dark p-4 text-white shadow-studio">
-            <div className="flex items-center justify-between px-1 pb-4 text-[11px] text-stone-400">
-              <span>DRAMAIP · 创作流程</span>
-              <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-emerald-300">
-                本地服务已连接
-              </span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                ["01", "小说创作", "设定 · 人物 · 大纲 · 正文"],
-                ["02", "改编拆解", "分集 · 剧本 · 场景 · 分镜"],
-                ["03", "媒体生产", "图片 · 音频 · 视频 · 动态分镜"],
-                ["04", "审核交付", "质量 · 合规 · 审片 · 导出"],
-              ].map(([number, label, detail], index) => (
-                <div
-                  key={number}
-                  className={`rounded-2xl border p-4 ${index === 0 ? "border-[#e98765] bg-[#49332b]" : "border-stone-700 bg-[#191918]"}`}
-                >
-                  <p className="font-mono text-[10px] text-[#e98765]">
-                    {number}
-                  </p>
-                  <p className="mt-5 text-sm font-medium">{label}</p>
-                  <p className="mt-1 text-[11px] text-stone-400">{detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <WorkspaceIntro
+        eyebrow="本地项目库"
+        title="项目工作台"
+        description="创建、导入和管理创作项目，从已有内容继续推进下一步工作。"
+        badge="项目管理"
+      />
       <section className="rounded-2xl border border-line bg-surface p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -934,20 +1015,40 @@ function ProjectHome() {
                 "已有剧本可直接粘贴为首集草稿，也可选择文件进入同一预览流程。",
               outcome: "首个产出：可编辑的首集剧本草稿",
             },
-          ].map((path) => (
-            <button
-              key={path.source}
-              className={`rounded-xl border p-4 text-left transition ${creationSource === path.source ? "border-brand bg-brand-soft" : "border-line hover:border-brand"}`}
-              aria-pressed={creationSource === path.source}
-              onClick={() => selectCreationSource(path.source)}
-            >
-              <p className="font-medium">{path.title}</p>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                {path.description}
-              </p>
-              <p className="mt-3 text-xs text-brand">{path.outcome}</p>
-            </button>
-          ))}
+          ].map((path) => {
+            const selected = creationSource === path.source;
+            return (
+              <button
+                key={path.source}
+                className={`group relative min-h-40 overflow-hidden rounded-2xl border px-5 py-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c87558]/30 focus-visible:ring-offset-2 ${selected ? "border-[#d18a72] bg-[#fff6f1] shadow-[0_12px_30px_-24px_rgba(145,61,34,0.55)]" : "border-stone-200 bg-white/70 shadow-[0_8px_24px_-24px_rgba(61,42,30,0.35)] hover:-translate-y-0.5 hover:border-[#d6a994] hover:bg-[#fffaf7] hover:shadow-card"}`}
+                aria-pressed={selected}
+                onClick={() => selectCreationSource(path.source)}
+              >
+                {selected && (
+                  <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-[#e2b7a7] bg-white/85 px-2.5 py-1 text-[11px] font-medium text-rust shadow-sm">
+                    <span
+                      aria-hidden="true"
+                      className="grid h-4 w-4 place-items-center rounded-full bg-rust text-[10px] text-white"
+                    >
+                      ✓
+                    </span>
+                    已选择
+                  </span>
+                )}
+                <p
+                  className={`pr-20 font-medium transition-colors ${selected ? "text-rust" : "text-ink"}`}
+                >
+                  {path.title}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-stone-600">
+                  {path.description}
+                </p>
+                <p className="mt-3 text-xs font-medium text-rust/90">
+                  {path.outcome}
+                </p>
+              </button>
+            );
+          })}
         </div>
         {creationSource && (
           <div className="mt-5 border-t border-line pt-5">
@@ -1143,7 +1244,7 @@ function ProjectHome() {
                 <p className="mt-3 min-h-12 line-clamp-2 text-sm leading-6 text-muted">
                   {project.synopsis || "尚未填写项目简介"}
                 </p>
-                <p className="mt-6 text-sm font-medium text-rust">进入项目 →</p>
+                <p className="mt-6 text-sm font-medium text-rust">继续写作 →</p>
               </Link>
               <button
                 className="mt-5 text-xs text-muted hover:text-red-600"
@@ -1411,33 +1512,36 @@ function ProjectWorkspace() {
           {exportNotice}
         </p>
       )}
-      <ProjectCockpitPanel project={project} chapters={chapters} />
-      <ProjectPilotPanel project={project} chapters={chapters} />
-      <SeriesLibraryPanel project={project} onProjectChanged={setProject} />
-      <ImportExtractionReviewPanel projectId={project.id} onChanged={load} />
       <nav
-        className="flex flex-wrap gap-1 rounded-[24px] border border-line bg-[#eee8e1]/85 p-1.5 shadow-card backdrop-blur-sm"
+        className="flex flex-wrap items-center gap-2 rounded-[22px] border border-[#dfd3c8] bg-white/90 p-2 shadow-card backdrop-blur-sm"
         aria-label="小说创作入口"
       >
+        <div className="px-3 py-1">
+          <p className="text-[10px] font-semibold tracking-[0.14em] text-rust">
+            核心工作区
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-ink">小说写作</p>
+        </div>
+        <span aria-hidden="true" className="mx-1 hidden h-8 w-px bg-line sm:block" />
         {(
           [
-            ["settings", "设定"],
+            ["chapters", "正文写作"],
+            ["outlines", "全书大纲"],
             ["characters", "人物"],
-            ["outlines", "大纲"],
-            ["chapters", "章节"],
+            ["settings", "项目设定"],
             ["story-bible", "故事圣经"],
           ] as const
         ).map(([value, label]) => (
           <button
             key={value}
-            className={`rounded-full px-5 py-2.5 text-sm ${novelSection === value ? "bg-studio-dark font-medium text-white shadow-card" : "text-muted hover:bg-white hover:text-ink"}`}
+            className={`rounded-xl border px-4 py-2.5 text-sm transition-all ${novelSection === value ? "border-studio-dark bg-studio-dark font-medium text-white shadow-card" : "border-transparent text-muted hover:border-line hover:bg-[#faf7f3] hover:text-ink"}`}
             onClick={() => setNovelSection(value)}
           >
             {label}
           </button>
         ))}
         <button
-          className={`ml-auto rounded-full px-5 py-2.5 text-sm ${novelSection === "more" ? "bg-white font-medium text-rust shadow-card" : "text-muted hover:bg-white hover:text-ink"}`}
+          className={`ml-auto rounded-xl border px-4 py-2.5 text-sm ${novelSection === "more" ? "border-[#d5a18e] bg-brand-soft font-medium text-rust shadow-sm" : "border-transparent text-muted hover:border-line hover:bg-[#faf7f3] hover:text-ink"}`}
           onClick={() => setNovelSection("more")}
         >
           更多创作工具
@@ -1517,6 +1621,19 @@ function ProjectWorkspace() {
           />
         </div>
       )}
+      <section className="space-y-4 border-t border-line pt-6" aria-label="项目辅助区">
+        <div>
+          <p className="studio-eyebrow">辅助工作区</p>
+          <h2 className="mt-1 text-xl font-semibold">项目分析与生产准备</h2>
+          <p className="mt-1 text-sm text-muted">
+            驾驶舱、试制计划、系列资料和导入审查服务于写作，不占用核心编辑区。
+          </p>
+        </div>
+        <ProjectCockpitPanel project={project} chapters={chapters} />
+        <ProjectPilotPanel project={project} chapters={chapters} />
+        <SeriesLibraryPanel project={project} onProjectChanged={setProject} />
+        <ImportExtractionReviewPanel projectId={project.id} onChanged={load} />
+      </section>
     </div>
   );
 }

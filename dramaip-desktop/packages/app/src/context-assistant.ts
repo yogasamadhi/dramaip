@@ -153,6 +153,7 @@ export type ContextAssistantAction = ContextActionSpec & AgentTaskDescriptor;
 
 export function contextAssistantPage(pathname: string): ContextAssistantPage {
   if (pathname.startsWith("/projects/")) return "project";
+  if (pathname.startsWith("/write")) return "create";
   if (pathname.startsWith("/create")) return "create";
   if (pathname.startsWith("/adapt")) return "adapt";
   if (pathname.startsWith("/produce")) return "produce";
