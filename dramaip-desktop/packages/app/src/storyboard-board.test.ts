@@ -61,7 +61,9 @@ test("导演看板从权威层级、资产引用和静帧状态派生卡片", ()
         资产版本引用: ["character-1", "voice-1"],
       }),
     ],
-    stills: [entity("still-1", "shot-stills", "shot-1", { 采用状态: "已采用" })],
+    stills: [
+      entity("still-1", "shot-stills", "shot-1", { 采用状态: "已采用" }),
+    ],
     assets: [asset("character-1", "character"), asset("voice-1", "voice")],
   });
   expect(board.map((scene) => scene.id)).toEqual(["scene-1", "scene-2"]);

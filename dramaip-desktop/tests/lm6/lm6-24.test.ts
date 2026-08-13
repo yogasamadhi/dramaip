@@ -31,7 +31,10 @@ test("LM6-24 将最小上传、凭据隔离和 client cursor 回流固定为跨�
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const nodeContract = readFileSync(
     join(root, "packages/server/src/sidecar.node.test.ts"),
     "utf8",

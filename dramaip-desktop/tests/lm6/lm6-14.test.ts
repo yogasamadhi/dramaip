@@ -20,7 +20,10 @@ test("LM6-14 锁定编辑器侧栏、选择性 Story Bible 变更与离线边界
     join(root, "packages/app/src/story-bible-sidecar.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const schema = readFileSync(
     join(root, "packages/schema/src/index.ts"),
     "utf8",

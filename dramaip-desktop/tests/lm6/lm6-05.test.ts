@@ -29,7 +29,7 @@ test("LM6-05 锁定 1–3 集试制状态机与权威覆盖率边界", () => {
     "utf8",
   );
   const app = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
+    join(desktopRoot, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
   expect(fixture.version).toBe(1);

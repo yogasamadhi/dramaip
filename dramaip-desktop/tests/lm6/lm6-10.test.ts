@@ -23,11 +23,11 @@ test("LM6-10 资产中心契约覆盖四类资产、锁、用途与诚实媒体�
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
-  const guide = readFileSync(
-    join(root, "docs/product/USER_GUIDE.md"),
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
+  const guide = readFileSync(join(root, "docs/product/USER_GUIDE.md"), "utf8");
   expect(fixture.version).toBe(1);
   expect(fixture.categories).toEqual(["character", "scene", "prop", "voice"]);
   expect(fixture.states).toContain("missing");

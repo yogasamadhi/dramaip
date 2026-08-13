@@ -62,8 +62,11 @@ test("小说导入后可审阅五类候选并选择性采用", async () => {
   expect(await choices.count()).toBeGreaterThan(1);
   for (let index = 1; index < (await choices.count()); index += 1)
     await choices.nth(index).uncheck();
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "采用已选项目" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "确认", exact: true })
+    .click();
   await expect(
     page.getByText("已采用所选候选，并保留可撤销记录。"),
   ).toBeVisible();

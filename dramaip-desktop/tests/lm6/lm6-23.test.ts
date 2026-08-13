@@ -31,7 +31,10 @@ test("LM6-23 将系列边界、版本快照和项目内资产投影固定为契�
     join(root, "packages/client/src/generated.template.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const serverContract = readFileSync(
     join(root, "packages/server/src/sidecar.node.test.ts"),
     "utf8",

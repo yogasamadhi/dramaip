@@ -62,7 +62,7 @@ test("LM6-03 简洁助手注册表穷尽核验权威任务目录且不复制任�
 
 test("LM6-03 预检与远程费用门禁保持推荐、任务快照和预览采用链路分离", () => {
   const source = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
+    join(desktopRoot, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
   const schema = readFileSync(

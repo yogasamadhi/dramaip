@@ -34,7 +34,10 @@ test("LM6-21 将可审查的自动音频、字幕与人工编辑保护固定为�
     join(root, "packages/server/src/sidecar.node.test.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const guide = readFileSync(join(root, "docs/product/USER_GUIDE.md"), "utf8");
   const electron = readFileSync(
     join(root, "tests/electron", fixture.requiredElectronSpec),

@@ -32,6 +32,7 @@ declare global {
         storage: "local_encrypted_file";
         message?: string;
       }>;
+      setWindowTheme(theme: "light" | "dark"): Promise<void>;
     };
   }
 }

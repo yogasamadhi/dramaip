@@ -15,7 +15,10 @@ test("LM6-13 锁定四轨、来源版本与人工标记的节奏契约", () => {
     join(root, "packages/app/src/episode-pacing.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const server = readFileSync(
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",

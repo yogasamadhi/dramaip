@@ -64,10 +64,12 @@ test("LM6-00 结果契约明确可验证结果与诚实状态词", () => {
 });
 
 test("LM6-00 事实文档与当前导航及基线命令保持一致", () => {
-  const appSource = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
-    "utf8",
-  );
+  const appSource = [
+    "packages/app/src/studio-app.tsx",
+    "packages/app/src/app-shell.tsx",
+  ]
+    .map((path) => readFileSync(join(desktopRoot, path), "utf8"))
+    .join("\n");
   for (const [path, label] of [
     ["/", "项目"],
     ["/write", "小说写作"],
@@ -86,9 +88,7 @@ test("LM6-00 事实文档与当前导航及基线命令保持一致", () => {
     join(desktopRoot, "docs/product/USER_GUIDE.md"),
     "utf8",
   );
-  expect(guide).toContain(
-    "项目 / 创作 / 改编 / 制作 / 审核交付 / 数据洞察 / 搜索 / 任务 / 设置",
-  );
+  expect(guide).toContain("项目 / 小说写作 / 改编 / 制作 / 审核交付 / 更多");
   const packageJson = JSON.parse(
     readFileSync(join(desktopRoot, "package.json"), "utf8"),
   ) as { scripts: Record<string, string> };

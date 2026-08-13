@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type ReactNode,
 } from "react";
 import { Link } from "react-router-dom";
 import type { StudioClient } from "@sdns/client";
@@ -23,6 +24,7 @@ import type {
   Task,
 } from "@sdns/schema";
 import { MODEL_PROVIDER_CATALOG } from "@sdns/schema";
+import { BareButton, Button, Dialog, Textarea } from "@sdns/ui";
 import {
   buildSegmentedTextDiff,
   changedBlockIds,
@@ -111,6 +113,10 @@ export interface NovelChapterWorkspaceProps {
   onRemoveChapter(chapter: Chapter): Promise<void>;
   onReorderChapters(chapterIds: string[]): Promise<void>;
   onReload(): Promise<void> | void;
+  renderStoryBibleSidecar?(input: {
+    chapter: Chapter;
+    content: string;
+  }): ReactNode;
 }
 
 interface AiAction {
@@ -465,26 +471,27 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
   };
 
   return (
-    <section className="relative flex min-h-[720px] overflow-hidden rounded-[28px] border border-line bg-surface shadow-studio">
-      <aside className="flex w-[272px] shrink-0 flex-col border-r border-line bg-[#f1ebe4]">
+    <section className="relative flex min-h-[720px] overflow-hidden rounded-xl border border-line bg-surface shadow-float">
+      <aside className="flex w-[272px] shrink-0 flex-col border-r border-line bg-page">
         <div className="space-y-3 border-b border-line p-4">
           <div className="flex items-center gap-2">
             <label className="min-w-0 flex-1">
               <span className="sr-only">搜索章节</span>
               <input
                 ref={searchInputRef}
-                className="h-10 w-full rounded-xl border border-line bg-white/90 px-3 text-sm shadow-card"
+                className="h-10 w-full rounded-xl border border-line bg-surface-raised/90 px-3 text-sm shadow-card"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="搜索章节"
               />
             </label>
-            <button
+            <BareButton
+              aria-label="＋"
               className="h-10 shrink-0 rounded-full bg-studio-dark px-4 text-sm font-medium text-white shadow-card hover:bg-rust"
               onClick={() => void props.onCreateChapter()}
             >
               新建
-            </button>
+            </BareButton>
           </div>
           <p className="text-xs text-muted">
             共 {props.chapters.length} 章
@@ -496,10 +503,12 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
           {checked.size > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-brand-soft p-2 text-xs text-brand">
               <span className="min-w-0 flex-1">已选 {checked.size} 章</span>
-              <button className="font-medium" onClick={moveCheckedToEnd}>
+              <BareButton className="font-medium" onClick={moveCheckedToEnd}>
                 移至末尾
-              </button>
-              <button onClick={() => setChecked(new Set())}>取消</button>
+              </BareButton>
+              <BareButton onClick={() => setChecked(new Set())}>
+                取消
+              </BareButton>
             </div>
           )}
         </div>
@@ -512,7 +521,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
             return (
               <section key={group.id} className="mb-1">
                 {group.title && (
-                  <button
+                  <BareButton
                     className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-medium text-muted hover:text-brand"
                     aria-expanded={!collapsed}
                     onClick={() =>
@@ -529,7 +538,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                       {group.title}
                     </span>
                     <span>{group.chapters.length} 章</span>
-                  </button>
+                  </BareButton>
                 )}
                 {!collapsed &&
                   group.chapters.map((chapter) => {
@@ -541,10 +550,10 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                         draggable
                         role="treeitem"
                         aria-selected={selected}
-                        className={`group mb-2 flex items-start gap-1 rounded-2xl border p-2.5 transition ${
+                        className={`group mb-2 flex items-start gap-1 rounded-xl border p-2.5 transition ${
                           selected
-                            ? "border-[#cf8b72] bg-white shadow-card"
-                            : "border-transparent hover:border-[#d9c9bd] hover:bg-white/75"
+                            ? "border-brand bg-surface-raised shadow-card"
+                            : "border-transparent hover:border-line-strong hover:bg-surface-raised/75"
                         } ${draggingId === chapter.id ? "opacity-50" : ""}`}
                         onDragStart={(event: DragEvent<HTMLDivElement>) => {
                           event.dataTransfer.setData("text/plain", chapter.id);
@@ -563,7 +572,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                         }}
                       >
                         <span
-                          className="mt-1 text-xs text-slate-300"
+                          className="mt-1 text-xs text-muted"
                           aria-hidden="true"
                         >
                           ⋮⋮
@@ -582,7 +591,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                             })
                           }
                         />
-                        <button
+                        <BareButton
                           className="min-w-0 flex-1 text-left"
                           onClick={() => props.onSelectChapter(chapter.id)}
                         >
@@ -616,7 +625,7 @@ export function NovelChapterWorkspace(props: NovelChapterWorkspaceProps) {
                               </span>
                             )}
                           </span>
-                        </button>
+                        </BareButton>
                       </div>
                     );
                   })}
@@ -675,6 +684,16 @@ function NovelEditor(
   const [lengthPreview, setLengthPreview] = useState<ChangePreview>();
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionContent, setRevisionContent] = useState(props.chapter.content);
+  const [revisionRationale, setRevisionRationale] = useState("");
+  const [revisionPreview, setRevisionPreview] = useState<{
+    id: string;
+    baseVersion: number;
+    proposedContent: string;
+    rationale: string;
+  }>();
+  const [revisionError, setRevisionError] = useState<string>();
   const [chapterDetails, setChapterDetails] = useState<Record<string, string>>(
     () =>
       Object.fromEntries(
@@ -777,6 +796,11 @@ function NovelEditor(
     setRecovery(readRecovery(props.chapter));
     setSaveState("clean");
     setSaveError(undefined);
+    setRevisionOpen(false);
+    setRevisionContent(props.chapter.content);
+    setRevisionRationale("");
+    setRevisionPreview(undefined);
+    setRevisionError(undefined);
     setChapterDetails(
       Object.fromEntries(
         CHAPTER_DETAIL_FIELDS.map(([key]) => [
@@ -1219,267 +1243,407 @@ function NovelEditor(
     Math.round((wordCount / preferences.wordGoal) * 100),
   );
 
-  return (
-    <article className="relative flex min-w-0 flex-1 flex-col bg-white">
-      <header className="flex min-h-[76px] flex-wrap items-center gap-3 border-b border-line bg-white/90 px-5 py-3 backdrop-blur-xl">
-        <input
-          className="min-w-[160px] flex-1 border-0 bg-transparent text-lg font-semibold outline-none"
-          value={title}
-          disabled={Boolean(activeRun)}
-          aria-label="章节标题"
-          onChange={(event) => {
-            setTitle(event.target.value);
-            setSaveState("dirty");
-          }}
-        />
-        <span
-          className={`text-xs ${saveState === "error" ? "text-red-600" : "text-muted"}`}
-        >
-          {saveStateLabel(saveState)}
-        </span>
-        <span className="text-xs tabular-nums text-muted">
-          {wordCount} / {preferences.wordGoal} 字
-        </span>
-        <button
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted hover:border-stone-400 hover:text-ink"
-          onClick={() => void openVersions()}
-        >
-          版本记录
-        </button>
-        <button
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted hover:border-stone-400 hover:text-ink"
-          onClick={() => setDetailsOpen(true)}
-        >
-          章节要点
-        </button>
-        <button
-          className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-          onClick={() => void props.onRemoveChapter(props.chapter)}
-        >
-          删除本章
-        </button>
-        <button
-          className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
-          onClick={() => setDrawerOpen(true)}
-        >
-          智能写作
-        </button>
-      </header>
+  const openRevision = (): void => {
+    setRevisionContent(content);
+    setRevisionRationale("");
+    setRevisionPreview(undefined);
+    setRevisionError(undefined);
+    setRevisionOpen(true);
+  };
 
-      {recovery && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
-          <span className="min-w-0 flex-1">
-            发现 {new Date(recovery.updatedAt).toLocaleString("zh-CN")}{" "}
-            的未保存草稿。
+  const createRevisionPreview = async (): Promise<void> => {
+    setBusy(true);
+    setRevisionError(undefined);
+    try {
+      const saved = await persist();
+      const created = await props.client.revisions.create(
+        {
+          chapterId: saved.id,
+          proposedContent: revisionContent,
+          rationale: revisionRationale,
+        },
+        crypto.randomUUID(),
+      );
+      setRevisionPreview(created);
+    } catch (cause) {
+      setRevisionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commitRevisionPreview = async (): Promise<void> => {
+    if (!revisionPreview) return;
+    setBusy(true);
+    setRevisionError(undefined);
+    try {
+      await props.client.revisions.commit(
+        revisionPreview.id,
+        revisionPreview.baseVersion,
+        crypto.randomUUID(),
+      );
+      setRevisionOpen(false);
+      setRevisionPreview(undefined);
+      await props.onReload();
+      props.onWorkspaceChanged();
+    } catch (cause) {
+      setRevisionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <article className="relative flex min-w-0 flex-1 flex-col bg-surface-raised">
+        <header className="flex min-h-[76px] flex-wrap items-center gap-3 border-b border-line bg-surface-raised/90 px-5 py-3 backdrop-blur-xl">
+          <input
+            className="min-w-[160px] flex-1 border-0 bg-transparent text-lg font-semibold outline-none"
+            value={title}
+            disabled={Boolean(activeRun)}
+            aria-label="章节标题"
+            onChange={(event) => {
+              setTitle(event.target.value);
+              setSaveState("dirty");
+            }}
+          />
+          <span
+            className={`text-xs ${saveState === "error" ? "text-red-600" : "text-muted"}`}
+          >
+            {saveStateLabel(saveState)}
           </span>
-          <button className="font-medium underline" onClick={restoreRecovery}>
-            恢复草稿
-          </button>
-          <button className="underline" onClick={discardRecovery}>
-            使用已保存正文
-          </button>
-        </div>
-      )}
-      {saveError && (
-        <div className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">
-          {saveError}　
-          <button
-            className="font-medium underline"
+          <span className="text-xs tabular-nums text-muted">
+            {wordCount} / {preferences.wordGoal} 字
+          </span>
+          <BareButton
+            className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
+            onClick={() => setDrawerOpen(true)}
+          >
+            智能写作
+          </BareButton>
+          <BareButton
+            className="rounded-full border border-line bg-surface-raised px-4 py-2 text-sm text-muted hover:border-line-strong hover:text-ink"
+            onClick={() => void openVersions()}
+          >
+            版本记录
+          </BareButton>
+          <BareButton
+            className="rounded-full border border-line bg-surface-raised px-4 py-2 text-sm text-muted hover:border-line-strong hover:text-ink"
+            onClick={() => setDetailsOpen(true)}
+          >
+            章节要点
+          </BareButton>
+          <Button variant="secondary" size="sm" onClick={openRevision}>
+            修订预览
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={saveState === "saving"}
+            disabled={Boolean(activeRun)}
             onClick={() => void persist()}
           >
-            重新保存
-          </button>
-        </div>
-      )}
-      {activeRun && !drawerOpen && (
-        <button
-          className="flex items-center gap-3 border-b border-[#ead4c7] bg-brand-soft px-5 py-2 text-left text-sm text-rust"
-          onClick={() => setDrawerOpen(true)}
+            保存
+          </Button>
+        </header>
+
+        {recovery && (
+          <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+            <span className="min-w-0 flex-1">
+              发现 {new Date(recovery.updatedAt).toLocaleString("zh-CN")}{" "}
+              的未保存草稿。
+            </span>
+            <BareButton
+              className="font-medium underline"
+              onClick={restoreRecovery}
+            >
+              恢复草稿
+            </BareButton>
+            <BareButton className="underline" onClick={discardRecovery}>
+              使用已保存正文
+            </BareButton>
+          </div>
+        )}
+        {saveError && (
+          <div className="border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">
+            {saveError}　
+            <BareButton
+              className="font-medium underline"
+              onClick={() => void persist()}
+            >
+              重新保存
+            </BareButton>
+          </div>
+        )}
+        {activeRun && !drawerOpen && (
+          <BareButton
+            className="flex items-center gap-3 border-b border-line bg-brand-soft px-5 py-2 text-left text-sm text-rust"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <span className="font-medium">
+              {taskStatusLabel(activeRun.status)}
+            </span>
+            <span className="h-1.5 min-w-24 flex-1 overflow-hidden rounded-md bg-surface-raised">
+              <span
+                className="block h-full rounded-md bg-brand transition-all"
+                style={{ width: `${Math.max(3, activeRun.progress * 100)}%` }}
+              />
+            </span>
+            <span>打开写作进度</span>
+          </BareButton>
+        )}
+
+        <EditorToolbar
+          editor={editor}
+          preferences={preferences}
+          onPreferencesChange={setPreferences}
+          selectedText={selectedRange?.text}
+          disabled={Boolean(activeRun)}
+          onPolishSelection={() => {
+            setDrawerOpen(true);
+            if (selectedRange)
+              void startRun("polish_chapter", { selection: selectedRange });
+          }}
+        />
+        <div
+          ref={scrollRef}
+          className="studio-scrollbar min-h-0 flex-1 overflow-auto bg-page"
         >
-          <span className="font-medium">
-            {taskStatusLabel(activeRun.status)}
-          </span>
-          <span className="h-1.5 min-w-24 flex-1 overflow-hidden rounded bg-white">
+          <div
+            className="novel-tiptap mx-auto my-8 min-h-[calc(100%-4rem)] rounded-xl border border-line bg-field shadow-card"
+            style={{
+              maxWidth: preferences.contentWidth,
+              fontSize: preferences.fontSize,
+              lineHeight: preferences.lineHeight,
+            }}
+          >
+            <EditorContent editor={editor} />
+          </div>
+        </div>
+        <footer className="flex items-center gap-3 border-t border-line px-5 py-2 text-xs text-muted">
+          <span>实时字数 {wordCount}</span>
+          <span className="h-1.5 max-w-56 flex-1 rounded-md bg-surface-muted">
             <span
-              className="block h-full rounded bg-brand transition-all"
-              style={{ width: `${Math.max(3, activeRun.progress * 100)}%` }}
+              className="block h-full rounded-md bg-brand"
+              style={{ width: `${progress}%` }}
             />
           </span>
-          <span>打开写作进度</span>
-        </button>
-      )}
+          <span>
+            建议范围 {Math.max(1, preferences.wordGoal - WORD_GOAL_TOLERANCE)}–
+            {preferences.wordGoal + WORD_GOAL_TOLERANCE} 字
+          </span>
+        </footer>
 
-      <EditorToolbar
-        editor={editor}
-        preferences={preferences}
-        onPreferencesChange={setPreferences}
-        selectedText={selectedRange?.text}
-        disabled={Boolean(activeRun)}
-        onPolishSelection={() => {
-          setDrawerOpen(true);
-          if (selectedRange)
-            void startRun("polish_chapter", { selection: selectedRange });
-        }}
-      />
-      <div
-        ref={scrollRef}
-        className="studio-grid studio-scrollbar min-h-0 flex-1 overflow-auto bg-[#f3eee8]"
-      >
-        <div
-          className="novel-tiptap mx-auto my-8 min-h-[calc(100%-4rem)] rounded-[22px] border border-[#e4ddd5] bg-[#fffefa] shadow-studio"
-          style={{
-            maxWidth: preferences.contentWidth,
-            fontSize: preferences.fontSize,
-            lineHeight: preferences.lineHeight,
-          }}
-        >
-          <EditorContent editor={editor} />
-        </div>
-      </div>
-      <footer className="flex items-center gap-3 border-t border-line px-5 py-2 text-xs text-muted">
-        <span>实时字数 {wordCount}</span>
-        <span className="h-1.5 max-w-56 flex-1 rounded bg-slate-100">
-          <span
-            className="block h-full rounded bg-brand"
-            style={{ width: `${progress}%` }}
+        {drawerOpen && (
+          <WritingDrawer
+            engines={engines}
+            selectedEngine={selectedEngine}
+            engineKind={engineKind}
+            modelId={modelId}
+            instruction={instruction}
+            hasContent={Boolean(content.trim())}
+            busy={busy}
+            activeRun={activeRun}
+            notice={notice}
+            streamText={streamText}
+            wordGoal={preferences.wordGoal}
+            onClose={() => setDrawerOpen(false)}
+            onEngineChange={setEngineKind}
+            onModelChange={setModelId}
+            onInstructionChange={setInstruction}
+            onWordGoalChange={(wordGoal) =>
+              setPreferences((current) => ({ ...current, wordGoal }))
+            }
+            onRun={(taskType) => void startRun(taskType)}
+            onContinueNext={() => void continueNext()}
+            onInterrupt={() => void interrupt()}
+            onRetry={retry}
           />
-        </span>
-        <span>
-          建议范围 {Math.max(1, preferences.wordGoal - WORD_GOAL_TOLERANCE)}–
-          {preferences.wordGoal + WORD_GOAL_TOLERANCE} 字
-        </span>
-      </footer>
+        )}
 
-      {drawerOpen && (
-        <WritingDrawer
-          engines={engines}
-          selectedEngine={selectedEngine}
-          engineKind={engineKind}
-          modelId={modelId}
-          instruction={instruction}
-          hasContent={Boolean(content.trim())}
-          busy={busy}
-          activeRun={activeRun}
-          notice={notice}
-          streamText={streamText}
-          wordGoal={preferences.wordGoal}
-          onClose={() => setDrawerOpen(false)}
-          onEngineChange={setEngineKind}
-          onModelChange={setModelId}
-          onInstructionChange={setInstruction}
-          onWordGoalChange={(wordGoal) =>
-            setPreferences((current) => ({ ...current, wordGoal }))
-          }
-          onRun={(taskType) => void startRun(taskType)}
-          onContinueNext={() => void continueNext()}
-          onInterrupt={() => void interrupt()}
-          onRetry={retry}
-        />
-      )}
+        {preview && diffOpen && (
+          <DiffDialog
+            before={activeRun?.originalContent ?? props.chapter.content}
+            after={proposedContent(preview) ?? ""}
+            rationale={preview.rationale}
+            busy={busy}
+            onCancel={() => {
+              void props.client.changePreviews
+                .discard(preview.id, crypto.randomUUID())
+                .then(() => {
+                  editor?.commands.setContent(
+                    activeRun?.originalContent ?? props.chapter.content,
+                    false,
+                  );
+                  setContent(
+                    activeRun?.originalContent ?? props.chapter.content,
+                  );
+                  setDiffOpen(false);
+                  setPreview(undefined);
+                  finishRun();
+                })
+                .catch((cause) =>
+                  setNotice(
+                    cause instanceof Error ? cause.message : String(cause),
+                  ),
+                );
+            }}
+            onAdopt={(value) => void commitPreview(preview, value)}
+          />
+        )}
 
-      {preview && diffOpen && (
-        <DiffDialog
-          before={activeRun?.originalContent ?? props.chapter.content}
-          after={proposedContent(preview) ?? ""}
-          rationale={preview.rationale}
-          busy={busy}
-          onCancel={() => {
-            void props.client.changePreviews
-              .discard(preview.id, crypto.randomUUID())
-              .then(() => {
-                editor?.commands.setContent(
-                  activeRun?.originalContent ?? props.chapter.content,
-                  false,
-                );
-                setContent(activeRun?.originalContent ?? props.chapter.content);
-                setDiffOpen(false);
-                setPreview(undefined);
-                finishRun();
-              })
-              .catch((cause) =>
-                setNotice(
-                  cause instanceof Error ? cause.message : String(cause),
-                ),
-              );
-          }}
-          onAdopt={(value) => void commitPreview(preview, value)}
-        />
-      )}
-
-      {lengthPreview && (
-        <LengthDialog
-          wordGoal={preferences.wordGoal}
-          actual={countCharacters(proposedContent(lengthPreview) ?? "")}
-          busy={busy}
-          onKeep={() => void commitPreview(lengthPreview)}
-          onDiscard={() => {
-            setBusy(true);
-            void props.client.changePreviews
-              .discard(lengthPreview.id, crypto.randomUUID())
-              .then(() => {
-                editor?.commands.setContent(
-                  activeRun?.originalContent ?? "",
-                  false,
-                );
-                setContent(activeRun?.originalContent ?? "");
-                setLengthPreview(undefined);
-                finishRun();
-              })
-              .catch((cause) => {
-                setBusy(false);
-                setNotice(
-                  cause instanceof Error ? cause.message : String(cause),
-                );
-              });
-          }}
-          onAdjust={() => {
-            const candidate = proposedContent(lengthPreview) ?? "";
-            setBusy(true);
-            void props.client.changePreviews
-              .discard(lengthPreview.id, crypto.randomUUID())
-              .then(() => {
-                setLengthPreview(undefined);
-                finishRun();
-                void startRun("generate_chapter", {
-                  prompt: [
-                    instruction,
-                    `请将下面首稿调整到约 ${preferences.wordGoal} 字，保留情节、人物和结尾钩子，只返回调整后的完整正文：`,
-                    candidate,
-                  ]
-                    .filter(Boolean)
-                    .join("\n\n"),
+        {lengthPreview && (
+          <LengthDialog
+            wordGoal={preferences.wordGoal}
+            actual={countCharacters(proposedContent(lengthPreview) ?? "")}
+            busy={busy}
+            onKeep={() => void commitPreview(lengthPreview)}
+            onDiscard={() => {
+              setBusy(true);
+              void props.client.changePreviews
+                .discard(lengthPreview.id, crypto.randomUUID())
+                .then(() => {
+                  editor?.commands.setContent(
+                    activeRun?.originalContent ?? "",
+                    false,
+                  );
+                  setContent(activeRun?.originalContent ?? "");
+                  setLengthPreview(undefined);
+                  finishRun();
+                })
+                .catch((cause) => {
+                  setBusy(false);
+                  setNotice(
+                    cause instanceof Error ? cause.message : String(cause),
+                  );
                 });
-              })
-              .catch((cause) => {
-                setBusy(false);
-                setNotice(
-                  cause instanceof Error ? cause.message : String(cause),
-                );
-              });
-          }}
-        />
-      )}
+            }}
+            onAdjust={() => {
+              const candidate = proposedContent(lengthPreview) ?? "";
+              setBusy(true);
+              void props.client.changePreviews
+                .discard(lengthPreview.id, crypto.randomUUID())
+                .then(() => {
+                  setLengthPreview(undefined);
+                  finishRun();
+                  void startRun("generate_chapter", {
+                    prompt: [
+                      instruction,
+                      `请将下面首稿调整到约 ${preferences.wordGoal} 字，保留情节、人物和结尾钩子，只返回调整后的完整正文：`,
+                      candidate,
+                    ]
+                      .filter(Boolean)
+                      .join("\n\n"),
+                  });
+                })
+                .catch((cause) => {
+                  setBusy(false);
+                  setNotice(
+                    cause instanceof Error ? cause.message : String(cause),
+                  );
+                });
+            }}
+          />
+        )}
 
-      {versionsOpen && (
-        <VersionsDialog
-          versions={versions}
-          busy={busy}
-          onClose={() => setVersionsOpen(false)}
-          onRestore={(id) => void restoreVersion(id)}
-        />
-      )}
-      {detailsOpen && (
-        <ChapterDetailsDialog
-          values={chapterDetails}
-          busy={busy}
-          onChange={(key, value) =>
-            setChapterDetails((current) => ({ ...current, [key]: value }))
-          }
-          onClose={() => setDetailsOpen(false)}
-          onSave={() => void saveChapterDetails()}
-        />
-      )}
-    </article>
+        {versionsOpen && (
+          <VersionsDialog
+            versions={versions}
+            busy={busy}
+            onClose={() => setVersionsOpen(false)}
+            onRestore={(id) => void restoreVersion(id)}
+          />
+        )}
+        {detailsOpen && (
+          <ChapterDetailsDialog
+            values={chapterDetails}
+            busy={busy}
+            onChange={(key, value) =>
+              setChapterDetails((current) => ({ ...current, [key]: value }))
+            }
+            onClose={() => setDetailsOpen(false)}
+            onSave={() => void saveChapterDetails()}
+            onDelete={() => void props.onRemoveChapter(props.chapter)}
+          />
+        )}
+        <Dialog open={revisionOpen} onOpenChange={setRevisionOpen}>
+          <Dialog.Content className="max-w-3xl">
+            <div className="space-y-1.5">
+              <Dialog.Title>受控修订预览</Dialog.Title>
+              <Dialog.Description>
+                候选内容会先保存为可审阅预览，确认后才写入正文并建立版本记录。
+              </Dialog.Description>
+            </div>
+            <div className="space-y-3">
+              <Textarea
+                className="min-h-72 font-editor leading-7"
+                aria-label="候选修订正文"
+                value={revisionContent}
+                disabled={Boolean(revisionPreview) || busy}
+                onChange={(event) => setRevisionContent(event.target.value)}
+              />
+              <Textarea
+                className="min-h-20"
+                aria-label="修订依据"
+                placeholder="修订依据（可选）"
+                value={revisionRationale}
+                disabled={Boolean(revisionPreview) || busy}
+                onChange={(event) => setRevisionRationale(event.target.value)}
+              />
+              {revisionPreview && (
+                <div className="grid gap-3 rounded-lg border border-line bg-surface-muted p-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted">当前正文</p>
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
+                      {content}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-brand-strong">
+                      候选修订
+                    </p>
+                    <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap font-editor text-sm">
+                      {revisionPreview.proposedContent}
+                    </pre>
+                  </div>
+                </div>
+              )}
+              {revisionError && (
+                <p className="text-sm text-danger">{revisionError}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setRevisionOpen(false)}
+              >
+                取消
+              </Button>
+              {revisionPreview ? (
+                <Button
+                  variant="primary"
+                  loading={busy}
+                  onClick={() => void commitRevisionPreview()}
+                >
+                  确认提交修订
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  loading={busy}
+                  disabled={!revisionContent.trim()}
+                  onClick={() => void createRevisionPreview()}
+                >
+                  保存预览
+                </Button>
+              )}
+            </div>
+          </Dialog.Content>
+        </Dialog>
+      </article>
+      {props.renderStoryBibleSidecar?.({ chapter: props.chapter, content })}
+    </>
   );
 }
 
@@ -1492,17 +1656,17 @@ function EditorToolbar(props: {
   onPolishSelection(): void;
 }) {
   const button = (label: string, active: boolean, onClick: () => void) => (
-    <button
+    <BareButton
       type="button"
-      className={`rounded-md px-2 py-1 text-xs ${active ? "bg-brand-soft text-brand" : "text-muted hover:bg-slate-100"}`}
+      className={`rounded-md px-2 py-1 text-xs ${active ? "bg-brand-soft text-brand" : "text-muted hover:bg-surface-muted"}`}
       disabled={props.disabled}
       onClick={onClick}
     >
       {label}
-    </button>
+    </BareButton>
   );
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-line bg-[#fbf9f6] px-4 py-2.5">
+    <div className="flex flex-wrap items-center gap-1 border-b border-line bg-surface px-4 py-2.5">
       {button("加粗", Boolean(props.editor?.isActive("bold")), () =>
         props.editor?.chain().focus().toggleBold().run(),
       )}
@@ -1524,7 +1688,7 @@ function EditorToolbar(props: {
       <label className="flex items-center gap-1 text-xs text-muted">
         字号
         <select
-          className="rounded border border-line px-1 py-1"
+          className="rounded-md border border-line px-1 py-1"
           value={props.preferences.fontSize}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -1543,7 +1707,7 @@ function EditorToolbar(props: {
       <label className="flex items-center gap-1 text-xs text-muted">
         行距
         <select
-          className="rounded border border-line px-1 py-1"
+          className="rounded-md border border-line px-1 py-1"
           value={props.preferences.lineHeight}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -1562,7 +1726,7 @@ function EditorToolbar(props: {
       <label className="flex items-center gap-1 text-xs text-muted">
         正文宽度
         <select
-          className="rounded border border-line px-1 py-1"
+          className="rounded-md border border-line px-1 py-1"
           value={props.preferences.contentWidth}
           onChange={(event) =>
             props.onPreferencesChange({
@@ -1592,12 +1756,12 @@ function EditorToolbar(props: {
         打字机滚动
       </label>
       {props.selectedText && (
-        <button
+        <BareButton
           className="rounded-md bg-brand-soft px-2 py-1 text-xs font-medium text-brand"
           onClick={props.onPolishSelection}
         >
           智能润色所选
-        </button>
+        </BareButton>
       )}
     </div>
   );
@@ -1631,10 +1795,10 @@ function WritingDrawer(props: {
     : false;
   return (
     <aside
-      className="absolute inset-y-0 right-0 z-20 flex w-[min(460px,94%)] flex-col border-l border-line bg-canvas shadow-studio"
+      className="absolute inset-y-0 right-0 z-20 flex w-[min(460px,94%)] flex-col border-l border-line bg-canvas shadow-float"
       aria-label="智能写作抽屉"
     >
-      <header className="flex items-start gap-3 border-b border-line bg-white/85 p-5 backdrop-blur-xl">
+      <header className="flex items-start gap-3 border-b border-line bg-surface-raised/85 p-5 backdrop-blur-xl">
         <div className="min-w-0 flex-1">
           <p className="studio-eyebrow">章节智能协作</p>
           <h2 className="mt-1 text-lg font-semibold">智能写作</h2>
@@ -1645,12 +1809,12 @@ function WritingDrawer(props: {
               : "未配置"}
           </p>
         </div>
-        <button
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted hover:border-stone-400 hover:text-ink"
+        <BareButton
+          className="rounded-full border border-line bg-surface-raised px-4 py-2 text-sm text-muted hover:border-line-strong hover:text-ink"
           onClick={props.onClose}
         >
           关闭
-        </button>
+        </BareButton>
       </header>
       <div className="studio-scrollbar min-h-0 flex-1 space-y-4 overflow-auto p-5">
         {!runnable && (
@@ -1674,7 +1838,7 @@ function WritingDrawer(props: {
         <label className="grid gap-1 text-sm text-muted">
           本次写作要求（可选）
           <textarea
-            className="min-h-28 rounded-2xl border border-line bg-white p-4 text-sm leading-6 text-ink shadow-card"
+            className="min-h-28 rounded-xl border border-line bg-surface-raised p-4 text-sm leading-6 text-ink shadow-card"
             value={props.instruction}
             disabled={props.busy}
             onChange={(event) => props.onInstructionChange(event.target.value)}
@@ -1683,9 +1847,9 @@ function WritingDrawer(props: {
         </label>
         <div className="grid gap-2 sm:grid-cols-2">
           {COMMON_ACTIONS.map((action) => (
-            <button
+            <BareButton
               key={action.taskType}
-              className={`rounded-2xl border p-4 text-left shadow-card disabled:cursor-not-allowed disabled:opacity-40 ${action.primary ? "border-studio-dark bg-studio-dark text-white hover:border-rust hover:bg-rust" : "border-line bg-white hover:border-[#cf8b72]"}`}
+              className={`rounded-xl border p-4 text-left shadow-card disabled:cursor-not-allowed disabled:opacity-40 ${action.primary ? "border-studio-dark bg-studio-dark text-white hover:border-rust hover:bg-rust" : "border-line bg-surface-raised hover:border-brand"}`}
               disabled={
                 props.busy ||
                 !runnable ||
@@ -1701,17 +1865,17 @@ function WritingDrawer(props: {
               >
                 {action.description}
               </span>
-            </button>
+            </BareButton>
           ))}
         </div>
-        <button
-          className="w-full rounded-full border border-rust bg-white px-4 py-2.5 text-sm font-medium text-rust hover:bg-brand-soft disabled:opacity-40"
+        <BareButton
+          className="w-full rounded-full border border-rust bg-surface-raised px-4 py-2.5 text-sm font-medium text-rust hover:bg-brand-soft disabled:opacity-40"
           disabled={props.busy || !runnable || !props.hasContent}
           onClick={props.onContinueNext}
         >
           智能续写下一章
-        </button>
-        <details className="rounded-2xl border border-line bg-white p-4 shadow-card">
+        </BareButton>
+        <details className="rounded-xl border border-line bg-surface-raised p-4 shadow-card">
           <summary className="cursor-pointer text-sm font-medium">
             高级设置与强化方式
           </summary>
@@ -1719,7 +1883,7 @@ function WritingDrawer(props: {
             <label className="grid gap-1 text-xs text-muted">
               智能引擎
               <select
-                className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
                 value={props.engineKind}
                 disabled={props.busy}
                 onChange={(event) =>
@@ -1742,7 +1906,7 @@ function WritingDrawer(props: {
             <label className="grid gap-1 text-xs text-muted">
               本次模型（留空使用项目默认模型）
               <select
-                className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
                 value={props.modelId}
                 disabled={props.busy}
                 onChange={(event) => props.onModelChange(event.target.value)}
@@ -1794,7 +1958,7 @@ function WritingDrawer(props: {
             </label>
             <div className="grid grid-cols-2 gap-2">
               {ENHANCEMENT_ACTIONS.map((action) => (
-                <button
+                <BareButton
                   key={action.taskType}
                   className="rounded-lg border border-line px-2 py-2 text-left text-xs hover:border-brand hover:text-brand disabled:opacity-40"
                   disabled={props.busy || !runnable || !props.hasContent}
@@ -1804,13 +1968,13 @@ function WritingDrawer(props: {
                   <span className="mt-0.5 block text-[11px] text-muted">
                     {action.description}
                   </span>
-                </button>
+                </BareButton>
               ))}
             </div>
           </div>
         </details>
         {props.activeRun && (
-          <section className="rounded-2xl border border-[#ead4c7] bg-brand-soft/60 p-4">
+          <section className="rounded-xl border border-line bg-brand-soft/60 p-4">
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="font-medium">
                 {taskStatusLabel(props.activeRun.status)}
@@ -1819,37 +1983,37 @@ function WritingDrawer(props: {
                 {Math.round(props.activeRun.progress * 100)}%
               </span>
             </div>
-            <div className="mt-2 h-1.5 rounded bg-white">
+            <div className="mt-2 h-1.5 rounded-md bg-surface-raised">
               <div
-                className="h-full rounded bg-brand"
+                className="h-full rounded-md bg-brand"
                 style={{
                   width: `${Math.max(3, props.activeRun.progress * 100)}%`,
                 }}
               />
             </div>
             {props.streamText && (
-              <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-3 font-editor text-xs leading-6 text-muted">
+              <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-lg bg-surface-raised p-3 font-editor text-xs leading-6 text-muted">
                 {props.streamText}
               </pre>
             )}
             <div className="mt-3 flex gap-2">
               {["queued", "running"].includes(props.activeRun.status) && (
-                <button
+                <BareButton
                   className="rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600"
                   onClick={props.onInterrupt}
                 >
                   中断生成
-                </button>
+                </BareButton>
               )}
               {["failed", "canceled", "interrupted"].includes(
                 props.activeRun.status,
               ) && (
-                <button
+                <BareButton
                   className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white"
                   onClick={props.onRetry}
                 >
                   使用原引擎重试
-                </button>
+                </BareButton>
               )}
               <Link
                 className="ml-auto self-center text-xs text-brand underline"
@@ -1861,7 +2025,7 @@ function WritingDrawer(props: {
           </section>
         )}
         {props.notice && (
-          <p className="rounded-xl bg-slate-50 p-3 text-sm leading-6 text-muted">
+          <p className="rounded-xl bg-surface-muted p-3 text-sm leading-6 text-muted">
             {props.notice}
           </p>
         )}
@@ -1903,45 +2067,49 @@ function DiffDialog(props: {
           ? "border-amber-200 bg-amber-50"
           : "border-transparent";
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-studio-dark/40 p-5 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="章节差异预览"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !props.busy) props.onCancel();
+      }}
     >
-      <section className="flex max-h-[90vh] w-full max-w-6xl flex-col rounded-[28px] border border-line bg-canvas shadow-studio">
+      <Dialog.Content
+        aria-label="章节差异预览"
+        className="flex max-h-[90vh] max-w-6xl flex-col overflow-hidden p-0"
+        hideClose
+      >
         <header className="flex flex-wrap items-start gap-3 border-b border-line p-5">
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">章节差异预览</h2>
+            <Dialog.Title>章节差异预览</Dialog.Title>
             <p className="mt-1 text-sm text-muted">
               {props.rationale || "请核对候选正文，确认后才会写入正式内容。"}
             </p>
           </div>
           <div className="flex rounded-lg border border-line p-1 text-xs">
-            <button
-              className={`rounded px-2 py-1 ${mode === "inline" ? "bg-brand-soft text-brand" : ""}`}
+            <BareButton
+              className={`rounded-md px-2 py-1 ${mode === "inline" ? "bg-brand-soft text-brand" : ""}`}
               onClick={() => setMode("inline")}
             >
               行内差异
-            </button>
-            <button
-              className={`rounded px-2 py-1 ${mode === "split" ? "bg-brand-soft text-brand" : ""}`}
+            </BareButton>
+            <BareButton
+              className={`rounded-md px-2 py-1 ${mode === "split" ? "bg-brand-soft text-brand" : ""}`}
               onClick={() => setMode("split")}
             >
               左右对照
-            </button>
-            <button
-              className={`rounded px-2 py-1 ${mode === "final" ? "bg-brand-soft text-brand" : ""}`}
+            </BareButton>
+            <BareButton
+              className={`rounded-md px-2 py-1 ${mode === "final" ? "bg-brand-soft text-brand" : ""}`}
               onClick={() => setMode("final")}
             >
               编辑最终稿
-            </button>
+            </BareButton>
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-auto p-5">
           {mode === "final" ? (
-            <textarea
-              className="min-h-[55vh] w-full rounded-xl border border-line p-4 font-editor text-sm leading-7"
+            <Textarea
+              className="min-h-[55vh] font-editor text-sm leading-7"
               value={finalContent}
               onChange={(event) => setFinalContent(event.target.value)}
             />
@@ -1949,7 +2117,7 @@ function DiffDialog(props: {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <p className="mb-2 text-xs font-medium text-muted">当前正文</p>
-                <pre className="min-h-[55vh] whitespace-pre-wrap rounded-xl bg-slate-50 p-4 font-editor text-sm leading-7">
+                <pre className="min-h-[55vh] whitespace-pre-wrap rounded-xl bg-surface-muted p-4 font-editor text-sm leading-7">
                   {props.before}
                 </pre>
               </div>
@@ -2006,15 +2174,15 @@ function DiffDialog(props: {
           )}
         </div>
         <footer className="flex justify-end gap-2 border-t border-line p-4">
-          <button
-            className="rounded-lg border border-line px-4 py-2 text-sm"
+          <Button
+            variant="secondary"
             disabled={props.busy}
             onClick={props.onCancel}
           >
             放弃候选稿
-          </button>
-          <button
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          </Button>
+          <Button
+            variant="primary"
             disabled={
               props.busy ||
               !(mode === "final" ? finalContent.trim() : selectedContent.trim())
@@ -2024,10 +2192,10 @@ function DiffDialog(props: {
             }
           >
             {props.busy ? "正在应用…" : "确认应用"}
-          </button>
+          </Button>
         </footer>
-      </section>
-    </div>
+      </Dialog.Content>
+    </Dialog>
   );
 }
 
@@ -2040,43 +2208,46 @@ function LengthDialog(props: {
   onDiscard(): void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-studio-dark/40 p-5 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="首稿字数调整"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !props.busy) props.onDiscard();
+      }}
     >
-      <section className="w-full max-w-lg rounded-[28px] border border-line bg-canvas p-7 shadow-studio">
-        <h2 className="text-lg font-semibold">首稿字数与目标不一致</h2>
+      <Dialog.Content aria-label="首稿字数调整" className="max-w-lg" hideClose>
+        <Dialog.Title>首稿字数与目标不一致</Dialog.Title>
         <p className="mt-3 text-sm leading-6 text-muted">
           目标约 {props.wordGoal} 字，首稿为 {props.actual}{" "}
           字。旧版的三种处理方式均已保留，你可以直接保留，也可以让智能引擎基于首稿调整。
         </p>
         <div className="mt-5 grid gap-2">
-          <button
-            className="rounded-full bg-studio-dark px-5 py-3.5 text-left text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
+          <Button
+            className="h-auto justify-start py-3.5 text-left"
+            variant="primary"
             disabled={props.busy}
             onClick={props.onKeep}
           >
             保留首稿并保存
-          </button>
-          <button
-            className="rounded-full border border-rust bg-white px-5 py-3.5 text-left text-sm font-medium text-rust hover:bg-brand-soft disabled:opacity-50"
+          </Button>
+          <Button
+            className="h-auto justify-start py-3.5 text-left"
+            variant="subtle"
             disabled={props.busy}
             onClick={props.onAdjust}
           >
             基于首稿调整字数
-          </button>
-          <button
-            className="rounded-full border border-line bg-white px-5 py-3.5 text-left text-sm text-muted hover:border-stone-400 hover:text-ink disabled:opacity-50"
+          </Button>
+          <Button
+            className="h-auto justify-start py-3.5 text-left"
+            variant="secondary"
             disabled={props.busy}
             onClick={props.onDiscard}
           >
             放弃首稿，恢复生成前草稿
-          </button>
+          </Button>
         </div>
-      </section>
-    </div>
+      </Dialog.Content>
+    </Dialog>
   );
 }
 
@@ -2087,26 +2258,27 @@ function VersionsDialog(props: {
   onRestore(id: string): void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-studio-dark/40 p-5 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="章节版本记录"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) props.onClose();
+      }}
     >
-      <section className="max-h-[80vh] w-full max-w-2xl overflow-hidden rounded-[28px] border border-line bg-canvas shadow-studio">
+      <Dialog.Content
+        aria-label="章节版本记录"
+        className="max-h-[80vh] max-w-2xl overflow-hidden p-0"
+        hideClose
+      >
         <header className="flex items-center justify-between border-b border-line p-5">
           <div>
-            <h2 className="text-lg font-semibold">版本记录</h2>
+            <Dialog.Title>版本记录</Dialog.Title>
             <p className="mt-1 text-sm text-muted">
               恢复前会自动为当前正文创建新检查点。
             </p>
           </div>
-          <button
-            className="rounded-lg px-3 py-2 text-sm text-muted hover:bg-slate-100"
-            onClick={props.onClose}
-          >
+          <Button variant="ghost" size="sm" onClick={props.onClose}>
             关闭
-          </button>
+          </Button>
         </header>
         <div className="max-h-[60vh] space-y-2 overflow-auto p-5">
           {props.versions.map((version) => (
@@ -2120,13 +2292,14 @@ function VersionsDialog(props: {
                   {new Date(version.createdAt).toLocaleString("zh-CN")}
                 </p>
               </div>
-              <button
-                className="rounded-lg border border-brand px-3 py-1.5 text-sm text-brand disabled:opacity-50"
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={props.busy}
                 onClick={() => props.onRestore(version.id)}
               >
                 恢复此版本
-              </button>
+              </Button>
             </article>
           ))}
           {!props.versions.length && (
@@ -2135,8 +2308,8 @@ function VersionsDialog(props: {
             </p>
           )}
         </div>
-      </section>
-    </div>
+      </Dialog.Content>
+    </Dialog>
   );
 }
 
@@ -2146,25 +2319,30 @@ function ChapterDetailsDialog(props: {
   onChange(key: string, value: string): void;
   onClose(): void;
   onSave(): void;
+  onDelete(): void;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-studio-dark/40 p-5 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="章节要点编辑窗口"
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !props.busy) props.onClose();
+      }}
     >
-      <section className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[28px] border border-line bg-canvas shadow-studio">
+      <Dialog.Content
+        aria-label="章节要点编辑窗口"
+        className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden p-0"
+        hideClose
+      >
         <header className="flex items-start justify-between gap-3 border-b border-line p-5">
           <div>
-            <h2 className="text-lg font-semibold">章节要点</h2>
+            <Dialog.Title>章节要点</Dialog.Title>
             <p className="mt-1 text-sm text-muted">
               这些结构化要点会和人物、全书大纲一起进入智能写作上下文。
             </p>
           </div>
-          <button className="text-sm text-muted" onClick={props.onClose}>
+          <BareButton className="text-sm text-muted" onClick={props.onClose}>
             关闭
-          </button>
+          </BareButton>
         </header>
         <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-5 md:grid-cols-2">
           {CHAPTER_DETAIL_FIELDS.map(([key, label, placeholder], index) => (
@@ -2173,8 +2351,8 @@ function ChapterDetailsDialog(props: {
               className={`grid gap-1 text-sm ${index < 2 || key === "shortDramaNote" || key === "aiVideoNote" ? "md:col-span-2" : ""}`}
             >
               {label}
-              <textarea
-                className="min-h-24 rounded-lg border border-line p-3"
+              <Textarea
+                className="min-h-24"
                 value={props.values[key] ?? ""}
                 placeholder={placeholder}
                 onChange={(event) => props.onChange(key, event.target.value)}
@@ -2182,23 +2360,31 @@ function ChapterDetailsDialog(props: {
             </label>
           ))}
         </div>
-        <footer className="flex justify-end gap-2 border-t border-line p-4">
-          <button
-            className="rounded-lg border border-line px-4 py-2 text-sm"
+        <footer className="flex gap-2 border-t border-line p-4">
+          <Button
+            className="mr-auto"
+            variant="danger"
+            disabled={props.busy}
+            onClick={props.onDelete}
+          >
+            删除本章
+          </Button>
+          <Button
+            variant="secondary"
             disabled={props.busy}
             onClick={props.onClose}
           >
             取消
-          </button>
-          <button
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          </Button>
+          <Button
+            variant="primary"
             disabled={props.busy}
             onClick={props.onSave}
           >
             {props.busy ? "正在保存…" : "保存章节要点"}
-          </button>
+          </Button>
         </footer>
-      </section>
-    </div>
+      </Dialog.Content>
+    </Dialog>
   );
 }
