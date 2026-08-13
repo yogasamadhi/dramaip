@@ -3,7 +3,7 @@
 > - 编制日期：2026-08-11
 > - 目标分支：`main`
 > - 执行规则：[LOOPRULE.md](./LOOPRULE.md)
-> - 当前状态：LM6-00、LM6-01、LM6-02、LM6-03、LM6-04、LM6-05、LM6-06、LM6-10、LM6-11、LM6-12、LM6-13、LM6-14、LM6-15、LM6-20、LM6-21、LM6-22、LM6-23、LM6-24、LM6-25 均已完成并推送。
+> - 当前状态：LM6 全部完成；LM7 Desktop UI V2 已完成整站切换并合入 `main`。
 > - 执行模式：无人值守 sweep 已结束；LM6-25 / Attempt 1 已完成并合入 `main`；已满足 4.4 的整批完成条件。
 
 ## 1. 总体目标与范围
@@ -1519,3 +1519,43 @@ LM6-00
 - Next attempt: 无；整批完成。后续需求须建立新的 Loop；fallback: 如新增外部 NLE、MP4 或 Compose 证据，作为独立兼容 Loop，不回写或削弱本 Gate 的既有结论。
 - Sweep cursor: none（4.4 final acceptance complete）
 - Notes: 最终 `origin/main` 与本执行记录提交对齐；根 worktree 的用户既有未提交改动未读取、未修改或纳入任何提交。
+
+## 7. LM7：Desktop UI V2 系统性重构
+
+### 7.1 目标与边界
+
+- 仅迁移 `dramaip-desktop`，保留数据库、HTTP 契约、URL、自动保存、预览采用、版本与任务语义。
+- 应用栏常驻“项目、小说写作、改编、制作、审核交付”，“更多”承载数据洞察、搜索、任务和设置。
+- 项目、小说写作和管理界面采用克制暖白；制作、媒体预览、时间线与审核使用局部深色工作台。
+- 主题支持跟随系统、浅色、深色；首次默认跟随系统并使用 `dramaip-theme-v1` 本机持久化。
+- 最终 Gate 前不把任何中间状态视为正式整站交付。
+
+### 7.2 Loop 划分
+
+| Loop | 结果 |
+| --- | --- |
+| LM7-00 | `@sdns/ui` 语义令牌、组件变体、主题与统一浮层 |
+| LM7-01 | 原生安全区、自定义标题栏、64px 应用栏、导航分组与主题菜单 |
+| LM7-02 / 03 | 项目稀疏布局、小说核心入口、无网格正文编辑器与 AI 抽屉 |
+| LM7-04 / 05 / 06 | 改编阶段导航、制作与审核局部深色工作台 |
+| LM7-07 | 数据洞察、搜索、任务、设置、助手与全部浮层统一 |
+| LM7-08 | 遗留样式清理、文档、视觉与全量质量 Gate |
+
+### LM7 / Attempt 1 — 2026-08-13 Asia/Shanghai
+
+- Loop: LM7-00 ～ LM7-08（整站原子交付）
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm7-desktop-ui-v2`
+- Baseline: `747f5c8f feat(desktop): prioritize novel writing workspace` 已单独验证并推送，未纳入根 `AGENTS.md` 或 platform timestamp 文件。
+- Commit: `c8e19a5b feat(desktop): deliver LM7 UI V2`
+- Merge commit: `53dd27ac merge: deliver LM7 desktop UI V2`
+- Completed: 建成正式 `@sdns/ui` 语义组件与主题层，统一按钮、表单、卡片、工具栏、状态、Radix 弹窗/抽屉/菜单/滚动区和应用内确认；主题在 React 渲染前按 `dramaip-theme-v1` 应用并同步系统变化。Electron 使用 macOS `hiddenInset`、Windows/Linux `hidden + titleBarOverlay` 与受限 `setWindowTheme` IPC。64px 应用栏固定项目、小说写作、改编、制作、审核交付，并把数据洞察、搜索、任务、设置收进“更多”。项目稀疏态、小说纸张编辑器/章节侧栏/Story Bible/AI 抽屉、改编阶段导航、制作和审核局部深色工作台、辅助页面及反馈状态完成同批切换；旧原生确认框、重复章节编辑器、类名片段覆盖、业务网格和直接业务 `<button>` 已清理。
+- Verification:
+  - 在功能分支和 `main` 合并结果上各执行一次 `git diff --check`、`bun run lint`、`bun run format:check`、`bun run typecheck`、`bun run test`、`bun run check:generated`、`bun run check:engine-locks`、`bun run check:provider-catalog`、`bun run build`、`bunx playwright test --reporter=list`：全部 PASS。
+  - `bunx playwright test --reporter=list`: PASS — 31/31 Electron 场景，包括既有 LM6 全旅程、三种项目入口、导入/采用、Story Bible、导演看板、时间线/交付，以及 LM7 视觉、主题和最小窗口检查。
+  - 视觉 Gate: PASS — 11 个标准界面在 1440×920 具备浅色/深色共 22 份基线；1080×700 的应用栏、小说编辑器与制作工作台无 body 横向溢出；主题首次跟随系统并在重载后保持手动选择。
+  - 架构指标: PASS — `main.tsx` 13 行；标准按钮 5 个变体；业务代码无直接 `<button>`、无 `window.confirm`、无类名片段全局覆盖、无 JSX 十六进制任意色；圆角仅 `md/lg/xl/full` 四档，阴影仅 `control/card/float` 三档。
+- Diff review: PASS — 只修改 `dramaip-desktop` 与本 LM7 执行记录；数据库、HTTP 契约、业务 URL 与 platform web 未变。根 `AGENTS.md` 和 admin timestamp 文件保持未跟踪，未读取、未修改或纳入提交。
+- Evidence: `dramaip-desktop/packages/ui/src/`、`packages/app/src/{main.tsx,studio-app.tsx,app-shell.tsx,styles.css,ui-showcase.tsx,lm7-ui.test.ts}`、novel feature components、Electron main/preload、`tests/electron/{abc-smoke.spec.ts,lm7-ui-visual.spec.ts}`、22 份视觉快照、用户指南、`c8e19a5b` 与 `53dd27ac`。
+- Unfinished: 无；真实 Windows/Linux 机器上的窗口控件属于后续兼容性增强，当前平台分支、IPC 白名单和 Electron 构建/契约均已验证。
