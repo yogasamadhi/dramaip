@@ -7873,7 +7873,7 @@ function ProductionWorkspace() {
         description="素材、版权和视觉资产归属项目；静帧与视频归属分镜；音频、动态分镜与渲染预检归属分集。"
         badge="远程媒体生成"
       />
-      <div className="workbench space-y-4 rounded-xl border border-line bg-studio-dark p-4 shadow-float">
+      <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
         <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-2 xl:grid-cols-3">
           <label className="grid gap-1 text-sm">
             项目
@@ -11253,7 +11253,7 @@ function ReviewDeliveryWorkspace() {
         description="质量、合规、本地化、审片和平台交付记录统一归属到具体分集。"
         badge="交付就绪"
       />
-      <div className="workbench space-y-4 rounded-xl border border-line bg-studio-dark p-4 shadow-float">
+      <div className="workbench space-y-4 rounded-xl border border-line bg-surface-muted p-4 shadow-float dark:bg-studio-dark">
         <section className="grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
           <label className="grid gap-1 text-sm">
             项目
