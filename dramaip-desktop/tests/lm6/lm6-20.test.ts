@@ -33,7 +33,10 @@ test("LM6-20 将多轨权威结构、命令历史与不改写源媒体固定为�
     join(root, "packages/db/src/operational-schema.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const guide = readFileSync(join(root, "docs/product/USER_GUIDE.md"), "utf8");
 
   fixture.tracks.forEach((track) => expect(schema).toContain(`"${track}"`));

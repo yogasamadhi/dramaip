@@ -57,7 +57,7 @@ test("LM6-04 安全边界保持导入可继续、采用原子且人工编辑可�
     "utf8",
   );
   const app = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
+    join(desktopRoot, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
   expect(fixture.safetyGuarantees).toEqual([

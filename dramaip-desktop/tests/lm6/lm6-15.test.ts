@@ -20,7 +20,10 @@ test("LM6-15 P1 Gate 将 1 / 3 集试制与五项能力的自动证据固定为�
     join(root, "packages/server/src/sidecar.node.test.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const server = readFileSync(
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",

@@ -27,7 +27,10 @@ test("LM6-12 静帧优先 Gate 覆盖快照、批量预检和服务端阻断", (
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const guide = readFileSync(join(root, "docs/product/USER_GUIDE.md"), "utf8");
 
   for (const field of fixture.requiredSnapshotFields)

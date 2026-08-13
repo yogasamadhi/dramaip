@@ -115,7 +115,7 @@ test("LM6-02 fixture 锁定每个项目状态的唯一推荐动作", () => {
 
 test("LM6-02 保留四区项目上下文，并让旧全局路由成为兼容入口", () => {
   const appSource = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
+    join(desktopRoot, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
   expect(appSource).toContain("项目四区导航");

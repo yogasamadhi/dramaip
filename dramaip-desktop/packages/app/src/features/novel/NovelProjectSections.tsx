@@ -10,6 +10,14 @@ import type {
   DomainEntity,
   Task,
 } from "@sdns/schema";
+import {
+  BareButton,
+  Button,
+  Dialog,
+  Input,
+  Textarea,
+  confirmDialog,
+} from "@sdns/ui";
 
 interface FieldDefinition {
   key: string;
@@ -316,7 +324,7 @@ export function NovelOutlineSection(props: {
           };
   return (
     <div className="space-y-4">
-      <nav className="inline-flex rounded-full border border-line bg-[#eee8e1] p-1 text-sm shadow-card">
+      <nav className="inline-flex rounded-lg border border-line bg-surface-muted p-1 text-sm shadow-control">
         {(
           [
             ["book", "全书大纲"],
@@ -324,13 +332,13 @@ export function NovelOutlineSection(props: {
             ["arc", "卷与单元"],
           ] as const
         ).map(([value, label]) => (
-          <button
+          <BareButton
             key={value}
-            className={`rounded-full px-4 py-2 ${mode === value ? "bg-white font-medium text-rust shadow-card" : "text-muted hover:text-ink"}`}
+            className={`rounded-full px-4 py-2 ${mode === value ? "bg-surface-raised font-medium text-rust shadow-card" : "text-muted hover:text-ink"}`}
             onClick={() => setMode(value)}
           >
             {label}
-          </button>
+          </BareButton>
         ))}
       </nav>
       <NovelResourceSection
@@ -382,13 +390,13 @@ export function NovelLongformToolsSection(props: {
               [ToolKey, (typeof LONGFORM_TOOL_CONFIG)[ToolKey]]
             >
           ).map(([value, item]) => (
-            <button
+            <BareButton
               key={value}
-              className={`rounded-full px-4 py-2 text-sm ${tool === value ? "bg-studio-dark text-white shadow-card" : "border border-line bg-white text-muted hover:border-stone-400 hover:text-ink"}`}
+              className={`rounded-full px-4 py-2 text-sm ${tool === value ? "bg-studio-dark text-white shadow-card" : "border border-line bg-surface-raised text-muted hover:border-line-strong hover:text-ink"}`}
               onClick={() => setTool(value)}
             >
               {item.label}
-            </button>
+            </BareButton>
           ))}
         </nav>
       </section>
@@ -506,7 +514,7 @@ function NovelResourceSection(props: {
     }
   };
   const remove = async (item: DomainEntity) => {
-    if (!window.confirm(`确定删除“${item.title}”吗？`)) return;
+    if (!(await confirmDialog(`确定删除“${item.title}”吗？`))) return;
     try {
       await props.client.resources.remove(props.domain, item.id);
       await load();
@@ -523,12 +531,12 @@ function NovelResourceSection(props: {
             {props.description}
           </p>
         </div>
-        <button
+        <BareButton
           className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust"
           onClick={() => open("new")}
         >
           新建{props.itemName}
-        </button>
+        </BareButton>
       </div>
       {props.generator && (
         <NovelArtifactGenerator
@@ -549,7 +557,7 @@ function NovelResourceSection(props: {
           return (
             <article
               key={item.id}
-              className="rounded-2xl border border-line bg-[#fdfcf9] p-5 shadow-card transition hover:border-[#cfb6a6]"
+              className="rounded-xl border border-line bg-surface-raised p-5 shadow-card transition hover:border-line-strong"
             >
               <div className="flex items-start gap-3">
                 <div className="min-w-0 flex-1">
@@ -573,15 +581,15 @@ function NovelResourceSection(props: {
                   </dl>
                 </div>
                 <div className="flex shrink-0 flex-col gap-2 text-xs">
-                  <button className="text-brand" onClick={() => open(item)}>
+                  <BareButton className="text-brand" onClick={() => open(item)}>
                     编辑
-                  </button>
-                  <button
+                  </BareButton>
+                  <BareButton
                     className="text-red-600"
                     onClick={() => void remove(item)}
                   >
                     删除
-                  </button>
+                  </BareButton>
                 </div>
               </div>
             </article>
@@ -594,30 +602,26 @@ function NovelResourceSection(props: {
         )}
       </div>
       {editor && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-studio-dark/40 p-5 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${props.itemName}编辑窗口`}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditor(undefined);
+          }}
         >
-          <section className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-[28px] border border-line bg-canvas p-7 shadow-studio">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">
+          <Dialog.Content
+            className="max-w-2xl"
+            aria-label={`${props.itemName}编辑窗口`}
+          >
+            <div>
+              <Dialog.Title>
                 {editor === "new"
                   ? `新建${props.itemName}`
                   : `编辑${props.itemName}`}
-              </h2>
-              <button
-                className="text-sm text-muted"
-                onClick={() => setEditor(undefined)}
-              >
-                关闭
-              </button>
+              </Dialog.Title>
             </div>
             <label className="mt-5 grid gap-1 text-sm">
               {props.titleLabel}
-              <input
-                className="rounded-lg border border-line px-3 py-2"
+              <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
@@ -627,8 +631,8 @@ function NovelResourceSection(props: {
                 <label key={field.key} className="grid gap-1 text-sm">
                   {field.label}
                   {field.multiline ? (
-                    <textarea
-                      className="min-h-24 rounded-lg border border-line p-3"
+                    <Textarea
+                      className="min-h-24"
                       value={draft[field.key] ?? ""}
                       placeholder={field.placeholder}
                       onChange={(event) =>
@@ -639,8 +643,7 @@ function NovelResourceSection(props: {
                       }
                     />
                   ) : (
-                    <input
-                      className="rounded-lg border border-line px-3 py-2"
+                    <Input
                       type={field.number ? "number" : "text"}
                       value={draft[field.key] ?? ""}
                       placeholder={field.placeholder}
@@ -656,22 +659,19 @@ function NovelResourceSection(props: {
               ))}
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button
-                className="rounded-lg border border-line px-4 py-2 text-sm"
-                onClick={() => setEditor(undefined)}
-              >
+              <Button variant="secondary" onClick={() => setEditor(undefined)}>
                 取消
-              </button>
-              <button
-                className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
+              </Button>
+              <Button
+                variant="primary"
                 disabled={saving || !title.trim()}
                 onClick={() => void save()}
               >
                 {saving ? "正在保存…" : "保存"}
-              </button>
+              </Button>
             </div>
-          </section>
-        </div>
+          </Dialog.Content>
+        </Dialog>
       )}
     </section>
   );
@@ -833,7 +833,7 @@ function NovelInsightRunner(props: {
     }
   };
   return (
-    <section className="rounded-[26px] border border-[#e4cbbb] bg-brand-soft/55 p-6 shadow-card">
+    <section className="rounded-xl border border-line bg-brand-soft/55 p-6 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-3xl">
           <h2 className="font-semibold">{props.title}</h2>
@@ -844,7 +844,7 @@ function NovelInsightRunner(props: {
         <label className="grid gap-1 text-xs text-muted">
           本次使用的智能引擎
           <select
-            className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+            className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
             value={engineKind}
             disabled={busy}
             onChange={(event) =>
@@ -866,7 +866,7 @@ function NovelInsightRunner(props: {
         </label>
       </div>
       <textarea
-        className="mt-4 min-h-20 w-full rounded-xl border border-line bg-white p-3 text-sm"
+        className="mt-4 min-h-20 w-full rounded-xl border border-line bg-surface-raised p-3 text-sm"
         value={instruction}
         disabled={busy}
         aria-label="补充分析要求（可选）"
@@ -876,7 +876,7 @@ function NovelInsightRunner(props: {
       <label className="mt-3 grid max-w-md gap-1 text-xs text-muted">
         分析范围
         <select
-          className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+          className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
           value={chapterId}
           disabled={busy}
           onChange={(event) => setChapterId(event.target.value)}
@@ -890,34 +890,34 @@ function NovelInsightRunner(props: {
         </select>
       </label>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
+        <BareButton
           className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-40"
           disabled={busy || !canRun}
           onClick={() => void run()}
         >
           {busy ? "正在处理…" : "开始智能分析"}
-        </button>
+        </BareButton>
         {busy && runId && (
-          <button
-            className="rounded-lg border border-line bg-white px-4 py-2 text-sm text-muted"
+          <BareButton
+            className="rounded-lg border border-line bg-surface-raised px-4 py-2 text-sm text-muted"
             onClick={() => void props.client.agentSessions.interrupt(runId)}
           >
             中断本次任务
-          </button>
+          </BareButton>
         )}
         {output.trim() && (
-          <button
-            className="rounded-lg border border-brand bg-white px-4 py-2 text-sm font-medium text-brand"
+          <BareButton
+            className="rounded-lg border border-brand bg-surface-raised px-4 py-2 text-sm font-medium text-brand"
             disabled={busy}
             onClick={() => void save()}
           >
             保存到项目
-          </button>
+          </BareButton>
         )}
       </div>
       {notice && <p className="mt-3 text-sm text-brand">{notice}</p>}
       {output.trim() && (
-        <div className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-white p-4 text-sm leading-7">
+        <div className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl border border-line bg-surface-raised p-4 text-sm leading-7">
           {output}
         </div>
       )}
@@ -1059,8 +1059,8 @@ export function NovelArtifactGenerator(props: {
     }
   };
   return (
-    <div className="mt-5 rounded-[24px] border border-[#e4cbbb] bg-brand-soft/45 p-5 shadow-card">
-      <button
+    <div className="mt-5 rounded-xl border border-line bg-brand-soft/45 p-5 shadow-card">
+      <BareButton
         className="flex w-full items-start gap-3 text-left"
         onClick={() => setExpanded((value) => !value)}
       >
@@ -1071,11 +1071,11 @@ export function NovelArtifactGenerator(props: {
           </span>
         </span>
         <span className="text-sm text-brand">{expanded ? "收起" : "开始"}</span>
-      </button>
+      </BareButton>
       {expanded && (
         <div className="mt-4 space-y-3">
           <textarea
-            className="min-h-20 w-full rounded-lg border border-line bg-white p-3 text-sm"
+            className="min-h-20 w-full rounded-lg border border-line bg-surface-raised p-3 text-sm"
             value={instruction}
             disabled={busy}
             onChange={(event) => setInstruction(event.target.value)}
@@ -1085,7 +1085,7 @@ export function NovelArtifactGenerator(props: {
             <label className="grid min-w-48 flex-1 gap-1 text-xs text-muted">
               本次使用的智能引擎
               <select
-                className="rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink"
+                className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-sm text-ink"
                 value={engineKind}
                 disabled={busy}
                 onChange={(event) =>
@@ -1105,13 +1105,13 @@ export function NovelArtifactGenerator(props: {
                 ))}
               </select>
             </label>
-            <button
+            <BareButton
               className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
               disabled={busy || !canRun}
               onClick={() => void run()}
             >
               {busy ? "正在生成…" : "立即生成"}
-            </button>
+            </BareButton>
           </div>
           {!canRun && (
             <p className="text-sm text-amber-800">
@@ -1122,7 +1122,7 @@ export function NovelArtifactGenerator(props: {
             </p>
           )}
           {task && (
-            <div className="rounded-lg bg-white p-3 text-sm">
+            <div className="rounded-lg bg-surface-raised p-3 text-sm">
               <div className="flex justify-between gap-2">
                 <span>{task.title}</span>
                 <span className="text-muted">
@@ -1137,9 +1137,9 @@ export function NovelArtifactGenerator(props: {
                           : "已中断"}
                 </span>
               </div>
-              <div className="mt-2 h-1.5 rounded bg-slate-100">
+              <div className="mt-2 h-1.5 rounded-md bg-surface-muted">
                 <div
-                  className="h-full rounded bg-brand"
+                  className="h-full rounded-md bg-brand"
                   style={{ width: `${Math.max(3, task.progress * 100)}%` }}
                 />
               </div>
@@ -1155,7 +1155,7 @@ export function NovelArtifactGenerator(props: {
           )}
           {notice && <p className="text-sm leading-6 text-muted">{notice}</p>}
           {preview && (
-            <section className="rounded-2xl border border-[#d9b19f] bg-white p-5 shadow-card">
+            <section className="rounded-xl border border-line-strong bg-surface-raised p-5 shadow-card">
               <h3 className="font-medium">待采用内容</h3>
               <p className="mt-1 text-xs text-muted">
                 共 {preview.targets.length}{" "}
@@ -1169,7 +1169,7 @@ export function NovelArtifactGenerator(props: {
                   return (
                     <article
                       key={`${target.id}-${index}`}
-                      className="rounded-lg bg-slate-50 p-3"
+                      className="rounded-lg bg-surface-muted p-3"
                     >
                       <p className="text-sm font-medium">
                         {displayValue(
@@ -1198,20 +1198,20 @@ export function NovelArtifactGenerator(props: {
                 })}
               </div>
               <div className="mt-4 flex justify-end gap-2">
-                <button
+                <BareButton
                   className="rounded-lg border border-line px-3 py-2 text-sm"
                   disabled={busy}
                   onClick={() => void discard()}
                 >
                   放弃
-                </button>
-                <button
+                </BareButton>
+                <BareButton
                   className="rounded-full bg-studio-dark px-5 py-2.5 text-sm font-medium text-white shadow-card hover:bg-rust disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void commit()}
                 >
                   确认采用
-                </button>
+                </BareButton>
               </div>
             </section>
           )}

@@ -98,7 +98,9 @@ export function buildStoryboard(input: {
 }): StoryboardScene[] {
   const scriptIds = new Set(
     input.scripts
-      .filter((script) => !input.episodeId || script.parentId === input.episodeId)
+      .filter(
+        (script) => !input.episodeId || script.parentId === input.episodeId,
+      )
       .map((script) => script.id),
   );
   const assetById = new Map(input.assets.map((asset) => [asset.id, asset]));

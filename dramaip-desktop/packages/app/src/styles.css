@@ -3,32 +3,93 @@
 @source "../../ui/src";
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-canvas: #faf9f6;
-  --color-page: #f5f1ec;
-  --color-surface: #ffffff;
-  --color-ink: #20201f;
-  --color-muted: #706a64;
-  --color-line: #e5dfd8;
-  --color-brand: #b94727;
-  --color-brand-soft: #fff3eb;
-  --color-sand: #eadbc8;
-  --color-rust: #96391f;
-  --color-studio-dark: #242321;
+@theme inline {
+  --color-canvas: var(--ui-canvas);
+  --color-page: var(--ui-page);
+  --color-surface: var(--ui-surface);
+  --color-surface-raised: var(--ui-surface-raised);
+  --color-surface-muted: var(--ui-surface-muted);
+  --color-field: var(--ui-field);
+  --color-ink: var(--ui-ink);
+  --color-muted: var(--ui-muted);
+  --color-line: var(--ui-line);
+  --color-line-strong: var(--ui-line-strong);
+  --color-brand: var(--ui-brand);
+  --color-brand-strong: var(--ui-brand-strong);
+  --color-brand-soft: var(--ui-brand-soft);
+  --color-brand-soft-hover: var(--ui-brand-soft-hover);
+  --color-action: var(--ui-action);
+  --color-action-hover: var(--ui-action-hover);
+  --color-action-contrast: var(--ui-action-contrast);
+  --color-focus: var(--ui-focus);
+  --color-overlay: var(--ui-overlay);
+  --color-sand: var(--ui-sand);
+  --color-rust: var(--ui-brand-strong);
+  --color-studio-dark: var(--ui-workbench);
+  --color-danger: var(--ui-danger);
+  --color-danger-strong: var(--ui-danger-strong);
+  --color-danger-soft: var(--ui-danger-soft);
+  --color-success: var(--ui-success);
+  --color-success-strong: var(--ui-success-strong);
+  --color-success-soft: var(--ui-success-soft);
+  --color-warning: var(--ui-warning);
+  --color-warning-strong: var(--ui-warning-strong);
+  --color-warning-soft: var(--ui-warning-soft);
+  --color-info: var(--ui-info);
+  --color-info-strong: var(--ui-info-strong);
+  --color-info-soft: var(--ui-info-soft);
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC",
     "Microsoft YaHei", sans-serif;
   --font-editor: "Iowan Old Style", "Songti SC", STSong, serif;
-  --radius-lg: 0.8rem;
-  --radius-xl: 1.15rem;
-  --radius-2xl: 1.65rem;
-  --shadow-studio: 0 24px 70px -30px rgba(61, 42, 30, 0.32);
-  --shadow-card: 0 14px 40px -28px rgba(61, 42, 30, 0.38);
+  --radius-sm: 0.4rem;
+  --radius-md: 0.65rem;
+  --radius-lg: 0.9rem;
+  --radius-xl: 1.2rem;
+  --shadow-control: var(--ui-shadow-control);
+  --shadow-card: var(--ui-shadow-card);
+  --shadow-float: var(--ui-shadow-float);
 }
 
 :root {
-  color: var(--color-ink);
-  background: var(--color-canvas);
+  --ui-canvas: #f8f7f4;
+  --ui-page: #f2f0eb;
+  --ui-surface: #fffdfa;
+  --ui-surface-raised: #ffffff;
+  --ui-surface-muted: #f0ede7;
+  --ui-field: #fffefa;
+  --ui-ink: #242320;
+  --ui-muted: #6f6a63;
+  --ui-line: #e4dfd7;
+  --ui-line-strong: #d6cfc5;
+  --ui-brand: #ba5a3a;
+  --ui-brand-strong: #943d24;
+  --ui-brand-soft: #faebe4;
+  --ui-brand-soft-hover: #f5ddd2;
+  --ui-action: #292825;
+  --ui-action-hover: #47433e;
+  --ui-action-contrast: #ffffff;
+  --ui-focus: #bb6546;
+  --ui-overlay: #171614;
+  --ui-sand: #eadbc8;
+  --ui-workbench: #20211f;
+  --ui-danger: #c24d4d;
+  --ui-danger-strong: #9d3030;
+  --ui-danger-soft: #fbe8e7;
+  --ui-success: #2f8a67;
+  --ui-success-strong: #246b51;
+  --ui-success-soft: #e5f4ed;
+  --ui-warning: #b47727;
+  --ui-warning-strong: #855716;
+  --ui-warning-soft: #fbf0d9;
+  --ui-info: #507aa8;
+  --ui-info-strong: #3d6289;
+  --ui-info-soft: #e8f0f8;
+  --ui-shadow-control: 0 1px 2px rgba(45, 38, 31, 0.08);
+  --ui-shadow-card: 0 16px 34px -28px rgba(45, 38, 31, 0.5);
+  --ui-shadow-float: 0 28px 72px -28px rgba(31, 26, 22, 0.48);
+  color: var(--ui-ink);
+  background: var(--ui-canvas);
   font-family: var(--font-sans);
   color-scheme: light;
 }
@@ -41,22 +102,28 @@ body,
   min-height: 100%;
   margin: 0;
 }
+html,
 body {
-  background:
-    radial-gradient(
-      circle at 12% 0%,
-      rgba(234, 219, 200, 0.38),
-      transparent 30rem
-    ),
-    var(--color-canvas);
-  color: var(--color-ink);
+  overflow-x: hidden;
+}
+body {
+  min-width: 0;
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 button,
 input,
 textarea,
 select {
   font: inherit;
+}
+input,
+textarea,
+select {
+  background-color: var(--ui-field);
+  color: var(--ui-ink);
 }
 button {
   cursor: pointer;
@@ -84,23 +151,64 @@ select {
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #c87558;
-  box-shadow: 0 0 0 3px rgba(185, 71, 39, 0.1);
+  border-color: var(--ui-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-focus) 14%, transparent);
   outline: none;
 }
 :focus-visible {
-  outline: 2px solid var(--color-brand);
+  outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
 ::selection {
-  background: #e9c8b8;
+  background: var(--ui-brand-soft-hover);
 }
 
-.studio-grid {
-  background-image:
-    linear-gradient(rgba(55, 48, 43, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(55, 48, 43, 0.055) 1px, transparent 1px);
-  background-size: 28px 28px;
+.app-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.no-drag,
+.app-drag-region :where(a, button, input, select, textarea, [role="button"]) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.app-titlebar-content {
+  padding-left: max(5rem, calc(env(titlebar-area-x, 0px) + 1.25rem));
+  padding-right: max(
+    1.25rem,
+    calc(
+      100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px) +
+        0.75rem
+    )
+  );
+}
+
+.workbench {
+  --ui-canvas: #171a17;
+  --ui-page: #1c1f1b;
+  --ui-surface: #222521;
+  --ui-surface-raised: #292c28;
+  --ui-surface-muted: #191c19;
+  --ui-field: #171a17;
+  --ui-ink: #f1f3ee;
+  --ui-muted: #aeb5aa;
+  --ui-line: #383d37;
+  --ui-line-strong: #50574f;
+  --ui-brand: #de8667;
+  --ui-brand-strong: #f0a184;
+  --ui-brand-soft: #443129;
+  --ui-brand-soft-hover: #59392e;
+  --ui-action: #f0f2ed;
+  --ui-action-hover: #ffffff;
+  --ui-action-contrast: #1b1d1a;
+  --ui-focus: #e29173;
+  --ui-shadow-control: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ui-shadow-card: 0 18px 40px -30px rgba(0, 0, 0, 0.9);
+  --ui-shadow-float: 0 30px 80px -26px rgba(0, 0, 0, 0.9);
+  color: var(--ui-ink);
+  color-scheme: dark;
 }
 
 .studio-eyebrow {
@@ -111,64 +219,20 @@ select:focus {
 }
 
 .studio-card {
-  border: 1px solid var(--color-line);
-  border-radius: 1.65rem;
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--radius-xl);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-card);
 }
 
 .studio-card-interactive:hover {
-  border-color: #cdb8aa;
-  box-shadow: var(--shadow-studio);
+  border-color: var(--ui-line-strong);
+  box-shadow: var(--ui-shadow-float);
   transform: translateY(-2px);
 }
 
-#root
-  main
-  :where(
-    section,
-    article
-  )[class*="rounded-2xl"][class*="border-line"][class*="bg-surface"],
-#root
-  main
-  :where(
-    section,
-    article
-  )[class*="rounded-2xl"][class*="border-line"][class*="bg-white"] {
-  box-shadow: var(--shadow-card);
-}
-
-#root button[class~="bg-brand"] {
-  border-color: var(--color-studio-dark);
-  background-color: var(--color-studio-dark);
-  box-shadow: 0 10px 24px -18px rgba(150, 57, 31, 0.75);
-}
-#root button[class~="bg-brand"]:hover:not(:disabled) {
-  border-color: var(--color-rust);
-  background-color: var(--color-rust);
-}
-
-#root
-  button[class~="border-line"]:not([class~="rounded-none"]):not(
-    [class~="rounded-xl"]
-  ):not([class~="rounded-2xl"]) {
-  border-radius: 999px;
-}
-
-#root
-  main
-  :where(section, article, div)[class*="rounded-xl"][class*="border-line"]:not(
-    [class*="bg-brand"]
-  ) {
-  background-color: color-mix(in srgb, var(--color-surface) 93%, transparent);
-}
-
-#root :where(input, textarea, select)[class*="border-line"] {
-  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
-}
-
 .studio-scrollbar {
-  scrollbar-color: #cfc5bb transparent;
+  scrollbar-color: var(--ui-line-strong) transparent;
   scrollbar-width: thin;
 }
 .studio-scrollbar::-webkit-scrollbar {
@@ -178,21 +242,59 @@ select:focus {
 .studio-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: #cfc5bb;
+  background: var(--ui-line-strong);
   background-clip: padding-box;
 }
 
 .dark {
-  --color-canvas: #1d1d1c;
-  --color-page: #242321;
-  --color-surface: #292928;
-  --color-ink: #f7f3ef;
-  --color-muted: #b7aea6;
-  --color-line: #46423e;
-  --color-brand: #e98765;
-  --color-brand-soft: #49332b;
-  --color-sand: #3b332d;
+  --ui-canvas: #191a19;
+  --ui-page: #20211f;
+  --ui-surface: #242522;
+  --ui-surface-raised: #2a2b28;
+  --ui-surface-muted: #30312d;
+  --ui-field: #20211f;
+  --ui-ink: #f1eee9;
+  --ui-muted: #aaa39a;
+  --ui-line: #3a3b37;
+  --ui-line-strong: #4c4d47;
+  --ui-brand: #dd8667;
+  --ui-brand-strong: #f0a184;
+  --ui-brand-soft: #453129;
+  --ui-brand-soft-hover: #58392e;
+  --ui-action: #f0ede8;
+  --ui-action-hover: #ffffff;
+  --ui-action-contrast: #20211f;
+  --ui-focus: #e38f70;
+  --ui-overlay: #090a09;
+  --ui-sand: #42362e;
+  --ui-workbench: #111311;
+  --ui-danger: #d26b6b;
+  --ui-danger-strong: #f08c8c;
+  --ui-danger-soft: #492929;
+  --ui-success: #58a985;
+  --ui-success-strong: #79c7a3;
+  --ui-success-soft: #213b30;
+  --ui-warning: #d2a158;
+  --ui-warning-strong: #e7bc78;
+  --ui-warning-soft: #463720;
+  --ui-info: #7ba2cb;
+  --ui-info-strong: #9bbde0;
+  --ui-info-soft: #263646;
+  --ui-shadow-control: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --ui-shadow-card: 0 18px 40px -30px rgba(0, 0, 0, 0.8);
+  --ui-shadow-float: 0 30px 80px -26px rgba(0, 0, 0, 0.85);
   color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .novel-tiptap {
@@ -233,7 +335,7 @@ select:focus {
 .novel-tiptap .ProseMirror p.is-editor-empty:first-child::before {
   float: left;
   height: 0;
-  color: #94a3b8;
+  color: var(--ui-muted);
   content: attr(data-placeholder);
   pointer-events: none;
 }

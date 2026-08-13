@@ -25,7 +25,6 @@ test.afterAll(async () => {
 test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与撤销", async () => {
   const page = await application.firstWindow();
   await page.setViewportSize({ width: 1280, height: 720 });
-  page.on("dialog", (dialog) => void dialog.accept());
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
@@ -59,9 +58,17 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
   await expect(fields.first()).toBeChecked();
   await fields.last().uncheck();
   await sidecar.getByRole("button", { name: "采用所选字段" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "确认", exact: true })
+    .click();
   await expect(
     sidecar.getByText("已采用所选字段，并保留可撤销记录。"),
   ).toBeVisible();
   await sidecar.getByRole("button", { name: "撤销采用" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "确认继续", exact: true })
+    .click();
   await expect(sidecar.getByText("已撤销此变更集创建的资料。")).toBeVisible();
 });

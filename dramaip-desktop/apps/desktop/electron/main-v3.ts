@@ -4,6 +4,7 @@ import {
   dialog,
   ipcMain,
   net,
+  nativeTheme,
   protocol,
   shell,
   utilityProcess,
@@ -656,6 +657,7 @@ function registerRendererProtocol(): void {
 }
 
 function createWindow(): BrowserWindow {
+  const dark = nativeTheme.shouldUseDarkColors;
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -663,7 +665,17 @@ function createWindow(): BrowserWindow {
     minHeight: 700,
     show: false,
     title: "DramaIP Studio",
-    backgroundColor: "#f8fafc",
+    backgroundColor: dark ? "#191a19" : "#f8f7f4",
+    ...(process.platform === "darwin"
+      ? { titleBarStyle: "hiddenInset" as const }
+      : {
+          titleBarStyle: "hidden" as const,
+          titleBarOverlay: {
+            color: dark ? "#191a19" : "#f8f7f4",
+            symbolColor: dark ? "#f1eee9" : "#242320",
+            height: 64,
+          },
+        }),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -770,6 +782,21 @@ function registerNativeIpc(): void {
   );
   ipcMain.handle("desktop:getCredentialStorageStatus", () =>
     credentialVault.status(),
+  );
+  ipcMain.handle(
+    "desktop:setWindowTheme",
+    (event, theme: "light" | "dark"): void => {
+      if (theme !== "light" && theme !== "dark")
+        throw new Error("Unsupported window theme");
+      if (process.platform === "darwin") return;
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window || window.isDestroyed()) return;
+      window.setTitleBarOverlay({
+        color: theme === "dark" ? "#191a19" : "#f8f7f4",
+        symbolColor: theme === "dark" ? "#f1eee9" : "#242320",
+        height: 64,
+      });
+    },
   );
   ipcMain.handle("desktop:retryInitialization", async () => {
     initialization = initialize();

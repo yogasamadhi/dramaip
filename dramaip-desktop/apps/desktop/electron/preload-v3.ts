@@ -30,6 +30,7 @@ export type DesktopApi = {
     storage: "local_encrypted_file";
     message?: string;
   }>;
+  setWindowTheme(theme: "light" | "dark"): Promise<void>;
 };
 
 const api: DesktopApi = {
@@ -45,6 +46,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke("desktop:removeCredential", credentialRef),
   getCredentialStorageStatus: () =>
     ipcRenderer.invoke("desktop:getCredentialStorageStatus"),
+  setWindowTheme: (theme) =>
+    ipcRenderer.invoke("desktop:setWindowTheme", theme),
 };
 
 contextBridge.exposeInMainWorld("desktop", api);

@@ -39,6 +39,7 @@ function childText(child: ts.JsxChild): string[] {
 
 test("所有静态按钮文案均包含中文", async () => {
   const buttonTexts: string[] = [];
+  const controlTags = new Set(["button", "BareButton", "Button"]);
   for (const visibleSourcePath of await visibleSourcePaths()) {
     const source = await readFile(visibleSourcePath, "utf8");
     const sourceFile = ts.createSourceFile(
@@ -51,7 +52,7 @@ test("所有静态按钮文案均包含中文", async () => {
     const visit = (node: ts.Node): void => {
       if (
         ts.isJsxElement(node) &&
-        node.openingElement.tagName.getText(sourceFile) === "button"
+        controlTags.has(node.openingElement.tagName.getText(sourceFile))
       ) {
         buttonTexts.push(
           ...node.children

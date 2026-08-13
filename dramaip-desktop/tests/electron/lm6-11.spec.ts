@@ -40,25 +40,29 @@ test("导演看板支持键盘、拖拽重排、撤销和资产上下文跳转",
   });
   await expect(first).toBeVisible();
   await expect(second).toBeVisible();
-  await expect(
-    page.getByLabel("镜头 1：门缝中的雨夜 资产覆盖"),
-  ).toContainText("缺资产引用");
-  await expect(
-    page.getByLabel("静帧预览：静帧已采用"),
-  ).toContainText("不伪造缩略图");
+  await expect(page.getByLabel("镜头 1：门缝中的雨夜 资产覆盖")).toContainText(
+    "缺资产引用",
+  );
+  await expect(page.getByLabel("静帧预览：静帧已采用")).toContainText(
+    "不伪造缩略图",
+  );
   await second.focus();
   await page.keyboard.press("Alt+ArrowUp");
-  await expect(page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。")).toBeVisible();
+  await expect(
+    page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。"),
+  ).toBeVisible();
   await page.getByRole("button", { name: "撤销上次重排" }).click();
   await expect(page.getByText("已恢复上一次分镜顺序。")).toBeVisible();
-  const firstCard = page.locator('[data-shot-id]').filter({
+  const firstCard = page.locator("[data-shot-id]").filter({
     hasText: "镜头 1：门缝中的雨夜",
   });
-  const secondCard = page.locator('[data-shot-id]').filter({
+  const secondCard = page.locator("[data-shot-id]").filter({
     hasText: "镜头 2：雨中的来客",
   });
   await firstCard.dragTo(secondCard);
-  await expect(page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。")).toBeVisible();
+  await expect(
+    page.getByText("已保存分镜顺序；可在下一次调整前撤销这次重排。"),
+  ).toBeVisible();
   await first.click();
   await expect(page.getByLabel("当前分镜上下文")).toContainText(
     "镜头 1：门缝中的雨夜",

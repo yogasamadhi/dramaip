@@ -51,7 +51,8 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
 
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await expect(page.getByText("示例短剧：雨夜归来")).toBeVisible();
-  await page.getByRole("link", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置", exact: true }).click();
   await expect(
     page.getByText("智能引擎", { exact: true }).first(),
   ).toBeVisible();
@@ -77,6 +78,7 @@ test("Renderer 只暴露桌面原生白名单", async () => {
       "retryInitialization",
       "revealPath",
       "saveTextFile",
+      "setWindowTheme",
       "storeCredential",
     ].sort(),
   );
@@ -89,6 +91,38 @@ test("Renderer 只暴露桌面原生白名单", async () => {
   });
 });
 
+test("主题跟随系统并持久化手动选择", async () => {
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-theme-mode",
+    "system",
+  );
+  await page.getByRole("button", { name: "切换外观主题" }).click();
+  await page.getByRole("menuitem", { name: "深色" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme-mode", "dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "切换外观主题" }).click();
+  await page.getByRole("menuitem", { name: "浅色" }).click();
+});
+
+test("最小窗口下应用栏可用且页面无横向溢出", async () => {
+  await page.setViewportSize({ width: 1080, height: 700 });
+  await expect(
+    page.getByRole("link", { name: "小说写作", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "更多", exact: true }),
+  ).toBeVisible();
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 1440, height: 920 });
+});
+
 test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
@@ -99,7 +133,7 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   const dialog = page.getByRole("dialog", { name: "DramaIP 智能助手" });
   await expect(dialog).toBeVisible();
   await expect(
-    dialog.getByRole("heading", { name: "DramaIP 智能助手" }),
+    dialog.getByRole("heading", { name: "DramaIP 智能助手" }).first(),
   ).toBeVisible();
 
   await dialog.getByRole("button", { name: "关闭智能助手" }).click();
@@ -114,13 +148,7 @@ test("小说工作区保留旧版入口并按需打开智能写作抽屉", async
     .getByRole("link", { name: /示例短剧：雨夜归来/ })
     .first()
     .click();
-  for (const label of [
-    "正文写作",
-    "全书大纲",
-    "人物",
-    "项目设定",
-    "故事圣经",
-  ])
+  for (const label of ["正文写作", "全书大纲", "人物", "项目设定", "故事圣经"])
     await expect(
       page.getByRole("button", { name: label, exact: true }),
     ).toBeVisible();
@@ -174,7 +202,8 @@ test("小说工作区保留旧版入口并按需打开智能写作抽屉", async
 });
 
 test("模型服务商置顶并提供常用厂商与模型级联选择", async () => {
-  await page.getByRole("link", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置", exact: true }).click();
   const providerHeading = page.getByText("模型服务商", { exact: true }).first();
   const engineHeading = page.getByText("智能引擎", { exact: true }).first();
   const [providerBox, engineBox] = await Promise.all([

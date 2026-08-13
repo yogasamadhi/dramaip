@@ -4100,6 +4100,7 @@ test("desktop production boundary excludes local renderers and business IPC", ()
     "desktop:retryInitialization",
     "desktop:revealPath",
     "desktop:saveTextFile",
+    "desktop:setWindowTheme",
     "desktop:storeCredential",
   ]);
 });

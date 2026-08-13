@@ -45,7 +45,7 @@ test("LM6-01 固化三条首页创建路径与它们的首个用户结果", () =
 
 test("LM6-01 首页将文件路径接到既有的权益确认预览，而非绕过 capability 边界", () => {
   const appSource = readFileSync(
-    join(desktopRoot, "packages/app/src/main.tsx"),
+    join(desktopRoot, "packages/app/src/studio-app.tsx"),
     "utf8",
   );
   for (const path of fixture.paths) {

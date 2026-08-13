@@ -23,7 +23,10 @@ test("LM6-22 将 canonical timeline 的确定性交付与参考解析门禁固�
     join(root, "packages/server/src/sidecar.ts"),
     "utf8",
   );
-  const app = readFileSync(join(root, "packages/app/src/main.tsx"), "utf8");
+  const app = readFileSync(
+    join(root, "packages/app/src/studio-app.tsx"),
+    "utf8",
+  );
   const serverContract = readFileSync(
     join(root, "packages/server/src/sidecar.node.test.ts"),
     "utf8",
