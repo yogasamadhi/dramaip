@@ -285,9 +285,12 @@ export const AgentEngineKind = Schema.Literals([
   "opencode",
   "codex",
   "dsh",
+  "hermes",
+  "openclaw",
   "langgraph",
 ]);
-export type AgentEngineKind = "opencode" | "codex" | "dsh" | "langgraph";
+export type AgentEngineKind =
+  "opencode" | "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -4181,7 +4184,14 @@ export const AgentExperiment = Schema.Struct({
   candidates: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
-        candidate: Schema.Literals(["one", "two", "three", "four"]),
+        candidate: Schema.Literals([
+          "one",
+          "two",
+          "three",
+          "four",
+          "five",
+          "six",
+        ]),
         runId: Id,
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
@@ -4220,7 +4230,7 @@ export interface AgentExperiment {
   error?: string;
   revealed: boolean;
   candidates?: ReadonlyArray<{
-    candidate: "one" | "two" | "three" | "four";
+    candidate: "one" | "two" | "three" | "four" | "five" | "six";
     runId: Id;
     status: AgentRunStatus;
     output?: unknown;
@@ -4263,11 +4273,19 @@ export interface AgentExperimentInput {
   confirmedEstimatedCost: boolean;
 }
 export const AgentExperimentReviewInput = Schema.Struct({
-  preferredCandidate: Schema.Literals(["one", "two", "three", "four", "tie"]),
+  preferredCandidate: Schema.Literals([
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "tie",
+  ]),
   notes: Schema.optionalKey(Schema.String),
 });
 export interface AgentExperimentReviewInput {
-  preferredCandidate: "one" | "two" | "three" | "four" | "tie";
+  preferredCandidate: "one" | "two" | "three" | "four" | "five" | "six" | "tie";
   notes?: string;
 }
 

@@ -47,7 +47,7 @@ test("默认上下文助手只展示推荐动作，高级模式保留完整控�
   await expect(page.getByLabel("智能任务")).toBeVisible();
   await expect(page.getByLabel("盲测比较方式")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "启动四引擎盲测" }),
+    page.getByRole("button", { name: "启动六引擎盲测" }),
   ).toBeVisible();
   await expect(page.getByText("已恢复完整任务目录和高级参数。")).toBeVisible();
 

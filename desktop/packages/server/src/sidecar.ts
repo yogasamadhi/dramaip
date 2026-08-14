@@ -97,7 +97,7 @@ type StartCommand = {
   backupDirectory: string;
   assetDirectory: string;
   allowedOrigins: string[];
-  /** 兼容测试宿主；正式桌面端为四个引擎使用互不相同的传输凭据。 */
+  /** 兼容测试宿主；正式桌面端为六个引擎使用互不相同的传输凭据。 */
   mcpToken?: string;
   mcpTokens?: Partial<Record<AgentEngineKind, string>>;
   opencode?: {
@@ -115,6 +115,14 @@ type StartCommand = {
     healthy: boolean;
     version: string;
   };
+  hermes?: {
+    healthy: boolean;
+    version: string;
+  };
+  openclaw?: {
+    healthy: boolean;
+    version: string;
+  };
   langgraph?: {
     healthy: boolean;
     version: string;
@@ -122,6 +130,24 @@ type StartCommand = {
 };
 type Command = StartCommand | { type: "stop" };
 type AgentRunOperation = "diagnostic" | "revision";
+type AgentExperimentCandidate =
+  "one" | "two" | "three" | "four" | "five" | "six";
+const AGENT_ENGINE_ORDER = [
+  "opencode",
+  "codex",
+  "dsh",
+  "hermes",
+  "openclaw",
+  "langgraph",
+] as const satisfies readonly AgentEngineKind[];
+const AGENT_EXPERIMENT_CANDIDATES = [
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+] as const satisfies readonly AgentExperimentCandidate[];
 type ParentPort = {
   postMessage(message: unknown): void;
   on(event: "message", cb: (event: { data: unknown }) => void): void;
@@ -410,6 +436,14 @@ hostPort.on("message", (event) => {
     if (status.engineKind === "dsh" && command?.dsh) {
       command.dsh.healthy = status.healthy === true;
       if (status.version) command.dsh.version = status.version;
+    }
+    if (status.engineKind === "hermes" && command?.hermes) {
+      command.hermes.healthy = status.healthy === true;
+      if (status.version) command.hermes.version = status.version;
+    }
+    if (status.engineKind === "openclaw" && command?.openclaw) {
+      command.openclaw.healthy = status.healthy === true;
+      if (status.version) command.openclaw.version = status.version;
     }
     if (status.engineKind === "langgraph" && command?.langgraph) {
       command.langgraph.healthy = status.healthy === true;
@@ -18955,12 +18989,7 @@ async function retryTaskRoute(
   const retryInput = await body(req);
   const selectedEngine = text(retryInput.engineKind) as
     AgentEngineKind | undefined;
-  if (
-    !selectedEngine ||
-    !(["opencode", "codex", "dsh", "langgraph"] as const).includes(
-      selectedEngine,
-    )
-  )
+  if (!selectedEngine || !isEngineKind(selectedEngine))
     return respondError(
       res,
       400,
@@ -19528,18 +19557,15 @@ async function discardRevision(
 }
 
 function isEngineKind(value: unknown): value is AgentEngineKind {
-  return (
-    value === "opencode" ||
-    value === "codex" ||
-    value === "dsh" ||
-    value === "langgraph"
-  );
+  return AGENT_ENGINE_ORDER.includes(value as AgentEngineKind);
 }
 
 function engineHealthy(kind: AgentEngineKind): boolean {
   if (kind === "opencode") return command?.opencode?.healthy === true;
   if (kind === "codex") return command?.codex?.healthy === true;
   if (kind === "dsh") return command?.dsh?.healthy === true;
+  if (kind === "hermes") return command?.hermes?.healthy === true;
+  if (kind === "openclaw") return command?.openclaw?.healthy === true;
   return command?.langgraph?.healthy === true;
 }
 
@@ -19547,6 +19573,8 @@ function engineVersion(kind: AgentEngineKind): string {
   if (kind === "opencode") return "1.18.15";
   if (kind === "codex") return command?.codex?.version ?? "0.147.0";
   if (kind === "dsh") return command?.dsh?.version ?? "0.1.0-rc.5";
+  if (kind === "hermes") return command?.hermes?.version ?? "0.20.1";
+  if (kind === "openclaw") return command?.openclaw?.version ?? "2026.7.1";
   return command?.langgraph?.version ?? "0.2.43";
 }
 
@@ -19599,7 +19627,11 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
           ? "Codex"
           : kind === "dsh"
             ? "DeepSeek Harness"
-            : "LangGraph.js",
+            : kind === "hermes"
+              ? "Hermes Agent"
+              : kind === "openclaw"
+                ? "OpenClaw"
+                : "LangGraph.js",
     version: engineVersion(kind),
     status,
     runtimeStatus: healthy ? "running" : "stopped",
@@ -19621,7 +19653,11 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
         }
       : {}),
     isDefault: kind === globalSettings.defaultEngineKind,
-    isBeta: kind === "codex" || kind === "dsh",
+    isBeta:
+      kind === "codex" ||
+      kind === "dsh" ||
+      kind === "hermes" ||
+      kind === "openclaw",
     statusMessage: !healthy
       ? "引擎进程未启动"
       : !providerConfigured
@@ -19712,12 +19748,7 @@ async function updateGlobalAgentSettings(
 }
 
 function listAgentEngines(res: ServerResponse): void {
-  json(res, 200, [
-    agentEngineDescriptor("opencode"),
-    agentEngineDescriptor("codex"),
-    agentEngineDescriptor("dsh"),
-    agentEngineDescriptor("langgraph"),
-  ]);
+  json(res, 200, AGENT_ENGINE_ORDER.map(agentEngineDescriptor));
 }
 
 function listAgentTasks(res: ServerResponse): void {
@@ -20541,9 +20572,7 @@ async function bridgeEngineRequest(
   timeoutMs = 120_000,
 ): Promise<unknown> {
   if (!engineHealthy(engineKind))
-    throw new Error(
-      `${engineKind === "codex" ? "Codex" : engineKind === "dsh" ? "DeepSeek Harness" : "LangGraph.js"} 引擎当前不可用`,
-    );
+    throw new Error(`${agentEngineDescriptor(engineKind).name} 引擎当前不可用`);
   const requestId = randomUUID();
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -22720,7 +22749,8 @@ function agentExperimentRecord(row: Record<string, any>) {
      JOIN tasks t ON t.id = ar.task_id
      WHERE er.experiment_id = ?
      ORDER BY CASE er.candidate
-       WHEN 'one' THEN 1 WHEN 'two' THEN 2 WHEN 'three' THEN 3 ELSE 4 END`,
+       WHEN 'one' THEN 1 WHEN 'two' THEN 2 WHEN 'three' THEN 3
+       WHEN 'four' THEN 4 WHEN 'five' THEN 5 WHEN 'six' THEN 6 ELSE 7 END`,
     [row.id],
   ).map((candidate) => ({
     candidate: candidate.candidate,
@@ -22761,6 +22791,19 @@ function agentExperimentRecord(row: Record<string, any>) {
   };
 }
 
+function storedExperimentCandidateOrder(
+  value: unknown,
+): Partial<Record<AgentExperimentCandidate, AgentEngineKind>> {
+  try {
+    const parsed = JSON.parse(String(value ?? "{}"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {};
+    return parsed as Partial<Record<AgentExperimentCandidate, AgentEngineKind>>;
+  } catch {
+    return {};
+  }
+}
+
 async function createAgentExperiment(
   req: IncomingMessage,
   res: ServerResponse,
@@ -22772,7 +22815,7 @@ async function createAgentExperiment(
       res,
       400,
       "VALIDATION_ERROR",
-      "创建四引擎盲测必须提供 Idempotency-Key",
+      "创建六引擎盲测必须提供 Idempotency-Key",
       requestId,
     );
   const replay = one(
@@ -22802,7 +22845,7 @@ async function createAgentExperiment(
       res,
       409,
       "TASK_REJECTED",
-      "请先确认四次模型调用可能产生的费用",
+      "请先确认六次模型调用可能产生的费用",
       requestId,
     );
   const comparisonMode =
@@ -22835,7 +22878,7 @@ async function createAgentExperiment(
         res,
         409,
         "TASK_REJECTED",
-        "同模型盲测要求 OpenCode、DSH 与 LangGraph 使用 OpenAI 兼容服务商",
+        "同模型盲测要求 OpenCode、DSH、Hermes、OpenClaw 与 LangGraph 使用 OpenAI 兼容服务商",
         requestId,
       );
     if (
@@ -22850,9 +22893,7 @@ async function createAgentExperiment(
         requestId,
       );
   }
-  const unavailable = (
-    ["opencode", "codex", "dsh", "langgraph"] as const
-  ).filter((kind) => !engineHealthy(kind));
+  const unavailable = AGENT_ENGINE_ORDER.filter((kind) => !engineHealthy(kind));
   if (unavailable.length)
     return respondError(
       res,
@@ -22866,7 +22907,7 @@ async function createAgentExperiment(
       res,
       409,
       "CONFLICT",
-      "请先配置 OpenCode、DSH 与 LangGraph 使用的智能模型",
+      "请先配置 OpenCode、DSH、Hermes、OpenClaw 与 LangGraph 使用的智能模型",
       requestId,
     );
   const sourceProject = one("SELECT * FROM projects WHERE id = ?", [projectId]);
@@ -22900,7 +22941,9 @@ async function createAgentExperiment(
     one: "opencode",
     two: "codex",
     three: "dsh",
-    four: "langgraph",
+    four: "hermes",
+    five: "openclaw",
+    six: "langgraph",
   } as const satisfies Record<string, AgentEngineKind>;
   db!
     .prepare(
@@ -22936,7 +22979,7 @@ async function createAgentExperiment(
     definition,
     snapshot,
     candidateOrder: candidateOrder as Record<
-      "one" | "two" | "three" | "four",
+      AgentExperimentCandidate,
       AgentEngineKind
     >,
     comparisonMode,
@@ -22951,12 +22994,18 @@ async function startAgentExperiment(input: {
   chapter?: Record<string, any>;
   definition: ReturnType<typeof getAgentTaskDefinition>;
   snapshot: ReturnType<typeof createAgentContextSnapshot>;
-  candidateOrder: Record<"one" | "two" | "three" | "four", AgentEngineKind>;
+  candidateOrder: Record<AgentExperimentCandidate, AgentEngineKind>;
   comparisonMode: "recommended" | "same_model";
   model?: AgentModelSelection;
   userPrompt: string;
 }): Promise<void> {
   const now = timestamp();
+  const allocatedSessions: Array<{
+    candidate: AgentExperimentCandidate;
+    engineKind: AgentEngineKind;
+    engineSession: { id: string };
+  }> = [];
+  let transactionOpen = false;
   db!
     .prepare(
       "UPDATE agent_experiment_groups SET status = 'running', updated_at = ? WHERE id = ?",
@@ -22972,124 +23021,123 @@ async function startAgentExperiment(input: {
   });
   try {
     const candidates = Object.entries(input.candidateOrder) as Array<
-      ["one" | "two" | "three" | "four", AgentEngineKind]
+      [AgentExperimentCandidate, AgentEngineKind]
     >;
-    // 一个 SQLite 连接不能并发开启多个事务；先顺序落库，再由四个
-    // 独立引擎队列并发执行，避免留下半组盲测记录。
-    for (const [candidate, engineKind] of candidates) {
-      const engineSession = await createEngineSession(engineKind, {
-        title: `四引擎盲测：${input.definition.label}`,
-        projectId: String(input.project.id),
-        ...(input.chapter ? { chapterId: String(input.chapter.id) } : {}),
-        ...(input.model ? { model: input.model } : {}),
+    // 所有引擎会话只创建元数据。六个会话全部成功后才落库和入队，
+    // 从而在运行前拒绝不可用引擎，绝不启动部分候选。
+    for (const [candidate, engineKind] of candidates)
+      allocatedSessions.push({
+        candidate,
+        engineKind,
+        engineSession: await createEngineSession(engineKind, {
+          title: `六引擎盲测：${input.definition.label}`,
+          projectId: String(input.project.id),
+          ...(input.chapter ? { chapterId: String(input.chapter.id) } : {}),
+          ...(input.model ? { model: input.model } : {}),
+        }),
       });
+    const queuedRuns: Parameters<typeof enqueueAgentRun>[0][] = [];
+    db!.exec("BEGIN IMMEDIATE");
+    transactionOpen = true;
+    for (const { candidate, engineKind, engineSession } of allocatedSessions) {
       const sessionId = randomUUID();
       const taskId = randomUUID();
       const runId = randomUUID();
       const createdAt = timestamp();
-      db!.exec("BEGIN IMMEDIATE");
-      try {
-        db!
-          .prepare(
-            `INSERT INTO agent_sessions(
+      db!
+        .prepare(
+          `INSERT INTO agent_sessions(
                 id, engine_session_id, engine_kind, project_id, chapter_id,
                 task_type, title, model_json, status, active_task_id, created_at, updated_at
               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', NULL, ?, ?)`,
-          )
-          .run(
-            sessionId,
-            engineSession.id,
-            engineKind,
-            input.project.id,
-            input.chapter?.id ?? null,
-            input.definition.id,
-            `四引擎盲测：${input.definition.label}`,
-            input.model ? JSON.stringify(input.model) : null,
-            createdAt,
-            createdAt,
-          );
-        db!
-          .prepare(
-            "INSERT INTO tasks VALUES (?, ?, 'running', ?, 0, ?, NULL, NULL, NULL, ?, ?)",
-          )
-          .run(
-            taskId,
-            `agent.experiment.${input.definition.id}`,
-            `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : "四"}`,
-            input.project.id,
-            createdAt,
-            createdAt,
-          );
-        db!
-          .prepare("UPDATE agent_sessions SET active_task_id = ? WHERE id = ?")
-          .run(taskId, sessionId);
-        db!
-          .prepare(
-            `INSERT INTO agent_runs(
+        )
+        .run(
+          sessionId,
+          engineSession.id,
+          engineKind,
+          input.project.id,
+          input.chapter?.id ?? null,
+          input.definition.id,
+          `六引擎盲测：${input.definition.label}`,
+          input.model ? JSON.stringify(input.model) : null,
+          createdAt,
+          createdAt,
+        );
+      db!
+        .prepare(
+          "INSERT INTO tasks VALUES (?, ?, 'running', ?, 0, ?, NULL, NULL, NULL, ?, ?)",
+        )
+        .run(
+          taskId,
+          `agent.experiment.${input.definition.id}`,
+          `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : candidate === "four" ? "四" : candidate === "five" ? "五" : "六"}`,
+          input.project.id,
+          createdAt,
+          createdAt,
+        );
+      db!
+        .prepare("UPDATE agent_sessions SET active_task_id = ? WHERE id = ?")
+        .run(taskId, sessionId);
+      db!
+        .prepare(
+          `INSERT INTO agent_runs(
                 id, session_id, task_id, task_type, engine_kind, status,
                 model_json, context_snapshot_id, started_at, created_at, updated_at
               ) VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            runId,
-            sessionId,
-            taskId,
-            input.definition.id,
-            engineKind,
-            input.model ? JSON.stringify(input.model) : null,
-            input.snapshot.id,
-            createdAt,
-            createdAt,
-            createdAt,
-          );
-        db!
-          .prepare(
-            "INSERT INTO agent_checkpoints(id, run_id, engine_kind, checkpoint_json, created_at) VALUES (?, ?, ?, ?, ?)",
-          )
-          .run(
-            randomUUID(),
-            runId,
-            engineKind,
-            JSON.stringify({
-              prompt,
-              projectId: String(input.project.id),
-              chapterId: input.chapter ? String(input.chapter.id) : undefined,
-              operation:
-                input.definition.id === "chapter_revision"
-                  ? "revision"
-                  : "diagnostic",
-              model: input.model,
-              chapterBaseVersion: input.chapter
-                ? Number(input.chapter.version)
-                : undefined,
-            }),
-            createdAt,
-          );
-        db!
-          .prepare(
-            `INSERT INTO agent_experiment_runs(
+        )
+        .run(
+          runId,
+          sessionId,
+          taskId,
+          input.definition.id,
+          engineKind,
+          input.model ? JSON.stringify(input.model) : null,
+          input.snapshot.id,
+          createdAt,
+          createdAt,
+          createdAt,
+        );
+      db!
+        .prepare(
+          "INSERT INTO agent_checkpoints(id, run_id, engine_kind, checkpoint_json, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .run(
+          randomUUID(),
+          runId,
+          engineKind,
+          JSON.stringify({
+            prompt,
+            projectId: String(input.project.id),
+            chapterId: input.chapter ? String(input.chapter.id) : undefined,
+            operation:
+              input.definition.id === "chapter_revision"
+                ? "revision"
+                : "diagnostic",
+            model: input.model,
+            chapterBaseVersion: input.chapter
+              ? Number(input.chapter.version)
+              : undefined,
+          }),
+          createdAt,
+        );
+      db!
+        .prepare(
+          `INSERT INTO agent_experiment_runs(
                 id, experiment_id, run_id, candidate, engine_kind,
                 engine_version, model_json, metrics_json, created_at
               ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
-          )
-          .run(
-            randomUUID(),
-            input.experimentId,
-            runId,
-            candidate,
-            engineKind,
-            engineVersion(engineKind),
-            input.model ? JSON.stringify(input.model) : null,
-            createdAt,
-          );
-        db!.exec("COMMIT");
-      } catch (error) {
-        try {
-          db!.exec("ROLLBACK");
-        } catch {}
-        throw error;
-      }
-      enqueueAgentRun({
+        )
+        .run(
+          randomUUID(),
+          input.experimentId,
+          runId,
+          candidate,
+          engineKind,
+          engineVersion(engineKind),
+          input.model ? JSON.stringify(input.model) : null,
+          createdAt,
+        );
+      queuedRuns.push({
         sessionId,
         engineSessionId: engineSession.id,
         taskId,
@@ -23109,12 +23157,32 @@ async function startAgentExperiment(input: {
           : {}),
       });
     }
+    db!.exec("COMMIT");
+    transactionOpen = false;
+    for (const queuedRun of queuedRuns) enqueueAgentRun(queuedRun);
   } catch (error) {
+    if (transactionOpen)
+      try {
+        db!.exec("ROLLBACK");
+      } catch {}
+    await Promise.allSettled(
+      allocatedSessions.map(async ({ engineKind, engineSession }) => {
+        if (engineKind === "opencode")
+          await engineRequest(
+            `/session/${encodeURIComponent(engineSession.id)}`,
+            { method: "DELETE" },
+          );
+        else
+          await bridgeEngineRequest(engineKind, "dispose", {
+            engineSessionId: engineSession.id,
+          });
+      }),
+    );
     const failedAt = timestamp();
     hostPort.postMessage({
       type: "diagnostic",
       level: "error",
-      message: `四引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
+      message: `六引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
     });
     db!
       .prepare(
@@ -23155,7 +23223,7 @@ function updateAgentExperimentForRun(runId: string): void {
     if (order && typeof order === "object" && !Array.isArray(order))
       expectedCandidateCount = Object.keys(order).length;
   } catch {
-    // Existing three-engine rows predate the four-engine contract.
+    // Existing three-engine rows predate the four- and six-engine contracts.
   }
   if (
     states.length !== expectedCandidateCount ||
@@ -23258,7 +23326,7 @@ function getAgentExperiment(
     id,
   ]);
   if (!record)
-    return respondError(res, 404, "NOT_FOUND", "四引擎盲测不存在", requestId);
+    return respondError(res, 404, "NOT_FOUND", "盲测不存在", requestId);
   json(res, 200, agentExperimentRecord(record));
 }
 
@@ -23272,7 +23340,7 @@ async function reviewAgentExperiment(
     id,
   ]);
   if (!record)
-    return respondError(res, 404, "NOT_FOUND", "四引擎盲测不存在", requestId);
+    return respondError(res, 404, "NOT_FOUND", "盲测不存在", requestId);
   if (record.status !== "ready_for_review")
     return respondError(
       res,
@@ -23282,10 +23350,15 @@ async function reviewAgentExperiment(
       requestId,
     );
   const input = await body(req);
+  const storedCandidateOrder = storedExperimentCandidateOrder(
+    record.candidate_order_json,
+  );
   if (
-    !["one", "two", "three", "four", "tie"].includes(
-      String(input.preferredCandidate),
-    )
+    input.preferredCandidate !== "tie" &&
+    (!AGENT_EXPERIMENT_CANDIDATES.includes(
+      String(input.preferredCandidate) as AgentExperimentCandidate,
+    ) ||
+      !Object.hasOwn(storedCandidateOrder, String(input.preferredCandidate)))
   )
     return respondError(
       res,
@@ -24838,7 +24911,7 @@ function mcpEngineForRequest(
   const authorization = req.headers.authorization;
   if (!authorization?.startsWith("Bearer ")) return undefined;
   const token = authorization.slice(7);
-  for (const engineKind of ["opencode", "codex", "dsh", "langgraph"] as const)
+  for (const engineKind of AGENT_ENGINE_ORDER)
     if (token && token === command?.mcpTokens?.[engineKind]) return engineKind;
   if (token && token === command?.mcpToken) return "opencode";
   return undefined;

@@ -9,12 +9,14 @@ Electron Main
 ├── OpenCode Engine utilityProcess（默认）
 ├── Codex Host utilityProcess（测试版）
 ├── DSH Engine utilityProcess（测试版）→ 会话级 JSON-RPC Runtime
-└── LangGraph.js Engine utilityProcess（方案四稳定基线）
+├── Hermes Engine utilityProcess（测试版）→ 会话级 ACP Runtime
+├── OpenClaw Engine utilityProcess（测试版）→ Gateway WebSocket v4
+└── LangGraph.js Engine utilityProcess（方案六稳定基线）
 ```
 
 所有产品数据写入新的 `dramaip.db`，不会读取或迁移历史 `studio.db`。Renderer 的业务调用全部通过由 Effect HttpApi/OpenAPI 契约生成的 `@sdns/client` 完成。Electron IPC 仅用于初始化、窗口、文件 capability、安全凭据和其他桌面原生能力。
 
-四个智能引擎共享同一任务目录、不可变上下文快照、只读 MCP 权限、Session/Run/Item 事件和预览确认机制。任何引擎都不能直接修改正式内容或直接发起付费媒体任务，也不会在失败后静默切换引擎。新盲测固定为方案一 OpenCode、方案二 Codex、方案三 DeepSeek Harness、方案四 LangGraph.js；评价前仍隐藏名称。
+六个智能引擎共享同一任务目录、不可变上下文快照、只读 MCP 权限、Session/Run/Item 事件和预览确认机制。任何引擎都不能直接修改正式内容或直接发起付费媒体任务，也不会在失败后静默切换引擎。新盲测固定为方案一 OpenCode、方案二 Codex、方案三 DeepSeek Harness、方案四 Hermes Agent、方案五 OpenClaw、方案六 LangGraph.js；评价前仍隐藏名称。既有三候选和四候选记录始终按自身已存映射解释。
 
 ## P2 机器验收边界
 
@@ -40,4 +42,4 @@ bun run check:engine-locks
 bun run build
 ```
 
-`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。OpenCode 1.18.15 源码及锁定记录位于 `vendor/opencode`；Codex 0.147.0 的六平台二进制哈希和协议快照位于 `vendor/codex.lock.json` 与 `vendor/codex.protocol.lock.json`；DSH 0.1.0-rc.5 的冻结源码树、pnpm 11.7.0 和 lockfile 摘要位于 `vendor/deepseek-harness.lock.json`。
+`bun run package` 需要提供 `DRAMAIP_UPDATE_URL`。OpenCode 1.18.15 源码及锁定记录位于 `vendor/opencode`；Codex 0.147.0 的六平台二进制哈希和协议快照位于 `vendor/codex.lock.json` 与 `vendor/codex.protocol.lock.json`；DSH 0.1.0-rc.5、Hermes 0.20.1 和 OpenClaw 2026.7.1 的冻结源码树、工具链与 lockfile 摘要分别位于对应的 `vendor/*.lock.json`。Hermes 打包 CPython 3.11.15，OpenClaw 使用 Electron 内置 Node 24.18.0；两者首次运行均不下载依赖。
