@@ -1623,3 +1623,32 @@ LM6-00
 - Loop branch cleanup: 保留本地和远端已合并分支，未在“合并所有分支代码”授权之外删除分支引用。
 - Unfinished: 无。Windows/Linux DSH 安装包启动验证继续由对应平台 CI 产生增强证据，不影响本次代码合并与远端发布完成状态。
 - Next attempt: 无；后续如需清理已合并分支，单独执行分支清理审计。
+
+## 9. LM9：Hermes / OpenClaw 六引擎完整接入
+
+### LM9-00 / Attempt 1 — 2026-08-15 Asia/Shanghai
+
+- Loop: LM9-00
+- Attempt: 1
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm9-00-hermes-openclaw-six-engine`
+- Commit(s): `e6257ae28 feat(desktop): add Hermes and OpenClaw engines`、`2be321a30 fix(desktop): expose six-engine task controls`
+- Merge commit: `a2e426feb merge: integrate LM9 six-engine desktop`、`18a23365e merge: complete LM9 Electron coverage`；两次均使用 `--no-ff`，第二次只收口任务入口与既有 Electron 导航/视觉回归。
+- Verification:
+  - 在 Loop 分支与合并后的 `main` 各执行 `cd desktop && bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS。生成客户端 SHA-256 为 `bf148e6e033afb2a51471ce008de86bee2608741d9a7bbf53372c519ad4801a2`；AI 包 22/22，Server/DB/任务目录与应用单元、契约和 Node HTTP 测试全部通过；构建生成 Hermes 与 OpenClaw utility process 入口。
+  - `cd desktop && bun run test:e2e`: PASS — 合并结果 34/34 Electron 场景通过；覆盖六引擎状态、固定方案映射、任务页高级盲测入口、三种旧项目入口、试制恢复、Story Bible、制作/交付及任务页明暗视觉基线。
+  - `DRAMAIP_HERMES_RUNTIME_ROOT=<built-hermes> node desktop/apps/desktop/scripts/verify-hermes-runtime.mjs` 与对应 OpenClaw verifier: PASS。内置 CPython 3.11.15 的真实 Hermes ACP、OpenClaw Gateway WebSocket v4、假 OpenAI-compatible Provider、只读 Bearer MCP、错误 Token、越权工具拒绝、结构化输出及受控目录凭据扫描全部通过。
+  - `cd desktop/apps/desktop && DRAMAIP_UPDATE_URL=https://updates.invalid CSC_IDENTITY_AUTO_DISCOVERY=false bun --bun run electron-builder --dir --mac`: PASS。macOS `.app` 包含 Hermes/OpenClaw Runtime、LICENSE 与第三方声明；直接从 `.app/Contents/Resources` 启动两套打包 Runtime 并完成 verifier 后无残留进程。既有 GitLab `desktop_linux`、`desktop_macos_release`、`desktop_windows_release` 均调用 `bun run package`，该命令现在会在各目标平台 frozen 构建并运行 Hermes/OpenClaw verifier。
+  - `python3 -m unittest discover -s tests`: PASS — 16/16 根启动器与发布流程测试通过。
+- Diff review: PASS — `git diff --check`、Loop 累计 diff 与两次合并结果均已审查；改动只涉及 `desktop` 和本执行记录。`platform/`、`desktop/legacy/`、`desktop/vendor/deepseek-harness/`、`desktop/vendor/hermes-agent/`、`desktop/vendor/openclaw/` 源码快照均未修改；未提交 Runtime、`node_modules`、缓存、用户数据或真实凭据。
+- Remote sync: PASS — Loop 开始及每次合并前均同步 Gitee；最终推送前再次 fetch，确认 `origin/main` 仍为 `d4445cafa`，无远端分叉或覆盖。
+- Push: PASS — 六引擎功能与两个 `--no-ff` 合并提交已将 `origin/main` 快进至 `18a23365e`；本执行记录由紧随其后的文档提交同步到同一远端主线。
+- Loop branch cleanup: PASS — 首次代码推送且本地/远端对齐后，已用 `git branch -d loop/lm9-00-hermes-openclaw-six-engine` 安全删除本地 Loop 分支；该分支从未推送到远端，无远端引用需要清理。
+- Current branch/worktree: `main`；本执行记录推送后工作区与 `origin/main` 对齐且无未解释改动。
+- Completed: Desktop 现为 OpenCode、Codex、DSH、Hermes Agent、OpenClaw、LangGraph.js 六引擎体系，默认仍为 OpenCode且任何失败都不静默回退。新盲测固定写入六候选，评价前匿名、评价后揭示；旧三/四候选按已存映射与实际数量完成、排序和展示。Hermes 使用会话级 ACP 子进程与受限 DramaIP Python 适配层；OpenClaw 使用 Provider generation 级 Gateway 和直接 v4 RPC。两者均在本轮 MCP 权限声明后启动，只持有内存/受控环境凭据，关闭本地工具、回退、长期状态和高权限能力，并实现流式、工具、usage、interrupt/resume/fork/dispose 与有界进程回收。
+- Unfinished: 无。Windows/Linux 的本机安装包执行结果由已有对应 GitLab runner 在分支/标签流水线产生；平台清单、工具链锁、构建脚本和相同真实 Runtime verifier 已纳入 `bun run package`，不依赖首次运行联网安装。
+- Evidence: `desktop/packages/ai/src/{hermes-acp,hermes-sidecar,openclaw-gateway,openclaw-sidecar}*`、`desktop/apps/desktop/hermes-adapter/`、`desktop/apps/desktop/scripts/{prepare,verify}-{hermes,openclaw}-runtime.mjs`、`desktop/vendor/{hermes-agent,openclaw}.lock.json`、Electron Main/Builder、Server/Schema/Client/OpenAPI、任务与设置 UI、34 个 Electron 场景、`e6257ae28`、`2be321a30`、`a2e426feb`、`18a23365e`。
+- Next attempt: 无；后续引擎升级或外部 Provider 兼容证据应建立新的独立 Loop，不修改三个冻结 vendor 快照。
+- Sweep cursor: none（LM9-00 complete）
+- Notes: Hermes/OpenClaw 均作为完整可运行测试版引擎交付，不是占位状态卡；DramaIP DB 仍是唯一权威状态。固定方案编号优先于随机映射，但评价前继续匿名。
