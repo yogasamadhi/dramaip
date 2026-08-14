@@ -9,6 +9,8 @@ const codex = await readJson(join(root, "vendor/codex.lock.json"));
 const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
 const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
+const hermes = await readJson(join(root, "vendor/hermes-agent.lock.json"));
+const openclaw = await readJson(join(root, "vendor/openclaw.lock.json"));
 
 if (codex.package !== "@openai/codex" || codex.version !== "0.147.0")
   throw new Error("Codex 固定版本必须为 @openai/codex 0.147.0");
@@ -112,6 +114,177 @@ if (
 )
   throw new Error("DSH 完整源码树校验失败，vendor 冻结快照可能已变化");
 
+async function frozenTree(
+  rootDirectory,
+  excludedDirectories,
+  excludedPaths = new Set(),
+) {
+  async function collect(relative = "") {
+    const files = [];
+    for (const entry of await readdir(join(rootDirectory, relative), {
+      withFileTypes: true,
+    })) {
+      const path = relative ? `${relative}/${entry.name}` : entry.name;
+      if (excludedPaths.has(path)) continue;
+      if (entry.isDirectory()) {
+        if (!excludedDirectories.has(entry.name))
+          files.push(...(await collect(path)));
+      } else if (
+        entry.name !== ".DS_Store" &&
+        !entry.name.endsWith(".pyc") &&
+        !entry.name.endsWith(".tsbuildinfo")
+      ) {
+        files.push({ path, link: entry.isSymbolicLink() });
+      }
+    }
+    return files;
+  }
+  const files = (await collect()).sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+  const hash = createHash("sha256");
+  for (const file of files) {
+    const content = file.link
+      ? Buffer.from(`link:${await readlink(join(rootDirectory, file.path))}`)
+      : await readFile(join(rootDirectory, file.path));
+    hash.update(
+      `${file.path}\0${createHash("sha256").update(content).digest("hex")}\n`,
+    );
+  }
+  return { count: files.length, sha256: hash.digest("hex") };
+}
+
+const hermesRoot = join(root, "vendor/hermes-agent");
+const hermesManifest = await readFile(
+  join(hermesRoot, "pyproject.toml"),
+  "utf8",
+);
+if (
+  hermes.version !== "0.20.1" ||
+  hermes.license !== "MIT" ||
+  hermes.requiresPython !== ">=3.11,<3.14" ||
+  hermes.uvVersion !== "0.9.28" ||
+  hermes.pythonVersion !== "3.11.15" ||
+  hermes.pythonStandaloneRelease !== "20260807" ||
+  hermes.lockfile !== "uv.lock"
+)
+  throw new Error(
+    "Hermes 固定版本必须为 0.20.1（MIT，uv 0.9.28，CPython 3.11.15）",
+  );
+if (
+  !hermesManifest.includes('version = "0.20.1"') ||
+  !hermesManifest.includes('license = "MIT"') ||
+  !hermesManifest.includes('requires-python = ">=3.11,<3.14"')
+)
+  throw new Error("Hermes pyproject.toml 与锁定文件不一致");
+const hermesUvLock = await readFile(join(hermesRoot, hermes.lockfile));
+if (
+  createHash("sha256").update(hermesUvLock).digest("hex") !==
+  hermes.uvLockSha256
+)
+  throw new Error("Hermes uv.lock 校验失败");
+const hermesTree = await frozenTree(
+  hermesRoot,
+  new Set([
+    ".git",
+    ".venv",
+    "node_modules",
+    "dist",
+    "dist-runtime",
+    "build",
+    "coverage",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    ".cache",
+    "target",
+    "out",
+  ]),
+);
+if (
+  hermesTree.count !== hermes.sourceTreeFileCount ||
+  hermesTree.sha256 !== hermes.sourceTreeSha256
+)
+  throw new Error("Hermes 完整源码树校验失败，vendor 冻结快照可能已变化");
+
+const openclawRoot = join(root, "vendor/openclaw");
+const openclawManifest = await readJson(join(openclawRoot, "package.json"));
+if (
+  openclaw.version !== "2026.7.1" ||
+  openclaw.license !== "MIT" ||
+  openclaw.pnpmVersion !== "11.2.2" ||
+  openclaw.lockfile !== "pnpm-lock.yaml" ||
+  openclawManifest.version !== openclaw.version ||
+  openclawManifest.license !== openclaw.license ||
+  openclawManifest.packageManager !== openclaw.packageManager ||
+  openclawManifest.engines?.node !== openclaw.node
+)
+  throw new Error(
+    "OpenClaw 固定版本必须为 2026.7.1（MIT，完整 pnpm 11.2.2 标识）",
+  );
+const openclawPnpmLock = await readFile(join(openclawRoot, openclaw.lockfile));
+if (
+  createHash("sha256").update(openclawPnpmLock).digest("hex") !==
+  openclaw.pnpmLockSha256
+)
+  throw new Error("OpenClaw pnpm-lock.yaml 校验失败");
+const openclawTree = await frozenTree(
+  openclawRoot,
+  new Set([
+    ".git",
+    ".venv",
+    "node_modules",
+    "dist",
+    "dist-runtime",
+    "build",
+    "coverage",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    ".cache",
+    ".turbo",
+    ".artifacts",
+    "target",
+    "out",
+    ".pnpm-store",
+  ]),
+  new Set([
+    "extensions/canvas/src/host/a2ui/.bundle.hash",
+    "extensions/canvas/src/host/a2ui/a2ui.bundle.js",
+    "extensions/diffs/assets",
+    "extensions/diffs-language-pack/assets",
+  ]),
+);
+if (
+  openclawTree.count !== openclaw.sourceTreeFileCount ||
+  openclawTree.sha256 !== openclaw.sourceTreeSha256
+)
+  throw new Error("OpenClaw 完整源码树校验失败，vendor 冻结快照可能已变化");
+
+for (const [name, platforms] of [
+  ["Hermes", hermes.runtimePlatforms],
+  ["OpenClaw", openclaw.runtimePlatforms],
+]) {
+  if (!Array.isArray(platforms) || platforms.length !== 6)
+    throw new Error(`${name} 运行时清单必须覆盖 macOS、Windows、Linux 双架构`);
+}
+for (const platform of hermes.runtimePlatforms) {
+  const artifact = hermes.pythonArtifacts?.[platform];
+  if (
+    !artifact ||
+    !artifact.url?.includes(`/20260807/cpython-3.11.15%2B20260807-`) ||
+    !artifact.url.endsWith("-install_only_stripped.tar.gz") ||
+    !/^[a-f0-9]{64}$/.test(artifact.sha256 ?? "")
+  )
+    throw new Error(`Hermes ${platform} 缺少锁定的 CPython 3.11.15 运行时`);
+}
+if (
+  Object.keys(hermes.pythonArtifacts ?? {}).some(
+    (platform) => !hermes.runtimePlatforms.includes(platform),
+  )
+)
+  throw new Error("Hermes CPython 运行时清单包含未声明平台");
+
 process.stdout.write(
-  `引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}\n`,
+  `引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Hermes ${hermes.version}；OpenClaw ${openclaw.version}\n`,
 );

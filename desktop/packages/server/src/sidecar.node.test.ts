@@ -692,7 +692,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     (message: {
       type?: string;
       requestId?: string;
-      engineKind?: "codex" | "dsh" | "langgraph";
+      engineKind?: "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
       operation?: string;
       payload?: Record<string, unknown>;
       message?: string;
@@ -771,7 +771,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
             type: "agent-engine:response",
             requestId: message.requestId,
             result: {
-              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : "LangGraph.js"} 已完成盲测候选`,
+              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : message.engineKind === "hermes" ? "Hermes Agent" : message.engineKind === "openclaw" ? "OpenClaw" : "LangGraph.js"} 已完成盲测候选`,
               content:
                 "已完成章节诊断，并给出人物动机、连续性和结尾钩子的中文建议。",
               data: {},
@@ -851,6 +851,8 @@ test("production-structure HTTP contract persists active adaptation and atomical
         opencode: "test-mcp-token",
         codex: "test-codex-mcp-token",
         dsh: "test-dsh-mcp-token",
+        hermes: "test-hermes-mcp-token",
+        openclaw: "test-openclaw-mcp-token",
         langgraph: "test-langgraph-mcp-token",
       },
       opencode: {
@@ -861,6 +863,8 @@ test("production-structure HTTP contract persists active adaptation and atomical
       },
       codex: { healthy: true, version: "0.147.0" },
       dsh: { healthy: true, version: "0.1.0-rc.5" },
+      hermes: { healthy: true, version: "0.20.1" },
+      openclaw: { healthy: true, version: "2026.7.1" },
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
@@ -1446,7 +1450,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(engines.status, 200);
     assert.deepEqual(
       engines.body.map((engine) => engine.kind),
-      ["opencode", "codex", "dsh", "langgraph"],
+      ["opencode", "codex", "dsh", "hermes", "openclaw", "langgraph"],
     );
     assert.equal(
       engines.body.find((engine) => engine.kind === "codex")?.isBeta,
@@ -1454,6 +1458,14 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(
       engines.body.find((engine) => engine.kind === "dsh")?.isBeta,
+      true,
+    );
+    assert.equal(
+      engines.body.find((engine) => engine.kind === "hermes")?.isBeta,
+      true,
+    );
+    assert.equal(
+      engines.body.find((engine) => engine.kind === "openclaw")?.isBeta,
       true,
     );
     assert.deepEqual(
@@ -1468,6 +1480,14 @@ test("production-structure HTTP contract persists active adaptation and atomical
         chatGptLogin: false,
         apiKeyLogin: true,
       },
+    );
+    assert.deepEqual(
+      engines.body.find((engine) => engine.kind === "hermes")?.capabilities,
+      engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
+    );
+    assert.deepEqual(
+      engines.body.find((engine) => engine.kind === "openclaw")?.capabilities,
+      engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
     );
     const initialGlobalAgentSettings = await request<{
       defaultEngineKind: string;
@@ -2373,7 +2393,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       message: string;
     }>("/api/v1/agent-experiments", {
       method: "POST",
-      headers: { "Idempotency-Key": "four-engine-cost-confirmation" },
+      headers: { "Idempotency-Key": "six-engine-cost-confirmation" },
       body: JSON.stringify({
         projectId: project.body.id,
         chapterId: agentChapter.body.id,
@@ -2382,7 +2402,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       }),
     });
     assert.equal(unconfirmedExperiment.status, 409);
-    assert.match(unconfirmedExperiment.body.message, /四次/);
+    assert.match(unconfirmedExperiment.body.message, /六次/);
 
     child.send({
       type: "agent-engine:status",
@@ -2463,7 +2483,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       `${JSON.stringify(readyExperiment)}\n${lastSidecarDiagnostic}`,
     );
     assert.equal(readyExperiment?.revealed, false);
-    assert.equal(readyExperiment?.candidates?.length, 4);
+    assert.equal(readyExperiment?.candidates?.length, 6);
     assert.ok(
       readyExperiment?.candidates?.every(
         (candidate) =>
@@ -2485,7 +2505,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       reviewedExperiment.body.candidates.map(
         (candidate) => candidate.engineKind,
       ),
-      ["opencode", "codex", "dsh", "langgraph"],
+      ["opencode", "codex", "dsh", "hermes", "openclaw", "langgraph"],
     );
     const legacyDb = new DatabaseSync(databasePath);
     try {
@@ -2494,17 +2514,86 @@ test("production-structure HTTP contract persists active adaptation and atomical
         .run(experiment.body.id);
       legacyDb
         .prepare(
-          "DELETE FROM agent_experiment_runs WHERE experiment_id = ? AND candidate = 'four'",
+          "DELETE FROM agent_experiment_runs WHERE experiment_id = ? AND candidate IN ('five', 'six')",
         )
         .run(experiment.body.id);
       legacyDb
         .prepare(
           `UPDATE agent_experiment_runs
            SET engine_kind = 'langgraph', engine_version = '0.2.43'
-           WHERE experiment_id = ? AND candidate = 'three'`,
+           WHERE experiment_id = ? AND candidate = 'four'`,
         )
         .run(experiment.body.id);
       legacyDb
+        .prepare(
+          `UPDATE agent_experiment_groups
+           SET status = 'ready_for_review', revealed = 0,
+               candidate_order_json = ?, updated_at = ?
+           WHERE id = ?`,
+        )
+        .run(
+          JSON.stringify({
+            one: "opencode",
+            two: "codex",
+            three: "dsh",
+            four: "langgraph",
+          }),
+          new Date().toISOString(),
+          experiment.body.id,
+        );
+    } finally {
+      legacyDb.close();
+    }
+    const legacyFourExperiment = await request<{
+      revealed: boolean;
+      candidates: Array<{ candidate: string; engineKind?: string }>;
+    }>(`/api/v1/agent-experiments/${experiment.body.id}`);
+    assert.equal(legacyFourExperiment.status, 200);
+    assert.equal(legacyFourExperiment.body.revealed, false);
+    assert.deepEqual(
+      legacyFourExperiment.body.candidates.map(
+        (candidate) => candidate.candidate,
+      ),
+      ["one", "two", "three", "four"],
+    );
+    assert.ok(
+      legacyFourExperiment.body.candidates.every(
+        (candidate) => candidate.engineKind === undefined,
+      ),
+    );
+    const legacyFourReviewedExperiment = await request<{
+      revealed: boolean;
+      candidates: Array<{ engineKind?: string }>;
+    }>(`/api/v1/agent-experiments/${experiment.body.id}/review`, {
+      method: "POST",
+      body: JSON.stringify({ preferredCandidate: "four" }),
+    });
+    assert.equal(legacyFourReviewedExperiment.status, 200);
+    assert.equal(legacyFourReviewedExperiment.body.revealed, true);
+    assert.deepEqual(
+      legacyFourReviewedExperiment.body.candidates.map(
+        (candidate) => candidate.engineKind,
+      ),
+      ["opencode", "codex", "dsh", "langgraph"],
+    );
+    const legacyThreeDb = new DatabaseSync(databasePath);
+    try {
+      legacyThreeDb
+        .prepare("DELETE FROM agent_experiment_reviews WHERE experiment_id = ?")
+        .run(experiment.body.id);
+      legacyThreeDb
+        .prepare(
+          "DELETE FROM agent_experiment_runs WHERE experiment_id = ? AND candidate = 'four'",
+        )
+        .run(experiment.body.id);
+      legacyThreeDb
+        .prepare(
+          `UPDATE agent_experiment_runs
+           SET engine_kind = 'langgraph', engine_version = '0.2.43'
+           WHERE experiment_id = ? AND candidate = 'three'`,
+        )
+        .run(experiment.body.id);
+      legacyThreeDb
         .prepare(
           `UPDATE agent_experiment_groups
            SET status = 'ready_for_review', revealed = 0,
@@ -2521,22 +2610,18 @@ test("production-structure HTTP contract persists active adaptation and atomical
           experiment.body.id,
         );
     } finally {
-      legacyDb.close();
+      legacyThreeDb.close();
     }
-    const legacyExperiment = await request<{
+    const legacyThreeExperiment = await request<{
       revealed: boolean;
       candidates: Array<{ candidate: string; engineKind?: string }>;
     }>(`/api/v1/agent-experiments/${experiment.body.id}`);
-    assert.equal(legacyExperiment.status, 200);
-    assert.equal(legacyExperiment.body.revealed, false);
+    assert.equal(legacyThreeExperiment.status, 200);
     assert.deepEqual(
-      legacyExperiment.body.candidates.map((candidate) => candidate.candidate),
-      ["one", "two", "three"],
-    );
-    assert.ok(
-      legacyExperiment.body.candidates.every(
-        (candidate) => candidate.engineKind === undefined,
+      legacyThreeExperiment.body.candidates.map(
+        (candidate) => candidate.candidate,
       ),
+      ["one", "two", "three"],
     );
     const legacyReviewedExperiment = await request<{
       revealed: boolean;
@@ -2546,7 +2631,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
       body: JSON.stringify({ preferredCandidate: "three" }),
     });
     assert.equal(legacyReviewedExperiment.status, 200);
-    assert.equal(legacyReviewedExperiment.body.revealed, true);
     assert.deepEqual(
       legacyReviewedExperiment.body.candidates.map(
         (candidate) => candidate.engineKind,

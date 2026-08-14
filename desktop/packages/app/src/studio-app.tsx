@@ -5229,6 +5229,8 @@ function TaskPage() {
           <option value="opencode">OpenCode</option>
           <option value="codex">Codex（测试版）</option>
           <option value="dsh">DeepSeek Harness（测试版）</option>
+          <option value="hermes">Hermes Agent（测试版）</option>
+          <option value="openclaw">OpenClaw（测试版）</option>
           <option value="langgraph">LangGraph.js</option>
         </select>
       </label>
@@ -14718,6 +14720,8 @@ const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
   opencode: "OpenCode",
   codex: "Codex",
   dsh: "DSH",
+  hermes: "Hermes Agent",
+  openclaw: "OpenClaw",
   langgraph: "LangGraph.js",
 };
 
@@ -14863,7 +14867,10 @@ function AgentEngineSettingsPanel() {
           全局默认
         </span>
       </div>
-      <div aria-label="智能引擎状态" className="mt-4 grid gap-3 lg:grid-cols-4">
+      <div
+        aria-label="智能引擎状态"
+        className="mt-4 grid gap-3 lg:grid-cols-3 xl:grid-cols-6"
+      >
         {engines.map((engine) => (
           <article
             key={engine.kind}
@@ -15891,17 +15898,17 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "四引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness 和 LangGraph.js，共产生四次模型费用。",
+          "六引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Hermes Agent、OpenClaw 和 LangGraph.js，共产生六次模型费用。",
           experimentMode === "same_model"
-            ? `比较方式：四个引擎统一使用模型 ${modelId.trim()}。`
+            ? `比较方式：六个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
-          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；四次合计约 ${(estimatedInputPerEngine * 4).toLocaleString("zh-CN")} Token。`,
-          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；四次合计约 ${(estimatedOutputPerEngine * 4).toLocaleString("zh-CN")} Token。`,
+          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedInputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
+          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedOutputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
           "预估费用：各引擎的模型与认证计价可能不同，未配置统一单价时无法可靠折算金额；应用会在运行后记录实际 Token 与厂商返回的费用。",
           "确认开始吗？",
         ].join("\n\n"),
       );
-      if (!confirmed) throw new Error("已取消四引擎盲测");
+      if (!confirmed) throw new Error("已取消六引擎盲测");
       return client.agentExperiments.create(
         {
           projectId,
@@ -15919,7 +15926,7 @@ export function AgentTaskConfigPanel() {
     },
     onSuccess: (experiment) => {
       setExperimentId(experiment.id);
-      setNotice("四引擎盲测已开始，结果将匿名展示");
+      setNotice("六引擎盲测已开始，结果将匿名展示");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -15934,7 +15941,8 @@ export function AgentTaskConfigPanel() {
   });
   const reviewExperiment = useMutation({
     mutationFn: (
-      preferredCandidate: "one" | "two" | "three" | "four" | "tie",
+      preferredCandidate:
+        "one" | "two" | "three" | "four" | "five" | "six" | "tie",
     ) => client.agentExperiments.review(experimentId!, { preferredCandidate }),
     onSuccess: (result) => {
       queryClient.setQueryData(["agent-experiment", result.id], result);
@@ -16157,7 +16165,7 @@ export function AgentTaskConfigPanel() {
               }
             >
               <option value="recommended">各引擎推荐配置</option>
-              <option value="same_model">四个引擎使用同一模型</option>
+              <option value="same_model">六个引擎使用同一模型</option>
             </select>
           </label>
           {requiresChapter && !chapterId && (
@@ -16202,7 +16210,7 @@ export function AgentTaskConfigPanel() {
             }
             onClick={() => createExperiment.mutate()}
           >
-            {createExperiment.isPending ? "正在创建盲测…" : "启动四引擎盲测"}
+            {createExperiment.isPending ? "正在创建盲测…" : "启动六引擎盲测"}
           </BareButton>
         </>
       )}
@@ -16291,18 +16299,23 @@ export function AgentTaskConfigPanel() {
 function AgentExperimentCard(props: {
   experiment: AgentExperiment;
   reviewing: boolean;
-  onReview(candidate: "one" | "two" | "three" | "four" | "tie"): void;
+  onReview(
+    candidate: "one" | "two" | "three" | "four" | "five" | "six" | "tie",
+  ): void;
 }) {
   const candidateLabels = {
     one: "方案一",
     two: "方案二",
     three: "方案三",
     four: "方案四",
+    five: "方案五",
+    six: "方案六",
   };
+  const candidateCount = props.experiment.candidates?.length ?? 0;
   return (
     <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">四引擎盲测</p>
+        <p className="text-sm font-medium">{candidateCount || 6} 引擎盲测</p>
         <span className="text-xs text-muted">
           {props.experiment.status === "ready_for_review"
             ? "等待评价"
@@ -16369,9 +16382,7 @@ function AgentExperimentCard(props: {
           disabled={props.reviewing}
           onClick={() => props.onReview("tie")}
         >
-          {props.experiment.candidates?.length === 3
-            ? "三个方案相当"
-            : "四个方案相当"}
+          {candidateCount} 个方案相当
         </BareButton>
       )}
     </section>
