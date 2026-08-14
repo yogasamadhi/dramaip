@@ -1,6 +1,6 @@
 # 通用文档目录
 
-这里保存跨 `dramaip-desktop` 和未来 `dramaip-platform` 复用的产品、路线和流程文档。
+这里保存跨 `desktop` 和 `platform` 复用的产品、路线和流程文档。
 
 ## 产品与路线
 
@@ -12,7 +12,7 @@
 
 ## 项目文档
 
-- [桌面端项目](../dramaip-desktop/README.md)
-- [桌面端文档目录](../dramaip-desktop/docs/README.md)
-- [平台端项目](../dramaip-platform/README.md)
-- [平台端私有文档目录](../dramaip-platform/docs/README.md)
+- [桌面端项目](../desktop/README.md)
+- [桌面端文档目录](../desktop/docs/README.md)
+- [平台端项目](../platform/README.md)
+- [平台端私有文档目录](../platform/docs/README.md)

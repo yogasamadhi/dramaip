@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../packages/app/src/*"],
+      "@sdns/client": ["../../packages/client/src/index.ts"],
+      "@sdns/schema": ["../../packages/schema/src/index.ts"],
+      "@sdns/ui": ["../../packages/ui/src/index.ts"]
+    }
+  },
+  "include": [
+    "../../packages/app/src/**/*.ts",
+    "../../packages/app/src/**/*.tsx",
+    "../../packages/app/src/**/*.d.ts",
+    "../../packages/ui/src/**/*.ts",
+    "../../packages/ui/src/**/*.tsx"
+  ],
+  "exclude": [
+    "../../packages/app/src/**/*.test.ts",
+    "../../packages/app/src/**/*.test.tsx"
+  ]
+}

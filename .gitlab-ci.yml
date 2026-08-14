@@ -30,10 +30,10 @@ static_checks:
     entrypoint: [""]
   script:
     - git diff --check
-    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 9"
-    - "test \"$(awk -F '|' '$3 == \"java\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 8"
-    - "test \"$(awk -F '|' '$3 == \"web\" { count += 1 } END { print count }' dramaip-platform/deploy/release/images.tsv)\" = 1"
-    - bash -n dramaip-platform/deploy/release/build-images.sh dramaip-platform/deploy/release/scan-images.sh dramaip-platform/deploy/release/push-images.sh
+    - "test \"$(awk -F '|' 'NF == 4 && $1 !~ /^#/ { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 9"
+    - "test \"$(awk -F '|' '$3 == \"java\" { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 8"
+    - "test \"$(awk -F '|' '$3 == \"web\" { count += 1 } END { print count }' platform/deploy/release/images.tsv)\" = 1"
+    - bash -n platform/deploy/release/build-images.sh platform/deploy/release/scan-images.sh platform/deploy/release/push-images.sh
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
@@ -44,12 +44,12 @@ java_server:
     name: maven:3.9.11-eclipse-temurin-21
     entrypoint: [""]
   script:
-    - cd dramaip-platform/server
+    - cd platform/server
     - mvn -B -ntp verify
   artifacts:
     when: always
     paths:
-      - dramaip-platform/server/**/target/
+      - platform/server/**/target/
     expire_in: 1 day
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -63,7 +63,7 @@ platform_clients:
   cache:
     key:
       files:
-        - dramaip-platform/clients/bun.lock
+        - platform/clients/bun.lock
       prefix: platform-clients-${CI_PROJECT_ID}
     paths:
       - .cache/bun/
@@ -95,7 +95,7 @@ platform_clients:
       export PATH="/opt/dramaip-clients-node/bin:${PATH}"
       bun --version
       node --version
-      cd dramaip-platform/clients
+      cd platform/clients
       bun ci
   script:
     - bun run lint
@@ -118,7 +118,7 @@ desktop_linux:
   cache:
     key:
       files:
-        - dramaip-desktop/bun.lock
+        - desktop/bun.lock
       prefix: desktop-linux-${CI_PROJECT_ID}
     paths:
       - .cache/bun/
@@ -152,7 +152,7 @@ desktop_linux:
       export PATH="/opt/dramaip-node/bin:${PATH}"
       bun --version
       node --version
-      cd dramaip-desktop
+      cd desktop
       bun ci
       export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG:-${CI_COMMIT_SHA}}"
   script:
@@ -170,7 +170,7 @@ desktop_linux:
   artifacts:
     when: always
     paths:
-      - dramaip-desktop/apps/desktop/dist/
+      - desktop/apps/desktop/dist/
     expire_in: 7 days
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
@@ -182,7 +182,7 @@ desktop_macos_release:
     - macos
     - private
   before_script:
-    - cd dramaip-desktop
+    - cd desktop
     - bun ci
     - export DRAMAIP_UPDATE_URL="${CI_SERVER_URL}/api/v4/projects/${CI_PROJECT_ID}/packages/generic/dramaip-desktop/${CI_COMMIT_TAG}"
   script:
@@ -198,7 +198,7 @@ desktop_macos_release:
   artifacts:
     when: always
     paths:
-      - dramaip-desktop/apps/desktop/dist/
+      - desktop/apps/desktop/dist/
     expire_in: 30 days
   rules:
     - if: '$CI_COMMIT_TAG'
@@ -209,7 +209,7 @@ desktop_windows_release:
     - windows
     - private
   before_script:
-    - Set-Location dramaip-desktop
+    - Set-Location desktop
     - bun ci
     - $env:DRAMAIP_UPDATE_URL = "$env:CI_SERVER_URL/api/v4/projects/$env:CI_PROJECT_ID/packages/generic/dramaip-desktop/$env:CI_COMMIT_TAG"
   script:
@@ -225,7 +225,7 @@ desktop_windows_release:
   artifacts:
     when: always
     paths:
-      - dramaip-desktop/apps/desktop/dist/
+      - desktop/apps/desktop/dist/
     expire_in: 30 days
   rules:
     - if: '$CI_COMMIT_TAG'
@@ -241,7 +241,7 @@ sonarqube_platform:
   script:
     - >-
       sonar-scanner
-      -Dsonar.projectBaseDir=dramaip-platform
+      -Dsonar.projectBaseDir=platform
       -Dsonar.host.url="${SONAR_HOST_URL}"
       -Dsonar.token="${SONAR_TOKEN}"
       -Dsonar.qualitygate.wait=true

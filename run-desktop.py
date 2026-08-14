@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-一键启动 dramaip-desktop（Electron + Vite 开发模式）。
+一键启动 desktop（Electron + Vite 开发模式）。
 
 流程：
   1. 前置检查：Bun 1.3.14、Node >= 22.12.0 可用
@@ -40,7 +40,7 @@ from pathlib import Path
 
 # --- 路径定位（基于脚本位置，不依赖 CWD）---
 SCRIPT_DIR = Path(__file__).resolve().parent
-DESKTOP_DIR = SCRIPT_DIR / "dramaip-desktop"
+DESKTOP_DIR = SCRIPT_DIR / "desktop"
 INSTALL_MARKER = DESKTOP_DIR / "node_modules" / ".bun"
 REBUILD_MARKER = DESKTOP_DIR / "node_modules" / ".rebuild-electron-marker"
 NODE_MIN_VERSION = (22, 12, 0)
@@ -412,7 +412,7 @@ def run_dev(cmd: list[str], env: dict) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="一键启动 dramaip-desktop 开发模式")
+    ap = argparse.ArgumentParser(description="一键启动 desktop 开发模式")
     ap.add_argument("--install", action="store_true", help="强制 bun install")
     ap.add_argument("--rebuild", action="store_true", help="强制重编 better-sqlite3（Electron ABI）")
     ap.add_argument("--no-rebuild", action="store_true", help="跳过原生模块重编检查")
@@ -422,7 +422,7 @@ def main() -> None:
         err(f"找不到桌面项目目录：{DESKTOP_DIR}")
         sys.exit(1)
 
-    print(_c("1;36", "▶ dramaip-desktop 一键启动"))
+    print(_c("1;36", "▶ desktop 一键启动"))
     node_ver = check_node()
     bun = resolve_bun()
     check_bun(bun)

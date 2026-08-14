@@ -30,7 +30,7 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-CLIENTS_DIR = SCRIPT_DIR / "dramaip-platform" / "clients"
+CLIENTS_DIR = SCRIPT_DIR / "platform" / "clients"
 # node_modules/.bin is produced by Bun under BOTH the "isolated" and "hoisted"
 # install linkers (unlike node_modules/.bun, which only exists under "isolated").
 # Metro/Babel require the "hoisted" linker, so this marker must be layout-agnostic

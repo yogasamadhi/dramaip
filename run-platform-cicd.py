@@ -31,7 +31,7 @@ from typing import Iterable, Sequence
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PLATFORM_DIR = SCRIPT_DIR / "dramaip-platform"
+PLATFORM_DIR = SCRIPT_DIR / "platform"
 RELEASE_DIR = PLATFORM_DIR / "deploy" / "release"
 MANIFEST_PATH = RELEASE_DIR / "images.tsv"
 SOURCE_CHART_DIR = PLATFORM_DIR / "deploy" / "helm" / "dramaip-platform"
@@ -351,7 +351,7 @@ def verify_command(args: argparse.Namespace) -> None:
         run([*clients_bun, "run", script], cwd=clients)
     run(["make", "web-route-smoke"], cwd=PLATFORM_DIR)
 
-    desktop = SCRIPT_DIR / "dramaip-desktop"
+    desktop = SCRIPT_DIR / "desktop"
     desktop_bun = ensure_bun(desktop, args.install_deps)
     for script in ("lint", "test:unit", "test:db", "build"):
         run([*desktop_bun, "run", script], cwd=desktop)

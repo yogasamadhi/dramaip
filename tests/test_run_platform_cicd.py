@@ -22,7 +22,7 @@ SPEC.loader.exec_module(cicd)
 
 class ManifestTests(unittest.TestCase):
     def test_release_manifest_has_complete_unique_bundle(self) -> None:
-        specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
+        specs = cicd.parse_manifest(ROOT / "platform/deploy/release/images.tsv")
         self.assertEqual(10, len(specs))
         self.assertEqual(9, sum(spec.kind == "java" for spec in specs))
         self.assertEqual(1, sum(spec.kind == "web" for spec in specs))
@@ -52,7 +52,7 @@ class ValuesTests(unittest.TestCase):
         )
 
     def test_staging_values_are_secret_free_and_complete(self) -> None:
-        specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
+        specs = cicd.parse_manifest(ROOT / "platform/deploy/release/images.tsv")
         value = cicd.initial_staging_values(self.bootstrap_args(), specs, "sha-" + "a" * 40)
         self.assertEqual(len(specs), value.count("tag: sha-" + "a" * 40))
         self.assertNotIn("registry.example.invalid", value)
@@ -64,7 +64,7 @@ class ValuesTests(unittest.TestCase):
         self.assertFalse(cicd.TAG_RE.fullmatch("sha-short"))
 
     def test_single_yq_expression_updates_the_complete_bundle(self) -> None:
-        specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
+        specs = cicd.parse_manifest(ROOT / "platform/deploy/release/images.tsv")
         expression = cicd.staging_values_update_expression(
             specs, "harbor.home.arpa/dramaip", "sha-" + "b" * 40, "b" * 40
         )
@@ -75,7 +75,7 @@ class ValuesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "dramaip-platform"
             cicd.prepare_gitops_chart_seed(
-                ROOT / "dramaip-platform/deploy/helm/dramaip-platform", destination
+                ROOT / "platform/deploy/helm/dramaip-platform", destination
             )
             self.assertFalse((destination / "values-dev.yaml").exists())
             self.assertFalse((destination / "values-staging.yaml").exists())
@@ -90,9 +90,9 @@ class ValuesTests(unittest.TestCase):
     def test_seeded_staging_chart_lints_and_never_renders_a_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "dramaip-platform"
-            specs = cicd.parse_manifest(ROOT / "dramaip-platform/deploy/release/images.tsv")
+            specs = cicd.parse_manifest(ROOT / "platform/deploy/release/images.tsv")
             cicd.prepare_gitops_chart_seed(
-                ROOT / "dramaip-platform/deploy/helm/dramaip-platform", destination
+                ROOT / "platform/deploy/helm/dramaip-platform", destination
             )
             values = destination / "values-staging.yaml"
             values.write_text(
