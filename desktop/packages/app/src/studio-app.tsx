@@ -5214,6 +5214,7 @@ function TaskPage() {
         description="统一查看生成、分析和交付任务的当前阶段、失败原因与恢复入口。"
         badge="实时阶段"
       />
+      <AgentTaskConfigPanel />
       <label className="studio-card flex max-w-md flex-col gap-1 p-4 text-sm text-muted">
         {projectId && (
           <p className="mt-1 text-sm text-muted">正在显示当前项目的任务。</p>
@@ -15951,7 +15952,10 @@ export function AgentTaskConfigPanel() {
     onError: (cause) => setNotice(message(cause)),
   });
   return (
-    <section className="rounded-xl border border-line bg-gradient-to-br from-surface-raised to-brand-soft p-6 shadow-card">
+    <section
+      aria-label="智能任务配置"
+      className="rounded-xl border border-line bg-gradient-to-br from-surface-raised to-brand-soft p-6 shadow-card"
+    >
       <div className="flex items-center justify-between">
         <p className="font-semibold">当前任务上下文</p>
         <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">

@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { openProjectTool } from "./project-tools";
 
 type EntryPath = "inspiration" | "source-import" | "script-paste";
 
@@ -72,11 +73,9 @@ async function createPilotFromEntry(
     await page.getByRole("button", { name: "保存剧本草稿并进入项目" }).click();
   }
 
+  await openProjectTool(page, "试制计划");
   await expect(page.getByLabel("试制向导")).toBeVisible();
-  await page
-    .getByLabel(/来源章节：/)
-    .first()
-    .check();
+  await expect(page.getByLabel(/来源章节：/).first()).toBeChecked();
   await page.getByRole("button", { name: "建立试制计划" }).click();
   await page.getByRole("button", { name: "确认来源并创建试制分集" }).click();
   await expect(
@@ -102,6 +101,7 @@ for (const [entry, title] of [
         running.page.getByRole("link", { name: title }),
       ).toBeVisible();
       await running.page.getByRole("link", { name: title }).click();
+      await openProjectTool(running.page, "试制计划");
       await expect(running.page.getByLabel("试制向导")).toBeVisible();
       await expect(
         running.page.getByText("当前阶段：采用试制剧本", { exact: true }),

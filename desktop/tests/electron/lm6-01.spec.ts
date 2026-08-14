@@ -39,13 +39,11 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     page.getByRole("heading", { name: "LM6 灵感项目" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "← 返回项目" }).click();
+  await page.getByRole("link", { name: "项目", exact: true }).click();
   await page.getByRole("button", { name: "导入原著" }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 原著项目");
   await page.getByRole("button", { name: "创建项目并预览原著" }).click();
-  await expect(
-    page.getByRole("heading", { name: "LM6 原著项目" }),
-  ).toBeVisible();
+  await expect(page.getByText("LM6 原著项目", { exact: true })).toBeVisible();
   await expect(page.getByText("选择拥有授权的内容文件")).toBeVisible();
   await expect(
     page.getByText(
@@ -53,7 +51,7 @@ test("三种创建入口进入同一项目上下文，原著路径先展示权�
     ),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "← 返回项目" }).click();
+  await page.getByRole("link", { name: "项目", exact: true }).click();
   await page.getByRole("button", { name: "直接导入 / 粘贴剧本" }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 剧本项目");
   await page

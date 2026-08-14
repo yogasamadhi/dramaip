@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { openProjectTool } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -39,12 +40,13 @@ test("原著路径可建立并恢复一集试制计划", async () => {
   await page.getByRole("button", { name: "从灵感开始" }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 试制项目");
   await page.getByRole("button", { name: "创建项目并开始构思" }).click();
-  await page.getByRole("button", { name: "导入内容" }).click();
+  await openProjectTool(page, "导入内容");
   await page.getByRole("button", { name: "选择文件并解析" }).click();
   await page
     .getByLabel("我确认拥有此内容的使用权，或已经取得必要授权。")
     .check();
   await page.getByRole("button", { name: "确认导入" }).click();
+  await openProjectTool(page, "试制计划");
   await expect(page.getByLabel("试制向导")).toBeVisible();
   await page.getByRole("button", { name: "建立试制计划" }).click();
   await expect(

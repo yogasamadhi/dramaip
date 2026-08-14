@@ -7,6 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "playwright";
+import { openProjectTool } from "./project-tools";
 
 let application: ElectronApplication;
 let page: Page;
@@ -33,12 +34,13 @@ test("空项目驾驶舱只显示一个可信下一步，并将审核区绑定�
   await page.getByRole("button", { name: "从灵感开始" }).click();
   await page.getByRole("textbox", { name: "项目名称" }).fill("LM6 驾驶舱项目");
   await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await openProjectTool(page, "项目驾驶舱");
   await expect(page.getByLabel("项目驾驶舱")).toBeVisible();
-  await expect(page.getByText("等待内容输入", { exact: true })).toBeVisible();
-  const actions = page.getByRole("link", { name: "导入已授权原著" });
+  await expect(page.getByText("准备改编", { exact: true })).toBeVisible();
+  const actions = page.getByRole("link", { name: "创建改编方案" });
   await expect(actions).toHaveCount(1);
 
-  const projectId = /\/projects\/([^?]+)/.exec(page.url())?.[1];
+  const projectId = /\/projects\/([^/?]+)/.exec(page.url())?.[1];
   expect(projectId).toBeTruthy();
   await page.getByRole("link", { name: "审核交付", exact: true }).click();
   await expect(

@@ -35,24 +35,29 @@ test("默认上下文助手只展示推荐动作，高级模式保留完整控�
     .getByRole("textbox", { name: "项目名称" })
     .fill("LM6 上下文助手项目");
   await page.getByRole("button", { name: "创建项目并开始构思" }).click();
+  await page.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "任务", exact: true }).click();
 
-  await expect(page.getByLabel("当前页面推荐动作")).toBeVisible();
-  await expect(page.getByRole("button", { name: "高级模式" })).toBeVisible();
-  await expect(page.getByLabel("智能引擎")).toHaveCount(0);
-  await expect(page.getByLabel("智能任务")).toHaveCount(0);
-  await expect(page.getByLabel("盲测比较方式")).toHaveCount(0);
+  const config = page.getByLabel("智能任务配置");
+  await expect(config.getByLabel("当前页面推荐动作")).toBeVisible();
+  await expect(config.getByRole("button", { name: "高级模式" })).toBeVisible();
+  await expect(config.getByLabel("智能引擎")).toHaveCount(0);
+  await expect(config.getByLabel("智能任务")).toHaveCount(0);
+  await expect(config.getByLabel("盲测比较方式")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "高级模式" }).click();
-  await expect(page.getByLabel("智能引擎")).toBeVisible();
-  await expect(page.getByLabel("智能任务")).toBeVisible();
-  await expect(page.getByLabel("盲测比较方式")).toBeVisible();
+  await config.getByRole("button", { name: "高级模式" }).click();
+  await expect(config.getByLabel("智能引擎")).toBeVisible();
+  await expect(config.getByLabel("智能任务")).toBeVisible();
+  await expect(config.getByLabel("盲测比较方式")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "启动六引擎盲测" }),
+    config.getByRole("button", { name: "启动六引擎盲测" }),
   ).toBeVisible();
-  await expect(page.getByText("已恢复完整任务目录和高级参数。")).toBeVisible();
+  await expect(
+    config.getByText("已恢复完整任务目录和高级参数。"),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "简洁模式" }).click();
-  await expect(page.getByLabel("当前页面推荐动作")).toBeVisible();
-  await expect(page.getByLabel("智能引擎")).toHaveCount(0);
-  await expect(page.getByText("已切换为当前页面的简洁助手。")).toBeVisible();
+  await config.getByRole("button", { name: "简洁模式" }).click();
+  await expect(config.getByLabel("当前页面推荐动作")).toBeVisible();
+  await expect(config.getByLabel("智能引擎")).toHaveCount(0);
+  await expect(config.getByText("已切换为当前页面的简洁助手。")).toBeVisible();
 });

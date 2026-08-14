@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProjectTool } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -34,9 +35,10 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
     .getByRole("textbox", { name: "首集剧本" })
     .fill("【雨夜门口】\n林晚：这封信不能让任何人看见。");
   await page.getByRole("button", { name: "保存剧本草稿并进入项目" }).click();
+  await openProjectTool(page, "试制计划");
 
   const inputPilot = page.getByLabel("试制向导");
-  await inputPilot.getByRole("checkbox").check();
+  await expect(inputPilot.getByRole("checkbox")).toBeChecked();
   await inputPilot.getByRole("button", { name: "建立试制计划" }).click();
   await inputPilot
     .getByRole("button", { name: "确认来源并创建试制分集" })
@@ -55,9 +57,10 @@ test("P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、�
   await page.reload();
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("link", { name: "雨夜归来" }).click();
+  await openProjectTool(page, "试制计划");
 
   const fixturePilot = page.getByLabel("试制向导");
-  await fixturePilot.getByRole("checkbox").first().check();
+  await expect(fixturePilot.getByRole("checkbox").first()).toBeChecked();
   await fixturePilot.getByRole("button", { name: "建立试制计划" }).click();
   await fixturePilot
     .getByRole("button", { name: "确认来源并创建试制分集" })
