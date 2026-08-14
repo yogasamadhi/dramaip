@@ -39,4 +39,4 @@
   备份恢复。不要把二进制降级到不能安全打开当前 schema 的版本。
 - 更新元数据与至少三个已验证安装包必须可审计地保留；若未来自动更新已启用，只回退
   `latest*.yml` 指针而不删除问题版本。正式细则见
-  [`RELEASE.md`](../../dramaip-desktop/docs/release/RELEASE.md)。
+  [`RELEASE.md`](../../desktop/docs/release/RELEASE.md)。

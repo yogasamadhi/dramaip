@@ -49,7 +49,7 @@ Bootstrap 是一次性的迁移种子：它会排除源码中的 Dev、Staging �
 Chart 只允许引用管理员创建的 Secret。确认 GitOps `main` 已推送并通过 CI 后，
 后续对 Chart 的修改只能在 `platform/dramaip-gitops` 完成；源码树中的 Chart 仅在
 这个迁移完成前保留为种子。此时创建一个独立的源码 Merge Request 删除
-`dramaip-platform/deploy/helm/dramaip-platform`；不要在 GitOps 初始化成功前删除它。
+`platform/deploy/helm/dramaip-platform`；不要在 GitOps 初始化成功前删除它。
 遗留人工脚本需设置 `DRAMAIP_GITOPS_DIR=../dramaip-gitops`，以读取 GitOps Chart。
 
 ## 日常发布与回滚

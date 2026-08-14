@@ -2,8 +2,8 @@
 
 DramaIP 是一个以本地优先为基础的 AI 短剧 IP 创作工作台。工作区由两个边界明确的项目组成：
 
-- [`dramaip-desktop`](./dramaip-desktop/README.md)：Electron 桌面端，负责本地项目、创作工作流、导出与用户自带 API Key 模式。
-- [`dramaip-platform`](./dramaip-platform/README.md)：闭源平台，负责官网、账号、订阅、额度、Cloud AI、移动端与运营能力。
+- [`desktop`](./desktop/README.md)：Electron 桌面端，负责本地项目、创作工作流、导出与用户自带 API Key 模式。
+- [`platform`](./platform/README.md)：闭源平台，负责官网、账号、订阅、额度、Cloud AI、移动端与运营能力。
 
 ## 文档入口
 
@@ -20,7 +20,7 @@ DramaIP 是一个以本地优先为基础的 AI 短剧 IP 创作工作台。工�
 桌面端：
 
 ```bash
-cd dramaip-desktop
+cd desktop
 bun run test
 bun run test:e2e
 ```
@@ -28,7 +28,7 @@ bun run test:e2e
 平台端：
 
 ```bash
-cd dramaip-platform
+cd platform
 make test
 make platform-up
 make platform-e2e

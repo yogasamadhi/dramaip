@@ -38,7 +38,7 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PLATFORM_DIR = SCRIPT_DIR / "dramaip-platform"
+PLATFORM_DIR = SCRIPT_DIR / "platform"
 SERVER_DIR = PLATFORM_DIR / "server"
 COMPOSE_FILE = PLATFORM_DIR / "deploy" / "docker-drama" / "docker-compose.yaml"
 HISTORICAL_MIGRATIONS_DIR = SERVER_DIR / "migration" / "historical-migrations"

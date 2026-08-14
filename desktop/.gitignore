@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnp.*
+
+# Build output
+dist/
+**/dist/
+out/
+**/out/
+dist-electron/
+release/
+**/release/
+!docs/release/
+!docs/release/*.md
+*.tsbuildinfo
+
+# Electron / Vite caches
+.cache/
+**/.cache/
+.vite/
+**/.vite/
+node_modules/.cache/
+**/node_modules/.cache/
+
+# Test and coverage output
+coverage/
+**/coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Database and generated local data
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sql.bak
+
+# Keep generated SQL migrations commit-friendly.
+!packages/db/drizzle/**/*.sql
+
+# Logs and runtime artifacts
+*.log
+logs/
+**/logs/
+npm-debug.log*
+bun-debug.log*
+bun-error.log*
+yarn-debug.log*
+yarn-error.log*
+_tmp_*
+tmp/
+temp/
+artifacts/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Package artifacts
+*.tgz
+*.zip
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# 固定版本引擎的本机构建产物（源码锁定文件与许可证继续提交）
+apps/desktop/build/codex/
+apps/desktop/build/codex-schemas/
+apps/desktop/build/dsh/
+apps/desktop/build/dsh-mcp-staging/

@@ -76,7 +76,7 @@ v0.1 已在 `PROJECT_BRIEF.md` 中定义。本文档从 v0.2 开始描述。
 - 本地产品能力已补齐平台交付、用户主动导入反馈和可审查的海外语言版本；中文母版、翻译、目标语言声音候选与交付记录相互独立且可回溯。
 - 本地发布 Gate 已覆盖 TypeScript、SQLite 迁移/项目包往返、Electron 三条创建路径 E2E、UI 基线和 macOS ARM64 未签名 DMG/ZIP 打包后启动。
 - 当前不应称为正式可公开发布版本：真实图片/TTS/视频 Provider 需要账户所有者提供专用凭据和明确的 sandbox 计费授权；macOS/Windows/Linux 签名、公证、首次安装、升级及回滚需要在拥有证书和目标系统的 release 环境中完成。
-- 完整执行证据、复跑命令、已知限制和恢复方式见 [LOOPMAP.md](../loop/LOOPMAP.md) 及 Desktop 的 [RELEASE.md](../../dramaip-desktop/docs/release/RELEASE.md)。
+- 完整执行证据、复跑命令、已知限制和恢复方式见 [LOOPMAP.md](../loop/LOOPMAP.md) 及 Desktop 的 [RELEASE.md](../../desktop/docs/release/RELEASE.md)。
 
 ---
 
