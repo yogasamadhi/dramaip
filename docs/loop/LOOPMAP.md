@@ -1602,3 +1602,24 @@ LM6-00
 - Evidence: `desktop/packages/ai/src/dsh-{jsonrpc,sidecar}.{ts,test.ts}`、`desktop/apps/desktop/dsh-config/`、`desktop/apps/desktop/scripts/{prepare,verify}-dsh-runtime.mjs`、`desktop/vendor/deepseek-harness.lock.json`、`desktop/apps/desktop/electron/main-v3.ts`、`desktop/packages/server/src/{sidecar.ts,sidecar.node.test.ts}`、生成的 Client/OpenAPI、设置/盲测 UI、Builder 配置和更新后的 Desktop 文档。
 - Unfinished: 尚未形成可独立审查的 Git commit、`--no-ff` 合并与远端 push；Windows/Linux 打包 Runtime 启停仍需对应平台 CI。Desktop 全量 Electron Gate 还受 11 个既有 LM6 导航用例影响，不能宣称全绿。
 - Next attempt: 先在独立基线任务中审查并发布当前整仓重命名与用户改动，随后从干净的最新 `main` 复用本 Loop 分支，将上述 DSH 文件形成聚焦提交；在 Windows/Linux 打包任务执行同一 Runtime 启停验证。LM6 导航用例应由其 UI 改版 Loop 依据当前产品入口单独更新，不夹入本 Loop。
+
+### LM8-00 / Attempt 2 — 2026-08-14 Asia/Shanghai
+
+- Loop: LM8-00
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm8-00-dsh-jsonrpc-engine`
+- Source commits: `36b6785c`、`dfe11898`、`951d9f8e`
+- Merge commit: `83665484 merge: integrate LM8 DSH JSON-RPC engine`
+- Completed: 已将仓库目录重命名、冻结引擎源码快照及 LM8 DSH Headless / JSON-RPC 四引擎实现以 `--no-ff` 合并到 `main`。远端 `codex/v2-production-studio` 已是 `main` 祖先；同步后唯一未合入分支为 LM8，现已由上述合并提交完整纳入。OpenCode 仍为默认且不静默回退，方案三为 DSH、方案四为 LangGraph.js，旧三候选实验兼容逻辑保持不变。
+- Verification:
+  - `cd desktop && bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS。
+  - `python3 -m unittest discover -s tests`: PASS — 16/16。
+  - `cd platform && make test`: PASS — JDK 21 Maven 13 模块 verify、客户端 typecheck/test、contract v2 与 7 条 Web route smoke 全部通过。
+  - 合并前后工作树均干净；审计未发现提交 `node_modules`、`apps/desktop/build/dsh`、`dist` 或新增真实密钥文件。
+- Diff review: PASS — 合并范围与三个已推送源提交一致，无冲突或手工冲突解决；`codex/v2-production-studio` 没有产生重复合并提交，因为其历史已包含在 `main`。
+- Remote sync: PASS — 合并前 `origin/main` 为 `5d345a98`，推送后 Gitee `origin/main` 快进到 `83665484`。
+- Push: PASS — `git push origin main` 成功。
+- Loop branch cleanup: 保留本地和远端已合并分支，未在“合并所有分支代码”授权之外删除分支引用。
+- Unfinished: 无。Windows/Linux DSH 安装包启动验证继续由对应平台 CI 产生增强证据，不影响本次代码合并与远端发布完成状态。
+- Next attempt: 无；后续如需清理已合并分支，单独执行分支清理审计。
