@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProjectTool } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -27,6 +28,7 @@ test("项目工作台提供本地系列边界和版本化资产入口", async ()
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
+  await openProjectTool(page, "系列资料");
 
   const library = page.getByTestId("series-library");
   await expect(

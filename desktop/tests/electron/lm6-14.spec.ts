@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openStoryBible } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -28,6 +29,7 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
+  await openStoryBible(page);
 
   const sidecar = page.getByLabel("Story Bible 侧栏");
   await expect(sidecar).toBeVisible();
@@ -39,15 +41,17 @@ test("章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与�
   ).toBeVisible();
   await expect(sidecar.getByLabel("搜索 Story Bible")).toBeVisible();
 
-  await sidecar.getByRole("button", { name: "折叠", exact: true }).focus();
+  const auxiliary = page.getByLabel("章节辅助栏");
+  await auxiliary.getByRole("button", { name: "折叠", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(
-    sidecar.getByRole("button", { name: "展开", exact: true }),
+    auxiliary.getByRole("button", { name: "故事圣经" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeVisible();
-  await sidecar.getByRole("button", { name: "展开", exact: true }).click();
+  await auxiliary.getByRole("button", { name: "故事圣经" }).click();
+  await expect(sidecar).toBeVisible();
 
   await sidecar.getByRole("button", { name: "生成变更草案" }).click();
   await expect(

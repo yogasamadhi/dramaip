@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { _electron as electron, type ElectronApplication } from "playwright";
+import { openProjectTool, openStoryBible } from "./project-tools";
 
 let application: ElectronApplication;
 let userData: string;
@@ -36,11 +37,12 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await page.waitForLoadState("domcontentloaded");
   await page.getByRole("button", { name: "创建示例项目" }).click();
   await page.getByRole("link", { name: "雨夜归来" }).click();
+  await openProjectTool(page, "试制计划");
 
   const pilot = page.getByLabel("试制向导");
   const sources = pilot.getByRole("checkbox");
   await expect(sources).toHaveCount(3);
-  await sources.nth(0).check();
+  await expect(sources.nth(0)).toBeChecked();
   await sources.nth(1).check();
   await sources.nth(2).check();
   await pilot.getByRole("combobox", { name: "试制集数" }).selectOption("3");
@@ -49,12 +51,17 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   await expect(pilot).toContainText("3 集试制");
   await expect(pilot.getByRole("link", { name: "前往唯一待办" })).toBeVisible();
 
+  await page.getByRole("button", { name: "← 返回写作" }).click();
+  await openStoryBible(page);
   const sidecar = page.getByLabel("Story Bible 侧栏");
   await sidecar.getByLabel("搜索 Story Bible").fill("林晚");
   await expect(sidecar).toContainText("林晚");
-  await sidecar.getByRole("button", { name: "折叠" }).focus();
+  const auxiliary = page.getByLabel("章节辅助栏");
+  await auxiliary.getByRole("button", { name: "折叠" }).focus();
   await page.keyboard.press("Enter");
-  await expect(sidecar.getByRole("button", { name: "展开" })).toBeVisible();
+  await expect(
+    auxiliary.getByRole("button", { name: "故事圣经" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "保存", exact: true }),
   ).toBeVisible();
