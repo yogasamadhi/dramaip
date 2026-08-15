@@ -17,6 +17,7 @@ export interface LangGraphProviderConfiguration {
 export interface LangGraphRunInput {
   prompt: string;
   taskType: AgentTaskType;
+  outputMode?: "text" | "structured";
   signal?: AbortSignal;
   onTextDelta?(delta: string): void;
   onUsage?(usage: {
@@ -30,6 +31,15 @@ export interface LangGraphRunOutput {
   summary: string;
   content: string;
   data?: unknown;
+}
+
+export function langGraphOutputMode(
+  taskType: AgentTaskType,
+  projectId?: string,
+): "text" | "structured" {
+  return taskType === "chat_project" && !projectId?.trim()
+    ? "text"
+    : "structured";
 }
 
 const WorkflowState = Annotation.Root({
@@ -71,7 +81,7 @@ export function createLangGraphModel(
 
 export function buildLangGraphWorkflow(
   configuration: LangGraphProviderConfiguration,
-  callbacks?: Pick<LangGraphRunInput, "onTextDelta" | "onUsage">,
+  callbacks?: Pick<LangGraphRunInput, "onTextDelta" | "onUsage" | "outputMode">,
   signal?: AbortSignal,
 ) {
   const model = createLangGraphModel(configuration);
@@ -80,7 +90,7 @@ export function buildLangGraphWorkflow(
       if (signal?.aborted) throw new Error("任务已取消");
       const repair =
         state.retryCount > 0
-          ? "\n\n上一次输出无法解析。请只返回合法 JSON，不要使用 Markdown 代码块。"
+          ? '\n\n上一次输出无法解析。请只返回合法 JSON 对象：{"summary":"简短结论","content":"主要内容","data":{}}。不要使用 Markdown 代码块或附加说明。'
           : "";
       let streamFailure: unknown;
       const response = streamText({
@@ -98,7 +108,7 @@ export function buildLangGraphWorkflow(
       let rawOutput = "";
       for await (const delta of response.textStream) {
         rawOutput += delta;
-        callbacks?.onTextDelta?.(delta);
+        if (state.retryCount === 0) callbacks?.onTextDelta?.(delta);
       }
       if (streamFailure) throw langGraphProviderError(streamFailure);
       if (!rawOutput.trim())
@@ -113,7 +123,10 @@ export function buildLangGraphWorkflow(
     })
     .addNode("解析结果", (state) => {
       try {
-        const output = parseOutput(state.rawOutput ?? "");
+        const output = parseLangGraphOutput(
+          state.rawOutput ?? "",
+          callbacks?.outputMode ?? "structured",
+        );
         return { output, error: undefined };
       } catch (error) {
         return {
@@ -172,16 +185,75 @@ export async function runLangGraphWorkflow(
   return state.output;
 }
 
-function parseOutput(raw: string): LangGraphRunOutput {
+export function parseLangGraphOutput(
+  raw: string,
+  outputMode: "text" | "structured" = "structured",
+): LangGraphRunOutput {
   const trimmed = raw.trim();
+  if (!trimmed) throw new Error("模型没有返回内容");
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed)?.[1];
   const objectText = fenced ?? /\{[\s\S]*\}/.exec(trimmed)?.[0] ?? trimmed;
-  const value = JSON.parse(objectText) as Record<string, unknown>;
-  if (typeof value.summary !== "string")
-    throw new Error("模型输出缺少 summary 字段");
+  let value: unknown;
+  try {
+    value = JSON.parse(objectText);
+  } catch {
+    if (outputMode === "text")
+      return { summary: trimmed.slice(0, 500), content: trimmed };
+    throw new Error("模型输出无法解析为 JSON");
+  }
+  if (typeof value === "string") {
+    if (outputMode === "text")
+      return { summary: value.slice(0, 500), content: value };
+    throw new Error("模型输出必须是 JSON 对象");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    if (outputMode === "text")
+      return { summary: trimmed.slice(0, 500), content: trimmed };
+    throw new Error("模型输出必须是 JSON 对象");
+  }
+  const record = value as Record<string, unknown>;
+  const responseRecord =
+    record.response &&
+    typeof record.response === "object" &&
+    !Array.isArray(record.response)
+      ? (record.response as Record<string, unknown>)
+      : undefined;
+  const summary =
+    stringField(record, "summary") ??
+    (responseRecord ? stringField(responseRecord, "summary") : undefined);
+  const content =
+    stringField(record, "content") ??
+    stringField(record, "response") ??
+    stringField(record, "answer") ??
+    stringField(record, "reply") ??
+    stringField(record, "message") ??
+    stringField(record, "text") ??
+    (responseRecord
+      ? (stringField(responseRecord, "content") ??
+        stringField(responseRecord, "answer") ??
+        stringField(responseRecord, "text"))
+      : undefined) ??
+    summary;
+  if (!summary && !content) {
+    if (outputMode === "text")
+      return { summary: trimmed.slice(0, 500), content: trimmed };
+    throw new Error("模型输出缺少可展示内容");
+  }
   return {
-    summary: value.summary,
-    content: typeof value.content === "string" ? value.content : value.summary,
-    ...(value.data !== undefined ? { data: value.data } : {}),
+    summary: summary ?? content!.slice(0, 500),
+    content: content ?? summary!,
+    ...(record.data !== undefined
+      ? { data: record.data }
+      : responseRecord?.data !== undefined
+        ? { data: responseRecord.data }
+        : {}),
   };
+}
+
+function stringField(
+  record: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }

@@ -117,7 +117,7 @@ node scripts/java-platform-e2e.mjs
 
 `java-platform-e2e.mjs` 验证 Gateway 健康检查、契约版本缺失时的拒绝行为，以及携带契约头的受保护资源请求。完整业务验证由各服务的 Maven 测试、客户端契约测试与发布前预检完成。
 
-观测 smoke 会向公开登录端点发送固定 `traceparent` 和无效 JSON，不会创建用户或订单；它验证 Gateway→identity trace、响应/REST trace ID、Prometheus Java target 以及 Elasticsearch 的结构化访问日志一致。11 条本地告警、指标契约和排障步骤见 [LM3-22 runbook](loop/LM3-22-指标告警与错误聚合.md)。
+观测 smoke 会向公开登录端点发送固定 `traceparent` 和无效 JSON，不会创建用户或订单；它验证 Gateway→identity trace、响应/REST trace ID、Prometheus Java target 以及 Elasticsearch 的结构化访问日志一致。告警、指标契约和排障应通过 Prometheus、Grafana、Jaeger 与 Elasticsearch 的本地界面，以及[本地观测 runbook](./OBSERVABILITY.md)核验。
 
 ## 常见问题
 

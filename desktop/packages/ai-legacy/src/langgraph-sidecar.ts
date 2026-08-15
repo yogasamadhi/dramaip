@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentTaskType } from "@sdns/schema";
 import {
+  langGraphOutputMode,
   runLangGraphWorkflow,
   type LangGraphProviderConfiguration,
 } from "./engine";
@@ -99,6 +100,8 @@ async function perform(
     const sessionId = String(payload.engineSessionId ?? "");
     const runId = String(payload.runId ?? "");
     const prompt = String(payload.prompt ?? "");
+    const projectId = String(payload.projectId ?? "").trim();
+    const taskType = String(payload.taskType) as AgentTaskType;
     const model =
       payload.model && typeof payload.model === "object"
         ? String(
@@ -125,7 +128,8 @@ async function perform(
         model ? { ...provider, model } : provider,
         {
           prompt,
-          taskType: String(payload.taskType) as AgentTaskType,
+          taskType,
+          outputMode: langGraphOutputMode(taskType, projectId),
           signal: controller.signal,
           onTextDelta: (delta) =>
             parentPort!.postMessage({

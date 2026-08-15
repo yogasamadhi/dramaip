@@ -166,6 +166,14 @@ test("智能助手只在用户打开弹窗后显示", async () => {
     dialog.getByRole("heading", { name: "DramaIP 智能助手" }).first(),
   ).toBeVisible();
   await expect(dialog.getByText("AI 办事助手", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("智能助手引擎")).toBeVisible();
+  await expect(dialog.getByLabel("智能助手引擎").locator("option")).toHaveText([
+    /OpenCode/,
+    /Codex/,
+    /DeepSeek Harness/,
+    /Hermes Agent/,
+    /LangGraph\.js/,
+  ]);
   await expect(
     dialog.getByRole("textbox", { name: "给 AI 办事助手发消息" }),
   ).toBeVisible();

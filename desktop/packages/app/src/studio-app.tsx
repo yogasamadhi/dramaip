@@ -15114,6 +15114,8 @@ function AgentSidePanel() {
     useState<AgentTaskType>("chapter_diagnostic");
   const [notice, setNotice] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const detailRequestRef = useRef<string | undefined>(undefined);
+  const initializedNewConversationEngineRef = useRef(false);
   const assistantScroll = useAssistantAutoScroll(detail, conversationId);
   const activeRun = detail?.runs.find((run) =>
     ["queued", "running"].includes(run.status),
@@ -15127,6 +15129,33 @@ function AgentSidePanel() {
     page: contextPage,
     catalog: taskDefinitions,
   });
+  const selectedEngine = engines.find((engine) => engine.kind === engineKind);
+  const selectedEngineCanRun = selectedEngine
+    ? (selectedEngine.canRun ?? selectedEngine.status === "available")
+    : false;
+
+  const beginNewConversation = (nextEngineKind?: AgentEngineKind) => {
+    const defaultEngine = engines.find((engine) => engine.isDefault);
+    detailRequestRef.current = undefined;
+    initializedNewConversationEngineRef.current = Boolean(
+      nextEngineKind ?? defaultEngine,
+    );
+    setConversationId(undefined);
+    setDetail(undefined);
+    setEngineKind(nextEngineKind ?? defaultEngine?.kind ?? engineKind);
+    setModelId("");
+    setNotice(undefined);
+    window.localStorage.removeItem("dramaip-global-assistant-conversation");
+  };
+
+  const selectEngine = (nextEngineKind: AgentEngineKind) => {
+    if (nextEngineKind === engineKind) return;
+    beginNewConversation(nextEngineKind);
+    const nextEngine = engines.find((engine) => engine.kind === nextEngineKind);
+    setNotice(
+      `已切换到 ${nextEngine?.name ?? AGENT_ENGINE_LABELS[nextEngineKind]}，发送消息时将创建新对话。`,
+    );
+  };
 
   const loadConversations = async (preferredId?: string) => {
     const [items, archived] = await Promise.all([
@@ -15147,11 +15176,20 @@ function AgentSidePanel() {
         ? stored
         : undefined) ??
       items[0]?.id;
-    setConversationId((current) => current ?? next);
+    setConversationId(
+      (current) =>
+        preferredId ??
+        (current && items.some((item) => item.id === current)
+          ? current
+          : undefined) ??
+        next,
+    );
   };
 
   const loadDetail = async (id: string) => {
+    detailRequestRef.current = id;
     const value = await client.assistantConversations.get(id);
+    if (detailRequestRef.current !== id) return value;
     setDetail(value);
     setEngineKind(value.conversation.engineKind);
     setModelId(value.conversation.model?.modelId ?? "");
@@ -15163,6 +15201,18 @@ function AgentSidePanel() {
   useEffect(() => {
     if (contextProjectId) setProjectId(contextProjectId);
   }, [contextProjectId]);
+
+  useEffect(() => {
+    if (
+      conversationId ||
+      initializedNewConversationEngineRef.current ||
+      !engines.length
+    )
+      return;
+    const defaultEngine = engines.find((engine) => engine.isDefault);
+    if (defaultEngine) setEngineKind(defaultEngine.kind);
+    initializedNewConversationEngineRef.current = true;
+  }, [conversationId, engines]);
 
   useEffect(() => {
     const openConversation = (event: Event) => {
@@ -15294,6 +15344,12 @@ function AgentSidePanel() {
       (activeRun && ["queued", "running"].includes(activeRun.status))
     )
       return;
+    if (!selectedEngineCanRun) {
+      setNotice(
+        selectedEngine?.statusMessage ?? "所选智能引擎当前不可用，请切换引擎",
+      );
+      return;
+    }
     setBusy(true);
     setNotice(undefined);
     try {
@@ -15333,6 +15389,7 @@ function AgentSidePanel() {
     await client.assistantConversations.update(conversationId, {
       archived: true,
     });
+    detailRequestRef.current = undefined;
     setConversationId(undefined);
     setDetail(undefined);
     await loadConversations();
@@ -15360,6 +15417,7 @@ function AgentSidePanel() {
     )
       return;
     await client.assistantConversations.remove(conversationId);
+    detailRequestRef.current = undefined;
     setConversationId(undefined);
     setDetail(undefined);
     await loadConversations();
@@ -15378,10 +15436,7 @@ function AgentSidePanel() {
           <BareButton
             className="rounded-lg border border-line px-2 py-1.5 text-xs"
             disabled={Boolean(activeRun && activeRun.status !== "interrupted")}
-            onClick={() => {
-              setConversationId(undefined);
-              setDetail(undefined);
-            }}
+            onClick={() => beginNewConversation()}
           >
             新对话
           </BareButton>
@@ -15390,14 +15445,16 @@ function AgentSidePanel() {
           aria-label="全局助手对话历史"
           className="mt-3 w-full rounded-lg border border-line bg-canvas px-2 py-2 text-xs"
           value={conversationId ?? ""}
-          onChange={(event) =>
-            setConversationId(event.target.value || undefined)
-          }
+          onChange={(event) => {
+            if (event.target.value) setConversationId(event.target.value);
+            else beginNewConversation();
+          }}
         >
           <option value="">新对话（发送时创建）</option>
           {conversations.map((conversation) => (
             <option key={conversation.id} value={conversation.id}>
-              {conversation.title ?? "未命名对话"} · {conversation.engineKind}
+              {conversation.title ?? "未命名对话"} ·{" "}
+              {AGENT_ENGINE_LABELS[conversation.engineKind]}
             </option>
           ))}
         </select>
@@ -15432,10 +15489,34 @@ function AgentSidePanel() {
             </div>
           </details>
         )}
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <select
+            aria-label="智能助手引擎"
+            className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
+            value={engineKind}
+            disabled={Boolean(activeRun)}
+            onChange={(event) =>
+              selectEngine(event.target.value as AgentEngineKind)
+            }
+          >
+            {engines.map((engine) => {
+              const canRun = engine.canRun ?? engine.status === "available";
+              return (
+                <option
+                  key={engine.kind}
+                  value={engine.kind}
+                  disabled={!canRun && engine.kind !== engineKind}
+                >
+                  {engine.name}
+                  {engine.isBeta ? "（测试版）" : ""}
+                  {canRun ? "" : " · 不可用"}
+                </option>
+              );
+            })}
+          </select>
           <select
             aria-label="对话项目上下文"
-            className="min-w-0 flex-1 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
+            className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
             value={projectId}
             disabled={Boolean(detail?.conversation.projectId)}
             onChange={(event) => setProjectId(event.target.value)}
@@ -15449,7 +15530,7 @@ function AgentSidePanel() {
           </select>
           {detail && !detail.conversation.projectId && projectId && (
             <BareButton
-              className="rounded-lg border border-brand px-2 text-xs text-brand"
+              className="rounded-lg border border-brand px-2 py-1.5 text-xs text-brand"
               onClick={() => void bindProject()}
             >
               绑定
@@ -15458,7 +15539,7 @@ function AgentSidePanel() {
           {detail && (
             <DropdownMenu>
               <DropdownMenu.Trigger asChild>
-                <BareButton className="rounded-lg border border-line px-2 text-xs">
+                <BareButton className="rounded-lg border border-line px-2 py-1.5 text-xs">
                   管理
                 </BareButton>
               </DropdownMenu.Trigger>
@@ -15476,6 +15557,16 @@ function AgentSidePanel() {
             </DropdownMenu>
           )}
         </div>
+        <p
+          className={`mt-2 text-[11px] leading-4 ${selectedEngineCanRun ? "text-muted" : "text-amber-700"}`}
+        >
+          {conversationId ? "当前对话使用" : "新对话将使用"}「
+          {selectedEngine?.name ?? AGENT_ENGINE_LABELS[engineKind]}」
+          {conversationId ? "；切换引擎会创建新对话。" : "。"}
+          {!selectedEngineCanRun && selectedEngine?.statusMessage
+            ? ` ${selectedEngine.statusMessage}`
+            : ""}
+        </p>
       </header>
       <div
         ref={assistantScroll.scrollRef}
@@ -15513,6 +15604,7 @@ function AgentSidePanel() {
               <BareButton
                 key={action.actionId}
                 className="w-full rounded-lg border border-line p-2 text-left text-xs hover:border-brand"
+                disabled={!selectedEngineCanRun}
                 onClick={() => void send(action.id)}
               >
                 <span className="block font-medium">{action.label}</span>
@@ -15529,22 +15621,10 @@ function AgentSidePanel() {
       </div>
       <footer className="border-t border-line p-3">
         <details className="mb-2 text-xs text-muted">
-          <summary className="cursor-pointer">引擎与更多任务</summary>
+          <summary className="cursor-pointer">模型与更多任务</summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <select
-              className="rounded-lg border border-line bg-canvas px-2 py-1.5"
-              value={engineKind}
-              onChange={(event) =>
-                setEngineKind(event.target.value as AgentEngineKind)
-              }
-            >
-              {engines.map((engine) => (
-                <option key={engine.kind} value={engine.kind}>
-                  {engine.name}
-                </option>
-              ))}
-            </select>
             <Input
+              className="col-span-2"
               value={modelId}
               placeholder="默认模型"
               onChange={(event) => setModelId(event.target.value)}
@@ -15564,6 +15644,7 @@ function AgentSidePanel() {
             </select>
             <BareButton
               className="col-span-2 rounded-lg border border-brand py-1.5 text-brand"
+              disabled={!selectedEngineCanRun}
               onClick={() => void send(selectedTask)}
             >
               执行所选任务
@@ -15609,7 +15690,11 @@ function AgentSidePanel() {
             <Button
               size="sm"
               variant="primary"
-              disabled={busy || (!draft.trim() && !activeRun)}
+              disabled={
+                busy ||
+                (!draft.trim() && !activeRun) ||
+                (!activeRun && !selectedEngineCanRun)
+              }
               onClick={() =>
                 activeRun
                   ? void client.agentSessions.interrupt(activeRun.id)

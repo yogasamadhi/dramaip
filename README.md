@@ -12,8 +12,7 @@ DramaIP 是一个以本地优先为基础的 AI 短剧 IP 创作工作台。工�
 - [产品路线图](./docs/product/ROADMAP.md)：桌面端产品能力与长期路线。
 - [通用文档目录](./docs/README.md)：产品、架构和流程文档索引。
 - [平台 GitOps 发布操作](./docs/CICD_平台发布操作.md)：Staging 前置条件、初始化、发布和回滚入口。
-- [LOOPRULE](./docs/loop/LOOPRULE.md)：逐 loop 的分支、验证、合并和推送规则。
-- [LOOPMAP3](./docs/loop/LOOPMAP3.md)：平台架构收敛的执行地图。
+- [LOOPRULE](./docs/loop/LOOPRULE.md)：可选的 Loop 工作方式；仅在维护者明确开启 Loop 模式时适用。
 
 ## 本地验证
 

@@ -27,7 +27,4 @@
 - [路线图](../../docs/product/ROADMAP.md)
 - [移动灵感记录与桌面导入设计](../../docs/product/MOBILE_INSPIRATION_IMPORT.md)
 - [云同步、资源市场与知识库路线设计](../../docs/product/ECOSYSTEM_SYNC_MARKET_KNOWLEDGE.md)
-- [Loop Engineering Rules](../../docs/loop/LOOPRULE.md)
-- [Production Optimization Loop Map](../../docs/loop/LOOPMAP.md)
-- [Platform Architecture Convergence Loop Map 2](../../docs/loop/LOOPMAP2.md)
-- [Platform Architecture Convergence Loop Map 3](../../docs/loop/LOOPMAP3.md)
+- [Loop Engineering Rules（仅在明确开启 Loop 模式时适用）](../../docs/loop/LOOPRULE.md)

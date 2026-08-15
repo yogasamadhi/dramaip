@@ -9,7 +9,7 @@ groups:
           area: platform
         annotations:
           summary: "DramaIP scrape target is down"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#target-down"
+          runbook: "docs/OBSERVABILITY.md#target-down"
 
       - alert: DramaipHighRequestErrorRate
         expr: (sum by (service) (rate(dramaip_requests_total{outcome="error"}[5m])) / sum by (service) (rate(dramaip_requests_total[5m]))) > 0.05 and sum by (service) (rate(dramaip_requests_total[5m])) > 0.1
@@ -19,7 +19,7 @@ groups:
           area: api
         annotations:
           summary: "DramaIP request error rate exceeds 5%"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#request-error-rate"
+          runbook: "docs/OBSERVABILITY.md#request-error-rate"
 
       - alert: DramaipPaymentConfirmationFailed
         expr: increase(dramaip_business_events_total{event="payment_confirmation",outcome="failed"}[10m]) > 0
@@ -29,7 +29,7 @@ groups:
           area: billing
         annotations:
           summary: "A payment confirmation failed"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#payment-confirmation"
+          runbook: "docs/OBSERVABILITY.md#payment-confirmation"
 
       - alert: DramaipQuotaRejectionsHigh
         expr: increase(dramaip_quota_reservations_total{outcome="rejected"}[10m]) > 20
@@ -39,7 +39,7 @@ groups:
           area: quota
         annotations:
           summary: "Quota reservation rejections are elevated"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#quota-rejections"
+          runbook: "docs/OBSERVABILITY.md#quota-rejections"
 
       - alert: DramaipOutboxBacklog
         expr: dramaip_outbox_pending_events > 100
@@ -49,7 +49,7 @@ groups:
           area: messaging
         annotations:
           summary: "Billing outbox backlog exceeds 100 events"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#outbox-backlog"
+          runbook: "docs/OBSERVABILITY.md#outbox-backlog"
 
       - alert: DramaipRabbitMQQueueBacklog
         expr: rabbitmq_queue_messages_ready > 1000
@@ -59,7 +59,7 @@ groups:
           area: messaging
         annotations:
           summary: "RabbitMQ ready-message backlog exceeds 1000"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#rabbitmq-backlog"
+          runbook: "docs/OBSERVABILITY.md#rabbitmq-backlog"
 
       - alert: DramaipDatabasePoolSaturated
         expr: (sum by (service) (dramaip_db_connections{state="in_use"}) / dramaip_db_max_open_connections) > 0.8 and dramaip_db_max_open_connections > 0
@@ -69,7 +69,7 @@ groups:
           area: database
         annotations:
           summary: "DramaIP database pool utilization exceeds 80%"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#database-pool"
+          runbook: "docs/OBSERVABILITY.md#database-pool"
 
       - alert: DramaipProviderFailureRate
         expr: (sum by (service, provider) (rate(dramaip_provider_requests_total{outcome="failed"}[5m])) / sum by (service, provider) (rate(dramaip_provider_requests_total[5m]))) > 0.1 and sum by (service, provider) (rate(dramaip_provider_requests_total[5m])) > 0.05
@@ -79,7 +79,7 @@ groups:
           area: ai
         annotations:
           summary: "AI Provider failure rate exceeds 10%"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#provider-failure"
+          runbook: "docs/OBSERVABILITY.md#provider-failure"
 
       - alert: DramaipProviderLatencyHigh
         expr: (sum by (service, provider) (rate(dramaip_provider_request_duration_seconds_sum[5m])) / sum by (service, provider) (rate(dramaip_provider_request_duration_seconds_count[5m]))) > 15
@@ -89,7 +89,7 @@ groups:
           area: ai
         annotations:
           summary: "AI Provider average request latency exceeds 15 seconds"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#provider-latency"
+          runbook: "docs/OBSERVABILITY.md#provider-latency"
 
       - alert: DramaipProviderCostAlert
         expr: increase(dramaip_provider_cost_alerts_total[10m]) > 0
@@ -99,7 +99,7 @@ groups:
           area: finops
         annotations:
           summary: "AI Provider cost guard emitted an alert"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#provider-cost"
+          runbook: "docs/OBSERVABILITY.md#provider-cost"
 
       - alert: DramaipErrorAggregationHigh
         expr: sum by (service, class) (increase(dramaip_errors_total[10m])) > 10
@@ -109,4 +109,4 @@ groups:
           area: errors
         annotations:
           summary: "Aggregated DramaIP errors exceed threshold"
-          runbook: "docs/loop/LM3-22-指标告警与错误聚合.md#error-aggregation"
+          runbook: "docs/OBSERVABILITY.md#error-aggregation"

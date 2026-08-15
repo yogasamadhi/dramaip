@@ -42,13 +42,13 @@ Platform:
 
 ## Workflow
 
-- Team process is Loop Engineering (`docs/loop/LOOPRULE.md`, active map `docs/loop/LOOPMAP.md`): one goal per `loop/<id>-<topic>` branch off `main`, merge back with `--no-ff`, push to remote before marking `done`, append execution records to the LOOPMAP, never use a `blocked` terminal state.
-- Conventional commits with scopes, e.g. `feat(desktop):`, `fix(timeline):`, `docs(loop):`, `test(e2e):`.
+- Loop mode is opt-in only: do not read, apply, or infer `docs/loop/LOOPRULE.md`; do not create `loop/*` branches or Loop records unless the user explicitly says to enable Loop mode. Otherwise use the normal task workflow and ordinary Git practices.
+- Conventional commits with scopes, e.g. `feat(desktop):`, `fix(timeline):`, `docs(desktop):`, `test(e2e):`.
 - Git remote is Gitee (`gitee.com`), but CI is GitLab (`.gitlab-ci.yml`, harbor.home.arpa) — don't assume GitHub URLs or workflows.
 
 ## Stale references and dead dirs
 
-- Root README mentions `run-platform.py` (does not exist — use `run-platform-dev.py` + `run-platform-clients.py`) and `docs/差异演进.md` / `docs/loop/LOOPMAP3.md` (missing). Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
+- Root README mentions `run-platform.py` (does not exist — use `run-platform-dev.py` + `run-platform-clients.py`) and `docs/差异演进.md` (missing). Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
 - `desktop/legacy/`, `desktop/packages/core/`, `desktop/packages/export/` are non-workspace leftovers (no package.json, not in bun workspaces) — ignore, don't restore.
 
 Architecture details: `docs/技术架构.md` (platform red lines), `desktop/docs/engineering/ARCHITECTURE.md` (desktop v3).

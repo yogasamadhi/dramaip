@@ -28,7 +28,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: A payment confirmation failed
-              runbook: docs/loop/LM3-22-指标告警与错误聚合.md#payment-confirmation
+              runbook: docs/OBSERVABILITY.md#payment-confirmation
       - eval_time: 6m
         alertname: DramaipOutboxBacklog
         exp_alerts:
@@ -38,7 +38,7 @@ tests:
               severity: critical
             exp_annotations:
               summary: Billing outbox backlog exceeds 100 events
-              runbook: docs/loop/LM3-22-指标告警与错误聚合.md#outbox-backlog
+              runbook: docs/OBSERVABILITY.md#outbox-backlog
       - eval_time: 6m
         alertname: DramaipProviderLatencyHigh
         exp_alerts:
@@ -49,7 +49,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: AI Provider average request latency exceeds 15 seconds
-              runbook: docs/loop/LM3-22-指标告警与错误聚合.md#provider-latency
+              runbook: docs/OBSERVABILITY.md#provider-latency
       - eval_time: 2m
         alertname: DramaipProviderCostAlert
         exp_alerts:
@@ -60,4 +60,4 @@ tests:
               severity: warning
             exp_annotations:
               summary: AI Provider cost guard emitted an alert
-              runbook: docs/loop/LM3-22-指标告警与错误聚合.md#provider-cost
+              runbook: docs/OBSERVABILITY.md#provider-cost

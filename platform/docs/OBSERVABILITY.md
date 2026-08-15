@@ -1,4 +1,4 @@
-# LM3-22：指标、告警与错误聚合
+# 本地指标、告警与错误聚合
 
 本 runbook 只适用于本地 Java 开发环境。Prometheus 保存 15 天，Jaeger Badger 保存 30 天；Elasticsearch、Grafana、Filebeat 与基础设施数据位于 `deploy/docker-drama/docker-data/`，保留到开发者显式执行 `make platform-observability-down` 或清理卷目录为止。没有 Alertmanager：告警在 Prometheus 和 Grafana 中查看。
 

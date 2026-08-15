@@ -44,7 +44,7 @@ assert(filebeat.includes('dramaip-logs-java-') && hostFilebeat.includes('dramaip
 assert(compose.includes('dramaip-java-index-template.json'), 'Compose must install the Java log index mapping')
 assert(compose.includes('./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro'), 'Compose does not mount alert rules')
 assert(compose.includes('./grafana/dashboards:/var/lib/grafana/dashboards:ro'), 'Compose does not mount Grafana dashboards')
-assert(alerts.includes('LM3-22-指标告警与错误聚合.md#'), 'Every alert must point to the LM3-22 runbook')
+assert(alerts.includes('docs/OBSERVABILITY.md#'), 'Every alert must point to the observability runbook')
 
 const requiredAlerts = [
   'DramaipTargetDown',
