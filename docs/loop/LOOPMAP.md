@@ -1677,3 +1677,30 @@ LM6-00
 - Next attempt: 无；后续设置交互问题建立独立 Loop。
 - Sweep cursor: none（LM9-01 complete）
 - Notes: 原行为实际已切换编辑状态，但复用了相同顶部表单且没有焦点、状态提示或卡片高亮；本轮修复可见反馈，没有改变凭据存储与服务商业务契约。
+
+### LM9-02 / Attempt 1 — 2026-08-15 Asia/Shanghai
+
+- Loop: LM9-02
+- Attempt: 1
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm9-02-dsh-provider-refresh`
+- Commit(s): `a0aa45c8d fix(desktop): refresh active provider runtimes`
+- Merge commit: `2ba925727 merge: fix LM9 DSH provider refresh`（`--no-ff`）
+- Verification:
+  - 脱敏现场诊断确认当前凭据请求同一 Provider `/models` 返回 HTTP 200，当前模型存在；相同凭据、地址和模型经隔离的真实 DSH Runtime 调用成功，从而将故障定位为应用内旧 Provider 配置未刷新，而非用户密钥失效。
+  - 功能分支执行 `cd desktop && bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS；DSH Sidecar 与 Server HTTP 契约新增的 Provider 轮换回归通过。
+  - `cd desktop && bun run --cwd apps/desktop verify:dsh`: PASS — Electron 43 内置 Node 启动真实 JSON-RPC Runtime，受控配置、模型流式输出和只读 Bearer MCP 全链路通过。
+  - `cd desktop && bunx playwright test --reporter=list`: PASS — 独立复跑 34/34。首次将真实 DSH verifier 与 Electron E2E 并行执行时出现 3 条进程关闭/用例超时（31/34），失败用例聚焦复跑 5/5，通过后取消并行负载再次全量复跑 34/34。
+  - 合并后的 `main` 再次执行 `git diff --check origin/main...HEAD`、DSH Sidecar 测试、Server Node 契约、lint、format、typecheck、build 与真实 DSH verifier：全部 PASS。
+- Diff review: PASS — 累计 diff 只修改 Desktop 的 DSH Sidecar、Server Provider 更新路径及对应测试；未修改 `platform/`、`desktop/legacy/`、任一 vendor 快照、数据库 Schema 或凭据文件，未记录或提交真实密钥。
+- Remote sync: PASS — Loop 开始、合并前和推送前均 fetch Gitee；`origin/main` 无分叉或远端新提交需要合入。
+- Push: PASS — 功能提交与 `--no-ff` 合并已将 `origin/main` 从 `ddb76b13c` 快进至 `2ba925727`；本执行记录由紧随其后的文档提交继续同步到同一主线。
+- Loop branch cleanup: PASS — 代码推送且本地/远端对齐后，已使用 `git branch -d loop/lm9-02-dsh-provider-refresh` 安全删除本地分支；未创建远端 Loop 分支。
+- Current branch/worktree: `main`；本记录推送后与 `origin/main` 对齐且工作区干净。
+- Completed: 编辑当前已启用的模型服务商时，Server 会在数据库写入前验证新配置并立即通知 Main 重配 OpenCode、DSH、Hermes、OpenClaw 与 LangGraph，后续任务不再继续使用编辑前的旧密钥或模型；服务地址、协议、模型或凭据变化会清除旧“连接正常”、测试时间、模型列表和测试说明，连接状态不能再由普通资源写入伪造。DSH 新增 Provider generation，运行中任务继续使用启动时配置，下一任务必定重建 Runtime；未显式选模型的会话继续跟随新 Provider 默认模型，显式模型选择仍保持会话语义。
+- Unfinished: 无。
+- Evidence: `desktop/packages/ai/src/dsh-sidecar.ts`、`desktop/packages/ai/src/dsh-sidecar.test.ts`、`desktop/packages/server/src/sidecar.ts`、`desktop/packages/server/src/sidecar.node.test.ts`、`a0aa45c8d`、`2ba925727`。
+- Next attempt: 无；后续其他引擎的 Provider generation 兼容问题建立独立 Loop。
+- Sweep cursor: none（LM9-02 complete）
+- Notes: 现场卡片显示的“连接正常”来自 2026-08-11 的旧测试，而 Provider 已于 2026-08-15 修改；当前凭据和模型实际可用。故障由保存修改未刷新已激活引擎配置、且 DSH 默认模型/Runtime 缓存未区分 Provider 代次共同造成。
