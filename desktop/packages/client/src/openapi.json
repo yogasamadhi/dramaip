@@ -2543,14 +2543,7 @@
                   },
                   "engineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "model": {
                     "type": "object",
@@ -2709,14 +2702,7 @@
                   "sourceChapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "model": {
                     "type": "object",
@@ -3374,14 +3360,7 @@
                 "properties": {
                   "engineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   }
                 },
                 "required": ["engineKind"],
@@ -3758,7 +3737,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -3930,14 +3908,7 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "taskType": {
                     "type": "string",
@@ -4294,7 +4265,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -4608,7 +4578,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -4912,7 +4881,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -5121,7 +5089,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -5251,7 +5218,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -5436,7 +5402,6 @@
                           "codex",
                           "dsh",
                           "hermes",
-                          "openclaw",
                           "langgraph"
                         ]
                       },
@@ -5618,7 +5583,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -5790,14 +5754,7 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "taskType": {
                     "type": "string",
@@ -5929,7 +5886,6 @@
                             "codex",
                             "dsh",
                             "hermes",
-                            "openclaw",
                             "langgraph"
                           ]
                         },
@@ -6333,7 +6289,6 @@
                               "codex",
                               "dsh",
                               "hermes",
-                              "openclaw",
                               "langgraph"
                             ]
                           },
@@ -6522,7 +6477,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -6772,7 +6726,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -6978,7 +6931,6 @@
                             "codex",
                             "dsh",
                             "hermes",
-                            "openclaw",
                             "langgraph"
                           ]
                         },
@@ -7371,7 +7323,6 @@
                             "codex",
                             "dsh",
                             "hermes",
-                            "openclaw",
                             "langgraph"
                           ]
                         },
@@ -7751,7 +7702,6 @@
                           "codex",
                           "dsh",
                           "hermes",
-                          "openclaw",
                           "langgraph"
                         ]
                       },
@@ -7891,7 +7841,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -7963,7 +7912,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -8022,14 +7970,7 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -8079,7 +8020,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -8168,7 +8108,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -8236,14 +8175,7 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": [
-                      "opencode",
-                      "codex",
-                      "dsh",
-                      "hermes",
-                      "openclaw",
-                      "langgraph"
-                    ]
+                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -8442,8 +8374,8 @@
                               "codex",
                               "dsh",
                               "hermes",
-                              "openclaw",
-                              "langgraph"
+                              "langgraph",
+                              "openclaw"
                             ]
                           },
                           "engineVersion": { "type": "string" },
@@ -8924,8 +8856,8 @@
                               "codex",
                               "dsh",
                               "hermes",
-                              "openclaw",
-                              "langgraph"
+                              "langgraph",
+                              "openclaw"
                             ]
                           },
                           "engineVersion": { "type": "string" },
@@ -9297,8 +9229,8 @@
                               "codex",
                               "dsh",
                               "hermes",
-                              "openclaw",
-                              "langgraph"
+                              "langgraph",
+                              "openclaw"
                             ]
                           },
                           "engineVersion": { "type": "string" },
@@ -9549,7 +9481,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -9752,7 +9683,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -9968,7 +9898,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -10171,7 +10100,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },
@@ -17264,7 +17192,6 @@
                         "codex",
                         "dsh",
                         "hermes",
-                        "openclaw",
                         "langgraph"
                       ]
                     },

@@ -52,20 +52,6 @@ extraResources:
     to: third-party-notices/hermes/LICENSE
   - from: hermes-adapter/THIRD_PARTY_NOTICES.md
     to: third-party-notices/hermes/THIRD_PARTY_NOTICES.md
-  - from: build/openclaw
-    to: openclaw/runtime
-    filter:
-      - "**/*"
-      - "!node_modules/**/*"
-  # 与 DSH 相同，显式复制生产依赖闭包，防止 extraResources 过滤 node_modules。
-  - from: build/openclaw/node_modules
-    to: openclaw/runtime/node_modules
-    filter:
-      - "**/*"
-  - from: ../../vendor/openclaw/LICENSE
-    to: third-party-notices/openclaw/LICENSE
-  - from: ../../vendor/openclaw/THIRD_PARTY_NOTICES.md
-    to: third-party-notices/openclaw/THIRD_PARTY_NOTICES.md
   - from: ../../vendor/opencode/packages/opencode/dist/node
     to: opencode
     filter:

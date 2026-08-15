@@ -10,7 +10,6 @@ const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
 const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
 const hermes = await readJson(join(root, "vendor/hermes-agent.lock.json"));
-const openclaw = await readJson(join(root, "vendor/openclaw.lock.json"));
 
 if (codex.package !== "@openai/codex" || codex.version !== "0.147.0")
   throw new Error("Codex 固定版本必须为 @openai/codex 0.147.0");
@@ -207,67 +206,11 @@ if (
 )
   throw new Error("Hermes 完整源码树校验失败，vendor 冻结快照可能已变化");
 
-const openclawRoot = join(root, "vendor/openclaw");
-const openclawManifest = await readJson(join(openclawRoot, "package.json"));
 if (
-  openclaw.version !== "2026.7.1" ||
-  openclaw.license !== "MIT" ||
-  openclaw.pnpmVersion !== "11.2.2" ||
-  openclaw.lockfile !== "pnpm-lock.yaml" ||
-  openclawManifest.version !== openclaw.version ||
-  openclawManifest.license !== openclaw.license ||
-  openclawManifest.packageManager !== openclaw.packageManager ||
-  openclawManifest.engines?.node !== openclaw.node
+  !Array.isArray(hermes.runtimePlatforms) ||
+  hermes.runtimePlatforms.length !== 6
 )
-  throw new Error(
-    "OpenClaw 固定版本必须为 2026.7.1（MIT，完整 pnpm 11.2.2 标识）",
-  );
-const openclawPnpmLock = await readFile(join(openclawRoot, openclaw.lockfile));
-if (
-  createHash("sha256").update(openclawPnpmLock).digest("hex") !==
-  openclaw.pnpmLockSha256
-)
-  throw new Error("OpenClaw pnpm-lock.yaml 校验失败");
-const openclawTree = await frozenTree(
-  openclawRoot,
-  new Set([
-    ".git",
-    ".venv",
-    "node_modules",
-    "dist",
-    "dist-runtime",
-    "build",
-    "coverage",
-    ".pytest_cache",
-    ".ruff_cache",
-    "__pycache__",
-    ".cache",
-    ".turbo",
-    ".artifacts",
-    "target",
-    "out",
-    ".pnpm-store",
-  ]),
-  new Set([
-    "extensions/canvas/src/host/a2ui/.bundle.hash",
-    "extensions/canvas/src/host/a2ui/a2ui.bundle.js",
-    "extensions/diffs/assets",
-    "extensions/diffs-language-pack/assets",
-  ]),
-);
-if (
-  openclawTree.count !== openclaw.sourceTreeFileCount ||
-  openclawTree.sha256 !== openclaw.sourceTreeSha256
-)
-  throw new Error("OpenClaw 完整源码树校验失败，vendor 冻结快照可能已变化");
-
-for (const [name, platforms] of [
-  ["Hermes", hermes.runtimePlatforms],
-  ["OpenClaw", openclaw.runtimePlatforms],
-]) {
-  if (!Array.isArray(platforms) || platforms.length !== 6)
-    throw new Error(`${name} 运行时清单必须覆盖 macOS、Windows、Linux 双架构`);
-}
+  throw new Error("Hermes 运行时清单必须覆盖 macOS、Windows、Linux 双架构");
 for (const platform of hermes.runtimePlatforms) {
   const artifact = hermes.pythonArtifacts?.[platform];
   if (
@@ -286,5 +229,5 @@ if (
   throw new Error("Hermes CPython 运行时清单包含未声明平台");
 
 process.stdout.write(
-  `引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Hermes ${hermes.version}；OpenClaw ${openclaw.version}\n`,
+  `活动引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Hermes ${hermes.version}\n`,
 );

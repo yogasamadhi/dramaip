@@ -75,12 +75,9 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
     page.getByText("Hermes Agent", { exact: true }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("OpenClaw", { exact: true }).first(),
-  ).toBeVisible();
-  await expect(
     page.getByText("LangGraph.js", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText("测试版", { exact: true })).toHaveCount(4);
+  await expect(page.getByText("测试版", { exact: true })).toHaveCount(3);
   await expect(
     page.getByLabel("智能引擎状态").locator("article > div > p"),
   ).toHaveText([
@@ -88,7 +85,6 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
     "Codex",
     "DeepSeek Harness",
     "Hermes Agent",
-    "OpenClaw",
     "LangGraph.js",
   ]);
   await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
@@ -96,7 +92,6 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
     "Codex（测试版）",
     "DeepSeek Harness（测试版）",
     "Hermes Agent（测试版）",
-    "OpenClaw（测试版）",
     "LangGraph.js",
   ]);
 });

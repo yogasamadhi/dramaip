@@ -89,7 +89,7 @@ test("LM6-03 预检与远程费用门禁保持推荐、任务快照和预览采�
       expect(source).toContain("本次模型（可选）");
     }
     if (guarantee === "blind-experiment")
-      expect(source).toContain("启动六引擎盲测");
+      expect(source).toContain("启动五引擎盲测");
   }
   expect(source).toContain(
     "const costUnknown = props.preview.estimatedCost === undefined",

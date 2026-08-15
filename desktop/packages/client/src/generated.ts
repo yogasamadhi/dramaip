@@ -3,7 +3,7 @@ import type { HttpApiClient } from "effect/unstable/httpapi";
 import type { StudioApi as StudioApiContract } from "@sdns/protocol";
 
 export const OPENAPI_CONTRACT_SHA256 =
-  "bf148e6e033afb2a51471ce008de86bee2608741d9a7bbf53372c519ad4801a2";
+  "51b7ef8b761dc4297979fd3c8ea31d01f753535cfb9e9f725e7b8ff9af9ca662";
 export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,

@@ -693,7 +693,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     (message: {
       type?: string;
       requestId?: string;
-      engineKind?: "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
+      engineKind?: "codex" | "dsh" | "hermes" | "langgraph";
       operation?: string;
       payload?: Record<string, unknown>;
       configuration?: Record<string, unknown>;
@@ -775,7 +775,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
             type: "agent-engine:response",
             requestId: message.requestId,
             result: {
-              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : message.engineKind === "hermes" ? "Hermes Agent" : message.engineKind === "openclaw" ? "OpenClaw" : "LangGraph.js"} 已完成盲测候选`,
+              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : message.engineKind === "hermes" ? "Hermes Agent" : "LangGraph.js"} 已完成盲测候选`,
               content:
                 "已完成章节诊断，并给出人物动机、连续性和结尾钩子的中文建议。",
               data: {},
@@ -856,7 +856,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
         codex: "test-codex-mcp-token",
         dsh: "test-dsh-mcp-token",
         hermes: "test-hermes-mcp-token",
-        openclaw: "test-openclaw-mcp-token",
         langgraph: "test-langgraph-mcp-token",
       },
       opencode: {
@@ -868,7 +867,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
       codex: { healthy: true, version: "0.147.0" },
       dsh: { healthy: true, version: "0.1.0-rc.5" },
       hermes: { healthy: true, version: "0.20.1" },
-      openclaw: { healthy: true, version: "2026.7.1" },
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
@@ -1454,7 +1452,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(engines.status, 200);
     assert.deepEqual(
       engines.body.map((engine) => engine.kind),
-      ["opencode", "codex", "dsh", "hermes", "openclaw", "langgraph"],
+      ["opencode", "codex", "dsh", "hermes", "langgraph"],
     );
     assert.equal(
       engines.body.find((engine) => engine.kind === "codex")?.isBeta,
@@ -1466,10 +1464,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(
       engines.body.find((engine) => engine.kind === "hermes")?.isBeta,
-      true,
-    );
-    assert.equal(
-      engines.body.find((engine) => engine.kind === "openclaw")?.isBeta,
       true,
     );
     assert.deepEqual(
@@ -1487,10 +1481,6 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.deepEqual(
       engines.body.find((engine) => engine.kind === "hermes")?.capabilities,
-      engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
-    );
-    assert.deepEqual(
-      engines.body.find((engine) => engine.kind === "openclaw")?.capabilities,
       engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
     );
     const initialGlobalAgentSettings = await request<{
@@ -2440,7 +2430,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       message: string;
     }>("/api/v1/agent-experiments", {
       method: "POST",
-      headers: { "Idempotency-Key": "six-engine-cost-confirmation" },
+      headers: { "Idempotency-Key": "five-engine-cost-confirmation" },
       body: JSON.stringify({
         projectId: project.body.id,
         chapterId: agentChapter.body.id,
@@ -2449,7 +2439,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       }),
     });
     assert.equal(unconfirmedExperiment.status, 409);
-    assert.match(unconfirmedExperiment.body.message, /六次/);
+    assert.match(unconfirmedExperiment.body.message, /五次/);
 
     child.send({
       type: "agent-engine:status",
@@ -2530,7 +2520,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       `${JSON.stringify(readyExperiment)}\n${lastSidecarDiagnostic}`,
     );
     assert.equal(readyExperiment?.revealed, false);
-    assert.equal(readyExperiment?.candidates?.length, 6);
+    assert.equal(readyExperiment?.candidates?.length, 5);
     assert.ok(
       readyExperiment?.candidates?.every(
         (candidate) =>
@@ -2552,7 +2542,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       reviewedExperiment.body.candidates.map(
         (candidate) => candidate.engineKind,
       ),
-      ["opencode", "codex", "dsh", "hermes", "openclaw", "langgraph"],
+      ["opencode", "codex", "dsh", "hermes", "langgraph"],
     );
     const legacyDb = new DatabaseSync(databasePath);
     try {

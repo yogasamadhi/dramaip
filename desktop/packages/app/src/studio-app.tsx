@@ -79,6 +79,7 @@ import {
 } from "@sdns/schema";
 import type {
   AgentEngineKind,
+  AgentExperimentEngineKind,
   AgentItem,
   AgentSession,
   AgentExperiment,
@@ -5231,7 +5232,6 @@ function TaskPage() {
           <option value="codex">Codex（测试版）</option>
           <option value="dsh">DeepSeek Harness（测试版）</option>
           <option value="hermes">Hermes Agent（测试版）</option>
-          <option value="openclaw">OpenClaw（测试版）</option>
           <option value="langgraph">LangGraph.js</option>
         </select>
       </label>
@@ -14746,8 +14746,14 @@ const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
   codex: "Codex",
   dsh: "DSH",
   hermes: "Hermes Agent",
-  openclaw: "OpenClaw",
   langgraph: "LangGraph.js",
+};
+const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
+  AgentExperimentEngineKind,
+  string
+> = {
+  ...AGENT_ENGINE_LABELS,
+  openclaw: "OpenClaw（已移除）",
 };
 
 function AgentEngineSettingsPanel() {
@@ -15923,17 +15929,17 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "六引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Hermes Agent、OpenClaw 和 LangGraph.js，共产生六次模型费用。",
+          "五引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Hermes Agent 和 LangGraph.js，共产生五次模型费用。",
           experimentMode === "same_model"
-            ? `比较方式：六个引擎统一使用模型 ${modelId.trim()}。`
+            ? `比较方式：五个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
-          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedInputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
-          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedOutputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
+          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；五次合计约 ${(estimatedInputPerEngine * 5).toLocaleString("zh-CN")} Token。`,
+          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；五次合计约 ${(estimatedOutputPerEngine * 5).toLocaleString("zh-CN")} Token。`,
           "预估费用：各引擎的模型与认证计价可能不同，未配置统一单价时无法可靠折算金额；应用会在运行后记录实际 Token 与厂商返回的费用。",
           "确认开始吗？",
         ].join("\n\n"),
       );
-      if (!confirmed) throw new Error("已取消六引擎盲测");
+      if (!confirmed) throw new Error("已取消五引擎盲测");
       return client.agentExperiments.create(
         {
           projectId,
@@ -15951,7 +15957,7 @@ export function AgentTaskConfigPanel() {
     },
     onSuccess: (experiment) => {
       setExperimentId(experiment.id);
-      setNotice("六引擎盲测已开始，结果将匿名展示");
+      setNotice("五引擎盲测已开始，结果将匿名展示");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -16193,7 +16199,7 @@ export function AgentTaskConfigPanel() {
               }
             >
               <option value="recommended">各引擎推荐配置</option>
-              <option value="same_model">六个引擎使用同一模型</option>
+              <option value="same_model">五个引擎使用同一模型</option>
             </select>
           </label>
           {requiresChapter && !chapterId && (
@@ -16238,7 +16244,7 @@ export function AgentTaskConfigPanel() {
             }
             onClick={() => createExperiment.mutate()}
           >
-            {createExperiment.isPending ? "正在创建盲测…" : "启动六引擎盲测"}
+            {createExperiment.isPending ? "正在创建盲测…" : "启动五引擎盲测"}
           </BareButton>
         </>
       )}
@@ -16343,7 +16349,7 @@ function AgentExperimentCard(props: {
   return (
     <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">{candidateCount || 6} 引擎盲测</p>
+        <p className="text-sm font-medium">{candidateCount || 5} 引擎盲测</p>
         <span className="text-xs text-muted">
           {props.experiment.status === "ready_for_review"
             ? "等待评价"
@@ -16368,7 +16374,7 @@ function AgentExperimentCard(props: {
             <p className="font-medium">
               {candidateLabels[candidate.candidate]}
               {candidate.engineKind
-                ? ` · ${AGENT_ENGINE_LABELS[candidate.engineKind]}`
+                ? ` · ${AGENT_EXPERIMENT_ENGINE_LABELS[candidate.engineKind]}`
                 : ""}
             </p>
             <p className="mt-1 text-muted">

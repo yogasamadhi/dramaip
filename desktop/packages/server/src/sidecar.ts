@@ -73,6 +73,7 @@ import type {
   CreativeTargetKind,
   CreativeIssueAcknowledgementInput,
   AgentEngineKind,
+  AgentExperimentEngineKind,
   AgentModelSelection,
   AgentTaskType,
   AssetCenter,
@@ -97,7 +98,7 @@ type StartCommand = {
   backupDirectory: string;
   assetDirectory: string;
   allowedOrigins: string[];
-  /** 兼容测试宿主；正式桌面端为六个引擎使用互不相同的传输凭据。 */
+  /** 兼容测试宿主；正式桌面端为五个引擎使用互不相同的传输凭据。 */
   mcpToken?: string;
   mcpTokens?: Partial<Record<AgentEngineKind, string>>;
   opencode?: {
@@ -119,10 +120,6 @@ type StartCommand = {
     healthy: boolean;
     version: string;
   };
-  openclaw?: {
-    healthy: boolean;
-    version: string;
-  };
   langgraph?: {
     healthy: boolean;
     version: string;
@@ -132,22 +129,14 @@ type Command = StartCommand | { type: "stop" };
 type AgentRunOperation = "diagnostic" | "revision";
 type AgentExperimentCandidate =
   "one" | "two" | "three" | "four" | "five" | "six";
+type ActiveAgentExperimentCandidate = Exclude<AgentExperimentCandidate, "six">;
 const AGENT_ENGINE_ORDER = [
   "opencode",
   "codex",
   "dsh",
   "hermes",
-  "openclaw",
   "langgraph",
 ] as const satisfies readonly AgentEngineKind[];
-const AGENT_EXPERIMENT_CANDIDATES = [
-  "one",
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-] as const satisfies readonly AgentExperimentCandidate[];
 type ParentPort = {
   postMessage(message: unknown): void;
   on(event: "message", cb: (event: { data: unknown }) => void): void;
@@ -440,10 +429,6 @@ hostPort.on("message", (event) => {
     if (status.engineKind === "hermes" && command?.hermes) {
       command.hermes.healthy = status.healthy === true;
       if (status.version) command.hermes.version = status.version;
-    }
-    if (status.engineKind === "openclaw" && command?.openclaw) {
-      command.openclaw.healthy = status.healthy === true;
-      if (status.version) command.openclaw.version = status.version;
     }
     if (status.engineKind === "langgraph" && command?.langgraph) {
       command.langgraph.healthy = status.healthy === true;
@@ -19654,7 +19639,6 @@ function engineHealthy(kind: AgentEngineKind): boolean {
   if (kind === "codex") return command?.codex?.healthy === true;
   if (kind === "dsh") return command?.dsh?.healthy === true;
   if (kind === "hermes") return command?.hermes?.healthy === true;
-  if (kind === "openclaw") return command?.openclaw?.healthy === true;
   return command?.langgraph?.healthy === true;
 }
 
@@ -19663,7 +19647,6 @@ function engineVersion(kind: AgentEngineKind): string {
   if (kind === "codex") return command?.codex?.version ?? "0.147.0";
   if (kind === "dsh") return command?.dsh?.version ?? "0.1.0-rc.5";
   if (kind === "hermes") return command?.hermes?.version ?? "0.20.1";
-  if (kind === "openclaw") return command?.openclaw?.version ?? "2026.7.1";
   return command?.langgraph?.version ?? "0.2.43";
 }
 
@@ -19718,9 +19701,7 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
             ? "DeepSeek Harness"
             : kind === "hermes"
               ? "Hermes Agent"
-              : kind === "openclaw"
-                ? "OpenClaw"
-                : "LangGraph.js",
+              : "LangGraph.js",
     version: engineVersion(kind),
     status,
     runtimeStatus: healthy ? "running" : "stopped",
@@ -19742,11 +19723,7 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
         }
       : {}),
     isDefault: kind === globalSettings.defaultEngineKind,
-    isBeta:
-      kind === "codex" ||
-      kind === "dsh" ||
-      kind === "hermes" ||
-      kind === "openclaw",
+    isBeta: kind === "codex" || kind === "dsh" || kind === "hermes",
     statusMessage: !healthy
       ? "引擎进程未启动"
       : !providerConfigured
@@ -22882,12 +22859,14 @@ function agentExperimentRecord(row: Record<string, any>) {
 
 function storedExperimentCandidateOrder(
   value: unknown,
-): Partial<Record<AgentExperimentCandidate, AgentEngineKind>> {
+): Partial<Record<AgentExperimentCandidate, AgentExperimentEngineKind>> {
   try {
     const parsed = JSON.parse(String(value ?? "{}"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       return {};
-    return parsed as Partial<Record<AgentExperimentCandidate, AgentEngineKind>>;
+    return parsed as Partial<
+      Record<AgentExperimentCandidate, AgentExperimentEngineKind>
+    >;
   } catch {
     return {};
   }
@@ -22904,7 +22883,7 @@ async function createAgentExperiment(
       res,
       400,
       "VALIDATION_ERROR",
-      "创建六引擎盲测必须提供 Idempotency-Key",
+      "创建五引擎盲测必须提供 Idempotency-Key",
       requestId,
     );
   const replay = one(
@@ -22934,7 +22913,7 @@ async function createAgentExperiment(
       res,
       409,
       "TASK_REJECTED",
-      "请先确认六次模型调用可能产生的费用",
+      "请先确认五次模型调用可能产生的费用",
       requestId,
     );
   const comparisonMode =
@@ -22967,7 +22946,7 @@ async function createAgentExperiment(
         res,
         409,
         "TASK_REJECTED",
-        "同模型盲测要求 OpenCode、DSH、Hermes、OpenClaw 与 LangGraph 使用 OpenAI 兼容服务商",
+        "同模型盲测要求 OpenCode、DSH、Hermes 与 LangGraph 使用 OpenAI 兼容服务商",
         requestId,
       );
     if (
@@ -22996,7 +22975,7 @@ async function createAgentExperiment(
       res,
       409,
       "CONFLICT",
-      "请先配置 OpenCode、DSH、Hermes、OpenClaw 与 LangGraph 使用的智能模型",
+      "请先配置 OpenCode、DSH、Hermes 与 LangGraph 使用的智能模型",
       requestId,
     );
   const sourceProject = one("SELECT * FROM projects WHERE id = ?", [projectId]);
@@ -23031,9 +23010,8 @@ async function createAgentExperiment(
     two: "codex",
     three: "dsh",
     four: "hermes",
-    five: "openclaw",
-    six: "langgraph",
-  } as const satisfies Record<string, AgentEngineKind>;
+    five: "langgraph",
+  } as const satisfies Record<ActiveAgentExperimentCandidate, AgentEngineKind>;
   db!
     .prepare(
       `INSERT INTO agent_experiment_groups(
@@ -23068,7 +23046,7 @@ async function createAgentExperiment(
     definition,
     snapshot,
     candidateOrder: candidateOrder as Record<
-      AgentExperimentCandidate,
+      ActiveAgentExperimentCandidate,
       AgentEngineKind
     >,
     comparisonMode,
@@ -23083,7 +23061,7 @@ async function startAgentExperiment(input: {
   chapter?: Record<string, any>;
   definition: ReturnType<typeof getAgentTaskDefinition>;
   snapshot: ReturnType<typeof createAgentContextSnapshot>;
-  candidateOrder: Record<AgentExperimentCandidate, AgentEngineKind>;
+  candidateOrder: Record<ActiveAgentExperimentCandidate, AgentEngineKind>;
   comparisonMode: "recommended" | "same_model";
   model?: AgentModelSelection;
   userPrompt: string;
@@ -23110,16 +23088,16 @@ async function startAgentExperiment(input: {
   });
   try {
     const candidates = Object.entries(input.candidateOrder) as Array<
-      [AgentExperimentCandidate, AgentEngineKind]
+      [ActiveAgentExperimentCandidate, AgentEngineKind]
     >;
-    // 所有引擎会话只创建元数据。六个会话全部成功后才落库和入队，
+    // 所有引擎会话只创建元数据。五个会话全部成功后才落库和入队，
     // 从而在运行前拒绝不可用引擎，绝不启动部分候选。
     for (const [candidate, engineKind] of candidates)
       allocatedSessions.push({
         candidate,
         engineKind,
         engineSession: await createEngineSession(engineKind, {
-          title: `六引擎盲测：${input.definition.label}`,
+          title: `五引擎盲测：${input.definition.label}`,
           projectId: String(input.project.id),
           ...(input.chapter ? { chapterId: String(input.chapter.id) } : {}),
           ...(input.model ? { model: input.model } : {}),
@@ -23147,7 +23125,7 @@ async function startAgentExperiment(input: {
           input.project.id,
           input.chapter?.id ?? null,
           input.definition.id,
-          `六引擎盲测：${input.definition.label}`,
+          `五引擎盲测：${input.definition.label}`,
           input.model ? JSON.stringify(input.model) : null,
           createdAt,
           createdAt,
@@ -23159,7 +23137,7 @@ async function startAgentExperiment(input: {
         .run(
           taskId,
           `agent.experiment.${input.definition.id}`,
-          `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : candidate === "four" ? "四" : candidate === "five" ? "五" : "六"}`,
+          `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : candidate === "four" ? "四" : "五"}`,
           input.project.id,
           createdAt,
           createdAt,
@@ -23271,7 +23249,7 @@ async function startAgentExperiment(input: {
     hostPort.postMessage({
       type: "diagnostic",
       level: "error",
-      message: `六引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
+      message: `五引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
     });
     db!
       .prepare(
@@ -23312,7 +23290,7 @@ function updateAgentExperimentForRun(runId: string): void {
     if (order && typeof order === "object" && !Array.isArray(order))
       expectedCandidateCount = Object.keys(order).length;
   } catch {
-    // Existing three-engine rows predate the four- and six-engine contracts.
+    // Existing rows can use the retired three-, four-, or six-engine contracts.
   }
   if (
     states.length !== expectedCandidateCount ||
@@ -23444,10 +23422,7 @@ async function reviewAgentExperiment(
   );
   if (
     input.preferredCandidate !== "tie" &&
-    (!AGENT_EXPERIMENT_CANDIDATES.includes(
-      String(input.preferredCandidate) as AgentExperimentCandidate,
-    ) ||
-      !Object.hasOwn(storedCandidateOrder, String(input.preferredCandidate)))
+    !Object.hasOwn(storedCandidateOrder, String(input.preferredCandidate))
   )
     return respondError(
       res,

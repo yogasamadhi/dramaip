@@ -93,7 +93,6 @@ let opencodeEngine: ManagedProcess | undefined;
 let codexEngine: ManagedProcess | undefined;
 let dshEngine: ManagedProcess | undefined;
 let hermesEngine: ManagedProcess | undefined;
-let openclawEngine: ManagedProcess | undefined;
 let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
 const credentialVault = new LocalCredentialVault(
@@ -219,15 +218,6 @@ function hermesPythonPath(): string {
     : join(root, "python", "bin", "python3");
 }
 
-function openClawRuntimeEntry(): string {
-  if (process.env.DRAMAIP_OPENCLAW_RUNTIME_ENTRY)
-    return process.env.DRAMAIP_OPENCLAW_RUNTIME_ENTRY;
-  const root = app.isPackaged
-    ? join(process.resourcesPath, "openclaw", "runtime")
-    : join(app.getAppPath(), "build", "openclaw");
-  return join(root, "openclaw.mjs");
-}
-
 async function storeCredential(
   secret: string,
 ): Promise<{ credentialRef: string }> {
@@ -302,7 +292,7 @@ function spawnSidecar(
       ) {
         const request = message as unknown as {
           requestId: string;
-          engineKind: "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
+          engineKind: "codex" | "dsh" | "hermes" | "langgraph";
           operation: string;
           payload: Record<string, unknown>;
         };
@@ -310,7 +300,6 @@ function spawnSidecar(
           codex: codexEngine,
           dsh: dshEngine,
           hermes: hermesEngine,
-          openclaw: openclawEngine,
           langgraph: langgraphEngine,
         }[request.engineKind];
         if (!target) {
@@ -318,7 +307,6 @@ function spawnSidecar(
             codex: "Codex",
             dsh: "DeepSeek Harness",
             hermes: "Hermes Agent",
-            openclaw: "OpenClaw",
             langgraph: "LangGraph.js",
           }[request.engineKind];
           child.postMessage({
@@ -399,9 +387,7 @@ function spawnSidecar(
           stop: () =>
             stopChild(
               child,
-              ["dsh-engine", "hermes-engine", "openclaw-engine"].includes(name)
-                ? 15_000
-                : 6_000,
+              ["dsh-engine", "hermes-engine"].includes(name) ? 15_000 : 6_000,
             ),
         };
         child.once("exit", () => {
@@ -411,7 +397,7 @@ function spawnSidecar(
         return finish(managed);
       }
       if (
-        ["dsh-engine", "hermes-engine", "openclaw-engine"].includes(name) &&
+        ["dsh-engine", "hermes-engine"].includes(name) &&
         message.type === "configured"
       ) {
         const pending = engineConfigurationRequests.get(message.requestId);
@@ -429,7 +415,6 @@ function spawnSidecar(
           "codex-engine",
           "dsh-engine",
           "hermes-engine",
-          "openclaw-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "response"
@@ -447,7 +432,6 @@ function spawnSidecar(
           "codex-engine",
           "dsh-engine",
           "hermes-engine",
-          "openclaw-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "event"
@@ -461,9 +445,7 @@ function spawnSidecar(
                 ? "dsh"
                 : name === "hermes-engine"
                   ? "hermes"
-                  : name === "openclaw-engine"
-                    ? "openclaw"
-                    : "langgraph",
+                  : "langgraph",
           runId: message.runId,
           event: message.event,
         });
@@ -487,7 +469,7 @@ function spawnSidecar(
 }
 
 async function configureRuntimeEngine(
-  engineKind: "dsh" | "hermes" | "openclaw",
+  engineKind: "dsh" | "hermes",
   engine: ManagedProcess | undefined,
   displayName: string,
   provider: Pick<
@@ -593,31 +575,23 @@ async function configureOpenCodeEngine(
     ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
     secret,
   };
-  const [dshConfiguration, hermesConfiguration, openclawConfiguration] =
-    await Promise.all([
-      configureRuntimeEngine(
-        "dsh",
-        dshEngine,
-        "DeepSeek Harness",
-        sidecarProvider,
-      ),
-      configureRuntimeEngine(
-        "hermes",
-        hermesEngine,
-        "Hermes Agent",
-        sidecarProvider,
-      ),
-      configureRuntimeEngine(
-        "openclaw",
-        openclawEngine,
-        "OpenClaw",
-        sidecarProvider,
-      ),
-    ]);
+  const [dshConfiguration, hermesConfiguration] = await Promise.all([
+    configureRuntimeEngine(
+      "dsh",
+      dshEngine,
+      "DeepSeek Harness",
+      sidecarProvider,
+    ),
+    configureRuntimeEngine(
+      "hermes",
+      hermesEngine,
+      "Hermes Agent",
+      sidecarProvider,
+    ),
+  ]);
   for (const [engineKind, engine, result, version] of [
     ["dsh", dshEngine, dshConfiguration, "0.1.0-rc.5"],
     ["hermes", hermesEngine, hermesConfiguration, "0.20.1"],
-    ["openclaw", openclawEngine, openclawConfiguration, "2026.7.1"],
   ] as const) {
     if (engine) engine.healthy = result.available;
     dramaServer?.child.postMessage({
@@ -713,15 +687,6 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
         version: next.version ?? "0.20.1",
       });
     }
-    if (previous.name === "openclaw-engine") {
-      openclawEngine = next;
-      dramaServer?.child.postMessage({
-        type: "agent-engine:status",
-        engineKind: "openclaw",
-        healthy: next.healthy,
-        version: next.version ?? "2026.7.1",
-      });
-    }
     if (previous.name === "langgraph-engine") {
       langgraphEngine = next;
       dramaServer?.child.postMessage({
@@ -763,7 +728,6 @@ async function initialize(): Promise<Ready> {
     codex: randomUUID(),
     dsh: randomUUID(),
     hermes: randomUUID(),
-    openclaw: randomUUID(),
     langgraph: randomUUID(),
   } as const;
   const enginePort = randomPort();
@@ -824,16 +788,6 @@ async function initialize(): Promise<Ready> {
     },
     false,
   );
-  openclawEngine = await spawnSidecar(
-    "openclaw-engine",
-    {
-      type: "start",
-      runtimeEntry: openClawRuntimeEntry(),
-      stateRoot: join(app.getPath("temp"), `dramaip-openclaw-${randomUUID()}`),
-      mcp: { url: mcpUrl, token: mcpTokens.openclaw },
-    },
-    false,
-  );
   langgraphEngine = await spawnSidecar(
     "langgraph-engine",
     {
@@ -879,10 +833,6 @@ async function initialize(): Promise<Ready> {
       hermes: {
         healthy: false,
         version: hermesEngine?.version ?? "0.20.1",
-      },
-      openclaw: {
-        healthy: false,
-        version: openclawEngine?.version ?? "2026.7.1",
       },
       langgraph: {
         healthy: false,
@@ -1126,7 +1076,6 @@ app.on("before-quit", (event) => {
     codexEngine?.stop(),
     dshEngine?.stop(),
     hermesEngine?.stop(),
-    openclawEngine?.stop(),
     langgraphEngine?.stop(),
   ]).then(() => {
     shutdownComplete = true;

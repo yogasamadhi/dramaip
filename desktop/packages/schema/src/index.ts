@@ -286,11 +286,10 @@ export const AgentEngineKind = Schema.Literals([
   "codex",
   "dsh",
   "hermes",
-  "openclaw",
   "langgraph",
 ]);
 export type AgentEngineKind =
-  "opencode" | "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
+  "opencode" | "codex" | "dsh" | "hermes" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -4169,6 +4168,16 @@ export type AgentExperimentStatus =
   | "completed"
   | "failed"
   | "canceled";
+/** Retains the engine identity of experiments created before an engine retired. */
+export const AgentExperimentEngineKind = Schema.Literals([
+  "opencode",
+  "codex",
+  "dsh",
+  "hermes",
+  "langgraph",
+  "openclaw",
+]);
+export type AgentExperimentEngineKind = AgentEngineKind | "openclaw";
 export const AgentExperiment = Schema.Struct({
   id: Id,
   projectId: Id,
@@ -4195,7 +4204,7 @@ export const AgentExperiment = Schema.Struct({
         runId: Id,
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
-        engineKind: Schema.optionalKey(AgentEngineKind),
+        engineKind: Schema.optionalKey(AgentExperimentEngineKind),
         engineVersion: Schema.optionalKey(Schema.String),
         metrics: Schema.optionalKey(
           Schema.Struct({
@@ -4234,7 +4243,7 @@ export interface AgentExperiment {
     runId: Id;
     status: AgentRunStatus;
     output?: unknown;
-    engineKind?: AgentEngineKind;
+    engineKind?: AgentExperimentEngineKind;
     engineVersion?: string;
     metrics?: {
       completed: boolean;

@@ -31,10 +31,6 @@ export default defineConfig({
             root,
             "../../packages/ai/src/hermes-sidecar.ts",
           ),
-          "openclaw-engine": resolve(
-            root,
-            "../../packages/ai/src/openclaw-sidecar.ts",
-          ),
           "langgraph-engine": resolve(
             root,
             "../../packages/ai-legacy/src/langgraph-sidecar.ts",

@@ -16,10 +16,8 @@
     "verify:dsh": "node scripts/verify-dsh-runtime.mjs",
     "build:hermes": "node scripts/prepare-hermes-runtime.mjs",
     "verify:hermes": "node scripts/verify-hermes-runtime.mjs",
-    "build:openclaw": "node scripts/prepare-openclaw-runtime.mjs",
-    "verify:openclaw": "node scripts/verify-openclaw-runtime.mjs",
     "update:codex-protocol": "node scripts/prepare-codex-runtime.mjs --update-protocol-lock",
-    "package": "bun run build:opencode && bun run build:codex && bun run build:dsh && bun run verify:dsh && bun run build:hermes && bun run verify:hermes && bun run build:openclaw && bun run verify:openclaw && bun run build && bun --bun run electron-builder",
+    "package": "bun run build:opencode && bun run build:codex && bun run build:dsh && bun run verify:dsh && bun run build:hermes && bun run verify:hermes && bun run build && bun --bun run electron-builder",
     "typecheck:node": "bun --bun run tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "bun --bun run tsc --noEmit -p tsconfig.web.json",
     "typecheck": "bun run typecheck:node && bun run typecheck:web"
