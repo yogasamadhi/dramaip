@@ -1652,3 +1652,28 @@ LM6-00
 - Next attempt: 无；后续引擎升级或外部 Provider 兼容证据应建立新的独立 Loop，不修改三个冻结 vendor 快照。
 - Sweep cursor: none（LM9-00 complete）
 - Notes: Hermes/OpenClaw 均作为完整可运行测试版引擎交付，不是占位状态卡；DramaIP DB 仍是唯一权威状态。固定方案编号优先于随机映射，但评价前继续匿名。
+
+### LM9-01 / Attempt 1 — 2026-08-15 Asia/Shanghai
+
+- Loop: LM9-01
+- Attempt: 1
+- Outcome: done
+- Target branch: `main`
+- Loop branch: `loop/lm9-01-provider-edit-feedback`
+- Commit(s): `848956ba9 fix(desktop): make provider editing explicit`
+- Merge commit: `c048c3d99 merge: fix LM9 provider editing feedback`（`--no-ff`）
+- Verification:
+  - `cd desktop && bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:engine-locks && bun run check:provider-catalog && bun run build`: PASS。
+  - `cd desktop && bunx playwright test --reporter=list`: PASS — 34/34；新增的服务商编辑路径验证点击反馈、表单聚焦、已保存模型预填、密钥留空复用及模型修改持久化。
+  - 合并结果再次执行 lint、format、typecheck、build 与 `abc-smoke.spec.ts`: PASS — 9/9。
+- Diff review: PASS — `git diff --check` 与累计 diff 通过；仅修改 Provider 设置 UI、对应 Electron 回归及本记录，无凭据、数据库或 vendor 改动。
+- Remote sync: PASS — 合并前和推送前均 fetch Gitee，`origin/main` 无分叉。
+- Push: PASS — 功能与 `--no-ff` 合并提交已推送至 `origin/main`；本执行记录由紧随其后的文档提交同步到同一主线。
+- Loop branch cleanup: PASS — 代码推送后已使用 `git branch -d loop/lm9-01-provider-edit-feedback` 安全删除本地分支；未创建远端 Loop 分支。
+- Current branch/worktree: `main`；本记录推送后与 `origin/main` 对齐且工作区干净。
+- Completed: “编辑配置”现在会定位并聚焦上方表单，显示正在编辑的服务商和密钥复用说明，高亮对应卡片并将按钮切换为“正在编辑”；用户可明显确认进入编辑态，并可在不重新输入 API Key 的情况下保存模型修改。
+- Unfinished: 无。
+- Evidence: `desktop/packages/app/src/studio-app.tsx`、`desktop/tests/electron/abc-smoke.spec.ts`、`848956ba9`、`c048c3d99`。
+- Next attempt: 无；后续设置交互问题建立独立 Loop。
+- Sweep cursor: none（LM9-01 complete）
+- Notes: 原行为实际已切换编辑状态，但复用了相同顶部表单且没有焦点、状态提示或卡片高亮；本轮修复可见反馈，没有改变凭据存储与服务商业务契约。
