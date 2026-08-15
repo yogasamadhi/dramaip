@@ -32,8 +32,15 @@ input.on("line", line => {
     notify("session.event", { sessionId, event: { type: "agent/inbox/spliced", data: { inserted: [{ id: stableId }] } } });
     notify("session.status", { sessionId, status: "running" });
     if (text === "hang") return;
-    notify("session.event", { sessionId, event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: "sidecar:" + text }] } } } });
-    notify("session.status", { sessionId, status: "idle" });
+    const finish = () => {
+      const answer = text === "delayed-secret" || text === "report-secret"
+        ? "runtime:" + process.env.DRAMAIP_DSH_MODEL + ":" + process.env.DRAMAIP_DSH_API_KEY
+        : "sidecar:" + text;
+      notify("session.event", { sessionId, event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: answer }] } } } });
+      notify("session.status", { sessionId, status: "idle" });
+    };
+    if (text === "delayed-secret") setTimeout(finish, 80);
+    else finish();
     return;
   }
   if (request.method === "shutdown") {
@@ -129,6 +136,59 @@ input.on("line", line => {
       (message) => message.type === "response" && message.requestId === "run",
     );
     expect(run.result).toEqual({ text: "sidecar:hello" });
+
+    send({
+      type: "request",
+      requestId: "generation-run",
+      operation: "run",
+      payload: {
+        engineSessionId: sessionId,
+        runId: "run-generation-1",
+        prompt: "delayed-secret",
+        projectId: "project-1",
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    send({
+      type: "configure",
+      requestId: "rotate-provider",
+      provider: {
+        providerKind: "openai",
+        model: "rotated-model",
+        secret: "rotated-secret",
+      },
+    });
+    await next(
+      (message) =>
+        message.type === "configured" &&
+        message.requestId === "rotate-provider",
+    );
+    const generationRun = await next(
+      (message) =>
+        message.type === "response" && message.requestId === "generation-run",
+    );
+    expect(generationRun.result).toEqual({
+      text: "runtime:test-model:secret-never-logged",
+    });
+
+    send({
+      type: "request",
+      requestId: "rotated-run",
+      operation: "run",
+      payload: {
+        engineSessionId: sessionId,
+        runId: "run-generation-2",
+        prompt: "report-secret",
+        projectId: "project-1",
+      },
+    });
+    const rotatedRun = await next(
+      (message) =>
+        message.type === "response" && message.requestId === "rotated-run",
+    );
+    expect(rotatedRun.result).toEqual({
+      text: "runtime:rotated-model:rotated-secret",
+    });
 
     send({
       type: "request",

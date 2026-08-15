@@ -12262,6 +12262,7 @@ async function resource(
       input.payload && typeof input.payload === "object"
         ? ({ ...input.payload } as Record<string, unknown>)
         : {};
+    if (domain === "providers") clearProviderConnectionState(payload);
     if (
       (domain === "providers" || domain === "settings") &&
       containsSecret(payload)
@@ -12368,8 +12369,16 @@ async function resource(
       );
     const payload =
       input.payload && typeof input.payload === "object"
-        ? input.payload
-        : JSON.parse(String(current.payload_json));
+        ? ({ ...input.payload } as Record<string, unknown>)
+        : domainPayload(current.payload_json);
+    const currentPayload = domainPayload(current.payload_json);
+    const providerConnectionChanged =
+      domain === "providers" &&
+      providerConnectionFactsChanged(currentPayload, payload);
+    if (domain === "providers") {
+      if (providerConnectionChanged) clearProviderConnectionState(payload);
+      else preserveProviderConnectionState(currentPayload, payload);
+    }
     if (
       (domain === "providers" || domain === "settings") &&
       containsSecret(payload)
@@ -12381,6 +12390,48 @@ async function resource(
         "Secrets must be stored by the local encrypted credential vault; persist only credentialRef",
         requestId,
       );
+    }
+    if (
+      domain === "providers" &&
+      providerConnectionChanged &&
+      activeAgentProviderId() === id
+    ) {
+      let configuration: OpenCodeProviderConfiguration;
+      try {
+        configuration = openCodeProviderConfiguration({
+          ...current,
+          title,
+          payload_json: JSON.stringify(payload),
+        });
+      } catch (error) {
+        return respondError(
+          res,
+          400,
+          "VALIDATION_ERROR",
+          error instanceof Error ? error.message : "模型服务商配置无效",
+          requestId,
+        );
+      }
+      let engine: { available: boolean; message?: string };
+      try {
+        engine = await requestOpenCodeConfiguration(configuration);
+      } catch (error) {
+        return respondError(
+          res,
+          503,
+          "ENGINE_UNAVAILABLE",
+          error instanceof Error ? error.message : "智能助手引擎暂不可用",
+          requestId,
+        );
+      }
+      if (!engine.available)
+        return respondError(
+          res,
+          503,
+          "ENGINE_UNAVAILABLE",
+          engine.message ?? "智能助手引擎暂不可用",
+          requestId,
+        );
     }
     db!
       .prepare(
@@ -12434,6 +12485,44 @@ async function resource(
     `No route for ${method} ${domain}`,
     requestId,
   );
+}
+
+const PROVIDER_CONNECTION_FACT_KEYS = [
+  "服务类型",
+  "服务地址",
+  "调用协议",
+  "模型名称",
+  "凭据引用",
+] as const;
+
+const PROVIDER_CONNECTION_STATE_KEYS = [
+  "连接状态",
+  "最近测试",
+  "可用模型",
+  "测试说明",
+] as const;
+
+function providerConnectionFactsChanged(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>,
+): boolean {
+  return PROVIDER_CONNECTION_FACT_KEYS.some(
+    (key) => JSON.stringify(current[key]) !== JSON.stringify(next[key]),
+  );
+}
+
+function clearProviderConnectionState(payload: Record<string, unknown>): void {
+  for (const key of PROVIDER_CONNECTION_STATE_KEYS) delete payload[key];
+}
+
+function preserveProviderConnectionState(
+  current: Record<string, unknown>,
+  next: Record<string, unknown>,
+): void {
+  for (const key of PROVIDER_CONNECTION_STATE_KEYS) {
+    if (current[key] === undefined) delete next[key];
+    else next[key] = current[key];
+  }
 }
 
 /**

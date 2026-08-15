@@ -63,6 +63,7 @@ if (!parentPort)
 
 let startCommand: StartCommand | undefined;
 let provider: DshProviderConfiguration | undefined;
+let providerGeneration = 0;
 const sessions = new Map<string, SessionState>();
 
 parentPort.on("message", (event) => {
@@ -83,6 +84,7 @@ async function start(command: StartCommand): Promise<void> {
       throw new Error("DSH 受控配置目录不存在");
     startCommand = command;
     provider = command.provider;
+    providerGeneration = provider ? 1 : 0;
     await mkdir(command.sessionRoot, { recursive: true, mode: 0o700 });
     parentPort!.postMessage({
       type: "ready",
@@ -101,6 +103,7 @@ async function configure(command: ConfigureCommand): Promise<void> {
   try {
     validateProvider(command.provider);
     provider = command.provider;
+    providerGeneration += 1;
     if (startCommand) startCommand.provider = command.provider;
     await Promise.all(
       [...sessions.values()]
@@ -191,6 +194,7 @@ async function perform(
 
 async function run(payload: Record<string, unknown>): Promise<unknown> {
   const activeProvider = provider;
+  const activeProviderGeneration = providerGeneration;
   if (!activeProvider) throw new Error("DSH 模型尚未配置");
   const sessionId = String(payload.engineSessionId ?? "");
   const runId = String(payload.runId ?? "");
@@ -211,11 +215,17 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
     sessions.set(sessionId, session);
   }
   if (session.activeRunId) throw new Error("DSH 会话正在执行另一项任务");
-  const model = selectedModel(payload) ?? session.model ?? activeProvider.model;
-  session.model = model;
+  const requestedModel = selectedModel(payload);
+  const model = requestedModel ?? session.model ?? activeProvider.model;
+  if (requestedModel) session.model = requestedModel;
   session.activeRunId = runId;
   try {
-    const runtime = await ensureRuntime(session, activeProvider, model);
+    const runtime = await ensureRuntime(
+      session,
+      activeProvider,
+      model,
+      activeProviderGeneration,
+    );
     return await runtime.run(session.id, prompt, (event) =>
       emitRunEvent(runId, event),
     );
@@ -231,6 +241,7 @@ async function ensureRuntime(
   session: SessionState,
   configuration: DshProviderConfiguration,
   model: string,
+  generation: number,
 ): Promise<DshRuntimeClient> {
   const command = startCommand;
   if (!command) throw new Error("DSH 引擎尚未初始化");
@@ -238,6 +249,7 @@ async function ensureRuntime(
     providerKind: configuration.providerKind,
     baseUrl: configuration.baseUrl ?? "",
     model,
+    generation,
   });
   if (session.runtime && session.runtimeKey === runtimeKey)
     return session.runtime;
@@ -356,6 +368,7 @@ async function stop(): Promise<void> {
   await Promise.allSettled([...sessions.values()].map(resetRuntime));
   sessions.clear();
   provider = undefined;
+  providerGeneration = 0;
   startCommand = undefined;
   parentPort!.postMessage({ type: "stopped" });
   process.exit(0);

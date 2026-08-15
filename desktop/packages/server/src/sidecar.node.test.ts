@@ -229,6 +229,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
   let videoProviderCalls = 0;
   let codexShouldFailForNoFallbackTest = true;
   let lastSidecarDiagnostic = "";
+  const opencodeConfigurations: Array<Record<string, unknown>> = [];
   let cloudReviewBaseUrl = "";
   let cloudReviewShotId = "";
   let cloudReviewObjectAuthorization: string | undefined;
@@ -695,6 +696,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       engineKind?: "codex" | "dsh" | "hermes" | "openclaw" | "langgraph";
       operation?: string;
       payload?: Record<string, unknown>;
+      configuration?: Record<string, unknown>;
       message?: string;
       token?: string;
     }) => {
@@ -719,12 +721,14 @@ test("production-structure HTTP contract persists active adaptation and atomical
               }
             : {}),
         });
-      if (message.type === "opencode:configure" && message.requestId)
+      if (message.type === "opencode:configure" && message.requestId) {
+        opencodeConfigurations.push(message.configuration ?? {});
         child.send({
           type: "opencode:configured",
           requestId: message.requestId,
           available: true,
         });
+      }
       if (
         message.type === "agent-engine:request" &&
         message.requestId &&
@@ -2373,6 +2377,49 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(agentActivation.body.engineAvailable, true);
     assert.equal(agentActivation.body.providerKind, "openai");
     assert.equal(agentActivation.body.model, "test-agent-model");
+    const providerBeforeRefresh = await request<{
+      title: string;
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/providers/${agentProvider.body.id}`);
+    const configurationCountBeforeRefresh = opencodeConfigurations.length;
+    const refreshedProvider = await request<{
+      version: number;
+      payload: Record<string, unknown>;
+    }>(`/api/v1/providers/${agentProvider.body.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: providerBeforeRefresh.body.title,
+        version: providerBeforeRefresh.body.version,
+        payload: {
+          ...providerBeforeRefresh.body.payload,
+          模型名称: "test-agent-model-v2",
+          凭据引用: "test-agent-credential-v2",
+          连接状态: "连接正常",
+          最近测试: "2026-08-11T00:00:00.000Z",
+          可用模型: "stale-model",
+          测试说明: "旧连接测试不应继续生效",
+        },
+      }),
+    });
+    assert.equal(refreshedProvider.status, 200);
+    assert.equal(
+      refreshedProvider.body.payload["模型名称"],
+      "test-agent-model-v2",
+    );
+    assert.equal(refreshedProvider.body.payload["连接状态"], undefined);
+    assert.equal(refreshedProvider.body.payload["最近测试"], undefined);
+    assert.equal(refreshedProvider.body.payload["可用模型"], undefined);
+    assert.equal(refreshedProvider.body.payload["测试说明"], undefined);
+    assert.equal(
+      opencodeConfigurations.length,
+      configurationCountBeforeRefresh + 1,
+    );
+    assert.equal(opencodeConfigurations.at(-1)?.model, "test-agent-model-v2");
+    assert.equal(
+      opencodeConfigurations.at(-1)?.credentialRef,
+      "test-agent-credential-v2",
+    );
     const invalidSameModelExperiment = await request<{ code: string }>(
       "/api/v1/agent-experiments",
       {
