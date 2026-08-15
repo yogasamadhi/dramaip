@@ -14259,6 +14259,8 @@ function ProviderSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [error, setError] = useState<string>();
+  const formRef = useRef<HTMLDivElement>(null);
+  const providerSelectRef = useRef<HTMLSelectElement>(null);
   const preset = choice === "other" ? undefined : modelProviderPreset(choice);
   const editingPayload = recordPayload(editing?.payload);
   const selectableModels = preset
@@ -14272,6 +14274,12 @@ function ProviderSettingsPanel() {
           : []),
       ]
     : [];
+
+  useEffect(() => {
+    if (!editing) return;
+    formRef.current?.scrollIntoView({ block: "start" });
+    providerSelectRef.current?.focus({ preventScroll: true });
+  }, [editing]);
 
   const selectPreset = (next: ProviderChoice) => {
     setChoice(next);
@@ -14459,11 +14467,24 @@ function ProviderSettingsPanel() {
         </div>
       </div>
 
-      <div className="p-5">
+      <div ref={formRef} className="scroll-mt-20 p-5">
+        {editing && (
+          <div
+            className="rounded-lg border border-brand bg-brand-soft px-4 py-3 text-sm text-brand"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="font-medium">正在编辑 {editing.title}</p>
+            <p className="mt-1 text-xs">
+              已将现有配置载入上方表单。修改模型或密钥后，请点击“保存服务商修改”；不更换密钥时保持留空即可。
+            </p>
+          </div>
+        )}
         <div className="mt-4 grid gap-3 lg:grid-cols-3">
           <label className="grid gap-1 text-sm text-muted">
             服务商
             <select
+              ref={providerSelectRef}
               className="rounded-lg border border-line bg-surface-raised px-3 py-2 text-ink"
               value={choice}
               onChange={(event) =>
@@ -14630,7 +14651,8 @@ function ProviderSettingsPanel() {
             return (
               <article
                 key={provider.id}
-                className="rounded-xl border border-line p-4"
+                aria-label={`模型服务商 ${provider.title}`}
+                className={`rounded-xl border p-4 ${editing?.id === provider.id ? "border-brand bg-brand-soft/55 shadow-control" : "border-line"}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -14645,9 +14667,11 @@ function ProviderSettingsPanel() {
                   <div className="flex flex-wrap justify-end gap-2">
                     <BareButton
                       className="rounded-md border border-line px-2 py-1 text-xs text-brand"
+                      aria-pressed={editing?.id === provider.id}
+                      disabled={editing?.id === provider.id}
                       onClick={() => editProvider(provider)}
                     >
-                      编辑配置
+                      {editing?.id === provider.id ? "正在编辑" : "编辑配置"}
                     </BareButton>
                     <BareButton
                       className="rounded-md border border-line px-2 py-1 text-xs text-brand"

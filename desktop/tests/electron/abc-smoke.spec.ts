@@ -332,4 +332,26 @@ test("模型服务商置顶并提供常用厂商与模型级联选择", async ()
   await expect(
     page.getByText("deepseek-v4-flash", { exact: true }),
   ).toBeVisible();
+
+  const deepseekProvider = page.getByLabel("模型服务商 DeepSeek", {
+    exact: true,
+  });
+  await deepseekProvider
+    .getByRole("button", { name: "编辑配置", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "正在编辑 DeepSeek" }),
+  ).toBeVisible();
+  await expect(providerSelect).toBeFocused();
+  await expect(modelSelect).toHaveValue("deepseek-v4-flash");
+  await expect(
+    page.getByRole("textbox", { name: "接口密钥（API Key）", exact: true }),
+  ).toHaveAttribute("placeholder", "留空表示继续使用已保存密钥");
+  await modelSelect.selectOption("deepseek-v4-pro");
+  await page
+    .getByRole("button", { name: "保存服务商修改", exact: true })
+    .click();
+  await expect(
+    deepseekProvider.getByText("deepseek-v4-pro", { exact: true }),
+  ).toBeVisible();
 });
