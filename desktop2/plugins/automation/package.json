@@ -1,0 +1,16 @@
+{
+  "name": "@dramaip/automation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/domain-kit": "workspace:*",
+    "@dramaip/http": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  }
+}

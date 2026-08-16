@@ -1,0 +1,23 @@
+{
+  "name": "@dramaip/knowledge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.tsx"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:4.0.1",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/domain-kit": "workspace:*",
+    "@dramaip/http": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*",
+    "@dramaip/ui": "workspace:*",
+    "@dramaip/ui-shared": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "lucide-react": "0.454.0",
+    "react": "19.2.7",
+    "react-router-dom": "6.30.4"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "capturedAt": "2026-08-15T00:00:00+08:00",
+  "sourceHead": "f5af60c7bf540aa6f9b201df67df4b35d2aa7938",
+  "sourceScope": ["desktop", "run-desktop.py"],
+  "workingTreeDiffSha256": "2b1fa24b3837cd65582fe43e9a111f6632553a10bef1ab5a0e550c632484dccd",
+  "openApiSha256": "51b7ef8b761dc4297979fd3c8ea31d01f753535cfb9e9f725e7b8ff9af9ca662",
+  "inventorySourceSha256": "f310848eb183891b78fe081a68fa68701f2eef0a06831dc54bf25e6ea1f363a5",
+  "keyFiles": {
+    "desktop/packages/server/src/sidecar.ts": "8a2e1ffc3f044223ec382917cc2cd07dcbc7e531c362f88de4ff4dcf0fc6d736",
+    "desktop/packages/app/src/studio-app.tsx": "eb4454671409895b810f30d727f9baa6b5e1e42feb1ee2153427cbf0d4988b99",
+    "desktop/packages/client/src/generated.ts": "313cfbaf9b5ea20d9d46399a907e9a363fe5c88a3fb8181c589d1dfb90e0954a",
+    "desktop/apps/desktop/electron/main-v3.ts": "8af92b166061fbb4fc28b950cc09ded6f5be55c41160630dba54fd18c6b2e6c3"
+  },
+  "notes": [
+    "The comparison snapshot intentionally includes uncommitted worktree changes.",
+    "The current OpenAPI snapshot is desktop/packages/client/src/openapi.json.",
+    "Later desktop changes do not enter this comparison snapshot automatically.",
+    "This snapshot does not freeze desktop; desktop and desktop2 continue independently."
+  ]
+}

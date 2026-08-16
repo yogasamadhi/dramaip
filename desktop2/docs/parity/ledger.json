@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "source": "baseline.json",
+  "purpose": "full-migration",
+  "releaseBlocking": true,
+  "contexts": [
+    {
+      "id": "system",
+      "status": "in-progress",
+      "capabilities": ["health", "bootstrap", "diagnostics", "search", "backup"]
+    },
+    {
+      "id": "workspace",
+      "status": "in-progress",
+      "capabilities": [
+        "project",
+        "series",
+        "project-package",
+        "source-import",
+        "export"
+      ]
+    },
+    {
+      "id": "writing",
+      "status": "in-progress",
+      "capabilities": [
+        "chapter",
+        "novel-workspace",
+        "revision",
+        "content-version",
+        "localization"
+      ]
+    },
+    {
+      "id": "knowledge",
+      "status": "in-progress",
+      "capabilities": [
+        "character",
+        "outline",
+        "story-arc",
+        "story-bible",
+        "change-set"
+      ]
+    },
+    {
+      "id": "automation",
+      "status": "in-progress",
+      "capabilities": ["task", "workflow", "template", "change-preview"]
+    },
+    {
+      "id": "agents",
+      "status": "in-progress",
+      "capabilities": [
+        "provider",
+        "engine",
+        "session",
+        "run",
+        "assistant",
+        "experiment",
+        "mcp"
+      ]
+    },
+    {
+      "id": "production",
+      "status": "in-progress",
+      "capabilities": [
+        "pilot",
+        "adaptation",
+        "episode",
+        "script",
+        "scene",
+        "shot",
+        "structure"
+      ]
+    },
+    {
+      "id": "creative-quality",
+      "status": "in-progress",
+      "capabilities": [
+        "case-library",
+        "diagnostics",
+        "analysis",
+        "compliance",
+        "quality-check"
+      ]
+    },
+    {
+      "id": "media",
+      "status": "in-progress",
+      "capabilities": [
+        "asset",
+        "visual",
+        "still",
+        "image",
+        "tts",
+        "video",
+        "voice",
+        "audio",
+        "animatic"
+      ]
+    },
+    {
+      "id": "timeline",
+      "status": "in-progress",
+      "capabilities": ["timeline", "command", "undo-redo", "preview", "export"]
+    },
+    {
+      "id": "review",
+      "status": "in-progress",
+      "capabilities": [
+        "review-package",
+        "comment",
+        "decision",
+        "production-review"
+      ]
+    },
+    {
+      "id": "delivery",
+      "status": "in-progress",
+      "capabilities": [
+        "creative-version",
+        "platform-spec",
+        "archive",
+        "export",
+        "cloud-review-sync"
+      ]
+    },
+    {
+      "id": "insights",
+      "status": "in-progress",
+      "capabilities": [
+        "feedback-import",
+        "cluster",
+        "production-graph",
+        "impact-analysis",
+        "generation-ledger"
+      ]
+    }
+  ]
+}

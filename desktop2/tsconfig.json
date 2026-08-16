@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
+    "plugins/**/*.ts",
+    "plugins/**/*.tsx",
+    "scripts/**/*.mts",
+    "tests/**/*.ts"
+  ],
+  "exclude": [
+    "apps/**/build/**",
+    "apps/**/out/**",
+    "apps/**/release/**",
+    "apps/studio/pi-adapter/**",
+    "node_modules/**"
+  ]
+}

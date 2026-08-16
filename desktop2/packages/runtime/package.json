@@ -1,0 +1,26 @@
+{
+  "name": "@dramaip/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dramaip/agents": "workspace:*",
+    "@dramaip/automation": "workspace:*",
+    "@dramaip/creative-quality": "workspace:*",
+    "@dramaip/delivery": "workspace:*",
+    "@dramaip/foundation": "workspace:*",
+    "@dramaip/insights": "workspace:*",
+    "@dramaip/kernel": "workspace:*",
+    "@dramaip/knowledge": "workspace:*",
+    "@dramaip/media": "workspace:*",
+    "@dramaip/production": "workspace:*",
+    "@dramaip/review": "workspace:*",
+    "@dramaip/system": "workspace:*",
+    "@dramaip/timeline": "workspace:*",
+    "@dramaip/workspace": "workspace:*",
+    "@dramaip/writing": "workspace:*"
+  }
+}

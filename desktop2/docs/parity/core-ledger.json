@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "scope": "core",
+  "releaseBlocking": true,
+  "endpoints": [
+    "/api/v2/system/health",
+    "/api/v2/system/bootstrap",
+    "/api/v2/system/diagnostics",
+    "/api/v2/system/search",
+    "/api/v2/system/backups",
+    "/api/v2/workspace/projects",
+    "/api/v2/workspace/projects/trash",
+    "/api/v2/workspace/projects/{id}",
+    "/api/v2/workspace/projects/{id}/actions/restore",
+    "/api/v2/workspace/projects/{id}/actions/purge",
+    "/api/v2/workspace/source-imports/actions/preview",
+    "/api/v2/workspace/source-imports/{id}/actions/commit",
+    "/api/v2/workspace/source-imports/{id}/actions/undo",
+    "/api/v2/workspace/project-packages/actions/preview",
+    "/api/v2/workspace/project-packages/{id}/actions/commit",
+    "/api/v2/workspace/projects/{id}/exports/{format}",
+    "/api/v2/writing/projects/{projectId}/workspace",
+    "/api/v2/writing/projects/{projectId}/chapters",
+    "/api/v2/writing/projects/{projectId}/chapters/actions/reorder",
+    "/api/v2/writing/projects/{projectId}/chapters/actions/continue",
+    "/api/v2/writing/chapters/{id}",
+    "/api/v2/writing/chapters/{id}/actions/save",
+    "/api/v2/writing/chapters/{id}/versions",
+    "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+    "/api/v2/writing/revisions",
+    "/api/v2/writing/revisions/{id}/actions/commit",
+    "/api/v2/writing/revisions/{id}/actions/discard",
+    "/api/v2/knowledge/characters",
+    "/api/v2/knowledge/outlines",
+    "/api/v2/knowledge/story-arcs",
+    "/api/v2/knowledge/story-bibles",
+    "/api/v2/knowledge/projects/{projectId}/story-bible/settings",
+    "/api/v2/knowledge/projects/{projectId}/story-bible/change-sets",
+    "/api/v2/knowledge/change-sets/{id}/actions/apply",
+    "/api/v2/knowledge/change-sets/{id}/actions/undo",
+    "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+    "/api/v2/automation/tasks",
+    "/api/v2/automation/tasks/{id}/actions/cancel",
+    "/api/v2/automation/tasks/{id}/actions/retry",
+    "/api/v2/automation/change-previews/{id}",
+    "/api/v2/automation/change-previews/{id}/actions/commit",
+    "/api/v2/automation/change-previews/{id}/actions/discard",
+    "/api/v2/agents/engines",
+    "/api/v2/agents/task-definitions",
+    "/api/v2/agents/settings",
+    "/api/v2/agents/projects/{projectId}/settings",
+    "/api/v2/agents/assistant/conversations",
+    "/api/v2/agents/assistant/conversations/{id}",
+    "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+    "/api/v2/agents/assistant/conversations/{id}/messages",
+    "/api/v2/agents/runs/{id}/actions/interrupt",
+    "/api/v2/agents/runs/{id}/actions/resume",
+    "/api/v2/agents/experiments",
+    "/api/v2/agents/experiments/{id}/actions/review"
+  ],
+  "uiRoutes": [
+    "/",
+    "/create",
+    "/write",
+    "/projects/:projectId",
+    "/projects/:projectId/write",
+    "/projects/:projectId/knowledge",
+    "/projects/:projectId/agents",
+    "/tasks",
+    "/settings",
+    "/search"
+  ],
+  "scenarios": [
+    {
+      "id": "creation-modes",
+      "status": "complete",
+      "tests": [
+        "tests/integration/full-runtime.test.ts",
+        "apps/studio/tests/electron/smoke.spec.ts"
+      ]
+    },
+    {
+      "id": "source-import-selection-undo",
+      "status": "complete",
+      "tests": [
+        "plugins/workspace/src/source-import.test.ts",
+        "tests/integration/full-runtime.test.ts"
+      ]
+    },
+    {
+      "id": "chapter-editor-draft-version",
+      "status": "complete",
+      "tests": [
+        "plugins/writing/src/ui.test.ts",
+        "tests/integration/full-runtime.test.ts",
+        "apps/studio/tests/electron/smoke.spec.ts"
+      ]
+    },
+    {
+      "id": "knowledge-story-bible-change-set",
+      "status": "complete",
+      "tests": ["tests/integration/full-runtime.test.ts"]
+    },
+    {
+      "id": "global-assistant-conversations",
+      "status": "complete",
+      "tests": ["tests/integration/full-runtime.test.ts"]
+    },
+    {
+      "id": "chapter-assistant-preview-conflict-undo",
+      "status": "complete",
+      "tests": ["tests/integration/full-runtime.test.ts"]
+    },
+    {
+      "id": "five-engine-interrupt-resume-blind-test",
+      "status": "complete",
+      "tests": [
+        "plugins/agents/src/assistant.test.ts",
+        "tests/integration/full-runtime.test.ts",
+        "apps/studio/tests/electron/production-engines.spec.ts"
+      ]
+    },
+    {
+      "id": "project-package-roundtrip",
+      "status": "complete",
+      "tests": ["tests/integration/full-runtime.test.ts"]
+    }
+  ],
+  "acceptanceTests": [
+    "tests/integration/full-runtime.test.ts",
+    "apps/studio/tests/electron/smoke.spec.ts",
+    "apps/studio/tests/electron/production-engines.spec.ts"
+  ]
+}

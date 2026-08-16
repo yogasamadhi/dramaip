@@ -1,0 +1,4 @@
+{
+  "name": "test",
+  "plugins": [{ "id": "foundation" }, { "id": "system" }, { "id": "workspace" }]
+}

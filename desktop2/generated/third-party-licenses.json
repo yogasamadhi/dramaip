@@ -1,0 +1,69 @@
+{
+  "packages": [
+    {
+      "license": "MIT",
+      "name": "@deepseek-ai/cordis",
+      "version": "4.0.1"
+    },
+    {
+      "license": "MIT",
+      "name": "@deepseek-ai/cosmokit",
+      "version": "1.8.2"
+    },
+    {
+      "license": "MIT",
+      "name": "@deepseek-ai/cordis-plugin-loader",
+      "version": "1.0.2"
+    },
+    {
+      "license": "MIT",
+      "name": "@deepseek-ai/cordis-plugin-group",
+      "version": "1.0.1"
+    },
+    {
+      "license": "MIT",
+      "name": "Electron",
+      "version": "43.2.0"
+    },
+    {
+      "license": "MIT",
+      "name": "Hono",
+      "version": "4.13.2"
+    },
+    {
+      "license": "MIT",
+      "name": "React",
+      "version": "19.2.7"
+    },
+    {
+      "license": "MIT",
+      "name": "Tiptap",
+      "version": "2.27.2"
+    },
+    {
+      "license": "MIT",
+      "name": "tiptap-markdown",
+      "version": "0.8.10"
+    },
+    {
+      "license": "ISC",
+      "name": "lucide-react",
+      "version": "0.454.0"
+    },
+    {
+      "license": "MIT",
+      "name": "Zod",
+      "version": "4.4.3"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "Drizzle ORM",
+      "version": "1.0.0-rc.2"
+    },
+    {
+      "license": "MIT",
+      "name": "@earendil-works/pi-agent-core",
+      "version": "0.84.2"
+    }
+  ]
+}

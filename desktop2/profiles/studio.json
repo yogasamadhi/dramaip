@@ -1,0 +1,24 @@
+{
+  "name": "studio",
+  "plugins": [
+    { "id": "foundation" },
+    { "id": "system" },
+    { "id": "workspace" },
+    { "id": "automation" },
+    { "id": "writing" },
+    { "id": "knowledge" },
+    { "id": "creative-quality" },
+    { "id": "agents" },
+    { "id": "production" },
+    { "id": "media" },
+    { "id": "timeline" },
+    { "id": "review" },
+    { "id": "delivery" },
+    { "id": "insights" },
+    { "id": "engine-opencode" },
+    { "id": "engine-codex" },
+    { "id": "engine-dsh" },
+    { "id": "engine-pi" },
+    { "id": "engine-langgraph" }
+  ]
+}

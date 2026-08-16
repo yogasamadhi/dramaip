@@ -1,0 +1,14 @@
+{
+  "name": "@dramaip/kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./renderer": "./src/renderer.ts"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  }
+}

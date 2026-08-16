@@ -1,0 +1,319 @@
+{
+  "migrations": [
+    {
+      "checksum": "2e566bf27dc234310cd0b42e0138f66f614ef0c6b9db5554720de77903374c4c",
+      "dependsOn": [],
+      "foreignKeysOff": false,
+      "id": "foundation-0001",
+      "pluginId": "foundation",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "ded97cb6cf0d46f509826a21782c381bf9985f5871dd1536f88e7efc168f57a1",
+      "dependsOn": [
+        "foundation-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "system-0001",
+      "pluginId": "system",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "081f4cfb88d5870d33e44e116d26c3653e89cc1a164b4f02804d985e33cbf03d",
+      "dependsOn": [
+        "foundation-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "workspace-0001",
+      "pluginId": "workspace",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "dee62f2f1659b43d97f6b71c412121c9a5eaaaadea091d166f10836854f6b4e2",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "workspace-0002",
+      "pluginId": "workspace",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "7451bdd3fce6885fe39c4d2143216b78f9b2e0122369ba1e589a2bb907885eba",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "automation-0001",
+      "pluginId": "automation",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "d43438299700bd34f833b6fcf40338270df64ca818d9580e7eb791a36de6f183",
+      "dependsOn": [
+        "automation-0001",
+        "workspace-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "automation-0002",
+      "pluginId": "automation",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "6ea7a37999ca8ca7be920b841761d9072c363ef753406d02bd023088071c1f48",
+      "dependsOn": [
+        "automation-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "automation-0003",
+      "pluginId": "automation",
+      "version": "3.0.0"
+    },
+    {
+      "checksum": "b1ed2b4fe893c92ada530584d4729069da7fd957d6d497e96b3e8735363b8b29",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "writing-0001",
+      "pluginId": "writing",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "4df9d1321a433dc20e4e65ff623585188e1ab1612501895bc5584fa61ce141db",
+      "dependsOn": [
+        "writing-0001",
+        "workspace-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "writing-0002",
+      "pluginId": "writing",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "e2d09032cca1a4752d300689e91205c36b8a8927dde46bcbac6b9fdeae496fd2",
+      "dependsOn": [
+        "writing-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "writing-0003",
+      "pluginId": "writing",
+      "version": "3.0.0"
+    },
+    {
+      "checksum": "0dbc9938d18c5d4a0abbdbabb50d9b037d0b56a69ecbc0e9088c92f85b7571d1",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "knowledge-0001",
+      "pluginId": "knowledge",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "abd0eb99c9ed69ee8f2cdcfad4c1e4f68a389fa8bd07517cc7f79c1558b1ac89",
+      "dependsOn": [
+        "knowledge-0001",
+        "workspace-0002",
+        "writing-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "knowledge-0002",
+      "pluginId": "knowledge",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "363b31c7c9cb5f8ecc7f1f81a2c3363f38ac34e64d7aa2dd040ec7abbcc52b44",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "creative-quality-0001",
+      "pluginId": "creative-quality",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "355e244cfe8c1be7d28c425508b8312e1dbb46d27cf94a324bc26f2299695f67",
+      "dependsOn": [
+        "creative-quality-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "creative-quality-0002",
+      "pluginId": "creative-quality",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "1125271cd4e6c8d78fef340cc63f4d3551d210777cf1146ee850e1d5195f9a95",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "agents-0001",
+      "pluginId": "agents",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "2f56cf50e61aa2bb5a33d39ff4635bea9fa1143eeed92b34b3aa3610f2f88708",
+      "dependsOn": [
+        "agents-0001",
+        "automation-0002",
+        "writing-0002",
+        "knowledge-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "agents-0002",
+      "pluginId": "agents",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "6da1152fa1bd97d3cd43bdc812ea3ecbf40ca9622892a6437a634dab900fba2f",
+      "dependsOn": [
+        "agents-0002"
+      ],
+      "foreignKeysOff": true,
+      "id": "agents-0003",
+      "pluginId": "agents",
+      "version": "3.0.0"
+    },
+    {
+      "checksum": "1f424f901c0d01119cdd173c8c34d1844da15a497855c1fcff703312a7881edb",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "production-0001",
+      "pluginId": "production",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "e0f52a3285f6bf14235c6928cd68a8bd7cc204a963a22fea31e55edc8160bceb",
+      "dependsOn": [
+        "production-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "production-0002",
+      "pluginId": "production",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "c233628bf766403f1a51032ecad866e47f57161ade5c34a5923ff88daba94b15",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "media-0001",
+      "pluginId": "media",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "77611d28cb9a5a79a4b56d4863ac6e7a832cfb033bcbceb81e251be4b146829a",
+      "dependsOn": [
+        "media-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "media-0002",
+      "pluginId": "media",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "138962d86ce98a89e47be17f7697e7bc617d37bd4a666ccfcc3787913f6988f1",
+      "dependsOn": [
+        "media-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "media-0003",
+      "pluginId": "media",
+      "version": "3.0.0"
+    },
+    {
+      "checksum": "16d93ee69f99dce98a0c0c55ffbf4e22529dec0458f52c999bc1da0074a0007c",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "timeline-0001",
+      "pluginId": "timeline",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "e87da3e485ebee6dbd89baa5e16db7c53f8eaf7606d846b520c6f213ca8b210e",
+      "dependsOn": [
+        "timeline-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "timeline-0002",
+      "pluginId": "timeline",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "a595b86ca51a860de7c510f37f601df246d1c28848d3b43672f4461d2f9341f9",
+      "dependsOn": [
+        "timeline-0002"
+      ],
+      "foreignKeysOff": false,
+      "id": "timeline-0003",
+      "pluginId": "timeline",
+      "version": "3.0.0"
+    },
+    {
+      "checksum": "94a39bfaa49d674bfb2af2ccd4ee43fe3d0587037566fdf42e9abab001a3b20a",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "review-0001",
+      "pluginId": "review",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "04f1caaa5b33f11a64cffe4ed774d948fc7509d0c1a11a33a962bedfa0081aca",
+      "dependsOn": [
+        "review-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "review-0002",
+      "pluginId": "review",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "56b8ea7e5e1a0119d60b13f8fa955669d76d6ae9eb166d743d2ca03d160a1632",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "delivery-0001",
+      "pluginId": "delivery",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "ef024ba697d2ad0a6fda20abca42807d08c8ee5f77a7caab70ed6b33518ff39c",
+      "dependsOn": [
+        "delivery-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "delivery-0002",
+      "pluginId": "delivery",
+      "version": "2.0.0"
+    },
+    {
+      "checksum": "b83407e8110f677b86b62c29f6229d796530cf6b11f2596cfa64541dc4b1f622",
+      "dependsOn": [
+        "workspace-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "insights-0001",
+      "pluginId": "insights",
+      "version": "1.0.0"
+    },
+    {
+      "checksum": "8215c9a43e352d38589d5e72a39c719b89bdc7974a72ca701321907e76170a84",
+      "dependsOn": [
+        "insights-0001"
+      ],
+      "foreignKeysOff": false,
+      "id": "insights-0002",
+      "pluginId": "insights",
+      "version": "2.0.0"
+    }
+  ]
+}

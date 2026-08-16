@@ -1,0 +1,33 @@
+{
+  "source": "apps/studio/tests/electron/desktop-reference",
+  "viewport": { "width": 1440, "height": 920 },
+  "maxDiffPixelRatio": 0.015,
+  "files": {
+    "dark-adaptation-darwin.png": "958add259d37e08c65df42beb5d37e54ab89f2532af79f17e78091bccf3b9f00",
+    "dark-creative-analysis-darwin.png": "66e48e89f77dd02d952dae52fd7143b79276db721857c6a6a258b9dd5dc99829",
+    "dark-global-assistant-darwin.png": "738f621b06837a635f2606fe7645227877438dc8ea52ab7447b392b2a272b21d",
+    "dark-insights-darwin.png": "dde5e3397d31d760883281951752c384f63808e69874cd8200c0e3c42c63855b",
+    "dark-novel-editor-darwin.png": "8d0ecfb4fdfd0ae42504ef0466d982b281d88e95f16cd531c28ff2a4ab6abb62",
+    "dark-novel-home-darwin.png": "59a73006f388272630a3e061e3416e05353f2fbeddb38fa5432b4194a7bdb1d5",
+    "dark-production-darwin.png": "fcf3cca4655f19ac52c4565fa7b1ca86c32550cd44163f3ae8d63ca293c0d19d",
+    "dark-project-tools-darwin.png": "c268b4d8f24e347f85f18b1fa1c0a924a740ab2605ffb6c57787435d1b0e2b07",
+    "dark-projects-darwin.png": "8fe62eaaa5dfb25b378fef53324bb0928da6c8250c7e4f34d96106644c7e56ca",
+    "dark-review-darwin.png": "b3afecaefd95d906bda79a06a9bd67435a319937e151d099043236883a33d5fd",
+    "dark-search-darwin.png": "5b195d2b0401a81b99b210a51e1550e80a68ada1121f3e4b1daff760352d07b6",
+    "dark-settings-darwin.png": "83720fcb339a9503f11de68fdd58e2c2207f0f50e415f9a72f4ab6608e8bb452",
+    "dark-tasks-darwin.png": "d0f5f1aee9b2db0352bc09ce2b8fe435218e6dd7a817594fbe783c6fa7acb1f5",
+    "light-adaptation-darwin.png": "f231a5d74cf726105043d687e7a5a214d79d23c7a7cdca964544b4ccd407173b",
+    "light-creative-analysis-darwin.png": "12c511831f908e45cec37fe187eaadec4c6be7b1cfe03f722ef7f15efad3819f",
+    "light-global-assistant-darwin.png": "a05d799c6df65a93dbe05c8604f0c6a45dc54ce30cbe6e51ca514cd49e294985",
+    "light-insights-darwin.png": "dba815efdcc5ebf4287ab41ec3d272e48c88265b62dfdb523b00d86910e820db",
+    "light-novel-editor-darwin.png": "923c6f229bd150620cd56d1e117dec57f1738a7fa9c7b1110bcae9214e85415d",
+    "light-novel-home-darwin.png": "49e5eb9a001247b024d84edf6856fdf7c676500490b5ecae6b91ca4c8c08a3ea",
+    "light-production-darwin.png": "c44d4903dc5438ae7281c1d0e5bbc192a2b71fc54a30b4fff35a39fb00f0f2f2",
+    "light-project-tools-darwin.png": "45662aff05cbaeb434ced9732b9b2661e3d21eb1ec9aaf9b592cb088b36fd257",
+    "light-projects-darwin.png": "90a29ebf876172bacaf8306f42770eb8243cb60e510757867244dec0b6762a6e",
+    "light-review-darwin.png": "555d07aad1611c58e22f900e7b6d38e80944eff42c191885edd969d999ce0f2f",
+    "light-search-darwin.png": "b0f0ed5131992f6c672c4b10d3f2fb50358ebec1eac8f8ed7ae862743cfba0f6",
+    "light-settings-darwin.png": "045a9f9fbf4884a837e138de3d9b1687b4bb8cdc4790f17b8268ee34b49d1343",
+    "light-tasks-darwin.png": "571fe035aa28a5d1fd3469810dd93fbd1f014c38c107bc89afeeea6a04878844"
+  }
+}

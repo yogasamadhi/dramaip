@@ -1,0 +1,14 @@
+{
+  "name": "@dramaip/domain-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/http": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  }
+}
