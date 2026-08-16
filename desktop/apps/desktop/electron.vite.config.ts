@@ -27,10 +27,7 @@ export default defineConfig({
             "../../packages/ai/src/codex-sidecar.ts",
           ),
           "dsh-engine": resolve(root, "../../packages/ai/src/dsh-sidecar.ts"),
-          "hermes-engine": resolve(
-            root,
-            "../../packages/ai/src/hermes-sidecar.ts",
-          ),
+          "pi-engine": resolve(root, "../../packages/ai/src/pi-sidecar.ts"),
           "langgraph-engine": resolve(
             root,
             "../../packages/ai-legacy/src/langgraph-sidecar.ts",

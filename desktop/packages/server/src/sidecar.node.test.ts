@@ -693,7 +693,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     (message: {
       type?: string;
       requestId?: string;
-      engineKind?: "codex" | "dsh" | "hermes" | "langgraph";
+      engineKind?: "codex" | "dsh" | "pi" | "langgraph";
       operation?: string;
       payload?: Record<string, unknown>;
       configuration?: Record<string, unknown>;
@@ -775,7 +775,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
             type: "agent-engine:response",
             requestId: message.requestId,
             result: {
-              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : message.engineKind === "hermes" ? "Hermes Agent" : "LangGraph.js"} 已完成盲测候选`,
+              summary: `${message.engineKind === "codex" ? "Codex" : message.engineKind === "dsh" ? "DeepSeek Harness" : message.engineKind === "pi" ? "Pi" : "LangGraph.js"} 已完成盲测候选`,
               content:
                 "已完成章节诊断，并给出人物动机、连续性和结尾钩子的中文建议。",
               data: {},
@@ -855,7 +855,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
         opencode: "test-mcp-token",
         codex: "test-codex-mcp-token",
         dsh: "test-dsh-mcp-token",
-        hermes: "test-hermes-mcp-token",
+        pi: "test-pi-mcp-token",
         langgraph: "test-langgraph-mcp-token",
       },
       opencode: {
@@ -864,9 +864,9 @@ test("production-structure HTTP contract persists active adaptation and atomical
         password: "opencode-contract-password",
         healthy: true,
       },
-      codex: { healthy: true, version: "0.147.0" },
+      codex: { healthy: true, version: "0.147.0", authenticated: true },
       dsh: { healthy: true, version: "0.1.0-rc.5" },
-      hermes: { healthy: true, version: "0.20.1" },
+      pi: { healthy: true, version: "0.84.2" },
       langgraph: { healthy: true, version: "0.2.43" },
     });
     await ready;
@@ -1452,7 +1452,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     assert.equal(engines.status, 200);
     assert.deepEqual(
       engines.body.map((engine) => engine.kind),
-      ["opencode", "codex", "dsh", "hermes", "langgraph"],
+      ["opencode", "codex", "dsh", "pi", "langgraph"],
     );
     assert.equal(
       engines.body.find((engine) => engine.kind === "codex")?.isBeta,
@@ -1463,8 +1463,8 @@ test("production-structure HTTP contract persists active adaptation and atomical
       true,
     );
     assert.equal(
-      engines.body.find((engine) => engine.kind === "hermes")?.isBeta,
-      true,
+      engines.body.find((engine) => engine.kind === "pi")?.isBeta,
+      false,
     );
     assert.deepEqual(
       engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
@@ -1480,9 +1480,39 @@ test("production-structure HTTP contract persists active adaptation and atomical
       },
     );
     assert.deepEqual(
-      engines.body.find((engine) => engine.kind === "hermes")?.capabilities,
+      engines.body.find((engine) => engine.kind === "pi")?.capabilities,
       engines.body.find((engine) => engine.kind === "dsh")?.capabilities,
     );
+    child.send({
+      type: "agent-engine:status",
+      engineKind: "codex",
+      healthy: true,
+      version: "0.147.0",
+      authenticated: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const loggedOutEngines = await request<
+      Array<{
+        kind: string;
+        canRun?: boolean;
+        configurationStatus?: string;
+        statusMessage?: string;
+      }>
+    >("/api/v1/agent-engines");
+    const loggedOutCodex = loggedOutEngines.body.find(
+      (engine) => engine.kind === "codex",
+    );
+    assert.equal(loggedOutCodex?.canRun, false);
+    assert.equal(loggedOutCodex?.configurationStatus, "login_required");
+    assert.match(loggedOutCodex?.statusMessage ?? "", /尚未登录 Codex/);
+    child.send({
+      type: "agent-engine:status",
+      engineKind: "codex",
+      healthy: true,
+      version: "0.147.0",
+      authenticated: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
     const initialGlobalAgentSettings = await request<{
       defaultEngineKind: string;
       defaultModel?: { modelId?: string };
@@ -2542,7 +2572,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
       reviewedExperiment.body.candidates.map(
         (candidate) => candidate.engineKind,
       ),
-      ["opencode", "codex", "dsh", "hermes", "langgraph"],
+      ["opencode", "codex", "dsh", "pi", "langgraph"],
     );
     const legacyDb = new DatabaseSync(databasePath);
     try {
@@ -2826,7 +2856,7 @@ test("production-structure HTTP contract persists active adaptation and atomical
     );
     assert.equal(revisedChapter.status, 200);
     assert.match(revisedChapter.body.content, /不要相信来电的人/);
-    const unauthorizedDshMcp = await fetch(`${url}/internal/mcp`, {
+    const bootstrapDshMcp = await fetch(`${url}/internal/mcp`, {
       method: "POST",
       headers: {
         Authorization: "Bearer test-dsh-mcp-token",
@@ -2834,7 +2864,43 @@ test("production-structure HTTP contract persists active adaptation and atomical
       },
       body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "tools/list" }),
     });
-    assert.equal(unauthorizedDshMcp.status, 401);
+    assert.equal(bootstrapDshMcp.status, 200);
+    const bootstrapDshTools = (await bootstrapDshMcp.json()) as Record<
+      string,
+      any
+    >;
+    assert.ok(Array.isArray(bootstrapDshTools.result?.tools));
+    assert.ok(bootstrapDshTools.result.tools.length > 0);
+    const deniedBootstrapCall = await fetch(`${url}/internal/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-dsh-mcp-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 0,
+        method: "tools/call",
+        params: {
+          name: "dramaip_get_project",
+          arguments: { projectId: project.body.id },
+        },
+      }),
+    });
+    assert.equal(deniedBootstrapCall.status, 200);
+    assert.match(
+      String(((await deniedBootstrapCall.json()) as any).error?.message),
+      /没有有效的只读工具授权/,
+    );
+    const invalidEngineToken = await fetch(`${url}/internal/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer invalid-engine-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 0, method: "tools/list" }),
+    });
+    assert.equal(invalidEngineToken.status, 401);
     const mcpSession = await request<{ id: string }>("/api/v1/agent-sessions", {
       method: "POST",
       body: JSON.stringify({

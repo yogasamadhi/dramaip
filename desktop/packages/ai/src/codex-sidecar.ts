@@ -3,6 +3,11 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import {
+  startCodexChatBridge,
+  type CodexChatBridge,
+} from "./codex-chat-bridge";
+import { normalizeCodexOutput } from "./codex-output";
 
 type StartCommand = {
   type: "start";
@@ -16,6 +21,13 @@ type EngineRequest = {
   requestId: string;
   operation: string;
   payload: Record<string, unknown>;
+};
+type RuntimeProvider = {
+  providerId: string;
+  providerName: string;
+  baseUrl: string;
+  model: string;
+  protocol: "responses" | "chat_completions";
 };
 type Command = StartCommand | EngineRequest | { type: "stop" };
 type ParentPort = {
@@ -39,6 +51,8 @@ let startCommand: StartCommand | undefined;
 let appServer: ChildProcessWithoutNullStreams | undefined;
 let rpcSequence = 0;
 let runtimeApiKey: string | undefined;
+let runtimeProvider: RuntimeProvider | undefined;
+let chatBridge: CodexChatBridge | undefined;
 const pendingRpc = new Map<
   number,
   {
@@ -58,6 +72,13 @@ const activeRuns = new Map<
   }
 >();
 const runLocation = new Map<string, { threadId: string; turnId: string }>();
+const loadedThreads = new Set<string>();
+const threadResumes = new Map<string, Promise<void>>();
+
+const BASE_INSTRUCTIONS =
+  "你是 DramaIP 的中文创作助手。只能分析用户提供的创作上下文并返回结构化结果。禁止执行命令、修改文件、访问任意本地目录、使用网络搜索、安装扩展、创建子代理或直接修改 DramaIP 正式数据。";
+const DEVELOPER_INSTRUCTIONS =
+  "所有输出使用简体中文。只允许调用 DramaIP 只读 MCP。不得输出隐藏思维链，不得请求权限，不得尝试绕过沙箱。";
 
 parentPort.on("message", (event) => {
   const command = event.data as Partial<Command>;
@@ -80,7 +101,21 @@ async function start(command: StartCommand): Promise<void> {
     await mkdir(command.codexHome, { recursive: true, mode: 0o700 });
     await mkdir(command.sessionRoot, { recursive: true, mode: 0o700 });
     await launchAppServer();
-    parentPort!.postMessage({ type: "ready", version: "0.147.0" });
+    let authenticated = false;
+    try {
+      authenticated = (await authStatus()).authenticated;
+    } catch (error) {
+      parentPort!.postMessage({
+        type: "diagnostic",
+        level: "warn",
+        message: `Codex 登录状态读取失败：${message(error)}`,
+      });
+    }
+    parentPort!.postMessage({
+      type: "ready",
+      version: "0.147.0",
+      authenticated,
+    });
   } catch (error) {
     parentPort!.postMessage({ type: "unavailable", reason: message(error) });
   }
@@ -88,6 +123,12 @@ async function start(command: StartCommand): Promise<void> {
 
 async function launchAppServer(): Promise<void> {
   if (!startCommand) throw new Error("Codex 启动参数不存在");
+  if (chatBridge) {
+    await chatBridge.close();
+    chatBridge = undefined;
+  }
+  loadedThreads.clear();
+  threadResumes.clear();
   const env: NodeJS.ProcessEnv = {};
   for (const key of [
     "SystemRoot",
@@ -111,7 +152,47 @@ async function launchAppServer(): Promise<void> {
     if (process.env[key]) env[key] = process.env[key];
   env.CODEX_HOME = startCommand.codexHome;
   env.DRAMAIP_MCP_TOKEN = startCommand.mcp.token;
-  if (runtimeApiKey) env.OPENAI_API_KEY = runtimeApiKey;
+  let providerBaseUrl = runtimeProvider?.baseUrl;
+  let providerEnvKey = "DRAMAIP_CODEX_PROVIDER_API_KEY";
+  if (runtimeProvider?.protocol === "chat_completions") {
+    if (!runtimeApiKey)
+      throw new Error("Codex Chat Completions 适配器缺少 API 密钥");
+    chatBridge = await startCodexChatBridge({
+      targetBaseUrl: runtimeProvider.baseUrl,
+      apiKey: runtimeApiKey,
+    });
+    providerBaseUrl = chatBridge.baseUrl;
+    providerEnvKey = "DRAMAIP_CODEX_BRIDGE_TOKEN";
+    env.DRAMAIP_CODEX_BRIDGE_TOKEN = chatBridge.token;
+  } else if (runtimeProvider && runtimeApiKey) {
+    env.DRAMAIP_CODEX_PROVIDER_API_KEY = runtimeApiKey;
+  }
+  if (
+    runtimeProvider &&
+    runtimeApiKey &&
+    runtimeProvider.protocol === "responses"
+  )
+    env.DRAMAIP_CODEX_PROVIDER_API_KEY = runtimeApiKey;
+  else if (!runtimeProvider && runtimeApiKey)
+    env.OPENAI_API_KEY = runtimeApiKey;
+  const providerConfig = runtimeProvider
+    ? [
+        "-c",
+        `model_provider=${tomlString("dramaip_custom")}`,
+        "-c",
+        `model=${tomlString(runtimeProvider.model)}`,
+        "-c",
+        `model_providers.dramaip_custom.name=${tomlString(runtimeProvider.providerName)}`,
+        "-c",
+        `model_providers.dramaip_custom.base_url=${tomlString(providerBaseUrl ?? runtimeProvider.baseUrl)}`,
+        "-c",
+        `model_providers.dramaip_custom.env_key=${tomlString(providerEnvKey)}`,
+        "-c",
+        `model_providers.dramaip_custom.wire_api="responses"`,
+        "-c",
+        "model_providers.dramaip_custom.requires_openai_auth=false",
+      ]
+    : [];
   appServer = spawn(
     startCommand.binaryPath,
     [
@@ -138,6 +219,7 @@ async function launchAppServer(): Promise<void> {
       "features.remote_plugin=false",
       "-c",
       "features.skill_mcp_dependency_install=false",
+      ...providerConfig,
     ],
     {
       cwd: startCommand.sessionRoot,
@@ -158,6 +240,8 @@ async function launchAppServer(): Promise<void> {
   });
   appServer.once("exit", (code) => {
     appServer = undefined;
+    loadedThreads.clear();
+    threadResumes.clear();
     failAll(new Error(`Codex App Server 已退出（${code ?? "未知状态"}）`));
   });
   await rpc("initialize", {
@@ -333,17 +417,12 @@ function onNotification(method: string, params: Record<string, any>): void {
       );
       return;
     }
-    const text = active.text.trim();
-    active.resolve({
-      summary: text.slice(0, 500) || "Codex 已完成任务",
-      content: text,
-      data: {
-        codex: {
-          turnId: active.turnId,
-          status,
-        },
-      },
-    });
+    active.resolve(
+      normalizeCodexOutput(active.text, {
+        ...(active.turnId ? { turnId: active.turnId } : {}),
+        status,
+      }),
+    );
   }
 }
 
@@ -371,35 +450,12 @@ async function perform(
   if (operation === "health")
     return { available: Boolean(appServer), version: "0.147.0" };
   if (operation === "authStatus") {
-    if (runtimeApiKey)
-      return {
-        available: true,
-        authenticated: true,
-        mode: "api_key",
-        accountLabel: "OpenAI API 密钥",
-      };
-    const result = await rpc("account/read", { refreshToken: false });
-    const account = result?.account as Record<string, unknown> | undefined;
-    return {
-      available: true,
-      authenticated: Boolean(account) || result?.requiresOpenaiAuth === false,
-      mode:
-        account?.type === "chatgpt"
-          ? "chatgpt"
-          : account?.type === "apiKey"
-            ? "api_key"
-            : undefined,
-      accountLabel:
-        typeof account?.email === "string"
-          ? account.email
-          : account
-            ? "Codex 账户"
-            : undefined,
-    };
+    return authStatus();
   }
   if (operation === "login") return login(payload);
   if (operation === "logout") {
     runtimeApiKey = undefined;
+    runtimeProvider = undefined;
     if (appServer) {
       try {
         await rpc("account/logout", {});
@@ -421,36 +477,13 @@ async function perform(
     const result = await rpc("thread/start", {
       cwd,
       ...(model ? { model } : {}),
-      approvalPolicy: "never",
-      sandbox: "read-only",
       ephemeral: false,
       serviceName: "dramaip_desktop",
-      baseInstructions:
-        "你是 DramaIP 的中文创作助手。只能分析用户提供的创作上下文并返回结构化结果。禁止执行命令、修改文件、访问任意本地目录、使用网络搜索、安装扩展、创建子代理或直接修改 DramaIP 正式数据。",
-      developerInstructions:
-        "所有输出使用简体中文。只允许调用 DramaIP 只读 MCP。不得输出隐藏思维链，不得请求权限，不得尝试绕过沙箱。",
-      config: {
-        web_search: "disabled",
-        hide_agent_reasoning: true,
-        features: {
-          shell_tool: false,
-          unified_exec: false,
-          multi_agent: false,
-          apps: false,
-          remote_plugin: false,
-          skill_mcp_dependency_install: false,
-        },
-        mcp_servers: {
-          dramaip: {
-            url: startCommand.mcp.url,
-            bearer_token_env_var: "DRAMAIP_MCP_TOKEN",
-            required: true,
-          },
-        },
-      },
+      ...threadOverrides(),
     });
     const id = result?.thread?.id;
     if (!id) throw new Error("Codex 未返回 Thread 编号");
+    loadedThreads.add(String(id));
     return { id };
   }
   if (operation === "run") return run(payload);
@@ -465,25 +498,109 @@ async function perform(
     return { ok: true };
   }
   if (operation === "fork") {
+    const sourceId = String(payload.engineSessionId ?? "");
+    await ensureThreadLoaded(sourceId);
     const result = await rpc("thread/fork", {
-      threadId: String(payload.engineSessionId ?? ""),
+      threadId: sourceId,
     });
-    return { id: result?.thread?.id };
+    const id = String(result?.thread?.id ?? "");
+    if (id) loadedThreads.add(id);
+    return { id };
   }
   if (operation === "dispose") {
+    const threadId = String(payload.engineSessionId ?? "");
     await rpc("thread/delete", {
-      threadId: String(payload.engineSessionId ?? ""),
+      threadId,
     });
+    loadedThreads.delete(threadId);
     return { ok: true };
   }
   throw new Error(`Codex 不支持操作：${operation}`);
 }
 
+async function authStatus(): Promise<{
+  available: true;
+  authenticated: boolean;
+  mode?: string;
+  accountLabel?: string;
+  provider?: {
+    id: string;
+    name: string;
+    model: string;
+    baseUrl: string;
+    protocol: "responses" | "chat_completions";
+  };
+}> {
+  if (runtimeApiKey)
+    return {
+      available: true,
+      authenticated: true,
+      ...(runtimeProvider
+        ? {
+            mode: "custom_provider",
+            accountLabel: runtimeProvider.providerName,
+            provider: {
+              id: runtimeProvider.providerId,
+              name: runtimeProvider.providerName,
+              model: runtimeProvider.model,
+              baseUrl: runtimeProvider.baseUrl,
+              protocol: runtimeProvider.protocol,
+            },
+          }
+        : { mode: "api_key", accountLabel: "OpenAI API 密钥" }),
+    };
+  const result = await rpc("account/read", { refreshToken: false });
+  const account = result?.account as Record<string, unknown> | undefined;
+  return {
+    available: true,
+    authenticated: Boolean(account) || result?.requiresOpenaiAuth === false,
+    mode:
+      account?.type === "chatgpt"
+        ? "chatgpt"
+        : account?.type === "apiKey"
+          ? "api_key"
+          : undefined,
+    accountLabel:
+      typeof account?.email === "string"
+        ? account.email
+        : account
+          ? "Codex 账户"
+          : undefined,
+  };
+}
+
 async function login(payload: Record<string, unknown>): Promise<unknown> {
   const mode = String(payload.mode ?? "");
+  if (mode === "custom_provider") {
+    const providerId = String(payload.providerId ?? "").trim();
+    const providerName = String(payload.providerName ?? "").trim();
+    const baseUrl = String(payload.baseUrl ?? "").trim();
+    const model = String(payload.model ?? "").trim();
+    if (!providerId || !providerName || !baseUrl || !model)
+      throw new Error("Codex 自定义服务商配置不完整");
+    if (!/^https?:\/\//i.test(baseUrl))
+      throw new Error("Codex 自定义服务商地址必须使用 HTTP 或 HTTPS");
+    if (typeof payload.apiKey !== "string" || !payload.apiKey.trim())
+      throw new Error("安全存储中的服务商 API 密钥不可用");
+    const protocol =
+      payload.protocol === "chat_completions"
+        ? "chat_completions"
+        : "responses";
+    runtimeApiKey = payload.apiKey;
+    runtimeProvider = { providerId, providerName, baseUrl, model, protocol };
+    await restartAppServer();
+    return {
+      status: "authenticated",
+      message:
+        protocol === "chat_completions"
+          ? `已连接 ${providerName}。已启用本地 Chat Completions → Responses 转换；Codex 部分高级能力可能受限。`
+          : `已连接 ${providerName}（Responses API 直连）。`,
+    };
+  }
   if (mode === "api_key") {
     if (typeof payload.apiKey !== "string" || !payload.apiKey.trim())
       throw new Error("安全存储中的 API 密钥不可用");
+    runtimeProvider = undefined;
     runtimeApiKey = payload.apiKey;
     await restartAppServer();
     return {
@@ -491,6 +608,10 @@ async function login(payload: Record<string, unknown>): Promise<unknown> {
       message: "API 密钥仅注入当前 Codex 进程",
     };
   }
+  const hadRuntimeProvider = Boolean(runtimeProvider || runtimeApiKey);
+  runtimeProvider = undefined;
+  runtimeApiKey = undefined;
+  if (hadRuntimeProvider) await restartAppServer();
   const result = await rpc("account/login/start", {
     type: mode === "chatgpt_device_code" ? "chatgptDeviceCode" : "chatgpt",
     ...(mode === "chatgpt_browser"
@@ -503,6 +624,10 @@ async function login(payload: Record<string, unknown>): Promise<unknown> {
     userCode: result?.userCode,
     message: "请完成 ChatGPT 登录，完成后状态会自动更新",
   };
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
 }
 
 async function restartAppServer(): Promise<void> {
@@ -528,6 +653,7 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
       ? String((payload.model as Record<string, unknown>).modelId ?? "").trim()
       : "";
   if (!threadId || !runId || !prompt) throw new Error("Codex 运行参数不完整");
+  await ensureThreadLoaded(threadId, model);
   if (activeRuns.has(threadId))
     throw new Error("Codex Thread 已有运行中的任务");
   const completed = new Promise<unknown>((resolve, reject) => {
@@ -543,21 +669,7 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
         approvalPolicy: "never",
         sandboxPolicy: {
           type: "readOnly",
-          access: {
-            type: "restricted",
-            includePlatformDefaults: true,
-            readableRoots: [],
-          },
-        },
-        outputSchema: {
-          type: "object",
-          properties: {
-            summary: { type: "string" },
-            content: { type: "string" },
-            data: { type: "object" },
-          },
-          required: ["summary", "content"],
-          additionalProperties: false,
+          networkAccess: false,
         },
       },
       30_000,
@@ -575,8 +687,60 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   }
 }
 
+function threadOverrides(model = ""): Record<string, unknown> {
+  if (!startCommand) throw new Error("Codex 引擎未初始化");
+  return {
+    ...(model ? { model } : {}),
+    approvalPolicy: "never",
+    sandbox: "read-only",
+    baseInstructions: BASE_INSTRUCTIONS,
+    developerInstructions: DEVELOPER_INSTRUCTIONS,
+    config: {
+      web_search: "disabled",
+      hide_agent_reasoning: true,
+      features: {
+        shell_tool: false,
+        unified_exec: false,
+        multi_agent: false,
+        apps: false,
+        remote_plugin: false,
+        skill_mcp_dependency_install: false,
+      },
+      mcp_servers: {
+        dramaip: {
+          url: startCommand.mcp.url,
+          bearer_token_env_var: "DRAMAIP_MCP_TOKEN",
+          required: true,
+        },
+      },
+    },
+  };
+}
+
+async function ensureThreadLoaded(threadId: string, model = ""): Promise<void> {
+  if (!threadId) throw new Error("Codex Thread 编号不存在");
+  if (loadedThreads.has(threadId)) return;
+  const existing = threadResumes.get(threadId);
+  if (existing) return existing;
+  const pending = (async () => {
+    await rpc("thread/resume", {
+      threadId,
+      ...threadOverrides(model),
+    });
+    loadedThreads.add(threadId);
+  })();
+  threadResumes.set(threadId, pending);
+  try {
+    await pending;
+  } finally {
+    threadResumes.delete(threadId);
+  }
+}
+
 async function stop(): Promise<void> {
   failAll(new Error("Codex 引擎正在关闭"));
+  if (chatBridge) await chatBridge.close();
+  chatBridge = undefined;
   if (appServer) {
     appServer.kill("SIGTERM");
     appServer = undefined;

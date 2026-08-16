@@ -1,6 +1,6 @@
 # ============================================================================
 # Root .gitignore — applies across the whole dramaip monorepo.
-# Sub-projects (platform/, desktop/) have their own .gitignore
+# Sub-projects (desktop/, desktop2/, platform/) have their own .gitignore
 # for specifics; this file is the cross-cutting default so common artifacts are
 # never accidentally committed at any level.
 # ============================================================================
@@ -98,6 +98,12 @@ storybook-static/
 # ---- Java / Maven generated output ----
 target/
 *.class
+.classpath
+.project
+.factorypath
+.settings/
+.sts4-cache/
+.gradle/
 .flattened-pom.xml
 dependency-reduced-pom.xml
 pom.xml.tag
@@ -109,7 +115,9 @@ release.properties
 hs_err_pid*
 replay_pid*
 *.hprof
+*.jfr
 .attach_pid*
+jacoco.exec
 
 # ---- Logs & runtime artifacts ----
 *.log

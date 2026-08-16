@@ -285,11 +285,10 @@ export const AgentEngineKind = Schema.Literals([
   "opencode",
   "codex",
   "dsh",
-  "hermes",
+  "pi",
   "langgraph",
 ]);
-export type AgentEngineKind =
-  "opencode" | "codex" | "dsh" | "hermes" | "langgraph";
+export type AgentEngineKind = "opencode" | "codex" | "dsh" | "pi" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -4173,11 +4172,12 @@ export const AgentExperimentEngineKind = Schema.Literals([
   "opencode",
   "codex",
   "dsh",
+  "pi",
   "hermes",
   "langgraph",
   "openclaw",
 ]);
-export type AgentExperimentEngineKind = AgentEngineKind | "openclaw";
+export type AgentExperimentEngineKind = AgentEngineKind | "hermes" | "openclaw";
 export const AgentExperiment = Schema.Struct({
   id: Id,
   projectId: Id,
@@ -4301,24 +4301,54 @@ export interface AgentExperimentReviewInput {
 export const CodexAuthStatus = Schema.Struct({
   available: Schema.Boolean,
   authenticated: Schema.Boolean,
-  mode: Schema.optionalKey(Schema.Literals(["api_key", "chatgpt"])),
+  mode: Schema.optionalKey(
+    Schema.Literals(["api_key", "chatgpt", "custom_provider"]),
+  ),
   accountLabel: Schema.optionalKey(Schema.String),
+  provider: Schema.optionalKey(
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      model: Schema.String,
+      baseUrl: Schema.String,
+      protocol: Schema.Literals(["responses", "chat_completions"]),
+    }),
+  ),
   message: Schema.optionalKey(Schema.String),
 });
 export interface CodexAuthStatus {
   available: boolean;
   authenticated: boolean;
-  mode?: "api_key" | "chatgpt";
+  mode?: "api_key" | "chatgpt" | "custom_provider";
   accountLabel?: string;
+  provider?: {
+    id: string;
+    name: string;
+    model: string;
+    baseUrl: string;
+    protocol: "responses" | "chat_completions";
+  };
   message?: string;
 }
 export const CodexLoginInput = Schema.Struct({
-  mode: Schema.Literals(["api_key", "chatgpt_browser", "chatgpt_device_code"]),
+  mode: Schema.Literals([
+    "api_key",
+    "chatgpt_browser",
+    "chatgpt_device_code",
+    "custom_provider",
+  ]),
   credentialRef: Schema.optionalKey(Schema.String),
+  providerId: Schema.optionalKey(Schema.String),
+  protocol: Schema.optionalKey(
+    Schema.Literals(["responses", "chat_completions"]),
+  ),
 });
 export interface CodexLoginInput {
-  mode: "api_key" | "chatgpt_browser" | "chatgpt_device_code";
+  mode:
+    "api_key" | "chatgpt_browser" | "chatgpt_device_code" | "custom_provider";
   credentialRef?: string;
+  providerId?: string;
+  protocol?: "responses" | "chat_completions";
 }
 export const CodexLoginResult = Schema.Struct({
   status: Schema.Literals(["authenticated", "pending", "unavailable"]),

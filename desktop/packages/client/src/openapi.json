@@ -2543,7 +2543,7 @@
                   },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "model": {
                     "type": "object",
@@ -2702,7 +2702,7 @@
                   "sourceChapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "model": {
                     "type": "object",
@@ -3360,7 +3360,7 @@
                 "properties": {
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   }
                 },
                 "required": ["engineKind"],
@@ -3732,13 +3732,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -3908,7 +3902,7 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "taskType": {
                     "type": "string",
@@ -4260,13 +4254,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -4573,13 +4561,7 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "status": {
                       "type": "string",
@@ -4876,13 +4858,7 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "status": {
                       "type": "string",
@@ -5084,13 +5060,7 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "status": {
                       "type": "string",
@@ -5213,13 +5183,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -5397,13 +5361,7 @@
                       "engineSessionId": { "type": "string" },
                       "engineKind": {
                         "type": "string",
-                        "enum": [
-                          "opencode",
-                          "codex",
-                          "dsh",
-                          "hermes",
-                          "langgraph"
-                        ]
+                        "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                       },
                       "projectId": { "type": "string" },
                       "surface": {
@@ -5578,13 +5536,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -5754,7 +5706,7 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "taskType": {
                     "type": "string",
@@ -5885,7 +5837,7 @@
                             "opencode",
                             "codex",
                             "dsh",
-                            "hermes",
+                            "pi",
                             "langgraph"
                           ]
                         },
@@ -6288,7 +6240,7 @@
                               "opencode",
                               "codex",
                               "dsh",
-                              "hermes",
+                              "pi",
                               "langgraph"
                             ]
                           },
@@ -6472,13 +6424,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -6721,13 +6667,7 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -6930,7 +6870,7 @@
                             "opencode",
                             "codex",
                             "dsh",
-                            "hermes",
+                            "pi",
                             "langgraph"
                           ]
                         },
@@ -7322,7 +7262,7 @@
                             "opencode",
                             "codex",
                             "dsh",
-                            "hermes",
+                            "pi",
                             "langgraph"
                           ]
                         },
@@ -7697,13 +7637,7 @@
                     "properties": {
                       "kind": {
                         "type": "string",
-                        "enum": [
-                          "opencode",
-                          "codex",
-                          "dsh",
-                          "hermes",
-                          "langgraph"
-                        ]
+                        "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                       },
                       "name": { "type": "string" },
                       "version": { "type": "string" },
@@ -7836,13 +7770,7 @@
                   "properties": {
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -7907,13 +7835,7 @@
                   "properties": {
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -7970,7 +7892,7 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -8015,13 +7937,7 @@
                     "projectId": { "type": "string" },
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -8103,13 +8019,7 @@
                     "projectId": { "type": "string" },
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -8175,7 +8085,7 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "hermes", "langgraph"]
+                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -8373,6 +8283,7 @@
                               "opencode",
                               "codex",
                               "dsh",
+                              "pi",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -8855,6 +8766,7 @@
                               "opencode",
                               "codex",
                               "dsh",
+                              "pi",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -9228,6 +9140,7 @@
                               "opencode",
                               "codex",
                               "dsh",
+                              "pi",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -9476,13 +9389,7 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "taskType": {
                       "type": "string",
@@ -9678,13 +9585,7 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "taskType": {
                       "type": "string",
@@ -9893,13 +9794,7 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "taskType": {
                       "type": "string",
@@ -10095,13 +9990,7 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "taskType": {
                       "type": "string",
@@ -10600,9 +10489,30 @@
                     "authenticated": { "type": "boolean" },
                     "mode": {
                       "type": "string",
-                      "enum": ["api_key", "chatgpt"]
+                      "enum": ["api_key", "chatgpt", "custom_provider"]
                     },
                     "accountLabel": { "type": "string" },
+                    "provider": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "name": { "type": "string" },
+                        "model": { "type": "string" },
+                        "baseUrl": { "type": "string" },
+                        "protocol": {
+                          "type": "string",
+                          "enum": ["responses", "chat_completions"]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "model",
+                        "baseUrl",
+                        "protocol"
+                      ],
+                      "additionalProperties": false
+                    },
                     "message": { "type": "string" }
                   },
                   "required": ["available", "authenticated"],
@@ -10712,10 +10622,16 @@
                     "enum": [
                       "api_key",
                       "chatgpt_browser",
-                      "chatgpt_device_code"
+                      "chatgpt_device_code",
+                      "custom_provider"
                     ]
                   },
-                  "credentialRef": { "type": "string" }
+                  "credentialRef": { "type": "string" },
+                  "providerId": { "type": "string" },
+                  "protocol": {
+                    "type": "string",
+                    "enum": ["responses", "chat_completions"]
+                  }
                 },
                 "required": ["mode"],
                 "additionalProperties": false
@@ -10744,9 +10660,30 @@
                     "authenticated": { "type": "boolean" },
                     "mode": {
                       "type": "string",
-                      "enum": ["api_key", "chatgpt"]
+                      "enum": ["api_key", "chatgpt", "custom_provider"]
                     },
                     "accountLabel": { "type": "string" },
+                    "provider": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "name": { "type": "string" },
+                        "model": { "type": "string" },
+                        "baseUrl": { "type": "string" },
+                        "protocol": {
+                          "type": "string",
+                          "enum": ["responses", "chat_completions"]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "model",
+                        "baseUrl",
+                        "protocol"
+                      ],
+                      "additionalProperties": false
+                    },
                     "message": { "type": "string" }
                   },
                   "required": ["available", "authenticated"],
@@ -17187,13 +17124,7 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": [
-                        "opencode",
-                        "codex",
-                        "dsh",
-                        "hermes",
-                        "langgraph"
-                      ]
+                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
                     },
                     "taskType": {
                       "type": "string",

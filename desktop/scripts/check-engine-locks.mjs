@@ -9,7 +9,7 @@ const codex = await readJson(join(root, "vendor/codex.lock.json"));
 const protocol = await readJson(join(root, "vendor/codex.protocol.lock.json"));
 const opencode = await readJson(join(root, "vendor/opencode.lock.json"));
 const dsh = await readJson(join(root, "vendor/deepseek-harness.lock.json"));
-const hermes = await readJson(join(root, "vendor/hermes-agent.lock.json"));
+const pi = await readJson(join(root, "vendor/pi.lock.json"));
 
 if (codex.package !== "@openai/codex" || codex.version !== "0.147.0")
   throw new Error("Codex 固定版本必须为 @openai/codex 0.147.0");
@@ -153,81 +153,47 @@ async function frozenTree(
   return { count: files.length, sha256: hash.digest("hex") };
 }
 
-const hermesRoot = join(root, "vendor/hermes-agent");
-const hermesManifest = await readFile(
-  join(hermesRoot, "pyproject.toml"),
-  "utf8",
-);
+const piRoot = join(root, "vendor/pi");
+const piManifest = await readJson(join(piRoot, "packages/agent/package.json"));
 if (
-  hermes.version !== "0.20.1" ||
-  hermes.license !== "MIT" ||
-  hermes.requiresPython !== ">=3.11,<3.14" ||
-  hermes.uvVersion !== "0.9.28" ||
-  hermes.pythonVersion !== "3.11.15" ||
-  hermes.pythonStandaloneRelease !== "20260807" ||
-  hermes.lockfile !== "uv.lock"
+  pi.package !== "@earendil-works/pi-agent-core" ||
+  pi.version !== "0.84.2" ||
+  pi.license !== "MIT" ||
+  pi.node !== ">=22.19.0" ||
+  pi.lockfile !== "package-lock.json"
 )
-  throw new Error(
-    "Hermes 固定版本必须为 0.20.1（MIT，uv 0.9.28，CPython 3.11.15）",
-  );
+  throw new Error("Pi 固定版本必须为 0.84.2（MIT，Node >=22.19.0）");
 if (
-  !hermesManifest.includes('version = "0.20.1"') ||
-  !hermesManifest.includes('license = "MIT"') ||
-  !hermesManifest.includes('requires-python = ">=3.11,<3.14"')
+  piManifest.name !== pi.package ||
+  piManifest.version !== pi.version ||
+  piManifest.license !== pi.license ||
+  piManifest.engines?.node !== pi.node
 )
-  throw new Error("Hermes pyproject.toml 与锁定文件不一致");
-const hermesUvLock = await readFile(join(hermesRoot, hermes.lockfile));
+  throw new Error("Pi Agent package.json 与锁定文件不一致");
+const piPackageLock = await readFile(join(piRoot, pi.lockfile));
 if (
-  createHash("sha256").update(hermesUvLock).digest("hex") !==
-  hermes.uvLockSha256
+  createHash("sha256").update(piPackageLock).digest("hex") !==
+  pi.packageLockSha256
 )
-  throw new Error("Hermes uv.lock 校验失败");
-const hermesTree = await frozenTree(
-  hermesRoot,
+  throw new Error("Pi package-lock.json 校验失败");
+const piTree = await frozenTree(
+  piRoot,
   new Set([
     ".git",
-    ".venv",
     "node_modules",
     "dist",
-    "dist-runtime",
     "build",
     "coverage",
-    ".pytest_cache",
-    ".ruff_cache",
-    "__pycache__",
     ".cache",
-    "target",
     "out",
   ]),
 );
 if (
-  hermesTree.count !== hermes.sourceTreeFileCount ||
-  hermesTree.sha256 !== hermes.sourceTreeSha256
+  piTree.count !== pi.sourceTreeFileCount ||
+  piTree.sha256 !== pi.sourceTreeSha256
 )
-  throw new Error("Hermes 完整源码树校验失败，vendor 冻结快照可能已变化");
-
-if (
-  !Array.isArray(hermes.runtimePlatforms) ||
-  hermes.runtimePlatforms.length !== 6
-)
-  throw new Error("Hermes 运行时清单必须覆盖 macOS、Windows、Linux 双架构");
-for (const platform of hermes.runtimePlatforms) {
-  const artifact = hermes.pythonArtifacts?.[platform];
-  if (
-    !artifact ||
-    !artifact.url?.includes(`/20260807/cpython-3.11.15%2B20260807-`) ||
-    !artifact.url.endsWith("-install_only_stripped.tar.gz") ||
-    !/^[a-f0-9]{64}$/.test(artifact.sha256 ?? "")
-  )
-    throw new Error(`Hermes ${platform} 缺少锁定的 CPython 3.11.15 运行时`);
-}
-if (
-  Object.keys(hermes.pythonArtifacts ?? {}).some(
-    (platform) => !hermes.runtimePlatforms.includes(platform),
-  )
-)
-  throw new Error("Hermes CPython 运行时清单包含未声明平台");
+  throw new Error("Pi 完整源码树校验失败，vendor 冻结快照可能已变化");
 
 process.stdout.write(
-  `活动引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Hermes ${hermes.version}\n`,
+  `活动引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Pi ${pi.version}\n`,
 );

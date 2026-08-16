@@ -71,27 +71,19 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(
     page.getByText("DeepSeek Harness", { exact: true }).first(),
   ).toBeVisible();
-  await expect(
-    page.getByText("Hermes Agent", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText("Pi", { exact: true }).first()).toBeVisible();
   await expect(
     page.getByText("LangGraph.js", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText("测试版", { exact: true })).toHaveCount(3);
+  await expect(page.getByText("测试版", { exact: true })).toHaveCount(0);
   await expect(
     page.getByLabel("智能引擎状态").locator("article > div > p"),
-  ).toHaveText([
+  ).toHaveText(["OpenCode", "Codex", "DeepSeek Harness", "Pi", "LangGraph.js"]);
+  await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
     "OpenCode",
     "Codex",
     "DeepSeek Harness",
-    "Hermes Agent",
-    "LangGraph.js",
-  ]);
-  await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
-    "OpenCode",
-    "Codex（测试版）",
-    "DeepSeek Harness（测试版）",
-    "Hermes Agent（测试版）",
+    "Pi",
     "LangGraph.js",
   ]);
 });
@@ -171,7 +163,7 @@ test("智能助手只在用户打开弹窗后显示", async () => {
     /OpenCode/,
     /Codex/,
     /DeepSeek Harness/,
-    /Hermes Agent/,
+    /Pi/,
     /LangGraph\.js/,
   ]);
   await expect(

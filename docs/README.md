@@ -14,5 +14,7 @@
 
 - [桌面端项目](../desktop/README.md)
 - [桌面端文档目录](../desktop/docs/README.md)
+- [全插件化桌面端项目](../desktop2/README.md)
+- [双桌面路线并行约定](../desktop2/docs/architecture/ARCHITECTURE.md#parallel-track-policy)
 - [平台端项目](../platform/README.md)
 - [平台端私有文档目录](../platform/docs/README.md)

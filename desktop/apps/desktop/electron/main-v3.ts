@@ -16,6 +16,10 @@ import { createRequire } from "node:module";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { OpenCodeProviderAdapter } from "@sdns/ai";
+import {
+  bootstrapCodexAuthentication,
+  disableCodexAuthBootstrap,
+} from "./codex-auth-bootstrap";
 import { LocalCredentialVault } from "./local-credential-vault";
 
 const require = createRequire(import.meta.url);
@@ -30,7 +34,12 @@ type Ready = {
   version: string;
 };
 type ChildMessage =
-  | { type: "ready"; version?: string; configured?: boolean }
+  | {
+      type: "ready";
+      version?: string;
+      configured?: boolean;
+      authenticated?: boolean;
+    }
   | { type: "error"; error: { message: string } }
   | { type: "unavailable"; reason: string }
   | {
@@ -66,6 +75,7 @@ type ManagedProcess = {
   required: boolean;
   healthy: boolean;
   version?: string;
+  authenticated?: boolean;
   stop(): Promise<void>;
 };
 type FileCapability = {
@@ -92,7 +102,7 @@ let dramaServer: ManagedProcess | undefined;
 let opencodeEngine: ManagedProcess | undefined;
 let codexEngine: ManagedProcess | undefined;
 let dshEngine: ManagedProcess | undefined;
-let hermesEngine: ManagedProcess | undefined;
+let piEngine: ManagedProcess | undefined;
 let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
 const credentialVault = new LocalCredentialVault(
@@ -183,6 +193,31 @@ function codexBinaryPath(): string {
   );
 }
 
+function dramaipCodexHome(): string {
+  return join(app.getPath("userData"), "codex-engine");
+}
+
+function existingCodexHome(destinationHome: string): string {
+  const inherited = process.env.CODEX_HOME?.trim();
+  if (inherited && resolve(inherited) !== resolve(destinationHome))
+    return inherited;
+  return join(app.getPath("home"), ".codex");
+}
+
+async function bootstrapCodexAuth(): Promise<void> {
+  const destinationHome = dramaipCodexHome();
+  try {
+    const result = await bootstrapCodexAuthentication({
+      sourceHome: existingCodexHome(destinationHome),
+      destinationHome,
+    });
+    if (result === "imported")
+      console.info("Imported existing Codex authentication into DramaIP");
+  } catch {
+    console.warn("Could not import existing Codex authentication");
+  }
+}
+
 function dshRuntimeEntry(): string {
   if (process.env.DRAMAIP_DSH_RUNTIME_ENTRY)
     return process.env.DRAMAIP_DSH_RUNTIME_ENTRY;
@@ -205,17 +240,10 @@ function dshConfigDirectory(): string {
     : join(app.getAppPath(), "dsh-config");
 }
 
-function hermesRuntimeRoot(): string {
+function piRuntimeModule(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, "hermes", "runtime")
-    : join(app.getAppPath(), "build", "hermes");
-}
-
-function hermesPythonPath(): string {
-  const root = hermesRuntimeRoot();
-  return process.platform === "win32"
-    ? join(root, "python", "python.exe")
-    : join(root, "python", "bin", "python3");
+    ? join(process.resourcesPath, "pi", "runtime", "runtime.mjs")
+    : join(app.getAppPath(), "build", "pi", "runtime.mjs");
 }
 
 async function storeCredential(
@@ -292,21 +320,21 @@ function spawnSidecar(
       ) {
         const request = message as unknown as {
           requestId: string;
-          engineKind: "codex" | "dsh" | "hermes" | "langgraph";
+          engineKind: "codex" | "dsh" | "pi" | "langgraph";
           operation: string;
           payload: Record<string, unknown>;
         };
         const target = {
           codex: codexEngine,
           dsh: dshEngine,
-          hermes: hermesEngine,
+          pi: piEngine,
           langgraph: langgraphEngine,
         }[request.engineKind];
         if (!target) {
           const engineName = {
             codex: "Codex",
             dsh: "DeepSeek Harness",
-            hermes: "Hermes Agent",
+            pi: "Pi",
             langgraph: "LangGraph.js",
           }[request.engineKind];
           child.postMessage({
@@ -318,10 +346,14 @@ function spawnSidecar(
         }
         void (async () => {
           const payload = { ...request.payload };
+          if (request.engineKind === "codex" && request.operation === "logout")
+            await disableCodexAuthBootstrap(dramaipCodexHome()).catch(() =>
+              console.warn("Could not disable Codex auth bootstrap"),
+            );
           if (
             request.engineKind === "codex" &&
             request.operation === "login" &&
-            payload.mode === "api_key" &&
+            ["api_key", "custom_provider"].includes(String(payload.mode)) &&
             typeof payload.credentialRef === "string"
           ) {
             const apiKey = await resolveCredential(payload.credentialRef);
@@ -376,6 +408,15 @@ function spawnSidecar(
         })();
         return;
       }
+      if (
+        name === "dramaip-server" &&
+        (message as unknown as { type?: string }).type === "credential:remove"
+      ) {
+        const request = message as unknown as { credentialRef?: string };
+        if (request.credentialRef)
+          void removeCredential(request.credentialRef).catch(() => undefined);
+        return;
+      }
       if (message.type === "ready") {
         const managed: ManagedProcess = {
           child,
@@ -384,10 +425,13 @@ function spawnSidecar(
           required,
           healthy: message.configured ?? true,
           ...(message.version ? { version: message.version } : {}),
+          ...(message.authenticated !== undefined
+            ? { authenticated: message.authenticated }
+            : {}),
           stop: () =>
             stopChild(
               child,
-              ["dsh-engine", "hermes-engine"].includes(name) ? 15_000 : 6_000,
+              ["dsh-engine", "pi-engine"].includes(name) ? 15_000 : 6_000,
             ),
         };
         child.once("exit", () => {
@@ -397,7 +441,7 @@ function spawnSidecar(
         return finish(managed);
       }
       if (
-        ["dsh-engine", "hermes-engine"].includes(name) &&
+        ["dsh-engine", "pi-engine"].includes(name) &&
         message.type === "configured"
       ) {
         const pending = engineConfigurationRequests.get(message.requestId);
@@ -414,7 +458,7 @@ function spawnSidecar(
         [
           "codex-engine",
           "dsh-engine",
-          "hermes-engine",
+          "pi-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "response"
@@ -431,7 +475,7 @@ function spawnSidecar(
         [
           "codex-engine",
           "dsh-engine",
-          "hermes-engine",
+          "pi-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "event"
@@ -443,8 +487,8 @@ function spawnSidecar(
               ? "codex"
               : name === "dsh-engine"
                 ? "dsh"
-                : name === "hermes-engine"
-                  ? "hermes"
+                : name === "pi-engine"
+                  ? "pi"
                   : "langgraph",
           runId: message.runId,
           event: message.event,
@@ -469,7 +513,7 @@ function spawnSidecar(
 }
 
 async function configureRuntimeEngine(
-  engineKind: "dsh" | "hermes",
+  engineKind: "dsh" | "pi",
   engine: ManagedProcess | undefined,
   displayName: string,
   provider: Pick<
@@ -575,23 +619,18 @@ async function configureOpenCodeEngine(
     ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
     secret,
   };
-  const [dshConfiguration, hermesConfiguration] = await Promise.all([
+  const [dshConfiguration, piConfiguration] = await Promise.all([
     configureRuntimeEngine(
       "dsh",
       dshEngine,
       "DeepSeek Harness",
       sidecarProvider,
     ),
-    configureRuntimeEngine(
-      "hermes",
-      hermesEngine,
-      "Hermes Agent",
-      sidecarProvider,
-    ),
+    configureRuntimeEngine("pi", piEngine, "Pi", sidecarProvider),
   ]);
   for (const [engineKind, engine, result, version] of [
     ["dsh", dshEngine, dshConfiguration, "0.1.0-rc.5"],
-    ["hermes", hermesEngine, hermesConfiguration, "0.20.1"],
+    ["pi", piEngine, piConfiguration, "0.84.2"],
   ] as const) {
     if (engine) engine.healthy = result.available;
     dramaServer?.child.postMessage({
@@ -667,6 +706,7 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
         engineKind: "codex",
         healthy: true,
         version: next.version ?? "0.147.0",
+        authenticated: next.authenticated,
       });
     }
     if (previous.name === "dsh-engine") {
@@ -678,13 +718,13 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
         version: next.version ?? "0.1.0-rc.5",
       });
     }
-    if (previous.name === "hermes-engine") {
-      hermesEngine = next;
+    if (previous.name === "pi-engine") {
+      piEngine = next;
       dramaServer?.child.postMessage({
         type: "agent-engine:status",
-        engineKind: "hermes",
+        engineKind: "pi",
         healthy: next.healthy,
-        version: next.version ?? "0.20.1",
+        version: next.version ?? "0.84.2",
       });
     }
     if (previous.name === "langgraph-engine") {
@@ -727,7 +767,7 @@ async function initialize(): Promise<Ready> {
     opencode: randomUUID(),
     codex: randomUUID(),
     dsh: randomUUID(),
-    hermes: randomUUID(),
+    pi: randomUUID(),
     langgraph: randomUUID(),
   } as const;
   const enginePort = randomPort();
@@ -752,12 +792,13 @@ async function initialize(): Promise<Ready> {
     },
     false,
   );
+  await bootstrapCodexAuth();
   codexEngine = await spawnSidecar(
     "codex-engine",
     {
       type: "start",
       binaryPath: codexBinaryPath(),
-      codexHome: join(app.getPath("userData"), "codex-engine"),
+      codexHome: dramaipCodexHome(),
       sessionRoot: join(app.getPath("userData"), "codex-sessions"),
       mcp: { url: mcpUrl, token: mcpTokens.codex },
     },
@@ -774,17 +815,13 @@ async function initialize(): Promise<Ready> {
     },
     false,
   );
-  const hermesRoot = hermesRuntimeRoot();
-  hermesEngine = await spawnSidecar(
-    "hermes-engine",
+  piEngine = await spawnSidecar(
+    "pi-engine",
     {
       type: "start",
-      pythonPath: hermesPythonPath(),
-      adapterPath: join(hermesRoot, "adapter", "dramaip_hermes_acp.py"),
-      projectRoot: join(hermesRoot, "project"),
-      sitePackages: join(hermesRoot, "site-packages"),
-      sessionRoot: join(app.getPath("temp"), `dramaip-hermes-${randomUUID()}`),
-      mcp: { url: mcpUrl, token: mcpTokens.hermes },
+      runtimeModule: piRuntimeModule(),
+      sessionRoot: join(app.getPath("temp"), `dramaip-pi-${randomUUID()}`),
+      mcp: { url: mcpUrl, token: mcpTokens.pi },
     },
     false,
   );
@@ -825,14 +862,15 @@ async function initialize(): Promise<Ready> {
       codex: {
         healthy: Boolean(codexEngine),
         version: codexEngine?.version ?? "0.147.0",
+        authenticated: codexEngine?.authenticated === true,
       },
       dsh: {
         healthy: false,
         version: dshEngine?.version ?? "0.1.0-rc.5",
       },
-      hermes: {
+      pi: {
         healthy: false,
-        version: hermesEngine?.version ?? "0.20.1",
+        version: piEngine?.version ?? "0.84.2",
       },
       langgraph: {
         healthy: false,
@@ -1075,7 +1113,7 @@ app.on("before-quit", (event) => {
     opencodeEngine?.stop(),
     codexEngine?.stop(),
     dshEngine?.stop(),
-    hermesEngine?.stop(),
+    piEngine?.stop(),
     langgraphEngine?.stop(),
   ]).then(() => {
     shutdownComplete = true;

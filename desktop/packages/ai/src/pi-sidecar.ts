@@ -1,0 +1,348 @@
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+
+type PiProviderConfiguration = {
+  providerKind: "openai" | "anthropic" | "google";
+  model: string;
+  baseUrl?: string;
+  secret: string;
+};
+
+type StartCommand = {
+  type: "start";
+  runtimeModule: string;
+  sessionRoot: string;
+  mcp: { url: string; token: string };
+  provider?: PiProviderConfiguration;
+};
+
+type ConfigureCommand = {
+  type: "configure";
+  requestId: string;
+  provider: PiProviderConfiguration;
+};
+
+type EngineRequest = {
+  type: "request";
+  requestId: string;
+  operation: string;
+  payload: Record<string, unknown>;
+};
+
+type ParentPort = {
+  postMessage(message: unknown): void;
+  on(event: "message", cb: (event: { data: unknown }) => void): void;
+};
+
+type PiRuntimeEvent =
+  | { type: "content.delta"; delta: string }
+  | {
+      type: "tool";
+      status: "started" | "completed";
+      tool: string;
+      itemId: string;
+      arguments?: unknown;
+      result?: unknown;
+      error?: string;
+    }
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      cachedTokens: number;
+    };
+
+type PiRuntimeSession = {
+  run(
+    prompt: string,
+    onEvent: (event: PiRuntimeEvent) => void,
+  ): Promise<{ text: string }>;
+  abort(): Promise<void>;
+  close(): Promise<void>;
+};
+
+type PiRuntimeModule = {
+  createPiSession(options: {
+    sessionId: string;
+    provider: PiProviderConfiguration;
+    mcp: { url: string; token: string };
+  }): Promise<PiRuntimeSession>;
+};
+
+type SessionState = {
+  id: string;
+  title: string;
+  projectId: string;
+  chapterId?: string;
+  model?: string;
+  runtime?: PiRuntimeSession;
+  runtimeKey?: string;
+  activeRunId?: string;
+};
+
+const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
+  .parentPort;
+if (!parentPort)
+  throw new Error("Pi 引擎必须作为 Electron utilityProcess 运行");
+
+let startCommand: StartCommand | undefined;
+let provider: PiProviderConfiguration | undefined;
+let providerGeneration = 0;
+let runtimeModule: PiRuntimeModule | undefined;
+const sessions = new Map<string, SessionState>();
+
+parentPort.on("message", (event) => {
+  const command = event.data as Partial<
+    StartCommand | ConfigureCommand | EngineRequest | { type: "stop" }
+  >;
+  if (command.type === "start") return void start(command as StartCommand);
+  if (command.type === "configure")
+    return void configure(command as ConfigureCommand);
+  if (command.type === "request")
+    return void handleRequest(command as EngineRequest);
+  if (command.type === "stop") return void stop();
+});
+
+async function start(command: StartCommand): Promise<void> {
+  try {
+    if (!existsSync(command.runtimeModule))
+      throw new Error("Pi Runtime 入口不存在");
+    await mkdir(command.sessionRoot, { recursive: true, mode: 0o700 });
+    const imported = (await import(
+      pathToFileURL(command.runtimeModule).href
+    )) as Partial<PiRuntimeModule>;
+    if (typeof imported.createPiSession !== "function")
+      throw new Error("Pi Runtime 缺少 createPiSession 导出");
+    startCommand = command;
+    runtimeModule = imported as PiRuntimeModule;
+    provider = command.provider;
+    providerGeneration = provider ? 1 : 0;
+    parentPort!.postMessage({
+      type: "ready",
+      version: "0.84.2",
+      configured: Boolean(provider),
+    });
+  } catch (error) {
+    parentPort!.postMessage({
+      type: "unavailable",
+      reason: publicMessage(error),
+    });
+  }
+}
+
+async function configure(command: ConfigureCommand): Promise<void> {
+  try {
+    validateProvider(command.provider);
+    provider = command.provider;
+    providerGeneration += 1;
+    if (startCommand) startCommand.provider = command.provider;
+    await Promise.all(
+      [...sessions.values()]
+        .filter((session) => !session.activeRunId && session.runtime)
+        .map(resetRuntime),
+    );
+    parentPort!.postMessage({
+      type: "configured",
+      requestId: command.requestId,
+      available: true,
+      version: "0.84.2",
+    });
+  } catch (error) {
+    parentPort!.postMessage({
+      type: "configured",
+      requestId: command.requestId,
+      available: false,
+      error: publicMessage(error),
+    });
+  }
+}
+
+async function handleRequest(request: EngineRequest): Promise<void> {
+  try {
+    const result = await perform(request.operation, request.payload);
+    parentPort!.postMessage({
+      type: "response",
+      requestId: request.requestId,
+      result,
+    });
+  } catch (error) {
+    parentPort!.postMessage({
+      type: "response",
+      requestId: request.requestId,
+      error: publicMessage(error),
+    });
+  }
+}
+
+async function perform(
+  operation: string,
+  payload: Record<string, unknown>,
+): Promise<unknown> {
+  if (operation === "health")
+    return { available: Boolean(provider), version: "0.84.2" };
+  if (operation === "createSession") {
+    if (!provider) throw new Error("Pi 模型尚未配置");
+    const id = randomUUID();
+    sessions.set(id, {
+      id,
+      title: String(payload.title ?? "DramaIP 智能任务"),
+      projectId: String(payload.projectId ?? ""),
+      ...(typeof payload.chapterId === "string"
+        ? { chapterId: payload.chapterId }
+        : {}),
+      ...(selectedModel(payload) ? { model: selectedModel(payload) } : {}),
+    });
+    return { id };
+  }
+  if (operation === "run") return run(payload);
+  if (operation === "interrupt") {
+    const session = sessions.get(String(payload.engineSessionId ?? ""));
+    if (session?.runtime) await session.runtime.abort();
+    return { ok: true };
+  }
+  if (operation === "fork") {
+    const source = sessions.get(String(payload.engineSessionId ?? ""));
+    if (!source) throw new Error("Pi 会话不存在");
+    const id = randomUUID();
+    sessions.set(id, {
+      id,
+      title: `${source.title}（分支）`,
+      projectId: source.projectId,
+      ...(source.chapterId ? { chapterId: source.chapterId } : {}),
+      ...(source.model ? { model: source.model } : {}),
+    });
+    return { id };
+  }
+  if (operation === "dispose") {
+    const id = String(payload.engineSessionId ?? "");
+    const session = sessions.get(id);
+    if (session) await resetRuntime(session);
+    sessions.delete(id);
+    return { ok: true };
+  }
+  throw new Error(`Pi 不支持操作：${operation}`);
+}
+
+async function run(payload: Record<string, unknown>): Promise<unknown> {
+  const activeProvider = provider;
+  const activeProviderGeneration = providerGeneration;
+  if (!activeProvider) throw new Error("Pi 模型尚未配置");
+  const sessionId = String(payload.engineSessionId ?? "");
+  const runId = String(payload.runId ?? "");
+  const prompt = String(payload.prompt ?? "");
+  if (!sessionId || !runId || !prompt) throw new Error("Pi 运行参数不完整");
+  let session = sessions.get(sessionId);
+  if (!session) {
+    const projectId = String(payload.projectId ?? "");
+    if (!projectId) throw new Error("Pi 恢复检查点缺少项目编号");
+    session = {
+      id: sessionId,
+      title: "已恢复的智能任务",
+      projectId,
+      ...(typeof payload.chapterId === "string"
+        ? { chapterId: payload.chapterId }
+        : {}),
+    };
+    sessions.set(sessionId, session);
+  }
+  if (session.activeRunId) throw new Error("Pi 会话正在执行另一项任务");
+  const requestedModel = selectedModel(payload);
+  const model = requestedModel ?? session.model ?? activeProvider.model;
+  if (requestedModel) session.model = requestedModel;
+  session.activeRunId = runId;
+  try {
+    const runtime = await ensureRuntime(
+      session,
+      activeProvider,
+      model,
+      activeProviderGeneration,
+    );
+    return await runtime.run(prompt, (event) =>
+      parentPort!.postMessage({ type: "event", runId, event }),
+    );
+  } catch (error) {
+    await resetRuntime(session);
+    throw error;
+  } finally {
+    session.activeRunId = undefined;
+  }
+}
+
+async function ensureRuntime(
+  session: SessionState,
+  configuration: PiProviderConfiguration,
+  model: string,
+  generation: number,
+): Promise<PiRuntimeSession> {
+  const command = startCommand;
+  const module = runtimeModule;
+  if (!command || !module) throw new Error("Pi 引擎尚未初始化");
+  const runtimeKey = JSON.stringify({
+    providerKind: configuration.providerKind,
+    baseUrl: configuration.baseUrl ?? "",
+    model,
+    generation,
+  });
+  if (session.runtime && session.runtimeKey === runtimeKey)
+    return session.runtime;
+  await resetRuntime(session);
+  const runtime = await module.createPiSession({
+    sessionId: session.id,
+    provider: { ...configuration, model },
+    mcp: command.mcp,
+  });
+  session.runtime = runtime;
+  session.runtimeKey = runtimeKey;
+  return runtime;
+}
+
+async function resetRuntime(session: SessionState): Promise<void> {
+  const runtime = session.runtime;
+  session.runtime = undefined;
+  session.runtimeKey = undefined;
+  if (runtime) await runtime.close();
+}
+
+async function stop(): Promise<void> {
+  const command = startCommand;
+  await Promise.allSettled([...sessions.values()].map(resetRuntime));
+  sessions.clear();
+  if (command) await rm(command.sessionRoot, { recursive: true, force: true });
+  provider = undefined;
+  providerGeneration = 0;
+  runtimeModule = undefined;
+  startCommand = undefined;
+  parentPort!.postMessage({ type: "stopped" });
+  process.exit(0);
+}
+
+function selectedModel(payload: Record<string, unknown>): string | undefined {
+  const model = payload.model;
+  if (model && typeof model === "object" && !Array.isArray(model)) {
+    const id = (model as Record<string, unknown>).modelId;
+    if (typeof id === "string" && id.trim()) return id.trim();
+  }
+  return undefined;
+}
+
+function validateProvider(value: PiProviderConfiguration): void {
+  if (!value || !["openai", "anthropic", "google"].includes(value.providerKind))
+    throw new Error("Pi 服务商类型无效");
+  if (!value.model.trim() || !value.secret.trim())
+    throw new Error("Pi 模型或凭据为空");
+}
+
+function publicMessage(error: unknown): string {
+  let message = error instanceof Error ? error.message : String(error);
+  for (const secret of [provider?.secret ?? "", startCommand?.mcp.token ?? ""])
+    if (secret) message = message.split(secret).join("[REDACTED]");
+  if (/401|unauthorized|authentication|credential|api.?key/i.test(message))
+    return "Pi 模型调用失败：API Key 无效或已失效";
+  if (/404|unknown model|model.*not found/i.test(message))
+    return "Pi 模型调用失败：服务地址或模型名称不匹配";
+  if (/429|rate.?limit|quota|balance/i.test(message))
+    return "Pi 模型调用失败：调用频率受限或账户额度不足";
+  return message || "Pi Runtime 调用失败";
+}

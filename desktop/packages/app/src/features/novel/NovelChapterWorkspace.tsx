@@ -2744,9 +2744,7 @@ function WritingPanel(props: {
                   value={engine.kind}
                   disabled={engine.canRun === false}
                 >
-                  {engine.name}
-                  {engine.isBeta ? "（测试版）" : ""} ·{" "}
-                  {engineStatusLabel(engine)}
+                  {engine.name} · {engineStatusLabel(engine)}
                 </option>
               ))}
             </select>

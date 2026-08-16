@@ -4,7 +4,7 @@ DramaIP: two independent subprojects plus root-level launchers and docs. `deskto
 
 ## Toolchain pins (exact versions matter)
 
-- Bun **1.3.14** exactly, for both JS workspaces (`desktop/`, `platform/clients/`). `run-desktop.py` hard-fails on any other Bun version.
+- Bun **1.3.14** exactly, for both JS workspaces (`desktop/`, `platform/clients/`). `run-desktop.ts` hard-fails on any other Bun version.
 - Node >= 22.12.0 (desktop; Electron ABI boundary) / >= 20 (platform clients, Expo Mobile).
 - Platform server: JDK 21 + Maven 3.9+ (Spring Boot pinned to 4.0.6 in parent POM; never override in submodules).
 - Both `bunfig.toml` files set `auto = "disable"`: `bun install` is never run implicitly — run it manually. Desktop uses `linker = "isolated"`, platform clients use `linker = "hoisted"` (Metro/Babel needs hoisting; don't "fix" either one).
@@ -12,7 +12,7 @@ DramaIP: two independent subprojects plus root-level launchers and docs. `deskto
 ## Commands
 
 Desktop (`desktop/`):
-- `python3 run-desktop.py` — one-shot dev startup (checks Bun/Node, patches Electron binary, rebuilds better-sqlite3, starts dev). Handles `ELECTRON_RUN_AS_NODE` stripping and Electron-binary repair that bare `bun run dev` does not.
+- `bun run-desktop.ts` — one-shot dev startup (checks Bun/Node, patches Electron binary, rebuilds better-sqlite3, starts dev). Handles `ELECTRON_RUN_AS_NODE` stripping and Electron-binary repair that bare `bun run dev` does not.
 - `bun run test` (typecheck + unit), `bun run test:e2e` (build + Playwright; needs a GUI — CI Linux wraps in `xvfb-run -a bunx playwright test`)
 - Single test: `bunx playwright test tests/electron/<file>.spec.ts --reporter=list`, node tests: `node --import tsx --test packages/server/src/sidecar.node.test.ts`
 - Native module: rebuild via `bun run rebuild` (root script -> electron-rebuild); bare `bun rebuild` does NOT work.
@@ -22,7 +22,7 @@ Platform (`platform/`):
 - `make test` (mvn verify + clients typecheck/test + `contracts:check` + `web-route-smoke`), `make platform-up` / `platform-e2e` / `platform-down` (Docker Compose, `--profile java`)
 - Java only: `mvn -B -ntp verify` in `server/`
 - Clients: `bun run lint`, `typecheck`, `contracts:check`, `test` in `clients/`
-- Host-JDK debug mode: `python3 run-platform-dev.py` (runs services 8081–8087 on host, infra in Docker); clients: `python3 run-platform-clients.py`
+- Host-JDK debug mode: `bun run run-platform-dev.ts` (runs services 8081–8087 on host, infra in Docker); clients: `bun run run-platform-clients.ts`
 
 Root Python launcher tests: `python3 -m unittest discover -s tests` (unittest-based; pytest is NOT installed — do not use it).
 
@@ -48,7 +48,7 @@ Platform:
 
 ## Stale references and dead dirs
 
-- Root README mentions `run-platform.py` (does not exist — use `run-platform-dev.py` + `run-platform-clients.py`) and `docs/差异演进.md` (missing). Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
+- Root README mentions `run-platform.py` (does not exist — use `run-platform-dev.ts` + `run-platform-clients.ts`) and `docs/差异演进.md` (missing). Docs cross-link to `desktop/docs/engineering/DEVELOPMENT.md` / `CONTRIBUTING.md`, which also don't exist.
 - `desktop/legacy/`, `desktop/packages/core/`, `desktop/packages/export/` are non-workspace leftovers (no package.json, not in bun workspaces) — ignore, don't restore.
 
 Architecture details: `docs/技术架构.md` (platform red lines), `desktop/docs/engineering/ARCHITECTURE.md` (desktop v3).

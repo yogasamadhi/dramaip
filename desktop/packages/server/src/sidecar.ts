@@ -111,12 +111,13 @@ type StartCommand = {
   codex?: {
     healthy: boolean;
     version: string;
+    authenticated?: boolean;
   };
   dsh?: {
     healthy: boolean;
     version: string;
   };
-  hermes?: {
+  pi?: {
     healthy: boolean;
     version: string;
   };
@@ -134,7 +135,7 @@ const AGENT_ENGINE_ORDER = [
   "opencode",
   "codex",
   "dsh",
-  "hermes",
+  "pi",
   "langgraph",
 ] as const satisfies readonly AgentEngineKind[];
 type ParentPort = {
@@ -417,18 +418,21 @@ hostPort.on("message", (event) => {
       engineKind?: AgentEngineKind;
       healthy?: boolean;
       version?: string;
+      authenticated?: boolean;
     };
     if (status.engineKind === "codex" && command?.codex) {
       command.codex.healthy = status.healthy === true;
       if (status.version) command.codex.version = status.version;
+      if (status.authenticated !== undefined)
+        command.codex.authenticated = status.authenticated === true;
     }
     if (status.engineKind === "dsh" && command?.dsh) {
       command.dsh.healthy = status.healthy === true;
       if (status.version) command.dsh.version = status.version;
     }
-    if (status.engineKind === "hermes" && command?.hermes) {
-      command.hermes.healthy = status.healthy === true;
-      if (status.version) command.hermes.version = status.version;
+    if (status.engineKind === "pi" && command?.pi) {
+      command.pi.healthy = status.healthy === true;
+      if (status.version) command.pi.version = status.version;
     }
     if (status.engineKind === "langgraph" && command?.langgraph) {
       command.langgraph.healthy = status.healthy === true;
@@ -482,8 +486,11 @@ async function start(next: StartCommand): Promise<void> {
     await new Promise<void>((resolve, reject) =>
       server?.listen(next.port, next.hostname, resolve).once("error", reject),
     );
+    if (storedCodexProvider() && command.codex)
+      command.codex.authenticated = false;
     hostPort.postMessage({ type: "ready" });
     void restoreActiveAgentProvider();
+    void restoreCodexApiKeyLogin();
   } catch (error) {
     hostPort.postMessage({ type: "error", error: serializeError(error) });
     process.exitCode = 1;
@@ -504,6 +511,7 @@ async function stop(): Promise<void> {
 
 /** 只做启动恢复、保留期清理与内置规则登记；Schema 由 packages/db 独占。 */
 function initializeDatabaseMaintenance(database: DatabaseSync): void {
+  replaceRetiredHermesSlot(database);
   seedComplianceRuleProfiles(database);
   const now = timestamp();
   database
@@ -533,6 +541,55 @@ function initializeDatabaseMaintenance(database: DatabaseSync): void {
   database
     .prepare("DELETE FROM project_package_imports WHERE expires_at < ?")
     .run(timestamp());
+}
+
+function replaceRetiredHermesSlot(database: DatabaseSync): void {
+  const legacy = database
+    .prepare(
+      "SELECT is_default FROM agent_engine_configs WHERE engine_kind = 'hermes'",
+    )
+    .get() as { is_default?: number } | undefined;
+  if (legacy) {
+    const piExists = database
+      .prepare(
+        "SELECT 1 AS present FROM agent_engine_configs WHERE engine_kind = 'pi'",
+      )
+      .get();
+    if (piExists) {
+      if (legacy.is_default === 1) {
+        database
+          .prepare("UPDATE agent_engine_configs SET is_default = 0")
+          .run();
+        database
+          .prepare(
+            "UPDATE agent_engine_configs SET is_default = 1 WHERE engine_kind = 'pi'",
+          )
+          .run();
+      }
+      database
+        .prepare(
+          "DELETE FROM agent_engine_configs WHERE engine_kind = 'hermes'",
+        )
+        .run();
+    } else {
+      database
+        .prepare(
+          "UPDATE agent_engine_configs SET engine_kind = 'pi' WHERE engine_kind = 'hermes'",
+        )
+        .run();
+    }
+  }
+  database
+    .prepare(
+      "UPDATE project_agent_settings SET default_engine_kind = 'pi' WHERE default_engine_kind = 'hermes'",
+    )
+    .run();
+  for (const table of ["agent_sessions", "agent_runs", "agent_checkpoints"])
+    database
+      .prepare(
+        `UPDATE ${table} SET engine_kind = 'pi' WHERE engine_kind = 'hermes'`,
+      )
+      .run();
 }
 
 function seedComplianceRuleProfiles(database: DatabaseSync): void {
@@ -636,15 +693,12 @@ async function handle(
           requestId,
         );
       const claims = activeMcpClaims.get(engineKind);
-      if (!claims || claims.expiresAt <= Date.now())
-        return respondError(
-          res,
-          401,
-          "UNAUTHORIZED",
-          "当前智能运行没有有效的只读工具授权",
-          requestId,
-        );
-      return mcp(req, res, requestId, claims);
+      return mcp(
+        req,
+        res,
+        requestId,
+        claims && claims.expiresAt > Date.now() ? claims : undefined,
+      );
     }
     if (!authorized(req))
       return respondError(
@@ -12895,6 +12949,97 @@ type OpenCodeProviderConfiguration = {
     "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "GOOGLE_GENERATIVE_AI_API_KEY";
 };
 
+type CodexProviderConfiguration = {
+  providerId: string;
+  providerName: string;
+  model: string;
+  baseUrl: string;
+  credentialRef: string;
+};
+
+type StoredCodexProvider = {
+  providerId: string;
+  modelId: string;
+  protocol: "responses" | "chat_completions";
+};
+
+function codexProviderConfiguration(
+  provider: Record<string, any>,
+): CodexProviderConfiguration {
+  const payload = domainPayload(provider.payload_json);
+  const serviceType = text(payload["服务类型"]);
+  const protocol = text(payload["调用协议"])?.toLowerCase() ?? "";
+  const credentialRef = text(payload["凭据引用"]);
+  const model = text(payload["模型名称"]);
+  const rawBaseUrl = text(payload["服务地址"]);
+  if (serviceType !== "智能模型")
+    throw new Error("只有智能模型服务商可以连接到 Codex");
+  if (!protocol.includes("openai"))
+    throw new Error("Codex 自定义服务商需要使用 OpenAI 兼容文本协议");
+  if (!credentialRef || !model || !rawBaseUrl)
+    throw new Error("Codex 自定义服务商需要服务地址、模型和接口密钥");
+  const address = new URL(rawBaseUrl);
+  if (
+    !["http:", "https:"].includes(address.protocol) ||
+    address.username ||
+    address.password
+  )
+    throw new Error(
+      "Codex 自定义服务商地址必须是无账号密码的 HTTP 或 HTTPS 地址",
+    );
+  const path = address.pathname.replace(/\/+$/, "");
+  address.pathname = path.endsWith("/v1") ? path : `${path || ""}/v1`;
+  address.search = "";
+  address.hash = "";
+  return {
+    providerId: String(provider.id),
+    providerName: String(provider.title),
+    model,
+    baseUrl: address.toString().replace(/\/$/, ""),
+    credentialRef,
+  };
+}
+
+function storedCodexProvider(): StoredCodexProvider | undefined {
+  const record = one(
+    "SELECT model_json FROM agent_engine_configs WHERE engine_kind = 'codex'",
+  );
+  if (!record?.model_json) return undefined;
+  try {
+    const parsed = JSON.parse(String(record.model_json)) as Record<
+      string,
+      unknown
+    >;
+    const providerId = text(parsed.codexProviderId);
+    const modelId = text(parsed.modelId);
+    const protocol =
+      parsed.codexProtocol === "chat_completions"
+        ? "chat_completions"
+        : "responses";
+    return providerId && modelId
+      ? { providerId, modelId, protocol }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function storedCodexProviderConfiguration():
+  CodexProviderConfiguration | undefined {
+  const stored = storedCodexProvider();
+  if (!stored) return undefined;
+  const provider = one(
+    "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+    [stored.providerId, "providers"],
+  );
+  if (!provider) return undefined;
+  try {
+    return codexProviderConfiguration(provider);
+  } catch {
+    return undefined;
+  }
+}
+
 function activeAgentProviderId(): string | undefined {
   const configured = one(
     "SELECT provider_id FROM agent_engine_config WHERE singleton = 1",
@@ -19638,7 +19783,7 @@ function engineHealthy(kind: AgentEngineKind): boolean {
   if (kind === "opencode") return command?.opencode?.healthy === true;
   if (kind === "codex") return command?.codex?.healthy === true;
   if (kind === "dsh") return command?.dsh?.healthy === true;
-  if (kind === "hermes") return command?.hermes?.healthy === true;
+  if (kind === "pi") return command?.pi?.healthy === true;
   return command?.langgraph?.healthy === true;
 }
 
@@ -19646,8 +19791,14 @@ function engineVersion(kind: AgentEngineKind): string {
   if (kind === "opencode") return "1.18.15";
   if (kind === "codex") return command?.codex?.version ?? "0.147.0";
   if (kind === "dsh") return command?.dsh?.version ?? "0.1.0-rc.5";
-  if (kind === "hermes") return command?.hermes?.version ?? "0.20.1";
+  if (kind === "pi") return command?.pi?.version ?? "0.84.2";
   return command?.langgraph?.version ?? "0.2.43";
+}
+
+function engineConfigured(kind: AgentEngineKind): boolean {
+  return kind === "codex"
+    ? command?.codex?.authenticated === true
+    : Boolean(activeAgentProviderId());
 }
 
 function agentFailureCode(raw: string): string {
@@ -19672,8 +19823,7 @@ function agentFailureCode(raw: string): string {
 function agentEngineDescriptor(kind: AgentEngineKind) {
   const healthy = engineHealthy(kind);
   const globalSettings = globalAgentSettingsRecord();
-  const providerConfigured =
-    kind === "codex" || Boolean(activeAgentProviderId());
+  const providerConfigured = engineConfigured(kind);
   const canRun = healthy && providerConfigured;
   const latestRun = one(
     "SELECT status, error, updated_at FROM agent_runs WHERE engine_kind = ? ORDER BY updated_at DESC LIMIT 1",
@@ -19699,15 +19849,17 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
           ? "Codex"
           : kind === "dsh"
             ? "DeepSeek Harness"
-            : kind === "hermes"
-              ? "Hermes Agent"
+            : kind === "pi"
+              ? "Pi"
               : "LangGraph.js",
     version: engineVersion(kind),
     status,
     runtimeStatus: healthy ? "running" : "stopped",
     configurationStatus: providerConfigured
       ? "configured"
-      : "missing_credentials",
+      : kind === "codex"
+        ? "login_required"
+        : "missing_credentials",
     invocationStatus,
     canRun,
     ...(latestRun?.updated_at
@@ -19723,11 +19875,13 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
         }
       : {}),
     isDefault: kind === globalSettings.defaultEngineKind,
-    isBeta: kind === "codex" || kind === "dsh" || kind === "hermes",
+    isBeta: kind === "codex" || kind === "dsh",
     statusMessage: !healthy
       ? "引擎进程未启动"
       : !providerConfigured
-        ? "尚未配置智能模型服务商"
+        ? kind === "codex"
+          ? "尚未登录 Codex，请在设置中心完成 Codex 认证"
+          : "尚未配置智能模型服务商"
         : invocationStatus === "failed"
           ? "引擎已启动，但上次模型调用失败"
           : invocationStatus === "verified"
@@ -20315,6 +20469,7 @@ async function deleteAssistantConversation(
     else if (
       session.engine_kind === "codex" ||
       session.engine_kind === "dsh" ||
+      session.engine_kind === "pi" ||
       session.engine_kind === "langgraph"
     )
       await bridgeEngineRequest(session.engine_kind, "dispose", {
@@ -20718,10 +20873,14 @@ function validateAgentModelSelection(
   model: AgentModelSelection | undefined,
 ): string | undefined {
   if (!model?.providerId) return undefined;
-  if (engineKind === "codex")
-    return ["openai", "codex"].includes(model.providerId.toLowerCase())
+  if (engineKind === "codex") {
+    const customProviderId = storedCodexProvider()?.providerId;
+    return ["openai", "codex", customProviderId?.toLowerCase()].includes(
+      model.providerId.toLowerCase(),
+    )
       ? undefined
-      : "Codex 只能使用其认证账户支持的 OpenAI 模型";
+      : "Codex 只能使用当前认证服务商支持的模型";
+  }
   const providerId = activeAgentProviderId();
   return providerId === model.providerId
     ? undefined
@@ -20783,12 +20942,14 @@ async function createAgentSession(
       `${agentEngineDescriptor(engineKind).name} 引擎当前不可用`,
       requestId,
     );
-  if (engineKind !== "codex" && !activeAgentProviderId())
+  if (!engineConfigured(engineKind))
     return respondError(
       res,
       409,
       "CONFLICT",
-      "请先在模型服务商中将一项“智能模型”设为智能助手模型",
+      engineKind === "codex"
+        ? "请先在设置中心完成 Codex 认证"
+        : "请先在模型服务商中将一项“智能模型”设为智能助手模型",
       requestId,
     );
   const requestedModel = input.model ?? settings.defaultModel;
@@ -21330,6 +21491,16 @@ async function runAgentSession(
       503,
       "ENGINE_UNAVAILABLE",
       `${agentEngineDescriptor(engineKind).name} 引擎当前不可用`,
+      requestId,
+    );
+  if (!engineConfigured(engineKind))
+    return respondError(
+      res,
+      409,
+      "CONFLICT",
+      engineKind === "codex"
+        ? "请先在设置中心完成 Codex 认证"
+        : "请先在模型服务商中将一项“智能模型”设为智能助手模型",
       requestId,
     );
   const input = await body(req);
@@ -22717,7 +22888,12 @@ async function getCodexAuthStatus(
       message: "Codex 引擎当前不可用",
     });
   try {
-    json(res, 200, await bridgeEngineRequest("codex", "authStatus", {}));
+    const result = (await bridgeEngineRequest("codex", "authStatus", {})) as {
+      authenticated?: boolean;
+    };
+    if (command?.codex)
+      command.codex.authenticated = result.authenticated === true;
+    json(res, 200, result);
   } catch (error) {
     respondError(
       res,
@@ -22744,9 +22920,12 @@ async function loginCodex(
     );
   const input = await body(req);
   if (
-    !["api_key", "chatgpt_browser", "chatgpt_device_code"].includes(
-      String(input.mode),
-    )
+    [
+      "api_key",
+      "chatgpt_browser",
+      "chatgpt_device_code",
+      "custom_provider",
+    ].includes(String(input.mode)) === false
   )
     return respondError(
       res,
@@ -22763,8 +22942,98 @@ async function loginCodex(
       "API 密钥登录必须提供安全凭据引用",
       requestId,
     );
+  let providerConfiguration: CodexProviderConfiguration | undefined;
+  if (input.mode === "custom_provider") {
+    const providerId = text(input.providerId);
+    if (!providerId)
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        "请选择要连接到 Codex 的模型服务商",
+        requestId,
+      );
+    const provider = one(
+      "SELECT * FROM domain_entities WHERE id = ? AND domain = ?",
+      [providerId, "providers"],
+    );
+    if (!provider)
+      return respondError(res, 404, "NOT_FOUND", "模型服务商不存在", requestId);
+    try {
+      providerConfiguration = codexProviderConfiguration(provider);
+    } catch (error) {
+      return respondError(
+        res,
+        400,
+        "VALIDATION_ERROR",
+        error instanceof Error ? error.message : "模型服务商配置无效",
+        requestId,
+      );
+    }
+  }
   try {
-    json(res, 200, await bridgeEngineRequest("codex", "login", input));
+    const previousProvider = storedCodexProvider();
+    const previousCredentialRef = text(
+      one(
+        "SELECT credential_ref FROM agent_engine_configs WHERE engine_kind = 'codex'",
+      )?.credential_ref,
+    );
+    const result = (await bridgeEngineRequest("codex", "login", {
+      ...input,
+      ...(providerConfiguration
+        ? {
+            providerId: providerConfiguration.providerId,
+            providerName: providerConfiguration.providerName,
+            baseUrl: providerConfiguration.baseUrl,
+            model: providerConfiguration.model,
+            credentialRef: providerConfiguration.credentialRef,
+            protocol:
+              input.protocol === "chat_completions"
+                ? "chat_completions"
+                : "responses",
+          }
+        : {}),
+    })) as {
+      status?: string;
+      authenticated?: boolean;
+    };
+    if (command?.codex && (input.mode === "api_key" || providerConfiguration)) {
+      command.codex.authenticated =
+        result.authenticated === true || result.status === "authenticated";
+      const credentialRef =
+        providerConfiguration?.credentialRef ?? text(input.credentialRef)!;
+      const modelJson = providerConfiguration
+        ? JSON.stringify({
+            codexProviderId: providerConfiguration.providerId,
+            modelId: providerConfiguration.model,
+            codexProtocol:
+              input.protocol === "chat_completions"
+                ? "chat_completions"
+                : "responses",
+          })
+        : null;
+      db!
+        .prepare(
+          `INSERT INTO agent_engine_configs(
+             engine_kind, enabled, is_default, credential_ref, model_json, updated_at
+           ) VALUES ('codex', 1, 0, ?, ?, ?)
+           ON CONFLICT(engine_kind) DO UPDATE SET
+             credential_ref = excluded.credential_ref,
+             model_json = excluded.model_json,
+             updated_at = excluded.updated_at`,
+        )
+        .run(credentialRef, modelJson, timestamp());
+      if (
+        previousCredentialRef &&
+        previousCredentialRef !== credentialRef &&
+        !previousProvider
+      )
+        hostPort.postMessage({
+          type: "credential:remove",
+          credentialRef: previousCredentialRef,
+        });
+    }
+    json(res, 200, result);
   } catch (error) {
     respondError(
       res,
@@ -22790,6 +23059,20 @@ async function logoutCodex(
     );
   try {
     await bridgeEngineRequest("codex", "logout", {});
+    if (command?.codex) command.codex.authenticated = false;
+    const previousProvider = storedCodexProvider();
+    const credentialRef = text(
+      one(
+        "SELECT credential_ref FROM agent_engine_configs WHERE engine_kind = 'codex'",
+      )?.credential_ref,
+    );
+    db!
+      .prepare(
+        "UPDATE agent_engine_configs SET credential_ref = NULL, model_json = NULL, updated_at = ? WHERE engine_kind = 'codex'",
+      )
+      .run(timestamp());
+    if (credentialRef && !previousProvider)
+      hostPort.postMessage({ type: "credential:remove", credentialRef });
     json(res, 200, {
       available: true,
       authenticated: false,
@@ -22803,6 +23086,52 @@ async function logoutCodex(
       error instanceof Error ? error.message : "Codex 退出失败",
       requestId,
     );
+  }
+}
+
+async function restoreCodexApiKeyLogin(): Promise<void> {
+  const storedProvider = storedCodexProvider();
+  if (
+    !engineHealthy("codex") ||
+    (!storedProvider && command?.codex?.authenticated === true)
+  )
+    return;
+  const providerConfiguration = storedCodexProviderConfiguration();
+  const credentialRef = text(
+    one(
+      "SELECT credential_ref FROM agent_engine_configs WHERE engine_kind = 'codex'",
+    )?.credential_ref,
+  );
+  if (!credentialRef) return;
+  if (storedProvider && !providerConfiguration) {
+    if (command?.codex) command.codex.authenticated = false;
+    return;
+  }
+  try {
+    const result = (await bridgeEngineRequest("codex", "login", {
+      mode: providerConfiguration ? "custom_provider" : "api_key",
+      credentialRef,
+      ...(providerConfiguration
+        ? {
+            providerId: providerConfiguration.providerId,
+            providerName: providerConfiguration.providerName,
+            baseUrl: providerConfiguration.baseUrl,
+            model: providerConfiguration.model,
+            protocol: storedProvider?.protocol ?? "responses",
+          }
+        : {}),
+    })) as { status?: string; authenticated?: boolean };
+    if (command?.codex)
+      command.codex.authenticated =
+        result.authenticated === true || result.status === "authenticated";
+    emit("agent_engine.status", {
+      engineKind: "codex",
+      healthy: true,
+      authenticated: command?.codex?.authenticated === true,
+      version: engineVersion("codex"),
+    });
+  } catch {
+    if (command?.codex) command.codex.authenticated = false;
   }
 }
 
@@ -22946,7 +23275,7 @@ async function createAgentExperiment(
         res,
         409,
         "TASK_REJECTED",
-        "同模型盲测要求 OpenCode、DSH、Hermes 与 LangGraph 使用 OpenAI 兼容服务商",
+        "同模型盲测要求 OpenCode、DSH、Pi 与 LangGraph 使用 OpenAI 兼容服务商",
         requestId,
       );
     if (
@@ -22975,7 +23304,7 @@ async function createAgentExperiment(
       res,
       409,
       "CONFLICT",
-      "请先配置 OpenCode、DSH、Hermes 与 LangGraph 使用的智能模型",
+      "请先配置 OpenCode、DSH、Pi 与 LangGraph 使用的智能模型",
       requestId,
     );
   const sourceProject = one("SELECT * FROM projects WHERE id = ?", [projectId]);
@@ -23009,7 +23338,7 @@ async function createAgentExperiment(
     one: "opencode",
     two: "codex",
     three: "dsh",
-    four: "hermes",
+    four: "pi",
     five: "langgraph",
   } as const satisfies Record<ActiveAgentExperimentCandidate, AgentEngineKind>;
   db!
@@ -24023,7 +24352,7 @@ async function mcp(
   req: IncomingMessage,
   res: ServerResponse,
   requestId: string,
-  claims: McpAccessClaims,
+  claims?: McpAccessClaims,
 ): Promise<void> {
   if (req.method !== "POST")
     return json(res, 405, {
@@ -24058,12 +24387,20 @@ async function mcp(
     });
   if (rpc.method === "tools/list")
     return respond({
-      tools: mcpToolDefinitions().filter((tool) =>
-        claims.tools.includes(tool.name as DramaIpMcpTool),
-      ),
+      // Runtime clients establish MCP while an engine session is created,
+      // before a project-scoped run has claims. Advertising the read-only
+      // catalog here lets that authenticated engine finish its handshake;
+      // every actual call is still denied below unless a live run owns the
+      // matching engine token and project-scoped claims.
+      tools: claims
+        ? mcpToolDefinitions().filter((tool) =>
+            claims.tools.includes(tool.name as DramaIpMcpTool),
+          )
+        : mcpToolDefinitions(),
     });
   if (rpc.method !== "tools/call")
     return fail(-32601, "当前只读工具方法未开放");
+  if (!claims) return fail(-32603, "当前智能运行没有有效的只读工具授权");
   const name = rpc.params?.name;
   const args = rpc.params?.arguments ?? {};
   if (typeof name !== "string" || !args || typeof args !== "object")

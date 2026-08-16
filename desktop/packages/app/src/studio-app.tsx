@@ -5229,9 +5229,9 @@ function TaskPage() {
           }
         >
           <option value="opencode">OpenCode</option>
-          <option value="codex">Codex（测试版）</option>
-          <option value="dsh">DeepSeek Harness（测试版）</option>
-          <option value="hermes">Hermes Agent（测试版）</option>
+          <option value="codex">Codex</option>
+          <option value="dsh">DeepSeek Harness</option>
+          <option value="pi">Pi</option>
           <option value="langgraph">LangGraph.js</option>
         </select>
       </label>
@@ -14745,7 +14745,7 @@ const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
   opencode: "OpenCode",
   codex: "Codex",
   dsh: "DSH",
-  hermes: "Hermes Agent",
+  pi: "Pi",
   langgraph: "LangGraph.js",
 };
 const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
@@ -14753,6 +14753,7 @@ const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
   string
 > = {
   ...AGENT_ENGINE_LABELS,
+  hermes: "Hermes Agent（已移除）",
   openclaw: "OpenClaw（已移除）",
 };
 
@@ -14772,6 +14773,10 @@ function AgentEngineSettingsPanel() {
     queryKey: ["projects"],
     queryFn: client.projects.list,
   });
+  const { data: providers = [] } = useQuery({
+    queryKey: ["resource", "providers"],
+    queryFn: () => client.resources.list("providers"),
+  });
   const { data: codexAuth } = useQuery({
     queryKey: ["codex-auth"],
     queryFn: client.agentEngines.codexAuthStatus,
@@ -14789,7 +14794,20 @@ function AgentEngineSettingsPanel() {
     useState<AgentEngineKind>("opencode");
   const [defaultModelId, setDefaultModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [codexProviderId, setCodexProviderId] = useState("");
+  const [codexProtocol, setCodexProtocol] = useState<
+    "responses" | "chat_completions"
+  >("responses");
   const [notice, setNotice] = useState<string>();
+  const codexProviders = providers.filter((provider) => {
+    const payload = recordPayload(provider.payload);
+    return (
+      payload["服务类型"] === "智能模型" &&
+      String(payload["调用协议"] ?? "")
+        .toLowerCase()
+        .includes("openai")
+    );
+  });
   const { data: projectSettings } = useQuery({
     queryKey: ["project-agent-settings", projectId],
     queryFn: () => client.agentEngines.getProjectSettings(projectId),
@@ -14810,6 +14828,11 @@ function AgentEngineSettingsPanel() {
       setDefaultModelId(projectSettings.defaultModel?.modelId ?? "");
     }
   }, [projectSettings]);
+  useEffect(() => {
+    if (codexAuth?.provider?.id) setCodexProviderId(codexAuth.provider.id);
+    if (codexAuth?.provider?.protocol)
+      setCodexProtocol(codexAuth.provider.protocol);
+  }, [codexAuth?.provider?.id, codexAuth?.provider?.protocol]);
   const updateGlobalDefault = useMutation({
     mutationFn: () =>
       client.agentEngines.updateGlobalSettings({
@@ -14845,8 +14868,21 @@ function AgentEngineSettingsPanel() {
   });
   const loginCodex = useMutation({
     mutationFn: async (
-      mode: "api_key" | "chatgpt_browser" | "chatgpt_device_code",
+      mode:
+        | "api_key"
+        | "chatgpt_browser"
+        | "chatgpt_device_code"
+        | "custom_provider",
     ) => {
+      if (mode === "custom_provider") {
+        if (!codexProviderId)
+          throw new Error("请选择要连接到 Codex 的模型服务商");
+        return client.agentEngines.codexLogin({
+          mode,
+          providerId: codexProviderId,
+          protocol: codexProtocol,
+        });
+      }
       if (mode === "api_key") {
         if (!apiKey.trim()) throw new Error("请输入 Codex 接口密钥");
         const stored = await window.desktop.storeCredential(apiKey.trim());
@@ -14909,11 +14945,6 @@ function AgentEngineSettingsPanel() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium">{engine.name}</p>
-              {engine.isBeta && (
-                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                  测试版
-                </span>
-              )}
             </div>
             <p className="mt-1 text-xs text-muted">版本 {engine.version}</p>
             <p
@@ -14940,7 +14971,6 @@ function AgentEngineSettingsPanel() {
             {engines.map((engine) => (
               <option key={engine.kind} value={engine.kind}>
                 {engine.name}
-                {engine.isBeta ? "（测试版）" : ""}
               </option>
             ))}
           </select>
@@ -14999,7 +15029,6 @@ function AgentEngineSettingsPanel() {
             {engines.map((engine) => (
               <option key={engine.kind} value={engine.kind}>
                 {engine.name}
-                {engine.isBeta ? "（测试版）" : ""}
               </option>
             ))}
           </select>
@@ -15018,7 +15047,9 @@ function AgentEngineSettingsPanel() {
             <p className="text-sm font-medium">Codex 认证</p>
             <p className="mt-1 text-xs text-muted">
               {codexAuth?.authenticated
-                ? `已登录${codexAuth.accountLabel ? `：${codexAuth.accountLabel}` : ""}`
+                ? codexAuth.provider
+                  ? `已连接${codexAuth.provider.name}：${codexAuth.provider.model}（${codexAuth.provider.protocol === "chat_completions" ? "本地 Chat Completions 转换" : "Responses 直连"}）`
+                  : `已登录${codexAuth.accountLabel ? `：${codexAuth.accountLabel}` : ""}`
                 : (codexAuth?.message ?? "尚未登录")}
             </p>
           </div>
@@ -15032,46 +15063,101 @@ function AgentEngineSettingsPanel() {
             </BareButton>
           )}
         </div>
-        {!codexAuth?.authenticated && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <input
-              className="min-w-56 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
-              type="password"
-              autoComplete="off"
-              placeholder="Codex 接口密钥"
-              disabled={credentialStorage?.available !== true}
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-            />
-            <BareButton
-              className="rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
-              disabled={
-                credentialStorage?.available !== true ||
-                !apiKey.trim() ||
-                loginCodex.isPending
-              }
-              onClick={() => loginCodex.mutate("api_key")}
-            >
-              使用接口密钥登录
-            </BareButton>
-            <BareButton
-              className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50"
-              disabled={
-                credentialStorage?.available !== true || loginCodex.isPending
-              }
-              onClick={() => loginCodex.mutate("chatgpt_browser")}
-            >
-              使用 ChatGPT 登录
-            </BareButton>
-            <BareButton
-              className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50"
-              disabled={
-                credentialStorage?.available !== true || loginCodex.isPending
-              }
-              onClick={() => loginCodex.mutate("chatgpt_device_code")}
-            >
-              使用设备码登录
-            </BareButton>
+        {codexAuth?.mode !== "custom_provider" && (
+          <div className="mt-3 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <select
+                className="min-w-64 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
+                value={codexProviderId}
+                onChange={(event) => setCodexProviderId(event.target.value)}
+                disabled={
+                  credentialStorage?.available !== true || loginCodex.isPending
+                }
+              >
+                <option value="">选择已有的 OpenAI 兼容服务商</option>
+                {codexProviders.map((provider) => {
+                  const payload = recordPayload(provider.payload);
+                  return (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.title} ·{" "}
+                      {String(payload["模型名称"] ?? "未选模型")}
+                    </option>
+                  );
+                })}
+              </select>
+              <select
+                className="min-w-56 rounded-lg border border-line px-3 py-2 text-sm"
+                value={codexProtocol}
+                onChange={(event) =>
+                  setCodexProtocol(
+                    event.target.value as "responses" | "chat_completions",
+                  )
+                }
+                disabled={loginCodex.isPending}
+              >
+                <option value="responses">Responses：直接连接</option>
+                <option value="chat_completions">
+                  Chat Completions：本地转换
+                </option>
+              </select>
+              <BareButton
+                className="rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+                disabled={
+                  credentialStorage?.available !== true ||
+                  !codexProviderId ||
+                  loginCodex.isPending
+                }
+                onClick={() => loginCodex.mutate("custom_provider")}
+              >
+                使用此服务商连接 Codex
+              </BareButton>
+            </div>
+            <p className="text-xs leading-5 text-muted">
+              Responses 模式直接请求
+              <code className="mx-1">/v1/responses</code>；Chat Completions
+              模式会在本机转换为 Responses，兼容更多厂商，但 Codex 的部分
+              高级能力可能受限。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                className="min-w-56 flex-1 rounded-lg border border-line px-3 py-2 text-sm"
+                type="password"
+                autoComplete="off"
+                placeholder="OpenAI 接口密钥（可选）"
+                disabled={credentialStorage?.available !== true}
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+              />
+              <BareButton
+                className="rounded-lg border border-brand px-3 py-2 text-sm text-brand disabled:opacity-50"
+                disabled={
+                  credentialStorage?.available !== true ||
+                  !apiKey.trim() ||
+                  loginCodex.isPending
+                }
+                onClick={() => loginCodex.mutate("api_key")}
+              >
+                使用接口密钥登录
+              </BareButton>
+              <BareButton
+                className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50"
+                disabled={
+                  credentialStorage?.available !== true || loginCodex.isPending
+                }
+                onClick={() => loginCodex.mutate("chatgpt_browser")}
+              >
+                使用 ChatGPT 登录
+              </BareButton>
+              <BareButton
+                className="rounded-lg border border-line px-3 py-2 text-sm disabled:opacity-50"
+                disabled={
+                  credentialStorage?.available !== true || loginCodex.isPending
+                }
+                onClick={() => loginCodex.mutate("chatgpt_device_code")}
+              >
+                使用设备码登录
+              </BareButton>
+            </div>
           </div>
         )}
         {credentialStorage?.available === false && (
@@ -15508,7 +15594,6 @@ function AgentSidePanel() {
                   disabled={!canRun && engine.kind !== engineKind}
                 >
                   {engine.name}
-                  {engine.isBeta ? "（测试版）" : ""}
                   {canRun ? "" : " · 不可用"}
                 </option>
               );
@@ -16014,7 +16099,7 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "五引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Hermes Agent 和 LangGraph.js，共产生五次模型费用。",
+          "五引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Pi 和 LangGraph.js，共产生五次模型费用。",
           experimentMode === "same_model"
             ? `比较方式：五个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
@@ -16232,8 +16317,7 @@ export function AgentTaskConfigPanel() {
                   value={engine.kind}
                   disabled={engine.status !== "available"}
                 >
-                  {engine.name}
-                  {engine.isBeta ? "（测试版）" : ""} ·{" "}
+                  {engine.name} ·{" "}
                   {engine.status === "available" ? "可用" : "不可用"}
                 </option>
               ))}

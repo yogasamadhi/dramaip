@@ -858,7 +858,6 @@ function NovelInsightRunner(props: {
                 disabled={engine.canRun === false}
               >
                 {engine.name}
-                {engine.isBeta ? "（测试版）" : ""}
                 {engine.canRun === false ? " · 不可运行" : ""}
               </option>
             ))}
@@ -1098,8 +1097,7 @@ export function NovelArtifactGenerator(props: {
                     value={engine.kind}
                     disabled={engine.canRun === false}
                   >
-                    {engine.name}
-                    {engine.isBeta ? "（测试版）" : ""} ·{" "}
+                    {engine.name} ·{" "}
                     {engine.canRun === false ? "不可运行" : "可运行"}
                   </option>
                 ))}

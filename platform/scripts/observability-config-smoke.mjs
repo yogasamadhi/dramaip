@@ -25,7 +25,7 @@ const [prometheus, hostPrometheus, filebeat, hostFilebeat, alerts, compose, dash
   read('deploy/docker-drama/grafana/dashboards/platform-reliability.json'),
   read('deploy/docker-drama/grafana/provisioning/datasources/prometheus.yml'),
   read('deploy/docker-drama/grafana/provisioning/datasources/elasticsearch.yml'),
-  read('../run-platform-dev.py'),
+  read('../run-platform-dev.ts'),
 ])
 
 const requiredTargets = ['java-gateway:8080', 'identity:8080', 'java-notification:8080', 'java-reporting:8080', 'creation:8080', 'java-quota:8080', 'ai:8080', 'java-billing:8080', 'rabbitmq:15692']
@@ -87,7 +87,7 @@ for (const value of ['OTEL_JAVAAGENT_OPTS', 'OTEL_METRICS_EXPORTER: none', 'OTEL
   assert(compose.includes(value), `Compose observability configuration is missing: ${value}`)
 }
 assert(compose.includes('JAVA_OPTS: "${JAVA_OPTS:--Xms64m -Xmx256m -XX:+UseG1GC}"'), 'Compose must bound local Java heaps')
-for (const value of ['--obs', 'require_observability_agent', 'write_host_prometheus_targets', 'host.docker.internal:8080', 'DOCKER_OBSERVABILITY_SERVICES']) {
+for (const value of ['--obs', 'requireObservabilityAgent', 'writeHostPrometheusTargets', 'host.docker.internal:8080', 'DOCKER_OBSERVABILITY_SERVICES']) {
   assert(launcher.includes(value), `Host development launcher is missing observability support: ${value}`)
 }
 

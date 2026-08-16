@@ -44,14 +44,14 @@ extraResources:
     to: third-party-notices/dsh/LICENSE
   - from: ../../vendor/deepseek-harness/THIRD_PARTY_NOTICES.md
     to: third-party-notices/dsh/THIRD_PARTY_NOTICES.md
-  - from: build/hermes
-    to: hermes/runtime
+  - from: build/pi
+    to: pi/runtime
     filter:
       - "**/*"
-  - from: ../../vendor/hermes-agent/LICENSE
-    to: third-party-notices/hermes/LICENSE
-  - from: hermes-adapter/THIRD_PARTY_NOTICES.md
-    to: third-party-notices/hermes/THIRD_PARTY_NOTICES.md
+  - from: ../../vendor/pi/LICENSE
+    to: third-party-notices/pi/LICENSE
+  - from: pi-adapter/THIRD_PARTY_NOTICES.md
+    to: third-party-notices/pi/THIRD_PARTY_NOTICES.md
   - from: ../../vendor/opencode/packages/opencode/dist/node
     to: opencode
     filter:

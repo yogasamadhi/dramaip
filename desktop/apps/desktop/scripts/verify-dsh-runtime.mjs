@@ -110,6 +110,10 @@ const llmServer = createServer(async (request, response) => {
     response.writeHead(404).end();
     return;
   }
+  if (request.headers.authorization !== "Bearer verification-key") {
+    response.writeHead(401).end();
+    return;
+  }
   await requestBody(request);
   llmCalled = true;
   response.writeHead(200, {

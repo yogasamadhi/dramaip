@@ -26,7 +26,7 @@ python3 run-platform.py
 仅在本机 JDK 中调试 Java 服务、并把 PostgreSQL/Redis/RabbitMQ/MinIO/Nacos MySQL/Nacos/Seata 留在 Docker 时，使用：
 
 ```powershell
-python .\run-platform-dev.py
+bun run .\run-platform-dev.ts
 ```
 
 该命令不会启动任何 Java 容器。它会停止已有的 Compose Java 应用容器、使用全局 Maven 在本地打包并执行 migration，然后启动本地 Gateway（`8080`）及七个服务（`8081`–`8087`）。Ctrl+C 只停止本地 Java 进程，Docker 基础设施继续运行。
@@ -80,9 +80,9 @@ make platform-observability-down
 本机 JDK 调试也可启用同一套栈：
 
 ```bash
-python run-platform-dev.py --obs
-python run-platform-dev.py --obs --services creation,quota
-python run-platform-dev.py --obs --services creation --no-gateway --smoke
+bun run run-platform-dev.ts --obs
+bun run run-platform-dev.ts --obs --services creation,quota
+bun run run-platform-dev.ts --obs --services creation --no-gateway --smoke
 ```
 
 `--obs` 会先启动 Prometheus、Collector、Jaeger、Elasticsearch、Kibana、Filebeat 与 Grafana，再以 `127.0.0.1:4318` 作为 OTLP 地址运行 migration 和选中的 Java 进程。Prometheus 的 file-SD 文件仅列出实际启动的 `host.docker.internal:8080–8087`，所以子集调试不会产生伪 TargetDown。`--skip-package --obs` 要求 `server/target/observability/opentelemetry-javaagent.jar` 已由一次 Maven package 生成。Ctrl+C 仍只停止本机 Java；使用 `make platform-observability-down` 停止观测容器。

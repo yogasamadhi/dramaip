@@ -14,9 +14,11 @@
     "build:admin": "bun run --filter @dramaip/admin build",
     "dev:mobile": "bun run --filter @dramaip/mobile start",
     "contracts:check": "bun run scripts/check-client-contracts.mjs",
-    "typecheck": "bun run --workspaces --sequential typecheck",
+    "typecheck": "bun run --workspaces --sequential typecheck && bun run typecheck:launchers",
+    "typecheck:launchers": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --types node ../../run-platform-clients.ts ../../run-platform-dev.ts",
     "lint": "bun run --workspaces --sequential lint",
-    "test": "bun run --filter @dramaip/sdk test && bun run --filter @dramaip/web test && bun run --filter @dramaip/admin test && bun run --filter @dramaip/mobile test:security"
+    "test": "bun run --filter @dramaip/sdk test && bun run --filter @dramaip/web test && bun run --filter @dramaip/admin test && bun run --filter @dramaip/mobile test:security && bun run test:launchers",
+    "test:launchers": "bun test scripts/platform-launchers.test.ts"
   },
   "devDependencies": {
     "tsx": "^4.22.4",
