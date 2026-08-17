@@ -46,14 +46,45 @@ const ledgerData = z.object({
 
 export const insightsResources = [
   { kind: "feedback", path: "feedback", data: feedbackData },
-  { kind: "cluster", path: "clusters", data: clusterData },
-  { kind: "production-graph", path: "production-graphs", data: graphData },
+  {
+    kind: "cluster",
+    path: "clusters",
+    data: clusterData,
+    validateCreate: (data: z.infer<typeof clusterData>) => {
+      if (!data.feedbackIds.length) throw new Error("评论聚类至少需要一条反馈");
+    },
+  },
+  {
+    kind: "production-graph",
+    path: "production-graphs",
+    data: graphData,
+    validateCreate: (data: z.infer<typeof graphData>) => {
+      if (!data.nodes.length) throw new Error("生产图至少需要一个节点");
+      if (
+        data.edges.some(
+          (edge) =>
+            !data.nodes.some((node) => node.id === edge.source) ||
+            !data.nodes.some((node) => node.id === edge.target),
+        )
+      )
+        throw new Error("生产图存在未知节点");
+    },
+  },
   { kind: "impact-analysis", path: "impact-analyses", data: impactData },
   {
     kind: "generation-ledger",
     path: "generation-ledger",
     data: ledgerData,
     defaultStatus: "final",
+    validateCreate: (data: z.infer<typeof ledgerData>) => {
+      if (
+        data.inputTokens <= 0 ||
+        data.outputTokens <= 0 ||
+        data.costMicros <= 0 ||
+        !data.runId.trim()
+      )
+        throw new Error("生成账本必须来自真实运行用量");
+    },
   },
 ] satisfies readonly NodeResourceDefinition<any>[];
 

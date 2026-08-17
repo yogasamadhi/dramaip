@@ -3,6 +3,10 @@ import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import {
+  startCodexChatBridge,
+  type CodexChatBridge,
+} from "./codex-chat-bridge.ts";
 import { normalizeCodexOutput } from "./codex-output.ts";
 
 type StartCommand = {
@@ -40,6 +44,16 @@ let startCommand: StartCommand | undefined;
 let appServer: ChildProcessWithoutNullStreams | undefined;
 let rpcSequence = 0;
 let runtimeApiKey: string | undefined;
+let runtimeProvider:
+  | {
+      providerId: string;
+      providerName: string;
+      baseUrl: string;
+      model: string;
+      protocol: "responses" | "chat_completions";
+    }
+  | undefined;
+let chatBridge: CodexChatBridge | undefined;
 const pendingRpc = new Map<
   number,
   {
@@ -110,6 +124,10 @@ async function start(command: StartCommand): Promise<void> {
 
 async function launchAppServer(): Promise<void> {
   if (!startCommand) throw new Error("Codex 启动参数不存在");
+  if (chatBridge) {
+    await chatBridge.close();
+    chatBridge = undefined;
+  }
   loadedThreads.clear();
   threadResumes.clear();
   const env: NodeJS.ProcessEnv = {};
@@ -135,7 +153,41 @@ async function launchAppServer(): Promise<void> {
     if (process.env[key]) env[key] = process.env[key];
   env.CODEX_HOME = startCommand.codexHome;
   env.DRAMAIP_MCP_TOKEN = startCommand.mcp.token;
-  if (runtimeApiKey) env.OPENAI_API_KEY = runtimeApiKey;
+  let providerBaseUrl = runtimeProvider?.baseUrl;
+  let providerEnvKey = "DRAMAIP_CODEX_PROVIDER_API_KEY";
+  if (runtimeProvider?.protocol === "chat_completions") {
+    if (!runtimeApiKey)
+      throw new Error("Codex Chat Completions 适配器缺少 API 密钥");
+    chatBridge = await startCodexChatBridge({
+      targetBaseUrl: runtimeProvider.baseUrl,
+      apiKey: runtimeApiKey,
+    });
+    providerBaseUrl = chatBridge.baseUrl;
+    providerEnvKey = "DRAMAIP_CODEX_BRIDGE_TOKEN";
+    env.DRAMAIP_CODEX_BRIDGE_TOKEN = chatBridge.token;
+  } else if (runtimeProvider && runtimeApiKey) {
+    env.DRAMAIP_CODEX_PROVIDER_API_KEY = runtimeApiKey;
+  } else if (!runtimeProvider && runtimeApiKey) {
+    env.OPENAI_API_KEY = runtimeApiKey;
+  }
+  const providerConfig = runtimeProvider
+    ? [
+        "-c",
+        `model_provider=${tomlString("dramaip_custom")}`,
+        "-c",
+        `model=${tomlString(runtimeProvider.model)}`,
+        "-c",
+        `model_providers.dramaip_custom.name=${tomlString(runtimeProvider.providerName)}`,
+        "-c",
+        `model_providers.dramaip_custom.base_url=${tomlString(providerBaseUrl ?? runtimeProvider.baseUrl)}`,
+        "-c",
+        `model_providers.dramaip_custom.env_key=${tomlString(providerEnvKey)}`,
+        "-c",
+        'model_providers.dramaip_custom.wire_api="responses"',
+        "-c",
+        "model_providers.dramaip_custom.requires_openai_auth=false",
+      ]
+    : [];
   appServer = spawn(
     startCommand.binaryPath,
     [
@@ -162,6 +214,7 @@ async function launchAppServer(): Promise<void> {
       "features.remote_plugin=false",
       "-c",
       "features.skill_mcp_dependency_install=false",
+      ...providerConfig,
     ],
     {
       cwd: startCommand.sessionRoot,
@@ -398,6 +451,7 @@ async function perform(
   if (operation === "login") return login(payload);
   if (operation === "logout") {
     runtimeApiKey = undefined;
+    runtimeProvider = undefined;
     if (appServer) {
       try {
         await rpc("account/logout", {});
@@ -465,13 +519,31 @@ async function authStatus(): Promise<{
   authenticated: boolean;
   mode?: string;
   accountLabel?: string;
+  provider?: {
+    id: string;
+    name: string;
+    model: string;
+    baseUrl: string;
+    protocol: "responses" | "chat_completions";
+  };
 }> {
   if (runtimeApiKey)
     return {
       available: true,
       authenticated: true,
-      mode: "api_key",
-      accountLabel: "OpenAI API 密钥",
+      ...(runtimeProvider
+        ? {
+            mode: "custom_provider",
+            accountLabel: runtimeProvider.providerName,
+            provider: {
+              id: runtimeProvider.providerId,
+              name: runtimeProvider.providerName,
+              model: runtimeProvider.model,
+              baseUrl: runtimeProvider.baseUrl,
+              protocol: runtimeProvider.protocol,
+            },
+          }
+        : { mode: "api_key", accountLabel: "OpenAI API 密钥" }),
     };
   const result = await rpc("account/read", { refreshToken: false });
   const account = result?.account as Record<string, unknown> | undefined;
@@ -495,9 +567,41 @@ async function authStatus(): Promise<{
 
 async function login(payload: Record<string, unknown>): Promise<unknown> {
   const mode = String(payload.mode ?? "");
+  if (mode === "custom_provider") {
+    const providerId = String(payload.providerId ?? "").trim();
+    const providerName = String(payload.providerName ?? "").trim();
+    const baseUrl = String(payload.baseUrl ?? "").trim();
+    const model = String(payload.model ?? "").trim();
+    if (!providerId || !providerName || !baseUrl || !model)
+      throw new Error("Codex 自定义服务商配置不完整");
+    if (!/^https?:\/\//iu.test(baseUrl))
+      throw new Error("Codex 自定义服务商地址必须使用 HTTP 或 HTTPS");
+    if (typeof payload.apiKey !== "string" || !payload.apiKey.trim())
+      throw new Error("安全存储中的服务商 API 密钥不可用");
+    runtimeApiKey = payload.apiKey;
+    runtimeProvider = {
+      providerId,
+      providerName,
+      baseUrl,
+      model,
+      protocol:
+        payload.protocol === "chat_completions"
+          ? "chat_completions"
+          : "responses",
+    };
+    await restartAppServer();
+    return {
+      status: "authenticated",
+      message:
+        runtimeProvider.protocol === "chat_completions"
+          ? `已连接 ${providerName}。已启用本地 Chat Completions → Responses 转换；Codex 部分高级能力可能受限。`
+          : `已连接 ${providerName}（Responses API 直连）。`,
+    };
+  }
   if (mode === "api_key") {
     if (typeof payload.apiKey !== "string" || !payload.apiKey.trim())
       throw new Error("安全存储中的 API 密钥不可用");
+    runtimeProvider = undefined;
     runtimeApiKey = payload.apiKey;
     await restartAppServer();
     return {
@@ -505,6 +609,10 @@ async function login(payload: Record<string, unknown>): Promise<unknown> {
       message: "API 密钥仅注入当前 Codex 进程",
     };
   }
+  const hadRuntimeProvider = Boolean(runtimeProvider || runtimeApiKey);
+  runtimeProvider = undefined;
+  runtimeApiKey = undefined;
+  if (hadRuntimeProvider) await restartAppServer();
   const result = await rpc("account/login/start", {
     type: mode === "chatgpt_device_code" ? "chatgptDeviceCode" : "chatgpt",
     ...(mode === "chatgpt_browser"
@@ -628,6 +736,7 @@ async function ensureThreadLoaded(threadId: string, model = ""): Promise<void> {
 
 async function stop(): Promise<void> {
   failAll(new Error("Codex 引擎正在关闭"));
+  if (chatBridge) await chatBridge.close().catch(() => undefined);
   if (appServer) {
     appServer.kill("SIGTERM");
     appServer = undefined;
@@ -658,4 +767,8 @@ function extractText(value: unknown): string {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function tomlString(value: string): string {
+  return JSON.stringify(value);
 }

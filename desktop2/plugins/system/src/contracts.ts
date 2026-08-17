@@ -60,3 +60,6 @@ export const backupSchema = z.object({
 });
 
 export const backupPageSchema = z.object({ items: z.array(backupSchema) });
+export const restoreBackupSchema = z
+  .object({ confirmation: z.string().trim().min(1).max(300) })
+  .strict();

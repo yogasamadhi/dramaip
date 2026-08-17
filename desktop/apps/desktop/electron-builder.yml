@@ -52,6 +52,14 @@ extraResources:
     to: third-party-notices/pi/LICENSE
   - from: pi-adapter/THIRD_PARTY_NOTICES.md
     to: third-party-notices/pi/THIRD_PARTY_NOTICES.md
+  - from: build/grok/aarch64-apple-darwin
+    to: grok/aarch64-apple-darwin
+    filter:
+      - "**/*"
+  - from: ../../vendor/grok-build/LICENSE
+    to: third-party-notices/grok/LICENSE
+  - from: ../../vendor/grok-build/THIRD-PARTY-NOTICES
+    to: third-party-notices/grok/THIRD-PARTY-NOTICES
   - from: ../../vendor/opencode/packages/opencode/dist/node
     to: opencode
     filter:

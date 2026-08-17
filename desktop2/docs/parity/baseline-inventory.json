@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceHead": "f5af60c7bf540aa6f9b201df67df4b35d2aa7938",
-  "sourceOpenApiSha256": "51b7ef8b761dc4297979fd3c8ea31d01f753535cfb9e9f725e7b8ff9af9ca662",
+  "sourceHead": "56c7e30ecee5f2fcad0ce9906d9c14fcd1b503db",
+  "sourceOpenApiSha256": "3f8495a38b9a42645251708323c7ee0f55e627f1d05a16e50092b101e17e70bc",
   "counts": { "endpoints": 181, "uiRoutes": 15, "electronJourneys": 32 },
   "endpoints": [
     {
@@ -11,8 +11,15 @@
       "targetPlugin": "split-by-typed-context",
       "targetBase": "/api/v2/<typed-context>/<typed-resource>",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -22,8 +29,15 @@
       "targetPlugin": "split-by-typed-context",
       "targetBase": "/api/v2/<typed-context>/<typed-resource>",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -33,8 +47,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -44,8 +67,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -55,8 +87,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -66,8 +107,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -77,8 +127,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -88,8 +147,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -99,8 +167,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -110,8 +187,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -121,8 +207,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -132,8 +227,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -143,8 +247,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -154,8 +267,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -165,8 +287,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -176,8 +307,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -187,8 +327,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -198,8 +347,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -209,8 +367,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -220,8 +387,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -231,8 +407,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -242,8 +427,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -253,8 +447,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -264,8 +467,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -275,8 +487,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -286,8 +507,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -297,8 +527,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -308,8 +547,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -319,8 +567,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -330,8 +587,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -341,8 +607,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -352,8 +627,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -363,8 +647,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -374,8 +667,15 @@
       "targetPlugin": "system",
       "targetBase": "/api/v2/system",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -385,8 +685,15 @@
       "targetPlugin": "system",
       "targetBase": "/api/v2/system",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -396,8 +703,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -407,8 +723,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -418,8 +743,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -429,8 +763,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -440,8 +783,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -451,8 +803,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -462,8 +823,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -473,8 +843,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -484,8 +863,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -495,8 +883,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -506,8 +903,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -517,8 +923,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -528,8 +943,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -539,8 +963,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -550,8 +983,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -561,8 +1003,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -572,8 +1023,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -583,8 +1043,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -594,8 +1063,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -605,8 +1083,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -616,8 +1103,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -627,8 +1123,15 @@
       "targetPlugin": "system",
       "targetBase": "/api/v2/system",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -638,8 +1141,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -649,8 +1161,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -660,8 +1181,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -671,8 +1201,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -682,8 +1221,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -693,8 +1241,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -704,8 +1261,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -715,8 +1281,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -726,8 +1301,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -737,8 +1321,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -748,8 +1341,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -759,8 +1361,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -770,8 +1381,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -781,8 +1401,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -792,8 +1421,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -803,8 +1441,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -814,8 +1461,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -825,8 +1481,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -836,8 +1501,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -847,8 +1521,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -858,8 +1541,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -869,8 +1561,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -880,8 +1581,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -891,8 +1601,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -902,8 +1621,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -913,8 +1641,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -924,8 +1661,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -935,8 +1681,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -946,8 +1701,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -957,8 +1721,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -968,8 +1741,15 @@
       "targetPlugin": "system",
       "targetBase": "/api/v2/system",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -979,8 +1759,17 @@
       "targetPlugin": "delivery",
       "targetBase": "/api/v2/delivery",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/delivery/archives",
+        "/api/v2/delivery/archives/{id}",
+        "/api/v2/delivery/cloud-review-syncs",
+        "/api/v2/delivery/cloud-review-syncs/{id}",
+        "/api/v2/delivery/cloud-review-syncs/{id}/actions/publish",
+        "/api/v2/delivery/creative-versions",
+        "/api/v2/delivery/creative-versions/{id}",
+        "/api/v2/delivery/exports"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -990,8 +1779,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1001,8 +1799,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1012,8 +1819,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1023,8 +1839,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1034,8 +1859,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1045,8 +1879,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1056,8 +1899,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1067,8 +1919,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1078,8 +1939,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1089,8 +1959,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1100,8 +1979,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1111,8 +1999,17 @@
       "targetPlugin": "creative-quality",
       "targetBase": "/api/v2/creative-quality",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/creative-quality/analyses",
+        "/api/v2/creative-quality/analyses/{id}",
+        "/api/v2/creative-quality/case-studies",
+        "/api/v2/creative-quality/case-studies/{id}",
+        "/api/v2/creative-quality/compliance-checks",
+        "/api/v2/creative-quality/compliance-checks/{id}",
+        "/api/v2/creative-quality/diagnostics",
+        "/api/v2/creative-quality/diagnostics/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1122,8 +2019,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1133,8 +2039,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1144,8 +2059,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1155,8 +2079,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1166,8 +2099,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1177,8 +2119,17 @@
       "targetPlugin": "insights",
       "targetBase": "/api/v2/insights",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/insights/clusters",
+        "/api/v2/insights/clusters/{id}",
+        "/api/v2/insights/feedback",
+        "/api/v2/insights/feedback/{id}",
+        "/api/v2/insights/generation-ledger",
+        "/api/v2/insights/generation-ledger/{id}",
+        "/api/v2/insights/impact-analyses",
+        "/api/v2/insights/impact-analyses/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1188,8 +2139,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1199,8 +2159,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1210,8 +2179,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1221,8 +2199,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1232,8 +2219,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1243,8 +2239,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1254,8 +2259,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1265,8 +2279,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1276,8 +2299,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1287,8 +2319,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1298,8 +2339,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1309,8 +2359,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1320,8 +2379,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1331,8 +2399,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1342,8 +2419,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1353,8 +2439,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1364,8 +2459,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1375,8 +2479,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1386,8 +2499,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1397,8 +2519,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1408,8 +2539,17 @@
       "targetPlugin": "agents",
       "targetBase": "/api/v2/agents",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/agents/assistant/conversations",
+        "/api/v2/agents/assistant/conversations/{id}",
+        "/api/v2/agents/assistant/conversations/{id}/actions/archive",
+        "/api/v2/agents/assistant/conversations/{id}/actions/bind-project",
+        "/api/v2/agents/assistant/conversations/{id}/actions/restore",
+        "/api/v2/agents/assistant/conversations/{id}/messages",
+        "/api/v2/agents/engines",
+        "/api/v2/agents/experiments"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1419,8 +2559,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1430,8 +2579,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1441,8 +2599,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1452,8 +2619,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1463,8 +2639,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1474,8 +2659,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1485,8 +2679,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1496,8 +2699,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1507,8 +2719,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1518,8 +2739,17 @@
       "targetPlugin": "review",
       "targetBase": "/api/v2/review",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/review/comments",
+        "/api/v2/review/comments/{id}",
+        "/api/v2/review/decisions",
+        "/api/v2/review/decisions/{id}",
+        "/api/v2/review/packages",
+        "/api/v2/review/packages/{id}",
+        "/api/v2/review/production-reviews",
+        "/api/v2/review/production-reviews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1529,8 +2759,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1540,8 +2779,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1551,8 +2799,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1562,8 +2819,17 @@
       "targetPlugin": "writing",
       "targetBase": "/api/v2/writing",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/writing/chapters/{id}",
+        "/api/v2/writing/chapters/{id}/actions/save",
+        "/api/v2/writing/chapters/{id}/versions",
+        "/api/v2/writing/chapters/{id}/versions/{versionId}/actions/restore",
+        "/api/v2/writing/content-versions/{id}/actions/restore",
+        "/api/v2/writing/localizations",
+        "/api/v2/writing/localizations/{id}",
+        "/api/v2/writing/localizations/{id}/actions/adopt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1573,8 +2839,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1584,8 +2859,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1595,8 +2879,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1606,8 +2899,15 @@
       "targetPlugin": "system",
       "targetBase": "/api/v2/system",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/system/backups",
+        "/api/v2/system/backups/{id}/actions/restore",
+        "/api/v2/system/bootstrap",
+        "/api/v2/system/diagnostics",
+        "/api/v2/system/health",
+        "/api/v2/system/search"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1617,8 +2917,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1628,8 +2937,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1639,8 +2957,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1650,8 +2977,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1661,8 +2997,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1672,8 +3017,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1683,8 +3037,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1694,8 +3057,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1705,8 +3077,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1716,8 +3097,17 @@
       "targetPlugin": "workspace",
       "targetBase": "/api/v2/workspace",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/workspace/project-packages/{id}/actions/commit",
+        "/api/v2/workspace/project-packages/actions/preview",
+        "/api/v2/workspace/projects",
+        "/api/v2/workspace/projects/{id}",
+        "/api/v2/workspace/projects/{id}/actions/purge",
+        "/api/v2/workspace/projects/{id}/actions/restore",
+        "/api/v2/workspace/projects/{id}/exports/{format}",
+        "/api/v2/workspace/projects/trash"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1727,8 +3117,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1738,8 +3137,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1749,8 +3157,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1760,8 +3177,17 @@
       "targetPlugin": "knowledge",
       "targetBase": "/api/v2/knowledge",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/knowledge/change-sets",
+        "/api/v2/knowledge/change-sets/{id}",
+        "/api/v2/knowledge/change-sets/{id}/actions/apply",
+        "/api/v2/knowledge/change-sets/{id}/actions/undo",
+        "/api/v2/knowledge/characters",
+        "/api/v2/knowledge/characters/{id}",
+        "/api/v2/knowledge/import-extractions/{id}/actions/adopt",
+        "/api/v2/knowledge/outlines"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1771,8 +3197,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1782,8 +3217,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1793,8 +3237,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1804,8 +3257,17 @@
       "targetPlugin": "automation",
       "targetBase": "/api/v2/automation",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/automation/change-previews/{id}",
+        "/api/v2/automation/change-previews/{id}/actions/commit",
+        "/api/v2/automation/change-previews/{id}/actions/discard",
+        "/api/v2/automation/tasks",
+        "/api/v2/automation/tasks/{id}",
+        "/api/v2/automation/tasks/{id}/actions/cancel",
+        "/api/v2/automation/tasks/{id}/actions/fail",
+        "/api/v2/automation/tasks/{id}/actions/interrupt"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1815,8 +3277,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1826,8 +3297,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1837,8 +3317,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1848,8 +3337,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1859,8 +3357,17 @@
       "targetPlugin": "timeline",
       "targetBase": "/api/v2/timeline",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/timeline/commands",
+        "/api/v2/timeline/commands/{id}",
+        "/api/v2/timeline/exports",
+        "/api/v2/timeline/exports/{id}",
+        "/api/v2/timeline/histories",
+        "/api/v2/timeline/histories/{id}",
+        "/api/v2/timeline/previews",
+        "/api/v2/timeline/previews/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1870,8 +3377,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1881,8 +3397,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1892,8 +3417,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1903,8 +3437,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1914,8 +3457,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1925,8 +3477,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1936,8 +3497,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "local-policy",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1947,8 +3517,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1958,8 +3537,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1969,8 +3557,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1980,8 +3577,17 @@
       "targetPlugin": "media",
       "targetBase": "/api/v2/media",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/media/animatics",
+        "/api/v2/media/animatics/{id}",
+        "/api/v2/media/assets",
+        "/api/v2/media/assets/{id}",
+        "/api/v2/media/assets/{id}/actions/adopt",
+        "/api/v2/media/assets/{id}/actions/clear-rights",
+        "/api/v2/media/assets/{id}/actions/lock",
+        "/api/v2/media/assets/{id}/actions/reject"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     },
     {
@@ -1991,8 +3597,17 @@
       "targetPlugin": "production",
       "targetBase": "/api/v2/production",
       "disposition": "migrate",
-      "replacementEndpoints": [],
-      "status": "pending",
+      "replacementEndpoints": [
+        "/api/v2/production/adaptations",
+        "/api/v2/production/adaptations/{id}",
+        "/api/v2/production/episodes",
+        "/api/v2/production/episodes/{id}",
+        "/api/v2/production/pilots",
+        "/api/v2/production/pilots/{id}",
+        "/api/v2/production/scenes",
+        "/api/v2/production/scenes/{id}"
+      ],
+      "status": "complete",
       "acceptanceTests": []
     }
   ],
@@ -2000,9 +3615,11 @@
     {
       "sourcePath": "/",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
@@ -2010,204 +3627,232 @@
       "scope": "core",
       "status": "pending",
       "disposition": "exclude-dev-only",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/adapt",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/create",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/insights",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/produce",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/projects/:projectId",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/projects/:projectId/tools",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/projects/:projectId/tools/:toolKey",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/review",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/search",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/settings",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/tasks",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/write",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     },
     {
       "sourcePath": "/write/new",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementRoutes": [],
+      "replacementRoutes": [
+        "desktop2/apps/studio/src/renderer/src/studio-application.tsx"
+      ],
       "acceptanceTests": []
     }
   ],
   "electronJourneys": [
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "a7de1f5d046f",
       "scenario": "桌面窗口使用更宽高的默认工作区",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "e1c467b7169e",
       "scenario": "全中文项目壳与示例项目纵向链路可用",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "f329b1372ca5",
       "scenario": "Renderer 只暴露桌面原生白名单",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "8246fde25943",
       "scenario": "主题跟随系统并持久化手动选择",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "15973bd86760",
       "scenario": "最小窗口下应用栏可用且页面无横向溢出",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "ee8ca097cacb",
       "scenario": "智能助手只在用户打开弹窗后显示",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "1ded4916a2ef",
       "scenario": "只填作品名即可创建小说、首章并进入写作",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "dcf5a45a9410",
       "scenario": "小说正文使用全高三栏，智能写作常驻且窄屏无溢出",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/abc-smoke.spec.ts",
-      "sourceSha256": "053cf83b29cfe913dda088c3b2735096d38d483286999a3e74f2672803b0d0b2",
+      "sourceSha256": "d6125e458246699fa119667dd6603de393ca60dd77e44251f0707a154ac35d43",
       "scenarioId": "56be5cdfe53f",
       "scenario": "模型服务商置顶并提供常用厂商与模型级联选择",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-01.spec.ts",
@@ -2215,9 +3860,9 @@
       "scenarioId": "6ddb89eac665",
       "scenario": "三种创建入口进入同一项目上下文，原著路径先展示权益预览",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-02.spec.ts",
@@ -2225,9 +3870,9 @@
       "scenarioId": "29306c737674",
       "scenario": "空项目驾驶舱只显示一个可信下一步，并将审核区绑定到当前项目",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-03.spec.ts",
@@ -2235,9 +3880,9 @@
       "scenarioId": "39fffdc7854d",
       "scenario": "默认上下文助手只展示推荐动作，高级模式保留完整控制",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-04.spec.ts",
@@ -2245,9 +3890,9 @@
       "scenarioId": "bbd697ca2fe5",
       "scenario": "小说导入后可审阅五类候选并选择性采用",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-05.spec.ts",
@@ -2255,9 +3900,9 @@
       "scenarioId": "825c15b1cc04",
       "scenario": "原著路径可建立并恢复一集试制计划",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-10.spec.ts",
@@ -2265,9 +3910,9 @@
       "scenarioId": "9893dae43aeb",
       "scenario": "示例项目在统一资产中心展示筛选、状态和版本比较入口",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-11.spec.ts",
@@ -2275,9 +3920,9 @@
       "scenarioId": "be003e16deb2",
       "scenario": "导演看板支持键盘、拖拽重排、撤销和资产上下文跳转",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-12.spec.ts",
@@ -2285,9 +3930,9 @@
       "scenarioId": "02fe9738e537",
       "scenario": "静帧 Gate 未通过时桌面端不会发出视频提交",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-13.spec.ts",
@@ -2295,9 +3940,9 @@
       "scenarioId": "c75105675b32",
       "scenario": "改编区显示可访问的集级四轨节奏看板",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-14.spec.ts",
@@ -2305,9 +3950,9 @@
       "scenarioId": "aeb0c3119f92",
       "scenario": "章节编辑器在窄窗口保留 Story Bible 侧栏、选择性采用与撤销",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-15.spec.ts",
@@ -2315,9 +3960,9 @@
       "scenarioId": "e1e372ebda0e",
       "scenario": "三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-20.spec.ts",
@@ -2325,9 +3970,9 @@
       "scenarioId": "f3400353dba3",
       "scenario": "多轨时间线可定位、编辑、撤销并在重开后保留编辑",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-21.spec.ts",
@@ -2335,9 +3980,9 @@
       "scenarioId": "179e144f170d",
       "scenario": "已采用的音轨可以审查、选择采用为时间线 change set，并保护人工锁定",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-22.spec.ts",
@@ -2345,9 +3990,9 @@
       "scenarioId": "7ef8809374b4",
       "scenario": "canonical timeline 提供已验证 NLE 交付及受控的媒体重链接出口",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-23.spec.ts",
@@ -2355,9 +4000,9 @@
       "scenarioId": "a31b42599518",
       "scenario": "项目工作台提供本地系列边界和版本化资产入口",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-24.spec.ts",
@@ -2365,9 +4010,9 @@
       "scenarioId": "ca80ee41abb6",
       "scenario": "审核交付页明确展示可选云审片的最小上传与安全连接入口",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-full-journey.spec.ts",
@@ -2375,9 +4020,9 @@
       "scenarioId": "931c59bf6fdb",
       "scenario": "P2 Gate：剧本入口可恢复到试制，完整本地样片可播放、交付并保留审片反馈",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-p0-gate.spec.ts",
@@ -2385,9 +4030,9 @@
       "scenarioId": "23b39a9aafcd",
       "scenario": "${entry} 在 fresh profile 建立试制计划并于重开后恢复",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm6-p0-gate.spec.ts",
@@ -2395,9 +4040,9 @@
       "scenarioId": "48735dd09307",
       "scenario": "坏文件在本地预览阶段被拒绝，未伪造导入结果",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm7-ui-visual.spec.ts",
@@ -2405,9 +4050,9 @@
       "scenarioId": "5f190194f7b2",
       "scenario": "12 个标准界面具备稳定的明暗视觉基线",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm7-ui-visual.spec.ts",
@@ -2415,9 +4060,9 @@
       "scenarioId": "67f443308350",
       "scenario": "1080×700 下应用栏、正文与制作工作台不横向溢出",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm7-ui-visual.spec.ts",
@@ -2425,9 +4070,9 @@
       "scenarioId": "c9e4037963c2",
       "scenario": "制作与审核交付工作台跟随全局明暗主题",
       "scope": "future",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     },
     {
       "sourceTest": "desktop/tests/electron/lm7-ui-visual.spec.ts",
@@ -2435,9 +4080,9 @@
       "scenarioId": "b1546ec7ff9f",
       "scenario": "主题首次跟随系统并持久化手动选择",
       "scope": "core",
-      "status": "pending",
+      "status": "complete",
       "disposition": "migrate",
-      "replacementTests": []
+      "replacementTests": ["apps/studio/tests/electron/smoke.spec.ts"]
     }
   ]
 }

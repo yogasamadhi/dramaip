@@ -56,11 +56,13 @@ test("Codex 自定义服务商使用独立凭据环境变量和 Responses API", 
   expect(source).toContain("DRAMAIP_CODEX_PROVIDER_API_KEY");
   expect(source).toContain('model_provider=${tomlString("dramaip_custom")}');
   expect(source).toContain(
-    'model_providers.dramaip_custom.wire_api=\"responses\"',
+    'model_providers.dramaip_custom.wire_api="responses"',
   );
   expect(source).toContain(
     "model_providers.dramaip_custom.requires_openai_auth=false",
   );
+  expect(source).toContain("model_catalog_json");
+  expect(source).toContain("prepareCustomModelCatalog");
   expect(source).toContain('mode === "custom_provider"');
 });
 

@@ -5232,6 +5232,7 @@ function TaskPage() {
           <option value="codex">Codex</option>
           <option value="dsh">DeepSeek Harness</option>
           <option value="pi">Pi</option>
+          <option value="grok">Grok Build</option>
           <option value="langgraph">LangGraph.js</option>
         </select>
       </label>
@@ -14746,6 +14747,7 @@ const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
   codex: "Codex",
   dsh: "DSH",
   pi: "Pi",
+  grok: "Grok Build",
   langgraph: "LangGraph.js",
 };
 const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
@@ -14797,7 +14799,7 @@ function AgentEngineSettingsPanel() {
   const [codexProviderId, setCodexProviderId] = useState("");
   const [codexProtocol, setCodexProtocol] = useState<
     "responses" | "chat_completions"
-  >("responses");
+  >("chat_completions");
   const [notice, setNotice] = useState<string>();
   const codexProviders = providers.filter((provider) => {
     const payload = recordPayload(provider.payload);
@@ -14833,6 +14835,20 @@ function AgentEngineSettingsPanel() {
     if (codexAuth?.provider?.protocol)
       setCodexProtocol(codexAuth.provider.protocol);
   }, [codexAuth?.provider?.id, codexAuth?.provider?.protocol]);
+  useEffect(() => {
+    if (!codexProviderId) return;
+    const provider = codexProviders.find(
+      (candidate) => candidate.id === codexProviderId,
+    );
+    if (!provider) return;
+    const preset = String(
+      recordPayload(provider.payload)["预设服务商"] ?? "",
+    ).toLowerCase();
+    // The built-in non-OpenAI presets currently expose Chat Completions only.
+    // Keep the safe adapter selected when the user changes providers.
+    if (preset && preset !== "openai" && preset !== "other")
+      setCodexProtocol("chat_completions");
+  }, [codexProviderId, codexProviders]);
   const updateGlobalDefault = useMutation({
     mutationFn: () =>
       client.agentEngines.updateGlobalSettings({
@@ -14950,7 +14966,11 @@ function AgentEngineSettingsPanel() {
             <p
               className={`mt-2 text-sm ${engine.status === "available" ? "text-emerald-700" : "text-amber-700"}`}
             >
-              {engine.status === "available" ? "运行正常" : "当前不可用"}
+              {engine.status === "available"
+                ? "运行正常"
+                : engine.status === "degraded"
+                  ? "运行异常"
+                  : "当前不可用"}
             </p>
             <p className="mt-1 text-xs leading-5 text-muted">
               {engine.statusMessage}
@@ -15116,7 +15136,8 @@ function AgentEngineSettingsPanel() {
               Responses 模式直接请求
               <code className="mx-1">/v1/responses</code>；Chat Completions
               模式会在本机转换为 Responses，兼容更多厂商，但 Codex 的部分
-              高级能力可能受限。
+              高级能力可能受限。目录内仅提供 Chat Completions
+              的厂商会自动使用转换模式。
             </p>
             <div className="flex flex-wrap gap-2">
               <input
@@ -16099,17 +16120,17 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "五引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Pi 和 LangGraph.js，共产生五次模型费用。",
+          "六引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Pi、Grok Build 和 LangGraph.js，共产生六次模型费用。",
           experimentMode === "same_model"
-            ? `比较方式：五个引擎统一使用模型 ${modelId.trim()}。`
+            ? `比较方式：六个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
-          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；五次合计约 ${(estimatedInputPerEngine * 5).toLocaleString("zh-CN")} Token。`,
-          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；五次合计约 ${(estimatedOutputPerEngine * 5).toLocaleString("zh-CN")} Token。`,
+          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedInputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
+          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedOutputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
           "预估费用：各引擎的模型与认证计价可能不同，未配置统一单价时无法可靠折算金额；应用会在运行后记录实际 Token 与厂商返回的费用。",
           "确认开始吗？",
         ].join("\n\n"),
       );
-      if (!confirmed) throw new Error("已取消五引擎盲测");
+      if (!confirmed) throw new Error("已取消六引擎盲测");
       return client.agentExperiments.create(
         {
           projectId,
@@ -16127,7 +16148,7 @@ export function AgentTaskConfigPanel() {
     },
     onSuccess: (experiment) => {
       setExperimentId(experiment.id);
-      setNotice("五引擎盲测已开始，结果将匿名展示");
+      setNotice("六引擎盲测已开始，结果将匿名展示");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -16318,7 +16339,11 @@ export function AgentTaskConfigPanel() {
                   disabled={engine.status !== "available"}
                 >
                   {engine.name} ·{" "}
-                  {engine.status === "available" ? "可用" : "不可用"}
+                  {engine.status === "available"
+                    ? "可用"
+                    : engine.status === "degraded"
+                      ? "运行异常"
+                      : "不可用"}
                 </option>
               ))}
             </select>
@@ -16368,7 +16393,7 @@ export function AgentTaskConfigPanel() {
               }
             >
               <option value="recommended">各引擎推荐配置</option>
-              <option value="same_model">五个引擎使用同一模型</option>
+              <option value="same_model">六个引擎使用同一模型</option>
             </select>
           </label>
           {requiresChapter && !chapterId && (
@@ -16413,7 +16438,7 @@ export function AgentTaskConfigPanel() {
             }
             onClick={() => createExperiment.mutate()}
           >
-            {createExperiment.isPending ? "正在创建盲测…" : "启动五引擎盲测"}
+            {createExperiment.isPending ? "正在创建盲测…" : "启动六引擎盲测"}
           </BareButton>
         </>
       )}
@@ -16518,7 +16543,7 @@ function AgentExperimentCard(props: {
   return (
     <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">{candidateCount || 5} 引擎盲测</p>
+        <p className="text-sm font-medium">{candidateCount || 6} 引擎盲测</p>
         <span className="text-xs text-muted">
           {props.experiment.status === "ready_for_review"
             ? "等待评价"

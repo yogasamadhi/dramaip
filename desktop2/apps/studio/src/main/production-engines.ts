@@ -11,6 +11,7 @@ import type { EngineKind, EngineTokenMap } from "@dramaip/agents";
 import { OpenCodeEngineAdapter } from "./opencode-engine-adapter.ts";
 import { LegacyProcessEngineAdapter } from "./process-engine-adapter.ts";
 import type { EngineSupervisor } from "./engine-supervisor.ts";
+import { bootstrapCodexAuthentication } from "./codex-auth-bootstrap.ts";
 
 const require = createRequire(import.meta.url);
 
@@ -137,6 +138,7 @@ interface ProviderConfiguration {
   model: string;
   baseUrl?: string;
   credentialRef: string;
+  protocol?: "responses" | "chat_completions";
 }
 
 /** Starts five separately supervised, signed first-party engine processes. */
@@ -145,6 +147,15 @@ export async function startProductionEngines(
 ): Promise<void> {
   const mcpUrl = `http://127.0.0.1:${options.serverPort}/api/v2/agents/mcp`;
   const tokens = options.engineTokens;
+  const codexHome = join(options.userData, "codex-engine");
+  await bootstrapCodexAuthentication({
+    sourceHome: join(app.getPath("home"), ".codex"),
+    destinationHome: codexHome,
+  }).catch((error) => {
+    console.warn(
+      `Codex auth bootstrap skipped: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
 
   const starts = [
     startOpenCode(options, mcpUrl, tokens.opencode),
@@ -155,7 +166,7 @@ export async function startProductionEngines(
       {
         type: "start",
         binaryPath: codexBinaryPath(),
-        codexHome: join(options.userData, "codex-engine"),
+        codexHome,
         sessionRoot: join(options.userData, "codex-sessions"),
         mcp: { url: mcpUrl, token: tokens.codex },
       },
@@ -206,9 +217,22 @@ async function configureEngine(
   if (kind === "codex") {
     if (configuration.providerKind !== "openai")
       throw new Error("Codex only accepts an OpenAI credential");
+    const customProvider = Boolean(configuration.baseUrl);
     await options.supervisor.adapter(kind).call("login", {
-      mode: "api_key",
+      mode: customProvider ? "custom_provider" : "api_key",
       apiKey: secret,
+      ...(customProvider
+        ? {
+            providerId: "codex-configured-provider",
+            providerName:
+              configuration.providerAdapter === "openai-compatible"
+                ? "OpenAI Compatible"
+                : "OpenAI",
+            baseUrl: configuration.baseUrl,
+            model: configuration.model,
+            protocol: configuration.protocol ?? "responses",
+          }
+        : {}),
     });
     return { available: true };
   }

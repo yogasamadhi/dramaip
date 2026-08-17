@@ -18,11 +18,12 @@ import { UiRegistryService } from "@dramaip/ui-runtime";
 import { workspaceUi } from "@dramaip/workspace/ui";
 import { writingUi } from "@dramaip/writing/ui";
 import { knowledgeUi } from "@dramaip/knowledge/ui";
+import { automationUi } from "@dramaip/automation/ui";
 
 const contributions: Readonly<Record<string, readonly UiContribution[]>> = {
   system: systemUi,
   workspace: workspaceUi,
-  automation: [],
+  automation: automationUi,
   writing: writingUi,
   knowledge: knowledgeUi,
   "creative-quality": creativeQualityUi,

@@ -172,7 +172,11 @@ function routeActive(
   if (target === "/") return pathname === "/";
   const patterns = item.activePaths ?? [target];
   return patterns.some((source) => {
-    const pattern = source.replace(":projectId", "[^/]+").replaceAll("*", ".*");
+    const wildcard = source.endsWith("/*");
+    const pattern = source
+      .replace(":projectId", "[^/]+")
+      .replace(/\/\*$/u, wildcard ? "(?:/.*)?" : "")
+      .replaceAll("*", ".*");
     return new RegExp(`^${pattern}(?:/|$)`).test(pathname);
   });
 }
@@ -188,7 +192,11 @@ function NavigationLink({
 }) {
   const location = useLocation();
   const target = resolveNavigationPath(item, projectId);
-  const active = routeActive(location.pathname, location.search, item, target);
+  const active =
+    routeActive(location.pathname, location.search, item, target) ||
+    (!project &&
+      item.id === "writing.navigation" &&
+      location.pathname.startsWith("/projects/"));
   return (
     <Link
       to={target}

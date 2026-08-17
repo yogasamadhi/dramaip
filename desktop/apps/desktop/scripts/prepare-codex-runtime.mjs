@@ -71,6 +71,11 @@ const destination = join(runtime, executable);
 await rm(join(desktop, "build/codex"), { recursive: true, force: true });
 await mkdir(runtime, { recursive: true });
 await cp(source, destination);
+const modelCatalogSource = join(
+  repository,
+  "vendor/codex-rust/codex-rs/models-manager/models.json",
+);
+await cp(modelCatalogSource, join(desktop, "build/codex", "models.json"));
 if (process.platform !== "win32") await chmod(destination, 0o755);
 
 const schemaRoot = join(desktop, "build/codex-schemas");

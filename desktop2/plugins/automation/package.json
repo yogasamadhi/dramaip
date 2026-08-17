@@ -4,13 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.tsx"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.1",
     "@dramaip/contracts": "workspace:*",
     "@dramaip/domain-kit": "workspace:*",
     "@dramaip/http": "workspace:*",
-    "@dramaip/plugin-api": "workspace:*"
+    "@dramaip/plugin-api": "workspace:*",
+    "@dramaip/ui": "workspace:*",
+    "@dramaip/ui-shared": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "react": "19.2.7"
   }
 }

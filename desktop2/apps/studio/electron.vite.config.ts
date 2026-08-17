@@ -34,6 +34,7 @@ const pluginUiSource = (name: string) =>
 const internalAliases = {
   "@dramaip/agents/ui": pluginUiSource("agents"),
   "@dramaip/agents": pluginSource("agents"),
+  "@dramaip/automation/ui": pluginUiSource("automation"),
   "@dramaip/automation": pluginSource("automation"),
   "@dramaip/client": packageSource("client"),
   "@dramaip/contracts": packageSource("contracts"),

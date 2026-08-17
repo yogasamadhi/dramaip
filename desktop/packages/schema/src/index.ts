@@ -286,9 +286,11 @@ export const AgentEngineKind = Schema.Literals([
   "codex",
   "dsh",
   "pi",
+  "grok",
   "langgraph",
 ]);
-export type AgentEngineKind = "opencode" | "codex" | "dsh" | "pi" | "langgraph";
+export type AgentEngineKind =
+  "opencode" | "codex" | "dsh" | "pi" | "grok" | "langgraph";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -4173,6 +4175,7 @@ export const AgentExperimentEngineKind = Schema.Literals([
   "codex",
   "dsh",
   "pi",
+  "grok",
   "hermes",
   "langgraph",
   "openclaw",

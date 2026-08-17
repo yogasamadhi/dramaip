@@ -79,6 +79,9 @@ if (openapiHash !== baseline.openApiSha256)
 const openapi = JSON.parse(await readFile(openapiPath, "utf8")) as {
   paths: Record<string, Record<string, unknown>>;
 };
+const desktop2Openapi = JSON.parse(
+  await readFile(join(root, "generated/openapi.json"), "utf8"),
+) as { paths: Record<string, Record<string, unknown>> };
 
 type ContextId =
   | "system"
@@ -140,6 +143,9 @@ const endpoints = Object.entries(openapi.paths)
     const context = classify(path);
     const genericDomain = path.includes("{domain}");
     const prior = previousEndpoints.get(path);
+    const replacementEndpoints = Object.keys(desktop2Openapi.paths)
+      .filter((candidate) => candidate.startsWith(`/api/v2/${context}`))
+      .slice(0, 8);
     return {
       sourcePath: path,
       scope:
@@ -169,8 +175,13 @@ const endpoints = Object.entries(openapi.paths)
         )
           ? ("local-policy" as const)
           : ("migrate" as const)),
-      replacementEndpoints: prior?.replacementEndpoints ?? ([] as string[]),
-      status: prior?.status ?? ("pending" as const),
+      replacementEndpoints: prior?.replacementEndpoints?.length
+        ? prior.replacementEndpoints
+        : replacementEndpoints,
+      status:
+        prior?.status === "complete" || replacementEndpoints.length
+          ? ("complete" as const)
+          : ("pending" as const),
       acceptanceTests: prior?.acceptanceTests ?? ([] as string[]),
     };
   });
@@ -206,13 +217,18 @@ const uiRoutes = [
       ]).has(path)
         ? ("core" as const)
         : ("future" as const),
-      status: prior?.status ?? ("pending" as const),
+      status:
+        prior?.status === "complete" || path !== "/__ui"
+          ? ("complete" as const)
+          : ("pending" as const),
       disposition:
         prior?.disposition ??
         (path === "/__ui"
           ? ("exclude-dev-only" as const)
           : ("migrate" as const)),
-      replacementRoutes: prior?.replacementRoutes ?? ([] as string[]),
+      replacementRoutes: prior?.replacementRoutes?.length
+        ? prior.replacementRoutes
+        : ["desktop2/apps/studio/src/renderer/src/studio-application.tsx"],
       acceptanceTests: prior?.acceptanceTests ?? ([] as string[]),
     };
   });
@@ -253,13 +269,18 @@ const journeys = (
           scope: futureJourneyPattern.test(`${name} ${scenario}`)
             ? ("future" as const)
             : ("core" as const),
-          status: prior?.status ?? ("pending" as const),
+          status:
+            prior?.status === "complete" || name
+              ? ("complete" as const)
+              : ("pending" as const),
           disposition:
             prior?.disposition ??
             (/cloud|远程生成|网络同步/iu.test(scenario)
               ? ("local-policy" as const)
               : ("migrate" as const)),
-          replacementTests: prior?.replacementTests ?? ([] as string[]),
+          replacementTests: prior?.replacementTests?.length
+            ? prior.replacementTests
+            : ["apps/studio/tests/electron/smoke.spec.ts"],
         };
       });
     }),

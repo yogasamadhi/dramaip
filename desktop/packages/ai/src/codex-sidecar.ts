@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import {
@@ -12,6 +12,7 @@ import { normalizeCodexOutput } from "./codex-output";
 type StartCommand = {
   type: "start";
   binaryPath: string;
+  modelCatalogPath?: string;
   codexHome: string;
   sessionRoot: string;
   mcp: { url: string; token: string };
@@ -175,6 +176,9 @@ async function launchAppServer(): Promise<void> {
     env.DRAMAIP_CODEX_PROVIDER_API_KEY = runtimeApiKey;
   else if (!runtimeProvider && runtimeApiKey)
     env.OPENAI_API_KEY = runtimeApiKey;
+  const modelCatalogPath = runtimeProvider
+    ? await prepareCustomModelCatalog()
+    : undefined;
   const providerConfig = runtimeProvider
     ? [
         "-c",
@@ -191,6 +195,9 @@ async function launchAppServer(): Promise<void> {
         `model_providers.dramaip_custom.wire_api="responses"`,
         "-c",
         "model_providers.dramaip_custom.requires_openai_auth=false",
+        ...(modelCatalogPath
+          ? ["-c", `model_catalog_json=${tomlString(modelCatalogPath)}`]
+          : []),
       ]
     : [];
   appServer = spawn(
@@ -258,6 +265,47 @@ async function launchAppServer(): Promise<void> {
     },
   });
   notify("initialized", {});
+}
+
+/**
+ * Codex's model manager expects its proprietary `/models` catalog shape,
+ * whereas OpenAI-compatible providers expose `data[]`. Custom providers do
+ * not need remote discovery because the selected model is already persisted;
+ * use an isolated static catalog to avoid a noisy, guaranteed decode error.
+ */
+async function prepareCustomModelCatalog(): Promise<string | undefined> {
+  if (!startCommand?.modelCatalogPath || !runtimeProvider) return undefined;
+  try {
+    const source = JSON.parse(
+      await readFile(startCommand.modelCatalogPath, "utf8"),
+    ) as { models?: unknown };
+    if (!Array.isArray(source.models) || source.models.length === 0)
+      return undefined;
+    const models = source.models.filter(
+      (model): model is Record<string, unknown> =>
+        Boolean(model) && typeof model === "object" && !Array.isArray(model),
+    );
+    if (!models.length) return undefined;
+    const selected = runtimeProvider.model;
+    const existing = models.find((model) => model.slug === selected);
+    if (!existing) {
+      const template = models[0];
+      models.unshift({
+        ...template,
+        slug: selected,
+        display_name: `${runtimeProvider.providerName} · ${selected}`,
+        description: `DramaIP 自定义服务商模型：${selected}`,
+      });
+    }
+    const target = join(startCommand.codexHome, "model-catalog.json");
+    await writeFile(target, JSON.stringify({ models }), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    return target;
+  } catch {
+    return undefined;
+  }
 }
 
 function send(message: RpcMessage): void {

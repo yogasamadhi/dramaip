@@ -36,6 +36,7 @@ export const providerConfigurationInputSchema = z.object({
   ]),
   model: z.string().trim().min(1).max(300),
   baseUrl: z.url().max(2_000).optional(),
+  protocol: z.enum(["responses", "chat_completions"]).optional(),
   credentialRef: z.uuid(),
 });
 
@@ -50,6 +51,7 @@ export const providerConfigurationSchema = z.object({
   ]),
   model: z.string(),
   baseUrl: z.string().nullable(),
+  protocol: z.enum(["responses", "chat_completions"]).nullable(),
   configured: z.boolean(),
   version: z.number().int().positive(),
   updatedAt: z.iso.datetime(),
@@ -58,7 +60,7 @@ export const providerConfigurationSchema = z.object({
 export const agentSessionSchema = z.object({
   id: z.uuid(),
   engineSessionId: z.string(),
-  projectId: z.uuid(),
+  projectId: z.uuid().nullable(),
   engineKind: engineKindSchema,
   title: z.string(),
   state: z.enum(["active", "disposed"]),

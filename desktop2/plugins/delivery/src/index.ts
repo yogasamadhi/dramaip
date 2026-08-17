@@ -59,6 +59,14 @@ export const deliveryResources = [
     path: "creative-versions",
     data: creativeVersionData,
     defaultStatus: "frozen",
+    validateCreate: (data: z.infer<typeof creativeVersionData>) => {
+      if (!data.sourceId.trim() || !data.checksum.trim())
+        throw new ApiProblem(
+          400,
+          "CREATIVE_VERSION_SOURCE_REQUIRED",
+          "创意版本必须绑定真实来源和校验和",
+        );
+    },
   },
   { kind: "platform-spec", path: "platform-specs", data: platformSpecData },
   {
@@ -66,12 +74,28 @@ export const deliveryResources = [
     path: "archives",
     data: archiveData,
     createRequiresIdempotency: true,
+    validateCreate: (data: z.infer<typeof archiveData>) => {
+      if (!data.assetIds.length)
+        throw new ApiProblem(
+          400,
+          "ARCHIVE_ASSETS_REQUIRED",
+          "归档至少需要一个资产",
+        );
+    },
   },
   {
     kind: "export",
     path: "exports",
     data: exportData,
     createRequiresIdempotency: true,
+    validateCreate: (data: z.infer<typeof exportData>) => {
+      if (!data.versionId || !data.platformSpecId)
+        throw new ApiProblem(
+          400,
+          "EXPORT_SOURCE_REQUIRED",
+          "交付导出必须绑定创意版本和平台规格",
+        );
+    },
   },
   {
     kind: "cloud-review-sync",
@@ -79,6 +103,14 @@ export const deliveryResources = [
     data: cloudSyncData,
     defaultStatus: "preview",
     createRequiresIdempotency: true,
+    validateCreate: (data: z.infer<typeof cloudSyncData>) => {
+      if (!data.reviewPackageId)
+        throw new ApiProblem(
+          400,
+          "CLOUD_REVIEW_PACKAGE_REQUIRED",
+          "云审片预览必须绑定审片包",
+        );
+    },
     actions: [cloudPublishAction],
   },
 ] satisfies readonly NodeResourceDefinition<any>[];

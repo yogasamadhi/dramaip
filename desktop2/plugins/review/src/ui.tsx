@@ -79,6 +79,25 @@ function ReviewWorkspace() {
       ),
     enabled: Boolean(activeProjectId),
   });
+  const chapters = useQuery({
+    queryKey: ["review", "chapters", activeProjectId],
+    queryFn: () =>
+      client.request<{
+        items: Array<{ id: string; content: string; title: string }>;
+      }>(`/api/v2/writing/projects/${activeProjectId}/chapters`),
+    enabled: Boolean(activeProjectId),
+  });
+  const assets = useQuery({
+    queryKey: ["review", "assets", activeProjectId],
+    queryFn: () =>
+      client.request<{
+        items: Array<{
+          id: string;
+          data: { rightsStatus: string; adoptionStatus: string };
+        }>;
+      }>(`/api/v2/media/assets?projectId=${activeProjectId}`),
+    enabled: Boolean(activeProjectId),
+  });
 
   const createRecord = async (
     path: `/api/v2/${string}`,
@@ -103,12 +122,36 @@ function ReviewWorkspace() {
     mutationFn: async (kind: string) => {
       if (!activeProjectId || !activeEpisodeId)
         throw new Error("请先选择项目、改编项目和分集。");
-      if (kind === "quality")
+      if (kind === "quality") {
+        const source = chapters.data?.items.filter((chapter) =>
+          chapter.content.trim(),
+        );
+        if (!source?.length)
+          throw new Error("至少完成一章正文后才能执行质量检查。");
+        const totalWords = source.reduce(
+          (sum, chapter) => sum + chapter.content.replace(/\s/gu, "").length,
+          0,
+        );
+        const score = Math.min(
+          100,
+          Math.round((totalWords / Math.max(1, source.length * 1200)) * 100),
+        );
         return createRecord(
           "/api/v2/creative-quality/quality-checks",
-          "第 1 集质量检查",
-          { targetId: activeEpisodeId, score: 0, checks: [] },
+          `第 ${source.length} 章质量检查`,
+          {
+            targetId: activeEpisodeId,
+            score,
+            checks: [
+              {
+                name: "正文长度",
+                passed: score >= 60,
+                detail: `已检查 ${totalWords} 字`,
+              },
+            ],
+          },
         );
+      }
       if (kind === "compliance")
         return createRecord(
           "/api/v2/creative-quality/compliance-checks",
@@ -116,16 +159,28 @@ function ReviewWorkspace() {
           {
             targetId: activeEpisodeId,
             profile: "本地交付预检",
-            passed: false,
-            findings: [],
+            passed: Boolean(assets.data?.items.length),
+            findings: assets.data?.items.length
+              ? []
+              : ["尚未导入可用于交付的本地资产"],
           },
         );
-      if (kind === "review-package")
-        return createRecord("/api/v2/review/packages", "第 1 集审片包", {
+      if (kind === "review-package") {
+        const usableAssets = (assets.data?.items ?? [])
+          .filter(
+            (asset) =>
+              asset.data.rightsStatus === "cleared" &&
+              asset.data.adoptionStatus !== "rejected",
+          )
+          .map((asset) => asset.id);
+        if (!usableAssets.length)
+          throw new Error("请先导入并确认至少一个本地资产后再生成审片包。");
+        return createRecord("/api/v2/review/packages", "当前分集审片包", {
           versionId: activeEpisodeId,
-          assetIds: [],
-          reviewerIds: ["local-reviewer"],
+          assetIds: usableAssets,
+          reviewerIds: [],
         });
+      }
       if (kind === "delivery")
         return createRecord(
           "/api/v2/delivery/platform-specs",
@@ -172,6 +227,8 @@ function ReviewWorkspace() {
     adaptations.error ??
     episodes.error ??
     qualityChecks.error ??
+    chapters.error ??
+    assets.error ??
     action.error;
   const stageLabel =
     reviewStages.find(([value]) => value === stage)?.[1] ?? "审核交付";

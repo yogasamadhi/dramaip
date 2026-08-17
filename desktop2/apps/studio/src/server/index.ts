@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { copyFile, unlink } from "node:fs/promises";
 
 import { serve } from "@hono/node-server";
 
@@ -32,6 +33,7 @@ const utilityPort: ParentPortLike = parentPort;
 let stop: (() => Promise<void>) | undefined;
 let restoreEngines: (() => Promise<void>) | undefined;
 let capabilityResolver: ParentPortFileCapabilityResolver | undefined;
+let activeKernel: Awaited<ReturnType<typeof bootDramaRuntime>> | undefined;
 
 utilityPort.on("message", (event) => {
   const raw = event.data;
@@ -45,9 +47,10 @@ async function start(message: BootstrapMessage): Promise<void> {
   if (stop) throw new Error("server already started");
   const bridge = new ParentPortEngineBridge(utilityPort);
   capabilityResolver = new ParentPortFileCapabilityResolver(utilityPort);
+  const databaseFile = join(message.userData, "dramaip.db");
   const kernel = await bootDramaRuntime({
     profileText: JSON.stringify(message.e2e ? e2eProfile : studioProfile),
-    databaseFile: join(message.userData, "dramaip.db"),
+    databaseFile,
     backupDirectory: join(message.userData, "backups"),
     username: message.username,
     password: message.password,
@@ -55,7 +58,41 @@ async function start(message: BootstrapMessage): Promise<void> {
     engineBridge: bridge,
     engineTokens: message.engineTokens,
     fileCapabilityResolver: capabilityResolver,
+    restoreDatabase: async (backupFile) => {
+      if (!activeKernel) throw new Error("runtime is not ready for restore");
+      const staged = `${databaseFile}.restore.pending`;
+      await copyFile(backupFile, staged);
+      setTimeout(() => {
+        void (async () => {
+          if (!activeKernel) return;
+          await activeKernel.dispose();
+          await copyFile(staged, databaseFile);
+          await unlink(staged).catch(() => undefined);
+          activeKernel = await bootDramaRuntime({
+            profileText: JSON.stringify(
+              message.e2e ? e2eProfile : studioProfile,
+            ),
+            databaseFile,
+            backupDirectory: join(message.userData, "backups"),
+            username: message.username,
+            password: message.password,
+            allowedOrigins: message.allowedOrigins,
+            engineBridge: bridge,
+            engineTokens: message.engineTokens,
+            fileCapabilityResolver: capabilityResolver,
+          });
+          restoreEngines = () =>
+            restoreEngineConfigurations(activeKernel!.context, bridge);
+        })().catch((error) =>
+          utilityPort.postMessage({
+            type: "server:fatal",
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }, 50);
+    },
   });
+  activeKernel = kernel;
   restoreEngines = () => restoreEngineConfigurations(kernel.context, bridge);
   const server = await new Promise<ReturnType<typeof serve>>(
     (resolve, reject) => {
@@ -63,7 +100,7 @@ async function start(message: BootstrapMessage): Promise<void> {
         {
           hostname: "127.0.0.1",
           port: 0,
-          fetch: (request) => kernel.context.http.fetch(request),
+          fetch: (request) => activeKernel!.context.http.fetch(request),
         },
         () => resolve(instance),
       );
@@ -77,7 +114,8 @@ async function start(message: BootstrapMessage): Promise<void> {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
     );
-    await kernel.dispose();
+    await activeKernel?.dispose();
+    activeKernel = undefined;
     bridge.dispose();
     capabilityResolver?.dispose();
     capabilityResolver = undefined;

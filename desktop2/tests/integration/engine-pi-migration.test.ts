@@ -65,7 +65,8 @@ test("forward migration converts persisted Hermes selections to Pi without losin
     ),
   ];
   const legacyMigrations = currentMigrations.filter(
-    (migration) => migration.id !== "agents-0003",
+    (migration) =>
+      migration.id !== "agents-0003" && migration.id !== "agents-0004",
   );
   const database = new DatabaseSync(databaseFile);
   database.exec("PRAGMA foreign_keys = ON");

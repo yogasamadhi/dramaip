@@ -55,13 +55,62 @@ const structureData = z.object({
   orderedIds: z.array(z.uuid()),
 });
 
+function requiresParent(field?: string) {
+  return {
+    validateCreateInput: (input: {
+      parentId: string | null;
+      data: Record<string, unknown>;
+    }) => {
+      if (!input.parentId)
+        throw new ApiProblem(
+          400,
+          "PRODUCTION_PARENT_REQUIRED",
+          "制作子项必须绑定真实的上级资料",
+        );
+      if (field && input.data[field] !== input.parentId)
+        throw new ApiProblem(
+          409,
+          "PRODUCTION_PARENT_MISMATCH",
+          "制作子项数据与上级归属不一致",
+        );
+    },
+    validateUpdateInput: (input: {
+      parentId: string | null;
+      data: Record<string, unknown>;
+    }) => {
+      if (!input.parentId)
+        throw new ApiProblem(
+          400,
+          "PRODUCTION_PARENT_REQUIRED",
+          "制作子项必须绑定真实的上级资料",
+        );
+      if (field && input.data[field] !== input.parentId)
+        throw new ApiProblem(
+          409,
+          "PRODUCTION_PARENT_MISMATCH",
+          "制作子项数据与上级归属不一致",
+        );
+    },
+  };
+}
+
 export const productionResources = [
   { kind: "pilot", path: "pilots", data: pilotData },
   { kind: "adaptation", path: "adaptations", data: adaptationData },
-  { kind: "episode", path: "episodes", data: episodeData },
-  { kind: "script", path: "scripts", data: scriptData },
-  { kind: "scene", path: "scenes", data: sceneData },
-  { kind: "shot", path: "shots", data: shotData },
+  { kind: "episode", path: "episodes", data: episodeData, ...requiresParent() },
+  {
+    kind: "script",
+    path: "scripts",
+    data: scriptData,
+    ...requiresParent("episodeId"),
+  },
+  {
+    kind: "scene",
+    path: "scenes",
+    data: sceneData,
+    ...requiresParent("scriptId"),
+  },
+  { kind: "shot", path: "shots", data: shotData, ...requiresParent("sceneId") },
   { kind: "structure-order", path: "structure-orders", data: structureData },
 ] satisfies readonly NodeResourceDefinition<any>[];
 

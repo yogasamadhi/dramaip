@@ -2543,7 +2543,14 @@
                   },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "model": {
                     "type": "object",
@@ -2702,7 +2709,14 @@
                   "sourceChapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "model": {
                     "type": "object",
@@ -3360,7 +3374,14 @@
                 "properties": {
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   }
                 },
                 "required": ["engineKind"],
@@ -3732,7 +3753,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -3902,7 +3930,14 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "taskType": {
                     "type": "string",
@@ -4254,7 +4289,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -4561,7 +4603,14 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "status": {
                       "type": "string",
@@ -4858,7 +4907,14 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "status": {
                       "type": "string",
@@ -5060,7 +5116,14 @@
                     },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "status": {
                       "type": "string",
@@ -5183,7 +5246,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -5361,7 +5431,14 @@
                       "engineSessionId": { "type": "string" },
                       "engineKind": {
                         "type": "string",
-                        "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                        "enum": [
+                          "opencode",
+                          "codex",
+                          "dsh",
+                          "pi",
+                          "grok",
+                          "langgraph"
+                        ]
                       },
                       "projectId": { "type": "string" },
                       "surface": {
@@ -5536,7 +5613,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -5706,7 +5790,14 @@
                   "chapterId": { "type": "string" },
                   "engineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "taskType": {
                     "type": "string",
@@ -5838,6 +5929,7 @@
                             "codex",
                             "dsh",
                             "pi",
+                            "grok",
                             "langgraph"
                           ]
                         },
@@ -6241,6 +6333,7 @@
                               "codex",
                               "dsh",
                               "pi",
+                              "grok",
                               "langgraph"
                             ]
                           },
@@ -6424,7 +6517,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -6667,7 +6767,14 @@
                     "engineSessionId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "projectId": { "type": "string" },
                     "surface": {
@@ -6871,6 +6978,7 @@
                             "codex",
                             "dsh",
                             "pi",
+                            "grok",
                             "langgraph"
                           ]
                         },
@@ -7263,6 +7371,7 @@
                             "codex",
                             "dsh",
                             "pi",
+                            "grok",
                             "langgraph"
                           ]
                         },
@@ -7637,7 +7746,14 @@
                     "properties": {
                       "kind": {
                         "type": "string",
-                        "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                        "enum": [
+                          "opencode",
+                          "codex",
+                          "dsh",
+                          "pi",
+                          "grok",
+                          "langgraph"
+                        ]
                       },
                       "name": { "type": "string" },
                       "version": { "type": "string" },
@@ -7770,7 +7886,14 @@
                   "properties": {
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -7835,7 +7958,14 @@
                   "properties": {
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -7892,7 +8022,14 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -7937,7 +8074,14 @@
                     "projectId": { "type": "string" },
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -8019,7 +8163,14 @@
                     "projectId": { "type": "string" },
                     "defaultEngineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "defaultModel": {
                       "type": "object",
@@ -8085,7 +8236,14 @@
                 "properties": {
                   "defaultEngineKind": {
                     "type": "string",
-                    "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                    "enum": [
+                      "opencode",
+                      "codex",
+                      "dsh",
+                      "pi",
+                      "grok",
+                      "langgraph"
+                    ]
                   },
                   "defaultModel": {
                     "type": "object",
@@ -8284,6 +8442,7 @@
                               "codex",
                               "dsh",
                               "pi",
+                              "grok",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -8767,6 +8926,7 @@
                               "codex",
                               "dsh",
                               "pi",
+                              "grok",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -9141,6 +9301,7 @@
                               "codex",
                               "dsh",
                               "pi",
+                              "grok",
                               "hermes",
                               "langgraph",
                               "openclaw"
@@ -9389,7 +9550,14 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "taskType": {
                       "type": "string",
@@ -9585,7 +9753,14 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "taskType": {
                       "type": "string",
@@ -9794,7 +9969,14 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "taskType": {
                       "type": "string",
@@ -9990,7 +10172,14 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "taskType": {
                       "type": "string",
@@ -17124,7 +17313,14 @@
                     "taskId": { "type": "string" },
                     "engineKind": {
                       "type": "string",
-                      "enum": ["opencode", "codex", "dsh", "pi", "langgraph"]
+                      "enum": [
+                        "opencode",
+                        "codex",
+                        "dsh",
+                        "pi",
+                        "grok",
+                        "langgraph"
+                      ]
                     },
                     "taskType": {
                       "type": "string",

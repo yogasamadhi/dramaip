@@ -42,7 +42,17 @@ export interface NodeResourceDefinition<
   defaultStatus?: string;
   createRequiresIdempotency?: boolean;
   validateCreate?: (data: TData) => void;
+  validateCreateInput?: (input: {
+    projectId: string;
+    parentId: string | null;
+    data: TData;
+  }) => void;
   validateUpdate?: (previous: TData, next: TData) => void;
+  validateUpdateInput?: (input: {
+    projectId: string;
+    parentId: string | null;
+    data: TData;
+  }) => void;
   actions?: readonly ResourceAction<TData>[];
 }
 
@@ -264,6 +274,11 @@ class NodeRepository {
     const now = new Date().toISOString();
     const data = resource.data.parse(input.data);
     resource.validateCreate?.(data);
+    resource.validateCreateInput?.({
+      projectId: input.projectId,
+      parentId: input.parentId ?? null,
+      data,
+    });
     const node: DomainNode = {
       id: randomUUID(),
       kind: resource.kind,
@@ -353,6 +368,11 @@ class NodeRepository {
         version: previous.version + 1,
         updatedAt: new Date().toISOString(),
       };
+      resource.validateUpdateInput?.({
+        projectId: node.projectId,
+        parentId: node.parentId,
+        data,
+      });
       tx.run(
         `UPDATE ${table}
             SET parent_id = ?, title = ?, status = ?, ordinal = ?, data_json = ?, version = ?, updated_at = ?

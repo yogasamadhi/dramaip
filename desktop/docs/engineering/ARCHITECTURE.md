@@ -14,10 +14,11 @@ Electron Main
 ├── Codex Host utilityProcess → 固定 Codex App Server stdio
 ├── DSH Engine utilityProcess → 会话级 Headless JSON-RPC Runtime
 ├── Pi Engine utilityProcess → 会话级嵌入式 Agent Runtime
+├── Grok Build Engine utilityProcess → 会话级 ACP Runtime
 └── LangGraph.js Engine utilityProcess
 ```
 
-Renderer 只获得 DramaIP Server 地址和每次启动随机生成的 Basic Auth 凭据。五个引擎的地址、进程凭据、MCP 令牌和 Provider 密钥都不会进入 Renderer。
+Renderer 只获得 DramaIP Server 地址和每次启动随机生成的 Basic Auth 凭据。六个引擎的地址、进程凭据、MCP 令牌和 Provider 密钥都不会进入 Renderer。
 
 ## 原生 IPC 白名单
 
@@ -33,19 +34,20 @@ Provider 密钥与 Codex API Key 只进入 Electron `userData/credentials` 下�
 
 旧版本如果曾将凭据保存到系统钥匙串，升级后必须由用户重新输入：DramaIP 不会读取、解密或迁移该类记录，以确保本版本完全不访问系统凭据服务。
 
-## 五引擎协议
+## 六引擎协议
 
-OpenCode、Codex、DeepSeek Harness（DSH）、Pi、LangGraph.js 统一映射为 Session → Run → Item。Server 负责路由、持久化、检查点、SSE 重放、用量、费用和失败映射；引擎只负责生成。项目可设置默认引擎和模型，每次任务可覆盖；引擎故障不会触发自动回退。
+OpenCode、Codex、DeepSeek Harness（DSH）、Pi、Grok Build、LangGraph.js 统一映射为 Session → Run → Item。Server 负责路由、持久化、检查点、SSE 重放、用量、费用和失败映射；引擎只负责生成。项目可设置默认引擎和模型，每次任务可覆盖；引擎故障不会触发自动回退。
 
 - OpenCode 固定 1.18.15，默认引擎，禁用 shell、编辑、任意文件读取、网络工具和子代理。
 - Codex 固定 0.147.0，使用独立 `CODEX_HOME`、App Server stdio、`read-only + never`，关闭网页搜索、命令、补丁、插件、Skills、应用和子代理。除 ChatGPT/OpenAI 认证外，还可将已保存的 OpenAI 兼容文本服务商作为 Codex 自定义 `model_provider`：Responses 服务商直连；仅 Chat Completions 的服务商通过回环地址上的本地转换适配器连接，目标密钥只保留在适配器进程内。
 - DSH 固定 0.1.0-rc.5 并显示“测试版”。Sidecar 由 Electron utility process 管理，每个实际运行的会话使用 `process.execPath + ELECTRON_RUN_AS_NODE=1` 启动独立 JSON-RPC Runtime。受控 Cordis 配置只挂载 JSON-RPC Server、`dsh-llm-pi-ai`、Agent Spine 和 DramaIP MCP Client，不挂载 Bash、文件系统、Web、Skills、子代理、工作流或本地持久化。
 - Pi 固定 0.84.2。每个运行会话使用嵌入 utilityProcess 的 Pi Agent；DramaIP 适配层只注册本轮只读 MCP，不提供终端、文件、浏览器、外部网络、Skills、子代理或后台任务能力。
-- LangGraph.js 是方案五稳定基线，使用 Vercel AI SDK 远程 Provider，并恢复 69 份旧版中文 Prompt；不访问数据库或本地文件。
+- Grok Build 固定 1.0.5。每个运行会话使用隔离 `GROK_HOME` 的 ACP Runtime，复用当前 Provider 凭据并直连 Chat Completions 或 Anthropic Messages；仅保留 DramaIP 只读 MCP，禁用文件、终端、Git、网页、插件、Skills 和子代理。Google/Gemini Provider 会单独将 Grok 标记为不可用，不影响其他引擎。
+- LangGraph.js 是方案六稳定基线，使用 Vercel AI SDK 远程 Provider，并恢复 69 份旧版中文 Prompt；不访问数据库或本地文件。
 
-每次运行获得绑定项目、会话、运行、上下文快照、工具白名单、结果大小和有效期的 MCP 授权。五种引擎均只能调用 DramaIP 只读 MCP。DSH 与 Pi Runtime 只在本轮授权写入 Server 后启动；Provider 切换不会改变正在运行的会话，后续运行按新配置重建 Runtime。
+每次运行获得绑定项目、会话、运行、上下文快照、工具白名单、结果大小和有效期的 MCP 授权。六种引擎均只能调用 DramaIP 只读 MCP。DSH、Pi 与 Grok Runtime 只在本轮授权写入 Server 后启动；Provider 切换不会改变正在运行的会话，后续运行按新配置重建 Runtime。
 
-新建盲测固定映射为方案一 OpenCode、方案二 Codex、方案三 DSH、方案四 Pi、方案五 LangGraph.js。评价前隐藏引擎名，评价后揭示；历史记录继续按自身 `candidate_order_json` 的实际数量完成和展示。
+新建盲测固定映射为方案一 OpenCode、方案二 Codex、方案三 DSH、方案四 Pi、方案五 Grok Build、方案六 LangGraph.js。评价前隐藏引擎名，评价后揭示；历史记录继续按自身 `candidate_order_json` 的实际数量完成和展示。
 
 ## 任务、修改与媒体调用
 

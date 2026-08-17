@@ -184,15 +184,29 @@ function CreativeQualityPage() {
           body: JSON.stringify({
             projectId: activeProjectId,
             title: `${chapter.title} · 自动分析`,
-            data: {
-              targetId: chapter.id,
-              dimensions: {
-                pacing: 0,
-                highlight: 0,
-                feasibility: 0,
-              },
-              narrative: "等待人工审阅与补充",
-            },
+            data: (() => {
+              const words = chapter.content
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean).length;
+              const paragraphs = chapter.content
+                .split(/\n{2,}/)
+                .filter((item) => item.trim()).length;
+              const pacing = Math.min(
+                100,
+                Math.round((paragraphs / Math.max(1, words / 120)) * 50),
+              );
+              const highlight = Math.min(
+                100,
+                Math.round(Math.min(1, words / 800) * 100),
+              );
+              const feasibility = chapter.content.length > 0 ? 100 : 0;
+              return {
+                targetId: chapter.id,
+                dimensions: { pacing, highlight, feasibility },
+                narrative: `基于 ${words} 个词元和 ${paragraphs} 个段落计算；请结合正文继续审阅。`,
+              };
+            })(),
           }),
         },
       );

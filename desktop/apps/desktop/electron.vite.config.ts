@@ -28,6 +28,7 @@ export default defineConfig({
           ),
           "dsh-engine": resolve(root, "../../packages/ai/src/dsh-sidecar.ts"),
           "pi-engine": resolve(root, "../../packages/ai/src/pi-sidecar.ts"),
+          "grok-engine": resolve(root, "../../packages/ai/src/grok-sidecar.ts"),
           "langgraph-engine": resolve(
             root,
             "../../packages/ai-legacy/src/langgraph-sidecar.ts",

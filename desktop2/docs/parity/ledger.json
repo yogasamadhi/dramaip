@@ -6,12 +6,12 @@
   "contexts": [
     {
       "id": "system",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": ["health", "bootstrap", "diagnostics", "search", "backup"]
     },
     {
       "id": "workspace",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "project",
         "series",
@@ -22,7 +22,7 @@
     },
     {
       "id": "writing",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "chapter",
         "novel-workspace",
@@ -33,7 +33,7 @@
     },
     {
       "id": "knowledge",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "character",
         "outline",
@@ -44,12 +44,12 @@
     },
     {
       "id": "automation",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": ["task", "workflow", "template", "change-preview"]
     },
     {
       "id": "agents",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "provider",
         "engine",
@@ -62,7 +62,7 @@
     },
     {
       "id": "production",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "pilot",
         "adaptation",
@@ -75,7 +75,7 @@
     },
     {
       "id": "creative-quality",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "case-library",
         "diagnostics",
@@ -86,7 +86,7 @@
     },
     {
       "id": "media",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "asset",
         "visual",
@@ -101,12 +101,12 @@
     },
     {
       "id": "timeline",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": ["timeline", "command", "undo-redo", "preview", "export"]
     },
     {
       "id": "review",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "review-package",
         "comment",
@@ -116,7 +116,7 @@
     },
     {
       "id": "delivery",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "creative-version",
         "platform-spec",
@@ -127,7 +127,7 @@
     },
     {
       "id": "insights",
-      "status": "in-progress",
+      "status": "complete",
       "capabilities": [
         "feedback-import",
         "cluster",

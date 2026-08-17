@@ -98,7 +98,7 @@ type StartCommand = {
   backupDirectory: string;
   assetDirectory: string;
   allowedOrigins: string[];
-  /** 兼容测试宿主；正式桌面端为五个引擎使用互不相同的传输凭据。 */
+  /** 兼容测试宿主；正式桌面端为六个引擎使用互不相同的传输凭据。 */
   mcpToken?: string;
   mcpTokens?: Partial<Record<AgentEngineKind, string>>;
   opencode?: {
@@ -121,6 +121,10 @@ type StartCommand = {
     healthy: boolean;
     version: string;
   };
+  grok?: {
+    healthy: boolean;
+    version: string;
+  };
   langgraph?: {
     healthy: boolean;
     version: string;
@@ -130,12 +134,13 @@ type Command = StartCommand | { type: "stop" };
 type AgentRunOperation = "diagnostic" | "revision";
 type AgentExperimentCandidate =
   "one" | "two" | "three" | "four" | "five" | "six";
-type ActiveAgentExperimentCandidate = Exclude<AgentExperimentCandidate, "six">;
+type ActiveAgentExperimentCandidate = AgentExperimentCandidate;
 const AGENT_ENGINE_ORDER = [
   "opencode",
   "codex",
   "dsh",
   "pi",
+  "grok",
   "langgraph",
 ] as const satisfies readonly AgentEngineKind[];
 type ParentPort = {
@@ -433,6 +438,10 @@ hostPort.on("message", (event) => {
     if (status.engineKind === "pi" && command?.pi) {
       command.pi.healthy = status.healthy === true;
       if (status.version) command.pi.version = status.version;
+    }
+    if (status.engineKind === "grok" && command?.grok) {
+      command.grok.healthy = status.healthy === true;
+      if (status.version) command.grok.version = status.version;
     }
     if (status.engineKind === "langgraph" && command?.langgraph) {
       command.langgraph.healthy = status.healthy === true;
@@ -12955,6 +12964,8 @@ type CodexProviderConfiguration = {
   model: string;
   baseUrl: string;
   credentialRef: string;
+  /** Known OpenAI-compatible presets expose Chat Completions only. */
+  supportsResponses: boolean;
 };
 
 type StoredCodexProvider = {
@@ -12969,6 +12980,7 @@ function codexProviderConfiguration(
   const payload = domainPayload(provider.payload_json);
   const serviceType = text(payload["服务类型"]);
   const protocol = text(payload["调用协议"])?.toLowerCase() ?? "";
+  const presetProvider = text(payload["预设服务商"])?.toLowerCase();
   const credentialRef = text(payload["凭据引用"]);
   const model = text(payload["模型名称"]);
   const rawBaseUrl = text(payload["服务地址"]);
@@ -12997,7 +13009,23 @@ function codexProviderConfiguration(
     model,
     baseUrl: address.toString().replace(/\/$/, ""),
     credentialRef,
+    // The catalog records the wire protocol supported by each vendor.  Only
+    // OpenAI is known to expose Responses directly; the other catalog
+    // entries are Chat Completions-compatible and must use our local bridge.
+    // Custom providers ("other") remain opt-in for direct Responses.
+    supportsResponses:
+      !presetProvider ||
+      presetProvider === "openai" ||
+      presetProvider === "other",
   };
+}
+
+function codexProtocolForProvider(
+  provider: CodexProviderConfiguration,
+  requested: unknown,
+): "responses" | "chat_completions" {
+  if (requested !== "responses") return "chat_completions";
+  return provider.supportsResponses ? "responses" : "chat_completions";
 }
 
 function storedCodexProvider(): StoredCodexProvider | undefined {
@@ -13045,6 +13073,19 @@ function activeAgentProviderId(): string | undefined {
     "SELECT provider_id FROM agent_engine_config WHERE singleton = 1",
   );
   return configured ? String(configured.provider_id) : undefined;
+}
+
+function activeProviderIsGoogle(): boolean {
+  const providerId = activeAgentProviderId();
+  if (!providerId) return false;
+  const provider = one(
+    "SELECT payload_json FROM domain_entities WHERE id = ? AND domain = 'providers'",
+    [providerId],
+  );
+  if (!provider) return false;
+  const payload = domainPayload(provider.payload_json);
+  const protocol = text(payload["调用协议"])?.toLowerCase() ?? "";
+  return protocol.includes("google") || protocol.includes("gemini");
 }
 
 function openCodeProviderConfiguration(
@@ -19784,6 +19825,7 @@ function engineHealthy(kind: AgentEngineKind): boolean {
   if (kind === "codex") return command?.codex?.healthy === true;
   if (kind === "dsh") return command?.dsh?.healthy === true;
   if (kind === "pi") return command?.pi?.healthy === true;
+  if (kind === "grok") return command?.grok?.healthy === true;
   return command?.langgraph?.healthy === true;
 }
 
@@ -19792,6 +19834,7 @@ function engineVersion(kind: AgentEngineKind): string {
   if (kind === "codex") return command?.codex?.version ?? "0.147.0";
   if (kind === "dsh") return command?.dsh?.version ?? "0.1.0-rc.5";
   if (kind === "pi") return command?.pi?.version ?? "0.84.2";
+  if (kind === "grok") return command?.grok?.version ?? "1.0.5";
   return command?.langgraph?.version ?? "0.2.43";
 }
 
@@ -19825,16 +19868,39 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
   const globalSettings = globalAgentSettingsRecord();
   const providerConfigured = engineConfigured(kind);
   const canRun = healthy && providerConfigured;
+  // Engine health is about whether the provider was actually reached, not
+  // whether every post-processing step for the task completed.  A streamed
+  // model response is therefore positive invocation evidence even when the
+  // run is later marked failed (for example, a structured-output or Grok MCP
+  // policy check can fail after text has already arrived).  The old query
+  // looked only at the terminal run status and consequently reported Grok as
+  // abnormal although the user had already received a valid answer.
   const latestRun = one(
-    "SELECT status, error, updated_at FROM agent_runs WHERE engine_kind = ? ORDER BY updated_at DESC LIMIT 1",
+    `SELECT ar.status, ar.error, ar.updated_at,
+       EXISTS(
+         SELECT 1 FROM agent_items ai
+         WHERE ai.run_id = ar.id
+           AND ai.type IN ('message', 'structured_output')
+           AND ai.content IS NOT NULL
+           AND length(trim(ai.content)) > 0
+       ) AS response_observed
+     FROM agent_runs ar
+     WHERE ar.engine_kind = ?
+     ORDER BY ar.updated_at DESC
+     LIMIT 1`,
     [kind],
   );
-  const lastFailed = latestRun?.status === "failed" && latestRun.error;
-  const invocationStatus = lastFailed
-    ? "failed"
-    : latestRun?.status === "succeeded"
+  const responseObserved = Number(latestRun?.response_observed) === 1;
+  const invocationStatus =
+    latestRun?.status === "succeeded" || responseObserved
       ? "verified"
-      : "untested";
+      : latestRun?.status === "failed"
+        ? "failed"
+        : "untested";
+  const lastFailed =
+    invocationStatus === "failed" && latestRun?.error
+      ? latestRun.error
+      : undefined;
   const status = !canRun
     ? "unavailable"
     : invocationStatus === "failed"
@@ -19851,7 +19917,9 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
             ? "DeepSeek Harness"
             : kind === "pi"
               ? "Pi"
-              : "LangGraph.js",
+              : kind === "grok"
+                ? "Grok Build"
+                : "LangGraph.js",
     version: engineVersion(kind),
     status,
     runtimeStatus: healthy ? "running" : "stopped",
@@ -19868,25 +19936,28 @@ function agentEngineDescriptor(kind: AgentEngineKind) {
     ...(lastFailed
       ? {
           lastFailure: {
-            code: agentFailureCode(String(latestRun.error)),
-            message: publicErrorMessage(String(latestRun.error)),
-            occurredAt: String(latestRun.updated_at),
+            code: agentFailureCode(String(latestRun?.error)),
+            message: publicErrorMessage(String(latestRun?.error)),
+            occurredAt: String(latestRun?.updated_at),
           },
         }
       : {}),
     isDefault: kind === globalSettings.defaultEngineKind,
     isBeta: kind === "codex" || kind === "dsh",
-    statusMessage: !healthy
-      ? "引擎进程未启动"
-      : !providerConfigured
-        ? kind === "codex"
-          ? "尚未登录 Codex，请在设置中心完成 Codex 认证"
-          : "尚未配置智能模型服务商"
-        : invocationStatus === "failed"
-          ? "引擎已启动，但上次模型调用失败"
-          : invocationStatus === "verified"
-            ? "引擎和模型最近调用正常"
-            : "引擎已启动，尚未完成实际调用验证",
+    statusMessage:
+      kind === "grok" && activeProviderIsGoogle()
+        ? "Grok 暂不支持 Google/Gemini 服务商"
+        : !healthy
+          ? "引擎进程未启动"
+          : !providerConfigured
+            ? kind === "codex"
+              ? "尚未登录 Codex，请在设置中心完成 Codex 认证"
+              : "尚未配置智能模型服务商"
+            : invocationStatus === "failed"
+              ? "引擎已启动，但上次模型调用失败"
+              : invocationStatus === "verified"
+                ? "引擎和模型最近调用正常"
+                : "引擎已启动，尚未完成实际调用验证",
     capabilities: {
       streaming: true,
       interrupt: true,
@@ -22943,6 +23014,7 @@ async function loginCodex(
       requestId,
     );
   let providerConfiguration: CodexProviderConfiguration | undefined;
+  let effectiveProtocol: "responses" | "chat_completions" | undefined;
   if (input.mode === "custom_provider") {
     const providerId = text(input.providerId);
     if (!providerId)
@@ -22961,6 +23033,10 @@ async function loginCodex(
       return respondError(res, 404, "NOT_FOUND", "模型服务商不存在", requestId);
     try {
       providerConfiguration = codexProviderConfiguration(provider);
+      effectiveProtocol = codexProtocolForProvider(
+        providerConfiguration,
+        input.protocol,
+      );
     } catch (error) {
       return respondError(
         res,
@@ -22987,10 +23063,7 @@ async function loginCodex(
             baseUrl: providerConfiguration.baseUrl,
             model: providerConfiguration.model,
             credentialRef: providerConfiguration.credentialRef,
-            protocol:
-              input.protocol === "chat_completions"
-                ? "chat_completions"
-                : "responses",
+            protocol: effectiveProtocol,
           }
         : {}),
     })) as {
@@ -23006,10 +23079,7 @@ async function loginCodex(
         ? JSON.stringify({
             codexProviderId: providerConfiguration.providerId,
             modelId: providerConfiguration.model,
-            codexProtocol:
-              input.protocol === "chat_completions"
-                ? "chat_completions"
-                : "responses",
+            codexProtocol: effectiveProtocol,
           })
         : null;
       db!
@@ -23108,6 +23178,12 @@ async function restoreCodexApiKeyLogin(): Promise<void> {
     return;
   }
   try {
+    const effectiveProtocol = providerConfiguration
+      ? codexProtocolForProvider(
+          providerConfiguration,
+          storedProvider?.protocol,
+        )
+      : undefined;
     const result = (await bridgeEngineRequest("codex", "login", {
       mode: providerConfiguration ? "custom_provider" : "api_key",
       credentialRef,
@@ -23117,13 +23193,31 @@ async function restoreCodexApiKeyLogin(): Promise<void> {
             providerName: providerConfiguration.providerName,
             baseUrl: providerConfiguration.baseUrl,
             model: providerConfiguration.model,
-            protocol: storedProvider?.protocol ?? "responses",
+            protocol: effectiveProtocol,
           }
         : {}),
     })) as { status?: string; authenticated?: boolean };
     if (command?.codex)
       command.codex.authenticated =
         result.authenticated === true || result.status === "authenticated";
+    if (
+      storedProvider &&
+      effectiveProtocol &&
+      effectiveProtocol !== storedProvider.protocol
+    ) {
+      db!
+        .prepare(
+          "UPDATE agent_engine_configs SET model_json = ?, updated_at = ? WHERE engine_kind = 'codex'",
+        )
+        .run(
+          JSON.stringify({
+            codexProviderId: storedProvider.providerId,
+            modelId: storedProvider.modelId,
+            codexProtocol: effectiveProtocol,
+          }),
+          timestamp(),
+        );
+    }
     emit("agent_engine.status", {
       engineKind: "codex",
       healthy: true,
@@ -23212,7 +23306,7 @@ async function createAgentExperiment(
       res,
       400,
       "VALIDATION_ERROR",
-      "创建五引擎盲测必须提供 Idempotency-Key",
+      "创建六引擎盲测必须提供 Idempotency-Key",
       requestId,
     );
   const replay = one(
@@ -23242,7 +23336,7 @@ async function createAgentExperiment(
       res,
       409,
       "TASK_REJECTED",
-      "请先确认五次模型调用可能产生的费用",
+      "请先确认六次模型调用可能产生的费用",
       requestId,
     );
   const comparisonMode =
@@ -23275,7 +23369,7 @@ async function createAgentExperiment(
         res,
         409,
         "TASK_REJECTED",
-        "同模型盲测要求 OpenCode、DSH、Pi 与 LangGraph 使用 OpenAI 兼容服务商",
+        "同模型盲测要求 OpenCode、DSH、Pi、Grok 与 LangGraph 使用 OpenAI 兼容服务商",
         requestId,
       );
     if (
@@ -23304,7 +23398,7 @@ async function createAgentExperiment(
       res,
       409,
       "CONFLICT",
-      "请先配置 OpenCode、DSH、Pi 与 LangGraph 使用的智能模型",
+      "请先配置 OpenCode、DSH、Pi、Grok 与 LangGraph 使用的智能模型",
       requestId,
     );
   const sourceProject = one("SELECT * FROM projects WHERE id = ?", [projectId]);
@@ -23339,7 +23433,8 @@ async function createAgentExperiment(
     two: "codex",
     three: "dsh",
     four: "pi",
-    five: "langgraph",
+    five: "grok",
+    six: "langgraph",
   } as const satisfies Record<ActiveAgentExperimentCandidate, AgentEngineKind>;
   db!
     .prepare(
@@ -23419,14 +23514,14 @@ async function startAgentExperiment(input: {
     const candidates = Object.entries(input.candidateOrder) as Array<
       [ActiveAgentExperimentCandidate, AgentEngineKind]
     >;
-    // 所有引擎会话只创建元数据。五个会话全部成功后才落库和入队，
+    // 所有引擎会话只创建元数据。六个会话全部成功后才落库和入队，
     // 从而在运行前拒绝不可用引擎，绝不启动部分候选。
     for (const [candidate, engineKind] of candidates)
       allocatedSessions.push({
         candidate,
         engineKind,
         engineSession: await createEngineSession(engineKind, {
-          title: `五引擎盲测：${input.definition.label}`,
+          title: `六引擎盲测：${input.definition.label}`,
           projectId: String(input.project.id),
           ...(input.chapter ? { chapterId: String(input.chapter.id) } : {}),
           ...(input.model ? { model: input.model } : {}),
@@ -23454,7 +23549,7 @@ async function startAgentExperiment(input: {
           input.project.id,
           input.chapter?.id ?? null,
           input.definition.id,
-          `五引擎盲测：${input.definition.label}`,
+          `六引擎盲测：${input.definition.label}`,
           input.model ? JSON.stringify(input.model) : null,
           createdAt,
           createdAt,
@@ -23466,7 +23561,7 @@ async function startAgentExperiment(input: {
         .run(
           taskId,
           `agent.experiment.${input.definition.id}`,
-          `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : candidate === "four" ? "四" : "五"}`,
+          `盲测方案${candidate === "one" ? "一" : candidate === "two" ? "二" : candidate === "three" ? "三" : candidate === "four" ? "四" : candidate === "five" ? "五" : "六"}`,
           input.project.id,
           createdAt,
           createdAt,
@@ -23578,7 +23673,7 @@ async function startAgentExperiment(input: {
     hostPort.postMessage({
       type: "diagnostic",
       level: "error",
-      message: `五引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
+      message: `六引擎盲测启动失败：${error instanceof Error ? error.message : String(error)}`,
     });
     db!
       .prepare(
@@ -25393,6 +25488,7 @@ function publicErrorMessage(raw: string, code?: string): string {
   if (raw.startsWith("Codex ")) return "Codex 引擎调用失败";
   if (raw.startsWith("DSH ") || raw.startsWith("DeepSeek Harness "))
     return "DeepSeek Harness 引擎调用失败";
+  if (raw.startsWith("Grok ")) return "Grok Build 引擎调用失败";
   if (raw.startsWith("LangGraph")) return "LangGraph.js 引擎调用失败";
   if (code === "VALIDATION_ERROR") return "请求参数无效，请检查后重试";
   if (code === "NOT_FOUND") return "未找到所请求的内容";

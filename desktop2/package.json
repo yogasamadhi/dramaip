@@ -32,7 +32,7 @@
     "test:e2e": "bun run --cwd apps/studio test:e2e",
     "generate": "node --import tsx scripts/generate.mts && bunx openapi-typescript generated/openapi.json -o packages/client/src/generated/schema.d.ts",
     "capture:baseline": "bun scripts/capture-baseline-inventory.mts",
-    "check": "bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:core-parity && bun run check:ui-parity && bun run check:architecture",
+    "check": "bun run lint && bun run format:check && bun run typecheck && bun run test && bun run check:generated && bun run check:no-placeholder-behavior && bun run check:core-parity && bun run check:ui-parity && bun run check:parity:strict && bun run check:architecture",
     "check:generated": "bun scripts/check-generated.mts",
     "check:architecture": "bun run check:no-effect && bun run check:no-legacy-imports && bun run check:no-node-runtime && bun run check:plugin-graph && bun run check:vendor-locks && bun run check:baseline",
     "check:no-effect": "bun scripts/check-no-effect.mts",
@@ -45,6 +45,7 @@
     "check:parity": "bun scripts/check-parity.mts",
     "check:parity:strict": "bun scripts/check-parity.mts --strict",
     "check:core-parity": "bun scripts/check-core-parity.mts",
+    "check:no-placeholder-behavior": "bun scripts/check-no-placeholder-behavior.mts",
     "check:ui-parity": "bun scripts/check-ui-parity.mts"
   },
   "dependencies": {

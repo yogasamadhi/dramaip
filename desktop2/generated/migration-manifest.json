@@ -176,6 +176,16 @@
       "version": "3.0.0"
     },
     {
+      "checksum": "fac54f5679deb53683df0ccffe2177ad16eaa059f9ad9221eec4aa45badd394e",
+      "dependsOn": [
+        "agents-0003"
+      ],
+      "foreignKeysOff": true,
+      "id": "agents-0004",
+      "pluginId": "agents",
+      "version": "4.0.0"
+    },
+    {
       "checksum": "1f424f901c0d01119cdd173c8c34d1844da15a497855c1fcff703312a7881edb",
       "dependsOn": [
         "workspace-0001"

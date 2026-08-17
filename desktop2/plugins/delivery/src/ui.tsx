@@ -18,22 +18,29 @@ interface DeliveryRecord {
   data: Record<string, unknown>;
 }
 
+interface DeliveryContext {
+  timelineId?: string;
+  versionId?: string;
+  reviewPackageId?: string;
+  assetIds: string[];
+}
+
 const sections = [
   {
     path: "creative-versions",
     label: "创意版本",
-    data: () => ({
+    data: (context: DeliveryContext) => ({
       sourceType: "timeline",
-      sourceId: "canonical",
+      sourceId: context.timelineId ?? "",
       label: "本地版本",
-      checksum: crypto.randomUUID(),
+      checksum: `timeline:${context.timelineId ?? "none"}`,
       frozenAt: new Date().toISOString(),
     }),
   },
   {
     path: "platform-specs",
     label: "平台预检",
-    data: () => ({
+    data: (_context: DeliveryContext) => ({
       platform: "通用竖屏",
       aspectRatio: "9:16",
       codec: "H.264",
@@ -44,25 +51,25 @@ const sections = [
   {
     path: "archives",
     label: "归档",
-    data: () => ({
-      versionId: crypto.randomUUID(),
-      assetIds: [],
-      checksum: crypto.randomUUID(),
+    data: (context: DeliveryContext) => ({
+      versionId: context.versionId ?? "",
+      assetIds: context.assetIds,
+      checksum: `assets:${context.assetIds.join(",")}`,
     }),
   },
   {
     path: "exports",
     label: "交付导出",
-    data: () => ({
-      versionId: crypto.randomUUID(),
-      platformSpecId: crypto.randomUUID(),
+    data: (context: DeliveryContext) => ({
+      versionId: context.versionId ?? "",
+      platformSpecId: context.versionId ?? "",
     }),
   },
   {
     path: "cloud-review-syncs",
     label: "云审片预览",
-    data: () => ({
-      reviewPackageId: crypto.randomUUID(),
+    data: (context: DeliveryContext) => ({
+      reviewPackageId: context.reviewPackageId ?? "",
       provider: "disabled",
     }),
   },
@@ -89,6 +96,42 @@ function DeliveryWorkspace() {
       ),
     enabled: Boolean(activeProject),
   });
+  const timeline = useQuery({
+    queryKey: ["delivery", "timeline", activeProject],
+    queryFn: () =>
+      client.request<{
+        items: Array<{ id: string; data: { canonical: boolean } }>;
+      }>(`/api/v2/timeline/timelines?projectId=${activeProject}`),
+    enabled: Boolean(activeProject),
+  });
+  const assets = useQuery({
+    queryKey: ["delivery", "assets", activeProject],
+    queryFn: () =>
+      client.request<{ items: Array<{ id: string }> }>(
+        `/api/v2/media/assets?projectId=${activeProject}`,
+      ),
+    enabled: Boolean(activeProject),
+  });
+  const reviewPackages = useQuery({
+    queryKey: ["delivery", "review-packages", activeProject],
+    queryFn: () =>
+      client.request<{ items: Array<{ id: string }> }>(
+        `/api/v2/review/packages?projectId=${activeProject}`,
+      ),
+    enabled: Boolean(activeProject),
+  });
+  const context: DeliveryContext = {
+    timelineId:
+      timeline.data?.items.find((item) => item.data.canonical)?.id ??
+      timeline.data?.items[0]?.id,
+    versionId: undefined,
+    reviewPackageId: reviewPackages.data?.items[0]?.id,
+    assetIds: assets.data?.items.map((item) => item.id) ?? [],
+  };
+  const existingVersion = records.data?.items.find(
+    (item) => item.data.sourceType === "timeline",
+  );
+  context.versionId = existingVersion?.id ?? context.timelineId;
   const create = useMutation({
     mutationFn: () =>
       client.request(`/api/v2/delivery/${path}`, {
@@ -99,7 +142,7 @@ function DeliveryWorkspace() {
         body: JSON.stringify({
           projectId: activeProject,
           title: title.trim(),
-          data: active.data(),
+          data: active.data(context),
         }),
       }),
     onSuccess: async () => {

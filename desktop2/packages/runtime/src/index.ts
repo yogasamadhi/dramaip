@@ -63,6 +63,7 @@ export interface DramaRuntimeConfig {
   engineBridge: EngineControlBridge;
   engineTokens: EngineTokenMap;
   fileCapabilityResolver?: FileCapabilityResolver;
+  restoreDatabase?: (backupFile: string) => Promise<void>;
 }
 
 export interface PreparedDramaRuntime {
@@ -93,9 +94,11 @@ export function prepareDramaRuntime(
   );
   const workspaceModule = createWorkspaceModule(config.fileCapabilityResolver);
   const systemModule = createSystemModule({
+    databaseFile: config.databaseFile,
     backupDirectory: config.backupDirectory,
     profileName: profile.name,
     pluginIds: profile.plugins.map((entry) => entry.id),
+    restoreDatabase: config.restoreDatabase,
   });
   const modules = new Map<string, DramaPluginExports<unknown>>();
   for (const module of [

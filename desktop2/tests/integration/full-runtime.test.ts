@@ -608,11 +608,72 @@ test("studio profile loads all product contexts and all five engine fibers", asy
     };
     assert.equal(clarification.clarification, true);
     assert.equal(clarification.run, undefined);
+    const generalChatResponse = await request(
+      `/api/v2/agents/assistant/conversations/${unboundConversation.id}/messages`,
+      {
+        method: "POST",
+        headers: { "idempotency-key": "general-chat-one" },
+        body: JSON.stringify({ content: "hello" }),
+      },
+    );
+    assert.equal(generalChatResponse.status, 202);
+    const generalChat = (await generalChatResponse.json()) as {
+      run: { taskId: string; href: string };
+    };
+    for (let index = 0; index < 30; index++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      const runResponse = await request(generalChat.run.href);
+      const current = (await runResponse.json()) as { state: string };
+      if (current.state === "succeeded") break;
+      if (index === 29) assert.fail(`general chat stayed ${current.state}`);
+    }
+    const generalMessages = (await (
+      await request(
+        `/api/v2/agents/assistant/conversations/${unboundConversation.id}/messages?limit=20`,
+      )
+    ).json()) as {
+      items: Array<{
+        role: string;
+        runId: string | null;
+        content: string;
+        taskType: string | null;
+      }>;
+    };
+    const generalAnswer = generalMessages.items.find(
+      (item) =>
+        item.role === "assistant" && item.runId === generalChat.run.taskId,
+    );
+    assert.equal(generalAnswer?.content, "完整结果");
+    assert.equal(generalAnswer?.taskType, "general-chat");
+    const globalSession = kernel.context.uow.execute((tx) =>
+      tx.get<{ project_id: string | null }>(
+        "SELECT project_id FROM agents_sessions WHERE id = (SELECT session_id FROM assistant_conversations WHERE id = ?)",
+        unboundConversation.id,
+      ),
+    );
+    assert.equal(globalSession?.project_id, null);
+    assert.equal(
+      kernel.context.uow.execute(
+        (tx) =>
+          tx.get<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM agents_mcp_claims WHERE session_id = (SELECT session_id FROM assistant_conversations WHERE id = ?)",
+            unboundConversation.id,
+          )?.count ?? 0,
+      ),
+      0,
+    );
+    const currentUnboundConversation = (await (
+      await request(
+        `/api/v2/agents/assistant/conversations/${unboundConversation.id}`,
+      )
+    ).json()) as { version: number };
     const renameConversationResponse = await request(
       `/api/v2/agents/assistant/conversations/${unboundConversation.id}`,
       {
         method: "PATCH",
-        headers: { "if-match": `"v${unboundConversation.version}"` },
+        headers: {
+          "if-match": `"v${currentUnboundConversation.version}"`,
+        },
         body: JSON.stringify({ title: "已重命名对话" }),
       },
     );

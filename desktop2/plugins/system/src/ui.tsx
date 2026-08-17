@@ -101,6 +101,18 @@ function SystemSettingsPanel() {
       }),
     onSuccess: async () => backups.refetch(),
   });
+  const restoreBackup = useMutation({
+    mutationFn: (item: { id: string; filename: string }) =>
+      client.request(`/api/v2/system/backups/${item.id}/actions/restore`, {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({ confirmation: item.filename }),
+      }),
+    onSuccess: async () => {
+      await backups.refetch();
+      window.location.reload();
+    },
+  });
   return (
     <Card className="grid gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -143,6 +155,17 @@ function SystemSettingsPanel() {
             >
               <span className="truncate">{item.filename}</span>
               <span>{(item.size / 1024 / 1024).toFixed(1)} MB</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={restoreBackup.isPending}
+                onClick={() => {
+                  if (window.confirm(`使用 ${item.filename} 恢复数据库？`))
+                    restoreBackup.mutate(item);
+                }}
+              >
+                恢复
+              </Button>
             </div>
           ))}
           {!backups.data?.items.length && (
@@ -153,13 +176,15 @@ function SystemSettingsPanel() {
       {(bootstrap.error ||
         diagnostics.error ||
         backups.error ||
-        createBackup.error) && (
+        createBackup.error ||
+        restoreBackup.error) && (
         <ErrorPanel
           error={
             bootstrap.error ??
             diagnostics.error ??
             backups.error ??
-            createBackup.error
+            createBackup.error ??
+            restoreBackup.error
           }
         />
       )}

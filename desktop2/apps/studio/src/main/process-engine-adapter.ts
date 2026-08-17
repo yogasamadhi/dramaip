@@ -307,7 +307,7 @@ export class LegacyProcessEngineAdapter implements EngineAdapter {
     if (method === "createSession") {
       const input = payload as SessionInput;
       return {
-        projectId: input.projectId,
+        ...(input.projectId ? { projectId: input.projectId } : {}),
         title: input.title,
         ...(input.model ? { model: { modelId: input.model } } : {}),
         ...input.metadata,

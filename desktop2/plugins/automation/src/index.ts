@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Plugin } from "@deepseek-ai/cordis";
 import { createRoute, z } from "@hono/zod-openapi";
 
@@ -236,6 +237,101 @@ function expectedVersion(request: Request): number {
   return Number(/^"v(\d+)"$/.exec(value)?.[1] ?? Number.NaN);
 }
 
+const runnableTaskSchema = z.object({
+  id: z.uuid(),
+  kind: z.literal("task"),
+  projectId: z.uuid(),
+  parentId: z.uuid().nullable(),
+  title: z.string(),
+  status: z.string(),
+  ordinal: z.number().int(),
+  data: taskData,
+  version: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+function installRunRoutes(
+  app: Parameters<RouteContribution["install"]>[0],
+  ctx: any,
+): void {
+  for (const kind of ["workflow", "template"] as const) {
+    const route = createRoute({
+      method: "post",
+      path: `/api/v2/automation/${kind}s/{id}/actions/run`,
+      request: {
+        params: z.object({ id: z.uuid() }),
+        body: {
+          content: {
+            "application/json": {
+              schema: z
+                .object({
+                  projectId: z.uuid(),
+                  input: z.record(z.string(), z.unknown()).optional(),
+                })
+                .strict(),
+            },
+          },
+        },
+      },
+      responses: {
+        202: jsonResponse(runnableTaskSchema, `${kind} run queued`),
+        ...errors,
+      },
+    });
+    app.openapi(route, async (context: any) =>
+      idempotentResponse(
+        ctx.uow,
+        context.req.raw,
+        `automation.${kind}.run`,
+        context.req.valid("json"),
+        async () => {
+          const input = context.req.valid("json");
+          const task = {
+            id: randomUUID(),
+            kind: "task" as const,
+            projectId: input.projectId,
+            parentId: null,
+            title: `${kind === "workflow" ? "工作流" : "模板"}运行`,
+            status: "queued",
+            ordinal: 0,
+            data: {
+              state: "queued" as const,
+              progress: 0,
+              sourceId: context.req.valid("param").id,
+              input: input.input ?? {},
+            },
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          ctx.uow.execute((tx: any) => {
+            tx.run(
+              `INSERT INTO automation_task (id, kind, project_id, parent_id, title, status, ordinal, data_json, version, created_at, updated_at) VALUES (?, 'task', ?, NULL, ?, 'queued', 0, ?, 1, ?, ?)`,
+              task.id,
+              task.projectId,
+              task.title,
+              JSON.stringify(task.data),
+              task.createdAt,
+              task.updatedAt,
+            );
+            tx.append({
+              type: "automation.task-queued.v1",
+              pluginId: "automation",
+              aggregateType: "task",
+              aggregateId: task.id,
+              aggregateVersion: 1,
+              payload: task,
+            });
+          });
+          context.header("location", `/api/v2/automation/tasks/${task.id}`);
+          return context.json(task, 202);
+        },
+      ),
+    );
+  }
+}
+
 const automationServer: Plugin = {
   name: "dramaip-automation",
   provide: "automationRuntime",
@@ -251,6 +347,7 @@ const automationServer: Plugin = {
       id: "automation.change-previews.http.v2",
       pluginId: "automation",
       install(app) {
+        installRunRoutes(app, ctx);
         const get = createRoute({
           method: "get",
           path: "/api/v2/automation/change-previews/{id}",

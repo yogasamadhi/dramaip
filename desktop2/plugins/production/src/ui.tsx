@@ -21,6 +21,13 @@ interface ProductionRecord {
   data: Record<string, unknown>;
 }
 
+interface WritingChapter {
+  id: string;
+  title: string;
+  status: string;
+  wordCount: number;
+}
+
 const stages = [
   ["adaptations", "改编项目"],
   ["episodes", "分集"],
@@ -30,15 +37,96 @@ const stages = [
 ] as const;
 type Stage = (typeof stages)[number][0];
 
+function parentIdForStage(
+  data: ReturnType<typeof useProductionData>,
+  stage: Stage,
+): string | null {
+  if (stage === "adaptations") return null;
+  if (stage === "episodes") return data.lineageSelection.adaptationId || null;
+  if (stage === "scripts") return data.lineageSelection.episodeId || null;
+  if (stage === "scenes") return data.lineageSelection.scriptId || null;
+  return data.lineageSelection.sceneId || null;
+}
+
+function productionData(
+  stage: Stage,
+  data: ReturnType<typeof useProductionData>,
+  direction: string,
+  notes: string,
+  episodeCount: string,
+  existing?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (stage === "adaptations")
+    return {
+      sourceId: data.activeProjectId,
+      strategy:
+        direction.trim() || String(existing?.strategy ?? "忠于核心冲突"),
+      notes: notes.trim(),
+      direction: direction.trim(),
+      targetEpisodeCount:
+        Number(episodeCount) || Number(existing?.targetEpisodeCount ?? 12),
+    };
+  if (stage === "episodes")
+    return {
+      number: Number(existing?.number ?? 1),
+      synopsis: notes.trim(),
+      durationMinutes: Number(existing?.durationMinutes ?? 2),
+    };
+  if (stage === "scripts")
+    return {
+      episodeId: parentIdForStage(data, stage),
+      content: notes,
+      format: String(existing?.format ?? "fountain"),
+    };
+  if (stage === "scenes")
+    return {
+      scriptId: parentIdForStage(data, stage),
+      location: direction.trim(),
+      timeOfDay: String(existing?.timeOfDay ?? "日"),
+      action: notes,
+      characters: Array.isArray(existing?.characters)
+        ? existing.characters
+        : [],
+    };
+  return {
+    sceneId: parentIdForStage(data, stage),
+    shotSize: String(existing?.shotSize ?? "中景"),
+    cameraMovement: String(existing?.cameraMovement ?? "固定"),
+    description: notes,
+    durationSeconds: Number(existing?.durationSeconds ?? 3),
+  };
+}
+
 function useProductionData() {
   const client = useStudioClient();
   const [projectId, setProjectId] = useState("");
+  const [lineageSelection, setLineageSelection] = useState<{
+    adaptationId: string;
+    episodeId: string;
+    scriptId: string;
+    sceneId: string;
+    shotId: string;
+  }>({
+    adaptationId: "",
+    episodeId: "",
+    scriptId: "",
+    sceneId: "",
+    shotId: "",
+  });
   const projects = useQuery({
     queryKey: ["production", "projects"],
     queryFn: () =>
       client.request<{ items: Project[] }>("/api/v2/workspace/projects"),
   });
   const activeProjectId = projectId || projects.data?.items[0]?.id || "";
+  const chapters = useQuery({
+    queryKey: ["production", "chapters", activeProjectId],
+    queryFn: () =>
+      client.request<{ items: WritingChapter[] }>(
+        `/api/v2/writing/projects/${activeProjectId}/chapters`,
+      ),
+    enabled: Boolean(activeProjectId),
+  });
   const records = Object.fromEntries(
     stages.map(([path]) => [
       path,
@@ -63,8 +151,21 @@ function useProductionData() {
     projectId,
     setProjectId,
     activeProjectId,
+    chapters,
+    lineageSelection,
+    setLineageSelection,
     records,
   };
+}
+
+function graphStatus(record: ProductionRecord): string {
+  const adoption = record.data.adoptionStatus;
+  if (adoption === "adopted" || adoption === "locked") return "已采用";
+  const review = record.data.reviewStatus;
+  if (typeof review === "string" && review.trim()) return review;
+  if (record.status === "available" || record.status === "draft")
+    return "待完善";
+  return record.status;
 }
 
 function LineageSelectors({
@@ -74,11 +175,9 @@ function LineageSelectors({
   compact?: boolean;
   data: ReturnType<typeof useProductionData>;
 }) {
-  const [adaptationId, setAdaptationId] = useState("");
-  const [episodeId, setEpisodeId] = useState("");
-  const [scriptId, setScriptId] = useState("");
-  const [sceneId, setSceneId] = useState("");
-  const [shotId, setShotId] = useState("");
+  const { lineageSelection, setLineageSelection } = data;
+  const { adaptationId, episodeId, scriptId, sceneId, shotId } =
+    lineageSelection;
   const adaptations = data.records.adaptations.data?.items ?? [];
   const activeAdaptationId =
     adaptationId || (compact ? (adaptations[0]?.id ?? "") : "");
@@ -98,12 +197,14 @@ function LineageSelectors({
     (item) => !activeSceneId || item.parentId === activeSceneId,
   );
   useEffect(() => {
-    setAdaptationId("");
-    setEpisodeId("");
-    setScriptId("");
-    setSceneId("");
-    setShotId("");
-  }, [data.activeProjectId]);
+    setLineageSelection({
+      adaptationId: "",
+      episodeId: "",
+      scriptId: "",
+      sceneId: "",
+      shotId: "",
+    });
+  }, [data.activeProjectId, setLineageSelection]);
   const options = (items: readonly ProductionRecord[]) =>
     items.map((item) => ({ value: item.id, label: item.title }));
   return (
@@ -131,11 +232,13 @@ function LineageSelectors({
           options={options(adaptations)}
           placeholder="选择改编项目"
           onValueChange={(value) => {
-            setAdaptationId(value);
-            setEpisodeId("");
-            setScriptId("");
-            setSceneId("");
-            setShotId("");
+            setLineageSelection({
+              adaptationId: value,
+              episodeId: "",
+              scriptId: "",
+              sceneId: "",
+              shotId: "",
+            });
           }}
         />
       </label>
@@ -148,10 +251,13 @@ function LineageSelectors({
           placeholder="选择分集"
           disabled={!activeAdaptationId}
           onValueChange={(value) => {
-            setEpisodeId(value);
-            setScriptId("");
-            setSceneId("");
-            setShotId("");
+            setLineageSelection({
+              adaptationId,
+              episodeId: value,
+              scriptId: "",
+              sceneId: "",
+              shotId: "",
+            });
           }}
         />
       </label>
@@ -164,9 +270,13 @@ function LineageSelectors({
           placeholder="选择剧本"
           disabled={!activeEpisodeId}
           onValueChange={(value) => {
-            setScriptId(value);
-            setSceneId("");
-            setShotId("");
+            setLineageSelection({
+              adaptationId,
+              episodeId,
+              scriptId: value,
+              sceneId: "",
+              shotId: "",
+            });
           }}
         />
       </label>
@@ -178,7 +288,15 @@ function LineageSelectors({
           options={options(scenes)}
           placeholder="选择场景"
           disabled={!activeScriptId}
-          onValueChange={setSceneId}
+          onValueChange={(value) =>
+            setLineageSelection({
+              adaptationId,
+              episodeId,
+              scriptId,
+              sceneId: value,
+              shotId,
+            })
+          }
         />
       </label>
       {compact ? (
@@ -190,7 +308,15 @@ function LineageSelectors({
             options={options(shots)}
             placeholder="选择分镜"
             disabled={!activeSceneId}
-            onValueChange={setShotId}
+            onValueChange={(value) =>
+              setLineageSelection({
+                adaptationId,
+                episodeId,
+                scriptId,
+                sceneId,
+                shotId: value,
+              })
+            }
           />
         </label>
       ) : null}
@@ -207,50 +333,62 @@ function AdaptationWorkspace() {
   const [direction, setDirection] = useState("");
   const [episodeCount, setEpisodeCount] = useState("12");
   const [notes, setNotes] = useState("");
+  const [editing, setEditing] = useState<ProductionRecord>();
   const records = data.records[stage];
   const create = useMutation({
-    mutationFn: () =>
-      data.client.request<ProductionRecord>(`/api/v2/production/${stage}`, {
-        method: "POST",
-        body: JSON.stringify({
-          projectId: data.activeProjectId,
-          title: title.trim(),
-          ordinal: records.data?.items.length ?? 0,
-          data:
-            stage === "adaptations"
-              ? {
-                  sourceId: data.activeProjectId,
-                  strategy: direction.trim() || "忠于核心冲突",
-                  notes: notes.trim(),
-                  direction: direction.trim(),
-                  targetEpisodeCount: Number(episodeCount) || 12,
-                }
-              : stage === "episodes"
-                ? { number: 1, synopsis: notes.trim(), durationMinutes: 2 }
-                : stage === "scripts"
-                  ? {
-                      episodeId: crypto.randomUUID(),
-                      content: notes,
-                      format: "fountain",
-                    }
-                  : stage === "scenes"
-                    ? {
-                        scriptId: crypto.randomUUID(),
-                        location: direction,
-                        timeOfDay: "日",
-                        action: notes,
-                        characters: [],
-                      }
-                    : {
-                        sceneId: crypto.randomUUID(),
-                        shotSize: "中景",
-                        cameraMovement: "固定",
-                        description: notes,
-                        durationSeconds: 3,
-                      },
-        }),
-      }),
+    mutationFn: () => {
+      const parentId = parentIdForStage(data, stage);
+      if (stage !== "adaptations" && !parentId)
+        throw new Error("请先选择真实的上级资料");
+      return data.client.request<ProductionRecord>(
+        `/api/v2/production/${stage}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            projectId: data.activeProjectId,
+            parentId,
+            title: title.trim(),
+            ordinal: records.data?.items.length ?? 0,
+            data: productionData(stage, data, direction, notes, episodeCount),
+          }),
+        },
+      );
+    },
     onSuccess: async () => {
+      setTitle("");
+      setDirection("");
+      setNotes("");
+      setComposerOpen(false);
+      await queryClient.invalidateQueries({
+        queryKey: ["production", stage, data.activeProjectId],
+      });
+    },
+  });
+  const update = useMutation({
+    mutationFn: () => {
+      if (!editing) throw new Error("请先选择要编辑的资料");
+      return data.client.request<ProductionRecord>(
+        `/api/v2/production/${stage}/${editing.id}`,
+        {
+          method: "PATCH",
+          headers: { "if-match": `"v${editing.version}"` },
+          body: JSON.stringify({
+            title: title.trim(),
+            parentId: editing.parentId,
+            data: productionData(
+              stage,
+              data,
+              direction,
+              notes,
+              episodeCount,
+              editing.data,
+            ),
+          }),
+        },
+      );
+    },
+    onSuccess: async () => {
+      setEditing(undefined);
       setTitle("");
       setDirection("");
       setNotes("");
@@ -277,6 +415,7 @@ function AdaptationWorkspace() {
     data.projects.error ??
     Object.values(data.records).find((item) => item.error)?.error ??
     create.error ??
+    update.error ??
     remove.error;
   return (
     <section className="page-stack production-workspace adaptation-workspace">
@@ -309,7 +448,13 @@ function AdaptationWorkspace() {
                 : `持续维护当前项目的${activeLabel}及其上级归属。`}
             </small>
           </div>
-          <Button variant="primary" onClick={() => setComposerOpen(true)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setEditing(undefined);
+              setComposerOpen(true);
+            }}
+          >
             新建{activeLabel}
           </Button>
         </div>
@@ -351,9 +496,9 @@ function AdaptationWorkspace() {
                 variant="primary"
                 disabled={!title.trim()}
                 loading={create.isPending}
-                onClick={() => create.mutate()}
+                onClick={() => (editing ? update.mutate() : create.mutate())}
               >
-                保存
+                {editing ? "保存修改" : "保存"}
               </Button>
             </div>
           </div>
@@ -367,7 +512,32 @@ function AdaptationWorkspace() {
               <div className="production-record-title">
                 <strong>{record.title}</strong>
                 <span>
-                  <button onClick={() => setComposerOpen(true)}>编辑</button>
+                  <button
+                    onClick={() => {
+                      setEditing(record);
+                      setComposerOpen(true);
+                      setTitle(record.title);
+                      setDirection(
+                        String(
+                          record.data.direction ?? record.data.location ?? "",
+                        ),
+                      );
+                      setNotes(
+                        String(
+                          record.data.notes ??
+                            record.data.action ??
+                            record.data.description ??
+                            record.data.content ??
+                            "",
+                        ),
+                      );
+                      setEpisodeCount(
+                        String(record.data.targetEpisodeCount ?? 12),
+                      );
+                    }}
+                  >
+                    编辑
+                  </button>
                   <button onClick={() => remove.mutate(record)}>删除</button>
                 </span>
               </div>
@@ -410,6 +580,7 @@ function AdaptationWorkspace() {
 
 function ProductionWorkspace() {
   const data = useProductionData();
+  const [mediaStage, setMediaStage] = useState("素材");
   const mediaAssets = useQuery({
     queryKey: ["production", "media-assets", data.activeProjectId],
     queryFn: () =>
@@ -426,43 +597,120 @@ function ProductionWorkspace() {
       ),
     enabled: Boolean(data.activeProjectId),
   });
+  const timelines = useQuery({
+    queryKey: ["production", "timelines", data.activeProjectId],
+    queryFn: () =>
+      data.client.request<{ items: ProductionRecord[] }>(
+        `/api/v2/timeline/timelines?projectId=${data.activeProjectId}`,
+      ),
+    enabled: Boolean(data.activeProjectId),
+  });
+  const qualityChecks = useQuery({
+    queryKey: ["production", "quality-checks", data.activeProjectId],
+    queryFn: () =>
+      data.client.request<{ items: ProductionRecord[] }>(
+        `/api/v2/creative-quality/quality-checks?projectId=${data.activeProjectId}`,
+      ),
+    enabled: Boolean(data.activeProjectId),
+  });
+  const complianceChecks = useQuery({
+    queryKey: ["production", "compliance-checks", data.activeProjectId],
+    queryFn: () =>
+      data.client.request<{ items: ProductionRecord[] }>(
+        `/api/v2/creative-quality/compliance-checks?projectId=${data.activeProjectId}`,
+      ),
+    enabled: Boolean(data.activeProjectId),
+  });
+  const reviewPackages = useQuery({
+    queryKey: ["production", "review-packages", data.activeProjectId],
+    queryFn: () =>
+      data.client.request<{ items: ProductionRecord[] }>(
+        `/api/v2/review/packages?projectId=${data.activeProjectId}`,
+      ),
+    enabled: Boolean(data.activeProjectId),
+  });
+  const deliveryExports = useQuery({
+    queryKey: ["production", "delivery-exports", data.activeProjectId],
+    queryFn: () =>
+      data.client.request<{ items: ProductionRecord[] }>(
+        `/api/v2/delivery/exports?projectId=${data.activeProjectId}`,
+      ),
+    enabled: Boolean(data.activeProjectId),
+  });
+  const importAsset = useMutation({
+    mutationFn: async () => {
+      const selected = await window.dramaip.files.select({
+        extensions: ["png", "jpg", "jpeg", "webp", "mp4", "mov", "wav", "mp3"],
+      });
+      if (!selected || !data.activeProjectId) return undefined;
+      return data.client.request("/api/v2/media/assets/actions/import", {
+        method: "POST",
+        headers: { "idempotency-key": crypto.randomUUID() },
+        body: JSON.stringify({
+          projectId: data.activeProjectId,
+          capability: selected.capability,
+          title: selected.name,
+        }),
+      });
+    },
+    onSuccess: () =>
+      data.client
+        .request(`/api/v2/media/assets?projectId=${data.activeProjectId}`)
+        .catch(() => undefined),
+  });
   const dependencyItems = useMemo(
     () => [
-      "章节 · 第一章：雨夜敲门 · 章节",
-      "章节 · 第二章：旧照片 · 章节",
-      "章节 · 第三章：无人接听 · 章节",
+      ...(data.chapters.data?.items ?? []).map(
+        (item) => `章节 · ${item.title} · 章节`,
+      ),
       ...(data.records.adaptations.data?.items ?? []).map(
-        (item) => `改编项目 · ${item.title} · 待完善`,
+        (item) => `改编项目 · ${item.title} · ${graphStatus(item)}`,
       ),
       ...(data.records.episodes.data?.items ?? []).map(
-        (item) => `分集 · ${item.title} · 待完善`,
+        (item) => `分集 · ${item.title} · ${graphStatus(item)}`,
       ),
       ...(data.records.scripts.data?.items ?? []).map(
-        (item) => `剧本 · ${item.title} · 待完善`,
+        (item) => `剧本 · ${item.title} · ${graphStatus(item)}`,
       ),
       ...(data.records.scenes.data?.items ?? []).map(
-        (item) => `场景 · ${item.title} · 待完善`,
+        (item) => `场景 · ${item.title} · ${graphStatus(item)}`,
       ),
       ...(data.records.shots.data?.items ?? []).map(
-        (item) => `分镜 · ${item.title} · 待完善`,
+        (item) => `分镜 · ${item.title} · ${graphStatus(item)}`,
       ),
-      ...(mediaAssets.data?.items ?? []).map((item, index) =>
-        index === 0
-          ? `素材 · ${item.title} · 待完善`
-          : `视觉资产 · ${item.title} · 已采用`,
+      ...(mediaAssets.data?.items ?? []).map(
+        (item) => `素材 · ${item.title} · ${graphStatus(item)}`,
       ),
       ...(stills.data?.items ?? []).map(
-        (item) => `分镜静帧候选 · ${item.title} · 已采用`,
+        (item) => `分镜静帧候选 · ${item.title} · ${graphStatus(item)}`,
       ),
-      "音频制作 · 第 1 集临时音轨 · 待审阅",
-      "动态分镜 · 第 1 集动态分镜草案 · 待审阅",
-      "质量检查 · 第 1 集质量检查 · 待完善",
-      "合规检查 · 第 1 集合规预检 · 待完善",
-      "本地化 · 第 1 集简体中文字幕 · 已采用",
-      "审片 · 第 1 集审片包 · 待完善",
-      "交付 · 第 1 集平台交付清单 · 待预检",
+      ...(timelines.data?.items ?? []).map(
+        (item) => `时间线 · ${item.title} · ${graphStatus(item)}`,
+      ),
+      ...(qualityChecks.data?.items ?? []).map(
+        (item) => `质量检查 · ${item.title} · ${graphStatus(item)}`,
+      ),
+      ...(complianceChecks.data?.items ?? []).map(
+        (item) => `合规检查 · ${item.title} · ${graphStatus(item)}`,
+      ),
+      ...(reviewPackages.data?.items ?? []).map(
+        (item) => `审片包 · ${item.title} · ${graphStatus(item)}`,
+      ),
+      ...(deliveryExports.data?.items ?? []).map(
+        (item) => `交付 · ${item.title} · ${graphStatus(item)}`,
+      ),
     ],
-    [data.records, mediaAssets.data, stills.data],
+    [
+      data.chapters.data,
+      data.records,
+      mediaAssets.data,
+      stills.data,
+      timelines.data,
+      qualityChecks.data,
+      complianceChecks.data,
+      reviewPackages.data,
+      deliveryExports.data,
+    ],
   );
   return (
     <section className="page-stack production-workspace media-production-workspace">
@@ -516,18 +764,53 @@ function ProductionWorkspace() {
             "多轨时间线",
             "成片渲染",
           ].map((label) => (
-            <button key={label}>{label}</button>
+            <button
+              key={label}
+              className={mediaStage === label ? "active" : ""}
+              aria-pressed={mediaStage === label}
+              onClick={() => setMediaStage(label)}
+            >
+              {label}
+            </button>
           ))}
         </nav>
         <Card className="media-library-preview">
           <p>制作资料库</p>
-          <h2>素材</h2>
-          <Button variant="primary">新建素材</Button>
+          <h2>{mediaStage}</h2>
+          {mediaStage === "素材" ? (
+            <Button
+              variant="primary"
+              loading={importAsset.isPending}
+              onClick={() => importAsset.mutate()}
+            >
+              选择本地素材
+            </Button>
+          ) : (
+            <span className="workspace-badge">选择左侧阶段查看</span>
+          )}
         </Card>
       </Card>
-      {data.projects.error || mediaAssets.error || stills.error ? (
+      {data.projects.error ||
+      data.chapters.error ||
+      mediaAssets.error ||
+      stills.error ||
+      timelines.error ||
+      qualityChecks.error ||
+      complianceChecks.error ||
+      reviewPackages.error ||
+      deliveryExports.error ? (
         <ErrorPanel
-          error={data.projects.error ?? mediaAssets.error ?? stills.error}
+          error={
+            data.projects.error ??
+            data.chapters.error ??
+            mediaAssets.error ??
+            stills.error ??
+            timelines.error ??
+            qualityChecks.error ??
+            complianceChecks.error ??
+            reviewPackages.error ??
+            deliveryExports.error
+          }
         />
       ) : null}
     </section>

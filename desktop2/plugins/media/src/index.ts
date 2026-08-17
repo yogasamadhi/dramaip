@@ -94,12 +94,40 @@ const externalExecutionAction = {
   },
 };
 
+const assetAction = (verb: "adopt" | "lock" | "reject" | "clear-rights") => ({
+  verb,
+  input: z.object({}).strict(),
+  mutate(data: z.infer<typeof assetData>) {
+    if (verb === "clear-rights")
+      return { ...data, rightsStatus: "cleared" as const };
+    if (verb === "reject")
+      return { ...data, adoptionStatus: "rejected" as const };
+    if (data.rightsStatus !== "cleared")
+      throw new ApiProblem(
+        409,
+        "MEDIA_RIGHTS_NOT_CLEARED",
+        "确认权利后才能采用媒体资产",
+      );
+    return {
+      ...data,
+      adoptionStatus:
+        verb === "lock" ? ("locked" as const) : ("adopted" as const),
+    };
+  },
+});
+
 export const mediaResources = [
   {
     kind: "asset",
     path: "assets",
     data: assetData,
     defaultStatus: "available",
+    actions: [
+      assetAction("clear-rights"),
+      assetAction("adopt"),
+      assetAction("lock"),
+      assetAction("reject"),
+    ],
   },
   { kind: "visual", path: "visuals", data: visualData },
   { kind: "still", path: "stills", data: stillData },

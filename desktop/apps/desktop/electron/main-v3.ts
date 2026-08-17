@@ -103,6 +103,7 @@ let opencodeEngine: ManagedProcess | undefined;
 let codexEngine: ManagedProcess | undefined;
 let dshEngine: ManagedProcess | undefined;
 let piEngine: ManagedProcess | undefined;
+let grokEngine: ManagedProcess | undefined;
 let langgraphEngine: ManagedProcess | undefined;
 let initialization: Promise<Ready> | undefined;
 const credentialVault = new LocalCredentialVault(
@@ -193,6 +194,19 @@ function codexBinaryPath(): string {
   );
 }
 
+function codexModelCatalogPath(): string | undefined {
+  const candidates = app.isPackaged
+    ? [join(process.resourcesPath, "codex", "models.json")]
+    : [
+        join(app.getAppPath(), "build", "codex", "models.json"),
+        join(
+          app.getAppPath(),
+          "../../vendor/codex-rust/codex-rs/models-manager/models.json",
+        ),
+      ];
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
 function dramaipCodexHome(): string {
   return join(app.getPath("userData"), "codex-engine");
 }
@@ -244,6 +258,16 @@ function piRuntimeModule(): string {
   return app.isPackaged
     ? join(process.resourcesPath, "pi", "runtime", "runtime.mjs")
     : join(app.getAppPath(), "build", "pi", "runtime.mjs");
+}
+
+function grokBinaryPath(): string {
+  if (process.platform !== "darwin" || process.arch !== "arm64")
+    throw new Error("Grok Build Runtime 当前仅支持 macOS arm64");
+  const prepared = app.isPackaged
+    ? join(process.resourcesPath, "grok", "aarch64-apple-darwin", "grok")
+    : join(app.getAppPath(), "build", "grok", "aarch64-apple-darwin", "grok");
+  if (!existsSync(prepared)) throw new Error("Grok Build Runtime 未准备");
+  return prepared;
 }
 
 async function storeCredential(
@@ -320,7 +344,7 @@ function spawnSidecar(
       ) {
         const request = message as unknown as {
           requestId: string;
-          engineKind: "codex" | "dsh" | "pi" | "langgraph";
+          engineKind: "codex" | "dsh" | "pi" | "grok" | "langgraph";
           operation: string;
           payload: Record<string, unknown>;
         };
@@ -328,6 +352,7 @@ function spawnSidecar(
           codex: codexEngine,
           dsh: dshEngine,
           pi: piEngine,
+          grok: grokEngine,
           langgraph: langgraphEngine,
         }[request.engineKind];
         if (!target) {
@@ -335,6 +360,7 @@ function spawnSidecar(
             codex: "Codex",
             dsh: "DeepSeek Harness",
             pi: "Pi",
+            grok: "Grok Build",
             langgraph: "LangGraph.js",
           }[request.engineKind];
           child.postMessage({
@@ -431,7 +457,9 @@ function spawnSidecar(
           stop: () =>
             stopChild(
               child,
-              ["dsh-engine", "pi-engine"].includes(name) ? 15_000 : 6_000,
+              ["dsh-engine", "pi-engine", "grok-engine"].includes(name)
+                ? 15_000
+                : 6_000,
             ),
         };
         child.once("exit", () => {
@@ -441,7 +469,7 @@ function spawnSidecar(
         return finish(managed);
       }
       if (
-        ["dsh-engine", "pi-engine"].includes(name) &&
+        ["dsh-engine", "pi-engine", "grok-engine"].includes(name) &&
         message.type === "configured"
       ) {
         const pending = engineConfigurationRequests.get(message.requestId);
@@ -459,6 +487,7 @@ function spawnSidecar(
           "codex-engine",
           "dsh-engine",
           "pi-engine",
+          "grok-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "response"
@@ -476,6 +505,7 @@ function spawnSidecar(
           "codex-engine",
           "dsh-engine",
           "pi-engine",
+          "grok-engine",
           "langgraph-engine",
         ].includes(name) &&
         message.type === "event"
@@ -489,7 +519,9 @@ function spawnSidecar(
                 ? "dsh"
                 : name === "pi-engine"
                   ? "pi"
-                  : "langgraph",
+                  : name === "grok-engine"
+                    ? "grok"
+                    : "langgraph",
           runId: message.runId,
           event: message.event,
         });
@@ -513,7 +545,7 @@ function spawnSidecar(
 }
 
 async function configureRuntimeEngine(
-  engineKind: "dsh" | "pi",
+  engineKind: "dsh" | "pi" | "grok",
   engine: ManagedProcess | undefined,
   displayName: string,
   provider: Pick<
@@ -619,18 +651,21 @@ async function configureOpenCodeEngine(
     ...(configuration.baseUrl ? { baseUrl: configuration.baseUrl } : {}),
     secret,
   };
-  const [dshConfiguration, piConfiguration] = await Promise.all([
-    configureRuntimeEngine(
-      "dsh",
-      dshEngine,
-      "DeepSeek Harness",
-      sidecarProvider,
-    ),
-    configureRuntimeEngine("pi", piEngine, "Pi", sidecarProvider),
-  ]);
+  const [dshConfiguration, piConfiguration, grokConfiguration] =
+    await Promise.all([
+      configureRuntimeEngine(
+        "dsh",
+        dshEngine,
+        "DeepSeek Harness",
+        sidecarProvider,
+      ),
+      configureRuntimeEngine("pi", piEngine, "Pi", sidecarProvider),
+      configureRuntimeEngine("grok", grokEngine, "Grok Build", sidecarProvider),
+    ]);
   for (const [engineKind, engine, result, version] of [
     ["dsh", dshEngine, dshConfiguration, "0.1.0-rc.5"],
     ["pi", piEngine, piConfiguration, "0.84.2"],
+    ["grok", grokEngine, grokConfiguration, "1.0.5"],
   ] as const) {
     if (engine) engine.healthy = result.available;
     dramaServer?.child.postMessage({
@@ -727,6 +762,15 @@ async function restartSidecar(previous: ManagedProcess): Promise<void> {
         version: next.version ?? "0.84.2",
       });
     }
+    if (previous.name === "grok-engine") {
+      grokEngine = next;
+      dramaServer?.child.postMessage({
+        type: "agent-engine:status",
+        engineKind: "grok",
+        healthy: next.healthy,
+        version: next.version ?? "1.0.5",
+      });
+    }
     if (previous.name === "langgraph-engine") {
       langgraphEngine = next;
       dramaServer?.child.postMessage({
@@ -768,6 +812,7 @@ async function initialize(): Promise<Ready> {
     codex: randomUUID(),
     dsh: randomUUID(),
     pi: randomUUID(),
+    grok: randomUUID(),
     langgraph: randomUUID(),
   } as const;
   const enginePort = randomPort();
@@ -798,6 +843,7 @@ async function initialize(): Promise<Ready> {
     {
       type: "start",
       binaryPath: codexBinaryPath(),
+      modelCatalogPath: codexModelCatalogPath(),
       codexHome: dramaipCodexHome(),
       sessionRoot: join(app.getPath("userData"), "codex-sessions"),
       mcp: { url: mcpUrl, token: mcpTokens.codex },
@@ -825,6 +871,28 @@ async function initialize(): Promise<Ready> {
     },
     false,
   );
+  if (process.platform === "darwin" && process.arch === "arm64") {
+    try {
+      grokEngine = await spawnSidecar(
+        "grok-engine",
+        {
+          type: "start",
+          binaryPath: grokBinaryPath(),
+          sessionRoot: join(
+            app.getPath("temp"),
+            `dramaip-grok-${randomUUID()}`,
+          ),
+          mcp: { url: mcpUrl, token: mcpTokens.grok },
+        },
+        false,
+      );
+    } catch (error) {
+      console.warn(
+        `Grok Build Runtime 不可用：${error instanceof Error ? error.message : String(error)}`,
+      );
+      grokEngine = undefined;
+    }
+  }
   langgraphEngine = await spawnSidecar(
     "langgraph-engine",
     {
@@ -871,6 +939,10 @@ async function initialize(): Promise<Ready> {
       pi: {
         healthy: false,
         version: piEngine?.version ?? "0.84.2",
+      },
+      grok: {
+        healthy: false,
+        version: grokEngine?.version ?? "1.0.5",
       },
       langgraph: {
         healthy: false,
@@ -1114,6 +1186,7 @@ app.on("before-quit", (event) => {
     codexEngine?.stop(),
     dshEngine?.stop(),
     piEngine?.stop(),
+    grokEngine?.stop(),
     langgraphEngine?.stop(),
   ]).then(() => {
     shutdownComplete = true;

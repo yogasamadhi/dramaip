@@ -37,7 +37,7 @@ import type { EngineKind } from "./engine-registry.ts";
 export interface AssistantSessionRow {
   id: string;
   engine_session_id: string;
-  project_id: string;
+  project_id: string | null;
   engine_kind: EngineKind;
   title: string;
   state: "active" | "disposed";
@@ -135,6 +135,15 @@ interface CandidateRow {
 }
 
 export const assistantTaskDefinitions = [
+  {
+    id: "general-chat",
+    label: "通用聊天",
+    category: "chat",
+    write: false,
+    requiresProject: false,
+    requiresChapter: false,
+    simple: true,
+  },
   {
     id: "generate-project-setting",
     label: "生成项目设定",
@@ -448,7 +457,7 @@ export function routeIntent(
   }
   return {
     definition: assistantTaskDefinitions.find(
-      (candidate) => candidate.id === "project-chat",
+      (candidate) => candidate.id === "general-chat",
     )!,
     confidence: 0.35,
   };
@@ -555,16 +564,12 @@ async function ensureConversationSession(
     );
     if (existing?.state === "active") return existing;
   }
-  if (!conversation.project_id)
-    throw new ApiProblem(
-      409,
-      "ASSISTANT_PROJECT_REQUIRED",
-      "bind a project before starting an agent run",
-    );
   const engineSession = await ctx.engineRegistry
     .get(conversation.engine_kind)
     .createSession({
-      projectId: conversation.project_id,
+      ...(conversation.project_id
+        ? { projectId: conversation.project_id }
+        : {}),
       title: conversation.title,
       ...(conversation.model ? { model: conversation.model } : {}),
       metadata: { conversationId: conversation.id },
@@ -656,6 +661,13 @@ function promptFor(
   return [
     "你是 DramaIP Studio 小说创作助手。只输出面向用户的最终内容，不输出推理、内部日志、凭据或本机路径。",
     `任务：${task.label} (${task.id})`,
+    ...(task.id === "general-chat"
+      ? [
+          snapshot.request.projectId
+            ? "这是项目内通用聊天：可以使用已提供的只读上下文直接回答，但不要修改项目数据或要求用户重复绑定项目。"
+            : "这是通用聊天：当前对话没有绑定项目。直接回答用户，不要求绑定项目，不调用项目工具，也不要虚构项目上下文。",
+        ]
+      : []),
     `用户要求：${content}`,
     context ? `创作上下文：\n${context}` : "",
   ]
@@ -1617,15 +1629,17 @@ function installConversationRoutes(
             now,
             now,
           );
-          tx.run(
-            `INSERT INTO agents_mcp_claims (id, project_id, session_id, run_id, read_only, max_results, expires_at, created_at) VALUES (?, ?, ?, ?, 1, 50, ?, ?)`,
-            claimId,
-            session.project_id,
-            session.id,
-            runId,
-            new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
-            now,
-          );
+          if (session.project_id) {
+            tx.run(
+              `INSERT INTO agents_mcp_claims (id, project_id, session_id, run_id, read_only, max_results, expires_at, created_at) VALUES (?, ?, ?, ?, 1, 50, ?, ?)`,
+              claimId,
+              session.project_id,
+              session.id,
+              runId,
+              new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+              now,
+            );
+          }
           tx.run(
             "UPDATE agent_context_snapshots SET run_id = ? WHERE id = ?",
             runId,
@@ -1634,7 +1648,8 @@ function installConversationRoutes(
           insertTurn(tx, userTurn);
           insertTurn(tx, assistantTurn);
         });
-        activeClaims.set(conversation.engine_kind, claimId);
+        if (session.project_id)
+          activeClaims.set(conversation.engine_kind, claimId);
         const provider = ctx.engineRegistry.get(conversation.engine_kind);
         void consume(
           run,

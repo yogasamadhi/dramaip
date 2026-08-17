@@ -764,7 +764,11 @@ function AssistantExperience({
   });
   const recommended =
     tasks.data?.items
-      .filter((task) => !compact || task.requiresChapter)
+      .filter(
+        (task) =>
+          (!compact || task.requiresChapter) &&
+          (Boolean(projectId) || !task.requiresProject),
+      )
       .slice(0, advanced ? undefined : 3) ?? [];
   return (
     <div
@@ -1272,11 +1276,14 @@ function ExperimentsPanel({ projectId }: { projectId: string }) {
 export function SettingsPage() {
   const client = useStudioClient();
   const queryClient = useQueryClient();
-  const [engineKind] = useState<EngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<EngineKind>("opencode");
   const [providerKind, setProviderKind] = useState("openai");
   const [providerAdapter, setProviderAdapter] = useState("openai");
   const [model, setModel] = useState("gpt-5.6-sol");
   const [baseUrl, setBaseUrl] = useState("");
+  const [protocol, setProtocol] = useState<"responses" | "chat_completions">(
+    "responses",
+  );
   const [secret, setSecret] = useState("");
   const settingsSections = useUiSlots("settings.section");
   const providers = useQuery({
@@ -1292,6 +1299,11 @@ export function SettingsPage() {
         authenticated: boolean;
         mode?: string;
         accountLabel?: string;
+        provider?: {
+          name: string;
+          model: string;
+          protocol: "responses" | "chat_completions";
+        };
       }>("/api/v2/agents/providers/codex/auth"),
   });
   const codexLogin = useMutation({
@@ -1367,6 +1379,7 @@ export function SettingsPage() {
               providerAdapter,
               model,
               ...(baseUrl ? { baseUrl } : {}),
+              ...(engineKind === "codex" ? { protocol } : {}),
               credentialRef,
             }),
           },
@@ -1416,6 +1429,21 @@ export function SettingsPage() {
         </header>
         <div className="provider-form-body">
           <div className="provider-field-grid">
+            <label>
+              绑定引擎
+              <select
+                value={engineKind}
+                onChange={(event) =>
+                  setEngineKind(event.target.value as EngineKind)
+                }
+              >
+                {engines.map((engine) => (
+                  <option key={engine} value={engine}>
+                    {engine}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               服务商
               <select
@@ -1468,6 +1496,24 @@ export function SettingsPage() {
                   <option value="google">Google</option>
                 </select>
               </label>
+              {engineKind === "codex" && (
+                <label>
+                  Codex 转换协议
+                  <select
+                    value={protocol}
+                    onChange={(event) =>
+                      setProtocol(
+                        event.target.value as "responses" | "chat_completions",
+                      )
+                    }
+                  >
+                    <option value="responses">Responses 直连</option>
+                    <option value="chat_completions">
+                      Chat Completions 本地转换
+                    </option>
+                  </select>
+                </label>
+              )}
               <label>
                 服务地址（可选）
                 <input
@@ -1562,7 +1608,9 @@ export function SettingsPage() {
               <strong>Codex 账户</strong>
               <small>
                 {codexAuth.data?.authenticated
-                  ? `已登录 · ${codexAuth.data.accountLabel ?? codexAuth.data.mode ?? "Codex"}`
+                  ? codexAuth.data.provider
+                    ? `已连接 · ${codexAuth.data.provider.name} · ${codexAuth.data.provider.model} · ${codexAuth.data.provider.protocol === "chat_completions" ? "本地转换" : "Responses"}`
+                    : `已登录 · ${codexAuth.data.accountLabel ?? codexAuth.data.mode ?? "Codex"}`
                   : "可使用 ChatGPT 设备码登录"}
               </small>
             </div>

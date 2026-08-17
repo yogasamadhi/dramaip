@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat } from "node:fs/promises";
+import { mkdir, readdir, realpath, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { backup } from "node:sqlite";
 
@@ -7,7 +7,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 
 import { pageQuerySchema, problemDetailsSchema } from "@dramaip/contracts";
-import { idempotentResponse } from "@dramaip/http";
+import { ApiProblem, idempotentResponse } from "@dramaip/http";
 import type {
   MigrationDefinition,
   RouteContribution,
@@ -20,6 +20,7 @@ import {
   diagnosticsSchema,
   healthSchema,
   searchPageSchema,
+  restoreBackupSchema,
 } from "./contracts.ts";
 
 export const migrations: readonly MigrationDefinition[] = [
@@ -45,8 +46,10 @@ export const migrations: readonly MigrationDefinition[] = [
 
 export interface SystemRuntimeConfig {
   backupDirectory: string;
+  databaseFile?: string;
   profileName: string;
   pluginIds: readonly string[];
+  restoreDatabase?: (backupFile: string) => Promise<void>;
 }
 
 const jsonResponse = (schema: z.ZodType, description: string) => ({
@@ -301,6 +304,71 @@ export function createSystemServer(config: SystemRuntimeConfig): Plugin {
               },
             )) as never;
           });
+
+          const restoreRoute = createRoute({
+            method: "post",
+            path: "/api/v2/system/backups/{id}/actions/restore",
+            request: {
+              params: z.object({ id: z.string().regex(/^[A-Za-z0-9-]+$/) }),
+              body: {
+                content: {
+                  "application/json": { schema: restoreBackupSchema },
+                },
+              },
+            },
+            responses: {
+              202: jsonResponse(backupSchema, "Backup restore queued"),
+              ...problemResponses,
+            },
+          });
+          app.openapi(restoreRoute, async (context) =>
+            idempotentResponse(
+              ctx.uow,
+              context.req.raw,
+              "system.backups.restore",
+              context.req.valid("json"),
+              async () => {
+                if (!config.restoreDatabase)
+                  throw new ApiProblem(
+                    409,
+                    "RESTORE_UNAVAILABLE",
+                    "当前运行模式不支持数据库恢复",
+                  );
+                const id = context.req.valid("param").id;
+                const filename = `${id}.db`;
+                if (context.req.valid("json").confirmation !== filename)
+                  throw new ApiProblem(
+                    409,
+                    "BACKUP_CONFIRMATION_MISMATCH",
+                    `请输入 ${filename} 确认恢复`,
+                  );
+                const backupFile = join(config.backupDirectory, filename);
+                const source = await realpath(backupFile).catch(
+                  () => undefined,
+                );
+                const root = await realpath(config.backupDirectory);
+                if (!source || !source.startsWith(`${root}/`))
+                  throw new ApiProblem(
+                    404,
+                    "BACKUP_NOT_FOUND",
+                    "备份不存在或不是受信任文件",
+                  );
+                const info = await stat(source);
+                if (!info.isFile() || info.size < 4096)
+                  throw new ApiProblem(400, "BACKUP_INVALID", "备份文件不完整");
+                await config.restoreDatabase(source);
+                return context.json(
+                  {
+                    id,
+                    filename,
+                    size: info.size,
+                    createdAt: info.birthtime.toISOString(),
+                  },
+                  202,
+                );
+              },
+            ),
+          );
 
           app.get("/api/v2/events", (context) => {
             const rawId = context.req.header("last-event-id");

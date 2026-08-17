@@ -74,7 +74,8 @@ export interface EngineCapabilities {
 }
 
 export interface SessionInput {
-  projectId: string;
+  /** Project scope is optional for global assistant conversations. */
+  projectId?: string;
   title?: string;
   model?: string;
   metadata?: Readonly<Record<string, unknown>>;

@@ -331,12 +331,42 @@ export const migrations: readonly MigrationDefinition[] = [
        WHERE config_json LIKE '%"hermes"%';
     `,
   },
+  {
+    id: "agents-0004",
+    pluginId: "agents",
+    version: "4.0.0",
+    dependsOn: ["agents-0003"],
+    foreignKeysOff: true,
+    sql: `
+      -- Assistant conversations may be global. Keep project-bound sessions
+      -- intact while allowing a session to run without project tools.
+      CREATE TABLE agents_sessions_next (
+        id TEXT PRIMARY KEY,
+        engine_session_id TEXT NOT NULL,
+        project_id TEXT REFERENCES workspace_projects(id) ON DELETE CASCADE,
+        engine_kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('active', 'disposed')),
+        version INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO agents_sessions_next
+        (id, engine_session_id, project_id, engine_kind, title, state, version, created_at, updated_at)
+      SELECT id, engine_session_id, project_id, engine_kind, title, state, version, created_at, updated_at
+        FROM agents_sessions;
+      DROP TABLE agents_sessions;
+      ALTER TABLE agents_sessions_next RENAME TO agents_sessions;
+      CREATE INDEX agents_sessions_project_idx
+        ON agents_sessions (project_id, state, updated_at);
+    `,
+  },
 ] as const;
 
 interface SessionRow {
   id: string;
   engine_session_id: string;
-  project_id: string;
+  project_id: string | null;
   engine_kind: EngineKind;
   title: string;
   state: "active" | "disposed";
@@ -502,6 +532,7 @@ interface ProviderConfiguration {
   providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
   model: string;
   baseUrl?: string;
+  protocol?: "responses" | "chat_completions";
 }
 
 function settingJson(row: ProviderSettingRow) {
@@ -512,6 +543,7 @@ function settingJson(row: ProviderSettingRow) {
     providerAdapter: config.providerAdapter,
     model: config.model,
     baseUrl: config.baseUrl ?? null,
+    protocol: config.protocol ?? null,
     configured: Boolean(row.credential_ref && row.enabled),
     version: row.version,
     updatedAt: row.updated_at,
@@ -1068,6 +1100,7 @@ export function createAgentsServer(
               providerAdapter: input.providerAdapter,
               model: input.model,
               ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
+              ...(input.protocol ? { protocol: input.protocol } : {}),
             };
             const row = ctx.uow.execute((tx) => {
               tx.run(

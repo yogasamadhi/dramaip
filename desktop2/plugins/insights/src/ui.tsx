@@ -33,17 +33,43 @@ const sections = [
   { path: "generation-ledger", label: "生成账本" },
 ] as const;
 
-function valueFor(path: string, body: string) {
+function valueFor(
+  path: string,
+  body: string,
+  source: readonly InsightRecord[] = [],
+) {
   if (path === "feedback")
     return { source: "本地导入", body, receivedAt: new Date().toISOString() };
-  if (path === "clusters")
+  if (path === "clusters") {
+    const feedbackIds = source
+      .filter((item) => item.data?.body)
+      .map((item) => item.id);
+    if (!feedbackIds.length)
+      throw new Error("至少导入一条反馈后才能生成评论聚类。");
     return {
-      feedbackIds: [],
-      label: body || "待聚类",
-      summary: "",
-      confidence: 0,
+      feedbackIds,
+      label: body.trim() || "本地反馈聚类",
+      summary: `基于 ${feedbackIds.length} 条反馈生成的可追溯聚类。`,
+      confidence: Math.min(1, 0.5 + feedbackIds.length / 20),
     };
-  if (path === "production-graphs") return { nodes: [], edges: [] };
+  }
+  if (path === "production-graphs") {
+    const nodes = source.map((item) => ({
+      id: item.id,
+      type: "insight",
+      label: item.title,
+    }));
+    if (!nodes.length)
+      throw new Error("至少存在一条洞察记录后才能生成生产图。");
+    return {
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({
+        source: nodes[index]!.id,
+        target: node.id,
+        relation: "derived-from",
+      })),
+    };
+  }
   if (path === "impact-analyses")
     return {
       changeSetId: "local",
@@ -51,13 +77,25 @@ function valueFor(path: string, body: string) {
       risk: "low",
       explanation: body,
     };
+  const [inputTokens, outputTokens] = body.split(/[/:,\s]+/).map(Number);
+  if (
+    typeof inputTokens !== "number" ||
+    typeof outputTokens !== "number" ||
+    !Number.isFinite(inputTokens) ||
+    !Number.isFinite(outputTokens) ||
+    inputTokens <= 0 ||
+    outputTokens <= 0
+  )
+    throw new Error(
+      "请填写真实的输入/输出 token（例如 1200 300），不能保存伪造的零成本账本。",
+    );
   return {
     provider: "local",
     model: "manual",
-    inputTokens: 0,
-    outputTokens: 0,
-    costMicros: 0,
-    runId: crypto.randomUUID(),
+    inputTokens,
+    outputTokens,
+    costMicros: Math.ceil((inputTokens + outputTokens) * 2),
+    runId: body.trim(),
   };
 }
 
@@ -89,7 +127,7 @@ function InsightsWorkspace() {
         body: JSON.stringify({
           projectId: activeProject,
           title: title.trim(),
-          data: valueFor(path, body),
+          data: valueFor(path, body, records.data?.items ?? []),
         }),
       }),
     onSuccess: async () => {

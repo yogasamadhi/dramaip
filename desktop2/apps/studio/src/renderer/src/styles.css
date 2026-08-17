@@ -234,16 +234,11 @@ button {
 }
 .project-navigation-link.active {
   font-weight: 500;
+  border-radius: 10px;
+  background: var(--ui-brand-soft);
 }
 .project-navigation-link.active::after {
-  position: absolute;
-  right: 11px;
-  bottom: -1px;
-  left: 11px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--ui-brand);
-  content: "";
+  display: none;
 }
 .project-context-header {
   display: flex;
@@ -258,12 +253,6 @@ button {
 }
 .app-drag-region:has(+ .project-context-header) .app-titlebar-content {
   padding-left: max(6rem, calc(env(titlebar-area-x, 0px) + 1.25rem));
-}
-.app-drag-region:has(+ .project-context-header) nav[aria-label="主导航"] {
-  transform: translateX(-11px);
-}
-.app-drag-region:has(+ .project-context-header) nav[aria-label="主导航"] > * {
-  transform: translateY(1px);
 }
 .app-drag-region:has(+ .project-context-header)
   nav[aria-label="主导航"]
@@ -2261,7 +2250,10 @@ textarea:focus {
 .chapter-rail,
 .chapter-assistant {
   border-color: var(--ui-line);
-  background: var(--ui-surface);
+  background: var(--ui-page);
+}
+.chapter-assistant {
+  background: var(--ui-canvas);
 }
 .chapter-rail {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -2471,7 +2463,7 @@ textarea:focus {
 }
 .chapter-header,
 .editor-toolbar {
-  background: color-mix(in srgb, var(--ui-surface) 96%, transparent);
+  background: var(--ui-surface-raised);
 }
 .editor-toolbar {
   min-height: 73px;

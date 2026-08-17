@@ -7,6 +7,7 @@ import {
   type NodeResourceDefinition,
 } from "@dramaip/domain-kit";
 import { defineDramaPlugin } from "@dramaip/plugin-api";
+import { ApiProblem } from "@dramaip/http";
 
 const caseStudyData = z.object({
   source: z.string(),
@@ -45,10 +46,46 @@ const qualityData = z.object({
 
 export const creativeQualityResources = [
   { kind: "case-study", path: "case-studies", data: caseStudyData },
-  { kind: "diagnostic", path: "diagnostics", data: diagnosticData },
-  { kind: "analysis", path: "analyses", data: analysisData },
+  {
+    kind: "diagnostic",
+    path: "diagnostics",
+    data: diagnosticData,
+    validateCreate: (data: z.infer<typeof diagnosticData>) => {
+      if (!data.issues.length)
+        throw new ApiProblem(
+          400,
+          "DIAGNOSTIC_EMPTY",
+          "诊断必须包含至少一个基于项目数据的问题",
+        );
+    },
+  },
+  {
+    kind: "analysis",
+    path: "analyses",
+    data: analysisData,
+    validateCreate: (data: z.infer<typeof analysisData>) => {
+      if (!Object.keys(data.dimensions).length)
+        throw new ApiProblem(
+          400,
+          "ANALYSIS_EMPTY",
+          "分析必须包含可解释的维度结果",
+        );
+    },
+  },
   { kind: "compliance-check", path: "compliance-checks", data: complianceData },
-  { kind: "quality-check", path: "quality-checks", data: qualityData },
+  {
+    kind: "quality-check",
+    path: "quality-checks",
+    data: qualityData,
+    validateCreate: (data: z.infer<typeof qualityData>) => {
+      if (!data.checks.length)
+        throw new ApiProblem(
+          400,
+          "QUALITY_CHECK_EMPTY",
+          "质量检查必须包含至少一个检查项",
+        );
+    },
+  },
 ] satisfies readonly NodeResourceDefinition<any>[];
 
 export const creativeQualityModule = defineDramaPlugin({

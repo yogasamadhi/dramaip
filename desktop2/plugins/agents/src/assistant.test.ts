@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { routeIntent } from "./assistant.ts";
 
-test("assistant intent routing is deterministic and degrades uncertain text to read-only chat", () => {
+test("assistant intent routing keeps general chat usable without a project", () => {
   assert.deepEqual(routeIntent("请接着写这一章"), {
     definition: {
       id: "chapter-continue",
@@ -17,7 +17,8 @@ test("assistant intent routing is deterministic and degrades uncertain text to r
     confidence: 0.9,
   });
   const uncertain = routeIntent("聊聊你对这个故事的看法");
-  assert.equal(uncertain.definition.id, "project-chat");
+  assert.equal(uncertain.definition.id, "general-chat");
+  assert.equal(uncertain.definition.requiresProject, false);
   assert.equal(uncertain.definition.write, false);
   assert.equal(uncertain.confidence, 0.35);
 });

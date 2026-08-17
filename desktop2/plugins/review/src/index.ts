@@ -7,6 +7,7 @@ import {
   type NodeResourceDefinition,
 } from "@dramaip/domain-kit";
 import { defineDramaPlugin } from "@dramaip/plugin-api";
+import { ApiProblem } from "@dramaip/http";
 
 const packageData = z.object({
   versionId: z.string(),
@@ -36,8 +37,28 @@ const productionReviewData = z.object({
 });
 
 export const reviewResources = [
-  { kind: "review-package", path: "packages", data: packageData },
-  { kind: "comment", path: "comments", data: commentData },
+  {
+    kind: "review-package",
+    path: "packages",
+    data: packageData,
+    validateCreate: (data: z.infer<typeof packageData>) => {
+      if (!data.assetIds.length)
+        throw new ApiProblem(
+          400,
+          "REVIEW_PACKAGE_EMPTY",
+          "审片包必须绑定至少一个本地资产",
+        );
+    },
+  },
+  {
+    kind: "comment",
+    path: "comments",
+    data: commentData,
+    validateCreate: (data: z.infer<typeof commentData>) => {
+      if (!data.body.trim())
+        throw new ApiProblem(400, "COMMENT_EMPTY", "评论正文不能为空");
+    },
+  },
   {
     kind: "decision",
     path: "decisions",
@@ -48,6 +69,14 @@ export const reviewResources = [
     kind: "production-review",
     path: "production-reviews",
     data: productionReviewData,
+    validateCreate: (data: z.infer<typeof productionReviewData>) => {
+      if (!data.checklist.length)
+        throw new ApiProblem(
+          400,
+          "REVIEW_CHECKLIST_EMPTY",
+          "制作审查必须包含检查项",
+        );
+    },
   },
 ] satisfies readonly NodeResourceDefinition<any>[];
 

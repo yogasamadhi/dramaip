@@ -36,6 +36,7 @@ function TimelineWorkspace() {
   const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState("");
   const [title, setTitle] = useState("正片时间线");
+  const [assetId, setAssetId] = useState("");
   const [preflight, setPreflight] = useState<{
     ready: boolean;
     errors: string[];
@@ -127,6 +128,59 @@ function TimelineWorkspace() {
   const current =
     timelines.data?.items.find((item) => item.data.canonical) ??
     timelines.data?.items[0];
+  const assets = useQuery({
+    queryKey: ["timeline", "assets", activeProject],
+    queryFn: () =>
+      client.request<{
+        items: Array<{
+          id: string;
+          title: string;
+          data: { rightsStatus: string; adoptionStatus: string };
+        }>;
+      }>(`/api/v2/media/assets?projectId=${activeProject}`),
+    enabled: Boolean(activeProject),
+  });
+  const addClip = useMutation({
+    mutationFn: () => {
+      if (!current || !assetId) throw new Error("请选择一个已确认权利的资产");
+      const asset = assets.data?.items.find((item) => item.id === assetId);
+      if (
+        !asset ||
+        asset.data.rightsStatus !== "cleared" ||
+        asset.data.adoptionStatus === "rejected"
+      )
+        throw new Error("资产权利或采用状态不允许进入时间线");
+      return client.request(
+        `/api/v2/timeline/timelines/${current.id}/actions/apply-command`,
+        {
+          method: "POST",
+          headers: {
+            "if-match": `"v${current.version}"`,
+            "idempotency-key": crypto.randomUUID(),
+          },
+          body: JSON.stringify({
+            type: "insert",
+            payload: {
+              clip: {
+                id: crypto.randomUUID(),
+                assetId,
+                track: 0,
+                startMs: current.data.durationMs,
+                durationMs: 1000,
+                offsetMs: 0,
+              },
+            },
+          }),
+        },
+      );
+    },
+    onSuccess: async () => {
+      setAssetId("");
+      await queryClient.invalidateQueries({
+        queryKey: ["timeline", activeProject],
+      });
+    },
+  });
   return (
     <section className="page-stack">
       <PageHeader
@@ -185,6 +239,26 @@ function TimelineWorkspace() {
               <h2 className="text-xl font-semibold">{current.title}</h2>
             </div>
             <div className="flex gap-2">
+              <Select
+                aria-label="选择资产"
+                value={assetId}
+                options={(assets.data?.items ?? [])
+                  .filter(
+                    (item) =>
+                      item.data.rightsStatus === "cleared" &&
+                      item.data.adoptionStatus !== "rejected",
+                  )
+                  .map((item) => ({ value: item.id, label: item.title }))}
+                placeholder="添加资产"
+                onValueChange={setAssetId}
+              />
+              <Button
+                disabled={!assetId}
+                loading={addClip.isPending}
+                onClick={() => addClip.mutate()}
+              >
+                加入时间线
+              </Button>
               <Button
                 loading={historyAction.isPending}
                 onClick={() =>
@@ -272,11 +346,15 @@ function TimelineWorkspace() {
             </EmptyPanel>
           )}
           {(historyAction.error ||
+            addClip.error ||
+            assets.error ||
             exportTimeline.error ||
             runPreflight.error) && (
             <ErrorPanel
               error={
                 historyAction.error ??
+                addClip.error ??
+                assets.error ??
                 exportTimeline.error ??
                 runPreflight.error
               }

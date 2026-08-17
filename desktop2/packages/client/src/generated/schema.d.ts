@@ -4657,6 +4657,8 @@ export interface paths {
                             /** @enum {string} */
                             kind: "opencode" | "codex" | "dsh" | "pi" | "langgraph";
                             model: string;
+                            /** @enum {string|null} */
+                            protocol: "responses" | "chat_completions" | null;
                             /** @enum {string} */
                             providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
                             /** @enum {string} */
@@ -4876,6 +4878,8 @@ export interface paths {
                         credentialRef: string;
                         model: string;
                         /** @enum {string} */
+                        protocol?: "responses" | "chat_completions";
+                        /** @enum {string} */
                         providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
                         /** @enum {string} */
                         providerKind: "openai" | "anthropic" | "google";
@@ -4895,6 +4899,8 @@ export interface paths {
                             /** @enum {string} */
                             kind: "opencode" | "codex" | "dsh" | "pi" | "langgraph";
                             model: string;
+                            /** @enum {string|null} */
+                            protocol: "responses" | "chat_completions" | null;
                             /** @enum {string} */
                             providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
                             /** @enum {string} */
@@ -4917,6 +4923,8 @@ export interface paths {
                             /** @enum {string} */
                             kind: "opencode" | "codex" | "dsh" | "pi" | "langgraph";
                             model: string;
+                            /** @enum {string|null} */
+                            protocol: "responses" | "chat_completions" | null;
                             /** @enum {string} */
                             providerAdapter: "openai" | "openai-compatible" | "anthropic" | "google";
                             /** @enum {string} */
@@ -7053,7 +7061,7 @@ export interface paths {
                                 /** Format: uuid */
                                 id: string;
                                 /** Format: uuid */
-                                projectId: string;
+                                projectId: string | null;
                                 /** @enum {string} */
                                 state: "active" | "disposed";
                                 title: string;
@@ -7296,7 +7304,7 @@ export interface paths {
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
-                            projectId: string;
+                            projectId: string | null;
                             /** @enum {string} */
                             state: "active" | "disposed";
                             title: string;
@@ -7536,7 +7544,7 @@ export interface paths {
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
-                            projectId: string;
+                            projectId: string | null;
                             /** @enum {string} */
                             state: "active" | "disposed";
                             title: string;
@@ -7994,7 +8002,7 @@ export interface paths {
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
-                            projectId: string;
+                            projectId: string | null;
                             /** @enum {string} */
                             state: "active" | "disposed";
                             title: string;
@@ -10348,6 +10356,227 @@ export interface paths {
         patch: operations["automation_template_update"];
         trace?: never;
     };
+    "/api/v2/automation/templates/{id}/actions/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        input?: {
+                            [key: string]: unknown;
+                        };
+                        /** Format: uuid */
+                        projectId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description template run queued */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: date-time */
+                            createdAt: string;
+                            data: {
+                                error?: string;
+                                /** @default 0 */
+                                progress: number;
+                                /**
+                                 * @default queued
+                                 * @enum {string}
+                                 */
+                                state: "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+                            };
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "task";
+                            ordinal: number;
+                            /** Format: uuid */
+                            parentId: string | null;
+                            /** Format: uuid */
+                            projectId: string;
+                            status: string;
+                            title: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            version: number;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Resource not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Version conflict */
+                412: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description If-Match required */
+                428: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/automation/workflows": {
         parameters: {
             query?: never;
@@ -10378,6 +10607,227 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["automation_workflow_update"];
+        trace?: never;
+    };
+    "/api/v2/automation/workflows/{id}/actions/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        input?: {
+                            [key: string]: unknown;
+                        };
+                        /** Format: uuid */
+                        projectId: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description workflow run queued */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: date-time */
+                            createdAt: string;
+                            data: {
+                                error?: string;
+                                /** @default 0 */
+                                progress: number;
+                                /**
+                                 * @default queued
+                                 * @enum {string}
+                                 */
+                                state: "queued" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+                            };
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "task";
+                            ordinal: number;
+                            /** Format: uuid */
+                            parentId: string | null;
+                            /** Format: uuid */
+                            projectId: string;
+                            status: string;
+                            title: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            version: number;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Resource not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Version conflict */
+                412: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description If-Match required */
+                428: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v2/creative-quality/analyses": {
@@ -16584,6 +17034,70 @@ export interface paths {
         patch: operations["media_asset_update"];
         trace?: never;
     };
+    "/api/v2/media/assets/{id}/actions/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["media_asset_adopt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/media/assets/{id}/actions/clear-rights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["media_asset_clear_rights"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/media/assets/{id}/actions/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["media_asset_lock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/media/assets/{id}/actions/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["media_asset_reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/media/assets/{id}/content": {
         parameters: {
             query?: never;
@@ -17555,6 +18069,160 @@ export interface paths {
             responses: {
                 /** @description Backup created */
                 201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: date-time */
+                            createdAt: string;
+                            filename: string;
+                            id: string;
+                            size: number;
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Origin forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            code: string;
+                            detail: string;
+                            errors?: {
+                                message: string;
+                                path: string;
+                            }[];
+                            instance: string;
+                            requestId: string;
+                            status: number;
+                            title: string;
+                            type: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/system/backups/{id}/actions/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        confirmation: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Backup restore queued */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -49269,6 +49937,850 @@ export interface operations {
         };
         responses: {
             /** @description asset updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        createdAt: string;
+                        data: {
+                            /**
+                             * @default candidate
+                             * @enum {string}
+                             */
+                            adoptionStatus: "candidate" | "adopted" | "locked" | "rejected";
+                            byteSize: number;
+                            checksum: string;
+                            contentRef: string;
+                            /**
+                             * @default other
+                             * @enum {string}
+                             */
+                            mediaType: "image" | "video" | "audio" | "voice" | "document" | "other";
+                            mimeType: string;
+                            /**
+                             * @default unverified
+                             * @enum {string}
+                             */
+                            rightsStatus: "unverified" | "cleared" | "restricted";
+                        };
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "asset";
+                        ordinal: number;
+                        /** Format: uuid */
+                        parentId: string | null;
+                        /** Format: uuid */
+                        projectId: string;
+                        status: string;
+                        title: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        version: number;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Version conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description If-Match required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+        };
+    };
+    media_asset_adopt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description asset adopt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        createdAt: string;
+                        data: {
+                            /**
+                             * @default candidate
+                             * @enum {string}
+                             */
+                            adoptionStatus: "candidate" | "adopted" | "locked" | "rejected";
+                            byteSize: number;
+                            checksum: string;
+                            contentRef: string;
+                            /**
+                             * @default other
+                             * @enum {string}
+                             */
+                            mediaType: "image" | "video" | "audio" | "voice" | "document" | "other";
+                            mimeType: string;
+                            /**
+                             * @default unverified
+                             * @enum {string}
+                             */
+                            rightsStatus: "unverified" | "cleared" | "restricted";
+                        };
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "asset";
+                        ordinal: number;
+                        /** Format: uuid */
+                        parentId: string | null;
+                        /** Format: uuid */
+                        projectId: string;
+                        status: string;
+                        title: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        version: number;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Version conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description If-Match required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+        };
+    };
+    media_asset_clear_rights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description asset clear-rights */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        createdAt: string;
+                        data: {
+                            /**
+                             * @default candidate
+                             * @enum {string}
+                             */
+                            adoptionStatus: "candidate" | "adopted" | "locked" | "rejected";
+                            byteSize: number;
+                            checksum: string;
+                            contentRef: string;
+                            /**
+                             * @default other
+                             * @enum {string}
+                             */
+                            mediaType: "image" | "video" | "audio" | "voice" | "document" | "other";
+                            mimeType: string;
+                            /**
+                             * @default unverified
+                             * @enum {string}
+                             */
+                            rightsStatus: "unverified" | "cleared" | "restricted";
+                        };
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "asset";
+                        ordinal: number;
+                        /** Format: uuid */
+                        parentId: string | null;
+                        /** Format: uuid */
+                        projectId: string;
+                        status: string;
+                        title: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        version: number;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Version conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description If-Match required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+        };
+    };
+    media_asset_lock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description asset lock */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        createdAt: string;
+                        data: {
+                            /**
+                             * @default candidate
+                             * @enum {string}
+                             */
+                            adoptionStatus: "candidate" | "adopted" | "locked" | "rejected";
+                            byteSize: number;
+                            checksum: string;
+                            contentRef: string;
+                            /**
+                             * @default other
+                             * @enum {string}
+                             */
+                            mediaType: "image" | "video" | "audio" | "voice" | "document" | "other";
+                            mimeType: string;
+                            /**
+                             * @default unverified
+                             * @enum {string}
+                             */
+                            rightsStatus: "unverified" | "cleared" | "restricted";
+                        };
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "asset";
+                        ordinal: number;
+                        /** Format: uuid */
+                        parentId: string | null;
+                        /** Format: uuid */
+                        projectId: string;
+                        status: string;
+                        title: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        version: number;
+                    };
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Version conflict */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description If-Match required */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        detail: string;
+                        errors?: {
+                            message: string;
+                            path: string;
+                        }[];
+                        instance: string;
+                        requestId: string;
+                        status: number;
+                        title: string;
+                        type: string;
+                    };
+                };
+            };
+        };
+    };
+    media_asset_reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description asset reject */
             200: {
                 headers: {
                     [name: string]: unknown;

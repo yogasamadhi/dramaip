@@ -78,6 +78,27 @@ function MediaWorkspace() {
         queryKey: ["media", "assets", activeProject],
       }),
   });
+  const assetAction = useMutation({
+    mutationFn: ({
+      asset,
+      verb,
+    }: {
+      asset: Asset;
+      verb: "clear-rights" | "adopt" | "lock" | "reject";
+    }) =>
+      client.request(`/api/v2/media/assets/${asset.id}/actions/${verb}`, {
+        method: "POST",
+        headers: {
+          "if-match": `"v${asset.version}"`,
+          "idempotency-key": crypto.randomUUID(),
+        },
+        body: "{}",
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["media", "assets", activeProject],
+      }),
+  });
   return (
     <section className="page-stack">
       <PageHeader
@@ -145,6 +166,38 @@ function MediaWorkspace() {
                 权利 {asset.data.rightsStatus} · {asset.data.adoptionStatus} · v
                 {asset.version}
               </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {asset.data.rightsStatus !== "cleared" && (
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      assetAction.mutate({ asset, verb: "clear-rights" })
+                    }
+                  >
+                    确认权利
+                  </Button>
+                )}
+                {asset.data.rightsStatus === "cleared" &&
+                  asset.data.adoptionStatus === "candidate" && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() =>
+                        assetAction.mutate({ asset, verb: "adopt" })
+                      }
+                    >
+                      采用
+                    </Button>
+                  )}
+                {asset.data.adoptionStatus === "adopted" && (
+                  <Button
+                    size="sm"
+                    onClick={() => assetAction.mutate({ asset, verb: "lock" })}
+                  >
+                    锁定
+                  </Button>
+                )}
+              </div>
             </Card>
           ))}
           {!assets.data?.items.length && (

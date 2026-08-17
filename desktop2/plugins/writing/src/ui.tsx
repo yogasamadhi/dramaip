@@ -36,6 +36,19 @@ interface DraftRecord {
 }
 
 const draftKey = (id: string) => `dramaip-next:chapter-draft:${id}`;
+const preferencesKey = "dramaip-next:writing-preferences";
+type WritingPreferences = {
+  fontSize: "小" | "中" | "大";
+  lineHeight: "紧凑" | "舒适" | "宽松";
+  width: "窄" | "标准" | "宽";
+  typewriter: boolean;
+};
+const defaultWritingPreferences: WritingPreferences = {
+  fontSize: "中",
+  lineHeight: "舒适",
+  width: "标准",
+  typewriter: false,
+};
 
 function markdownOf(editor: ReturnType<typeof useEditor>): string {
   return editor ? (editor.storage.markdown.getMarkdown() as string) : "";
@@ -44,9 +57,18 @@ function markdownOf(editor: ReturnType<typeof useEditor>): string {
 function MarkdownEditor({
   value,
   onChange,
+  preferences,
+  onPreferencesChange,
 }: {
   value: string;
   onChange(value: string): void;
+  preferences: {
+    fontSize: "小" | "中" | "大";
+    lineHeight: "紧凑" | "舒适" | "宽松";
+    width: "窄" | "标准" | "宽";
+    typewriter: boolean;
+  };
+  onPreferencesChange(next: Partial<typeof preferences>): void;
 }) {
   const latestChange = useRef(onChange);
   latestChange.current = onChange;
@@ -65,7 +87,9 @@ function MarkdownEditor({
   }, [editor, value]);
   if (!editor) return <LoadingPanel label="正在装载 Markdown 编辑器…" />;
   return (
-    <div className="markdown-editor">
+    <div
+      className={`markdown-editor editor-font-${preferences.fontSize} editor-line-${preferences.lineHeight} editor-width-${preferences.width}`}
+    >
       <div className="editor-toolbar">
         <button
           className={editor.isActive("bold") ? "active" : ""}
@@ -107,7 +131,15 @@ function MarkdownEditor({
         <span />
         <label>
           字号
-          <select aria-label="字号" defaultValue="中">
+          <select
+            aria-label="字号"
+            value={preferences.fontSize}
+            onChange={(event) =>
+              onPreferencesChange({
+                fontSize: event.target.value as typeof preferences.fontSize,
+              })
+            }
+          >
             <option>小</option>
             <option>中</option>
             <option>大</option>
@@ -115,7 +147,15 @@ function MarkdownEditor({
         </label>
         <label>
           行距
-          <select aria-label="行距" defaultValue="舒适">
+          <select
+            aria-label="行距"
+            value={preferences.lineHeight}
+            onChange={(event) =>
+              onPreferencesChange({
+                lineHeight: event.target.value as typeof preferences.lineHeight,
+              })
+            }
+          >
             <option>紧凑</option>
             <option>舒适</option>
             <option>宽松</option>
@@ -123,14 +163,28 @@ function MarkdownEditor({
         </label>
         <label>
           正文宽度
-          <select aria-label="正文宽度" defaultValue="标准">
+          <select
+            aria-label="正文宽度"
+            value={preferences.width}
+            onChange={(event) =>
+              onPreferencesChange({
+                width: event.target.value as typeof preferences.width,
+              })
+            }
+          >
             <option>窄</option>
             <option>标准</option>
             <option>宽</option>
           </select>
         </label>
         <label className="typewriter-toggle">
-          <input type="checkbox" />
+          <input
+            type="checkbox"
+            checked={preferences.typewriter}
+            onChange={(event) =>
+              onPreferencesChange({ typewriter: event.target.checked })
+            }
+          />
           打字机滚动
         </label>
       </div>
@@ -209,7 +263,24 @@ function NovelWritingPage() {
       : 520;
   });
   const [rightTab, setRightTab] = useState("assistant");
+  const [preferences, setPreferences] = useState<WritingPreferences>(() => {
+    try {
+      return {
+        ...defaultWritingPreferences,
+        ...JSON.parse(localStorage.getItem(preferencesKey) ?? "{}"),
+      } as WritingPreferences;
+    } catch {
+      return defaultWritingPreferences;
+    }
+  });
   const [draggedId, setDraggedId] = useState<string>();
+  const updatePreferences = (next: Partial<WritingPreferences>) => {
+    setPreferences((current) => {
+      const value = { ...current, ...next };
+      localStorage.setItem(preferencesKey, JSON.stringify(value));
+      return value;
+    });
+  };
   const beginResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const startX = event.clientX;
@@ -458,7 +529,10 @@ function NovelWritingPage() {
             >
               <span>
                 <strong>{chapter.title}</strong>
-                <small>{chapter.wordCount} 字 · 无记忆</small>
+                <small>
+                  {chapter.wordCount} 字 ·{" "}
+                  {chapter.content.trim() ? "可生成记忆" : "待写正文"}
+                </small>
               </span>
             </button>
           ))}
@@ -576,7 +650,12 @@ function NovelWritingPage() {
                 </div>
               </div>
             )}
-            <MarkdownEditor value={content} onChange={setContent} />
+            <MarkdownEditor
+              value={content}
+              onChange={setContent}
+              preferences={preferences}
+              onPreferencesChange={updatePreferences}
+            />
             <footer className="editor-status">
               <span>
                 实时字数{" "}

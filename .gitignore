@@ -40,6 +40,8 @@ $RECYCLE.BIN/
 .env.*
 !.env.example
 !.env.*.example
+!.env.template
+!.env.*.template
 .envrc
 .direnv/
 
@@ -68,8 +70,13 @@ venv/
 # ---- Node.js / Bun (monorepo-wide) ----
 node_modules/
 # Local package-manager stores (developer cache only).
+.bun/
 .pnpm-store/
 .npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
 .pnp
 .pnp.*
 .turbo/
@@ -90,6 +97,12 @@ out/
 .vite/
 dist-electron/
 storybook-static/
+
+# ---- Native mobile / Xcode local output ----
+Pods/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
 
 # `release/`, `build/` and `artifacts/` are intentionally not ignored here:
 # this repository tracks release docs, deployment scripts and Electron metadata
@@ -133,6 +146,11 @@ temp/
 # ---- Test / coverage ----
 coverage/
 .nyc_output/
+lcov.info
+*.lcov
+junit.xml
+allure-results/
+allure-report/
 .trivy/
 trivy-reports/
 .scannerwork/
