@@ -1,9 +1,0 @@
-bun.lock
-apps/studio/build
-dist
-out
-release
-generated
-packages/client/src/generated
-apps/studio/playwright-report
-apps/studio/test-results

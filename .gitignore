@@ -170,3 +170,7 @@ blob-report/
 
 # ---- Local agent / tool state ----
 .zcode/
+
+# ---- Archived desktop workspaces ----
+# Local snapshots retained before major desktop architecture refactors.
+desktop/legacy/
