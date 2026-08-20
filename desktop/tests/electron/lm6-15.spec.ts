@@ -29,7 +29,7 @@ test("三集试制在窄窗口贯通 Story Bible、分镜与静帧优先 Gate", 
   page.on("request", (request) => {
     if (
       request.method() === "POST" &&
-      request.url().endsWith("/api/v1/video-generation/runs")
+      request.url().endsWith("/api/v2/video-generation/runs")
     )
       videoSubmissions += 1;
   });

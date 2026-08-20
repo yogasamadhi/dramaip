@@ -1,0 +1,757 @@
+import { createHash } from "node:crypto";
+import { createRoute } from "@hono/zod-openapi";
+import { ProblemDetailsSchema } from "@dramaip/contracts";
+import {
+  DELIVERY_RECORD_SERVICE,
+  DeliveryCreativeVariantInputSchema,
+  DeliveryRecordInputSchema,
+  DeliveryRecordPatchSchema,
+  PlatformDeliveryPreflightInputSchema,
+  type DeliveryRecord,
+  type DeliveryRecordKind,
+  type DeliveryRecordService,
+} from "@dramaip/contracts/delivery";
+import {
+  PRODUCTION_RECORD_SERVICE,
+  type ProductionRecordService,
+} from "@dramaip/contracts/production";
+import {
+  defineFirstPartyPlugin,
+  type PluginContext,
+  type RouteContribution,
+  type UnitOfWorkTransaction,
+} from "@dramaip/plugin-api/internal";
+import { z, type ZodType } from "zod";
+
+interface Row {
+  id: string;
+  kind: DeliveryRecordKind;
+  project_id: string;
+  parent_id: string | null;
+  value_json: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RouteContext {
+  req: {
+    param(name: string): string;
+    query(name: string): string | undefined;
+    json<T = unknown>(): Promise<T>;
+  };
+  json(value: unknown, status?: number): Response;
+  body(value: null, status?: number): Response;
+}
+
+type Handler = (context: RouteContext) => Response | Promise<Response>;
+const idParams = z.object({ id: z.string().uuid() });
+const idFormatParams = z.object({
+  id: z.string().uuid(),
+  format: z.string().min(1),
+});
+
+const deliveryProfiles = [
+  {
+    id: "00000000-0000-4000-8000-000000000001",
+    version: "2026.08",
+    title: "通用竖屏短剧交付",
+    platform: "通用平台",
+    region: "中国大陆",
+    sourceUrl: "dramaip://profiles/general-vertical-drama",
+    sourceStatus: "internal_master",
+    checkedAt: "2026-08-11T00:00:00.000Z",
+    filenamePrefix: "dramaip",
+    video: {
+      width: 1080,
+      height: 1920,
+      videoCodec: "H.264",
+      audioCodec: "AAC",
+    },
+    duration: {
+      status: "manual",
+      note: "发行前按目标平台最新要求人工确认时长。",
+    },
+    subtitleSafeZone: {
+      bottomMarginPx: 240,
+      note: "保留移动端交互区与字幕安全边距。",
+    },
+    requiredListingFields: ["标题", "简介", "标签"],
+    manualFields: ["平台版权声明", "发行地区"],
+  },
+] as const;
+
+function toRecord(row: Row): DeliveryRecord {
+  return {
+    id: row.id,
+    kind: row.kind,
+    projectId: row.project_id,
+    ...(row.parent_id ? { parentId: row.parent_id } : {}),
+    value: JSON.parse(row.value_json) as Record<string, unknown>,
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function wire(record: DeliveryRecord): Record<string, unknown> {
+  return {
+    ...record.value,
+    id: record.id,
+    projectId: record.projectId,
+    version: record.version,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+function append(
+  transaction: UnitOfWorkTransaction,
+  action: string,
+  value: DeliveryRecord,
+): void {
+  transaction.append({
+    type: `delivery.${action}.v1`,
+    pluginId: "delivery",
+    aggregateType: value.kind,
+    aggregateId: value.id,
+    aggregateVersion: value.version,
+    payload: JSON.parse(JSON.stringify(value)),
+  });
+}
+
+function makeService(context: PluginContext): DeliveryRecordService {
+  return {
+    create(kind, input) {
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      return context.uow.execute((transaction) => {
+        transaction.run(
+          `INSERT INTO delivery_records(
+            id, kind, project_id, parent_id, value_json, version,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+          id,
+          kind,
+          input.projectId,
+          input.parentId ?? null,
+          JSON.stringify(input.value),
+          now,
+          now,
+        );
+        const value = toRecord(
+          transaction.get<Row>(
+            "SELECT * FROM delivery_records WHERE id = ?",
+            id,
+          )!,
+        );
+        append(transaction, `${kind}-created`, value);
+        return value;
+      });
+    },
+    list(kind, filter) {
+      return context.uow.execute((transaction) => {
+        const clauses = ["kind = ?"];
+        const values: unknown[] = [kind];
+        if (filter.projectId) {
+          clauses.push("project_id = ?");
+          values.push(filter.projectId);
+        }
+        if (filter.parentId) {
+          clauses.push("parent_id = ?");
+          values.push(filter.parentId);
+        }
+        return transaction
+          .all<Row>(
+            `SELECT * FROM delivery_records WHERE ${clauses.join(" AND ")} ORDER BY created_at, id`,
+            ...values,
+          )
+          .map(toRecord);
+      });
+    },
+    get(id) {
+      return context.uow.execute((transaction) => {
+        const row = transaction.get<Row>(
+          "SELECT * FROM delivery_records WHERE id = ?",
+          id,
+        );
+        return row ? toRecord(row) : undefined;
+      });
+    },
+    update(id, patch) {
+      return context.uow.execute((transaction) => {
+        const row = transaction.get<Row>(
+          "SELECT * FROM delivery_records WHERE id = ?",
+          id,
+        );
+        if (!row) return undefined;
+        transaction.run(
+          "UPDATE delivery_records SET value_json = ?, version = version + 1, updated_at = ? WHERE id = ?",
+          JSON.stringify({
+            ...(JSON.parse(row.value_json) as Record<string, unknown>),
+            ...patch,
+          }),
+          new Date().toISOString(),
+          id,
+        );
+        const value = toRecord(
+          transaction.get<Row>(
+            "SELECT * FROM delivery_records WHERE id = ?",
+            id,
+          )!,
+        );
+        append(transaction, `${value.kind}-updated`, value);
+        return value;
+      });
+    },
+    remove(id) {
+      return context.uow.execute((transaction) => {
+        const row = transaction.get<Row>(
+          "SELECT * FROM delivery_records WHERE id = ?",
+          id,
+        );
+        if (!row) return false;
+        const value = toRecord(row);
+        transaction.run("DELETE FROM delivery_records WHERE id = ?", id);
+        append(transaction, `${value.kind}-removed`, value);
+        return true;
+      });
+    },
+  };
+}
+
+function problem(
+  context: RouteContext,
+  status: number,
+  code: string,
+  title: string,
+): Response {
+  return context.json(
+    {
+      type: `https://dramaip.local/problems/${code.toLowerCase()}`,
+      title,
+      detail: title,
+      status,
+      code,
+      traceId: crypto.randomUUID(),
+    },
+    status,
+  );
+}
+
+function openapi(input: {
+  method: "delete" | "get" | "patch" | "post";
+  path: string;
+  operationId: string;
+  params?: ZodType;
+  body?: ZodType;
+  status?: 200 | 201 | 204;
+}): unknown {
+  const status = input.status ?? 200;
+  return createRoute({
+    method: input.method,
+    path: input.path,
+    operationId: input.operationId,
+    tags: ["delivery"],
+    request: {
+      ...(input.params ? { params: input.params } : {}),
+      ...(input.body
+        ? {
+            body: {
+              required: true,
+              content: { "application/json": { schema: input.body } },
+            },
+          }
+        : {}),
+    },
+    responses: {
+      [status]: {
+        description: "Success",
+        ...(status === 204
+          ? {}
+          : { content: { "application/json": { schema: z.unknown() } } }),
+      },
+      400: {
+        description: "Invalid request",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
+      404: {
+        description: "Not found",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
+      409: {
+        description: "Conflict",
+        content: {
+          "application/problem+json": { schema: ProblemDetailsSchema },
+        },
+      },
+    },
+  } as never);
+}
+
+function contribution(
+  method: "delete" | "get" | "patch" | "post",
+  path: string,
+  operationId: string,
+  handler: Handler,
+  options: { params?: ZodType; body?: ZodType; status?: 200 | 201 | 204 } = {},
+): RouteContribution {
+  return {
+    id: `delivery:${operationId}`,
+    pluginId: "delivery",
+    method,
+    path: path as `/api/v2/${string}`,
+    operationId,
+    install(app) {
+      const register = app.openapi as unknown as (
+        schema: unknown,
+        callback: Handler,
+      ) => void;
+      register.call(
+        app,
+        openapi({ method, path, operationId, ...options }),
+        handler,
+      );
+    },
+  };
+}
+
+function exportDocument(fileName: string, value: unknown) {
+  return {
+    fileName,
+    mimeType: "application/json; charset=utf-8",
+    content: JSON.stringify(value, null, 2),
+  };
+}
+
+function deliveryRoutes(
+  records: DeliveryRecordService,
+  production: ProductionRecordService,
+): RouteContribution[] {
+  const routes: RouteContribution[] = [];
+  const add = (...args: Parameters<typeof contribution>) =>
+    routes.push(contribution(...args));
+
+  add(
+    "get",
+    "/api/v2/platform-delivery/profiles",
+    "platform-delivery.listProfiles",
+    (context) => context.json(deliveryProfiles),
+  );
+  add(
+    "get",
+    "/api/v2/adaptations/{id}/delivery-variants",
+    "platform-delivery.listVariants",
+    (context) =>
+      context.json(
+        records
+          .list("delivery-variant", { parentId: context.req.param("id") })
+          .map(wire),
+      ),
+    { params: idParams },
+  );
+  add(
+    "post",
+    "/api/v2/adaptations/{id}/delivery-variants",
+    "platform-delivery.createVariant",
+    async (context) => {
+      const parsed = DeliveryCreativeVariantInputSchema.safeParse(
+        await context.req.json(),
+      );
+      const adaptation = production.get(context.req.param("id"));
+      if (!parsed.success)
+        return problem(context, 400, "VALIDATION_ERROR", "交付创意版本无效。");
+      if (!adaptation || adaptation.kind !== "adaptations")
+        return problem(context, 404, "NOT_FOUND", "未找到改编方案。");
+      return context.json(
+        wire(
+          records.create("delivery-variant", {
+            projectId: adaptation.projectId,
+            parentId: adaptation.id,
+            value: {
+              projectId: adaptation.projectId,
+              adaptationId: adaptation.id,
+              ...parsed.data,
+              status: "candidate",
+              versionNumber: 1,
+            },
+          }),
+        ),
+        201,
+      );
+    },
+    { params: idParams, body: DeliveryCreativeVariantInputSchema, status: 201 },
+  );
+  add(
+    "post",
+    "/api/v2/delivery-variants/{id}/adopt",
+    "platform-delivery.adoptVariant",
+    (context) => {
+      const current = records.get(context.req.param("id"));
+      if (!current || current.kind !== "delivery-variant")
+        return problem(context, 404, "NOT_FOUND", "未找到交付创意版本。");
+      for (const item of records.list("delivery-variant", {
+        parentId: current.parentId,
+      }))
+        if (item.id !== current.id && item.value["status"] === "adopted")
+          records.update(item.id, { status: "archived" });
+      const value = records.update(current.id, {
+        status: "adopted",
+        versionNumber: Number(current.value["versionNumber"] ?? 1) + 1,
+      });
+      return context.json(wire(value!));
+    },
+    { params: idParams },
+  );
+  add(
+    "get",
+    "/api/v2/episodes/{id}/platform-deliveries",
+    "platform-delivery.listArchives",
+    (context) =>
+      context.json(
+        records
+          .list("platform-archive", { parentId: context.req.param("id") })
+          .map(wire),
+      ),
+    { params: idParams },
+  );
+
+  const preflight = (
+    episodeId: string,
+    input: z.infer<typeof PlatformDeliveryPreflightInputSchema>,
+  ) => {
+    const episode = production.get(episodeId);
+    const profile = deliveryProfiles.find(
+      (item) => item.id === input.profileId,
+    );
+    const variant = records.get(input.creativeVariantId);
+    const blockers: string[] = [];
+    if (!episode || episode.kind !== "episodes")
+      blockers.push("未找到待交付分集。");
+    if (!profile) blockers.push("未找到平台交付档案。");
+    if (!variant || variant.kind !== "delivery-variant")
+      blockers.push("未找到交付创意版本。");
+    if (!input.manualFieldsConfirmed)
+      blockers.push("请先确认平台版权声明与发行地区等人工字段。");
+    const base = `${profile?.filenamePrefix ?? "dramaip"}-episode-${String(episode?.payload["集数"] ?? 1)}`;
+    const sourceFingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          episodeId,
+          profileId: input.profileId,
+          profileVersion: profile?.version,
+          creativeVariantId: input.creativeVariantId,
+          variantVersion: variant?.version,
+        }),
+      )
+      .digest("hex");
+    return {
+      ok: blockers.length === 0,
+      ...(profile ? { profile } : {}),
+      blockers,
+      warnings: ["发行前仍需在目标平台后台核对最新规格。"],
+      expectedFiles: [`${base}.mp4`, `${base}.srt`, `${base}.json`],
+      finalBaseName: base,
+      sourceFingerprint,
+    };
+  };
+
+  add(
+    "post",
+    "/api/v2/episodes/{id}/platform-delivery/preflight",
+    "platform-delivery.preflight",
+    async (context) => {
+      const parsed = PlatformDeliveryPreflightInputSchema.safeParse(
+        await context.req.json(),
+      );
+      return parsed.success
+        ? context.json(preflight(context.req.param("id"), parsed.data))
+        : problem(context, 400, "VALIDATION_ERROR", "交付预检参数无效。");
+    },
+    { params: idParams, body: PlatformDeliveryPreflightInputSchema },
+  );
+  add(
+    "post",
+    "/api/v2/episodes/{id}/platform-deliveries",
+    "platform-delivery.createArchive",
+    async (context) => {
+      const parsed = PlatformDeliveryPreflightInputSchema.safeParse(
+        await context.req.json(),
+      );
+      if (!parsed.success)
+        return problem(context, 400, "VALIDATION_ERROR", "交付归档参数无效。");
+      const episodeId = context.req.param("id");
+      const check = preflight(episodeId, parsed.data);
+      if (!check.ok)
+        return problem(
+          context,
+          409,
+          "PREFLIGHT_FAILED",
+          check.blockers.join("；"),
+        );
+      const episode = production.get(episodeId)!;
+      const value = records.create("platform-archive", {
+        projectId: episode.projectId,
+        parentId: episode.id,
+        value: {
+          projectId: episode.projectId,
+          adaptationId: episode.parentId,
+          episodeId: episode.id,
+          profileId: parsed.data.profileId,
+          profileVersion: check.profile!.version,
+          creativeVariantId: parsed.data.creativeVariantId,
+          deliveryVersion:
+            records.list("platform-archive", { parentId: episode.id }).length +
+            1,
+          sourceFingerprint: check.sourceFingerprint,
+        },
+      });
+      return context.json(wire(value), 201);
+    },
+    {
+      params: idParams,
+      body: PlatformDeliveryPreflightInputSchema,
+      status: 201,
+    },
+  );
+  add(
+    "get",
+    "/api/v2/platform-deliveries/{id}/export",
+    "platform-delivery.exportArchive",
+    (context) => {
+      const value = records.get(context.req.param("id"));
+      return value?.kind === "platform-archive"
+        ? context.json(
+            exportDocument(`platform-delivery-${value.id}.json`, wire(value)),
+          )
+        : problem(context, 404, "NOT_FOUND", "未找到平台交付归档。");
+    },
+    { params: idParams },
+  );
+  add(
+    "post",
+    "/api/v2/localization/{id}/adopt",
+    "localization.adopt",
+    (context) => {
+      const value = records.get(context.req.param("id"));
+      if (!value || value.kind !== "localization")
+        return problem(context, 404, "NOT_FOUND", "未找到本地化版本。");
+      return context.json(
+        wire(records.update(value.id, { 采用状态: "已采用" })!),
+      );
+    },
+    { params: idParams },
+  );
+  add(
+    "get",
+    "/api/v2/localization/{id}/subtitles/{format}",
+    "localization.subtitles",
+    (context) => {
+      const value = records.get(context.req.param("id"));
+      const format = context.req.param("format");
+      if (!value || value.kind !== "localization")
+        return problem(context, 404, "NOT_FOUND", "未找到本地化版本。");
+      if (!(["srt", "vtt"] as const).includes(format as "srt" | "vtt"))
+        return problem(context, 400, "VALIDATION_ERROR", "字幕格式无效。");
+      const text = String(
+        value.value["字幕与译文"] ?? value.value["content"] ?? "",
+      );
+      const content =
+        format === "vtt"
+          ? `WEBVTT\n\n00:00:00.000 --> 00:00:05.000\n${text}\n`
+          : `1\n00:00:00,000 --> 00:00:05,000\n${text}\n`;
+      return context.json({
+        fileName: `${String(value.value["title"] ?? "subtitle")}.${format}`,
+        mimeType: format === "vtt" ? "text/vtt" : "application/x-subrip",
+        content,
+      });
+    },
+    { params: idFormatParams },
+  );
+  add(
+    "get",
+    "/api/v2/delivery/{id}/export",
+    "delivery.export",
+    (context) => {
+      const value = records.get(context.req.param("id"));
+      return value?.kind === "delivery"
+        ? context.json(exportDocument(`delivery-${value.id}.json`, wire(value)))
+        : problem(context, 404, "NOT_FOUND", "未找到交付记录。");
+    },
+    { params: idParams },
+  );
+
+  for (const kind of ["localization", "delivery"] as const) {
+    const path = `/api/v2/${kind}`;
+    const itemPath = `/api/v2/${kind}/{id}`;
+    add("get", path, `${kind}.records.list`, (context) => {
+      const projectId = context.req.query("projectId");
+      const parentId = context.req.query("parentId");
+      if (!projectId && !parentId)
+        return problem(
+          context,
+          400,
+          "VALIDATION_ERROR",
+          "缺少项目或上级标识。",
+        );
+      return context.json(
+        records.list(kind, { projectId, parentId }).map(wire),
+      );
+    });
+    add(
+      "post",
+      path,
+      `${kind}.records.create`,
+      async (context) => {
+        const parsed = DeliveryRecordInputSchema.safeParse(
+          await context.req.json(),
+        );
+        if (!parsed.success)
+          return problem(context, 400, "VALIDATION_ERROR", "交付资料无效。");
+        return context.json(
+          wire(
+            records.create(kind, {
+              projectId: parsed.data.projectId,
+              parentId: parsed.data.parentId,
+              value: { title: parsed.data.title, ...parsed.data.payload },
+            }),
+          ),
+          201,
+        );
+      },
+      { body: DeliveryRecordInputSchema, status: 201 },
+    );
+    add(
+      "get",
+      itemPath,
+      `${kind}.records.get`,
+      (context) => {
+        const value = records.get(context.req.param("id"));
+        return value?.kind === kind
+          ? context.json(wire(value))
+          : problem(context, 404, "NOT_FOUND", "未找到交付资料。");
+      },
+      { params: idParams },
+    );
+    add(
+      "patch",
+      itemPath,
+      `${kind}.records.update`,
+      async (context) => {
+        const parsed = DeliveryRecordPatchSchema.safeParse(
+          await context.req.json(),
+        );
+        const current = records.get(context.req.param("id"));
+        if (!parsed.success)
+          return problem(
+            context,
+            400,
+            "VALIDATION_ERROR",
+            "交付资料更新无效。",
+          );
+        if (!current || current.kind !== kind)
+          return problem(context, 404, "NOT_FOUND", "未找到交付资料。");
+        if (current.version !== parsed.data.version)
+          return problem(
+            context,
+            409,
+            "CONFLICT",
+            "交付资料已更新，请刷新后重试。",
+          );
+        return context.json(
+          wire(
+            records.update(current.id, {
+              ...(parsed.data.title ? { title: parsed.data.title } : {}),
+              ...parsed.data.payload,
+            })!,
+          ),
+        );
+      },
+      { params: idParams, body: DeliveryRecordPatchSchema },
+    );
+    add(
+      "delete",
+      itemPath,
+      `${kind}.records.remove`,
+      (context) =>
+        records.remove(context.req.param("id"))
+          ? context.body(null, 204)
+          : problem(context, 404, "NOT_FOUND", "未找到交付资料。"),
+      { params: idParams, status: 204 },
+    );
+  }
+  return routes;
+}
+
+export const deliveryPlugin = defineFirstPartyPlugin({
+  descriptor: {
+    id: "delivery",
+    version: "3.0.0-alpha.3",
+    apiVersion: "2",
+    requires: [
+      "foundation",
+      "workspace",
+      "production",
+      "media",
+      "timeline",
+      "review",
+    ],
+    provides: ["delivery.records", "delivery.platform-profiles"],
+    stability: "internal",
+  },
+  ui: [
+    {
+      id: "delivery.panel.platform",
+      pluginId: "delivery",
+      kind: "panel",
+      metadata: { slot: "review.delivery", title: "平台交付" },
+    },
+    {
+      id: "delivery.command.export",
+      pluginId: "delivery",
+      kind: "command",
+      metadata: { title: "导出交付包", command: "delivery.export" },
+    },
+  ],
+  migrations: [
+    {
+      id: "delivery.0001.records",
+      pluginId: "delivery",
+      version: "3.0.0-alpha.3",
+      dependsOn: ["review.0002.owned-records"],
+      sql: `
+        CREATE TABLE IF NOT EXISTS delivery_records (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL CHECK(kind IN ('localization', 'delivery', 'delivery-variant', 'platform-archive')),
+          project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+          parent_id TEXT,
+          value_json TEXT NOT NULL,
+          version INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS delivery_records_kind_project
+          ON delivery_records(kind, project_id, created_at, id);
+        CREATE INDEX IF NOT EXISTS delivery_records_kind_parent
+          ON delivery_records(kind, parent_id, created_at, id);
+      `,
+    },
+  ],
+  activate: (context) => {
+    const production = context.services.get<ProductionRecordService>(
+      PRODUCTION_RECORD_SERVICE,
+    );
+    if (!production) throw new Error("delivery requires production service");
+    const records = makeService(context);
+    context.effect(
+      context.services.provide(DELIVERY_RECORD_SERVICE, records),
+      `service:${DELIVERY_RECORD_SERVICE}`,
+    );
+    for (const route of deliveryRoutes(records, production))
+      context.effect(context.http.register(route), `route:${route.id}`);
+  },
+});

@@ -1,0 +1,19 @@
+{
+  "name": "@dramaip/plugin-api",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./experimental": "./src/experimental.ts",
+    "./internal": "./src/internal.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@hono/zod-openapi": "1.6.0",
+    "zod": "4.4.3"
+  }
+}

@@ -1,59 +1,69 @@
-# DramaIP Desktop v3 架构
+# DramaIP Desktop 3.0 alpha 架构
 
-DramaIP Desktop 使用 React 19 Renderer，并且只有一条业务传输通道：带启动期随机凭据的本地 HTTP。
+`3.0.0-alpha.3` 的唯一产品边界如下。每一条来自 Renderer 的业务请求都经过 Runtime；Electron IPC 不是可调用的业务通道。
 
 ```text
-Electron Main
-├── React Renderer（dramaip://renderer）
-├── DramaIP Server utilityProcess
-│   ├── /api/v1 HTTP + SSE
-│   ├── node:sqlite + Drizzle Schema
-│   ├── Task / Session / Run / Item / Preview
-│   └── Agent Router + 只读 MCP
-├── OpenCode Engine utilityProcess
-├── Codex Host utilityProcess → 固定 Codex App Server stdio
-├── DSH Engine utilityProcess → 会话级 Headless JSON-RPC Runtime
-├── Pi Engine utilityProcess → 会话级嵌入式 Agent Runtime
-├── Grok Build Engine utilityProcess → 会话级 ACP Runtime
-└── LangGraph.js Engine utilityProcess
+Renderer
+  │  generated @dramaip/client, HTTP /api/v2, Bearer runtime token
+  ▼
+Core Runtime Process（Node utilityProcess；Bun 为独立子进程）
+  ├── Hono / OpenAPI / RFC 7807 / ETag / idempotency / cursor SSE
+  ├── Cordis Kernel（私有）+ first-party plugins
+  ├── SQLite migrations + durable event ledger/checkpoints
+  └── HTTP /host/v1, Bearer host token
+       ▼
+Electron Desktop Host
+  ├── window, file grant, validated external link, encrypted credentials
+  └── EngineSupervisor → Pi / Codex / Grok Build
 ```
 
-Renderer 只获得 DramaIP Server 地址和每次启动随机生成的 Basic Auth 凭据。六个引擎的地址、进程凭据、MCP 令牌和 Provider 密钥都不会进入 Renderer。
+Preload 只将冻结的 `RuntimeBootstrap` 注入窗口：
 
-## 原生 IPC 白名单
+```ts
+type RuntimeBootstrap = Readonly<{
+  baseUrl: string;
+  accessToken: string;
+  appVersion: string;
+  apiVersion: "2";
+}>;
+```
 
-Electron IPC 不是业务 API。Preload 只提供初始化、重试、窗口、文件选择 capability、打开/定位文件、安全凭据引用及崩溃日志。内容、任务、预览、服务商和智能会话全部使用 `/api/v1`。
+它没有 `invoke`、`send`、文件系统、凭据或窗口方法。Runtime token 与 Host token 每次启动独立生成，互不复用。
 
-## 数据与凭据
+## Runtime 与插件
 
-Server 独占 Electron `userData` 下的新 `dramaip.db`，不会打开或迁移旧数据库。SQLite 启用 WAL、外键、busy timeout 和 NORMAL synchronous。各引擎使用隔离运行目录，不能读取 DramaIP 数据库；DSH 不挂载自身持久化，Pi 使用退出即删除的进程内会话状态，DramaIP 数据库始终是唯一权威状态。
+Runtime 使用 Hono、`@hono/node-server`、`@hono/zod-openapi` 和 Zod。Client 由 Effective Graph OpenAPI 生成链和 `openapi-fetch` 提供；Renderer 不得直接调用 `fetch`。错误统一为 RFC 7807 Problem Details。写入端点使用 `ETag`/`If-Match`、`Idempotency-Key` 与 cursor pagination；SSE 同时接收 `Last-Event-ID` 和显式 cursor。
 
-Provider 密钥与 Codex API Key 只进入 Electron `userData/credentials` 下的本地加密凭据库。该实现使用应用自己的 AES-256-GCM 文件封装，不调用 macOS 钥匙串、Windows 凭据管理器或 Linux Secret Service；数据库仅保存 `credentialRef`，Server 会拒绝在业务负载、厂商预览和日志中出现密钥、Token、密码或任意本地路径。凭据库密钥同样位于应用数据目录，因此应结合操作系统账户保护和全盘加密使用。
+Kernel 将 Cordis、原始 SQLite 连接和其他插件实现封装在内部。插件 API 仅提供 descriptor、迁移、事务工作单元、事件、路由、UI contribution、capability 与 cleanup。启动会验证 Profile、重复项、缺失/循环依赖，并在激活失败时反向清理已激活插件。
 
-常用模型服务商及模型由 `packages/schema/src/provider-catalog.ts` 提供版本化目录。Renderer 只能从该目录选择预设接口地址和协议，连接后可合并服务商返回的账号可用模型；“其他”配置才允许用户完整手填。目录版本必须与桌面应用版本一致，核对日期不得超过发布门禁规定的时限。
+目前登记的第一方插件为：
 
-旧版本如果曾将凭据保存到系统钥匙串，升级后必须由用户重新输入：DramaIP 不会读取、解密或迁移该类记录，以确保本版本完全不访问系统凭据服务。
+- `foundation`、`system`、`workspace`、`automation`、`writing`、`knowledge`、`agents`
+- `creative-quality`、`production`、`media`、`timeline`、`review`、`delivery`、`insights`
 
-## 六引擎协议
+组合严格遵循 `Plugin → Bundle → Profile → Effective Runtime Graph`。内置 Bundle 是 `core`、`automation-suite`、`writing-suite`、`agents-suite`、`production-suite` 与 `analytics-suite`；Profile 固定为 `studio`、`server`、`safe`、`test`、`e2e`，只可引用 Bundle，不能复制插件列表。任何 Profile 文件都不能引用归档目录。
 
-OpenCode、Codex、DeepSeek Harness（DSH）、Pi、Grok Build、LangGraph.js 统一映射为 Session → Run → Item。Server 负责路由、持久化、检查点、SSE 重放、用量、费用和失败映射；引擎只负责生成。项目可设置默认引擎和模型，每次任务可覆盖；引擎故障不会触发自动回退。
+Public Plugin API 独立为 v1：根导出仅是稳定 public surface，实验 API 使用 `@dramaip/plugin-api/experimental`，第一方 Runtime 实现显式使用 `@dramaip/plugin-api/internal`。Cordis、Hono、Raw SQLite 与迁移执行接口不会进入 public API。所有长期行为经 `ctx.effect()` 登记，并按 owner/revision 逆序清理。
 
-- OpenCode 固定 1.18.15，默认引擎，禁用 shell、编辑、任意文件读取、网络工具和子代理。
-- Codex 固定 0.147.0，使用独立 `CODEX_HOME`、App Server stdio、`read-only + never`，关闭网页搜索、命令、补丁、插件、Skills、应用和子代理。除 ChatGPT/OpenAI 认证外，还可将已保存的 OpenAI 兼容文本服务商作为 Codex 自定义 `model_provider`：Responses 服务商直连；仅 Chat Completions 的服务商通过回环地址上的本地转换适配器连接，目标密钥只保留在适配器进程内。
-- DSH 固定 0.1.0-rc.5 并显示“测试版”。Sidecar 由 Electron utility process 管理，每个实际运行的会话使用 `process.execPath + ELECTRON_RUN_AS_NODE=1` 启动独立 JSON-RPC Runtime。受控 Cordis 配置只挂载 JSON-RPC Server、`dsh-llm-pi-ai`、Agent Spine 和 DramaIP MCP Client，不挂载 Bash、文件系统、Web、Skills、子代理、工作流或本地持久化。
-- Pi 固定 0.84.2。每个运行会话使用嵌入 utilityProcess 的 Pi Agent；DramaIP 适配层只注册本轮只读 MCP，不提供终端、文件、浏览器、外部网络、Skills、子代理或后台任务能力。
-- Grok Build 固定 1.0.5。每个运行会话使用隔离 `GROK_HOME` 的 ACP Runtime，复用当前 Provider 凭据并直连 Chat Completions 或 Anthropic Messages；仅保留 DramaIP 只读 MCP，禁用文件、终端、Git、网页、插件、Skills 和子代理。Google/Gemini Provider 会单独将 Grok 标记为不可用，不影响其他引擎。
-- LangGraph.js 是方案六稳定基线，使用 Vercel AI SDK 远程 Provider，并恢复 69 份旧版中文 Prompt；不访问数据库或本地文件。
+## 数据、事件和升级
 
-每次运行获得绑定项目、会话、运行、上下文快照、工具白名单、结果大小和有效期的 MCP 授权。六种引擎均只能调用 DramaIP 只读 MCP。DSH、Pi 与 Grok Runtime 只在本轮授权写入 Server 后启动；Provider 切换不会改变正在运行的会话，后续运行按新配置重建 Runtime。
+Runtime 的 SQLite 迁移账本包含插件归属和 checksum。业务写入与持久 `DomainEvent` 在同一个 SQLite 事务中提交；token、进度等短时状态使用 realtime event，不进入 durable ledger。consumer checkpoint 按全局 event cursor 记录。
 
-新建盲测固定映射为方案一 OpenCode、方案二 Codex、方案三 DSH、方案四 Pi、方案五 Grok Build、方案六 LangGraph.js。评价前隐藏引擎名，评价后揭示；历史记录继续按自身 `candidate_order_json` 的实际数量完成和展示。
+首次 alpha.3 启动会在旧 Runtime 停止后，对 alpha.2 的 `dramaip.db` 执行 WAL checkpoint 和 integrity check，并生成 SHA-256、大小、版本和表清单的验证备份。独立的 `alpha2-agent-to-alpha3` state 会阻止中断后重复执行重置；项目、服务商配置、`credentialRef` 与 Codex 登录状态保留，只重置 Agent 会话、Run、Item、检查点与旧盲测数据。任何失败都停止启动且不覆盖源库。
 
-## 任务、修改与媒体调用
+Provider 与 Codex 凭据只存放在 Electron `userData/credentials` 的 AES-256-GCM 本地加密文件中。数据库只保存 `credentialRef`；Host 和 Runtime 不将明文凭据、绝对路径或 token 写入诊断或日志。
 
-任务状态为 `queued → running → succeeded|failed|canceled|interrupted`。SSE 使用全局单调事件编号和 `Last-Event-ID` 重放。中断运行通过持久化检查点恢复；重试创建带 `parentTaskId` 的新任务。
+## 引擎
 
-内容修改只能创建通用 `ChangePreview`。用户确认后，Server 在事务中核对所有目标版本；冲突返回 HTTP 409。图片、音频、视频和成片渲染只能创建远程 `ProviderActionPreview`，用户确认费用后才创建正式 Provider 任务。项目不存在本地小说、图片、音频、视频生成或本地视频渲染路径。
+Pi、Codex 与 Grok Build 使用同一个 `Session → Run → Item` 模型和 `@dramaip/agent-runtime` 的 `createSession/prompt/steer/abort/resume/fork/subscribe/dispose` 生命周期。Pi 是默认第一方内嵌 Harness；Codex（stdio/App Server）和 Grok Build（ACP）是外部基准。Runtime 仅经 Host HTTP 调用监督器；vendor-native 协议和 utilityProcess 细节不进入 Renderer 或插件 API。所有引擎只获得本次运行的 Capability Grant；不支持的操作返回结构化错误，绝不静默回退。
+
+活动锁定版本为 Pi 0.84.2、Codex 0.147.0、Grok Build 1.0.5。OpenCode 与 DeepSeek Harness 仅作为经过完整性校验的参考快照。Provider catalog 的 release 必须和应用版本一致。
+
+## Headless 和诊断
+
+`dramaip serve --profile <studio|server|safe|test|e2e> --runtime node|bun` 可以在没有 Electron 的环境启动。Headless Profile 仍提供 HTTP、数据库、插件、事件和 Web/CLI Client；依赖 Desktop Host 或本地引擎的 capability 必须明确报告 unavailable。`/health` 是无敏感的连接发现端点；认证后的 `/api/v2/version`、`/api/v2/capabilities` 与 `/api/v2/runtime` 提供协议协商与 Effective Graph。
+
+`GET /api/v2/system/diagnostics` 是 alpha 退出指标，显示脱敏的 Profile、插件顺序/状态、迁移、事件消费者、Host/Engine 健康和剩余 bridge 路由数。
 
 ## 本地质量门禁
 
@@ -63,10 +73,12 @@ bun run format:check
 bun run typecheck
 bun run test
 bun run check:generated
+bun run check:architecture
 bun run check:engine-locks
 bun run check:provider-catalog
 bun run build
+bun run test:e2e
 DRAMAIP_UPDATE_URL=https://updates.example.invalid bun run package
 ```
 
-Node 进程验证 `node:sqlite`，Bun 进程验证 `bun:sqlite`，两者运行同一 Repository conformance suite。生成门禁同时检查 Effect OpenAPI Client、旧版 Prompt 目录、活动引擎的版本与平台运行时，以及保留的 vendor 源码快照和 lockfile 摘要。
+`check:architecture` 会拒绝 Renderer IPC/直接 `fetch`、活动 `@sdns/*`、`/api/v1`、旧 workspace、中央 `{domain}` Router、`DomainWorkspace`、重复/缺失 OpenAPI operationId、迁移账本漂移、插件使用 Effect HTTP/Cordis 或跨插件实现导入。它与生成 Client、引擎锁和 Provider catalog 检查一起构成每个 alpha 的发布门槛。

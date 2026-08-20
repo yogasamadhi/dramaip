@@ -19,31 +19,16 @@ files:
   - "!**/node_modules/**/LICENSE*"
   - "!**/node_modules/**/*.{map,test.js,spec.js}"
 extraResources:
+  - from: ../../profiles
+    to: profiles
+    filter:
+      - "*.json"
   - from: build/third-party-notices
     to: third-party-notices
   - from: build/codex
     to: codex
     filter:
       - "**/*"
-  - from: build/dsh
-    to: dsh/runtime
-    filter:
-      - "**/*"
-      - "!node_modules/**/*"
-  # electron-builder 会过滤嵌套在普通 extraResources 树中的 node_modules；
-  # 以显式来源复制官方 JSON-RPC Runtime 的完整生产依赖闭包。
-  - from: build/dsh/node_modules
-    to: dsh/runtime/node_modules
-    filter:
-      - "**/*"
-  - from: dsh-config
-    to: dsh/config
-    filter:
-      - "*.cordis.yml"
-  - from: ../../vendor/deepseek-harness/LICENSE
-    to: third-party-notices/dsh/LICENSE
-  - from: ../../vendor/deepseek-harness/THIRD_PARTY_NOTICES.md
-    to: third-party-notices/dsh/THIRD_PARTY_NOTICES.md
   - from: build/pi
     to: pi/runtime
     filter:
@@ -60,21 +45,6 @@ extraResources:
     to: third-party-notices/grok/LICENSE
   - from: ../../vendor/grok-build/THIRD-PARTY-NOTICES
     to: third-party-notices/grok/THIRD-PARTY-NOTICES
-  - from: ../../vendor/opencode/packages/opencode/dist/node
-    to: opencode
-    filter:
-      - "**/*"
-      - "!node_modules/**/*"
-  # node.js resolves OpenCode's intentionally-externalized modules beside node.js.
-  # Declare each one explicitly: electron-builder otherwise strips nested node_modules
-  # while copying an extra resource tree.
-  - from: ../../vendor/opencode/packages/opencode/dist/node/node_modules/jsonc-parser
-    to: opencode/node_modules/jsonc-parser
-  - from: ../../vendor/opencode/packages/opencode/dist/node/node_modules/@lydell
-    to: opencode/node_modules/@lydell
-    filter:
-      - "node-pty/**/*"
-      - "node-pty-*/**/*"
 # .sdnspkg 项目包文件关联（双击可在应用内打开导入）
 fileAssociations:
   - ext: sdnspkg

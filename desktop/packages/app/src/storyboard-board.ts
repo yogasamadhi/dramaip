@@ -1,4 +1,7 @@
-import type { AssetCenterAsset, DomainEntity } from "@sdns/schema";
+import type {
+  AssetCenterAsset,
+  DomainEntity,
+} from "@dramaip/contracts/product";
 
 export type StoryboardStillState = "adopted" | "candidate" | "missing";
 

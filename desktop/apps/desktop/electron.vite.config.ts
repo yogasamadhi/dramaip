@@ -7,53 +7,125 @@ import tailwindcss from "@tailwindcss/vite";
 const root = process.cwd();
 const pkgSrc = (p: string) =>
   resolve(root, "../../packages", p, "src", p === "db" ? "v3.ts" : "index.ts");
+const pluginSrc = (p: string) =>
+  resolve(root, "../../plugins", p, "src", "index.ts");
+const runtimeAliases = {
+  "@dramaip/contracts/automation": resolve(
+    root,
+    "../../packages/contracts/src/automation.ts",
+  ),
+  "@dramaip/contracts/creative-quality": resolve(
+    root,
+    "../../packages/contracts/src/creative-quality.ts",
+  ),
+  "@dramaip/contracts/delivery": resolve(
+    root,
+    "../../packages/contracts/src/delivery.ts",
+  ),
+  "@dramaip/contracts/foundation": resolve(
+    root,
+    "../../packages/contracts/src/foundation.ts",
+  ),
+  "@dramaip/contracts/knowledge": resolve(
+    root,
+    "../../packages/contracts/src/knowledge.ts",
+  ),
+  "@dramaip/contracts/media": resolve(
+    root,
+    "../../packages/contracts/src/media.ts",
+  ),
+  "@dramaip/contracts/insights": resolve(
+    root,
+    "../../packages/contracts/src/insights.ts",
+  ),
+  "@dramaip/contracts/production": resolve(
+    root,
+    "../../packages/contracts/src/production.ts",
+  ),
+  "@dramaip/contracts/review": resolve(
+    root,
+    "../../packages/contracts/src/review.ts",
+  ),
+  "@dramaip/contracts/timeline": resolve(
+    root,
+    "../../packages/contracts/src/timeline.ts",
+  ),
+  "@dramaip/contracts/workspace": resolve(
+    root,
+    "../../packages/contracts/src/workspace.ts",
+  ),
+  "@dramaip/contracts/writing": resolve(
+    root,
+    "../../packages/contracts/src/writing.ts",
+  ),
+  "@dramaip/contracts/product": resolve(
+    root,
+    "../../packages/contracts/src/product.ts",
+  ),
+  "@dramaip/contracts": pkgSrc("contracts"),
+  "@dramaip/agent-runtime": pkgSrc("agent-runtime"),
+  "@dramaip/bundles": pkgSrc("bundles"),
+  "@dramaip/database": pkgSrc("database"),
+  "@dramaip/desktop-host": pkgSrc("desktop-host"),
+  "@dramaip/events": pkgSrc("events"),
+  "@dramaip/http": pkgSrc("http"),
+  "@dramaip/kernel": pkgSrc("kernel"),
+  "@dramaip/plugin-api/internal": resolve(
+    root,
+    "../../packages/plugin-api/src/internal.ts",
+  ),
+  "@dramaip/plugin-api": pkgSrc("plugin-api"),
+  "@dramaip/runtime": pkgSrc("runtime"),
+  "@dramaip/server-connection": pkgSrc("server-connection"),
+  "@dramaip/ui-runtime": pkgSrc("ui-runtime"),
+  "@dramaip/ui-shared": pkgSrc("ui"),
+  "@dramaip/agents": pluginSrc("agents"),
+  "@dramaip/automation": pluginSrc("automation"),
+  "@dramaip/creative-quality": pluginSrc("creative-quality"),
+  "@dramaip/delivery": pluginSrc("delivery"),
+  "@dramaip/foundation": pluginSrc("foundation"),
+  "@dramaip/insights": pluginSrc("insights"),
+  "@dramaip/knowledge": pluginSrc("knowledge"),
+  "@dramaip/media": pluginSrc("media"),
+  "@dramaip/production": pluginSrc("production"),
+  "@dramaip/review": pluginSrc("review"),
+  "@dramaip/system": pluginSrc("system"),
+  "@dramaip/timeline": pluginSrc("timeline"),
+  "@dramaip/workspace": pluginSrc("workspace"),
+  "@dramaip/writing": pluginSrc("writing"),
+};
 
 export default defineConfig({
   main: {
     build: {
+      // These first-party workspace packages are source-only and must be
+      // compiled into Main/utility-process chunks. Leaving them external makes
+      // Electron's Node loader resolve TypeScript source (and its .js specifier
+      // aliases) at runtime, causing Core Runtime to exit before ready.
+      externalizeDeps: {
+        exclude: [
+          "@dramaip/client",
+          "@dramaip/contracts",
+          "@dramaip/ui-runtime",
+        ],
+      },
       rollupOptions: {
         input: {
           index: resolve(root, "electron/main-v3.ts"),
-          "dramaip-server": resolve(
-            root,
-            "../../packages/server/src/sidecar.ts",
-          ),
-          "opencode-engine": resolve(
-            root,
-            "../../packages/ai/src/opencode-sidecar.ts",
-          ),
+          "core-runtime": resolve(root, "electron/core-runtime.ts"),
           "codex-engine": resolve(
             root,
             "../../packages/ai/src/codex-sidecar.ts",
           ),
-          "dsh-engine": resolve(root, "../../packages/ai/src/dsh-sidecar.ts"),
           "pi-engine": resolve(root, "../../packages/ai/src/pi-sidecar.ts"),
           "grok-engine": resolve(root, "../../packages/ai/src/grok-sidecar.ts"),
-          "langgraph-engine": resolve(
-            root,
-            "../../packages/ai-legacy/src/langgraph-sidecar.ts",
-          ),
         },
       },
     },
     resolve: {
       alias: {
-        "@sdns/db": pkgSrc("db"),
-        "@sdns/ai": pkgSrc("ai"),
-        "@sdns/schema": pkgSrc("schema"),
-        "@sdns/protocol": pkgSrc("protocol"),
-        "@sdns/client": pkgSrc("client"),
-        "@sdns/server": pkgSrc("server"),
-        "@sdns/tasks": pkgSrc("tasks"),
-        "@sdns/mcp": pkgSrc("mcp"),
-        "@sdns/ai-legacy/prompt-catalog": resolve(
-          root,
-          "../../packages/ai-legacy/src/prompt-catalog.generated.ts",
-        ),
-        "@sdns/ai-legacy": resolve(
-          root,
-          "../../packages/ai-legacy/src/index.ts",
-        ),
+        ...runtimeAliases,
+        "@dramaip/client": pkgSrc("client"),
       },
     },
   },
@@ -76,10 +148,14 @@ export default defineConfig({
     },
     resolve: {
       alias: {
+        "@dramaip/contracts/product": resolve(
+          root,
+          "../../packages/contracts/src/product.ts",
+        ),
+        "@dramaip/contracts": pkgSrc("contracts"),
         "@": resolve(root, "../../packages/app/src"),
-        "@sdns/client": pkgSrc("client"),
-        "@sdns/schema": pkgSrc("schema"),
-        "@sdns/ui": pkgSrc("ui"),
+        "@dramaip/client": pkgSrc("client"),
+        "@dramaip/ui-shared": pkgSrc("ui"),
       },
     },
     plugins: [react(), tailwindcss()],

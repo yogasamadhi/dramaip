@@ -28,7 +28,7 @@ test("静帧 Gate 未通过时桌面端不会发出视频提交", async () => {
   page.on("request", (request) => {
     if (
       request.method() === "POST" &&
-      request.url().endsWith("/api/v1/video-generation/runs")
+      request.url().endsWith("/api/v2/video-generation/runs")
     )
       videoSubmissions += 1;
   });

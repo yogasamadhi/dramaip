@@ -4,20 +4,55 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@sdns/db": ["../../packages/db/src/v3.ts"],
-      "@sdns/ai": ["../../packages/ai/src/index.ts"],
-      "@sdns/schema": ["../../packages/schema/src/index.ts"],
-      "@sdns/protocol": ["../../packages/protocol/src/index.ts"],
-      "@sdns/client": ["../../packages/client/src/index.ts"],
-      "@sdns/server": ["../../packages/server/src/index.ts"],
-      "@sdns/tasks": ["../../packages/tasks/src/index.ts"],
-      "@sdns/mcp": ["../../packages/mcp/src/index.ts"]
+      "@dramaip/client": ["../../packages/client/src/index.ts"],
+      "@dramaip/contracts": ["../../packages/contracts/src/index.ts"],
+      "@dramaip/contracts/product": ["../../packages/contracts/src/product.ts"],
+      "@dramaip/contracts/automation": [
+        "../../packages/contracts/src/automation.ts"
+      ],
+      "@dramaip/contracts/insights": [
+        "../../packages/contracts/src/insights.ts"
+      ],
+      "@dramaip/contracts/workspace": [
+        "../../packages/contracts/src/workspace.ts"
+      ],
+      "@dramaip/bundles": ["../../packages/bundles/src/index.ts"],
+      "@dramaip/database": ["../../packages/database/src/index.ts"],
+      "@dramaip/events": ["../../packages/events/src/index.ts"],
+      "@dramaip/http": ["../../packages/http/src/index.ts"],
+      "@dramaip/kernel": ["../../packages/kernel/src/index.ts"],
+      "@dramaip/plugin-api": ["../../packages/plugin-api/src/index.ts"],
+      "@dramaip/plugin-api/internal": [
+        "../../packages/plugin-api/src/internal.ts"
+      ],
+      "@dramaip/runtime": ["../../packages/runtime/src/index.ts"],
+      "@dramaip/server-connection": [
+        "../../packages/server-connection/src/index.ts"
+      ],
+      "@dramaip/desktop-host": ["../../packages/desktop-host/src/index.ts"],
+      "@dramaip/agents": ["../../plugins/agents/src/index.ts"],
+      "@dramaip/automation": ["../../plugins/automation/src/index.ts"],
+      "@dramaip/creative-quality": [
+        "../../plugins/creative-quality/src/index.ts"
+      ],
+      "@dramaip/delivery": ["../../plugins/delivery/src/index.ts"],
+      "@dramaip/foundation": ["../../plugins/foundation/src/index.ts"],
+      "@dramaip/insights": ["../../plugins/insights/src/index.ts"],
+      "@dramaip/knowledge": ["../../plugins/knowledge/src/index.ts"],
+      "@dramaip/media": ["../../plugins/media/src/index.ts"],
+      "@dramaip/production": ["../../plugins/production/src/index.ts"],
+      "@dramaip/review": ["../../plugins/review/src/index.ts"],
+      "@dramaip/system": ["../../plugins/system/src/index.ts"],
+      "@dramaip/timeline": ["../../plugins/timeline/src/index.ts"],
+      "@dramaip/workspace": ["../../plugins/workspace/src/index.ts"],
+      "@dramaip/writing": ["../../plugins/writing/src/index.ts"]
     }
   },
   "include": [
     "electron/main-v3.ts",
     "electron/preload-v3.ts",
+    "electron/core-runtime.ts",
     "electron/sidecars/**/*.ts",
-    "../../packages/{schema,protocol,client,server,tasks,ai,mcp,ai-legacy}/src/**/*.ts"
+    "../../packages/{contracts,client,ai}/src/**/*.ts"
   ]
 }

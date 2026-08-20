@@ -1,4 +1,4 @@
-import { initializeTheme } from "@sdns/ui";
+import { initializeTheme } from "@dramaip/ui-shared";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
 import { AppRoot } from "./studio-app";

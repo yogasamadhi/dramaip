@@ -80,6 +80,11 @@ const BASE_INSTRUCTIONS =
   "你是 DramaIP 的中文创作助手。只能分析用户提供的创作上下文并返回结构化结果。禁止执行命令、修改文件、访问任意本地目录、使用网络搜索、安装扩展、创建子代理或直接修改 DramaIP 正式数据。";
 const DEVELOPER_INSTRUCTIONS =
   "所有输出使用简体中文。只允许调用 DramaIP 只读 MCP。不得输出隐藏思维链，不得请求权限，不得尝试绕过沙箱。";
+const NON_FATAL_CODEX_DIAGNOSTICS = [
+  /codex_models_manager::manager: failed to refresh available models:/i,
+  /codex_api::endpoint::responses_websocket: failed to connect to websocket:/i,
+  /startup websocket prewarm (setup )?(failed|join failed):/i,
+];
 
 parentPort.on("message", (event) => {
   const command = event.data as Partial<Command>;
@@ -176,9 +181,10 @@ async function launchAppServer(): Promise<void> {
     env.DRAMAIP_CODEX_PROVIDER_API_KEY = runtimeApiKey;
   else if (!runtimeProvider && runtimeApiKey)
     env.OPENAI_API_KEY = runtimeApiKey;
-  const modelCatalogPath = runtimeProvider
-    ? await prepareCustomModelCatalog()
-    : undefined;
+  // Keep the model selection deterministic. The application ships the locked
+  // catalog that its UI exposes, so Codex must not start a second, remote
+  // catalog refresh on every EngineSupervisor launch.
+  const modelCatalogPath = await prepareModelCatalog();
   const providerConfig = runtimeProvider
     ? [
         "-c",
@@ -195,10 +201,16 @@ async function launchAppServer(): Promise<void> {
         `model_providers.dramaip_custom.wire_api="responses"`,
         "-c",
         "model_providers.dramaip_custom.requires_openai_auth=false",
-        ...(modelCatalogPath
-          ? ["-c", `model_catalog_json=${tomlString(modelCatalogPath)}`]
-          : []),
       ]
+    : [];
+  // Custom OpenAI-compatible providers only expose the HTTP Responses API.
+  // The built-in OpenAI provider is intentionally left untouched: Codex does
+  // not permit overriding a reserved built-in provider configuration.
+  const transportConfig = runtimeProvider
+    ? ["-c", "model_providers.dramaip_custom.supports_websockets=false"]
+    : [];
+  const staticCatalogConfig = modelCatalogPath
+    ? ["-c", `model_catalog_json=${tomlString(modelCatalogPath)}`]
     : [];
   appServer = spawn(
     startCommand.binaryPath,
@@ -227,6 +239,8 @@ async function launchAppServer(): Promise<void> {
       "-c",
       "features.skill_mcp_dependency_install=false",
       ...providerConfig,
+      ...transportConfig,
+      ...staticCatalogConfig,
     ],
     {
       cwd: startCommand.sessionRoot,
@@ -237,13 +251,20 @@ async function launchAppServer(): Promise<void> {
   const lines = createInterface({ input: appServer.stdout });
   lines.on("line", (line) => onRpcLine(line));
   appServer.stderr.on("data", (chunk) => {
-    const line = String(chunk).trim();
-    if (line && !/token|api.?key|authorization/i.test(line))
-      parentPort!.postMessage({
-        type: "diagnostic",
-        level: "warn",
-        message: line.slice(0, 1_000),
-      });
+    for (const line of String(chunk)
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())) {
+      if (
+        line &&
+        !/token|api.?key|authorization/i.test(line) &&
+        !NON_FATAL_CODEX_DIAGNOSTICS.some((pattern) => pattern.test(line))
+      )
+        parentPort!.postMessage({
+          type: "diagnostic",
+          level: "warn",
+          message: line.slice(0, 1_000),
+        });
+    }
   });
   appServer.once("exit", (code) => {
     appServer = undefined;
@@ -269,12 +290,12 @@ async function launchAppServer(): Promise<void> {
 
 /**
  * Codex's model manager expects its proprietary `/models` catalog shape,
- * whereas OpenAI-compatible providers expose `data[]`. Custom providers do
- * not need remote discovery because the selected model is already persisted;
- * use an isolated static catalog to avoid a noisy, guaranteed decode error.
+ * whereas the product exposes a fixed, versioned catalog. Give every launch
+ * an isolated static copy: this avoids an unnecessary remote refresh for
+ * ChatGPT/API-key sessions and supports a selected custom-provider model.
  */
-async function prepareCustomModelCatalog(): Promise<string | undefined> {
-  if (!startCommand?.modelCatalogPath || !runtimeProvider) return undefined;
+async function prepareModelCatalog(): Promise<string | undefined> {
+  if (!startCommand?.modelCatalogPath) return undefined;
   try {
     const source = JSON.parse(
       await readFile(startCommand.modelCatalogPath, "utf8"),
@@ -286,16 +307,18 @@ async function prepareCustomModelCatalog(): Promise<string | undefined> {
         Boolean(model) && typeof model === "object" && !Array.isArray(model),
     );
     if (!models.length) return undefined;
-    const selected = runtimeProvider.model;
-    const existing = models.find((model) => model.slug === selected);
-    if (!existing) {
-      const template = models[0];
-      models.unshift({
-        ...template,
-        slug: selected,
-        display_name: `${runtimeProvider.providerName} · ${selected}`,
-        description: `DramaIP 自定义服务商模型：${selected}`,
-      });
+    if (runtimeProvider) {
+      const selected = runtimeProvider.model;
+      const existing = models.find((model) => model.slug === selected);
+      if (!existing) {
+        const template = models[0];
+        models.unshift({
+          ...template,
+          slug: selected,
+          display_name: `${runtimeProvider.providerName} · ${selected}`,
+          description: `DramaIP 自定义服务商模型：${selected}`,
+        });
+      }
     }
     const target = join(startCommand.codexHome, "model-catalog.json");
     await writeFile(target, JSON.stringify({ models }), {

@@ -2,7 +2,7 @@ import type {
   DomainEntity,
   StoryBibleChangeSet,
   StoryBibleStaleMark,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 
 export type StoryBibleContext = {
   kind: "chapter" | "script";

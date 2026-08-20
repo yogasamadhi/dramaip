@@ -281,16 +281,8 @@ export interface TaskInput {
   payload?: unknown;
 }
 
-export const AgentEngineKind = Schema.Literals([
-  "opencode",
-  "codex",
-  "dsh",
-  "pi",
-  "grok",
-  "langgraph",
-]);
-export type AgentEngineKind =
-  "opencode" | "codex" | "dsh" | "pi" | "grok" | "langgraph";
+export const AgentEngineKind = Schema.Literals(["pi", "codex", "grok"]);
+export type AgentEngineKind = "pi" | "codex" | "grok";
 
 export const TaskRetryInput = Schema.Struct({
   engineKind: AgentEngineKind,
@@ -2367,7 +2359,7 @@ export interface ProviderConnectionResult {
   message: string;
 }
 
-/** Non-sensitive result of activating a saved provider for the OpenCode sidecar. */
+/** Non-sensitive result of activating a saved provider for the Pi harness. */
 export const AgentProviderActivationResult = Schema.Struct({
   providerId: Id,
   engineAvailable: Schema.Boolean,
@@ -4169,18 +4161,8 @@ export type AgentExperimentStatus =
   | "completed"
   | "failed"
   | "canceled";
-/** Retains the engine identity of experiments created before an engine retired. */
-export const AgentExperimentEngineKind = Schema.Literals([
-  "opencode",
-  "codex",
-  "dsh",
-  "pi",
-  "grok",
-  "hermes",
-  "langgraph",
-  "openclaw",
-]);
-export type AgentExperimentEngineKind = AgentEngineKind | "hermes" | "openclaw";
+export const AgentExperimentEngineKind = AgentEngineKind;
+export type AgentExperimentEngineKind = AgentEngineKind;
 export const AgentExperiment = Schema.Struct({
   id: Id,
   projectId: Id,
@@ -4196,14 +4178,7 @@ export const AgentExperiment = Schema.Struct({
   candidates: Schema.optionalKey(
     Schema.Array(
       Schema.Struct({
-        candidate: Schema.Literals([
-          "one",
-          "two",
-          "three",
-          "four",
-          "five",
-          "six",
-        ]),
+        candidate: Schema.Literals(["a", "b", "c"]),
         runId: Id,
         status: AgentRunStatus,
         output: Schema.optionalKey(Schema.Unknown),
@@ -4215,12 +4190,19 @@ export const AgentExperiment = Schema.Struct({
             formatError: Schema.Boolean,
             toolViolation: Schema.Boolean,
             latencyMs: Schema.Number,
+            ttftMs: Schema.optionalKey(Schema.Number),
+            durationMs: Schema.optionalKey(Schema.Number),
             inputTokens: Schema.Number,
             outputTokens: Schema.Number,
             cachedTokens: Schema.Number,
             estimatedCost: Schema.optionalKey(Schema.Number),
             currency: Schema.optionalKey(Schema.String),
             adopted: Schema.Boolean,
+            toolCalls: Schema.optionalKey(Schema.Number),
+            toolErrors: Schema.optionalKey(Schema.Number),
+            contextTokens: Schema.optionalKey(Schema.Number),
+            retryCount: Schema.optionalKey(Schema.Number),
+            failureCode: Schema.optionalKey(Schema.String),
           }),
         ),
       }),
@@ -4242,7 +4224,7 @@ export interface AgentExperiment {
   error?: string;
   revealed: boolean;
   candidates?: ReadonlyArray<{
-    candidate: "one" | "two" | "three" | "four" | "five" | "six";
+    candidate: "a" | "b" | "c";
     runId: Id;
     status: AgentRunStatus;
     output?: unknown;
@@ -4253,12 +4235,19 @@ export interface AgentExperiment {
       formatError: boolean;
       toolViolation: boolean;
       latencyMs: number;
+      ttftMs?: number;
+      durationMs?: number;
       inputTokens: number;
       outputTokens: number;
       cachedTokens: number;
       estimatedCost?: number;
       currency?: string;
       adopted: boolean;
+      toolCalls?: number;
+      toolErrors?: number;
+      contextTokens?: number;
+      retryCount?: number;
+      failureCode?: string;
     };
   }>;
   createdAt: IsoDateTime;
@@ -4285,19 +4274,11 @@ export interface AgentExperimentInput {
   confirmedEstimatedCost: boolean;
 }
 export const AgentExperimentReviewInput = Schema.Struct({
-  preferredCandidate: Schema.Literals([
-    "one",
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "tie",
-  ]),
+  preferredCandidate: Schema.Literals(["a", "b", "c", "tie"]),
   notes: Schema.optionalKey(Schema.String),
 });
 export interface AgentExperimentReviewInput {
-  preferredCandidate: "one" | "two" | "three" | "four" | "five" | "six" | "tie";
+  preferredCandidate: "a" | "b" | "c" | "tie";
   notes?: string;
 }
 

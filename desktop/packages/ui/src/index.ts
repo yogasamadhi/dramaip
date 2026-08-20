@@ -1,3 +1,5 @@
+export const DRAMAIP_UI_CONTRIBUTION_API = "3.0.0-alpha.3" as const;
+
 export { cn } from "./cn";
 export {
   Button,

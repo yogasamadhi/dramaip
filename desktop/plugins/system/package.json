@@ -1,0 +1,16 @@
+{
+  "name": "@dramaip/system",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaip/desktop-host": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  }
+}

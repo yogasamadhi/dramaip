@@ -19,20 +19,44 @@
 
     "baseUrl": ".",
     "paths": {
-      "@sdns/db": ["./packages/db/src/v3.ts"],
-      "@sdns/ai": ["./packages/ai/src/index.ts"],
-      "@sdns/schema": ["./packages/schema/src/index.ts"],
-      "@sdns/protocol": ["./packages/protocol/src/index.ts"],
-      "@sdns/client": ["./packages/client/src/index.ts"],
-      "@sdns/server": ["./packages/server/src/index.ts"],
-      "@sdns/tasks": ["./packages/tasks/src/index.ts"],
-      "@sdns/app": ["./packages/app/src/main.tsx"],
-      "@sdns/ui": ["./packages/ui/src/index.ts"],
-      "@sdns/mcp": ["./packages/mcp/src/index.ts"],
-      "@sdns/ai-legacy": ["./packages/ai-legacy/src/index.ts"],
-      "@sdns/ai-legacy/prompt-catalog": [
-        "./packages/ai-legacy/src/prompt-catalog.generated.ts"
-      ]
+      "@dramaip/ui": ["./packages/app/src/main.tsx"],
+      "@dramaip/ui-shared": ["./packages/ui/src/index.ts"],
+      "@dramaip/agent-host-adapters": ["./packages/ai/src/index.ts"],
+      "@dramaip/contracts": ["./packages/contracts/src/index.ts"],
+      "@dramaip/contracts/product": ["./packages/contracts/src/product.ts"],
+      "@dramaip/contracts/automation": [
+        "./packages/contracts/src/automation.ts"
+      ],
+      "@dramaip/contracts/creative-quality": [
+        "./packages/contracts/src/creative-quality.ts"
+      ],
+      "@dramaip/contracts/delivery": ["./packages/contracts/src/delivery.ts"],
+      "@dramaip/contracts/knowledge": ["./packages/contracts/src/knowledge.ts"],
+      "@dramaip/contracts/media": ["./packages/contracts/src/media.ts"],
+      "@dramaip/contracts/insights": ["./packages/contracts/src/insights.ts"],
+      "@dramaip/contracts/production": [
+        "./packages/contracts/src/production.ts"
+      ],
+      "@dramaip/contracts/review": ["./packages/contracts/src/review.ts"],
+      "@dramaip/contracts/timeline": ["./packages/contracts/src/timeline.ts"],
+      "@dramaip/contracts/workspace": ["./packages/contracts/src/workspace.ts"],
+      "@dramaip/contracts/writing": ["./packages/contracts/src/writing.ts"],
+      "@dramaip/agent-runtime": ["./packages/agent-runtime/src/index.ts"],
+      "@dramaip/bundles": ["./packages/bundles/src/index.ts"],
+      "@dramaip/server-connection": [
+        "./packages/server-connection/src/index.ts"
+      ],
+      "@dramaip/runtime-adapters": ["./packages/runtime-adapters/src/index.ts"],
+      "@dramaip/database": ["./packages/database/src/index.ts"],
+      "@dramaip/events": ["./packages/events/src/index.ts"],
+      "@dramaip/http": ["./packages/http/src/index.ts"],
+      "@dramaip/kernel": ["./packages/kernel/src/index.ts"],
+      "@dramaip/plugin-api": ["./packages/plugin-api/src/index.ts"],
+      "@dramaip/runtime": ["./packages/runtime/src/index.ts"],
+      "@dramaip/client": ["./packages/client/src/index.ts"],
+      "@dramaip/desktop-host": ["./packages/desktop-host/src/index.ts"],
+      "@dramaip/ui-runtime": ["./packages/ui-runtime/src/index.ts"],
+      "@dramaip/ui-shared/*": ["./packages/ui/src/*"]
     }
   }
 }

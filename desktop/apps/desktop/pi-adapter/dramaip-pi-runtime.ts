@@ -49,6 +49,8 @@ export type PiSession = {
     prompt: string,
     onEvent: (event: PiRuntimeEvent) => void,
   ): Promise<{ text: string }>;
+  steer(prompt: string): Promise<void>;
+  compact(): Promise<void>;
   abort(): Promise<void>;
   close(): Promise<void>;
 };
@@ -137,6 +139,18 @@ export async function createPiSession(
     async abort() {
       agent.abort();
       await agent.waitForIdle();
+    },
+    async steer(prompt) {
+      if (!prompt.trim()) throw new Error("Pi 引导消息为空");
+      agent.steer({ role: "user", content: prompt, timestamp: Date.now() });
+    },
+    async compact() {
+      if (activeEventSink)
+        agent.steer({
+          role: "user",
+          content: "请在不遗漏已授权上下文的前提下压缩当前对话后继续。",
+          timestamp: Date.now(),
+        });
     },
     async close() {
       agent.abort();

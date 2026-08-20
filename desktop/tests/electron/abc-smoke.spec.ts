@@ -64,53 +64,29 @@ test("全中文项目壳与示例项目纵向链路可用", async () => {
   await expect(
     page.getByText("智能引擎", { exact: true }).first(),
   ).toBeVisible();
-  await expect(
-    page.getByText("OpenCode", { exact: true }).first(),
-  ).toBeVisible();
   await expect(page.getByText("Codex", { exact: true }).first()).toBeVisible();
-  await expect(
-    page.getByText("DeepSeek Harness", { exact: true }).first(),
-  ).toBeVisible();
   await expect(page.getByText("Pi", { exact: true }).first()).toBeVisible();
   await expect(
-    page.getByText("LangGraph.js", { exact: true }).first(),
+    page.getByText("Grok Build", { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText("测试版", { exact: true })).toHaveCount(0);
   await expect(
     page.getByLabel("智能引擎状态").locator("article > div > p"),
-  ).toHaveText(["OpenCode", "Codex", "DeepSeek Harness", "Pi", "LangGraph.js"]);
+  ).toHaveText(["Pi", "Codex", "Grok Build"]);
   await expect(page.getByLabel("全局默认引擎").locator("option")).toHaveText([
-    "OpenCode",
-    "Codex",
-    "DeepSeek Harness",
     "Pi",
-    "LangGraph.js",
+    "Codex",
+    "Grok Build",
   ]);
 });
 
-test("Renderer 只暴露桌面原生白名单", async () => {
-  const keys = await page.evaluate(() => Object.keys(window.desktop).sort());
+test("Renderer 只暴露不可调用的 Runtime bootstrap", async () => {
+  const keys = await page.evaluate(() =>
+    Object.keys(window.runtimeBootstrap).sort(),
+  );
   expect(keys).toEqual(
-    [
-      "awaitInitialization",
-      "getCredentialStorageStatus",
-      "openExternal",
-      "pickFiles",
-      "removeCredential",
-      "retryInitialization",
-      "revealPath",
-      "saveTextFile",
-      "setWindowTheme",
-      "storeCredential",
-    ].sort(),
+    ["accessToken", "apiVersion", "appVersion", "baseUrl"].sort(),
   );
-  const credentialStorage = await page.evaluate(() =>
-    window.desktop.getCredentialStorageStatus(),
-  );
-  expect(credentialStorage).toMatchObject({
-    available: true,
-    storage: "local_encrypted_file",
-  });
 });
 
 test("主题跟随系统并持久化手动选择", async () => {
@@ -160,11 +136,9 @@ test("智能助手只在用户打开弹窗后显示", async () => {
   await expect(dialog.getByText("AI 办事助手", { exact: true })).toBeVisible();
   await expect(dialog.getByLabel("智能助手引擎")).toBeVisible();
   await expect(dialog.getByLabel("智能助手引擎").locator("option")).toHaveText([
-    /OpenCode/,
-    /Codex/,
-    /DeepSeek Harness/,
     /Pi/,
-    /LangGraph\.js/,
+    /Codex/,
+    /Grok Build/,
   ]);
   await expect(
     dialog.getByRole("textbox", { name: "给 AI 办事助手发消息" }),

@@ -6,7 +6,7 @@ import {
   IconButton,
   useTheme,
   type ThemeMode,
-} from "@sdns/ui";
+} from "@dramaip/ui-shared";
 import {
   Check,
   ChevronDown,
@@ -20,20 +20,13 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
-const PRIMARY_NAVIGATION = [
-  ["/", "项目"],
-  ["/write", "小说写作"],
-  ["/adapt", "改编"],
-  ["/produce", "制作"],
-  ["/review", "审核交付"],
-] as const;
-
-const SECONDARY_NAVIGATION = [
-  ["/insights", "数据洞察"],
-  ["/search", "搜索"],
-  ["/tasks", "任务"],
-  ["/settings", "设置"],
-] as const;
+export interface ShellNavigationItem {
+  id: string;
+  section: "main" | "secondary";
+  order: number;
+  label: string;
+  to: string;
+}
 
 const THEME_OPTIONS: ReadonlyArray<{
   value: ThemeMode;
@@ -141,11 +134,21 @@ export function ThemeSettings() {
   );
 }
 
-export function AppShell(props: { children: ReactNode; assistant: ReactNode }) {
+export function AppShell(props: {
+  children: ReactNode;
+  assistant: ReactNode;
+  navigation: readonly ShellNavigationItem[];
+}) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const location = useLocation();
-  const moreActive = SECONDARY_NAVIGATION.some(([to]) =>
-    routeActive(location.pathname, to),
+  const primaryNavigation = props.navigation
+    .filter((item) => item.section === "main")
+    .sort((left, right) => left.order - right.order);
+  const secondaryNavigation = props.navigation
+    .filter((item) => item.section === "secondary")
+    .sort((left, right) => left.order - right.order);
+  const moreActive = secondaryNavigation.some((item) =>
+    routeActive(location.pathname, item.to),
   );
   const projectWorkspace = location.pathname.startsWith("/projects/");
 
@@ -186,11 +189,11 @@ export function AppShell(props: { children: ReactNode; assistant: ReactNode }) {
             className="no-drag flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto py-1 studio-scrollbar"
             aria-label="主导航"
           >
-            {PRIMARY_NAVIGATION.map(([to, label]) => {
+            {primaryNavigation.map(({ id, to, label }) => {
               const active = routeActive(location.pathname, to);
               return (
                 <Link
-                  key={to}
+                  key={id}
                   to={to}
                   aria-current={active ? "page" : undefined}
                   className={`relative shrink-0 rounded-md px-3 py-2 text-[15px] font-medium leading-none outline-none transition focus-visible:ring-2 focus-visible:ring-focus ${active ? "bg-brand-soft text-brand-strong" : "text-muted hover:bg-surface-muted hover:text-ink"}`}
@@ -219,10 +222,10 @@ export function AppShell(props: { children: ReactNode; assistant: ReactNode }) {
                 </Button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Content align="start" aria-label="更多页面">
-                {SECONDARY_NAVIGATION.map(([to, label]) => {
+                {secondaryNavigation.map(({ id, to, label }) => {
                   const active = routeActive(location.pathname, to);
                   return (
-                    <DropdownMenu.Item key={to} asChild>
+                    <DropdownMenu.Item key={id} asChild>
                       <Link to={to} aria-current={active ? "page" : undefined}>
                         <span className="flex-1">{label}</span>
                         {active ? (

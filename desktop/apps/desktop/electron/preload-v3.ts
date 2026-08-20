@@ -1,53 +1,34 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge } from "electron";
 
-export type DesktopApi = {
-  awaitInitialization(): Promise<{
-    url: string;
-    username: string;
-    password: string;
-    version: string;
-  }>;
-  retryInitialization(): Promise<{
-    url: string;
-    username: string;
-    password: string;
-    version: string;
-  }>;
-  pickFiles(options?: {
-    multiple?: boolean;
-    extensions?: string[];
-  }): Promise<Array<{ token: string; name: string }> | null>;
-  saveTextFile(input: {
-    suggestedName: string;
-    content: string;
-  }): Promise<{ saved: boolean }>;
-  openExternal(url: string): Promise<void>;
-  revealPath(path: string): Promise<void>;
-  storeCredential(secret: string): Promise<{ credentialRef: string }>;
-  removeCredential(credentialRef: string): Promise<void>;
-  getCredentialStorageStatus(): Promise<{
-    available: boolean;
-    storage: "local_encrypted_file";
-    message?: string;
-  }>;
-  setWindowTheme(theme: "light" | "dark"): Promise<void>;
-};
+export interface RuntimeBootstrap {
+  baseUrl: string;
+  accessToken: string;
+  appVersion: string;
+  apiVersion: "2";
+}
 
-const api: DesktopApi = {
-  awaitInitialization: () => ipcRenderer.invoke("desktop:awaitInitialization"),
-  retryInitialization: () => ipcRenderer.invoke("desktop:retryInitialization"),
-  pickFiles: (options) => ipcRenderer.invoke("desktop:pickFiles", options),
-  saveTextFile: (input) => ipcRenderer.invoke("desktop:saveTextFile", input),
-  openExternal: (url) => ipcRenderer.invoke("desktop:openExternal", url),
-  revealPath: (path) => ipcRenderer.invoke("desktop:revealPath", path),
-  storeCredential: (secret) =>
-    ipcRenderer.invoke("desktop:storeCredential", secret),
-  removeCredential: (credentialRef) =>
-    ipcRenderer.invoke("desktop:removeCredential", credentialRef),
-  getCredentialStorageStatus: () =>
-    ipcRenderer.invoke("desktop:getCredentialStorageStatus"),
-  setWindowTheme: (theme) =>
-    ipcRenderer.invoke("desktop:setWindowTheme", theme),
-};
+const prefix = "--dramaip-runtime-bootstrap=";
+const encoded = process.argv
+  .find((argument) => argument.startsWith(prefix))
+  ?.slice(prefix.length);
+if (!encoded) throw new Error("DramaIP runtime bootstrap is missing");
+const parsed = JSON.parse(
+  Buffer.from(encoded, "base64").toString("utf8"),
+) as RuntimeBootstrap;
+if (
+  typeof parsed.baseUrl !== "string" ||
+  typeof parsed.accessToken !== "string" ||
+  typeof parsed.appVersion !== "string" ||
+  parsed.apiVersion !== "2"
+)
+  throw new Error("DramaIP runtime bootstrap is invalid");
 
-contextBridge.exposeInMainWorld("desktop", api);
+contextBridge.exposeInMainWorld(
+  "runtimeBootstrap",
+  Object.freeze({
+    baseUrl: parsed.baseUrl,
+    accessToken: parsed.accessToken,
+    appVersion: parsed.appVersion,
+    apiVersion: parsed.apiVersion,
+  }),
+);

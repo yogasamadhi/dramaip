@@ -1,0 +1,17 @@
+{
+  "name": "@dramaip/agents",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/desktop-host": "workspace:*",
+    "@dramaip/plugin-api": "workspace:*"
+  }
+}

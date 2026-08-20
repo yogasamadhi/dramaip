@@ -84,7 +84,7 @@ DramaIP Studio 开发启动器
   --install           强制执行 bun install
   --rebuild           强制按 Electron ABI 重编 better-sqlite3
   --no-rebuild        跳过 better-sqlite3 重编检查
-  --rebuild-engines   强制重建 Codex、DSH 和 Pi Runtime
+  --rebuild-engines   强制重建所有当前平台支持的智能引擎 Runtime
   --check             只读检查启动环境，不修复、不构建、不启动
   -h, --help          显示帮助
 
@@ -255,7 +255,7 @@ function targetTriple(): string {
 
 function runtimeSpecs(): readonly RuntimeSpec[] {
   const executable = process.platform === "win32" ? "codex.exe" : "codex";
-  return [
+  const runtimes: RuntimeSpec[] = [
     {
       label: "Codex 0.147.0",
       entry: join(
@@ -289,6 +289,21 @@ function runtimeSpecs(): readonly RuntimeSpec[] {
       verifyScript: "verify:pi",
     },
   ];
+  if (process.platform === "darwin" && process.arch === "arm64") {
+    runtimes.push({
+      label: "Grok Build 1.0.5",
+      entry: join(
+        studioDirectory,
+        "build",
+        "grok",
+        "aarch64-apple-darwin",
+        "runtime-manifest.json",
+      ),
+      buildScript: "build:grok",
+      verifyScript: "verify:grok",
+    });
+  }
+  return runtimes;
 }
 
 async function ensureAgentRuntimes(
@@ -311,14 +326,14 @@ async function ensureAgentRuntimes(
     await runCommand(bun, [
       "run",
       "--filter",
-      "@sdns/desktop",
+      "@dramaip/desktop",
       runtime.buildScript,
     ]);
     if (runtime.verifyScript) {
       await runCommand(bun, [
         "run",
         "--filter",
-        "@sdns/desktop",
+        "@dramaip/desktop",
         runtime.verifyScript,
       ]);
     }
@@ -659,7 +674,13 @@ async function runDevelopmentServer(
   info("启动 desktop 开发模式（Ctrl-C 关闭）……");
   const child = spawn(
     bun,
-    ["run", "dev", ...(devArguments.length > 0 ? ["--", ...devArguments] : [])],
+    [
+      "run",
+      "--filter",
+      "@dramaip/desktop",
+      "dev:raw",
+      ...(devArguments.length > 0 ? ["--", ...devArguments] : []),
+    ],
     {
       cwd: desktopDirectory,
       detached: true,

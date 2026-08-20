@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 
-export const MODEL_PROVIDER_CATALOG_RELEASE = "2.0.0-rc.1";
+export const MODEL_PROVIDER_CATALOG_RELEASE = "3.0.0-alpha.3";
 export const MODEL_PROVIDER_CATALOG_UPDATED_AT = "2026-08-11";
 
 export const ModelProviderPresetId = Schema.Literals([

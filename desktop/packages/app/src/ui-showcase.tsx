@@ -19,7 +19,7 @@ import {
   Tabs,
   Textarea,
   Toolbar,
-} from "@sdns/ui";
+} from "@dramaip/ui-shared";
 import { MoreHorizontal, Sparkles } from "lucide-react";
 
 /** Development-only component gallery for LM7 visual and interaction review. */

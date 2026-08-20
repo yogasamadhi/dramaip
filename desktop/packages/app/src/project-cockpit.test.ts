@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import type { ProductionGraph, Project, Task } from "@sdns/schema";
+import type {
+  ProductionGraph,
+  Project,
+  Task,
+} from "@dramaip/contracts/product";
 import { deriveProjectCockpit } from "./project-cockpit";
 
 const project = {

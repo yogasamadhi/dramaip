@@ -1,0 +1,19 @@
+{
+  "name": "@dramaip/agent-runtime",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.9"
+  }
+}

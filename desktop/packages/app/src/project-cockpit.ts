@@ -1,4 +1,9 @@
-import type { Chapter, ProductionGraph, Project, Task } from "@sdns/schema";
+import type {
+  Chapter,
+  ProductionGraph,
+  Project,
+  Task,
+} from "@dramaip/contracts/product";
 
 export type ProjectCockpitStatus =
   | "needs-input"

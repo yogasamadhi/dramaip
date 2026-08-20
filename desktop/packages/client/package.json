@@ -1,6 +1,6 @@
 {
-  "name": "@sdns/client",
-  "version": "0.1.0",
+  "name": "@dramaip/client",
+  "version": "3.0.0-alpha.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,11 +12,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sdns/protocol": "workspace:*",
-    "@sdns/schema": "workspace:*",
-    "effect": "catalog:"
+    "@dramaip/contracts": "workspace:*",
+    "openapi-fetch": "0.17.0"
   },
   "devDependencies": {
+    "openapi-typescript": "7.13.0",
     "prettier": "^3.7.4"
   }
 }

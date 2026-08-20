@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import type { StudioClient } from "@sdns/client";
+import type { StudioClient } from "@dramaip/client";
 import type {
   AgentEngineDescriptor,
   AgentEngineKind,
@@ -9,7 +9,7 @@ import type {
   Chapter,
   DomainEntity,
   Task,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 import {
   BareButton,
   Button,
@@ -17,7 +17,7 @@ import {
   Input,
   Textarea,
   confirmDialog,
-} from "@sdns/ui";
+} from "@dramaip/ui-shared";
 
 interface FieldDefinition {
   key: string;
@@ -708,7 +708,7 @@ function NovelInsightRunner(props: {
   onSaved(): void;
 }) {
   const [instruction, setInstruction] = useState("");
-  const [engineKind, setEngineKind] = useState<AgentEngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
   const [taskId, setTaskId] = useState<string>();
   const [runId, setRunId] = useState<string>();
@@ -935,7 +935,7 @@ export function NovelArtifactGenerator(props: {
   const [expanded, setExpanded] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
-  const [engineKind, setEngineKind] = useState<AgentEngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [task, setTask] = useState<Task>();
   const [runId, setRunId] = useState<string>();
   const [preview, setPreview] = useState<ChangePreview>();

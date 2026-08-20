@@ -1,48 +1,51 @@
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { OpenApi } from "effect/unstable/httpapi";
-import { StudioApi } from "@sdns/protocol";
+import { readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { format } from "prettier";
+import { generateEffectiveOpenApi } from "./generate-openapi.js";
 
-const templateUrl = new URL("./generated.template.ts", import.meta.url);
-const outputUrl = new URL("./generated.ts", import.meta.url);
 const openApiUrl = new URL("./openapi.json", import.meta.url);
-
-const specification = OpenApi.fromApi(StudioApi);
-const serialized = await format(JSON.stringify(specification), {
-  parser: "json",
-});
-const fingerprint = createHash("sha256").update(serialized).digest("hex");
-const template = await Bun.file(templateUrl).text();
-if (!template.includes("__DRAMAIP_API_SHA256__")) {
-  throw new Error("生成模板缺少 OpenAPI 指纹占位符");
-}
-
-const generated = await format(
-  template.replace("__DRAMAIP_API_SHA256__", fingerprint),
-  { filepath: fileURLToPath(outputUrl) },
+const generatedUrl = new URL("./openapi.generated.ts", import.meta.url);
+const temporaryUrl = new URL(
+  `./openapi.generated.${process.pid}.tmp.ts`,
+  import.meta.url,
 );
+await generateEffectiveOpenApi(process.argv.includes("--check"));
+const result = Bun.spawnSync([
+  "bunx",
+  "openapi-typescript",
+  openApiUrl.pathname,
+  "-o",
+  temporaryUrl.pathname,
+]);
+if (result.exitCode !== 0) {
+  process.stderr.write(result.stderr.toString());
+  process.exit(result.exitCode);
+}
+const generated = await format(await readFile(temporaryUrl, "utf8"), {
+  filepath: temporaryUrl.pathname,
+});
+await writeFile(temporaryUrl, generated);
+const fingerprint = createHash("sha256")
+  .update(await readFile(openApiUrl))
+  .digest("hex");
 if (process.argv.includes("--check")) {
-  const [currentGenerated, currentOpenApi] = await Promise.all([
-    readFile(outputUrl, "utf8").catch(() => ""),
-    readFile(openApiUrl, "utf8").catch(() => ""),
-  ]);
-  if (currentGenerated !== generated || currentOpenApi !== serialized) {
+  const current = await readFile(generatedUrl, "utf8").catch(() => "");
+  await unlink(temporaryUrl);
+  if (current !== generated) {
     process.stderr.write(
-      "生成客户端或 OpenAPI 快照已过期，请运行 bun run --filter @sdns/client generate\n",
+      "v2 OpenAPI client is stale; run bun run --filter @dramaip/client generate\n",
     );
     process.exitCode = 1;
   } else {
-    process.stdout.write(`生成客户端契约一致（SHA-256 ${fingerprint}）\n`);
+    process.stdout.write(
+      `v2 OpenAPI client is current (SHA-256 ${fingerprint})\n`,
+    );
   }
 } else {
-  await Promise.all([
-    writeFile(outputUrl, generated),
-    writeFile(openApiUrl, serialized),
-  ]);
-
-  process.stdout.write(
-    `已从 Effect HttpApi 生成客户端契约（SHA-256 ${fingerprint}）\n`,
+  await rename(temporaryUrl, generatedUrl);
+  await writeFile(
+    new URL("./openapi.sha256", import.meta.url),
+    `${fingerprint}\n`,
   );
+  process.stdout.write(`generated v2 OpenAPI types (SHA-256 ${fingerprint})\n`);
 }

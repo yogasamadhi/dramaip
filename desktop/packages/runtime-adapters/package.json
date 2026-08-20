@@ -1,0 +1,20 @@
+{
+  "name": "@dramaip/runtime-adapters",
+  "version": "3.0.0-alpha.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/server-connection": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.9"
+  }
+}

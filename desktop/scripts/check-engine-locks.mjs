@@ -236,5 +236,5 @@ if (!/^[a-f0-9]{64}$/.test(grokBinarySha ?? ""))
   throw new Error("Grok macOS arm64 缺少二进制 SHA-256");
 
 process.stdout.write(
-  `活动引擎锁定文件有效：OpenCode ${opencode.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；DSH ${dsh.version}；Pi ${pi.version}；Grok Build ${grok.version}\n`,
+  `活动引擎锁定文件有效：Pi ${pi.version}；Codex ${codex.version}（${requiredTriples.length} 个平台）；Grok Build ${grok.version}。归档参考快照完整：OpenCode ${opencode.version}；DSH ${dsh.version}\n`,
 );

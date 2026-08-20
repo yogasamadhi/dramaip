@@ -135,6 +135,6 @@ for (const document of [
 ])
   assert.doesNotMatch(document, /(?:file:\/\/|(?:^|["'])\/[A-Za-z])/);
 
-process.stdout.write(
-  "Timeline exports pass FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference round-trip checks.\n",
+console.log(
+  "Timeline exports pass FCPXML / OTIO / CMX 3600 / SRT / WebVTT reference round-trip checks.",
 );

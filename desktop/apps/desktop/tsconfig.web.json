@@ -8,9 +8,11 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["../../packages/app/src/*"],
-      "@sdns/client": ["../../packages/client/src/index.ts"],
-      "@sdns/schema": ["../../packages/schema/src/index.ts"],
-      "@sdns/ui": ["../../packages/ui/src/index.ts"]
+      "@dramaip/client": ["../../packages/client/src/index.ts"],
+      "@dramaip/contracts": ["../../packages/contracts/src/index.ts"],
+      "@dramaip/contracts/product": ["../../packages/contracts/src/product.ts"],
+      "@dramaip/ui-runtime": ["../../packages/ui-runtime/src/index.ts"],
+      "@dramaip/ui-shared": ["../../packages/ui/src/index.ts"]
     }
   },
   "include": [
@@ -18,7 +20,8 @@
     "../../packages/app/src/**/*.tsx",
     "../../packages/app/src/**/*.d.ts",
     "../../packages/ui/src/**/*.ts",
-    "../../packages/ui/src/**/*.tsx"
+    "../../packages/ui/src/**/*.tsx",
+    "../../packages/ui-runtime/src/**/*.ts"
   ],
   "exclude": [
     "../../packages/app/src/**/*.test.ts",

@@ -1,0 +1,11 @@
+{
+  "name": "server",
+  "bundles": [
+    "core",
+    "automation-suite",
+    "writing-suite",
+    "agents-suite",
+    "production-suite",
+    "analytics-suite"
+  ]
+}

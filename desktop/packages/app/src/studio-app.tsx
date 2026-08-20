@@ -17,7 +17,9 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { createStudioClient, type StudioClient } from "@sdns/client";
+import { createStudioClient, type StudioClient } from "@dramaip/client";
+import { contributionsOfKind } from "@dramaip/ui-runtime";
+import type { UiContributionMetadata } from "@dramaip/contracts";
 import {
   BareButton,
   Button,
@@ -32,7 +34,7 @@ import {
   Textarea,
   confirmDialog,
   type ResolvedTheme,
-} from "@sdns/ui";
+} from "@dramaip/ui-shared";
 import {
   defaultProductionBrief,
   projectInputFromBrief,
@@ -67,7 +69,7 @@ import {
   AssistantToolActivity,
   useAssistantAutoScroll,
 } from "./features/assistant-message-content";
-import { AppShell, ThemeSettings } from "./app-shell";
+import { AppShell, ThemeSettings, type ShellNavigationItem } from "./app-shell";
 import { UiShowcase } from "./ui-showcase";
 import {
   MODEL_PROVIDER_CATALOG,
@@ -76,7 +78,7 @@ import {
   modelProviderPreset,
   recommendedProviderModel,
   type ModelProviderPresetId,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 import type {
   AgentEngineKind,
   AgentExperimentEngineKind,
@@ -119,7 +121,7 @@ import type {
   VideoGenerationInput,
   VideoGenerationPreflight,
   CloudReviewPublishPreview,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 import { NovelChapterWorkspace } from "./features/novel/NovelChapterWorkspace";
 import {
   NovelArtifactGenerator,
@@ -288,10 +290,12 @@ function useStudio(): StudioClient {
 }
 
 function syncNativeWindowTheme(theme: ResolvedTheme): void {
-  void window.desktop.setWindowTheme(theme).catch(() => {
-    // The renderer theme remains authoritative if a platform does not expose
-    // a native title-bar overlay.
-  });
+  void createStudioClient(window.runtimeBootstrap)
+    .host.setWindowTheme(theme)
+    .catch(() => {
+      // The renderer theme remains authoritative if a platform does not expose
+      // a native title-bar overlay.
+    });
 }
 
 export function AppRoot() {
@@ -306,27 +310,28 @@ export function AppRoot() {
 
 function AppBootstrap() {
   const [client, setClient] = useState<StudioClient>();
-  const [error, setError] = useState<string>();
+  const [uiContributions, setUiContributions] =
+    useState<UiContributionMetadata[]>();
+  const [connectionError, setConnectionError] = useState<string>();
   useEffect(() => {
-    void window.desktop
-      .awaitInitialization()
-      .then((ready) => setClient(createStudioClient(ready)))
-      .catch((cause) => setError(message(cause)));
+    const next = createStudioClient(window.runtimeBootstrap);
+    setClient(next);
+    void next.runtime
+      .info()
+      .then((runtime) => setUiContributions(runtime.uiContributions))
+      .catch((error: unknown) =>
+        setConnectionError(
+          error instanceof Error ? error.message : "无法读取 Runtime 组合信息",
+        ),
+      );
   }, []);
-  if (error)
+  if (connectionError)
     return (
-      <StartupFailure
-        error={error}
-        onRetry={() => {
-          setError(undefined);
-          void window.desktop
-            .retryInitialization()
-            .then((ready) => setClient(createStudioClient(ready)))
-            .catch((cause) => setError(message(cause)));
-        }}
-      />
+      <InlineNotice tone="danger" className="m-6">
+        Runtime 连接失败：{connectionError}
+      </InlineNotice>
     );
-  if (!client)
+  if (!client || !uiContributions)
     return (
       <LoadingState
         label="正在连接 DramaIP 本地服务…"
@@ -337,25 +342,10 @@ function AppBootstrap() {
     <ClientContext.Provider value={client}>
       <QueryClientProvider client={queryClient}>
         <HashRouter>
-          <Studio />
+          <Studio uiContributions={uiContributions} />
         </HashRouter>
       </QueryClientProvider>
     </ClientContext.Provider>
-  );
-}
-
-function StartupFailure(props: { error: string; onRetry(): void }) {
-  return (
-    <main className="grid min-h-screen place-items-center bg-canvas p-8">
-      <section className="max-w-lg rounded-xl border border-line bg-surface p-8 shadow-control">
-        <p className="text-sm font-semibold text-brand">DramaIP 桌面版</p>
-        <h1 className="mt-2 text-2xl font-semibold">本地服务未能启动</h1>
-        <p className="mt-3 text-sm text-muted">{props.error}</p>
-        <Button className="mt-6" variant="primary" onClick={props.onRetry}>
-          重试
-        </Button>
-      </section>
-    </main>
   );
 }
 
@@ -408,30 +398,89 @@ function StageNavigation(props: {
   );
 }
 
-function Studio() {
+function Studio(props: { uiContributions: readonly UiContributionMetadata[] }) {
+  const routeIds = new Set(
+    contributionsOfKind(props.uiContributions, "route").map(
+      (contribution) => contribution.id,
+    ),
+  );
+  const assistantEnabled = props.uiContributions.some(
+    (contribution) => contribution.id === "agents.slot.assistant",
+  );
+  const navigation = contributionsOfKind(
+    props.uiContributions,
+    "navigation",
+  ).flatMap((contribution): ShellNavigationItem[] => {
+    const metadata = contribution.metadata;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
+      return [];
+    const record = metadata as Readonly<Record<string, unknown>>;
+    const section = record.section;
+    const order = record.order;
+    const label = record.label;
+    const to = record.to;
+    return (section === "main" || section === "secondary") &&
+      typeof order === "number" &&
+      typeof label === "string" &&
+      typeof to === "string"
+      ? [{ id: contribution.id, section, order, label, to }]
+      : [];
+  });
+  const routeEnabled = (id: string) => routeIds.has(id);
   return (
-    <AppShell assistant={<AgentSidePanel />}>
+    <AppShell
+      assistant={assistantEnabled ? <AgentSidePanel /> : null}
+      navigation={navigation}
+    >
       <Routes>
-        <Route path="/" element={<ProjectHome />} />
-        <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
-        <Route
-          path="/projects/:projectId/tools"
-          element={<ProjectToolPage />}
-        />
-        <Route
-          path="/projects/:projectId/tools/:toolKey"
-          element={<ProjectToolPage />}
-        />
-        <Route path="/write" element={<NovelWritingHome />} />
-        <Route path="/write/new" element={<NovelQuickStart />} />
-        <Route path="/search" element={<SearchPage />} />
-        <Route path="/create" element={<CreativeWorkspace />} />
-        <Route path="/adapt" element={<AdaptationWorkspace />} />
-        <Route path="/produce" element={<ProductionWorkspace />} />
-        <Route path="/review" element={<ReviewDeliveryWorkspace />} />
-        <Route path="/insights" element={<FeedbackPage />} />
-        <Route path="/tasks" element={<TaskPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        {routeEnabled("workspace.route.home") && (
+          <Route path="/" element={<ProjectHome />} />
+        )}
+        {routeEnabled("workspace.route.project") && (
+          <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+        )}
+        {routeEnabled("workspace.route.project-tools") && (
+          <Route
+            path="/projects/:projectId/tools"
+            element={<ProjectToolPage />}
+          />
+        )}
+        {routeEnabled("workspace.route.project-tools") && (
+          <Route
+            path="/projects/:projectId/tools/:toolKey"
+            element={<ProjectToolPage />}
+          />
+        )}
+        {routeEnabled("writing.route.home") && (
+          <Route path="/write" element={<NovelWritingHome />} />
+        )}
+        {routeEnabled("writing.route.quick-start") && (
+          <Route path="/write/new" element={<NovelQuickStart />} />
+        )}
+        {routeEnabled("workspace.route.search") && (
+          <Route path="/search" element={<SearchPage />} />
+        )}
+        {routeEnabled("creative-quality.route.workspace") && (
+          <Route path="/create" element={<CreativeWorkspace />} />
+        )}
+        {routeEnabled("production.route.workspace") && (
+          <Route path="/adapt" element={<AdaptationWorkspace />} />
+        )}
+        {routeEnabled("media.route.workspace") && (
+          <Route path="/produce" element={<ProductionWorkspace />} />
+        )}
+        {routeEnabled("review.route.workspace") && (
+          <Route path="/review" element={<ReviewDeliveryWorkspace />} />
+        )}
+        {routeEnabled("insights.route.dashboard") && (
+          <Route path="/insights" element={<FeedbackPage />} />
+        )}
+        {routeEnabled("automation.route.tasks") && (
+          <Route path="/tasks" element={<TaskPage />} />
+        )}
+        {routeEnabled("system.route.settings") && (
+          <Route path="/settings" element={<SettingsPage />} />
+        )}
         {import.meta.env.DEV ? (
           <Route path="/__ui" element={<UiShowcase />} />
         ) : null}
@@ -545,7 +594,7 @@ function ProjectPackageImportPanel(props: {
   const [notice, setNotice] = useState<string>();
   const choose = async () => {
     setNotice(undefined);
-    const selected = await window.desktop.pickFiles({
+    const selected = await client.host.pickFiles({
       multiple: false,
       extensions: ["json"],
     });
@@ -1579,9 +1628,16 @@ function ProjectToolPage() {
               projectId={project.id}
               initialOpen
               onImported={() => {
-                void load().then(() =>
-                  navigate(`/projects/${project.id}/tools/review`),
-                );
+                void load().then(() => {
+                  // Import completion may race with a user opening another
+                  // project tool. Only apply the suggested review navigation
+                  // while the import route is still the active destination.
+                  if (
+                    window.location.hash ===
+                    `#/projects/${project.id}/tools/import`
+                  )
+                    navigate(`/projects/${project.id}/tools/review`);
+                });
               }}
             />
           )}
@@ -1755,7 +1811,7 @@ function ProjectWorkspace() {
     setExportNotice(undefined);
     try {
       const document = await client.exports.project(project.id, format);
-      const result = await window.desktop.saveTextFile({
+      const result = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
@@ -1931,20 +1987,33 @@ function ProjectWorkspace() {
                 <ProjectActivityPanel projectId={project.id} />
                 <ChapterAnalysisPanel />
                 <CreativeDiagnosticsPanel />
-                <DomainWorkspace
+                <PluginResourceWorkspace
+                  owner="automation"
                   title="项目技能、灵感与模板"
                   projectId={project.id}
                   domains={[
                     "project-skills",
                     "agent-schemes",
                     "inspirations",
-                    "visual-settings",
+                    "templates",
+                  ]}
+                />
+                <PluginResourceWorkspace
+                  owner="knowledge"
+                  title="视觉设定"
+                  projectId={project.id}
+                  domains={["visual-settings"]}
+                />
+                <PluginResourceWorkspace
+                  owner="creative-quality"
+                  title="创意质量"
+                  projectId={project.id}
+                  domains={[
                     "beats",
                     "highlights",
                     "feasibility",
                     "trends",
                     "evaluations",
-                    "templates",
                   ]}
                 />
               </div>
@@ -2919,7 +2988,7 @@ function SourceImportPanel(props: {
     setWorking(true);
     setNotice(undefined);
     try {
-      const selected = await window.desktop.pickFiles({
+      const selected = await client.host.pickFiles({
         multiple: false,
         extensions: ["txt", "md", "markdown", "docx", "epub", "json"],
       });
@@ -4547,16 +4616,16 @@ function CreativeWorkspace() {
       <StoryBibleChangeSetPanel />
       <ChapterAnalysisPanel />
       <CreativeDiagnosticsPanel />
-      <DomainWorkspace
-        title="创作"
+      <PluginResourceWorkspace
+        owner="writing"
+        title="人物与故事结构"
+        domains={["characters", "outlines", "story-arcs"]}
+      />
+      <PluginResourceWorkspace
+        owner="knowledge"
+        title="故事知识与连续性"
         domains={[
           "story",
-          "characters",
-          "outlines",
-          "story-arcs",
-          "project-skills",
-          "agent-schemes",
-          "inspirations",
           "memory",
           "chapter-memories",
           "character-states",
@@ -4564,13 +4633,28 @@ function CreativeWorkspace() {
           "visual-settings",
           "story-events",
           "foreshadowings",
+        ]}
+      />
+      <PluginResourceWorkspace
+        owner="automation"
+        title="创作自动化"
+        domains={[
+          "project-skills",
+          "agent-schemes",
+          "inspirations",
+          "templates",
+        ]}
+      />
+      <PluginResourceWorkspace
+        owner="creative-quality"
+        title="创意质量"
+        domains={[
           "analysis",
           "beats",
           "highlights",
           "feasibility",
           "trends",
           "evaluations",
-          "templates",
         ]}
       />
     </div>
@@ -5176,7 +5260,7 @@ function TaskPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const projectId = new URLSearchParams(location.search).get("projectId");
-  const [retryEngine, setRetryEngine] = useState<AgentEngineKind>("opencode");
+  const [retryEngine, setRetryEngine] = useState<AgentEngineKind>("pi");
   const { data: items = [], error } = useQuery({
     queryKey: ["tasks"],
     queryFn: client.tasks.list,
@@ -5228,12 +5312,9 @@ function TaskPage() {
             setRetryEngine(event.target.value as AgentEngineKind)
           }
         >
-          <option value="opencode">OpenCode</option>
+          <option value="pi">Pi（默认内嵌）</option>
           <option value="codex">Codex</option>
-          <option value="dsh">DeepSeek Harness</option>
-          <option value="pi">Pi</option>
           <option value="grok">Grok Build</option>
-          <option value="langgraph">LangGraph.js</option>
         </select>
       </label>
       {error && <p className="mt-4 text-sm text-red-600">{message(error)}</p>}
@@ -6281,13 +6362,78 @@ function templateVariableNames(value: string): string[] {
   ];
 }
 
-function DomainWorkspace(props: {
+type ResourcePluginOwner =
+  | "agents"
+  | "automation"
+  | "creative-quality"
+  | "delivery"
+  | "knowledge"
+  | "media"
+  | "production"
+  | "review"
+  | "writing";
+
+const RESOURCE_PLUGIN_OWNERS: Readonly<Record<string, ResourcePluginOwner>> = {
+  story: "knowledge",
+  characters: "writing",
+  outlines: "writing",
+  "story-arcs": "writing",
+  "character-states": "knowledge",
+  "visual-profiles": "knowledge",
+  "visual-settings": "knowledge",
+  "story-events": "knowledge",
+  foreshadowings: "knowledge",
+  "chapter-memories": "knowledge",
+  "story-bible": "knowledge",
+  "story-bible-settings": "knowledge",
+  "story-bible-stale": "knowledge",
+  memory: "knowledge",
+  analysis: "creative-quality",
+  beats: "creative-quality",
+  highlights: "creative-quality",
+  feasibility: "creative-quality",
+  trends: "creative-quality",
+  evaluations: "creative-quality",
+  quality: "creative-quality",
+  "project-skills": "automation",
+  "agent-schemes": "automation",
+  inspirations: "automation",
+  templates: "automation",
+  adaptations: "production",
+  episodes: "production",
+  scripts: "production",
+  scenes: "production",
+  shots: "production",
+  "shot-stills": "media",
+  "visual-assets": "media",
+  assets: "media",
+  rights: "media",
+  image: "media",
+  audio: "media",
+  video: "media",
+  renders: "media",
+  compliance: "review",
+  review: "review",
+  localization: "delivery",
+  delivery: "delivery",
+  providers: "agents",
+};
+
+function PluginResourceWorkspace(props: {
+  owner: ResourcePluginOwner;
   title: string;
   domains: string[];
   projectId?: string;
   parentId?: string;
   parentRequired?: boolean;
 }) {
+  const foreignDomain = props.domains.find(
+    (domain) => RESOURCE_PLUGIN_OWNERS[domain] !== props.owner,
+  );
+  if (foreignDomain)
+    throw new Error(
+      `UI contribution ownership mismatch: ${foreignDomain} is not owned by ${props.owner}`,
+    );
   const client = useStudio();
   const queryClient = useQueryClient();
   const [domain, setDomain] = useState(props.domains[0]);
@@ -6361,7 +6507,7 @@ function DomainWorkspace(props: {
     setActionNotice(undefined);
   };
   const chooseFile = async () => {
-    const selected = await window.desktop.pickFiles({ multiple: false });
+    const selected = await client.host.pickFiles({ multiple: false });
     const first = selected?.[0];
     if (!first) return;
     setFile(first);
@@ -6471,7 +6617,7 @@ function DomainWorkspace(props: {
     setActionNotice(undefined);
     try {
       const document = await client.localization.subtitles(item.id, format);
-      const saved = await window.desktop.saveTextFile({
+      const saved = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
@@ -6485,7 +6631,7 @@ function DomainWorkspace(props: {
     setActionNotice(undefined);
     try {
       const document = await client.delivery.export(item.id);
-      const saved = await window.desktop.saveTextFile({
+      const saved = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
@@ -7221,7 +7367,8 @@ function AdaptationWorkspace() {
             </div>
           )}
           {stage === "shots" && shotId && <ShotReviewPanel shotId={shotId} />}
-          <DomainWorkspace
+          <PluginResourceWorkspace
+            owner="production"
             title="改编生产"
             domains={[stage]}
             projectId={projectId}
@@ -8513,14 +8660,28 @@ function ProductionWorkspace() {
           />
         ) : stage === "renders" && episodeId ? (
           <EpisodeRenderPreflightPanel episodeId={episodeId} />
-        ) : (
-          <DomainWorkspace
+        ) : [
+            "assets",
+            "rights",
+            "visual-assets",
+            "shot-stills",
+            "image",
+            "audio",
+            "video",
+            "renders",
+          ].includes(stage) ? (
+          <PluginResourceWorkspace
+            owner="media"
             title="制作"
             domains={[stage]}
             projectId={projectId}
             parentId={parentId}
             parentRequired={parentRequired}
           />
+        ) : (
+          <p className="rounded-xl border border-dashed border-line p-8 text-sm text-muted">
+            请先选择此制作阶段所需的分集或分镜。
+          </p>
         )}
       </div>
     </section>
@@ -8828,12 +8989,20 @@ function StoryboardBoard(props: {
                     draggable={!savingSceneId}
                     onDragStart={(event) => {
                       event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData(
+                        "application/x-dramaip-shot-id",
+                        shot.id,
+                      );
                       setDraggingId(shot.id);
                     }}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
                       event.preventDefault();
-                      if (draggingId) void reorder(scene, draggingId, shot.id);
+                      const movingId =
+                        event.dataTransfer.getData(
+                          "application/x-dramaip-shot-id",
+                        ) || draggingId;
+                      if (movingId) void reorder(scene, movingId, shot.id);
                     }}
                     className={`rounded-xl border p-4 ${props.selectedShotId === shot.id ? "border-brand bg-brand-soft" : "border-line bg-canvas"}`}
                   >
@@ -10838,7 +11007,7 @@ function TimelineEditorPanel(props: {
         props.episodeId,
         format,
       );
-      const result = await window.desktop.saveTextFile({
+      const result = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
@@ -11796,9 +11965,28 @@ function ReviewDeliveryWorkspace() {
               episodes.find((item) => item.id === episodeId)?.title ?? ""
             }
           />
+        ) : stage === "quality" ? (
+          <PluginResourceWorkspace
+            owner="creative-quality"
+            title="质量审核"
+            domains={[stage]}
+            projectId={projectId}
+            parentId={episodeId}
+            parentRequired
+          />
+        ) : stage === "localization" || stage === "delivery" ? (
+          <PluginResourceWorkspace
+            owner="delivery"
+            title="本地化与交付"
+            domains={[stage]}
+            projectId={projectId}
+            parentId={episodeId}
+            parentRequired
+          />
         ) : (
-          <DomainWorkspace
-            title="审核交付"
+          <PluginResourceWorkspace
+            owner="review"
+            title="合规与审片"
             domains={[stage]}
             projectId={projectId}
             parentId={episodeId}
@@ -11980,7 +12168,7 @@ function PlatformDeliveryPanel(props: {
     setNotice(undefined);
     try {
       const document = await client.platformDelivery.exportArchive(archive.id);
-      const result = await window.desktop.saveTextFile({
+      const result = await client.host.saveTextFile({
         suggestedName: document.fileName,
         content: document.content,
       });
@@ -12572,7 +12760,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
   });
   const { data: credentialStorage } = useQuery({
     queryKey: ["credential-storage-status"],
-    queryFn: () => window.desktop.getCredentialStorageStatus(),
+    queryFn: () => client.host.getCredentialStorageStatus(),
   });
   useEffect(() => {
     if (!cloudConnection?.configured) return;
@@ -12631,7 +12819,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     });
   };
   const saveDocument = async (fileName: string, content: string) =>
-    window.desktop.saveTextFile({ suggestedName: fileName, content });
+    client.host.saveTextFile({ suggestedName: fileName, content });
   const exportTimeline = async (format: "json" | "edl" | "fcpxml" | "srt") => {
     setWorking(`时间线-${format}`);
     setNotice(undefined);
@@ -12685,7 +12873,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     setWorking("导入审片意见");
     setNotice(undefined);
     try {
-      const files = await window.desktop.pickFiles({
+      const files = await client.host.pickFiles({
         multiple: false,
         extensions: ["json"],
       });
@@ -12721,7 +12909,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
                 : "text/vtt";
   };
   const chooseCloudMedia = async () => {
-    const files = await window.desktop.pickFiles({
+    const files = await client.host.pickFiles({
       multiple: true,
       extensions: ["mp4", "jpg", "jpeg", "png", "webp", "mp3", "wav", "vtt"],
     });
@@ -12755,7 +12943,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
     let credentialRef: string | undefined;
     try {
       credentialRef = (
-        await window.desktop.storeCredential(cloudAccessToken.trim())
+        await client.host.storeCredential(cloudAccessToken.trim())
       ).credentialRef;
       await client.cloudReview.saveConnection({
         baseUrl: cloudBaseUrl.trim(),
@@ -12769,7 +12957,7 @@ function ReviewEditorPanel(props: { episodeId: string }) {
       setNotice("云审片连接已保存；令牌只保存在本机加密凭据库。");
     } catch (cause) {
       if (credentialRef)
-        await window.desktop.removeCredential(credentialRef).catch(() => {});
+        await client.host.removeCredential(credentialRef).catch(() => {});
       setNotice(message(cause));
     } finally {
       setWorking(undefined);
@@ -13635,7 +13823,7 @@ function FeedbackPage() {
     setWorking(true);
     setNotice(undefined);
     try {
-      const selected = await window.desktop.pickFiles({
+      const selected = await client.host.pickFiles({
         multiple: false,
         extensions: ["csv", "json"],
       });
@@ -14012,7 +14200,7 @@ function DiagnosticPanel() {
   const [working, setWorking] = useState(false);
   const [notice, setNotice] = useState<string>();
   useEffect(() => {
-    void window.desktop
+    void client.host
       .getCredentialStorageStatus()
       .then((status) => setCredentialStorageAvailable(status.available))
       .catch(() => setCredentialStorageAvailable(false));
@@ -14032,7 +14220,7 @@ function DiagnosticPanel() {
     if (!report) return;
     setWorking(true);
     try {
-      const result = await window.desktop.saveTextFile({
+      const result = await client.host.saveTextFile({
         suggestedName: "DramaIP-诊断信息.json",
         content: JSON.stringify(report, null, 2),
       });
@@ -14244,7 +14432,7 @@ function ProviderSettingsPanel() {
   });
   const { data: credentialStorage } = useQuery({
     queryKey: ["credential-storage-status"],
-    queryFn: window.desktop.getCredentialStorageStatus,
+    queryFn: client.host.getCredentialStorageStatus,
   });
   const [choice, setChoice] = useState<ProviderChoice>("openai");
   const [modelId, setModelId] = useState(
@@ -14352,7 +14540,7 @@ function ProviderSettingsPanel() {
     let newCredentialRef: string | undefined;
     try {
       if (apiKey.trim()) {
-        newCredentialRef = (await window.desktop.storeCredential(apiKey.trim()))
+        newCredentialRef = (await client.host.storeCredential(apiKey.trim()))
           .credentialRef;
       }
       const credentialRef = newCredentialRef ?? previousCredentialRef;
@@ -14385,7 +14573,7 @@ function ProviderSettingsPanel() {
         previousCredentialRef &&
         previousCredentialRef !== newCredentialRef
       )
-        await window.desktop.removeCredential(previousCredentialRef);
+        await client.host.removeCredential(previousCredentialRef);
       setApiKey("");
       setEditing(undefined);
       setNotice(`已保存 ${title}，密钥不会写入业务数据库。`);
@@ -14394,7 +14582,7 @@ function ProviderSettingsPanel() {
       });
     } catch (cause) {
       if (newCredentialRef)
-        await window.desktop.removeCredential(newCredentialRef).catch(() => {});
+        await client.host.removeCredential(newCredentialRef).catch(() => {});
       setError(message(cause));
     } finally {
       setSaving(false);
@@ -14411,7 +14599,7 @@ function ProviderSettingsPanel() {
     try {
       await client.resources.remove("providers", provider.id);
       if (credentialRef)
-        await window.desktop.removeCredential(credentialRef).catch(() => {});
+        await client.host.removeCredential(credentialRef).catch(() => {});
       if (editing?.id === provider.id) resetForm();
       await queryClient.invalidateQueries({
         queryKey: ["resource", "providers"],
@@ -14606,9 +14794,7 @@ function ProviderSettingsPanel() {
             {preset && (
               <BareButton
                 className="text-brand hover:underline"
-                onClick={() =>
-                  void window.desktop.openExternal(preset.apiKeyUrl)
-                }
+                onClick={() => void client.host.openExternal(preset.apiKeyUrl)}
               >
                 打开接口密钥申请页面
               </BareButton>
@@ -14734,30 +14920,19 @@ function SettingsPage() {
       <BackupPanel />
       <DiagnosticPanel />
       <GenerationLedgerPanel />
-      <DomainWorkspace
-        title="设置与连接"
-        domains={["settings", "backup", "cloud", "agents"]}
-      />
     </div>
   );
 }
 
 const AGENT_ENGINE_LABELS: Record<AgentEngineKind, string> = {
-  opencode: "OpenCode",
-  codex: "Codex",
-  dsh: "DSH",
   pi: "Pi",
+  codex: "Codex",
   grok: "Grok Build",
-  langgraph: "LangGraph.js",
 };
 const AGENT_EXPERIMENT_ENGINE_LABELS: Record<
   AgentExperimentEngineKind,
   string
-> = {
-  ...AGENT_ENGINE_LABELS,
-  hermes: "Hermes Agent（已移除）",
-  openclaw: "OpenClaw（已移除）",
-};
+> = AGENT_ENGINE_LABELS;
 
 function AgentEngineSettingsPanel() {
   const client = useStudio();
@@ -14786,14 +14961,13 @@ function AgentEngineSettingsPanel() {
   });
   const { data: credentialStorage } = useQuery({
     queryKey: ["credential-storage-status"],
-    queryFn: window.desktop.getCredentialStorageStatus,
+    queryFn: client.host.getCredentialStorageStatus,
   });
   const [projectId, setProjectId] = useState("");
   const [globalDefaultEngine, setGlobalDefaultEngine] =
-    useState<AgentEngineKind>("opencode");
+    useState<AgentEngineKind>("pi");
   const [globalModelId, setGlobalModelId] = useState("");
-  const [defaultEngine, setDefaultEngine] =
-    useState<AgentEngineKind>("opencode");
+  const [defaultEngine, setDefaultEngine] = useState<AgentEngineKind>("pi");
   const [defaultModelId, setDefaultModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [codexProviderId, setCodexProviderId] = useState("");
@@ -14901,14 +15075,14 @@ function AgentEngineSettingsPanel() {
       }
       if (mode === "api_key") {
         if (!apiKey.trim()) throw new Error("请输入 Codex 接口密钥");
-        const stored = await window.desktop.storeCredential(apiKey.trim());
+        const stored = await client.host.storeCredential(apiKey.trim());
         try {
           return await client.agentEngines.codexLogin({
             mode,
             credentialRef: stored.credentialRef,
           });
         } catch (cause) {
-          await window.desktop.removeCredential(stored.credentialRef);
+          await client.host.removeCredential(stored.credentialRef);
           throw cause;
         }
       }
@@ -14917,7 +15091,7 @@ function AgentEngineSettingsPanel() {
     onSuccess: async (result) => {
       setApiKey("");
       if (result.verificationUrl)
-        await window.desktop.openExternal(result.verificationUrl);
+        await client.host.openExternal(result.verificationUrl);
       setNotice(
         result.userCode
           ? `请在已打开的页面输入设备码：${result.userCode}`
@@ -14946,14 +15120,11 @@ function AgentEngineSettingsPanel() {
           </p>
         </div>
         <span className="rounded-full bg-brand-soft px-2 py-1 text-xs text-brand">
-          {AGENT_ENGINE_LABELS[globalSettings?.defaultEngineKind ?? "opencode"]}{" "}
+          {AGENT_ENGINE_LABELS[globalSettings?.defaultEngineKind ?? "pi"]}{" "}
           全局默认
         </span>
       </div>
-      <div
-        aria-label="智能引擎状态"
-        className="mt-4 grid gap-3 lg:grid-cols-3 xl:grid-cols-6"
-      >
+      <div aria-label="智能引擎状态" className="mt-4 grid gap-3 lg:grid-cols-3">
         {engines.map((engine) => (
           <article
             key={engine.kind}
@@ -15208,7 +15379,7 @@ function AgentSidePanel() {
   });
   const contextProjectId = contextAssistantProjectId(location);
   const [projectId, setProjectId] = useState(contextProjectId ?? "");
-  const [engineKind, setEngineKind] = useState<AgentEngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [modelId, setModelId] = useState("");
   const [conversations, setConversations] = useState<AgentSession[]>([]);
   const [archivedConversations, setArchivedConversations] = useState<
@@ -15355,12 +15526,82 @@ function AgentSidePanel() {
   }, [conversationId]);
 
   useEffect(() => {
+    if (!conversationId || !activeRun) return;
+    const timer = window.setInterval(() => {
+      void loadDetail(conversationId).catch(() => undefined);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [activeRun?.id, conversationId]);
+
+  useEffect(() => {
     const unsubscribe = client.events.subscribe((event) => {
       if (!detail || !event.payload || typeof event.payload !== "object")
         return;
       const payload = event.payload as Record<string, unknown>;
       if (
-        event.type.startsWith("assistant_turn.") &&
+        event.type.startsWith("agents.assistant-item-") &&
+        payload.sessionId === detail.conversation.id
+      ) {
+        const runId = typeof payload.runId === "string" ? payload.runId : "";
+        const itemId = typeof payload.itemId === "string" ? payload.itemId : "";
+        const occurredAt =
+          typeof payload.occurredAt === "string"
+            ? payload.occurredAt
+            : event.occurredAt;
+        if (!runId || !itemId) return;
+        if (event.type === "agents.assistant-item-delta.v1") {
+          const delta = typeof payload.delta === "string" ? payload.delta : "";
+          if (!delta) return;
+          setDetail((current) =>
+            current
+              ? {
+                  ...current,
+                  items: current.items.map((item) =>
+                    item.id === itemId
+                      ? {
+                          ...item,
+                          content: `${item.content ?? ""}${delta}`,
+                          updatedAt: occurredAt,
+                        }
+                      : item,
+                  ),
+                }
+              : current,
+          );
+          return;
+        }
+        const status =
+          payload.status === "completed" || payload.status === "failed"
+            ? payload.status
+            : "streaming";
+        const content =
+          typeof payload.content === "string" ? payload.content : undefined;
+        setDetail((current) => {
+          if (!current) return current;
+          const existing = current.items.find((item) => item.id === itemId);
+          const item: AgentItem = {
+            id: itemId,
+            runId,
+            sequence:
+              typeof payload.sequence === "number"
+                ? payload.sequence
+                : (existing?.sequence ?? current.items.length + 1),
+            type: "message",
+            status,
+            ...(content ? { content } : {}),
+            createdAt: existing?.createdAt ?? occurredAt,
+            updatedAt: occurredAt,
+          };
+          return {
+            ...current,
+            items: upsertGlobalAgentItem(current.items, item),
+          };
+        });
+        return;
+      }
+      if (
+        (event.type.startsWith("assistant_turn.") ||
+          event.type.startsWith("agents.assistant-")) &&
         payload.sessionId === detail.conversation.id &&
         conversationId
       ) {
@@ -15466,7 +15707,35 @@ function AgentSidePanel() {
         { message: userMessage, ...(taskType ? { taskType } : {}) },
       );
       setDraft("");
+      setDetail((current) => {
+        const previous =
+          current?.conversation.id === conversation.id
+            ? current
+            : {
+                conversation: started.conversation,
+                turns: [],
+                runs: [],
+                items: [],
+                changePreviews: [],
+                providerActionPreviews: [],
+              };
+        return {
+          ...previous,
+          conversation: started.conversation,
+          turns: [
+            ...previous.turns.filter((turn) => turn.id !== started.turn.id),
+            started.turn,
+          ],
+          runs: started.run
+            ? [
+                ...previous.runs.filter((run) => run.id !== started.run?.id),
+                started.run,
+              ]
+            : previous.runs,
+        };
+      });
       await loadDetail(conversation.id);
+      void loadConversations(conversation.id);
       if (!started.run)
         setNotice(started.turn.route?.clarification ?? "请补充任务上下文");
     } catch (cause) {
@@ -15542,7 +15811,6 @@ function AgentSidePanel() {
           </div>
           <BareButton
             className="rounded-lg border border-line px-2 py-1.5 text-xs"
-            disabled={Boolean(activeRun && activeRun.status !== "interrupted")}
             onClick={() => beginNewConversation()}
           >
             新对话
@@ -15601,7 +15869,6 @@ function AgentSidePanel() {
             aria-label="智能助手引擎"
             className="min-w-0 rounded-lg border border-line bg-canvas px-2 py-1.5 text-xs"
             value={engineKind}
-            disabled={Boolean(activeRun)}
             onChange={(event) =>
               selectEngine(event.target.value as AgentEngineKind)
             }
@@ -15914,7 +16181,7 @@ export function AgentTaskConfigPanel() {
   });
   const [projectId, setProjectId] = useState("");
   const [chapterId, setChapterId] = useState("");
-  const [engineKind, setEngineKind] = useState<AgentEngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [taskType, setTaskType] = useState<AgentTaskType>("chapter_diagnostic");
   const [modelId, setModelId] = useState("");
   const [experimentMode, setExperimentMode] = useState<
@@ -16120,17 +16387,17 @@ export function AgentTaskConfigPanel() {
         selectedTask?.writePolicy === "readonly" ? 1_200 : 2_400;
       const confirmed = await confirmDialog(
         [
-          "六引擎盲测会分别调用 OpenCode、Codex、DeepSeek Harness、Pi、Grok Build 和 LangGraph.js，共产生六次模型费用。",
+          "三引擎盲测会分别调用 Pi、Codex 和 Grok Build，共产生三次模型费用。",
           experimentMode === "same_model"
-            ? `比较方式：六个引擎统一使用模型 ${modelId.trim()}。`
+            ? `比较方式：三个引擎统一使用模型 ${modelId.trim()}。`
             : "比较方式：各引擎使用各自当前推荐配置。",
-          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedInputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
-          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；六次合计约 ${(estimatedOutputPerEngine * 6).toLocaleString("zh-CN")} Token。`,
+          `预估输入：每个引擎约 ${estimatedInputPerEngine.toLocaleString("zh-CN")} Token；三次合计约 ${(estimatedInputPerEngine * 3).toLocaleString("zh-CN")} Token。`,
+          `预估输出上限：每个引擎约 ${estimatedOutputPerEngine.toLocaleString("zh-CN")} Token；三次合计约 ${(estimatedOutputPerEngine * 3).toLocaleString("zh-CN")} Token。`,
           "预估费用：各引擎的模型与认证计价可能不同，未配置统一单价时无法可靠折算金额；应用会在运行后记录实际 Token 与厂商返回的费用。",
           "确认开始吗？",
         ].join("\n\n"),
       );
-      if (!confirmed) throw new Error("已取消六引擎盲测");
+      if (!confirmed) throw new Error("已取消三引擎盲测");
       return client.agentExperiments.create(
         {
           projectId,
@@ -16148,7 +16415,7 @@ export function AgentTaskConfigPanel() {
     },
     onSuccess: (experiment) => {
       setExperimentId(experiment.id);
-      setNotice("六引擎盲测已开始，结果将匿名展示");
+      setNotice("三引擎盲测已开始，结果将匿名展示");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -16162,13 +16429,19 @@ export function AgentTaskConfigPanel() {
         : false,
   });
   const reviewExperiment = useMutation({
-    mutationFn: (
-      preferredCandidate:
-        "one" | "two" | "three" | "four" | "five" | "six" | "tie",
-    ) => client.agentExperiments.review(experimentId!, { preferredCandidate }),
+    mutationFn: (preferredCandidate: "a" | "b" | "c" | "tie") =>
+      client.agentExperiments.review(experimentId!, { preferredCandidate }),
     onSuccess: (result) => {
       queryClient.setQueryData(["agent-experiment", result.id], result);
       setNotice("盲测评价已保存，现在可以查看引擎名称");
+    },
+    onError: (cause) => setNotice(message(cause)),
+  });
+  const revealExperiment = useMutation({
+    mutationFn: () => client.agentExperiments.reveal(experimentId!),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["agent-experiment", result.id], result);
+      setNotice("盲测引擎已揭晓");
     },
     onError: (cause) => setNotice(message(cause)),
   });
@@ -16393,7 +16666,7 @@ export function AgentTaskConfigPanel() {
               }
             >
               <option value="recommended">各引擎推荐配置</option>
-              <option value="same_model">六个引擎使用同一模型</option>
+              <option value="same_model">三个引擎使用同一模型</option>
             </select>
           </label>
           {requiresChapter && !chapterId && (
@@ -16438,7 +16711,7 @@ export function AgentTaskConfigPanel() {
             }
             onClick={() => createExperiment.mutate()}
           >
-            {createExperiment.isPending ? "正在创建盲测…" : "启动六引擎盲测"}
+            {createExperiment.isPending ? "正在创建盲测…" : "启动三引擎盲测"}
           </BareButton>
         </>
       )}
@@ -16514,6 +16787,8 @@ export function AgentTaskConfigPanel() {
           experiment={experiment}
           reviewing={reviewExperiment.isPending}
           onReview={(candidate) => reviewExperiment.mutate(candidate)}
+          revealing={revealExperiment.isPending}
+          onReveal={() => revealExperiment.mutate()}
         />
       )}
       {notice && <p className="mt-3 text-xs leading-5 text-muted">{notice}</p>}
@@ -16527,23 +16802,20 @@ export function AgentTaskConfigPanel() {
 function AgentExperimentCard(props: {
   experiment: AgentExperiment;
   reviewing: boolean;
-  onReview(
-    candidate: "one" | "two" | "three" | "four" | "five" | "six" | "tie",
-  ): void;
+  onReview(candidate: "a" | "b" | "c" | "tie"): void;
+  revealing: boolean;
+  onReveal(): void;
 }) {
   const candidateLabels = {
-    one: "方案一",
-    two: "方案二",
-    three: "方案三",
-    four: "方案四",
-    five: "方案五",
-    six: "方案六",
+    a: "方案 A",
+    b: "方案 B",
+    c: "方案 C",
   };
   const candidateCount = props.experiment.candidates?.length ?? 0;
   return (
     <section className="mt-4 rounded-xl border border-line bg-surface-raised p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">{candidateCount || 6} 引擎盲测</p>
+        <p className="text-sm font-medium">{candidateCount || 3} 引擎盲测</p>
         <span className="text-xs text-muted">
           {props.experiment.status === "ready_for_review"
             ? "等待评价"
@@ -16567,7 +16839,7 @@ function AgentExperimentCard(props: {
           >
             <p className="font-medium">
               {candidateLabels[candidate.candidate]}
-              {candidate.engineKind
+              {props.experiment.revealed && candidate.engineKind
                 ? ` · ${AGENT_EXPERIMENT_ENGINE_LABELS[candidate.engineKind]}`
                 : ""}
             </p>
@@ -16613,6 +16885,16 @@ function AgentExperimentCard(props: {
           {candidateCount} 个方案相当
         </BareButton>
       )}
+      {props.experiment.status === "completed" &&
+        !props.experiment.revealed && (
+          <BareButton
+            className="mt-2 rounded-md border border-brand px-2 py-1 text-xs text-brand disabled:opacity-50"
+            disabled={props.revealing}
+            onClick={props.onReveal}
+          >
+            {props.revealing ? "正在揭晓…" : "揭晓引擎"}
+          </BareButton>
+        )}
     </section>
   );
 }

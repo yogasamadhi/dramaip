@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 type PiProviderConfiguration = {
@@ -59,6 +60,8 @@ type PiRuntimeSession = {
     prompt: string,
     onEvent: (event: PiRuntimeEvent) => void,
   ): Promise<{ text: string }>;
+  steer(prompt: string): Promise<void>;
+  compact(): Promise<void>;
   abort(): Promise<void>;
   close(): Promise<void>;
 };
@@ -80,6 +83,7 @@ type SessionState = {
   runtime?: PiRuntimeSession;
   runtimeKey?: string;
   activeRunId?: string;
+  capabilityGrant?: { endpoint: string; token: string; expiresAt: string };
 };
 
 const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort })
@@ -194,13 +198,34 @@ async function perform(
         : {}),
       ...(selectedModel(payload) ? { model: selectedModel(payload) } : {}),
     });
+    await persistSession(sessions.get(id)!);
     return { id };
   }
   if (operation === "run") return run(payload);
-  if (operation === "interrupt") {
-    const session = sessions.get(String(payload.engineSessionId ?? ""));
+  if (operation === "interrupt" || operation === "cancel") {
+    const session = sessionForPayload(payload);
     if (session?.runtime) await session.runtime.abort();
     return { ok: true };
+  }
+  if (operation === "steer") {
+    const session = sessionForPayload(payload);
+    const prompt = String(payload.prompt ?? "").trim();
+    if (!session?.runtime) throw new Error("Pi 没有可引导的活动会话");
+    if (!prompt) throw new Error("Pi 引导消息为空");
+    await session.runtime.steer(prompt);
+    return { ok: true };
+  }
+  if (operation === "compact") {
+    const session = sessionForPayload(payload);
+    if (!session?.runtime) throw new Error("Pi 没有可压缩的活动会话");
+    await session.runtime.compact();
+    return { ok: true };
+  }
+  if (operation === "resume") {
+    const id = String(payload.engineSessionId ?? "");
+    const session = await restoreSession(id);
+    if (!session) throw new Error("Pi 会话检查点不存在");
+    return { id: session.id };
   }
   if (operation === "fork") {
     const source = sessions.get(String(payload.engineSessionId ?? ""));
@@ -213,6 +238,7 @@ async function perform(
       ...(source.chapterId ? { chapterId: source.chapterId } : {}),
       ...(source.model ? { model: source.model } : {}),
     });
+    await persistSession(sessions.get(id)!);
     return { id };
   }
   if (operation === "dispose") {
@@ -220,6 +246,7 @@ async function perform(
     const session = sessions.get(id);
     if (session) await resetRuntime(session);
     sessions.delete(id);
+    await removeSessionCheckpoint(id);
     return { ok: true };
   }
   throw new Error(`Pi 不支持操作：${operation}`);
@@ -233,7 +260,7 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   const runId = String(payload.runId ?? "");
   const prompt = String(payload.prompt ?? "");
   if (!sessionId || !runId || !prompt) throw new Error("Pi 运行参数不完整");
-  let session = sessions.get(sessionId);
+  let session = sessions.get(sessionId) ?? (await restoreSession(sessionId));
   if (!session) {
     const projectId = String(payload.projectId ?? "");
     if (!projectId) throw new Error("Pi 恢复检查点缺少项目编号");
@@ -251,6 +278,9 @@ async function run(payload: Record<string, unknown>): Promise<unknown> {
   const requestedModel = selectedModel(payload);
   const model = requestedModel ?? session.model ?? activeProvider.model;
   if (requestedModel) session.model = requestedModel;
+  const capabilityGrant = capabilityGrantFrom(payload);
+  if (capabilityGrant) session.capabilityGrant = capabilityGrant;
+  await persistSession(session);
   session.activeRunId = runId;
   try {
     const runtime = await ensureRuntime(
@@ -291,7 +321,12 @@ async function ensureRuntime(
   const runtime = await module.createPiSession({
     sessionId: session.id,
     provider: { ...configuration, model },
-    mcp: command.mcp,
+    mcp: session.capabilityGrant
+      ? {
+          url: session.capabilityGrant.endpoint || command.mcp.url,
+          token: session.capabilityGrant.token,
+        }
+      : command.mcp,
   });
   session.runtime = runtime;
   session.runtimeKey = runtimeKey;
@@ -306,16 +341,98 @@ async function resetRuntime(session: SessionState): Promise<void> {
 }
 
 async function stop(): Promise<void> {
-  const command = startCommand;
   await Promise.allSettled([...sessions.values()].map(resetRuntime));
   sessions.clear();
-  if (command) await rm(command.sessionRoot, { recursive: true, force: true });
+  // Session metadata is intentionally retained so a Host-supervised Pi
+  // process can reattach after restart. Individual sessions are removed only
+  // through the explicit dispose operation.
   provider = undefined;
   providerGeneration = 0;
   runtimeModule = undefined;
   startCommand = undefined;
   parentPort!.postMessage({ type: "stopped" });
   process.exit(0);
+}
+
+function sessionForPayload(
+  payload: Record<string, unknown>,
+): SessionState | undefined {
+  const sessionId = String(payload.engineSessionId ?? "");
+  if (sessionId) return sessions.get(sessionId);
+  const runId = String(payload.runId ?? "");
+  return runId
+    ? [...sessions.values()].find((session) => session.activeRunId === runId)
+    : undefined;
+}
+
+function capabilityGrantFrom(
+  payload: Record<string, unknown>,
+): SessionState["capabilityGrant"] | undefined {
+  const value = payload.capabilityGrant;
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.endpoint !== "string" ||
+    typeof record.token !== "string" ||
+    typeof record.expiresAt !== "string"
+  )
+    return undefined;
+  return {
+    endpoint: record.endpoint,
+    token: record.token,
+    expiresAt: record.expiresAt,
+  };
+}
+
+async function persistSession(session: SessionState): Promise<void> {
+  if (!startCommand) return;
+  // Provider secrets and per-run grants never enter this checkpoint.
+  const checkpoint = {
+    id: session.id,
+    title: session.title,
+    projectId: session.projectId,
+    ...(session.chapterId ? { chapterId: session.chapterId } : {}),
+    ...(session.model ? { model: session.model } : {}),
+  };
+  await writeFile(
+    join(startCommand.sessionRoot, `${session.id}.json`),
+    JSON.stringify(checkpoint),
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
+async function restoreSession(id: string): Promise<SessionState | undefined> {
+  if (!id || sessions.has(id) || !startCommand) return sessions.get(id);
+  try {
+    const value = JSON.parse(
+      await readFile(join(startCommand.sessionRoot, `${id}.json`), "utf8"),
+    ) as Record<string, unknown>;
+    if (
+      value.id !== id ||
+      typeof value.title !== "string" ||
+      typeof value.projectId !== "string"
+    )
+      return undefined;
+    const session: SessionState = {
+      id,
+      title: value.title,
+      projectId: value.projectId,
+      ...(typeof value.chapterId === "string"
+        ? { chapterId: value.chapterId }
+        : {}),
+      ...(typeof value.model === "string" ? { model: value.model } : {}),
+    };
+    sessions.set(id, session);
+    return session;
+  } catch {
+    return undefined;
+  }
+}
+
+async function removeSessionCheckpoint(id: string): Promise<void> {
+  if (!startCommand || !id) return;
+  await rm(join(startCommand.sessionRoot, `${id}.json`), { force: true });
 }
 
 function selectedModel(payload: Record<string, unknown>): string | undefined {

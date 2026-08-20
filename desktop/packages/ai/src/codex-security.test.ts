@@ -62,7 +62,7 @@ test("Codex 自定义服务商使用独立凭据环境变量和 Responses API", 
     "model_providers.dramaip_custom.requires_openai_auth=false",
   );
   expect(source).toContain("model_catalog_json");
-  expect(source).toContain("prepareCustomModelCatalog");
+  expect(source).toContain("prepareModelCatalog");
   expect(source).toContain('mode === "custom_provider"');
 });
 

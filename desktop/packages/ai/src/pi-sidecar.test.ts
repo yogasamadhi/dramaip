@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 type PortMessage = Record<string, unknown> & { type: string };
 
-test("Pi Sidecar isolates sessions and rebuilds embedded runtimes", async () => {
+test("Pi Sidecar isolates sessions, rebuilds runtimes, and keeps resumable checkpoints", async () => {
   const directory = await mkdtemp(join(tmpdir(), "dramaip-pi-sidecar-"));
   const sessionRoot = join(directory, "sessions");
   const runtimeModule = join(directory, "fake-pi-runtime.mjs");
@@ -182,7 +182,8 @@ export async function createPiSession(options) {
 
     send({ type: "stop" });
     await next((message) => message.type === "stopped");
-    expect(existsSync(sessionRoot)).toBe(false);
+    expect(existsSync(sessionRoot)).toBe(true);
+    expect(existsSync(join(sessionRoot, `${sessionId}.json`))).toBe(true);
   } finally {
     Object.defineProperty(process, "exit", {
       configurable: true,

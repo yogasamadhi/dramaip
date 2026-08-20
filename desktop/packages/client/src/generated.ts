@@ -1,10 +1,11 @@
-/* 此文件由 @sdns/protocol 的 Effect HttpApi/OpenAPI 契约生成，请勿直接编辑。 */
-import type { HttpApiClient } from "effect/unstable/httpapi";
-import type { StudioApi as StudioApiContract } from "@sdns/protocol";
+/* 此文件封装由三引擎 alpha.3 OpenAPI 快照生成的第一方 Client。 */
+import type { RuntimeBootstrap, RuntimeInfo } from "@dramaip/contracts";
+import {
+  createGeneratedOpenApiClient,
+  openGeneratedEventStream,
+  requestGeneratedApi,
+} from "./openapi-client.js";
 
-export const OPENAPI_CONTRACT_SHA256 =
-  "b212faf1506b8a43ab9cd7b8558f010206cdf051d9d2857fa3889179404b0332";
-export type EffectGeneratedClient = HttpApiClient.ForApi<StudioApiContract>;
 import type {
   AgentRunInput,
   AgentRun,
@@ -182,13 +183,9 @@ import type {
   Task,
   TaskInput,
   TaskRetryInput,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 
-export interface StudioClientOptions {
-  url: string;
-  username: string;
-  password: string;
-}
+export type StudioClientOptions = RuntimeBootstrap;
 
 export class StudioClientError extends Error {
   readonly status: number;
@@ -201,7 +198,22 @@ export class StudioClientError extends Error {
   }
 }
 
+function asApiError(value: unknown): ApiError {
+  const source = value as Partial<ApiError> & {
+    title?: string;
+    detail?: string;
+    traceId?: string;
+  };
+  return {
+    code: source.code ?? "INTERNAL_ERROR",
+    message: source.message ?? source.detail ?? source.title ?? "请求失败",
+    requestId: source.requestId ?? source.traceId ?? crypto.randomUUID(),
+    ...(source.details === undefined ? {} : { details: source.details }),
+  };
+}
+
 export interface StudioClient {
+  runtime: { info(): Promise<RuntimeInfo> };
   projects: {
     list(): Promise<Project[]>;
     get(id: string): Promise<Project>;
@@ -345,6 +357,7 @@ export interface StudioClient {
       id: string,
       input: AgentExperimentReviewInput,
     ): Promise<AgentExperiment>;
+    reveal(id: string): Promise<AgentExperiment>;
   };
   changePreviews: {
     get(id: string): Promise<ChangePreview>;
@@ -707,23 +720,44 @@ export interface StudioClient {
     ): Promise<DomainEntity>;
     remove(domain: string, id: string): Promise<void>;
   };
+  host: {
+    pickFiles(options?: {
+      multiple?: boolean;
+      extensions?: string[];
+    }): Promise<Array<{
+      token: string;
+      name: string;
+      expiresAt: number;
+    }> | null>;
+    saveTextFile(input: {
+      suggestedName: string;
+      content: string;
+    }): Promise<{ saved: boolean }>;
+    openExternal(url: string): Promise<void>;
+    revealPath(path: string): Promise<void>;
+    storeCredential(secret: string): Promise<{ credentialRef: string }>;
+    removeCredential(credentialRef: string): Promise<void>;
+    getCredentialStorageStatus(): Promise<{
+      available: boolean;
+      storage: "local_encrypted_file";
+      message?: string;
+    }>;
+    setWindowTheme(theme: "light" | "dark"): Promise<void>;
+  };
 }
 
 export function createStudioClient(options: StudioClientOptions): StudioClient {
-  const auth = `Basic ${btoa(`${options.username}:${options.password}`)}`;
+  const generatedClient = createGeneratedOpenApiClient(options);
   const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-    const headers = new Headers(init?.headers);
-    headers.set("Authorization", auth);
-    headers.set("Content-Type", "application/json");
-    const response = await fetch(new URL(path, options.url), {
-      ...init,
-      headers,
-    });
+    const { response, data, error } = await requestGeneratedApi(
+      generatedClient,
+      path,
+      init,
+    );
     if (response.status === 204) return undefined as T;
-    const body = (await response.json()) as T | ApiError;
     if (!response.ok)
-      throw new StudioClientError(response.status, body as ApiError);
-    return body as T;
+      throw new StudioClientError(response.status, asApiError(error));
+    return data as T;
   };
   const subscribe = (onEvent: (event: EventEnvelope) => void): (() => void) => {
     let disposed = false;
@@ -734,21 +768,15 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
       while (!disposed) {
         controller = new AbortController();
         try {
-          const response = await fetch(
-            new URL(`/api/v1/events?cursor=${cursor}`, options.url),
-            {
-              headers: {
-                Authorization: auth,
-                Accept: "text/event-stream",
-                ...(cursor ? { "Last-Event-ID": String(cursor) } : {}),
-              },
-              signal: controller.signal,
-            },
+          const response = await openGeneratedEventStream(
+            options,
+            cursor,
+            controller.signal,
           );
           if (!response.ok || !response.body)
             throw new StudioClientError(
               response.status,
-              (await response.json()) as ApiError,
+              asApiError(await response.json()),
             );
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -791,64 +819,104 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     };
   };
   return {
+    runtime: { info: () => request("/api/v2/runtime") },
+    host: {
+      pickFiles: (options = {}) =>
+        request("/api/v2/system/host/files/pick", {
+          method: "POST",
+          body: JSON.stringify(options),
+        }),
+      saveTextFile: (input) =>
+        request("/api/v2/system/host/files/save-text", {
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
+      openExternal: (url) =>
+        request("/api/v2/system/host/open-external", {
+          method: "POST",
+          body: JSON.stringify({ url }),
+        }),
+      revealPath: (path) =>
+        request("/api/v2/system/host/reveal-path", {
+          method: "POST",
+          body: JSON.stringify({ path }),
+        }),
+      storeCredential: (secret) =>
+        request("/api/v2/system/host/credentials", {
+          method: "POST",
+          body: JSON.stringify({ secret }),
+        }),
+      removeCredential: (credentialRef) =>
+        request(
+          `/api/v2/system/host/credentials/${encodeURIComponent(credentialRef)}`,
+          { method: "DELETE" },
+        ),
+      getCredentialStorageStatus: () =>
+        request("/api/v2/system/host/credentials/status"),
+      setWindowTheme: (theme) =>
+        request("/api/v2/system/host/window/theme", {
+          method: "POST",
+          body: JSON.stringify({ theme }),
+        }),
+    },
     projects: {
-      list: () => request("/api/v1/projects"),
-      get: (id) => request(`/api/v1/projects/${id}`),
+      list: () => request("/api/v2/projects"),
+      get: (id) => request(`/api/v2/projects/${id}`),
       create: (input) =>
-        request("/api/v1/projects", {
+        request("/api/v2/projects", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       update: (id, input) =>
-        request(`/api/v1/projects/${id}`, {
+        request(`/api/v2/projects/${id}`, {
           method: "PATCH",
           body: JSON.stringify(input),
         }),
-      listTrash: () => request("/api/v1/projects/trash"),
+      listTrash: () => request("/api/v2/projects/trash"),
       trash: (id) =>
-        request(`/api/v1/projects/${id}/trash`, { method: "POST" }),
+        request(`/api/v2/projects/${id}/trash`, { method: "POST" }),
       restore: (id) =>
-        request(`/api/v1/projects/${id}/restore`, { method: "POST" }),
+        request(`/api/v2/projects/${id}/restore`, { method: "POST" }),
       purge: (id, confirmationTitle) =>
-        request(`/api/v1/projects/${id}`, {
+        request(`/api/v2/projects/${id}`, {
           method: "DELETE",
           body: JSON.stringify({ confirmationTitle }),
         }),
     },
     series: {
-      list: () => request("/api/v1/series"),
+      list: () => request("/api/v2/series"),
       create: (input) =>
-        request("/api/v1/series", {
+        request("/api/v2/series", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       library: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/series-library`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/series-library`,
         ),
       setProjectSeries: (projectId, input) =>
-        request(`/api/v1/projects/${encodeURIComponent(projectId)}/series`, {
+        request(`/api/v2/projects/${encodeURIComponent(projectId)}/series`, {
           method: "PUT",
           body: JSON.stringify(input),
         }),
       createStoryBible: (seriesId, input) =>
-        request(`/api/v1/series/${encodeURIComponent(seriesId)}/story-bible`, {
+        request(`/api/v2/series/${encodeURIComponent(seriesId)}/story-bible`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       overrideStoryBible: (projectId, storyBibleId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/override`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/override`,
           { method: "PUT", body: JSON.stringify(input) },
         ),
       upgradeStoryBible: (projectId, storyBibleId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/upgrade`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/series-story-bible/${encodeURIComponent(storyBibleId)}/upgrade`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       transferAsset: (projectId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/series-assets`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/series-assets`,
           {
             method: "POST",
             body: JSON.stringify(input),
@@ -856,33 +924,33 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
     },
     chapters: {
-      list: (projectId) => request(`/api/v1/projects/${projectId}/chapters`),
-      get: (id) => request(`/api/v1/chapters/${id}`),
+      list: (projectId) => request(`/api/v2/projects/${projectId}/chapters`),
+      get: (id) => request(`/api/v2/chapters/${id}`),
       create: (input) =>
-        request("/api/v1/chapters", {
+        request("/api/v2/chapters", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       update: (id, input) =>
-        request(`/api/v1/chapters/${id}`, {
+        request(`/api/v2/chapters/${id}`, {
           method: "PATCH",
           body: JSON.stringify(input),
         }),
       reorder: (projectId, input) =>
-        request(`/api/v1/projects/${projectId}/chapters/reorder`, {
+        request(`/api/v2/projects/${projectId}/chapters/reorder`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
-      remove: (id) => request(`/api/v1/chapters/${id}`, { method: "DELETE" }),
+      remove: (id) => request(`/api/v2/chapters/${id}`, { method: "DELETE" }),
     },
     novelWorkspace: {
       get: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/novel-workspace`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/novel-workspace`,
         ),
       runChapterAgent: (chapterId, input, idempotencyKey) =>
         request(
-          `/api/v1/chapters/${encodeURIComponent(chapterId)}/agent-runs`,
+          `/api/v2/chapters/${encodeURIComponent(chapterId)}/agent-runs`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -891,7 +959,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       continueChapter: (projectId, input, idempotencyKey) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/chapters/continue`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/chapters/continue`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -899,82 +967,82 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
           },
         ),
       listChapterVersions: (chapterId) =>
-        request(`/api/v1/chapters/${encodeURIComponent(chapterId)}/versions`),
+        request(`/api/v2/chapters/${encodeURIComponent(chapterId)}/versions`),
       restoreChapterVersion: (chapterId, versionId, input) =>
         request(
-          `/api/v1/chapters/${encodeURIComponent(chapterId)}/versions/${encodeURIComponent(versionId)}/restore`,
+          `/api/v2/chapters/${encodeURIComponent(chapterId)}/versions/${encodeURIComponent(versionId)}/restore`,
           { method: "POST", body: JSON.stringify(input) },
         ),
     },
     tasks: {
-      list: () => request("/api/v1/tasks"),
+      list: () => request("/api/v2/tasks"),
       create: (input, idempotencyKey) =>
-        request("/api/v1/tasks", {
+        request("/api/v2/tasks", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
-      cancel: (id) => request(`/api/v1/tasks/${id}/cancel`, { method: "POST" }),
+      cancel: (id) => request(`/api/v2/tasks/${id}/cancel`, { method: "POST" }),
       retry: (id, input) =>
-        request(`/api/v1/tasks/${id}/retry`, {
+        request(`/api/v2/tasks/${id}/retry`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
     },
     revisions: {
       create: (input, idempotencyKey) =>
-        request("/api/v1/revisions", {
+        request("/api/v2/revisions", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
-      get: (id) => request(`/api/v1/revisions/${id}`),
+      get: (id) => request(`/api/v2/revisions/${id}`),
       commit: (id, version, idempotencyKey) =>
-        request(`/api/v1/revisions/${id}/commit`, {
+        request(`/api/v2/revisions/${id}/commit`, {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify({ version }),
         }),
       discard: (id, idempotencyKey) =>
-        request(`/api/v1/revisions/${id}/discard`, {
+        request(`/api/v2/revisions/${id}/discard`, {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
         }),
     },
     agentSessions: {
       create: (input) =>
-        request("/api/v1/agent-sessions", {
+        request("/api/v2/agent-sessions", {
           method: "POST",
           body: JSON.stringify(input),
         }),
-      get: (id) => request(`/api/v1/agent-sessions/${encodeURIComponent(id)}`),
+      get: (id) => request(`/api/v2/agent-sessions/${encodeURIComponent(id)}`),
       run: (id, input = {}, idempotencyKey = crypto.randomUUID()) =>
-        request(`/api/v1/agent-sessions/${id}/runs`, {
+        request(`/api/v2/agent-sessions/${id}/runs`, {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
-      getRun: (id) => request(`/api/v1/agent-runs/${encodeURIComponent(id)}`),
+      getRun: (id) => request(`/api/v2/agent-runs/${encodeURIComponent(id)}`),
       listItems: (id) =>
-        request(`/api/v1/agent-runs/${encodeURIComponent(id)}/items`),
+        request(`/api/v2/agent-runs/${encodeURIComponent(id)}/items`),
       interrupt: (id) =>
-        request(`/api/v1/agent-runs/${encodeURIComponent(id)}/interrupt`, {
+        request(`/api/v2/agent-runs/${encodeURIComponent(id)}/interrupt`, {
           method: "POST",
         }),
       resume: (id) =>
-        request(`/api/v1/agent-runs/${encodeURIComponent(id)}/resume`, {
+        request(`/api/v2/agent-runs/${encodeURIComponent(id)}/resume`, {
           method: "POST",
         }),
       fork: (id) =>
-        request(`/api/v1/agent-sessions/${encodeURIComponent(id)}/fork`, {
+        request(`/api/v2/agent-sessions/${encodeURIComponent(id)}/fork`, {
           method: "POST",
         }),
       dispose: (id) =>
-        request(`/api/v1/agent-sessions/${encodeURIComponent(id)}`, {
+        request(`/api/v2/agent-sessions/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
       abort: (id) =>
-        request(`/api/v1/agent-sessions/${id}/abort`, { method: "POST" }),
+        request(`/api/v2/agent-sessions/${id}/abort`, { method: "POST" }),
     },
     assistantConversations: {
       list: (input = {}) => {
@@ -984,101 +1052,105 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         if (input.archived !== undefined)
           query.set("archived", String(input.archived));
         const suffix = query.size > 0 ? `?${query.toString()}` : "";
-        return request(`/api/v1/assistant-conversations${suffix}`);
+        return request(`/api/v2/assistant-conversations${suffix}`);
       },
       create: (input) =>
-        request("/api/v1/assistant-conversations", {
+        request("/api/v2/assistant-conversations", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       get: (id) =>
-        request(`/api/v1/assistant-conversations/${encodeURIComponent(id)}`),
+        request(`/api/v2/assistant-conversations/${encodeURIComponent(id)}`),
       update: (id, input) =>
-        request(`/api/v1/assistant-conversations/${encodeURIComponent(id)}`, {
+        request(`/api/v2/assistant-conversations/${encodeURIComponent(id)}`, {
           method: "PATCH",
           body: JSON.stringify(input),
         }),
       bindProject: (id, input) =>
         request(
-          `/api/v1/assistant-conversations/${encodeURIComponent(id)}/bind-project`,
+          `/api/v2/assistant-conversations/${encodeURIComponent(id)}/bind-project`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       sendMessage: (id, input) =>
         request(
-          `/api/v1/assistant-conversations/${encodeURIComponent(id)}/messages`,
+          `/api/v2/assistant-conversations/${encodeURIComponent(id)}/messages`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       remove: (id) =>
-        request(`/api/v1/assistant-conversations/${encodeURIComponent(id)}`, {
+        request(`/api/v2/assistant-conversations/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
     },
     agentEngines: {
-      list: () => request("/api/v1/agent-engines"),
-      listTasks: () => request("/api/v1/agent-tasks"),
-      getGlobalSettings: () => request("/api/v1/agent-settings"),
+      list: () => request("/api/v2/agent-engines"),
+      listTasks: () => request("/api/v2/agent-tasks"),
+      getGlobalSettings: () => request("/api/v2/agent-settings"),
       updateGlobalSettings: (input) =>
-        request("/api/v1/agent-settings", {
+        request("/api/v2/agent-settings", {
           method: "PUT",
           body: JSON.stringify(input),
         }),
       getProjectSettings: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/agent-settings`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/agent-settings`,
         ),
       updateProjectSettings: (projectId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/agent-settings`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/agent-settings`,
           { method: "PUT", body: JSON.stringify(input) },
         ),
-      codexAuthStatus: () => request("/api/v1/agent-engines/codex/auth"),
+      codexAuthStatus: () => request("/api/v2/agent-engines/codex/auth"),
       codexLogin: (input) =>
-        request("/api/v1/agent-engines/codex/login", {
+        request("/api/v2/agent-engines/codex/login", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       codexLogout: () =>
-        request("/api/v1/agent-engines/codex/logout", { method: "POST" }),
+        request("/api/v2/agent-engines/codex/logout", { method: "POST" }),
     },
     agentExperiments: {
       create: (input, idempotencyKey) =>
-        request("/api/v1/agent-experiments", {
+        request("/api/v2/agent-experiments", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
       get: (id) =>
-        request(`/api/v1/agent-experiments/${encodeURIComponent(id)}`),
+        request(`/api/v2/agent-experiments/${encodeURIComponent(id)}`),
       review: (id, input) =>
-        request(`/api/v1/agent-experiments/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/agent-experiments/${encodeURIComponent(id)}/review`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
+      reveal: (id) =>
+        request(`/api/v2/agent-experiments/${encodeURIComponent(id)}/reveal`, {
+          method: "POST",
+        }),
     },
     changePreviews: {
-      get: (id) => request(`/api/v1/change-previews/${encodeURIComponent(id)}`),
+      get: (id) => request(`/api/v2/change-previews/${encodeURIComponent(id)}`),
       updateContent: (id, input) =>
-        request(`/api/v1/change-previews/${encodeURIComponent(id)}/content`, {
+        request(`/api/v2/change-previews/${encodeURIComponent(id)}/content`, {
           method: "PUT",
           body: JSON.stringify(input),
         }),
       commit: (id, idempotencyKey) =>
-        request(`/api/v1/change-previews/${encodeURIComponent(id)}/commit`, {
+        request(`/api/v2/change-previews/${encodeURIComponent(id)}/commit`, {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
         }),
       discard: (id, idempotencyKey) =>
-        request(`/api/v1/change-previews/${encodeURIComponent(id)}/discard`, {
+        request(`/api/v2/change-previews/${encodeURIComponent(id)}/discard`, {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
         }),
     },
     providerActionPreviews: {
       get: (id) =>
-        request(`/api/v1/provider-action-previews/${encodeURIComponent(id)}`),
+        request(`/api/v2/provider-action-previews/${encodeURIComponent(id)}`),
       execute: (id, idempotencyKey) =>
         request(
-          `/api/v1/provider-action-previews/${encodeURIComponent(id)}/execute`,
+          `/api/v2/provider-action-previews/${encodeURIComponent(id)}/execute`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -1086,7 +1158,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       discard: (id, idempotencyKey) =>
         request(
-          `/api/v1/provider-action-previews/${encodeURIComponent(id)}/discard`,
+          `/api/v2/provider-action-previews/${encodeURIComponent(id)}/discard`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -1095,23 +1167,23 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     providers: {
       testConnection: (id) =>
-        request(`/api/v1/providers/${encodeURIComponent(id)}/test-connection`, {
+        request(`/api/v2/providers/${encodeURIComponent(id)}/test-connection`, {
           method: "POST",
         }),
       activateForAgent: (id) =>
         request(
-          `/api/v1/providers/${encodeURIComponent(id)}/activate-for-agent`,
+          `/api/v2/providers/${encodeURIComponent(id)}/activate-for-agent`,
           { method: "POST" },
         ),
     },
     storyBible: {
       settings: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/story-bible/settings`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-bible/settings`,
         ),
       updateSettings: (projectId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/story-bible/settings`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-bible/settings`,
           {
             method: "PUT",
             body: JSON.stringify(input),
@@ -1119,20 +1191,20 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       list: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/story-bible/change-sets`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-bible/change-sets`,
         ),
       stale: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/story-bible/stale`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/story-bible/stale`,
         ),
       queue: (input) =>
-        request("/api/v1/story-bible/change-sets", {
+        request("/api/v2/story-bible/change-sets", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       apply: (id, input) =>
         request(
-          `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/apply`,
+          `/api/v2/story-bible/change-sets/${encodeURIComponent(id)}/apply`,
           {
             method: "POST",
             body: JSON.stringify(input),
@@ -1140,14 +1212,14 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       undo: (id) =>
         request(
-          `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/undo`,
+          `/api/v2/story-bible/change-sets/${encodeURIComponent(id)}/undo`,
           {
             method: "POST",
           },
         ),
       setStatus: (id, status) =>
         request(
-          `/api/v1/story-bible/change-sets/${encodeURIComponent(id)}/status`,
+          `/api/v2/story-bible/change-sets/${encodeURIComponent(id)}/status`,
           {
             method: "PATCH",
             body: JSON.stringify({ status }),
@@ -1157,11 +1229,11 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     importExtractions: {
       list: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/import-extractions/change-sets`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/import-extractions/change-sets`,
         ),
       updateCandidate: (id, candidateId, input) =>
         request(
-          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}`,
+          `/api/v2/import-extractions/change-sets/${encodeURIComponent(id)}/candidates/${encodeURIComponent(candidateId)}`,
           {
             method: "PATCH",
             body: JSON.stringify(input),
@@ -1169,7 +1241,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       adopt: (id, input = {}) =>
         request(
-          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/adopt`,
+          `/api/v2/import-extractions/change-sets/${encodeURIComponent(id)}/adopt`,
           {
             method: "POST",
             body: JSON.stringify(input),
@@ -1177,282 +1249,282 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       undo: (id) =>
         request(
-          `/api/v1/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
+          `/api/v2/import-extractions/change-sets/${encodeURIComponent(id)}/undo`,
           { method: "POST" },
         ),
     },
     pilotPlans: {
       list: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/pilot-plans`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/pilot-plans`,
         ),
       create: (input) =>
-        request("/api/v1/pilot-plans", {
+        request("/api/v2/pilot-plans", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       action: (id, input) =>
-        request(`/api/v1/pilot-plans/${encodeURIComponent(id)}/action`, {
+        request(`/api/v2/pilot-plans/${encodeURIComponent(id)}/action`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
     },
     projectPackages: {
       preview: (input) =>
-        request("/api/v1/project-packages/preview", {
+        request("/api/v2/project-packages/preview", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       commit: (id, input = {}) =>
-        request(`/api/v1/project-packages/${encodeURIComponent(id)}/commit`, {
+        request(`/api/v2/project-packages/${encodeURIComponent(id)}/commit`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       discard: (id) =>
-        request(`/api/v1/project-packages/${encodeURIComponent(id)}`, {
+        request(`/api/v2/project-packages/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
     },
     localization: {
       adopt: (id) =>
-        request(`/api/v1/localization/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/localization/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       subtitles: (id, format) =>
         request(
-          `/api/v1/localization/${encodeURIComponent(id)}/subtitles/${format}`,
+          `/api/v2/localization/${encodeURIComponent(id)}/subtitles/${format}`,
         ),
     },
     delivery: {
       export: (id) =>
-        request(`/api/v1/delivery/${encodeURIComponent(id)}/export`),
+        request(`/api/v2/delivery/${encodeURIComponent(id)}/export`),
     },
     platformDelivery: {
-      listProfiles: () => request("/api/v1/platform-delivery/profiles"),
+      listProfiles: () => request("/api/v2/platform-delivery/profiles"),
       listVariants: (adaptationId) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
         ),
       createVariant: (adaptationId, input) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/delivery-variants`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       adoptVariant: (id) =>
-        request(`/api/v1/delivery-variants/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/delivery-variants/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       listArchives: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
         ),
       preflight: (episodeId, input) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/platform-delivery/preflight`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-delivery/preflight`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       createArchive: (episodeId, input) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/platform-deliveries`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       exportArchive: (id) =>
-        request(`/api/v1/platform-deliveries/${encodeURIComponent(id)}/export`),
+        request(`/api/v2/platform-deliveries/${encodeURIComponent(id)}/export`),
     },
     timeline: {
       get: (episodeId) =>
-        request(`/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline`),
+        request(`/api/v2/episodes/${encodeURIComponent(episodeId)}/timeline`),
       command: (id, input) =>
-        request(`/api/v1/timelines/${encodeURIComponent(id)}/commands`, {
+        request(`/api/v2/timelines/${encodeURIComponent(id)}/commands`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       undo: (id) =>
-        request(`/api/v1/timelines/${encodeURIComponent(id)}/undo`, {
+        request(`/api/v2/timelines/${encodeURIComponent(id)}/undo`, {
           method: "POST",
         }),
       redo: (id) =>
-        request(`/api/v1/timelines/${encodeURIComponent(id)}/redo`, {
+        request(`/api/v2/timelines/${encodeURIComponent(id)}/redo`, {
           method: "POST",
         }),
       history: (id) =>
-        request(`/api/v1/timelines/${encodeURIComponent(id)}/history`),
+        request(`/api/v2/timelines/${encodeURIComponent(id)}/history`),
       preview: (id) =>
-        request(`/api/v1/timeline-media/${encodeURIComponent(id)}/preview`),
+        request(`/api/v2/timeline-media/${encodeURIComponent(id)}/preview`),
       deliveryManifest: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/manifest`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/manifest`,
         ),
       exportDelivery: (episodeId, format) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/export/${encodeURIComponent(format)}`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/timeline-delivery/export/${encodeURIComponent(format)}`,
         ),
       audioAssemblyPreview: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/audio-assembly/preview`,
         ),
       applyAudioAssembly: (episodeId, input) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-assembly/apply`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/audio-assembly/apply`,
           { method: "POST", body: JSON.stringify(input) },
         ),
     },
     reviewEditor: {
       timeline: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/editor-timeline`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/editor-timeline`,
         ),
       preflight: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/editor-timeline/preflight`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/editor-timeline/preflight`,
         ),
       exportTimeline: (episodeId, format) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/editor-timeline/export/${format}`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/editor-timeline/export/${format}`,
         ),
       listPackages: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/review-packages`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/review-packages`,
         ),
       createPackage: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/review-packages`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/review-packages`,
           { method: "POST" },
         ),
       exportPackage: (id) =>
-        request(`/api/v1/review-packages/${encodeURIComponent(id)}/export`),
+        request(`/api/v2/review-packages/${encodeURIComponent(id)}/export`),
       listComments: (packageId) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/comments`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/comments`,
         ),
       createComment: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/comments`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/comments`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       resolveComment: (id, resolved) =>
-        request(`/api/v1/review-comments/${encodeURIComponent(id)}`, {
+        request(`/api/v2/review-comments/${encodeURIComponent(id)}`, {
           method: "PATCH",
           body: JSON.stringify({ resolved }),
         }),
       listDecisions: (packageId) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/decisions`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/decisions`,
         ),
       createDecision: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/decisions`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/decisions`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       createRevisionPreview: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/revision-preview`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/revision-preview`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       importOffline: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/import-offline`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/import-offline`,
           { method: "POST", body: JSON.stringify(input) },
         ),
     },
     cloudReview: {
-      connection: () => request("/api/v1/cloud-review/connection"),
+      connection: () => request("/api/v2/cloud-review/connection"),
       saveConnection: (input) =>
-        request("/api/v1/cloud-review/connection", {
+        request("/api/v2/cloud-review/connection", {
           method: "PUT",
           body: JSON.stringify(input),
         }),
       preview: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-preview`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/cloud-preview`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       publish: (packageId, input) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-publish`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/cloud-publish`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       sync: (packageId) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-sync`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/cloud-sync`,
           { method: "POST" },
         ),
       binding: (packageId) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
         ),
       delete: (packageId) =>
         request(
-          `/api/v1/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
+          `/api/v2/review-packages/${encodeURIComponent(packageId)}/cloud-review`,
           { method: "DELETE" },
         ),
     },
     compliance: {
-      listProfiles: () => request("/api/v1/compliance/profiles"),
+      listProfiles: () => request("/api/v2/compliance/profiles"),
       activateProfile: (id) =>
         request(
-          `/api/v1/compliance/profiles/${encodeURIComponent(id)}/activate`,
+          `/api/v2/compliance/profiles/${encodeURIComponent(id)}/activate`,
           {
             method: "POST",
           },
         ),
       preflight: (episodeId, input) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/compliance-preflight`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/compliance-preflight`,
           { method: "POST", body: JSON.stringify(input) },
         ),
     },
     episodeMedia: {
       listVoiceProfiles: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/voice-profiles`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/voice-profiles`,
         ),
       createVoiceProfile: (input) =>
-        request("/api/v1/voice-profiles", {
+        request("/api/v2/voice-profiles", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       adoptVoiceProfile: (id) =>
-        request(`/api/v1/voice-profiles/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/voice-profiles/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       listAudioTracks: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/audio-tracks`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/audio-tracks`,
         ),
       createAudioTrack: (input) =>
-        request("/api/v1/audio-tracks", {
+        request("/api/v2/audio-tracks", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       adoptAudioTrack: (id) =>
-        request(`/api/v1/audio-tracks/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/audio-tracks/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       initializeAnimatic: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/animatic-initialization`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/animatic-initialization`,
         ),
       listAnimatics: (episodeId) =>
-        request(`/api/v1/episodes/${encodeURIComponent(episodeId)}/animatics`),
+        request(`/api/v2/episodes/${encodeURIComponent(episodeId)}/animatics`),
       createAnimatic: (input) =>
-        request("/api/v1/animatics", {
+        request("/api/v2/animatics", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       reviewAnimatic: (id, input) =>
-        request(`/api/v1/animatics/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/animatics/${encodeURIComponent(id)}/review`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       renderPreflight: (episodeId) =>
         request(
-          `/api/v1/episodes/${encodeURIComponent(episodeId)}/render-preflight`,
+          `/api/v2/episodes/${encodeURIComponent(episodeId)}/render-preflight`,
         ),
     },
     imageGeneration: {
       run: (input, idempotencyKey) =>
-        request("/api/v1/image-generation/runs", {
+        request("/api/v2/image-generation/runs", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
@@ -1460,7 +1532,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     ttsGeneration: {
       run: (input, idempotencyKey) =>
-        request("/api/v1/tts-generation/runs", {
+        request("/api/v2/tts-generation/runs", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
@@ -1469,7 +1541,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     videoGeneration: {
       batchPreflight: (projectId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/video-generation/batch-preflight`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/video-generation/batch-preflight`,
           {
             method: "POST",
             body: JSON.stringify(input),
@@ -1477,37 +1549,37 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       preflight: (shotId, input) =>
         request(
-          `/api/v1/shots/${encodeURIComponent(shotId)}/video-generation/preflight`,
+          `/api/v2/shots/${encodeURIComponent(shotId)}/video-generation/preflight`,
           {
             method: "POST",
             body: JSON.stringify(input),
           },
         ),
       create: (input, idempotencyKey) =>
-        request("/api/v1/video-generation/runs", {
+        request("/api/v2/video-generation/runs", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
         }),
       listByShot: (shotId) =>
         request(
-          `/api/v1/shots/${encodeURIComponent(shotId)}/video-generation/runs`,
+          `/api/v2/shots/${encodeURIComponent(shotId)}/video-generation/runs`,
         ),
       get: (id) =>
-        request(`/api/v1/video-generation/runs/${encodeURIComponent(id)}`),
+        request(`/api/v2/video-generation/runs/${encodeURIComponent(id)}`),
       refresh: (id) =>
         request(
-          `/api/v1/video-generation/runs/${encodeURIComponent(id)}/refresh`,
+          `/api/v2/video-generation/runs/${encodeURIComponent(id)}/refresh`,
           { method: "POST" },
         ),
       cancel: (id) =>
         request(
-          `/api/v1/video-generation/runs/${encodeURIComponent(id)}/cancel`,
+          `/api/v2/video-generation/runs/${encodeURIComponent(id)}/cancel`,
           { method: "POST" },
         ),
       retry: (id, input, idempotencyKey) =>
         request(
-          `/api/v1/video-generation/runs/${encodeURIComponent(id)}/retry`,
+          `/api/v2/video-generation/runs/${encodeURIComponent(id)}/retry`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -1517,43 +1589,43 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     analysis: {
       runChapter: (id) =>
-        request(`/api/v1/chapters/${encodeURIComponent(id)}/analysis`, {
+        request(`/api/v2/chapters/${encodeURIComponent(id)}/analysis`, {
           method: "POST",
         }),
     },
     events: { subscribe },
     search: {
-      global: (query) => request(`/api/v1/search/${encodeURIComponent(query)}`),
+      global: (query) => request(`/api/v2/search/${encodeURIComponent(query)}`),
     },
     backups: {
-      list: () => request("/api/v1/backups"),
-      create: () => request("/api/v1/backups", { method: "POST" }),
+      list: () => request("/api/v2/backups"),
+      create: () => request("/api/v2/backups", { method: "POST" }),
       restore: (id) =>
-        request(`/api/v1/backups/${id}/restore`, { method: "POST" }),
+        request(`/api/v2/backups/${id}/restore`, { method: "POST" }),
     },
     exports: {
       project: (id, format) =>
-        request(`/api/v1/exports/projects/${encodeURIComponent(id)}/${format}`),
+        request(`/api/v2/exports/projects/${encodeURIComponent(id)}/${format}`),
     },
     sourceImports: {
       preview: (input) =>
-        request("/api/v1/source-imports/preview", {
+        request("/api/v2/source-imports/preview", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       commit: (id, input) =>
-        request(`/api/v1/source-imports/${encodeURIComponent(id)}/commit`, {
+        request(`/api/v2/source-imports/${encodeURIComponent(id)}/commit`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       discard: (id) =>
-        request(`/api/v1/source-imports/${encodeURIComponent(id)}`, {
+        request(`/api/v2/source-imports/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
     },
     workflows: {
       runEpisode: (input, idempotencyKey) =>
-        request("/api/v1/workflows/episodes/run", {
+        request("/api/v2/workflows/episodes/run", {
           method: "POST",
           headers: { "Idempotency-Key": idempotencyKey },
           body: JSON.stringify(input),
@@ -1561,25 +1633,25 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     feedback: {
       preview: (input) =>
-        request("/api/v1/feedback/preview", {
+        request("/api/v2/feedback/preview", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       commit: (id, input) =>
-        request(`/api/v1/feedback/${encodeURIComponent(id)}/commit`, {
+        request(`/api/v2/feedback/${encodeURIComponent(id)}/commit`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       dashboard: (projectId) =>
-        request(`/api/v1/projects/${encodeURIComponent(projectId)}/feedback`),
+        request(`/api/v2/projects/${encodeURIComponent(projectId)}/feedback`),
       cluster: (input) =>
-        request("/api/v1/feedback/clusters", {
+        request("/api/v2/feedback/clusters", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       createRevisionTask: (clusterId, idempotencyKey) =>
         request(
-          `/api/v1/feedback/clusters/${encodeURIComponent(clusterId)}/revision-task`,
+          `/api/v2/feedback/clusters/${encodeURIComponent(clusterId)}/revision-task`,
           {
             method: "POST",
             headers: { "Idempotency-Key": idempotencyKey },
@@ -1588,36 +1660,36 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     },
     support: {
       createDemoProject: () =>
-        request("/api/v1/demo/projects", { method: "POST" }),
-      diagnostics: () => request("/api/v1/diagnostics"),
+        request("/api/v2/demo/projects", { method: "POST" }),
+      diagnostics: () => request("/api/v2/diagnostics"),
     },
     visuals: {
       adoptStill: (id) =>
-        request(`/api/v1/shot-stills/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/shot-stills/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       adoptVisualAsset: (id) =>
-        request(`/api/v1/visual-assets/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/visual-assets/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
       lockVisualAsset: (id) =>
-        request(`/api/v1/visual-assets/${encodeURIComponent(id)}/lock`, {
+        request(`/api/v2/visual-assets/${encodeURIComponent(id)}/lock`, {
           method: "POST",
         }),
       adoptVideo: (id) =>
-        request(`/api/v1/videos/${encodeURIComponent(id)}/adopt`, {
+        request(`/api/v2/videos/${encodeURIComponent(id)}/adopt`, {
           method: "POST",
         }),
     },
     assetCenter: {
       get: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/asset-center`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/asset-center`,
         ),
       preview: (id) =>
-        request(`/api/v1/asset-center/${encodeURIComponent(id)}/preview`),
+        request(`/api/v2/asset-center/${encodeURIComponent(id)}/preview`),
       action: (id, input) =>
-        request(`/api/v1/asset-center/${encodeURIComponent(id)}/action`, {
+        request(`/api/v2/asset-center/${encodeURIComponent(id)}/action`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
@@ -1625,10 +1697,10 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     production: {
       graph: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/production-graph`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/production-graph`,
         ),
       impact: (input) =>
-        request("/api/v1/production/impact", {
+        request("/api/v2/production/impact", {
           method: "POST",
           body: JSON.stringify(input),
         }),
@@ -1636,10 +1708,10 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     generation: {
       list: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/generation-ledger`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/generation-ledger`,
         ),
       update: (id, patch) =>
-        request(`/api/v1/generation-ledger/${encodeURIComponent(id)}`, {
+        request(`/api/v2/generation-ledger/${encodeURIComponent(id)}`, {
           method: "PATCH",
           body: JSON.stringify(patch),
         }),
@@ -1647,16 +1719,16 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     contentVersions: {
       list: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/content-versions`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/content-versions`,
         ),
       restore: (id) =>
-        request(`/api/v1/content-versions/${encodeURIComponent(id)}/restore`, {
+        request(`/api/v2/content-versions/${encodeURIComponent(id)}/restore`, {
           method: "POST",
         }),
     },
     templates: {
       run: (id, input) =>
-        request(`/api/v1/templates/${encodeURIComponent(id)}/run`, {
+        request(`/api/v2/templates/${encodeURIComponent(id)}/run`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
@@ -1664,50 +1736,50 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     productionStructure: {
       selectCurrentAdaptation: (projectId, input) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/current-adaptation`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/current-adaptation`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       reorderEpisodes: (adaptationId, input) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/episodes/reorder`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/episodes/reorder`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       reorderScenes: (scriptId, input) =>
         request(
-          `/api/v1/scripts/${encodeURIComponent(scriptId)}/scenes/reorder`,
+          `/api/v2/scripts/${encodeURIComponent(scriptId)}/scenes/reorder`,
           { method: "POST", body: JSON.stringify(input) },
         ),
       reorderShots: (sceneId, input) =>
-        request(`/api/v1/scenes/${encodeURIComponent(sceneId)}/shots/reorder`, {
+        request(`/api/v2/scenes/${encodeURIComponent(sceneId)}/shots/reorder`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
     },
     productionReviews: {
       getScript: (id) =>
-        request(`/api/v1/scripts/${encodeURIComponent(id)}/review`),
+        request(`/api/v2/scripts/${encodeURIComponent(id)}/review`),
       runScript: (id) =>
-        request(`/api/v1/scripts/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/scripts/${encodeURIComponent(id)}/review`, {
           method: "POST",
         }),
       removeScript: (id) =>
-        request(`/api/v1/scripts/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/scripts/${encodeURIComponent(id)}/review`, {
           method: "DELETE",
         }),
       getShot: (id) =>
-        request(`/api/v1/shots/${encodeURIComponent(id)}/review`),
+        request(`/api/v2/shots/${encodeURIComponent(id)}/review`),
       runShot: (id) =>
-        request(`/api/v1/shots/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/shots/${encodeURIComponent(id)}/review`, {
           method: "POST",
         }),
       removeShot: (id) =>
-        request(`/api/v1/shots/${encodeURIComponent(id)}/review`, {
+        request(`/api/v2/shots/${encodeURIComponent(id)}/review`, {
           method: "DELETE",
         }),
       listPromptVersions: (shotId) =>
-        request(`/api/v1/shots/${encodeURIComponent(shotId)}/prompt-versions`),
+        request(`/api/v2/shots/${encodeURIComponent(shotId)}/prompt-versions`),
       appendPromptVersion: (shotId, input) =>
-        request(`/api/v1/shots/${encodeURIComponent(shotId)}/prompt-versions`, {
+        request(`/api/v2/shots/${encodeURIComponent(shotId)}/prompt-versions`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
@@ -1715,50 +1787,50 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     adaptationAnalysis: {
       get: (adaptationId) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
         ),
       run: (adaptationId) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
           { method: "POST" },
         ),
       remove: (adaptationId) =>
         request(
-          `/api/v1/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
+          `/api/v2/adaptations/${encodeURIComponent(adaptationId)}/episode-analysis`,
           { method: "DELETE" },
         ),
     },
     creative: {
-      listCaseStudies: () => request("/api/v1/creative/case-studies"),
+      listCaseStudies: () => request("/api/v2/creative/case-studies"),
       createCaseStudy: (input) =>
-        request("/api/v1/creative/case-studies", {
+        request("/api/v2/creative/case-studies", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       updateCaseStudy: (id, input) =>
-        request(`/api/v1/creative/case-studies/${encodeURIComponent(id)}`, {
+        request(`/api/v2/creative/case-studies/${encodeURIComponent(id)}`, {
           method: "PATCH",
           body: JSON.stringify(input),
         }),
       removeCaseStudy: (id) =>
-        request(`/api/v1/creative/case-studies/${encodeURIComponent(id)}`, {
+        request(`/api/v2/creative/case-studies/${encodeURIComponent(id)}`, {
           method: "DELETE",
         }),
       listDiagnostics: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/creative-diagnostics`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/creative-diagnostics`,
         ),
       runDiagnostics: (input) =>
-        request("/api/v1/creative/diagnostics", {
+        request("/api/v2/creative/diagnostics", {
           method: "POST",
           body: JSON.stringify(input),
         }),
       listIssueAcknowledgements: (projectId) =>
         request(
-          `/api/v1/projects/${encodeURIComponent(projectId)}/creative-issue-acknowledgements`,
+          `/api/v2/projects/${encodeURIComponent(projectId)}/creative-issue-acknowledgements`,
         ),
       acknowledgeIssue: (input) =>
-        request("/api/v1/creative/issue-acknowledgements", {
+        request("/api/v2/creative/issue-acknowledgements", {
           method: "POST",
           body: JSON.stringify(input),
         }),
@@ -1766,7 +1838,7 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
     resources: {
       list: (domain, projectId, parentId) =>
         request(
-          `/api/v1/${encodeURIComponent(domain)}${
+          `/api/v2/${encodeURIComponent(domain)}${
             projectId || parentId
               ? `?${new URLSearchParams({
                   ...(projectId ? { projectId } : {}),
@@ -1777,21 +1849,25 @@ export function createStudioClient(options: StudioClientOptions): StudioClient {
         ),
       get: (domain, id) =>
         request(
-          `/api/v1/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
+          `/api/v2/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
         ),
       create: (domain, input) =>
-        request(`/api/v1/${encodeURIComponent(domain)}`, {
+        request(`/api/v2/${encodeURIComponent(domain)}`, {
           method: "POST",
           body: JSON.stringify(input),
         }),
       update: (domain, id, input) =>
         request(
-          `/api/v1/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
-          { method: "PATCH", body: JSON.stringify(input) },
+          `/api/v2/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            headers: { "If-Match": `"${input.version}"` },
+            body: JSON.stringify(input),
+          },
         ),
       remove: (domain, id) =>
         request(
-          `/api/v1/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
+          `/api/v2/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
           { method: "DELETE" },
         ),
     },

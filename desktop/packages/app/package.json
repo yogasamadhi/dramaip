@@ -1,6 +1,6 @@
 {
-  "name": "@sdns/app",
-  "version": "0.1.0",
+  "name": "@dramaip/ui",
+  "version": "3.0.0-alpha.3",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sdns/client": "workspace:*",
-    "@sdns/ui": "workspace:*",
+    "@dramaip/client": "workspace:*",
+    "@dramaip/contracts": "workspace:*",
+    "@dramaip/ui-runtime": "workspace:*",
+    "@dramaip/ui-shared": "workspace:*",
     "@tanstack/react-query": "catalog:",
     "@tiptap/extension-placeholder": "^2.11.2",
     "@tiptap/pm": "^2.11.2",

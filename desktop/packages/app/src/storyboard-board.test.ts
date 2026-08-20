@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import type { AssetCenterAsset, DomainEntity } from "@sdns/schema";
+import type {
+  AssetCenterAsset,
+  DomainEntity,
+} from "@dramaip/contracts/product";
 import { buildStoryboard, reorderStoryboardShots } from "./storyboard-board";
 
 const entity = (

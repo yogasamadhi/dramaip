@@ -1,4 +1,4 @@
-import type { ProjectInput } from "@sdns/schema";
+import type { ProjectInput } from "@dramaip/contracts/product";
 
 export const PROJECT_CREATION_SOURCES = [
   "inspiration",

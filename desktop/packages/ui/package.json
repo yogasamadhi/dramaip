@@ -1,6 +1,6 @@
 {
-  "name": "@sdns/ui",
-  "version": "0.1.0",
+  "name": "@dramaip/ui-shared",
+  "version": "3.0.0-alpha.3",
   "private": true,
   "type": "module",
   "exports": {

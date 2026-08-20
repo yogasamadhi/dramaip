@@ -29,10 +29,17 @@ describe("LM7 desktop UI architecture", () => {
 
   test("navigation and design-token limits remain stable", () => {
     const shell = read("./app-shell.tsx");
-    expect(shell).toContain('["/", "项目"]');
-    expect(shell).toContain('["/write", "小说写作"]');
-    expect(shell.indexOf('["/", "项目"]')).toBeLessThan(
-      shell.indexOf('["/write", "小说写作"]'),
+    const studio = read("./studio-app.tsx");
+    const workspace = read("../../../plugins/workspace/src/index.ts");
+    const writing = read("../../../plugins/writing/src/index.ts");
+    expect(shell).toContain("props.navigation");
+    expect(studio).toContain("contributionsOfKind(");
+    expect(studio).toContain('"navigation",');
+    expect(workspace).toContain(
+      'metadata: { section: "main", order: 10, label: "项目", to: "/" }',
+    );
+    expect(writing).toContain(
+      'metadata: { section: "main", order: 20, label: "小说写作", to: "/write" }',
     );
 
     const sources = [

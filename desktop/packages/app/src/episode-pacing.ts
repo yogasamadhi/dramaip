@@ -1,4 +1,4 @@
-import type { DomainEntity } from "@sdns/schema";
+import type { DomainEntity } from "@dramaip/contracts/product";
 
 export type PacingKind = "density" | "highlight" | "reversal" | "cliffhanger";
 export type PacingDisposition = "active" | "rejected";

@@ -1,0 +1,12 @@
+{
+  "name": "e2e",
+  "bundles": [
+    "core",
+    "automation-suite",
+    "writing-suite",
+    "agents-suite",
+    "production-suite",
+    "analytics-suite"
+  ],
+  "config": { "deterministic": true }
+}

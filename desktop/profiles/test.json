@@ -1,0 +1,5 @@
+{
+  "name": "test",
+  "bundles": ["core"],
+  "config": { "deterministic": true }
+}

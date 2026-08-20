@@ -1,6 +1,6 @@
 {
-  "name": "@sdns/ai",
-  "version": "0.1.0",
+  "name": "@dramaip/agent-host-adapters",
+  "version": "3.0.0-alpha.3",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -11,9 +11,5 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@sdns/mcp": "workspace:*",
-    "@sdns/schema": "workspace:*",
-    "effect": "catalog:"
-  }
+  "dependencies": {}
 }

@@ -2,7 +2,7 @@ import type {
   AgentEngineDescriptor,
   AgentTaskDescriptor,
   AgentTaskType,
-} from "@sdns/schema";
+} from "@dramaip/contracts/product";
 
 export type ContextAssistantMode = "simple" | "advanced";
 

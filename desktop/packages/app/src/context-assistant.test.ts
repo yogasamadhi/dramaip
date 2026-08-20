@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import type { AgentEngineDescriptor, AgentTaskDescriptor } from "@sdns/schema";
+import type {
+  AgentEngineDescriptor,
+  AgentTaskDescriptor,
+} from "@dramaip/contracts/product";
 import {
   CONTEXT_ASSISTANT_REGISTRY,
   assertContextAssistantRegistry,
@@ -30,8 +33,8 @@ const catalog: AgentTaskDescriptor[] = Array.from(
 }));
 
 const availableEngine = {
-  kind: "opencode",
-  name: "OpenCode",
+  kind: "pi",
+  name: "Pi",
   version: "test",
   status: "available",
   isDefault: true,

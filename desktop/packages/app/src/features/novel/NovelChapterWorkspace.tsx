@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from "react";
 import { Link } from "react-router-dom";
-import type { StudioClient } from "@sdns/client";
+import type { StudioClient } from "@dramaip/client";
 import type {
   AgentEngineDescriptor,
   AgentEngineKind,
@@ -26,9 +26,15 @@ import type {
   DomainEntity,
   NovelChapterStatus,
   Task,
-} from "@sdns/schema";
-import { MODEL_PROVIDER_CATALOG } from "@sdns/schema";
-import { BareButton, Button, Dialog, Textarea, confirmDialog } from "@sdns/ui";
+} from "@dramaip/contracts/product";
+import { MODEL_PROVIDER_CATALOG } from "@dramaip/contracts/product";
+import {
+  BareButton,
+  Button,
+  Dialog,
+  Textarea,
+  confirmDialog,
+} from "@dramaip/ui-shared";
 import {
   buildSegmentedTextDiff,
   changedBlockIds,
@@ -776,7 +782,7 @@ function NovelEditor(
   );
   const [instruction, setInstruction] = useState("");
   const [engines, setEngines] = useState<AgentEngineDescriptor[]>([]);
-  const [engineKind, setEngineKind] = useState<AgentEngineKind>("opencode");
+  const [engineKind, setEngineKind] = useState<AgentEngineKind>("pi");
   const [modelId, setModelId] = useState("");
   const [conversations, setConversations] = useState<AgentSession[]>([]);
   const [archivedConversations, setArchivedConversations] = useState<
