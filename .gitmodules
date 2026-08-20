@@ -1,0 +1,19 @@
+[submodule "desktop/vendor/codex-rust"]
+	path = desktop/vendor/codex-rust
+	url = https://github.com/openai/codex.git
+
+[submodule "desktop/vendor/deepseek-harness"]
+	path = desktop/vendor/deepseek-harness
+	url = https://github.com/deepseek-ai/deepseek-harness.git
+
+[submodule "desktop/vendor/grok-build"]
+	path = desktop/vendor/grok-build
+	url = https://github.com/xai-org/grok-build.git
+
+[submodule "desktop/vendor/opencode"]
+	path = desktop/vendor/opencode
+	url = https://github.com/anomalyco/opencode.git
+
+[submodule "desktop/vendor/pi"]
+	path = desktop/vendor/pi
+	url = https://github.com/earendil-works/pi.git

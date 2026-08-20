@@ -80,6 +80,7 @@ async function collectDshSourceFiles(relative = "") {
     withFileTypes: true,
   })) {
     const path = relative ? `${relative}/${entry.name}` : entry.name;
+    if (entry.name === ".git") continue;
     if (entry.isDirectory()) {
       if (
         dshExcludedDirectories.has(entry.name) ||
@@ -125,7 +126,7 @@ async function frozenTree(
       withFileTypes: true,
     })) {
       const path = relative ? `${relative}/${entry.name}` : entry.name;
-      if (excludedPaths.has(path)) continue;
+      if (entry.name === ".git" || excludedPaths.has(path)) continue;
       if (entry.isDirectory()) {
         if (!excludedDirectories.has(entry.name))
           files.push(...(await collect(path)));
